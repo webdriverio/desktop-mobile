@@ -106,9 +106,20 @@ ${WDIO_MOCK_SETUP_SCRIPT}
     return Promise.reject(new Error('unmocked Electron IPC channel in browser mode: ' + channel));
   };
   window.electron.ipcRenderer.send = function(channel) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    var mock = window.__wdio_mocks__ && window.__wdio_mocks__[channel];
+    if (mock && typeof mock === 'function') {
+      mock.apply(null, args);
+      return;
+    }
     throw new Error('unmocked Electron IPC channel in browser mode: ' + channel);
   };
   window.electron.ipcRenderer.sendSync = function(channel) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    var mock = window.__wdio_mocks__ && window.__wdio_mocks__[channel];
+    if (mock && typeof mock === 'function') {
+      return mock.apply(null, args);
+    }
     throw new Error('unmocked Electron IPC channel in browser mode: ' + channel);
   };
   window.electron.ipcRenderer.on = function() {};

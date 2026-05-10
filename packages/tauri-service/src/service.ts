@@ -322,6 +322,7 @@ export default class TauriWorkerService {
           await browser.execute(injectionScript);
         } catch (error) {
           log.warn('Failed to re-inject IPC script after navigation:', error);
+          throw error;
         }
       }
       return result;
