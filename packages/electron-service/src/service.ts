@@ -48,6 +48,7 @@ export function browserModeStoreKey(browser: WebdriverIO.Browser, channel: strin
 }
 
 const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
+const pendingRegistrations = new WeakMap<WebdriverIO.Browser, Map<string, Promise<void>>>();
 
 class MockUpdateScheduler {
   #running: Promise<void> | null = null;
@@ -409,18 +410,35 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
           mockStore.setMockWithKey(storeKey, newMock);
           return newMock;
         }
-        // Re-register browser-side entry only if navigation wiped window.__wdio_mocks__
-        const isBrowserSideLive = (await browser.execute(
-          `return !!(window.__wdio_mocks__ && typeof window.__wdio_mocks__[${JSON.stringify(channel)}] === 'function')`,
-        )) as boolean;
-        if (!isBrowserSideLive) {
-          await browser.execute(`return (${browserInterceptor.buildRegistrationScript(channel)})()`);
-          const replayImpl = (existing as unknown as Record<string, unknown>).__replayBrowserImpl;
-          if (typeof replayImpl === 'function') {
-            await (replayImpl as () => Promise<void>)();
-          }
-          await existing.mockClear();
+        // Concurrent mock(channel) callers after navigation must share a single
+        // re-registration: the liveness check, registration script, impl replay,
+        // and mockClear all happen exactly once inside this gate.
+        let inflight = pendingRegistrations.get(browser);
+        if (!inflight) {
+          inflight = new Map();
+          pendingRegistrations.set(browser, inflight);
         }
+        let registration = inflight.get(channel);
+        if (!registration) {
+          const target = existing;
+          const run = (async () => {
+            const isLive = (await browser.execute(
+              `return !!(window.__wdio_mocks__ && typeof window.__wdio_mocks__[${JSON.stringify(channel)}] === 'function')`,
+            )) as boolean;
+            if (isLive) return;
+            await browser.execute(`return (${browserInterceptor.buildRegistrationScript(channel)})()`);
+            const replayImpl = (target as unknown as Record<string, unknown>).__replayBrowserImpl;
+            if (typeof replayImpl === 'function') {
+              await (replayImpl as () => Promise<void>)();
+            }
+            await target.mockClear();
+          })();
+          registration = run.finally(() => {
+            if (inflight.get(channel) === registration) inflight.delete(channel);
+          });
+          inflight.set(channel, registration);
+        }
+        await registration;
         return existing;
       },
       mockAll: async () => {

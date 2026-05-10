@@ -1,3 +1,4 @@
+import type { ElectronMock } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../../src/mockStore.js';
 import ElectronWorkerService, { browserModeStoreKey } from '../../src/service.js';
@@ -110,5 +111,128 @@ describe('browser mode — MockUpdateScheduler', () => {
 
   it('should be a no-op when the mock store is empty', async () => {
     await expect(browser.triggerCommand('click')).resolves.not.toThrow();
+  });
+});
+
+describe('browser mode — registration gate', () => {
+  let service: ElectronWorkerService;
+  let browser: FakeBrowser;
+
+  beforeEach(async () => {
+    mockStore.clear();
+    service = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
+    browser = createFakeBrowser();
+    await service.before({}, [], browser as unknown as WebdriverIO.Browser);
+  });
+
+  afterEach(() => {
+    mockStore.clear();
+  });
+
+  function seedExistingMock(channel: string) {
+    const mockClear = vi.fn().mockResolvedValue(undefined);
+    const replayBrowserImpl = vi.fn().mockResolvedValue(undefined);
+    const existing = {
+      __isElectronMock: true,
+      __replayBrowserImpl: replayBrowserImpl,
+      mockClear,
+      getMockName: () => `electron.${channel}`,
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, channel);
+    mockStore.setMockWithKey(key, existing as unknown as ElectronMock);
+    return { existing, mockClear, replayBrowserImpl };
+  }
+
+  function isLivenessScript(arg: unknown): boolean {
+    return typeof arg === 'string' && arg.startsWith('return !!(window.__wdio_mocks__');
+  }
+
+  function isRegistrationScript(arg: unknown, channel: string): boolean {
+    return (
+      typeof arg === 'string' && arg.includes(`__wdio_mocks__[${JSON.stringify(channel)}]`) && !isLivenessScript(arg)
+    );
+  }
+
+  it('should register exactly once when two concurrent mock() calls race after navigation', async () => {
+    const { mockClear, replayBrowserImpl } = seedExistingMock('appInfo:get');
+    browser.execute.mockResolvedValue(false);
+
+    const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
+    await Promise.all([api('appInfo:get'), api('appInfo:get')]);
+
+    const livenessCalls = browser.execute.mock.calls.filter((c) => isLivenessScript(c[0]));
+    const registrationCalls = browser.execute.mock.calls.filter((c) => isRegistrationScript(c[0], 'appInfo:get'));
+    expect(livenessCalls).toHaveLength(1);
+    expect(registrationCalls).toHaveLength(1);
+    expect(replayBrowserImpl).toHaveBeenCalledTimes(1);
+    expect(mockClear).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not serialize concurrent mock() calls on different channels', async () => {
+    seedExistingMock('chan1');
+    seedExistingMock('chan2');
+
+    const chan1Registration = defer<unknown>();
+    browser.execute.mockImplementation(async (arg: unknown) => {
+      if (isLivenessScript(arg)) return false;
+      if (isRegistrationScript(arg, 'chan1')) return chan1Registration.promise;
+      return undefined;
+    });
+
+    const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
+    const p1 = api('chan1');
+    const p2 = api('chan2');
+
+    await p2;
+    let p1Settled = false;
+    p1.finally(() => {
+      p1Settled = true;
+    });
+    await flushMicrotasks();
+    expect(p1Settled).toBe(false);
+
+    chan1Registration.resolve(undefined);
+    await p1;
+  });
+
+  it('should skip re-registration when the browser side is already live', async () => {
+    const { mockClear, replayBrowserImpl } = seedExistingMock('appInfo:get');
+    browser.execute.mockResolvedValue(true);
+
+    const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
+    await api('appInfo:get');
+
+    const registrationCalls = browser.execute.mock.calls.filter((c) => isRegistrationScript(c[0], 'appInfo:get'));
+    expect(registrationCalls).toHaveLength(0);
+    expect(replayBrowserImpl).not.toHaveBeenCalled();
+    expect(mockClear).not.toHaveBeenCalled();
+  });
+
+  it('should allow a later mock() call to retry after a registration failure', async () => {
+    const { mockClear, replayBrowserImpl } = seedExistingMock('appInfo:get');
+    let livenessCalls = 0;
+    let registrationCalls = 0;
+    browser.execute.mockImplementation(async (arg: unknown) => {
+      if (isLivenessScript(arg)) {
+        livenessCalls++;
+        return false;
+      }
+      if (isRegistrationScript(arg, 'appInfo:get')) {
+        registrationCalls++;
+        if (registrationCalls === 1) throw new Error('registration failed');
+        return undefined;
+      }
+      return undefined;
+    });
+
+    const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
+    await expect(api('appInfo:get')).rejects.toThrow('registration failed');
+
+    await api('appInfo:get');
+    expect(livenessCalls).toBe(2);
+    expect(registrationCalls).toBe(2);
+    expect(replayBrowserImpl).toHaveBeenCalledTimes(1);
+    expect(mockClear).toHaveBeenCalledTimes(1);
   });
 });
