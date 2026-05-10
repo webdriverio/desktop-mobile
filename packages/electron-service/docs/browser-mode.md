@@ -156,7 +156,7 @@ await mockGetUser.mockRestore();
 
 ### `mock(channel)` Is Idempotent
 
-Calling `browser.electron.mock(channel)` multiple times for the same channel is safe. The service returns the existing mock if the browser-side entry is still live, or silently re-registers it (without resetting call history or implementation) if a navigation wiped `window.__wdio_mocks__`.
+Calling `browser.electron.mock(channel)` multiple times for the same channel is safe. The service returns the existing mock unchanged if the browser-side entry is still live. If a navigation wiped `window.__wdio_mocks__`, it silently re-registers the entry and replays any previously-set implementation, but clears call history (via an internal `mockClear()`). Calls accumulated before the navigation will not appear in `mock.mock.calls` after re-registration.
 
 This means it is safe to call `mock(channel)` in both `beforeAll` and `beforeEach`:
 

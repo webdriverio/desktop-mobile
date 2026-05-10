@@ -244,23 +244,16 @@ await browser.tauri.emitEvent('one-shot');
 
 ### `mock(command)` Is Idempotent
 
-Calling `browser.tauri.mock(command)` multiple times for the same command is safe. The service returns the existing mock if the browser-side entry is still live, or silently re-registers it (without resetting call history or implementation) if a navigation wiped `window.__wdio_mocks__`.
-
-This means it is safe to call `mock(command)` in both `beforeAll` and `beforeEach`:
+Calling `browser.tauri.mock(command)` multiple times for the same command is safe, but the service always **fully resets** the existing mock (via `mockReset()`) before returning it — both call history and any previously-set implementation are cleared on every call. Set the implementation in `beforeEach` rather than relying on `beforeAll` setup persisting.
 
 ```ts
 describe('File panel', () => {
   let mockReadFile: TauriMock;
 
-  beforeAll(async () => {
+  beforeEach(async () => {
+    // mock() fully resets — re-set the implementation each test
     mockReadFile = await browser.tauri.mock('read_file');
     await mockReadFile.mockResolvedValue('default content');
-  });
-
-  beforeEach(async () => {
-    // Safe to call again — returns the same mock, implementation is preserved
-    mockReadFile = await browser.tauri.mock('read_file');
-    await mockReadFile.mockClear(); // Reset call history only
   });
 
   it('displays file content', async () => {
@@ -283,19 +276,21 @@ Use `mockClear()` in `beforeEach` when you want a clean call history but want to
 
 ## Navigation
 
-`browser.url()` is patched by the service to re-run the IPC injection script after every navigation. This re-creates `window.__wdio_mocks__` (as an empty object) and patches `window.__TAURI_INTERNALS__.invoke` again, so existing mock handles remain valid — calling `mock(command)` after navigation re-registers the browser-side entry on demand.
+`browser.url()` is patched by the service to re-run the IPC injection script after every navigation. This re-creates `window.__wdio_mocks__` (as an empty object) and patches `window.__TAURI_INTERNALS__.invoke` again. Existing mock handles remain valid as JS objects, but their browser-side entries are gone — calling `mock(command)` alone after navigation will not re-register them. To recover, call `mockRestore()` (which removes the entry from the worker-side store) and then `mock(command)` to re-create the browser-side entry.
 
 ```ts
-it('preserves mock handles across navigation', async () => {
-  const mockGetConfig = await browser.tauri.mock('get_config');
+it('re-registers mocks after navigation', async () => {
+  let mockGetConfig = await browser.tauri.mock('get_config');
   await mockGetConfig.mockResolvedValue({ theme: 'dark' });
 
-  // Navigate to another route
+  // Navigate to another route — wipes window.__wdio_mocks__
   await browser.url('http://localhost:1420/settings');
 
-  // Re-register and use — same outer mock object, fresh browser-side spy
-  await browser.tauri.mock('get_config');
-  await mockGetConfig.mockResolvedValue({ theme: 'dark' }); // Re-set implementation
+  // The browser-side entry is gone. Restore (removes from store), then mock() to re-create.
+  await mockGetConfig.mockRestore();
+  mockGetConfig = await browser.tauri.mock('get_config');
+  await mockGetConfig.mockResolvedValue({ theme: 'dark' });
+
   await $('button#load-config').click();
   await mockGetConfig.update();
   expect(mockGetConfig).toHaveBeenCalledTimes(1);
@@ -388,7 +383,7 @@ Your renderer called `invoke(command)` before a mock was registered for that com
 
 ### Mock returns `undefined` after navigation
 
-The browser-side mock was wiped by the navigation. Call `browser.tauri.mock(command)` again to re-register it and re-apply any implementation you need.
+The browser-side entry was wiped by the navigation, and calling `mock(command)` alone will not re-register it (the worker-side mock is reset but the browser-side spy is not re-created). Call `mock.mockRestore()` first to delete the worker-side entry, then call `browser.tauri.mock(command)` to re-create both sides, and re-apply any implementation you need.
 
 ### App commands during startup are not intercepted
 
