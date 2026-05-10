@@ -28,8 +28,8 @@ The table below quantifies the key factors used to prioritise and sequence plann
 | **Flutter** | Mobile | ~175k | Appium Flutter Driver | ✅ Production-ready | Reuses React Native mobile scaffold | Appium Flutter Driver maintenance, Dart VM | Medium |
 | **Ionic / Capacitor** | Mobile | ~52k / ~15k | Appium WebView context switching | ✅ Proven | Reuses mobile scaffold; pure WebView — zero new complexity | Appium server, native WebView availability | Low |
 | **Dioxus** | Desktop | ~34k | Wry webview → CDP (shared with Tauri) | 🟡 Emerging | High — same Wry/CDP patterns as Tauri service | Wry maturity, Dioxus desktop stability | Low–Medium |
+| **Electrobun** | Desktop | ~11.7k | Native CDP (port 9222 by convention) | 🟡 Emerging | Medium — CDP attach patterns from Electron service; no driver process | Bun runtime, system webviews, OOPIF (per-tab) target routing | Medium |
 | **Neutralino** | Desktop | ~7.9k | System webview → CDP (devtools endpoint) | 🟡 Emerging | Medium — similar endpoint detection to Electron service | System webview (WebView2 / WebKitGTK) | Low |
-| **Electrobun** | Desktop | ~11.7k | Native CDP (port 9222) | 🟡 Emerging (Beta) | Medium — CDP attach patterns from Electron service; no driver process | Bun runtime, system webviews, OOPIF (per-tab) target routing | Medium |
 | **Dioxus Mobile** | Mobile | *(same repo)* | Cargo Mobile 2 — experimental | 🔴 Early-stage | Reuses mobile scaffold + Dioxus desktop learnings | Cargo Mobile 2 maturity, platform bridge stability | High |
 | **React Native Desktop** | Desktop | *(same repo)* | Less mature than mobile counterpart | 🟡 Emerging | Leverages Phase 2 mobile experience | React Native Desktop renderer maturity | Medium–High |
 
@@ -111,10 +111,10 @@ The table below quantifies the key factors used to prioritise and sequence plann
 - Growing momentum in the lightweight desktop space (~12MB bundles, sub-50ms startup)
 - TypeScript-first authoring with Bun runtime, no Node.js requirement
 - System webview model aligns with Tauri/Dioxus patterns
-- MIT-licensed, active beta with v1 already shipped
+- MIT-licensed; v1 line shipped, APIs still stabilizing
 
 **Technical approach:**
-- Direct CDP attachment via WebSocket (default port 9222, configurable via `ELECTROBUN_CDP_PORT`)
+- Direct CDP attachment via WebSocket on the underlying webview's debugger port (port 9222 by `agent-electrobun` convention; the WDIO service will define its own override mechanism rather than rely on a built-in Electrobun env var)
 - No external driver process — connect like Electron, not Tauri
 - Multi-target session management for OOPIF webviews (shell vs per-tab CDP targets, classified by URL path)
 - Observation/input-only protocol calls — no `Page.navigate` on attach (would destroy app state)
