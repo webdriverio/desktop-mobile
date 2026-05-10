@@ -12,6 +12,7 @@ const log = createLogger('electron-service', 'launcher');
 function isApparmorRestricted(): boolean {
   try {
     let isApparmorRunning = false;
+    let detectionMethod = '';
 
     // Method 1: Try aa-status first (best practice when available)
     try {
@@ -19,6 +20,7 @@ function isApparmorRestricted(): boolean {
       if (apparmorStatus.status === 0 || apparmorStatus.status === 4) {
         // Exit code 4 means AppArmor is present but we lack privileges
         isApparmorRunning = true;
+        detectionMethod = `aa-status (exit=${apparmorStatus.status})`;
       }
     } catch {
       // aa-status not available, fall through to filesystem check
@@ -32,13 +34,16 @@ function isApparmorRestricted(): boolean {
         try {
           const profiles = fs.readFileSync(apparmorProfilesPath, 'utf8').trim();
           isApparmorRunning = profiles.length > 0;
+          detectionMethod = `profiles-file (${isApparmorRunning ? 'non-empty' : 'empty'})`;
         } catch {
           isApparmorRunning = true; // Assume running if we can't read (permission issue)
+          detectionMethod = 'profiles-file (unreadable, assuming active)';
         }
       }
     }
 
     if (!isApparmorRunning) {
+      log.debug('AppArmor not detected (aa-status absent and no profiles file)');
       return false;
     }
 
@@ -46,12 +51,18 @@ function isApparmorRestricted(): boolean {
     const restrictionPath = '/proc/sys/kernel/apparmor_restrict_unprivileged_userns';
 
     if (!fs.existsSync(restrictionPath)) {
-      log.debug('AppArmor active but restriction file missing — applying workaround as precaution');
+      log.debug(
+        `AppArmor active (${detectionMethod}) but restriction file missing — applying workaround as precaution`,
+      );
       return true; // Apply workaround when AppArmor is active but we can't check the specific restriction
     }
 
     const restriction = fs.readFileSync(restrictionPath, 'utf8').trim();
-    return restriction === '1';
+    const isRestricted = restriction === '1';
+    log.debug(
+      `AppArmor detected via ${detectionMethod}; userns restriction=${restriction} (workaround needed: ${isRestricted})`,
+    );
+    return isRestricted;
   } catch (error) {
     log.debug(
       `AppArmor restriction check errored, applying workaround: ${error instanceof Error ? error.message : String(error)}`,

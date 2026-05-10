@@ -123,7 +123,12 @@ export async function createMock(
         { internal: true },
       )) ?? [];
 
+    // Load-bearing for diagnosing mock-sync races: shows inner/outer call counts
+    // at the moment update() runs so empty-mock.calls assertions can be traced.
     if (originalMock.calls.length < calls.length) {
+      log.debug(
+        `[${apiName}.${funcName}] mock.update: applying ${calls.length - originalMock.calls.length} new calls (inner=${calls.length}, outer=${originalMock.calls.length})`,
+      );
       calls.forEach((call: unknown[], index: number) => {
         if (!originalMock.calls[index]) {
           mock?.apply(mock, call);

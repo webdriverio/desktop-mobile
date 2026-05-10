@@ -1,7 +1,10 @@
 import { type Mock, fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, ElectronClassMock, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
+import { createLogger } from '@wdio/native-utils';
 import { buildMockMethods } from './mockFactory.js';
 import mockStore from './mockStore.js';
+
+const log = createLogger('electron-service', 'mock');
 
 // ============================================================================
 // Prototype mock — one instance method on a class
@@ -126,6 +129,8 @@ export async function createClassMock(
   );
 
   if (!methodNames) {
+    // Diagnostic: helps surface mis-typed class names or absent main-process classes
+    log.debug(`[${className}] class not found on electron object; returning empty stub`);
     const stubInstance: Record<string, unknown> = {};
     const constructorMock = vitestFn() as unknown as ElectronFunctionMock;
     constructorMock.mockName(`electron.${className}.__constructor`);
@@ -136,6 +141,9 @@ export async function createClassMock(
     (stubInstance as Record<string, unknown>).mockRestore = async () => {};
     return stubInstance as ElectronClassMock;
   }
+
+  // Diagnostic: helps when a method assertion fails because the method wasn't discovered
+  log.debug(`[${className}] discovered ${methodNames.length} methods: ${methodNames.join(', ')}`);
 
   const stubInstance: Record<string, ElectronFunctionMock | (() => Promise<void>)> = {};
   for (const methodName of methodNames) {
@@ -197,6 +205,10 @@ export async function createClassMock(
 
     const existingCount = constructorOriginalMock.calls.length;
     if (existingCount < calls.length) {
+      // Load-bearing for diagnosing constructor-mock sync races
+      log.debug(
+        `[${className}.__constructor] mock.update: applying ${calls.length - existingCount} new constructor calls (inner=${calls.length}, outer=${existingCount})`,
+      );
       for (let i = existingCount; i < calls.length; i++) {
         (constructorMock as unknown as (...args: unknown[]) => unknown).apply(constructorMock, calls[i] as unknown[]);
       }
