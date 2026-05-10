@@ -130,6 +130,7 @@ This is because WDIO uses Chrome for Testing to download Chromedriver, which onl
 ### Operations
 - **[Deeplink Testing](./docs/deeplink-testing.md)** — protocol handler tests across platforms
 - **[Standalone Mode](./docs/standalone-mode.md)** — using the service without the WDIO test runner
+- **[Visual Testing](../../docs/visual-testing.md)** — visual regression with `@wdio/visual-service`
 - **[Debugging](./docs/debugging.md)** — log capture, debug namespaces, troubleshooting
 - **[Common Issues](./docs/common-issues.md)** — known issues and workarounds
 

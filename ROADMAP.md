@@ -16,6 +16,17 @@ This document outlines the planned services and their development sequencing for
 
 ---
 
+## Cross-cutting Capabilities
+
+The roadmap above is scoped to *new framework support*. Capability-level features that apply to existing services are tracked here.
+
+| Capability | Status | Notes |
+|---|---|---|
+| **Visual regression testing** | ✅ Available via [`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/) | See [docs/visual-testing.md](./docs/visual-testing.md) for the wiring + Tauri provider notes. |
+| **Video recording** | 🔍 Not yet planned | Treated as a separate track. Universally a debugging artefact rather than a regression signal in the test-frameworks we surveyed. |
+
+---
+
 ## Framework Compatibility Analysis
 
 The table below quantifies the key factors used to prioritise and sequence planned services. GitHub stars serve as a proxy for ecosystem size and developer interest; automation driver maturity indicates how production-ready the underlying test infrastructure is; and pattern reuse scores how much existing service code can be directly leveraged. Stars are approximate as of early 2026.

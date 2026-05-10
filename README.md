@@ -136,6 +136,7 @@ See [docs/architecture.md](./docs/architecture.md) for detailed architecture doc
 | [docs/setup.md](./docs/setup.md) | Detailed setup instructions |
 | [docs/architecture.md](./docs/architecture.md) | Service architecture overview |
 | [docs/e2e-testing.md](./docs/e2e-testing.md) | E2E testing guide |
+| [docs/visual-testing.md](./docs/visual-testing.md) | Visual regression testing with `@wdio/visual-service` |
 | [docs/package-structure.md](./docs/package-structure.md) | Package conventions |
 
 ## License
