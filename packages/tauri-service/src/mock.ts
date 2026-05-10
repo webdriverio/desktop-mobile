@@ -83,6 +83,12 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
         );
       }
     } else if (existingCount < syncData.calls.length) {
+      // Load-bearing for diagnosing mock-sync races: shows inner/outer call counts
+      // at the moment update() mutates state, so empty-mock.calls assertions can be
+      // traced back to a specific sync.
+      log.debug(
+        `[${command}] mock.update: applying ${syncData.calls.length - existingCount} new calls (inner=${syncData.calls.length}, outer=${existingCount})`,
+      );
       for (let i = existingCount; i < syncData.calls.length; i++) {
         (originalMock.calls as unknown[][]).push(syncData.calls[i]);
         (originalMock.results as { type: string; value: unknown }[]).push(
@@ -233,6 +239,7 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
 
     const existingCount = originalMock.calls.length;
     if (syncData.calls.length < existingCount) {
+      log.debug(`[${command}] Browser-mode inner mock shrank; replacing outer data`);
       (originalMock.calls as unknown[][]).length = 0;
       (originalMock.results as { type: string; value: unknown }[]).length = 0;
       (originalMock.invocationCallOrder as number[]).length = 0;
@@ -246,6 +253,10 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
         );
       }
     } else if (existingCount < syncData.calls.length) {
+      // Browser-mode: load-bearing for diagnosing mock-sync races (mirrors createMock).
+      log.debug(
+        `[${command}] browser-mode mock.update: applying ${syncData.calls.length - existingCount} new calls (inner=${syncData.calls.length}, outer=${existingCount})`,
+      );
       for (let i = existingCount; i < syncData.calls.length; i++) {
         (originalMock.calls as unknown[][]).push(syncData.calls[i]);
         (originalMock.results as { type: string; value: unknown }[]).push(
