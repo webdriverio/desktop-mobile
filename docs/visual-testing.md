@@ -67,6 +67,15 @@ export const config: Options.Testrunner = {
 };
 ```
 
+> **ESM configs** — `__dirname` is not defined in ES module configs (`"type": "module"` in `package.json`, or `wdio.conf.mts`). If your config is ESM, derive it from `import.meta.url` at the top of the file:
+>
+> ```ts
+> import { dirname } from 'node:path';
+> import { fileURLToPath } from 'node:url';
+>
+> const __dirname = dirname(fileURLToPath(import.meta.url));
+> ```
+
 ### 3. Write a spec
 
 ```ts
