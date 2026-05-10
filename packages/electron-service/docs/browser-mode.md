@@ -229,6 +229,7 @@ The injection script runs after `browser.url()` resolves (document `readyState` 
 | `browser.electron.triggerDeeplink()` | Throws — no Electron process |
 | `browser.electron.mock(apiName, funcName)` | Throws — use `mock(channel)` instead |
 | `browser.electron.windowHandle` | Not meaningful — standard Chrome window handle |
+| `nodeIntegration: true` preloads (no contextBridge) | Unsupported — the browser page has no `require()`. The injection creates a synthetic `window.electron.ipcRenderer` that won't match a preload that exposes a custom API shape via `nodeIntegration`. Use `contextBridge.exposeInMainWorld()` instead. |
 | Automatic window focus management | Disabled — standard browser window switching applies |
 | `ipcRenderer.on` / `once` / `removeListener` | No-ops — event listeners not intercepted |
 | `mock.withImplementation()` | Serialised to browser page — see below |
@@ -304,6 +305,10 @@ The browser-side mock was wiped by the navigation. Call `browser.electron.mock(c
 ### App IPC during startup is not intercepted
 
 The injection script runs after page load. If your app invokes IPC during module initialization, those calls happen before the script is active. See the [timing caveat](#timing-caveat) above.
+
+### Mock never fires / `window.electron` is the wrong shape
+
+If your preload uses `nodeIntegration: true` without `contextBridge.exposeInMainWorld()`, browser mode cannot intercept IPC. The injection assumes a contextBridge-shaped `window.electron.ipcRenderer`. Migrate to contextBridge (see [Electron Context Isolation](https://www.electronjs.org/docs/latest/tutorial/context-isolation)) or use native mode for this test suite.
 
 ### Dev server not running
 
