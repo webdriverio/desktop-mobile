@@ -322,18 +322,18 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   mock.mockClear = async () => {
     await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
       (electron, accessor) => {
-        let innerMock: Mock;
+        let innerMock: Mock | undefined;
         if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
+          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
             accessor.funcName
           ];
         } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
+          const cls = electron[accessor.className as keyof typeof electron] as unknown as
+            | { prototype: Record<string, Mock> }
+            | undefined;
+          innerMock = cls?.prototype?.[accessor.methodName];
         }
-        innerMock.mockClear();
+        innerMock?.mockClear?.();
       },
       accessor,
       { internal: true },
@@ -346,18 +346,18 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
     const currentName = outerMock.getMockName();
     await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
       (electron, accessor) => {
-        let innerMock: Mock;
+        let innerMock: Mock | undefined;
         if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)[
+          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
             accessor.funcName
           ];
         } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as {
-            prototype: Record<string, Mock>;
-          };
-          innerMock = cls.prototype[accessor.methodName];
+          const cls = electron[accessor.className as keyof typeof electron] as unknown as
+            | { prototype: Record<string, Mock> }
+            | undefined;
+          innerMock = cls?.prototype?.[accessor.methodName];
         }
-        innerMock.mockReset();
+        innerMock?.mockReset?.();
       },
       accessor,
       { internal: true },

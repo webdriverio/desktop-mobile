@@ -415,7 +415,6 @@ export default class TauriWorkerService {
         payload?: T,
         target?: string | TauriEventTarget,
       ): Promise<void> => {
-        const args: [string, unknown, unknown] = [eventName, payload, target];
         if (browserMode) {
           await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
             (...inner: unknown[]) => {
@@ -429,7 +428,23 @@ export default class TauriWorkerService {
               }
               w.__wdio_emit_tauri_event__(ev, p, t);
             },
-            ...args,
+            eventName,
+            payload,
+            target,
+          );
+        } else if (target === undefined) {
+          await execute(
+            browser,
+            (tauri: TauriAPIs, ...a: unknown[]) => {
+              const [ev, p] = a as [string, unknown];
+              const ev2 = tauri.event as { emit: (name: string, payload?: unknown) => Promise<void> } | undefined;
+              if (!ev2) {
+                throw new Error('Tauri event API not available — is @tauri-apps/api loaded?');
+              }
+              return ev2.emit(ev, p);
+            },
+            eventName,
+            payload,
           );
         } else {
           await execute(
@@ -437,20 +452,16 @@ export default class TauriWorkerService {
             (tauri: TauriAPIs, ...a: unknown[]) => {
               const [ev, p, t] = a as [string, unknown, unknown];
               const ev2 = tauri.event as
-                | {
-                    emit: (name: string, payload?: unknown) => Promise<void>;
-                    emitTo: (target: unknown, name: string, payload?: unknown) => Promise<void>;
-                  }
+                | { emitTo: (target: unknown, name: string, payload?: unknown) => Promise<void> }
                 | undefined;
               if (!ev2) {
                 throw new Error('Tauri event API not available — is @tauri-apps/api loaded?');
               }
-              if (t === undefined) {
-                return ev2.emit(ev, p);
-              }
               return ev2.emitTo(t, ev, p);
             },
-            ...args,
+            eventName,
+            payload,
+            target,
           );
         }
         await updateAllMocks();
