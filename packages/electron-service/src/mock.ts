@@ -197,10 +197,10 @@ export async function createElectronBrowserModeMock(
   log.debug(`[${channel}] createElectronBrowserModeMock called`);
 
   const outerMock = vitestFn();
-  const outerMockImplementation = outerMock.mockImplementation;
-  const outerMockImplementationOnce = outerMock.mockImplementationOnce;
-  const outerMockClear = outerMock.mockClear;
-  const outerMockReset = outerMock.mockReset;
+  const outerMockImplementation = outerMock.mockImplementation.bind(outerMock);
+  const outerMockImplementationOnce = outerMock.mockImplementationOnce.bind(outerMock);
+  const outerMockClear = outerMock.mockClear.bind(outerMock);
+  const outerMockReset = outerMock.mockReset.bind(outerMock);
 
   outerMock.mockName(`electron.${channel}`);
 
