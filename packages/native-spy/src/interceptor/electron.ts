@@ -26,9 +26,15 @@ export class ElectronAdapter implements FrameworkAdapter {
   const mockObj = ${lookup};
   if (!mockObj?.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
   const m = mockObj.mock;
+  const errorReplacer = function(_k, v) {
+    if (v instanceof Error) {
+      return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
+    }
+    return v;
+  };
   return {
-    calls: JSON.parse(JSON.stringify(m.calls || [])),
-    results: JSON.parse(JSON.stringify(m.results || [])),
+    calls: JSON.parse(JSON.stringify(m.calls || [], errorReplacer)),
+    results: JSON.parse(JSON.stringify(m.results || [], errorReplacer)),
     invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
   };
 }`;
