@@ -111,7 +111,11 @@ Borrowed from Playwright, run before any `checkScreen()` / `checkElement()` call
 ```ts
 await browser.execute(() => document.fonts.ready);
 await browser.execute(() => {
+  // id-guarded so this is safe to call from `beforeEach` without
+  // accumulating duplicate <style> nodes across tests.
+  if (document.getElementById('wdio-vrt-stabilise')) return;
   const style = document.createElement('style');
+  style.id = 'wdio-vrt-stabilise';
   style.textContent = `*, *::before, *::after {
     animation-duration: 0s !important;
     transition-duration: 0s !important;
