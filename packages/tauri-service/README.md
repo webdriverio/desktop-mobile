@@ -75,6 +75,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 - [Log Forwarding](./docs/log-forwarding.md) - Capture app logs
 - [Edge WebDriver (Windows)](./docs/edge-webdriver-windows.md) - Windows-specific setup
 - [Deeplink Testing](./docs/deeplink-testing.md) - Test protocol handlers
+- [Visual Testing](../../docs/visual-testing.md) - Visual regression with `@wdio/visual-service`
 
 **Help & Support**
 - [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions
