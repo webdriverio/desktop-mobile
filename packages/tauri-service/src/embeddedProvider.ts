@@ -20,8 +20,9 @@ async function pollWebDriverStatus(port: number, timeoutMs: number = 30000): Pro
   const startTime = Date.now();
   const statusUrl = `http://127.0.0.1:${port}/status`;
 
-  log.info(`Polling WebDriver status at ${statusUrl}...`);
+  log.debug(`Polling WebDriver status at ${statusUrl}...`);
 
+  let attempt = 0;
   while (Date.now() - startTime < timeoutMs) {
     try {
       const response = await fetch(statusUrl, { signal: AbortSignal.timeout(5000) });
@@ -29,16 +30,22 @@ async function pollWebDriverStatus(port: number, timeoutMs: number = 30000): Pro
         const data = (await response.json()) as { value?: { ready?: boolean } };
         // W3C WebDriver status response: { value: { ready: boolean } }
         if (data?.value?.ready === true) {
-          log.info(`✅ WebDriver server ready on port ${port}`);
+          log.info(`WebDriver server ready on port ${port}`);
           return;
         }
-        log.debug(`WebDriver server not ready yet: ${JSON.stringify(data)}`);
+        // Log every 10th poll (~5s at 500ms cadence) instead of every cycle
+        if (attempt % 10 === 0) {
+          log.debug(`WebDriver server not ready yet (attempt ${attempt + 1}): ${JSON.stringify(data)}`);
+        }
       }
     } catch {
       // Connection refused or timeout - server not ready yet
-      log.debug(`WebDriver status poll failed, retrying...`);
+      if (attempt % 10 === 0) {
+        log.debug(`WebDriver status poll failed (attempt ${attempt + 1}), retrying...`);
+      }
     }
 
+    attempt++;
     await sleep(500);
   }
 
@@ -55,7 +62,7 @@ async function pollWebDriverStatus(port: number, timeoutMs: number = 30000): Pro
  * Spawn the Tauri app directly (no external driver)
  */
 function spawnTauriApp(appBinaryPath: string, args: string[], env: NodeJS.ProcessEnv): ChildProcess {
-  log.info(`Spawning Tauri app: ${appBinaryPath} ${args.join(' ')}`);
+  log.debug(`Spawning Tauri app: ${appBinaryPath} ${args.join(' ')}`);
   log.debug(`Environment: ${JSON.stringify(env, null, 2)}`);
 
   const child = spawn(appBinaryPath, args, {
@@ -233,12 +240,12 @@ export async function stopEmbeddedDriver(info: EmbeddedDriverInfo): Promise<void
     return;
   }
 
-  log.info(`Stopping embedded driver (PID: ${child.pid})...`);
+  log.debug(`Stopping embedded driver (PID: ${child.pid})...`);
 
   // If the process has already exited (e.g. crashed during teardown), skip the
   // signal dance entirely.
   if (child.exitCode !== null || child.signalCode !== null) {
-    log.info('✅ Embedded driver already exited');
+    log.debug('Embedded driver already exited');
     return;
   }
 
@@ -259,7 +266,7 @@ export async function stopEmbeddedDriver(info: EmbeddedDriverInfo): Promise<void
 
   child.kill('SIGTERM');
   if (await exited) {
-    log.info('✅ Embedded driver exited gracefully');
+    log.debug('Embedded driver exited gracefully');
     return;
   }
 

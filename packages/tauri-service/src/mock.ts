@@ -17,8 +17,6 @@ async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: str
 }
 
 export async function createMock(command: string, browserContext?: WebdriverIO.Browser): Promise<TauriMock> {
-  log.debug(`[${command}] createMock called - starting mock creation`);
-
   const browserToUse = (browserContext || browser) as WebdriverIO.Browser;
   if (isBrowserMode(browserToUse)) {
     return createBrowserModeMock(command, browserToUse);
@@ -37,8 +35,6 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   mock.__isTauriMock = true;
 
   const originalMock = outerMock.mock;
-
-  log.debug(`[${command}] Creating auto-updating mock wrapper object`);
 
   const wrapperMock = ((...args: unknown[]) => {
     return (mock as (...args: unknown[]) => unknown)(...args);
@@ -64,21 +60,13 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     },
   });
 
-  log.debug(`[${command}] Using browser context:`, typeof browserToUse, browserToUse?.constructor?.name);
-
-  log.debug(`[${command}] Setting up JavaScript mock`);
   await tauriExecute<void>(browserToUse, interceptor.buildRegistrationScript(command));
-  log.debug(`[${command}] JavaScript mock setup complete`);
 
   mock.update = async () => {
-    log.debug(`[${command}] Starting mock update`);
     const raw = await tauriExecute<unknown>(browserToUse, interceptor.buildCallDataReadScript(command));
     const syncData = interceptor.parseCallData(raw);
 
     const existingCount = originalMock.calls.length;
-    log.debug(
-      `[${command}] Retrieved ${syncData.calls.length} calls from inner mock, outer mock has ${existingCount} calls`,
-    );
 
     if (syncData.calls.length < existingCount) {
       log.debug(`[${command}] Inner mock shrank (cleared after reload or reset); replacing outer data`);
@@ -95,7 +83,6 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
         );
       }
     } else if (existingCount < syncData.calls.length) {
-      log.debug(`[${command}] Applying ${syncData.calls.length - existingCount} new calls to outer mock`);
       for (let i = existingCount; i < syncData.calls.length; i++) {
         (originalMock.calls as unknown[][]).push(syncData.calls[i]);
         (originalMock.results as { type: string; value: unknown }[]).push(
@@ -105,8 +92,6 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
           syncData.invocationCallOrder[i] ?? originalMock.invocationCallOrder.length,
         );
       }
-    } else {
-      log.debug(`[${command}] No new calls to synchronize`);
     }
 
     return mock;
@@ -223,14 +208,10 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
 
   wrapperMock.__isTauriMock = true;
 
-  log.debug(`[${command}] Auto-updating mock wrapper created successfully`);
-
   return wrapperMock;
 }
 
 async function createBrowserModeMock(command: string, browser: WebdriverIO.Browser): Promise<TauriMock> {
-  log.debug(`[${command}] createBrowserModeMock called`);
-
   const outerMock = vitestFn();
   const outerMockImplementation = outerMock.mockImplementation;
   const outerMockImplementationOnce = outerMock.mockImplementationOnce;
@@ -380,6 +361,5 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     return result;
   };
 
-  log.debug(`[${command}] Browser-mode mock created successfully`);
   return mock;
 }

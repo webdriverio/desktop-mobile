@@ -135,13 +135,14 @@ export async function getTauriAppInfo(appPath: string): Promise<TauriAppInfo> {
     // Use debug builds for testing (includes tauri-plugin-automation for CrabNebula macOS)
     const targetDir = join(appPath, 'src-tauri', 'target', 'debug');
 
-    // Debug logging to help diagnose the issue
-    log.debug(`Tauri config debug - appPath: ${appPath}`);
-    log.debug(`Tauri config debug - configPath: ${tauriConfigPath}`);
-    log.debug(`Tauri config debug - config.productName: ${config.productName}`);
-    log.debug(`Tauri config debug - config.package?.productName: ${config.package?.productName}`);
-    log.debug(`Tauri config debug - resolved productName: ${productName}`);
-    log.debug(`Tauri config debug - targetDir: ${targetDir}`);
+    log.debug('Tauri config resolved:', {
+      appPath,
+      configPath: tauriConfigPath,
+      productName,
+      productNameRaw: config.productName,
+      productNamePackage: config.package?.productName,
+      targetDir,
+    });
 
     return {
       name: productName,

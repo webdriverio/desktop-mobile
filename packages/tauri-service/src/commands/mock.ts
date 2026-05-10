@@ -31,17 +31,14 @@ function shouldProcessMock(mockName: string, commandPrefix?: string): boolean {
 }
 
 export async function mock(this: TauriServiceContext, command: string): Promise<TauriMock> {
-  log.debug(`[${command}] mock command called`);
   // First try returning an existing mock without requiring a browser context
   try {
     // Retrieve an existing mock from the store
     const existingMock = mockStore.getMock(`tauri.${command}`);
-    log.debug(`[${command}] Found existing mock, resetting`);
     await existingMock.mockReset();
     return existingMock;
   } catch (_e) {
     // No existing mock, determine browser context now
-    log.debug(`[${command}] No existing mock found, determining browser context`);
     let browserContext: WebdriverIO.Browser | undefined;
     // Prefer this.browser if it has tauri capabilities
     if (
@@ -65,7 +62,6 @@ export async function mock(this: TauriServiceContext, command: string): Promise<
     }
 
     // Create a new mock and store it
-    log.debug(`[${command}] Creating new mock`);
     const newMock = await createMock(command, browserContext);
     mockStore.setMock(newMock);
     return newMock;
@@ -73,7 +69,6 @@ export async function mock(this: TauriServiceContext, command: string): Promise<
 }
 
 export async function clearAllMocks(this: TauriServiceContext, commandPrefix?: string): Promise<void> {
-  log.debug(`clearAllMocks command called${commandPrefix ? ` with prefix: ${commandPrefix}` : ''}`);
   const mocks = mockStore.getMocks();
   let clearedCount = 0;
 
@@ -84,11 +79,12 @@ export async function clearAllMocks(this: TauriServiceContext, commandPrefix?: s
     }
   }
 
-  log.debug(`clearAllMocks completed - cleared ${clearedCount} of ${mocks.length} mocks`);
+  log.debug(
+    `clearAllMocks: cleared ${clearedCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
+  );
 }
 
 export async function resetAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
-  log.debug(`resetAllMocks command called${commandPrefix ? ` with prefix: ${commandPrefix}` : ''}`);
   const browserContext = this?.browser || globalThis.browser;
 
   if (!browserContext || browserContext.isMultiremote) {
@@ -123,11 +119,12 @@ export async function resetAllMocks(this: TauriServiceContext | undefined, comma
     }
   }
 
-  log.debug(`resetAllMocks completed - reset ${resetCount} of ${mocks.length} mocks`);
+  log.debug(
+    `resetAllMocks: reset ${resetCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
+  );
 }
 
 export async function restoreAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
-  log.debug(`restoreAllMocks command called${commandPrefix ? ` with prefix: ${commandPrefix}` : ''}`);
   const browserContext = this?.browser || globalThis.browser;
 
   if (!browserContext || browserContext.isMultiremote) {
@@ -165,7 +162,9 @@ export async function restoreAllMocks(this: TauriServiceContext | undefined, com
     }
   }
 
-  log.debug(`restoreAllMocks completed - restored ${restoredCount} of ${mocks.length} mocks`);
+  log.debug(
+    `restoreAllMocks: restored ${restoredCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
+  );
 }
 
 export function isMockFunction(fn: unknown): fn is import('@wdio/native-types').TauriMockInstance {
