@@ -57,6 +57,7 @@
 - **React Native** - Popular mobile and desktop framework
 - **Flutter** - Google's UI toolkit for mobile and beyond
 - **Capacitor** - Ionic's cross-platform mobile framework
+- **Electrobun** - TypeScript-first desktop apps with system webviews and the Bun runtime
 - **Neutralino** - Lightweight desktop applications
 
 See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timelines.
