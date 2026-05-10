@@ -114,7 +114,7 @@ The table below quantifies the key factors used to prioritise and sequence plann
 - MIT-licensed; v1 line shipped, APIs still stabilizing
 
 **Technical approach:**
-- Direct CDP attachment via WebSocket on the underlying webview's debugger port (port 9222 by `agent-electrobun` convention; the WDIO service will define its own override mechanism rather than rely on a built-in Electrobun env var)
+- Direct CDP attachment via WebSocket on the underlying webview's debugger port (the third-party [agent-electrobun](https://github.com/Ataraxy-Labs/agent-electrobun) CLI defaults to 9222 for Electrobun apps; the WDIO service will define its own override mechanism rather than rely on a built-in Electrobun env var)
 - No external driver process — connect like Electron, not Tauri
 - Multi-target session management for OOPIF webviews (shell vs per-tab CDP targets, classified by URL path)
 - Observation/input-only protocol calls — no `Page.navigate` on attach (would destroy app state)
