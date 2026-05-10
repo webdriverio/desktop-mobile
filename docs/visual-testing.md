@@ -77,8 +77,16 @@ const MAX_MISMATCH_PCT = 1;
 
 describe('visual regression', () => {
   it('matches baseline of full screen', async () => {
-    await browser.execute(() => document.fonts.ready);
+    await browser.execute(async () => {
+      await document.fonts.ready;
+    });
     const result = await browser.checkScreen('home');
+    expect(result).toBeLessThanOrEqual(MAX_MISMATCH_PCT);
+  });
+
+  it('matches baseline of the toolbar element', async () => {
+    const toolbar = await $('header.toolbar');
+    const result = await browser.checkElement(toolbar, 'toolbar');
     expect(result).toBeLessThanOrEqual(MAX_MISMATCH_PCT);
   });
 });
@@ -109,7 +117,11 @@ Consecutive WebView2 / Chromium renders on Windows produce ~0.5% pixel-level mis
 Borrowed from Playwright, run before any `checkScreen()` / `checkElement()` call:
 
 ```ts
-await browser.execute(() => document.fonts.ready);
+// Async function so the `document.fonts.ready` Promise is awaited
+// explicitly inside the browser context before the call returns.
+await browser.execute(async () => {
+  await document.fonts.ready;
+});
 await browser.execute(() => {
   // id-guarded so this is safe to call from `beforeEach` without
   // accumulating duplicate <style> nodes across tests.
