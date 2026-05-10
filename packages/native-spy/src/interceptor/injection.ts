@@ -96,7 +96,7 @@ export const WDIO_MOCK_SETUP_SCRIPT = `  window.__wdio_call_id__ = window.__wdio
       _implQueue.push({ __wdioType: 'reject', __wdioVal: val }); return mockFn;
     };
     mockFn.mockClear = function() {
-      _calls = []; _results = []; _invocationCallOrder = [];
+      _calls.length = 0; _results.length = 0; _invocationCallOrder.length = 0;
       return mockFn;
     };
     mockFn.mockReset = function() {
