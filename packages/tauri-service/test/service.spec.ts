@@ -57,6 +57,7 @@ function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO
   return {
     execute: vi.fn().mockResolvedValue(undefined),
     executeAsync: vi.fn().mockResolvedValue(undefined),
+    url: vi.fn().mockResolvedValue(undefined),
     isMultiremote: false,
     sessionId: 'test-session-123',
     instances: [],
@@ -465,6 +466,93 @@ describe('TauriWorkerService', () => {
       } finally {
         Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
       }
+    });
+  });
+
+  describe('tauri.emitEvent()', () => {
+    it('should be exposed on the tauri API', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+      expect(typeof (mockBrowser as any).tauri.emitEvent).toBe('function');
+    });
+
+    it('should call browser.execute with the helper invocation in browser mode', async () => {
+      const mockExecute = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ execute: mockExecute });
+      const service = new TauriWorkerService(
+        { mode: 'browser', devServerUrl: 'http://localhost:1420' },
+        { 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:1420' } },
+      );
+      await service.before({} as any, [], mockBrowser);
+
+      mockExecute.mockClear();
+      await (mockBrowser as any).tauri.emitEvent('foo', { x: 1 });
+
+      expect(mockExecute).toHaveBeenCalledTimes(1);
+      const [fn, ...args] = mockExecute.mock.calls[0];
+      expect(typeof fn).toBe('function');
+      expect(args).toEqual(['foo', { x: 1 }, undefined]);
+    });
+
+    it('should pass the target through in browser mode', async () => {
+      const mockExecute = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ execute: mockExecute });
+      const service = new TauriWorkerService(
+        { mode: 'browser', devServerUrl: 'http://localhost:1420' },
+        { 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:1420' } },
+      );
+      await service.before({} as any, [], mockBrowser);
+
+      mockExecute.mockClear();
+      await (mockBrowser as any).tauri.emitEvent('focus', null, 'main');
+
+      const [, , , target] = mockExecute.mock.calls[0];
+      expect(target).toBe('main');
+    });
+
+    it('should call execute() with a function that uses tauri.event in native mode', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
+
+      await (mockBrowser as any).tauri.emitEvent('foo', 'payload');
+
+      expect(executeCommand).toHaveBeenCalledTimes(1);
+      const [, fn, ...args] = vi.mocked(executeCommand).mock.calls[0];
+      expect(typeof fn).toBe('function');
+      expect(args).toEqual(['foo', 'payload', undefined]);
+    });
+
+    it('should call updateAllMocks after emitting in browser mode', async () => {
+      const mockExecute = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ execute: mockExecute });
+      const service = new TauriWorkerService(
+        { mode: 'browser', devServerUrl: 'http://localhost:1420' },
+        { 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:1420' } },
+      );
+      await service.before({} as any, [], mockBrowser);
+
+      vi.mocked(mockStore.getMocks).mockReturnValue([]);
+
+      await (mockBrowser as any).tauri.emitEvent('foo');
+
+      expect(mockStore.getMocks).toHaveBeenCalled();
+    });
+
+    it('should call updateAllMocks after emitting in native mode', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
+      vi.mocked(mockStore.getMocks).mockReturnValue([]);
+
+      await (mockBrowser as any).tauri.emitEvent('foo');
+
+      expect(mockStore.getMocks).toHaveBeenCalled();
     });
   });
 

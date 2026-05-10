@@ -44,6 +44,40 @@ const result = await browser.tauri.execute('window.location.href');
 
 ---
 
+### `browser.tauri.emitEvent(event, payload?, target?)`
+
+Emit a Tauri event to all listeners registered via `listen()` or `once()` in the frontend. The same call works in both native and browser mode — in native mode it routes through Tauri's real `event.emit()` / `event.emitTo()` via the plugin bridge; in browser mode it dispatches through the in-page listener registry installed by the IPC injection.
+
+**Parameters:**
+- `event` (string) - The event name to emit
+- `payload?` (T) - Optional payload, JSON-serialized to listeners
+- `target?` (string | TauriEventTarget) - Optional target filter — emits only to listeners whose `target` matches. Pass a window/webview label as a string, or a structured `TauriEventTarget` object.
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```typescript
+// Frontend subscribes via @tauri-apps/api/event
+import { listen } from '@tauri-apps/api/event';
+const unlisten = await listen<{ rows: number }>('data-loaded', (e) => {
+  document.querySelector('#count')!.textContent = String(e.payload.rows);
+});
+
+// Test emits the event — same line works in native and browser mode
+await browser.tauri.emitEvent('data-loaded', { rows: 3 });
+await expect($('#count')).toHaveText('3');
+
+// Targeted emit — only listeners that subscribed with target 'main' receive it
+await browser.tauri.emitEvent('focus-window', undefined, 'main');
+```
+
+**Browser Mode:** Routes through the in-page registry installed by the IPC injection. `listen()`, `once()`, and `unlisten()` work as expected. See the [Events section in the Browser Mode guide](./browser-mode.md#events) for details.
+
+**See Also:**
+- [Browser Mode Guide — Events](./browser-mode.md#events)
+
+---
+
 ### `browser.tauri.mock(command)`
 
 Mock a specific Tauri backend command. Returns a TauriMock object for configuring the mock behavior.

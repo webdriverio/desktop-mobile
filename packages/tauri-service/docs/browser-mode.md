@@ -159,6 +159,87 @@ await mockReadFile.mockResolvedValue('default content');
 await mockReadFile.mockRestore();
 ```
 
+## Events
+
+Tauri's event API (`listen` / `once` / `unlisten` / `emit` / `emitTo` from `@tauri-apps/api/event`) works in browser mode. The IPC injection routes the underlying `plugin:event|*` invocations through an in-page listener registry, so frontend subscriptions resolve and tests can dispatch events to them.
+
+### How It Works
+
+The injection script:
+
+1. Provides minimal stubs for `window.__TAURI_INTERNALS__.callbacks`, `transformCallback`, `runCallback`, and `unregisterCallback` (the bridge that real Tauri ships uses).
+2. Maintains `window.__wdio_tauri_listeners__` — a per-event registry of `{ handlerId, target }` entries keyed by a monotonic event id.
+3. Intercepts `plugin:event|listen` to register the handler and resolve with a numeric event id.
+4. Intercepts `plugin:event|unlisten` and `__TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener` to remove handlers.
+5. Intercepts `plugin:event|emit` / `plugin:event|emit_to` so they dispatch via `runCallback` to subscribed handlers, with target filtering.
+
+If a user mock is set on `plugin:event|listen` / `unlisten` / `emit` / `emit_to`, the call is recorded by the mock for assertion purposes **and** the registry still applies the side effect — so subscriptions and dispatches keep working while you spy.
+
+### Emitting from Tests
+
+```ts
+// Frontend
+import { listen } from '@tauri-apps/api/event';
+const unlisten = await listen<number>('count-updated', (e) => {
+  document.querySelector('#count')!.textContent = String(e.payload);
+});
+
+// Test
+await browser.tauri.emitEvent('count-updated', 42);
+await expect($('#count')).toHaveText('42');
+```
+
+`browser.tauri.emitEvent()` is mode-agnostic — the same line works in native mode (where it routes through Tauri's real `event.emit()` via the plugin bridge) and in browser mode (where it routes through the in-page registry).
+
+### Targeted Emit
+
+Pass a third argument to restrict which listeners receive the event. Subscribers that registered with a matching `target` (or with `Any`) receive it; others do not.
+
+```ts
+// Frontend — listen only on the 'main' window
+await listen('focus', cb, { target: { kind: 'AnyLabel', label: 'main' } });
+
+// Test — emit only to 'main'
+await browser.tauri.emitEvent('focus', undefined, 'main');
+// Listeners registered against 'other' do NOT fire
+```
+
+The `target` argument accepts a string label (treated as `AnyLabel`) or a structured `TauriEventTarget` object: `{ kind: 'Any' | 'AnyLabel' | 'App' | 'Window' | 'Webview' | 'WebviewWindow', label?: string }`.
+
+### Asserting on Frontend `emit()` Calls
+
+Your frontend may call `emit()` itself (e.g. to broadcast UI events). Mock the underlying plugin command to spy on those calls — subscribers still fire because the registry runs alongside the mock:
+
+```ts
+const emitMock = await browser.tauri.mock('plugin:event|emit');
+
+await $('button#publish').click();
+await emitMock.update();
+
+expect(emitMock).toHaveBeenCalledTimes(1);
+expect(emitMock.mock.calls[0][0]).toEqual({ event: 'published', payload: { id: 7 } });
+```
+
+### `once()` Semantics
+
+`once()` from `@tauri-apps/api/event` is built on `listen()` with a self-removing handler — no special handling is needed. The handler fires exactly once; subsequent emits are ignored.
+
+```ts
+import { once } from '@tauri-apps/api/event';
+let calls = 0;
+await once('one-shot', () => { calls += 1; });
+
+await browser.tauri.emitEvent('one-shot');
+await browser.tauri.emitEvent('one-shot');
+// calls === 1
+```
+
+### Limitations
+
+- **Backend-emitted Tauri-internal events** (`tauri://resize`, `tauri://focus`, etc.) only fire if the test explicitly emits them — there is no real window/webview to source them. In native mode these fire naturally as the OS events occur.
+- **Listeners are wiped on navigation** — `browser.url()` rebuilds the registry. Subscriptions created before navigation will not fire afterwards. This matches the native-mode behaviour after a webview reload.
+- **Other plugin commands** (e.g. `plugin:fs|*`, `plugin:dialog|*`) are not registry-routed; they no-op resolve to `undefined` unless you explicitly mock them.
+
 ## Mock Lifecycle Across Tests
 
 ### `mock(command)` Is Idempotent
