@@ -33,39 +33,41 @@ export class ElectronCdpBridge extends CdpBridge {
 
   async connect(): Promise<void> {
     const startTime = Date.now();
-    log.debug('CdpBridge options:', this.options);
+    log.trace('CdpBridge options:', this.options);
 
     await super.connect();
-    log.debug(`[+${Date.now() - startTime}ms] CDP connection established, setting up context handler`);
+    log.trace(`[+${Date.now() - startTime}ms] CDP connection established, setting up context handler`);
 
     const t2 = Date.now();
     const contextHandler = this.#getContextIdHandler();
-    log.debug(`[+${Date.now() - startTime}ms] Context handler promise created (took ${Date.now() - t2}ms)`);
+    log.trace(`[+${Date.now() - startTime}ms] Context handler promise created (took ${Date.now() - t2}ms)`);
 
     const t3 = Date.now();
-    log.debug(`[+${Date.now() - startTime}ms] Sending Runtime.enable`);
+    log.trace(`[+${Date.now() - startTime}ms] Sending Runtime.enable`);
     try {
       await this.send('Runtime.enable');
-      log.debug(`[+${Date.now() - startTime}ms] Runtime.enable completed (took ${Date.now() - t3}ms)`);
+      log.trace(`[+${Date.now() - startTime}ms] Runtime.enable completed (took ${Date.now() - t3}ms)`);
     } catch (error) {
       log.error(`[+${Date.now() - startTime}ms] Runtime.enable failed after ${Date.now() - t3}ms:`, error);
       throw error;
     }
 
     const t5 = Date.now();
-    log.debug(`[+${Date.now() - startTime}ms] Sending Runtime.disable`);
+    log.trace(`[+${Date.now() - startTime}ms] Sending Runtime.disable`);
     try {
       await this.send('Runtime.disable');
-      log.debug(`[+${Date.now() - startTime}ms] Runtime.disable completed (took ${Date.now() - t5}ms)`);
+      log.trace(`[+${Date.now() - startTime}ms] Runtime.disable completed (took ${Date.now() - t5}ms)`);
     } catch (error) {
       log.error(`[+${Date.now() - startTime}ms] Runtime.disable failed after ${Date.now() - t5}ms:`, error);
       throw error;
     }
 
     const t4 = Date.now();
-    log.debug(`[+${Date.now() - startTime}ms] Waiting for context ID`);
+    log.trace(`[+${Date.now() - startTime}ms] Waiting for context ID`);
     this.#contextId = await contextHandler;
-    log.debug(`[+${Date.now() - startTime}ms] Context ID received: ${this.#contextId} (waited ${Date.now() - t4}ms)`);
+    log.debug(
+      `CDP connected, contextId=${this.#contextId} (${Date.now() - startTime}ms total, context wait ${Date.now() - t4}ms)`,
+    );
 
     const t6 = Date.now();
     await this.send('Runtime.evaluate', {
@@ -74,13 +76,13 @@ export class ElectronCdpBridge extends CdpBridge {
       replMode: true,
       contextId: this.#contextId,
     });
-    log.debug(`[+${Date.now() - startTime}ms] Initialization script executed (took ${Date.now() - t6}ms)`);
+    log.trace(`[+${Date.now() - startTime}ms] Initialization script executed (took ${Date.now() - t6}ms)`);
   }
 
   #getContextIdHandler() {
     return new Promise<number>((resolve, reject) => {
       const handlerStartTime = Date.now();
-      log.debug(
+      log.trace(
         `[Handler +0ms] Setting up Runtime.executionContextCreated listener (timeout: ${this.options.timeout}ms)`,
       );
       let eventCount = 0;
@@ -96,7 +98,7 @@ export class ElectronCdpBridge extends CdpBridge {
 
         eventCount++;
         const eventTime = Date.now() - handlerStartTime;
-        log.debug(`[Handler +${eventTime}ms] Runtime.executionContextCreated event #${eventCount} received:`, {
+        log.trace(`[Handler +${eventTime}ms] Runtime.executionContextCreated event #${eventCount} received:`, {
           contextId: params.context.id,
           name: params.context.name,
           origin: params.context.origin,
@@ -106,11 +108,11 @@ export class ElectronCdpBridge extends CdpBridge {
 
         if (firstContextId === null) {
           firstContextId = params.context.id;
-          log.debug(`[Handler +${eventTime}ms] Stored first context ID as fallback: ${firstContextId}`);
+          log.trace(`[Handler +${eventTime}ms] Stored first context ID as fallback: ${firstContextId}`);
         }
 
         if (params.context.auxData?.isDefault) {
-          log.debug(
+          log.trace(
             `[Handler +${eventTime}ms] Found default context with ID: ${params.context.id}, resolving immediately`,
           );
           resolved = true;
@@ -118,19 +120,19 @@ export class ElectronCdpBridge extends CdpBridge {
           this.off('Runtime.executionContextCreated', onContextCreated);
           resolve(params.context.id);
         } else {
-          log.debug(`[Handler +${eventTime}ms] Context is not marked as default, waiting for next event`);
+          log.trace(`[Handler +${eventTime}ms] Context is not marked as default, waiting for next event`);
         }
       };
 
       this.on('Runtime.executionContextCreated', onContextCreated);
 
-      log.debug(
+      log.trace(
         `[Handler +${Date.now() - handlerStartTime}ms] Listener registered, setting ${this.options.timeout}ms timeout`,
       );
 
       const timeoutId = setTimeout(() => {
         if (resolved) {
-          log.debug(`[Handler +${Date.now() - handlerStartTime}ms] Timeout fired but already resolved, skipping`);
+          log.trace(`[Handler +${Date.now() - handlerStartTime}ms] Timeout fired but already resolved, skipping`);
           return;
         }
 

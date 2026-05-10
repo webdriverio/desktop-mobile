@@ -193,11 +193,30 @@ export function diagnoseDiskSpace(): DiagnosticResult[] {
 
 export function formatDiagnosticResults(results: DiagnosticResult[], serviceName?: string): void {
   const logger = serviceName ? createLogger(serviceName) : log;
+  const okCount = results.filter((r) => r.status === 'ok').length;
+  const warnings = results.filter((r) => r.status === 'warn');
+  const errors = results.filter((r) => r.status !== 'ok' && r.status !== 'warn');
+
+  // Successful checks are summarised at INFO; full details at DEBUG.
+  if (okCount > 0) {
+    logger.info(
+      `Diagnostics: ${okCount} check${okCount === 1 ? '' : 's'} passed${warnings.length ? `, ${warnings.length} warning${warnings.length === 1 ? '' : 's'}` : ''}${errors.length ? `, ${errors.length} error${errors.length === 1 ? '' : 's'}` : ''}`,
+    );
+  }
+
   for (const result of results) {
-    const icon = result.status === 'ok' ? '✅' : result.status === 'warn' ? '⚠️' : '❌';
-    logger.info(`${icon} ${result.category}: ${result.message}`);
-    if (result.details) {
-      logger.debug(`   ${result.details}`);
+    if (result.status === 'ok') {
+      logger.debug(`✅ ${result.category}: ${result.message}`);
+      if (result.details) {
+        logger.debug(`   ${result.details}`);
+      }
+    } else {
+      const icon = result.status === 'warn' ? '⚠️' : '❌';
+      const level = result.status === 'warn' ? 'warn' : 'error';
+      logger[level](`${icon} ${result.category}: ${result.message}`);
+      if (result.details) {
+        logger[level](`   ${result.details}`);
+      }
     }
   }
 }

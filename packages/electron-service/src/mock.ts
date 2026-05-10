@@ -21,7 +21,6 @@ export async function createMock(
   funcName: string,
   browserContext?: WebdriverIO.Browser,
 ): Promise<ElectronFunctionMock> {
-  log.debug(`[${apiName}.${funcName}] createMock called - starting mock creation`);
   const outerMock = vitestFn();
 
   outerMock.mockName(`electron.${apiName}.${funcName}`);
@@ -30,8 +29,6 @@ export async function createMock(
   mock.__isElectronMock = true;
 
   const originalMock = outerMock.mock;
-
-  log.debug(`[${apiName}.${funcName}] Creating auto-updating mock wrapper object`);
 
   const wrapperMock = ((...args: unknown[]) => {
     return (mock as (...args: unknown[]) => unknown)(...args);
@@ -68,8 +65,6 @@ export async function createMock(
   });
 
   const browserToUse = browserContext || browser;
-
-  log.debug(`[${apiName}.${funcName}] Using browser context:`, typeof browserToUse, browserToUse?.constructor?.name);
 
   await browserToUse.electron.execute<void, [string, string, ExecuteOpts]>(
     (electron, apiName, funcName) => {
@@ -115,7 +110,6 @@ export async function createMock(
   );
 
   mock.update = async () => {
-    log.debug(`[${apiName}.${funcName}] Starting mock update`);
     const calls =
       (await browserToUse.electron.execute<unknown[][], [string, string, ExecuteOpts]>(
         (electron, apiName, funcName) => {
@@ -129,22 +123,12 @@ export async function createMock(
         { internal: true },
       )) ?? [];
 
-    log.debug(
-      `[${apiName}.${funcName}] Retrieved ${calls.length} calls from inner mock, outer mock has ${originalMock.calls.length} calls`,
-    );
-
     if (originalMock.calls.length < calls.length) {
-      log.debug(
-        `[${apiName}.${funcName}] Applying ${calls.length - originalMock.calls.length} new calls to outer mock`,
-      );
       calls.forEach((call: unknown[], index: number) => {
         if (!originalMock.calls[index]) {
-          log.debug(`[${apiName}.${funcName}] Applying call ${index}:`, call);
           mock?.apply(mock, call);
         }
       });
-    } else {
-      log.debug(`[${apiName}.${funcName}] No new calls to synchronize`);
     }
 
     return mock;
@@ -180,8 +164,6 @@ export async function createMock(
   wrapperMock.update = mock.update.bind(mock);
 
   wrapperMock.__isElectronMock = true;
-
-  log.debug(`[${apiName}.${funcName}] Auto-updating mock wrapper created successfully`);
 
   return wrapperMock;
 }
