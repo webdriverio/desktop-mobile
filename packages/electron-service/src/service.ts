@@ -34,11 +34,84 @@ const browserInterceptor = createIpcInterceptor('electron');
 const browserModeInstanceIds = new WeakMap<WebdriverIO.Browser, number>();
 let browserModeInstanceCount = 0;
 
-function browserModeStoreKey(browser: WebdriverIO.Browser, channel: string): string {
-  if (!browserModeInstanceIds.has(browser)) {
-    browserModeInstanceIds.set(browser, browserModeInstanceCount++);
+function browserModeInstanceId(browser: WebdriverIO.Browser): number {
+  let id = browserModeInstanceIds.get(browser);
+  if (id === undefined) {
+    id = browserModeInstanceCount++;
+    browserModeInstanceIds.set(browser, id);
   }
-  return `electron.${channel}\x00${browserModeInstanceIds.get(browser)}`;
+  return id;
+}
+
+export function browserModeStoreKey(browser: WebdriverIO.Browser, channel: string): string {
+  return `electron.${channel}\x00${browserModeInstanceId(browser)}`;
+}
+
+const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
+
+class MockUpdateScheduler {
+  #running: Promise<void> | null = null;
+  #queued: Promise<void> | null = null;
+  readonly #browser: WebdriverIO.Browser;
+
+  constructor(browser: WebdriverIO.Browser) {
+    this.#browser = browser;
+  }
+
+  schedule(): Promise<void> {
+    if (!this.#running) {
+      const p = this.#runOnce().finally(() => {
+        if (this.#running === p) this.#running = null;
+      });
+      this.#running = p;
+      return p;
+    }
+    if (!this.#queued) {
+      const q = this.#running
+        .catch(() => undefined)
+        .then(() => this.#runOnce())
+        .finally(() => {
+          if (this.#queued === q) this.#queued = null;
+        });
+      this.#queued = q;
+    }
+    return this.#queued;
+  }
+
+  async #runOnce(): Promise<void> {
+    log.debug('updateAllMocks batch start');
+    // Native-mode mocks (key has no \x00) belong to every scheduler in the
+    // process; browser-mode mocks (key ends with \x00<id>) are owned by a
+    // single browser instance and must only be updated by that browser's
+    // scheduler, otherwise mock.update() runs browser.execute() on the wrong
+    // app context.
+    const suffix = `\x00${browserModeInstanceId(this.#browser)}`;
+    const mocks = mockStore.getMocks().filter(([key]) => !key.includes('\x00') || key.endsWith(suffix));
+    log.debug(`Found ${mocks.length} mocks to update`);
+    if (mocks.length === 0) return;
+
+    try {
+      await Promise.all(
+        mocks.map(async ([mockId, mock]) => {
+          log.debug(`Updating mock: ${mockId}`);
+          await mock.update();
+          log.debug(`Mock update completed: ${mockId}`);
+        }),
+      );
+      log.debug('All mock updates completed successfully');
+    } catch (error) {
+      log.warn('Mock update batch failed:', error);
+    }
+  }
+}
+
+function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateScheduler {
+  let scheduler = mockUpdateSchedulers.get(browser);
+  if (!scheduler) {
+    scheduler = new MockUpdateScheduler(browser);
+    mockUpdateSchedulers.set(browser, scheduler);
+  }
+  return scheduler;
 }
 
 const log = createLogger('electron-service', 'service');
@@ -396,7 +469,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         // Use Reflect.apply to safely call the original command with the correct 'this' context
         // This avoids TypeScript's strict function signature checking while maintaining runtime safety
         const result = await Reflect.apply(originalCommand, this, args as unknown[]);
-        await updateAllMocks();
+        await getMockUpdateScheduler(browser).schedule();
         return result;
       } as Parameters<typeof browser.overwriteCommand>[1];
 
@@ -462,49 +535,6 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       log.warn('Failed to initialize log capture:', error);
     }
   }
-}
-
-let mockUpdatePending = false;
-let mockUpdatePromise: Promise<void> | null = null;
-
-/**
- * Update all existing mocks with debouncing to prevent redundant updates.
- * Multiple rapid calls will coalesce into a single update.
- */
-async function updateAllMocks() {
-  if (mockUpdatePending && mockUpdatePromise) {
-    return mockUpdatePromise;
-  }
-
-  mockUpdatePending = true;
-  mockUpdatePromise = (async () => {
-    log.debug('updateAllMocks called');
-    const mocks = mockStore.getMocks();
-    log.debug(`Found ${mocks.length} mocks to update`);
-
-    if (mocks.length === 0) {
-      log.debug('No mocks to update, returning');
-      return;
-    }
-
-    try {
-      log.debug('Starting mock update batch');
-      await Promise.all(
-        mocks.map(async ([mockId, mock]) => {
-          log.debug(`Updating mock: ${mockId}`);
-          await mock.update();
-          log.debug(`Mock update completed: ${mockId}`);
-        }),
-      );
-      log.debug('All mock updates completed successfully');
-    } catch (error) {
-      log.warn('Mock update batch failed:', error);
-    } finally {
-      mockUpdatePending = false;
-    }
-  })();
-
-  return mockUpdatePromise;
 }
 
 function isMultiremote(

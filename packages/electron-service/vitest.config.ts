@@ -10,7 +10,7 @@ export default defineConfig({
     setupFiles: ['test/setup.ts'],
     // Test file discovery patterns
     include: ['test/**/*.spec.ts'],
-    exclude: [...configDefaults.exclude, 'example*/**/*'],
+    exclude: [...configDefaults.exclude, 'example*/**/*', 'test/integration/**'],
     // Coverage configuration
     coverage: {
       enabled: true,

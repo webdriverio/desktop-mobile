@@ -263,6 +263,52 @@ describe('Electron Worker Service', () => {
       expect(original).toHaveBeenCalled();
     });
 
+    it('should run two scheduler batches when two overrides fire concurrently', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
+      storeModule.default.getMocks.mockReturnValue([['id', mockObj]]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      const p1 = overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      const p2 = overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      await Promise.all([p1, p2]);
+
+      expect(mockObj.update).toHaveBeenCalledTimes(2);
+    });
+
+    it('should recover the scheduler after a batch update rejects', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
+      (mockObj.update as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('boom'));
+      storeModule.default.getMocks.mockReturnValue([['id', mockObj]]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+
+      expect(mockObj.update).toHaveBeenCalledTimes(2);
+    });
+
     it('should copy original api', async () => {
       instance = new ElectronWorkerService({}, {});
 
