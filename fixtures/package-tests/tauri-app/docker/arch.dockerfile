@@ -2,7 +2,12 @@ FROM archlinux:latest
 
 ENV CI=true
 
-# Update package database and install basic requirements
+# Update package database and install basic requirements.
+# Note: Node.js is NOT installed from pacman — Arch's `nodejs` package tracks
+# the latest release (currently Node 26) whose stricter undici validation
+# trips WDIO's session POST (UND_ERR_INVALID_ARG). We install Node 20 LTS
+# from official binaries below to match Ubuntu/Debian (which pin via
+# setup_20.x) and keep builds repeatable.
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
         curl \
@@ -10,12 +15,18 @@ RUN pacman -Syu --noconfirm && \
         sudo \
         git \
         base-devel \
-        nodejs \
-        npm \
         openssl \
         python \
         xorg-server-xvfb && \
     pacman -Scc --noconfirm
+
+# Install Node.js 20 LTS from official binaries (pinned for repeatable builds)
+RUN NODE_VERSION="20.18.1" && \
+    curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
+        -o /tmp/node.tar.xz && \
+    tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 && \
+    rm /tmp/node.tar.xz && \
+    node --version && npm --version
 
 # Install pnpm globally
 RUN npm install -g pnpm
