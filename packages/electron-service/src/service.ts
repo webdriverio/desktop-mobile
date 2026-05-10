@@ -89,6 +89,11 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
 
     const hasElectronApi = isElectronApiAvailable(this.browser, cdpBridge);
 
+    // Install command overrides if the electron API is available
+    if (hasElectronApi) {
+      this.installCommandOverrides();
+    }
+
     if (isMultiremote(instance)) {
       const mrBrowser = instance;
 

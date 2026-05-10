@@ -221,13 +221,49 @@ describe('Electron Worker Service', () => {
       await expect(instance.before({}, [], browser)).rejects.toThrow('Window not found');
     });
 
-    it('should not install element command overrides in native mode', async () => {
+    it('should install element command overrides with overwriteCommand', async () => {
       instance = new ElectronWorkerService({}, {});
 
       await instance.before({}, [], browser);
 
       const oc = vi.mocked((browser as any).overwriteCommand);
-      expect(oc).not.toHaveBeenCalled();
+      const calls = oc.mock.calls;
+      // overwriteCommand signature: (name, wrapper, isElement?)
+      const overridden = calls.map((c: unknown[]) => ({ name: c[0], isElement: c[2] }));
+      expect(overridden).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({ name: 'click', isElement: true }),
+          expect.objectContaining({ name: 'doubleClick', isElement: true }),
+          expect.objectContaining({ name: 'setValue', isElement: true }),
+          expect.objectContaining({ name: 'clearValue', isElement: true }),
+        ]),
+      );
+    });
+
+    it('should update mocks after overridden element command executes', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      // Prepare mock store to return a mock with update()
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
+      storeModule.default.getMocks.mockReturnValueOnce([['id', mockObj]]);
+
+      // Find the override for 'click' and invoke it
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const clickCall = oc.mock.calls.find((c: unknown[]) => c[0] === 'click');
+      expect(clickCall).toBeDefined();
+      const overrideFn = clickCall?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      await overrideFn?.call({} as unknown as WebdriverIO.Element, original);
+
+      expect(mockObj.update).toHaveBeenCalledTimes(1);
+      expect(original).toHaveBeenCalled();
     });
 
     it('should copy original api', async () => {
@@ -905,7 +941,7 @@ describe('Electron Worker Service', () => {
     });
 
     describe('multiremote missing devServerUrl', () => {
-      it('throws SevereServiceError when an Electron instance has no devServerUrl (neither per-cap nor global)', async () => {
+      it('should throw SevereServiceError when an Electron instance has no devServerUrl', async () => {
         instance = new ElectronWorkerService({ mode: 'browser' }, {});
 
         browserModeBrowser.requestedCapabilities = {
@@ -970,7 +1006,7 @@ describe('Electron Worker Service', () => {
         expect((firefoxBrowser.url as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
       });
 
-      it('re-injects only into Electron instances when root url() is called after navigation', async () => {
+      it('should re-inject only into Electron instances when root url() is called after navigation', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
 
         const electronBrowser = {
@@ -1015,7 +1051,7 @@ describe('Electron Worker Service', () => {
         expect((firefoxBrowser.execute as ReturnType<typeof vi.fn>).mock.calls.length).toBe(firefoxExecuteBefore);
       });
 
-      it('installs command overrides only on the root browser, not on individual Electron instances', async () => {
+      it('should install command overrides only on the root browser, not on individual Electron instances', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
 
         const electronBrowser = {
@@ -1047,50 +1083,10 @@ describe('Electron Worker Service', () => {
         // so a separate call on each instance would double-wrap element commands.
         expect((electronBrowser.overwriteCommand as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
       });
-
-      it('installs the four expected element command overrides in browser mode', async () => {
-        instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
-        await instance.before({}, [], browserModeBrowser);
-
-        const oc = vi.mocked((browserModeBrowser as any).overwriteCommand);
-        const overridden = oc.mock.calls.map((c: unknown[]) => ({ name: c[0], isElement: c[2] }));
-        expect(overridden).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({ name: 'click', isElement: true }),
-            expect.objectContaining({ name: 'doubleClick', isElement: true }),
-            expect.objectContaining({ name: 'setValue', isElement: true }),
-            expect.objectContaining({ name: 'clearValue', isElement: true }),
-          ]),
-        );
-      });
-
-      it('updates mocks after an overridden element command executes in browser mode', async () => {
-        instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
-        await instance.before({}, [], browserModeBrowser);
-
-        const storeModule = (await import('../src/mockStore.js')) as any;
-        const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
-        storeModule.default.getMocks.mockReturnValueOnce([['id', mockObj]]);
-
-        const oc = vi.mocked((browserModeBrowser as any).overwriteCommand);
-        const clickCall = oc.mock.calls.find((c: unknown[]) => c[0] === 'click');
-        expect(clickCall).toBeDefined();
-        const overrideFn = clickCall?.[1] as unknown as (
-          this: WebdriverIO.Element,
-          original: (...args: unknown[]) => Promise<unknown>,
-          ...args: unknown[]
-        ) => Promise<unknown>;
-
-        const original = vi.fn().mockResolvedValue('ok');
-        await overrideFn?.call({} as unknown as WebdriverIO.Element, original);
-
-        expect(mockObj.update).toHaveBeenCalledTimes(1);
-        expect(original).toHaveBeenCalled();
-      });
     });
 
     describe('root multiremote browser.electron.mock()', () => {
-      it('throws when mock() is called on the root multiremote browser in browser mode', async () => {
+      it('should throw when mock() is called on the root multiremote browser in browser mode', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
 
         browserModeBrowser.requestedCapabilities = {
@@ -1114,7 +1110,7 @@ describe('Electron Worker Service', () => {
         );
       });
 
-      it('includes the channel name and per-instance guidance in the error message', async () => {
+      it('should include the channel name and per-instance guidance in the error message', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
 
         browserModeBrowser.requestedCapabilities = {
@@ -1138,7 +1134,7 @@ describe('Electron Worker Service', () => {
         );
       });
 
-      it('allows mock() on a per-instance browser in multiremote browser mode', async () => {
+      it('should allow mock() on a per-instance browser in multiremote browser mode', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
 
         browserModeBrowser.requestedCapabilities = {
