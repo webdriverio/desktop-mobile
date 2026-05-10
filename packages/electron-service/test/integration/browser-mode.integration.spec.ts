@@ -236,3 +236,124 @@ describe('browser mode — registration gate', () => {
     expect(mockClear).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('browser mode — navigation lifecycle', () => {
+  let service: ElectronWorkerService;
+  let browser: FakeBrowser;
+
+  beforeEach(async () => {
+    mockStore.clear();
+    service = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
+    browser = createFakeBrowser();
+    await service.before({}, [], browser as unknown as WebdriverIO.Browser);
+  });
+
+  afterEach(() => {
+    mockStore.clear();
+  });
+
+  function isLivenessScript(arg: unknown): boolean {
+    return typeof arg === 'string' && arg.startsWith('return !!(window.__wdio_mocks__');
+  }
+
+  function isRegistrationScript(arg: unknown, channel: string): boolean {
+    return (
+      typeof arg === 'string' && arg.includes(`__wdio_mocks__[${JSON.stringify(channel)}]`) && !isLivenessScript(arg)
+    );
+  }
+
+  function isInjectionScript(arg: unknown): boolean {
+    // The full IPC injection script references __wdio_mocks__ but is neither
+    // a liveness probe nor a single-channel registration call.
+    return (
+      typeof arg === 'string' && arg.includes('__wdio_mocks__') && !isLivenessScript(arg) && !arg.startsWith('return (')
+    );
+  }
+
+  it('should re-inject IPC and re-register the mock through a full navigation cycle', async () => {
+    const mockClear = vi.fn().mockResolvedValue(undefined);
+    const replayBrowserImpl = vi.fn().mockResolvedValue(undefined);
+    const update = vi.fn().mockResolvedValue(undefined);
+    const existing = {
+      __isElectronMock: true,
+      __replayBrowserImpl: replayBrowserImpl,
+      mockClear,
+      getMockName: () => 'electron.appInfo:get',
+      update,
+    };
+    const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, 'appInfo:get');
+    mockStore.setMockWithKey(key, existing as unknown as ElectronMock);
+
+    await browser.triggerCommand('click');
+    expect(update).toHaveBeenCalledTimes(1);
+
+    browser.execute.mockClear();
+    await browser.url('http://localhost:5173/page2');
+    const injectionAfterNav = browser.execute.mock.calls.filter((c) => isInjectionScript(c[0]));
+    expect(injectionAfterNav.length).toBeGreaterThan(0);
+
+    browser.execute.mockImplementation(async (arg: unknown) => {
+      if (isLivenessScript(arg)) return false;
+      return undefined;
+    });
+
+    const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
+    const returned = await api('appInfo:get');
+    expect(returned).toBe(existing);
+    expect(replayBrowserImpl).toHaveBeenCalledTimes(1);
+    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(browser.execute.mock.calls.filter((c) => isRegistrationScript(c[0], 'appInfo:get'))).toHaveLength(1);
+
+    browser.execute.mockResolvedValue(undefined);
+    await browser.triggerCommand('click');
+    expect(update).toHaveBeenCalledTimes(2);
+  });
+
+  it('should call mockClear exactly once when several consumers race to recover after navigation', async () => {
+    const mockClear = vi.fn().mockResolvedValue(undefined);
+    const replayBrowserImpl = vi.fn().mockResolvedValue(undefined);
+    const existing = {
+      __isElectronMock: true,
+      __replayBrowserImpl: replayBrowserImpl,
+      mockClear,
+      getMockName: () => 'electron.appInfo:get',
+      update: vi.fn().mockResolvedValue(undefined),
+    };
+    const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, 'appInfo:get');
+    mockStore.setMockWithKey(key, existing as unknown as ElectronMock);
+    browser.execute.mockResolvedValue(false);
+
+    const api = (browser.electron as { mock: (c: string) => Promise<unknown> }).mock;
+    await Promise.all([api('appInfo:get'), api('appInfo:get'), api('appInfo:get'), api('appInfo:get')]);
+
+    expect(mockClear).toHaveBeenCalledTimes(1);
+    expect(replayBrowserImpl).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not emit unhandled rejections when in-flight work completes after browser drop', async () => {
+    const rejections: unknown[] = [];
+    const onRejection = (reason: unknown) => rejections.push(reason);
+    process.on('unhandledRejection', onRejection);
+
+    try {
+      const fake = createFakeMock('electron.appInfo:get');
+      const held = defer<void>();
+      fake.update.mockImplementationOnce(() => held.promise);
+      const key = browserModeStoreKey(browser as unknown as WebdriverIO.Browser, 'appInfo:get');
+      mockStore.setMockWithKey(key, fake.mock);
+
+      const click = browser.triggerCommand('click');
+
+      mockStore.clear();
+      await flushMicrotasks();
+
+      held.resolve();
+      await click;
+      await flushMicrotasks();
+
+      expect(rejections).toEqual([]);
+    } finally {
+      process.off('unhandledRejection', onRejection);
+    }
+  });
+});
