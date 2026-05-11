@@ -118,7 +118,12 @@ Recorded artefacts are platform-specific and per-run — keep them out of versio
 __video__
 ```
 
-That's the entire setup. The reporter hooks into WDIO's existing command stream — no spec changes needed. Failing tests will produce `__video__/<platform>/<arch>/<test-slug>-<timestamp>.webm`; passing tests will not, unless `saveAllVideos: true`.
+That's the entire setup. The reporter hooks into WDIO's existing command stream — no spec changes needed. Failing tests will produce a `.webm` under the `outputDir` you set above:
+
+- **Electron**: `__video__/<platform>/<arch>/<test-slug>-<timestamp>.webm`
+- **Tauri**: `__video__/<platform>/<arch>/<provider>/<test-slug>-<timestamp>.webm` (the extra `<provider>` segment comes from the per-provider directory we added in the Tauri config above — see the Tauri provider notes for why).
+
+Passing tests will not produce a file unless `saveAllVideos: true`.
 
 ## When videos get retained
 
