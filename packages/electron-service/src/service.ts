@@ -475,6 +475,12 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         throw new Error('browser.electron.triggerDeeplink() is not supported in browser mode.');
       },
       emitEvent: async (channel: string, ...args: unknown[]): Promise<void> => {
+        if (isRootMultiremote) {
+          throw new Error(
+            'browser.electron.emitEvent() on the root multiremote browser is not supported in browser mode. ' +
+              `Call it on a specific instance instead: mrBrowser.getInstance('name').electron.emitEvent('${channel}', ...)`,
+          );
+        }
         await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
           (...inner: unknown[]) => {
             const [c, a] = inner as [string, unknown[]];

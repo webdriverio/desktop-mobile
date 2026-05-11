@@ -1203,6 +1203,32 @@ describe('Electron Worker Service', () => {
         );
       });
 
+      it('should throw when emitEvent() is called on the root multiremote browser in browser mode', async () => {
+        instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
+
+        browserModeBrowser.requestedCapabilities = {
+          alwaysMatch: { browserName: 'electron', 'wdio:electronServiceOptions': {} },
+        };
+
+        const rootBrowser = {
+          instances: ['app1'],
+          getInstance: (name: string) => (name === 'app1' ? browserModeBrowser : undefined),
+          execute: vi.fn().mockResolvedValue(undefined),
+          url: vi.fn().mockResolvedValue(undefined),
+          overwriteCommand: vi.fn(),
+          isMultiremote: true,
+          electron: {},
+        } as unknown as WebdriverIO.MultiRemoteBrowser;
+
+        await instance.before({}, [], rootBrowser);
+
+        await expect(
+          (rootBrowser as unknown as WebdriverIO.Browser).electron.emitEvent('did-update-info', { count: 3 }),
+        ).rejects.toThrow(
+          'browser.electron.emitEvent() on the root multiremote browser is not supported in browser mode',
+        );
+      });
+
       it('should include the channel name and per-instance guidance in the error message', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
 
