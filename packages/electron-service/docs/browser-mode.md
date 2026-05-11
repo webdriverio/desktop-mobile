@@ -11,7 +11,7 @@ In normal (`native`) mode the service launches your compiled Electron app, drive
 ### Why Use It?
 
 - **No build step needed** — point the service at `vite dev` and start testing immediately.
-- **Fast feedback** — no Electron startup, no binary detection, no port negotiation.
+- **Fast feedback** — no Electron startup, no binary detection, no port negotiation. The in-repo E2E suite of three specs completes in ~22s end-to-end (server start, Chrome launch, three specs), roughly 5× faster than the equivalent native script-app E2E run on the same hardware. CI Linux runner stays under the 30s budget.
 - **Standard browser devtools** — Chrome DevTools and HMR work as normal during development.
 
 ### When to Use It
