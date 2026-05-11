@@ -5,6 +5,7 @@
 // Each export below was extracted from one or both of tauri-service /
 // electron-service; reconciliation notes live next to each module.
 
+export * from './baseLauncher.js';
 export * from './deeplink.js';
 export * from './driverPool.js';
 export * from './driverProcess.js';
