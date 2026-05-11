@@ -62,9 +62,9 @@ pub async fn execute_sync(
   let arg_names: Vec<String> = (0..request.args.len()).map(|i| format!("__arg{i}")).collect();
   let arg_list = arg_names.join(", ");
   let wrapped = if arg_list.is_empty() {
-    format!("(function() {{ {} }})()", request.script)
+    format!("return (function() {{ {} }})()", request.script)
   } else {
-    format!("(function({arg_list}) {{ {} }})({arg_list})", request.script)
+    format!("return (function({arg_list}) {{ {} }})({arg_list})", request.script)
   };
   run_script(&wrapped, &request.args, timeout_ms).await
 }
@@ -93,7 +93,7 @@ pub async fn execute_async(
     format!("{}, __done", arg_names.join(", "))
   };
   let wrapped = format!(
-    r#"(function() {{
+    r#"return (function() {{
       return new Promise(function(resolve, reject) {{
         var __done = function(result) {{ resolve(result); }};
         try {{ (function({arg_list}) {{ {script} }})({args}__done); }}
