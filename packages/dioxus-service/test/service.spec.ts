@@ -156,7 +156,7 @@ describe('DioxusWorkerService', () => {
       await service.before({}, [], browser);
 
       const callsBefore = vi.mocked(browser.execute).mock.calls.length;
-      await (browser as unknown as { url: (u: string) => Promise<void> }).url('http://localhost:3000/page2');
+      await (browser as unknown as { url: (u?: string) => Promise<void> }).url('http://localhost:3000/page2');
 
       // After patched url(), execute should have been called again with the injection script
       expect(vi.mocked(browser.execute).mock.calls.length).toBeGreaterThan(callsBefore);

@@ -61,14 +61,16 @@ export default class DioxusWorkerService {
 
     // Re-inject spy on every navigation so the mock infrastructure
     // survives page loads within the same test session.
-    const originalUrl = (browser.url as unknown as (u: string) => Promise<void>).bind(browser);
+    const originalUrl = (browser.url as unknown as (u?: string) => Promise<unknown>).bind(browser);
     const injectSpy = this.injectSpy.bind(this);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (browser as any).url = async (url: string) => {
+    (browser as any).url = async (url?: string) => {
       const result = await originalUrl(url);
-      await injectSpy(browser).catch((err) => {
-        log.warn('Failed to re-inject spy after navigation:', err);
-      });
+      if (url !== undefined) {
+        await injectSpy(browser).catch((err) => {
+          log.warn('Failed to re-inject spy after navigation:', err);
+        });
+      }
       return result;
     };
   }

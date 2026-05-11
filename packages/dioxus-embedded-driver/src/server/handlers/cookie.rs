@@ -33,7 +33,7 @@ pub async fn get_all(
 ) -> WebDriverResult {
   let t = timeout(&state, &session_id).await?;
   let result = eval(
-    "(function(){ return document.cookie.split(';').map(c=>{ var p=c.indexOf('='); return {name:c.slice(0,p).trim(),value:c.slice(p+1).trim(),path:'/',domain:'',secure:false,httpOnly:false}; }); })()".to_string(),
+    "(function(){ var s=document.cookie; if(!s.trim()) return []; return s.split(';').map(function(c){ var p=c.indexOf('='); return {name:c.slice(0,p).trim(),value:c.slice(p+1).trim(),path:'/',domain:'',secure:false,httpOnly:false}; }); })()".to_string(),
     t,
   ).await?;
   Ok(WebDriverResponse::success(result))
