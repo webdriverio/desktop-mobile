@@ -141,6 +141,23 @@ describe('Electron Worker Service', () => {
       expect(serviceApi.resetAllMocks).toEqual(expect.any(Function));
       expect(serviceApi.restoreAllMocks).toEqual(expect.any(Function));
       expect(serviceApi.triggerDeeplink).toEqual(expect.any(Function));
+      expect(serviceApi.emitEvent).toEqual(expect.any(Function));
+    });
+
+    it('should route emitEvent through electron.execute in native mode', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+      const serviceApi = browser.electron as BrowserExtension['electron'];
+
+      await serviceApi.emitEvent('did-update-info', { count: 3 }, 'extra');
+
+      const executeMock = vi.mocked(await import('../src/commands/executeCdp.js')).execute;
+      expect(executeMock).toHaveBeenCalled();
+      const lastCall = executeMock.mock.calls[executeMock.mock.calls.length - 1];
+      // [browser, cdpBridge, fn, channel, args]
+      expect(typeof lastCall[2]).toBe('function');
+      expect(lastCall[3]).toBe('did-update-info');
+      expect(lastCall[4]).toEqual([{ count: 3 }, 'extra']);
     });
 
     it('should provide a stubbed API when CDP bridge is unavailable', async () => {
@@ -985,6 +1002,23 @@ describe('Electron Worker Service', () => {
             expect.objectContaining({ name: 'clearValue', isElement: true }),
           ]),
         );
+      });
+
+      it('should route emitEvent through browser.execute in browser mode', async () => {
+        instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
+        await instance.before({}, [], browserModeBrowser);
+
+        const executeMock = vi.mocked(browserModeBrowser.execute as ReturnType<typeof vi.fn>);
+        executeMock.mockClear();
+
+        const serviceApi = browserModeBrowser.electron as BrowserExtension['electron'];
+        await serviceApi.emitEvent('did-update-info', { count: 7 });
+
+        expect(executeMock).toHaveBeenCalled();
+        const call = executeMock.mock.calls[0];
+        expect(typeof call[0]).toBe('function');
+        expect(call[1]).toBe('did-update-info');
+        expect(call[2]).toEqual([{ count: 7 }]);
       });
 
       it('should not run the injection script when url() is called without a href', async () => {

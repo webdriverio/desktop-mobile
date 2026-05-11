@@ -112,6 +112,26 @@ export interface ElectronServiceAPI {
    * ```
    */
   triggerDeeplink: (url: string) => Promise<void>;
+  /**
+   * Emit a main → renderer IPC event to listeners registered via
+   * `ipcRenderer.on(channel, listener)` / `.once()`.
+   *
+   * - **Browser mode**: dispatches synthetically to listeners registered in
+   *   the injected `window.__wdio_electron_listeners__` registry.
+   * - **Native mode**: routes through `BrowserWindow.getFocusedWindow()?.webContents.send(channel, ...args)`,
+   *   reaching the actual renderer. The same call site works in both modes.
+   *
+   * @param channel - the IPC channel listeners subscribed to
+   * @param args - payload args forwarded to the listener after a synthetic
+   *   IpcRendererEvent
+   *
+   * @example
+   * ```ts
+   * // app: ipcRenderer.on('did-update-info', (_e, info) => updateUi(info));
+   * await browser.electron.emitEvent('did-update-info', { count: 3 });
+   * ```
+   */
+  emitEvent: (channel: string, ...args: unknown[]) => Promise<void>;
 }
 
 /**
