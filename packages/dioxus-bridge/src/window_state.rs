@@ -49,6 +49,11 @@ struct Entry {
 #[derive(Default)]
 struct Registry {
   entries: Mutex<Vec<Entry>>,
+  /// Monotonic counter: total windows ever registered. Drives labelling
+  /// so closing 'main' and opening a new window produces `window-N`,
+  /// never a recycled `main`. Independent of `entries.len()` so the
+  /// backing `Vec` can be pruned of dead entries without disturbing labels.
+  total_registered: Mutex<usize>,
 }
 
 static REGISTRY: OnceLock<Registry> = OnceLock::new();
@@ -57,19 +62,25 @@ fn registry() -> &'static Registry {
   REGISTRY.get_or_init(Registry::default)
 }
 
-/// Allocate the next label given how many entries already exist. Pulled out
-/// so the labelling rule can be unit-tested without spinning a real Window.
-pub(crate) fn allocate_label(existing_count: usize) -> String {
-  if existing_count == 0 {
+/// Allocate the next label given how many windows have **ever** been
+/// registered (live or dead). Pulled out so the labelling rule can be
+/// unit-tested without spinning a real Window.
+pub(crate) fn allocate_label(total_registered: usize) -> String {
+  if total_registered == 0 {
     "main".to_string()
   } else {
-    format!("window-{}", existing_count)
+    format!("window-{}", total_registered)
   }
 }
 
 /// Register a freshly-built window. Returns the label assigned to it.
 /// Re-registering the same [`WindowId`] is a no-op that returns the
 /// already-assigned label.
+///
+/// Each call prunes entries whose `Weak<Window>` has expired so the
+/// backing `Vec` stays proportional to the number of *live* windows in
+/// long-running test suites that churn windows repeatedly. Labels remain
+/// stable across GC because the counter is monotonic.
 pub fn register_window(window: &Arc<Window>) -> String {
   let r = registry();
   let mut entries = r.entries.lock().expect("window-state registry poisoned");
@@ -77,7 +88,10 @@ pub fn register_window(window: &Arc<Window>) -> String {
   if let Some(existing) = entries.iter().find(|e| e.id == id) {
     return existing.label.clone();
   }
-  let label = allocate_label(entries.len());
+  entries.retain(|e| e.window.upgrade().is_some());
+  let mut counter = r.total_registered.lock().expect("window-state registry poisoned");
+  let label = allocate_label(*counter);
+  *counter += 1;
   entries.push(Entry {
     id,
     label: label.clone(),
@@ -141,12 +155,14 @@ pub fn label_for_id(id: WindowId) -> Option<String> {
     .map(|e| e.label.clone())
 }
 
-/// Drop every entry from the registry. Test-only — production callers
-/// rely on `Weak::upgrade` to filter out dead windows.
+/// Reset both the entry list and the monotonic counter. Test-only —
+/// production callers rely on `Weak::upgrade` to filter out dead windows
+/// and the counter is intentionally process-lifetime.
 #[cfg(test)]
 pub(crate) fn reset_for_tests() {
   let r = registry();
   r.entries.lock().expect("window-state registry poisoned").clear();
+  *r.total_registered.lock().expect("window-state registry poisoned") = 0;
 }
 
 #[cfg(test)]
@@ -168,8 +184,9 @@ mod tests {
   #[test]
   fn should_never_reuse_a_main_label_after_closure() {
     // Three windows registered, then the first closes; the next allocation
-    // must be 'window-3', not 'main'. We model the count as the total ever
-    // pushed (entries.len()), which is exactly what register_window() uses.
+    // must be 'window-3', not 'main'. The monotonic counter passed to
+    // allocate_label is the source of truth — register_window keeps the
+    // counter independent of entries.len() so GC can prune dead entries.
     assert_eq!(allocate_label(3), "window-3");
   }
 }

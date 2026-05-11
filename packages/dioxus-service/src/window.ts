@@ -89,6 +89,14 @@ export async function listWindowLabels(browser: WebdriverIO.Browser): Promise<st
   if (!Array.isArray(result)) {
     throw new Error(`[@wdio/dioxus-service] expected __list_windows to return an array, got ${typeof result}`);
   }
+  // Validate item shape: a bridge protocol drift could return `[null]` or
+  // `[42]`, which the rest of the service would silently misinterpret
+  // (e.g. `includes()` returning false where a downstream caller expects
+  // a missing-label error). Catch the mismatch here at the boundary.
+  if (!result.every((item) => typeof item === 'string')) {
+    const types = result.map((item) => (item === null ? 'null' : typeof item)).join(', ');
+    throw new Error(`[@wdio/dioxus-service] __list_windows returned non-string items: [${types}]`);
+  }
   return result as string[];
 }
 
@@ -126,12 +134,12 @@ async function resolveLabelToHandle(browser: WebdriverIO.Browser, targetLabel: s
  * Switch the active WebDriver context to the window labelled `label`.
  *
  *   1. Validates that `label` is in the bridge's live-window list.
- *   2. Resolves the label to a WebDriver handle by walking handles.
- *   3. Switches WebDriver focus.
- *   4. Updates the per-session label cache.
+ *   2. Walks handles via `resolveLabelToHandle` (which leaves the driver
+ *      on the matching handle as a side effect).
+ *   3. Updates the per-session label cache.
  *
- * Throws with a discoverable error message when the label doesn't exist or
- * the underlying switch fails.
+ * If resolution fails, the original handle is restored before the error
+ * is propagated.
  */
 export async function switchWindowByLabel(browser: WebdriverIO.Browser, label: string): Promise<void> {
   const available = await listWindowLabels(browser);
@@ -143,13 +151,15 @@ export async function switchWindowByLabel(browser: WebdriverIO.Browser, label: s
 
   const originalHandle = await browser.getWindowHandle();
   try {
-    const handle = await resolveLabelToHandle(browser, label);
-    await browser.switchToWindow(handle);
+    // resolveLabelToHandle leaves the driver focused on the matching
+    // handle when it succeeds — no follow-up switchToWindow call needed.
+    await resolveLabelToHandle(browser, label);
   } catch (switchError) {
     await browser.switchToWindow(originalHandle).catch(() => undefined);
-    throw new Error(
-      `[@wdio/dioxus-service] failed to switch to window "${label}": ${switchError instanceof Error ? switchError.message : String(switchError)}`,
-    );
+    // Re-throw the inner error unmodified — it already carries the
+    // package prefix and discoverable context (which handles were
+    // probed, etc.). Wrapping here produced a double-prefixed string.
+    throw switchError;
   }
 
   setCurrentWindowLabel(browser, label);

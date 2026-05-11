@@ -124,6 +124,13 @@ describe('window helpers', () => {
       const { browser } = makeBrowser({ executeReturns: ['not-an-array'] });
       await expect(listWindowLabels(browser)).rejects.toThrow(/expected __list_windows to return an array/);
     });
+
+    it('should throw when the array contains non-string items', async () => {
+      const { browser } = makeBrowser({ executeReturns: [['main', null, 42]] });
+      await expect(listWindowLabels(browser)).rejects.toThrow(
+        /__list_windows returned non-string items: \[string, null, number\]/,
+      );
+    });
   });
 
   describe('switchWindowByLabel', () => {
@@ -140,13 +147,10 @@ describe('window helpers', () => {
 
       await switchWindowByLabel(browser, 'window-1');
 
-      // First switchToWindow: handle iteration in resolveLabelToHandle ('h-main' then 'h-window-1');
-      // Then: final switch to the resolved handle.
-      expect(vi.mocked(browser.switchToWindow).mock.calls.map((c) => c[0])).toEqual([
-        'h-main',
-        'h-window-1',
-        'h-window-1',
-      ]);
+      // resolveLabelToHandle iterates handles ('h-main' then 'h-window-1')
+      // and the driver is already on the matching handle when it returns,
+      // so switchWindowByLabel no longer issues a redundant final switch.
+      expect(vi.mocked(browser.switchToWindow).mock.calls.map((c) => c[0])).toEqual(['h-main', 'h-window-1']);
       expect(getCurrentWindowLabel(browser)).toBe('window-1');
     });
 
@@ -169,9 +173,12 @@ describe('window helpers', () => {
         switchToWindow: vi.fn().mockResolvedValue(undefined),
       } as unknown as WebdriverIO.Browser;
 
-      await expect(switchWindowByLabel(browser, 'window-1')).rejects.toThrow(/failed to switch to window "window-1"/);
-      // resolveLabelToHandle iterated through h-main (no match), then the
-      // catch-block restored to the original handle.
+      // resolveLabelToHandle throws with the package-prefixed error; the
+      // outer catch restores the original handle and re-throws the inner
+      // error unmodified (no double prefix).
+      await expect(switchWindowByLabel(browser, 'window-1')).rejects.toThrow(
+        /no window with label "window-1" found after checking all handles/,
+      );
       const restoreCalls = vi.mocked(browser.switchToWindow).mock.calls.map((c) => c[0]);
       expect(restoreCalls).toContain('h-main');
     });

@@ -3,10 +3,11 @@
 //!
 //! Ships the automation env-var reader ([`automation`]), the `wdio://invoke`
 //! IPC channel ([`invoke`]), frontend/backend log forwarding
-//! ([`log_bridge`]), and a multi-window registry ([`window_state`]) that
+//! ([`log_bridge`]), a multi-window registry ([`window_state`]) that
 //! auto-labels Dioxus windows for [`@wdio/dioxus-service`]'s `switchWindow`
-//! / `listWindows` APIs. Subsequent milestones add the deeplink reference
-//! handler.
+//! / `listWindows` APIs, and an optional deeplink reference helper
+//! ([`deeplink`]) for apps that want to wire `Config::with_custom_protocol`
+//! with one line.
 //!
 //! # Quick start
 //!
