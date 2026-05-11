@@ -152,6 +152,52 @@ await mockGetUser.mockResolvedValue({ id: 0, name: 'Default' });
 await mockGetUser.mockRestore();
 ```
 
+## Events
+
+`ipcRenderer.on(channel, listener)` / `once` / `removeListener` / `removeAllListeners` work in browser mode. The IPC injection backs them with an in-page listener registry, so frontend subscriptions land in real handlers and tests can dispatch main → renderer events from the test process.
+
+### How It Works
+
+The injection script:
+
+1. Maintains `window.__wdio_electron_listeners__` — a per-channel registry of `{ id, fn, once }` entries.
+2. Replaces `ipcRenderer.on` / `addListener` / `once` with implementations that push into the registry and return `ipcRenderer` (chainable, matching Electron's API).
+3. Replaces `ipcRenderer.removeListener` / `off` / `removeAllListeners` with implementations that mutate the registry.
+4. Exposes a `window.__wdio_emit_electron_event__(channel, ...args)` helper that dispatches a synthetic `IpcRendererEvent` (`{ ports: [], sender: ipcRenderer, senderId: 0 }`) plus the trailing args to every registered listener for that channel.
+
+### Emitting from Tests
+
+```ts
+// Frontend
+window.electron.ipcRenderer.on('did-update-info', (_event, info) => {
+  document.querySelector('#status')!.textContent = info.status;
+});
+
+// Test
+await browser.electron.emitEvent('did-update-info', { status: 'ready' });
+await expect($('#status')).toHaveText('ready');
+```
+
+`browser.electron.emitEvent()` is mode-agnostic — the same line works in native mode (where it routes through `BrowserWindow.getFocusedWindow()?.webContents.send(channel, ...args)` and reaches the actual renderer) and in browser mode (where it routes through the in-page registry).
+
+### `once()` Semantics
+
+`ipcRenderer.once(channel, listener)` fires the listener exactly once; subsequent emits are ignored. The listener is removed before the call, mirroring Node.js EventEmitter behaviour.
+
+```ts
+window.electron.ipcRenderer.once('one-shot', () => { /* … */ });
+
+await browser.electron.emitEvent('one-shot');
+await browser.electron.emitEvent('one-shot');
+// listener invoked once
+```
+
+### Limitations
+
+- **Listeners are wiped on navigation** — `browser.url()` rebuilds the registry. Subscriptions created before navigation will not fire afterwards. This matches the native-mode behaviour after a renderer reload.
+- **The synthetic `IpcRendererEvent` is minimal** — `event.ports` is always an empty array and `event.senderId` is always `0`. Tests that rely on rich event metadata (port transfer, IPC bridging) will need native mode.
+- **Errors thrown inside a listener do not abort sibling listeners** — they're swallowed so one bad handler can't block the rest. If you need to assert on listener errors, throw a sentinel and catch it outside the listener.
+
 ## Mock Lifecycle Across Tests
 
 ### `mock(channel)` Is Idempotent
@@ -231,7 +277,6 @@ The injection script runs after `browser.url()` resolves (document `readyState` 
 | `browser.electron.windowHandle` | Not meaningful — standard Chrome window handle |
 | `nodeIntegration: true` preloads (no contextBridge) | Unsupported — the browser page has no `require()`. The injection creates a synthetic `window.electron.ipcRenderer` that won't match a preload that exposes a custom API shape via `nodeIntegration`. Use `contextBridge.exposeInMainWorld()` instead. |
 | Automatic window focus management | Disabled — standard browser window switching applies |
-| `ipcRenderer.on` / `once` / `removeListener` | No-ops — event listeners not intercepted |
 | `mock.withImplementation()` | Serialised to browser page — see below |
 
 ### `withImplementation` in browser mode
