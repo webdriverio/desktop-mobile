@@ -22,7 +22,7 @@ import {
 } from './embeddedProvider.js';
 import { getTauriAppInfo, getTauriBinaryPath, getWebKitWebDriverPath } from './pathResolver.js';
 import { PortManager } from './portManager.js';
-import type { TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
+import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
 
@@ -41,6 +41,26 @@ function generateDataDirectory(instanceId: string): string {
 
 // (per-instance env is set when spawning the tauri-driver process)
 
+let officialDeprecationWarned = false;
+
+/**
+ * Normalise legacy `driverProvider: 'official'` to the canonical `'external'`.
+ * Emits a one-time deprecation warning. `'official'` will be removed in v2.
+ */
+function normaliseDriverProvider(value: DriverProvider | undefined): DriverProvider | undefined {
+  if (value === 'official') {
+    if (!officialDeprecationWarned) {
+      log.warn(
+        "driverProvider: 'official' is deprecated; use 'external' instead. " +
+          "The 'official' value will be removed in @wdio/tauri-service v2.",
+      );
+      officialDeprecationWarned = true;
+    }
+    return 'external';
+  }
+  return value;
+}
+
 /**
  * Merge global options with capability-specific options
  */
@@ -51,6 +71,7 @@ function mergeOptions(
   return {
     ...globalOptions,
     ...capabilityOptions,
+    driverProvider: normaliseDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider),
     // Log capture options default to false if not specified
     captureBackendLogs: capabilityOptions?.captureBackendLogs ?? globalOptions.captureBackendLogs ?? false,
     captureFrontendLogs: capabilityOptions?.captureFrontendLogs ?? globalOptions.captureFrontendLogs ?? false,
@@ -121,7 +142,7 @@ export default class TauriLaunchService {
     if (isEmbedded && !mergedOptions.driverProvider) {
       log.info(
         `No driverProvider configured — defaulting to embedded WebDriver provider (port ${getEmbeddedPort(mergedOptions)}). ` +
-          `Set driverProvider: 'official' to use tauri-driver instead.`,
+          `Set driverProvider: 'external' to use tauri-driver instead.`,
       );
     }
 

@@ -184,7 +184,7 @@ export function createTauriCapabilities(
     logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
     commandTimeout?: number;
     startTimeout?: number;
-    driverProvider?: 'official' | 'crabnebula' | 'embedded';
+    driverProvider?: 'external' | 'official' | 'crabnebula' | 'embedded';
     autoInstallTauriDriver?: boolean;
   } = {},
 ): TauriCapabilities {
