@@ -9,7 +9,7 @@
 
 | # | Improvement | Applies To | Effort | Impact | Status |
 |---|-------------|------------|--------|--------|--------|
-| 1 | Browser-only test mode with mocked native IPC | Tauri + Electron | Large | High | Pending |
+| 1 | Browser-only test mode with mocked native IPC | Tauri + Electron | Large | High | **Completed** (both frameworks) |
 | 2 | Direct WebView eval channel (supplement WebDriver) | Tauri (embedded) | Large | High | **Completed** |
 | 3 | Multi-window label configuration | Tauri | Small | Medium | **Completed** |
 | 4 | Native screenshot capture | Tauri + Electron | Medium | Low | Pending |
@@ -120,6 +120,20 @@ Both frameworks have a JavaScript bridge that can be intercepted:
 - How to handle Tauri event listeners (`listen`, `emit`) in browser mode?
 - Should we auto-start the Vite dev server, or require it to be running?
 - For Electron: which preload pattern(s) to support? (contextBridge is recommended but not universal)
+
+### Status: ✅ Completed (2026-05-11)
+
+Shipped for both frameworks. See:
+
+- Tauri guide: [`packages/tauri-service/docs/browser-mode.md`](../packages/tauri-service/docs/browser-mode.md)
+- Electron guide: [`packages/electron-service/docs/browser-mode.md`](../packages/electron-service/docs/browser-mode.md)
+
+Resolved open questions:
+
+- `browser.tauri.execute()` / `browser.electron.execute()` throw in browser mode — use mocks or `browser.execute()` for renderer code.
+- Tauri events (`listen` / `once` / `unlisten` / `emit` / `emitTo`) are routed through an in-page listener registry; tests dispatch via `browser.tauri.emitEvent()`. Electron's `ipcRenderer.on` / `once` / `removeListener` / `removeAllListeners` are similarly registry-backed; tests dispatch via `browser.electron.emitEvent()`.
+- Dev server is user-managed for v1; `devServerCommand` deferred until demand surfaces.
+- Electron browser mode supports `contextBridge`-exposed preloads only; `nodeIntegration: true` is documented as unsupported.
 
 ---
 
