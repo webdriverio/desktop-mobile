@@ -1,7 +1,8 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Options } from '@wdio/types';
 
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 export const config: Options.Testrunner = {
   runner: 'local',
