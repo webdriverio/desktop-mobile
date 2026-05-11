@@ -63,7 +63,7 @@
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
-    "@babel/parser": "^7.29.0",
+    "@babel/parser": "^7.29.3",
     "@types/debug": "^4.1.12",
     "@types/node": "^25.5.0",
     "recast": "^0.23.11",
