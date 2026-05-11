@@ -131,18 +131,15 @@ ${WDIO_MOCK_SETUP_SCRIPT}
     throw new Error('unmocked Electron IPC channel in browser mode: ' + channel);
   };
   if (!window.__wdio_electron_listeners__) { window.__wdio_electron_listeners__ = {}; }
-  if (typeof window.__wdio_electron_listener_seq__ !== 'number') { window.__wdio_electron_listener_seq__ = 0; }
   window.electron.ipcRenderer.on = function(channel, fn) {
-    var id = ++window.__wdio_electron_listener_seq__;
     if (!window.__wdio_electron_listeners__[channel]) { window.__wdio_electron_listeners__[channel] = []; }
-    window.__wdio_electron_listeners__[channel].push({ id: id, fn: fn, once: false });
+    window.__wdio_electron_listeners__[channel].push({ fn: fn, once: false });
     return window.electron.ipcRenderer;
   };
   window.electron.ipcRenderer.addListener = window.electron.ipcRenderer.on;
   window.electron.ipcRenderer.once = function(channel, fn) {
-    var id = ++window.__wdio_electron_listener_seq__;
     if (!window.__wdio_electron_listeners__[channel]) { window.__wdio_electron_listeners__[channel] = []; }
-    window.__wdio_electron_listeners__[channel].push({ id: id, fn: fn, once: true });
+    window.__wdio_electron_listeners__[channel].push({ fn: fn, once: true });
     return window.electron.ipcRenderer;
   };
   window.electron.ipcRenderer.removeListener = function(channel, fn) {
