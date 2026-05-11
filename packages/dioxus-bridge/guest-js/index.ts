@@ -138,7 +138,22 @@ if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_R
           } catch (e) {
             error = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
           }
-          await invoke('__embedded_result', { id: cmd.id, result: result ?? null, error });
+          try {
+            await invoke('__embedded_result', { id: cmd.id, result: result ?? null, error });
+          } catch {
+            // Result delivery failed (e.g. IPC teardown during navigation).
+            // Attempt once more with an error marker so the Axum oneshot
+            // sender is resolved rather than leaking until script timeout.
+            try {
+              await invoke('__embedded_result', {
+                id: cmd.id,
+                result: null,
+                error: 'IPC error during result delivery',
+              });
+            } catch {
+              console.warn('[wdio-dioxus-bridge] dropped command', cmd.id, '— IPC unavailable');
+            }
+          }
         } else {
           await new Promise<void>((r) => setTimeout(r, 10));
         }

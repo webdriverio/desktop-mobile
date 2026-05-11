@@ -71,7 +71,7 @@ pub async fn create(
       "browserName": "dioxus",
       "platformName": std::env::consts::OS,
       "acceptInsecureCerts": false,
-      "pageLoadStrategy": "normal",
+      "pageLoadStrategy": "none",
       "setWindowRect": true,
       "timeouts": {
         "implicit": session.timeouts.implicit_ms,
