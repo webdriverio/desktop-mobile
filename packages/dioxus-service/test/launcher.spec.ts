@@ -9,6 +9,7 @@ vi.mock('../src/providers/embedded.js', () => ({
 }));
 
 import DioxusLaunchService from '../src/launcher.js';
+import { startEmbeddedDriver } from '../src/providers/embedded.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
 
 const baseConfig = {} as Parameters<DioxusLaunchService['onPrepare']>[0];
@@ -81,6 +82,27 @@ describe('DioxusLaunchService', () => {
       );
 
       await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).resolves.toBeUndefined();
+    });
+
+    it('should assign distinct sequential ports to multiple embedded capabilities', async () => {
+      setPlatform('linux');
+      const launcher = new DioxusLaunchService(
+        { driverProvider: 'embedded', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+      const caps: DioxusCapabilities[] = [
+        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
+        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
+      ];
+
+      await launcher.onPrepare(baseConfig, caps);
+
+      const calls = vi.mocked(startEmbeddedDriver).mock.calls;
+      const ports = calls.slice(-2).map((c) => c[1]);
+      expect(ports[1]).toBe(ports[0] + 1);
+      expect((caps[0] as { port?: number }).port).toBe(ports[0]);
+      expect((caps[1] as { port?: number }).port).toBe(ports[1]);
     });
 
     it('should read driverProvider from capability-level options when present', async () => {

@@ -78,7 +78,7 @@ export default class DioxusLaunchService extends BaseLauncher {
     for (let i = 0; i < capsList.length; i++) {
       const cap = capsList[i];
       const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
-      const embeddedPort = getEmbeddedPort(instanceOptions);
+      const embeddedPort = getEmbeddedPort(instanceOptions) + i;
       const appBinaryPath = cap['dioxus:options']?.application ?? instanceOptions.appBinaryPath;
 
       if (!appBinaryPath) {
