@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { dirname, extname, join, resolve as resolvePath } from 'node:path';
+import { dirname, extname, join, sep as pathSep, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Options } from '@wdio/types';
 
@@ -22,11 +22,14 @@ function startStaticServer(rootPath: string): Promise<Server> {
     '.css': 'text/css',
     '.json': 'application/json',
   };
+  // Containment check uses rootPath + sep so a sibling directory like
+  // `/foo/bar2` doesn't masquerade as a child of `/foo/bar`.
+  const rootPrefix = rootPath.endsWith(pathSep) ? rootPath : rootPath + pathSep;
   const server = createServer((req, res) => {
     const url = req.url ?? '/';
     const filePath = url === '/' || url === '' ? 'index.html' : url.replace(/^\//, '').split('?')[0];
     const absolute = resolvePath(rootPath, filePath);
-    if (!absolute.startsWith(rootPath) || !existsSync(absolute)) {
+    if ((absolute !== rootPath && !absolute.startsWith(rootPrefix)) || !existsSync(absolute)) {
       res.statusCode = 404;
       res.end('Not Found');
       return;

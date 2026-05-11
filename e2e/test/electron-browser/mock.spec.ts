@@ -35,9 +35,18 @@ describe('Electron browser-mode E2E', () => {
   it('should dispatch main → renderer events via browser.electron.emitEvent', async () => {
     // Register the listener after injection has run (page-level setup ran
     // before the injection script could replace window.electron.ipcRenderer).
+    // window/document aren't in the e2e tsconfig lib, so reach them via
+    // globalThis with a local type.
+    type Listener = (event: unknown, payload: unknown) => void;
+    type PageGlobals = {
+      window: { electron: { ipcRenderer: { on: (channel: string, fn: Listener) => void } } };
+      document: { querySelector: (sel: string) => { textContent: string } | null };
+    };
     await browser.execute(() => {
-      window.electron.ipcRenderer.on('main:status', (_event, payload) => {
-        document.querySelector('[data-testid="event-output"]').textContent = JSON.stringify(payload);
+      const g = globalThis as unknown as PageGlobals;
+      g.window.electron.ipcRenderer.on('main:status', (_event, payload) => {
+        const el = g.document.querySelector('[data-testid="event-output"]');
+        if (el) el.textContent = JSON.stringify(payload);
       });
     });
 
