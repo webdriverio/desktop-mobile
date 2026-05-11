@@ -292,6 +292,16 @@ await mock1.mockResolvedValue({ id: 1 });
 await mock2.mockResolvedValue({ id: 2 });
 ```
 
+### Navigation in multiremote
+
+Per-instance `devServerUrl` is used for the initial navigation only. Once tests are running, `browser.url(href)` on the root navigates all instances to the same `href`. To navigate one instance to a different URL, call `url()` on the instance directly:
+
+```ts
+await browser.getInstance('app1').url('http://localhost:5173/admin');
+```
+
+`browser.electron.mock()` is unsupported on the root multiremote browser — call it on a specific instance instead. The service throws a clear error if you do otherwise.
+
 ## Troubleshooting
 
 ### `"unmocked Electron IPC channel in browser mode: <channel>"`
