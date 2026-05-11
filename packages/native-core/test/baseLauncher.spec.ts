@@ -20,19 +20,19 @@ class TestLauncher extends BaseLauncher {
 }
 
 describe('BaseLauncher', () => {
-  it('initialises a PortManager with default base ports', () => {
+  it('should initialise a PortManager with default base ports', () => {
     const launcher = new TestLauncher();
     const pm = launcher.exposePortManager();
     expect(pm.getUsedPorts()).toEqual([]);
   });
 
-  it('honours custom basePort / baseNativePort', async () => {
+  it('should honour custom basePort / baseNativePort', async () => {
     const launcher = new TestLauncher({ basePort: 9000, baseNativePort: 9001 });
     const port = await launcher.exposePortManager().allocatePort();
     expect(port).toBe(9000);
   });
 
-  it('initialises an empty DriverPool', () => {
+  it('should initialise an empty DriverPool', () => {
     const launcher = new TestLauncher();
     expect(launcher.exposeDriverPool().getStatus()).toEqual({
       running: false,
@@ -41,7 +41,7 @@ describe('BaseLauncher', () => {
     });
   });
 
-  it('stopAllDrivers resolves on an empty pool', async () => {
+  it('should resolve stopAllDrivers on an empty pool without error', async () => {
     const launcher = new TestLauncher();
     await expect(launcher.stopAll()).resolves.not.toThrow();
   });
