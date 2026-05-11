@@ -67,8 +67,9 @@ export const WDIO_MOCK_SETUP_SCRIPT = `  window.__wdio_call_id__ = window.__wdio
       }
     }
     mockFn._isMockFunction = true;
+    var _mockSnapshot = { calls: _calls, results: _results, invocationCallOrder: _invocationCallOrder };
     Object.defineProperty(mockFn, 'mock', {
-      get: function() { return { calls: _calls, results: _results, invocationCallOrder: _invocationCallOrder }; },
+      get: function() { return _mockSnapshot; },
       enumerable: true, configurable: true
     });
     mockFn.mockName = function(n) { _name = n; return mockFn; };

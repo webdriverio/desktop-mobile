@@ -161,6 +161,14 @@ describe('ElectronAdapter.buildBrowserIpcInjectionScript', () => {
       expect(mock.invocationCallOrder).toEqual([]);
     });
 
+    it('should return the same mock object identity across reads', () => {
+      const script = adapter.buildBrowserIpcInjectionScript();
+      const window = runInBrowserContext(script);
+      const spy = window.__wdio_spy__ as Record<string, unknown>;
+      const mockFn = (spy.fn as () => Record<string, unknown>)();
+      expect(mockFn.mock).toBe(mockFn.mock);
+    });
+
     it('should record calls and results', () => {
       const script = adapter.buildBrowserIpcInjectionScript();
       const window = runInBrowserContext(script);
