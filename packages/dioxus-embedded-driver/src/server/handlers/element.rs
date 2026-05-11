@@ -108,9 +108,10 @@ pub async fn find_all(
   Json(req): Json<FindElementRequest>,
 ) -> WebDriverResult {
   let timeout = session_timeout(&state, &session_id).await?;
+  let prefix = Uuid::new_v4().simple().to_string();
+  let locator = js_locator_all(&req.using, &req.value);
   let script = format!(
-    "(function(){{ var elems = {}; var vars = []; for(var i=0;i<elems.length;i++) {{ var k='__wdio_elem_'+Date.now()+'_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()",
-    js_locator_all(&req.using, &req.value)
+    "(function(){{ var elems = {locator}; var vars = []; for(var i=0;i<elems.length;i++) {{ var k='__wdio_elem_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
   let result = eval(script, timeout).await?;
   let vars = result.as_array().cloned().unwrap_or_default();
@@ -194,9 +195,10 @@ pub async fn find_all_from_element(
     let session = sessions.get(&session_id)?;
     session.elements.get(&element_id).ok_or_else(WebDriverErrorResponse::stale_element_reference)?.to_string()
   };
+  let prefix = Uuid::new_v4().simple().to_string();
+  let value_repr = format!("{:?}", req.value);
   let script = format!(
-    "(function(){{ var elems=Array.from(window.{var}.querySelectorAll({:?})); var vars=[]; for(var i=0;i<elems.length;i++){{ var k='__wdio_ch_'+Date.now()+'_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()",
-    req.value
+    "(function(){{ var elems=Array.from(window.{var}.querySelectorAll({value_repr})); var vars=[]; for(var i=0;i<elems.length;i++){{ var k='__wdio_ch_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
   let result = eval(script, timeout).await?;
   let vars = result.as_array().cloned().unwrap_or_default();

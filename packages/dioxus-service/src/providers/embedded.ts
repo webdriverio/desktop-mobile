@@ -231,6 +231,7 @@ export async function stopEmbeddedDriver(info: EmbeddedDriverInfo): Promise<void
 
   log.warn('Embedded driver did not exit gracefully, sending SIGKILL');
   info.proc.kill('SIGKILL');
+  await Promise.race([new Promise<void>((resolve) => info.proc.once('exit', () => resolve())), sleep(500)]);
 }
 
 /**
