@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Electron Browser-Mode E2E Fixture</title>
+  </head>
+  <body>
+    <h1 data-testid="title">Electron Browser-Mode E2E</h1>
+
+    <section>
+      <button data-testid="fetch-version">Fetch version</button>
+      <pre data-testid="version-output"></pre>
+    </section>
+
+    <section>
+      <button data-testid="send-action">Send action</button>
+      <pre data-testid="action-status"></pre>
+    </section>
+
+    <section>
+      <pre data-testid="event-output"></pre>
+    </section>
+
+    <script>
+      // Minimal contextBridge-shape surface. In a real Electron app this is
+      // exposed by a preload via contextBridge.exposeInMainWorld('electron',
+      // { ipcRenderer: { ... } }). In browser mode our injection script
+      // creates the same shape so renderer code is portable as-is.
+      if (!window.electron) {
+        window.electron = { ipcRenderer: { invoke: () => Promise.reject(new Error('preload missing')), on: () => {}, send: () => {}, sendSync: () => {} } };
+      }
+
+      document.querySelector('[data-testid="fetch-version"]').addEventListener('click', async () => {
+        try {
+          const version = await window.electron.ipcRenderer.invoke('app:get-version');
+          document.querySelector('[data-testid="version-output"]').textContent = version;
+        } catch (err) {
+          document.querySelector('[data-testid="version-output"]').textContent = `error: ${err.message}`;
+        }
+      });
+
+      document.querySelector('[data-testid="send-action"]').addEventListener('click', () => {
+        try {
+          window.electron.ipcRenderer.send('action:perform', { id: 42 });
+          document.querySelector('[data-testid="action-status"]').textContent = 'sent';
+        } catch (err) {
+          document.querySelector('[data-testid="action-status"]').textContent = `error: ${err.message}`;
+        }
+      });
+
+      // Renderer code that needs event listeners must register them after the
+      // IPC injection script runs (readyState === complete). To avoid the
+      // timing-caveat documented in browser-mode.md, the test registers the
+      // listener via browser.execute rather than inline here.
+    </script>
+  </body>
+</html>

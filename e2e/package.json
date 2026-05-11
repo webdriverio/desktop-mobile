@@ -17,6 +17,7 @@
     "test:e2e:electron-forge:deeplink": "cross-env DEBUG=wdio-electron-service:launcher WDIO_VERBOSE=true FRAMEWORK=electron APP=forge BINARY=true TEST_TYPE=deeplink tsx scripts/run-matrix.ts",
     "test:e2e:electron-script": "cross-env DEBUG=wdio-electron-service:launcher WDIO_VERBOSE=true FRAMEWORK=electron APP=script BINARY=false tsx scripts/run-matrix.ts",
     "test:e2e:electron-script:window": "cross-env DEBUG=wdio-electron-service:launcher WDIO_VERBOSE=true FRAMEWORK=electron APP=script BINARY=false TEST_TYPE=window ENABLE_SPLASH_WINDOW=true tsx scripts/run-matrix.ts",
+    "test:e2e:electron-browser": "wdio run wdio.electron-browser.conf.ts",
     "test:e2e-mac-universal:electron-builder": "cross-env DEBUG=wdio-electron-service:launcher WDIO_VERBOSE=true FRAMEWORK=electron APP=builder BINARY=true MAC_UNIVERSAL=true tsx scripts/run-matrix.ts",
     "test:e2e-mac-universal:electron-forge": "cross-env DEBUG=wdio-electron-service:launcher WDIO_VERBOSE=true FRAMEWORK=electron APP=forge BINARY=true MAC_UNIVERSAL=true tsx scripts/run-matrix.ts",
     "test:e2e:standard": "cross-env TEST_TYPE=standard tsx scripts/run-matrix.ts",
