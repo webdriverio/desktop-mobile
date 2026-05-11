@@ -22,7 +22,7 @@ import type { DioxusAPIs } from '@wdio/native-types';
 
 export async function execute<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   browser: WebdriverIO.Browser,
-  script: string | ((dx: DioxusAPIs, ...args: InnerArguments) => ReturnValue | Promise<ReturnValue>),
+  script: string | ((dx: DioxusAPIs, ...args: InnerArguments) => ReturnValue),
   ...args: InnerArguments
 ): Promise<ReturnValue> {
   if (typeof script === 'function') {
@@ -32,6 +32,11 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     // (older versions used `function() { ... }`, but modern wrappers may
     // emit arrow functions — and arrow functions have no own `arguments`
     // binding). Inlining keeps the call-site portable.
+    //
+    // The wrapper body MUST stay synchronous: WebDriver's executeScript
+    // wraps the string in a non-async function, so `await` here would be
+    // a SyntaxError at runtime. Users that need promise-returning scripts
+    // should reach for executeAsync (not yet exposed on browser.dioxus).
     const argsLiteral = args.map((a) => JSON.stringify(a) ?? 'undefined').join(', ');
     const wrapped = `
       const userFn = (${fnSource});
@@ -42,7 +47,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
           'Did you forget to call wdio_dioxus_bridge::install(config) in your Dioxus main.rs?'
         );
       }
-      return await Promise.resolve(userFn(dx, ${argsLiteral}));
+      return userFn(dx, ${argsLiteral});
     `;
     return (await browser.execute(wrapped)) as ReturnValue;
   }
