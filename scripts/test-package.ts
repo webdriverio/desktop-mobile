@@ -1,13 +1,14 @@
 #!/usr/bin/env tsx
 /**
  * Script to test the wdio-electron-service and wdio-tauri-service packages in the package test apps
- * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|both>] [--module-type=<cjs|esm|both>] [--skip-build]
+ * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|both>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]
  *
  * Examples:
  * pnpx tsx scripts/test-package.ts
  * pnpx tsx scripts/test-package.ts --service=electron
  * pnpx tsx scripts/test-package.ts --service=electron --module-type=cjs
  * pnpx tsx scripts/test-package.ts --service=electron --module-type=esm
+ * pnpx tsx scripts/test-package.ts --service=electron --mode=browser
  * pnpx tsx scripts/test-package.ts --service=tauri
  * pnpx tsx scripts/test-package.ts --package=electron-builder-app-cjs
  * pnpx tsx scripts/test-package.ts --package=electron-builder-app-esm
@@ -16,8 +17,9 @@
 
 import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { dirname, join, normalize } from 'node:path';
+import { dirname, extname, join, normalize, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Add global error handlers to catch silent failures
@@ -49,6 +51,10 @@ interface TestOptions {
   skipBuild?: boolean;
   service?: 'electron' | 'tauri' | 'both';
   moduleType?: 'cjs' | 'esm' | 'both';
+  /** 'native' runs the existing app-launch tests. 'browser' starts a static
+   * HTTP server against the fixture's `browser/` directory and runs the
+   * browser-mode wdio config. Only meaningful for Electron fixtures today. */
+  mode?: 'native' | 'browser';
 }
 
 function log(message: string) {
@@ -195,6 +201,41 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
   }
 }
 
+/**
+ * Serve a directory of static files over HTTP on a fixed port. Returns the
+ * server handle so the caller can `close()` it after tests run. Used in
+ * browser-mode package tests where the fixture's `browser/` directory needs to
+ * be reachable at a dev-server URL so the worker can navigate to it.
+ */
+async function startStaticServer(rootPath: string, port: number): Promise<Server> {
+  const mimeTypes: Record<string, string> = {
+    '.html': 'text/html',
+    '.js': 'application/javascript',
+    '.mjs': 'application/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+  };
+  const server = createServer((req, res) => {
+    const url = req.url ?? '/';
+    const filePath = url === '/' || url === '' ? 'index.html' : url.replace(/^\//, '').split('?')[0];
+    const absolute = resolvePath(rootPath, filePath);
+    if (!absolute.startsWith(rootPath) || !existsSync(absolute)) {
+      res.statusCode = 404;
+      res.end('Not Found');
+      return;
+    }
+    res.setHeader('Content-Type', mimeTypes[extname(absolute)] ?? 'application/octet-stream');
+    res.end(readFileSync(absolute));
+  });
+  await new Promise<void>((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(port, '127.0.0.1', () => resolveListen());
+  });
+  return server;
+}
+
 async function testExample(
   packagePath: string,
   packages: {
@@ -207,6 +248,7 @@ async function testExample(
   },
   service: 'electron' | 'tauri',
   _skipBuild: boolean,
+  mode: 'native' | 'browser' = 'native',
 ) {
   const packageName = packagePath.split(/[/\\]/).pop();
   if (!packageName) {
@@ -487,12 +529,30 @@ async function testExample(
           }
         }
       }
-    } else if (packageJson.scripts?.build) {
-      // Build Electron apps in isolated environment
+    } else if (packageJson.scripts?.build && mode === 'native') {
+      // Build Electron apps in isolated environment (browser mode skips the build)
       execCommand('pnpm build', packageDir, `Building ${packageName} app`);
     }
 
-    execCommand('pnpm test', packageDir, `Running tests for ${packageName}`);
+    let staticServer: Server | undefined;
+    if (mode === 'browser') {
+      const browserDir = join(packageDir, 'browser');
+      if (!existsSync(browserDir)) {
+        throw new Error(`Browser-mode requested but no browser/ directory in ${packageName}. Expected ${browserDir}.`);
+      }
+      log(`Starting static server for ${packageName} from ${browserDir} on http://localhost:5173`);
+      staticServer = await startStaticServer(browserDir, 5173);
+    }
+
+    try {
+      const testScript = mode === 'browser' ? 'pnpm test:browser' : 'pnpm test';
+      execCommand(testScript, packageDir, `Running ${mode} tests for ${packageName}`);
+    } finally {
+      if (staticServer) {
+        await new Promise<void>((resolveClose) => staticServer.close(() => resolveClose()));
+        log(`Stopped static server for ${packageName}`);
+      }
+    }
 
     log(`✅ ${packageName} tests passed!`);
 
@@ -603,11 +663,22 @@ async function main() {
       }
     }
 
+    const modeArg = args.find((arg) => arg.startsWith('--mode='))?.split('=')[1];
+    let mode: 'native' | 'browser' = 'native';
+    if (modeArg) {
+      if (modeArg === 'native' || modeArg === 'browser') {
+        mode = modeArg;
+      } else {
+        throw new Error(`Invalid mode value: ${modeArg}. Must be 'native' or 'browser'`);
+      }
+    }
+
     const options: TestOptions = {
       package: args.find((arg) => arg.startsWith('--package='))?.split('=')[1],
       skipBuild: args.includes('--skip-build'),
       service,
       moduleType,
+      mode,
     };
 
     // Build and pack service (unless skipped)
@@ -698,6 +769,13 @@ async function main() {
       // If moduleType is 'both', include all variants
     }
 
+    // Browser mode only runs against fixtures that have a wdio.browser.conf.ts
+    // and a browser/ directory to serve. Today that's just the script-app
+    // variants; expand the allowlist when more fixtures opt in.
+    if (options.mode === 'browser') {
+      filteredDirs = filteredDirs.filter((name) => existsSync(join(packagesDir, name, 'wdio.browser.conf.ts')));
+    }
+
     // Filter packages if specific one requested
     let packagesToTest = options.package ? filteredDirs.filter((name) => name === options.package) : filteredDirs;
 
@@ -760,7 +838,7 @@ async function main() {
         log(`Testing ${packageName} (${moduleType})`);
       }
 
-      await testExample(packagePath, packages, detectedService, options.skipBuild ?? false);
+      await testExample(packagePath, packages, detectedService, options.skipBuild ?? false, options.mode);
     }
 
     log(`🎉 All package tests completed successfully!`);

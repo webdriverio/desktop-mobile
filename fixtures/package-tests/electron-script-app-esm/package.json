@@ -12,6 +12,7 @@
     "preview": "electron-vite preview",
     "start": "electron .",
     "test": "cross-env DEBUG=wdio-electron-service wdio run wdio.conf.ts",
+    "test:browser": "cross-env DEBUG=wdio-electron-service wdio run wdio.browser.conf.ts",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
