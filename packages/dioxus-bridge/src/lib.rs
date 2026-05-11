@@ -1,9 +1,10 @@
 //! `wdio-dioxus-bridge` — bridge crate consumed by Dioxus desktop apps that
 //! want to be testable via `@wdio/dioxus-service`.
 //!
-//! v1 ships only the automation env-var reader ([`automation`]). The full
-//! bridge IPC (`wdio://` custom protocol + invoke command bus + log forwarder
-//! + guest-js bundle) lands in Phase 2 of the dioxus-service rollout.
+//! v1 ships the automation env-var reader ([`automation`]) and the
+//! `wdio://invoke` IPC channel ([`invoke`]). Subsequent milestones will add
+//! `log_bridge.rs` (frontend/backend log forwarding via the bridge), window
+//! state tracking, and the deeplink reference handler.
 //!
 //! # Quick start
 //!
@@ -29,22 +30,32 @@
 //! ```
 
 pub mod automation;
+pub mod invoke;
 
 use dioxus_desktop::Config;
 
-/// Install the WDIO bridge into a Dioxus [`Config`]. Reads
-/// `DIOXUS_WEBVIEW_AUTOMATION` (set by `@wdio/dioxus-service` when spawning
-/// the app under test) and logs whether automation was requested.
+pub use invoke::CommandRegistry;
+
+/// Install the WDIO bridge into a Dioxus [`Config`]:
 ///
-/// **v1 limitation:** Dioxus's public Config API has no hook to flip Wry's
-/// automation mode on Linux (see `spike/FINDINGS.md`). This function logs the
-/// detected env-var state but cannot itself enable WebKitWebDriver attach.
-/// Provider `'external'` is consequently Windows-only in v1; Linux users are
-/// directed to `provider: 'embedded'` by the launcher.
+/// 1. Reports the [`automation`] env-var state via tracing.
+/// 2. Registers a `wdio://` custom protocol handler backed by a fresh
+///    [`CommandRegistry`] (with the built-in `__ping` command).
+/// 3. Returns the [`Config`] for chainability with the app's own builders.
 ///
-/// Returns the (currently unmodified) [`Config`] for chainability with future
-/// Phase 2 builders.
+/// To register additional commands, call [`install_with_registry`] instead
+/// and pre-populate the registry before passing it in.
 pub fn install(config: Config) -> Config {
+  install_with_registry(config, CommandRegistry::new())
+}
+
+/// Variant of [`install`] that accepts a pre-populated [`CommandRegistry`].
+/// Use this when the app needs custom commands beyond the built-ins.
+pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Config {
   automation::report();
-  config
+
+  let registry_for_handler = registry;
+  config.with_custom_protocol("wdio".to_string(), move |_webview_id, request| {
+    invoke::handle_invoke_request(&registry_for_handler, &request)
+  })
 }
