@@ -10,7 +10,8 @@
     "build:js": "pnpm --filter @wdio/tauri-plugin build:js",
     "build:web": "tsx scripts/build-web.ts",
     "build": "pnpm build:js && pnpm build:web && tauri build --debug",
-    "test": "cross-env DEBUG=@wdio/tauri-service wdio run wdio.conf.ts"
+    "test": "cross-env DEBUG=@wdio/tauri-service wdio run wdio.conf.ts",
+    "test:browser": "cross-env DEBUG=@wdio/tauri-service wdio run wdio.browser.conf.ts"
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.0",

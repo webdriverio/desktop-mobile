@@ -474,6 +474,29 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       triggerDeeplink: async () => {
         throw new Error('browser.electron.triggerDeeplink() is not supported in browser mode.');
       },
+      emitEvent: async (channel: string, ...args: unknown[]): Promise<void> => {
+        if (isRootMultiremote) {
+          throw new Error(
+            'browser.electron.emitEvent() on the root multiremote browser is not supported in browser mode. ' +
+              `Call it on a specific instance instead: mrBrowser.getInstance('name').electron.emitEvent('${channel}', ...)`,
+          );
+        }
+        await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
+          (...inner: unknown[]) => {
+            const [c, a] = inner as [string, unknown[]];
+            const w = window as unknown as {
+              __wdio_emit_electron_event__?: (channel: string, ...args: unknown[]) => void;
+            };
+            if (!w.__wdio_emit_electron_event__) {
+              throw new Error('Electron event registry not initialised — is browser mode active?');
+            }
+            w.__wdio_emit_electron_event__(c, ...a);
+          },
+          channel,
+          args,
+        );
+        await getMockUpdateScheduler(browser).schedule();
+      },
     } as unknown as BrowserExtension['electron'];
   }
 
@@ -659,5 +682,28 @@ function getElectronAPI(this: ServiceConfig, browser: WebdriverIO.Browser, cdpBr
     resetAllMocks: getMethod(resetAllMocks.bind(this)),
     restoreAllMocks: getMethod(restoreAllMocks.bind(this)),
     triggerDeeplink: getMethod(triggerDeeplink.bind(this), false), // doesn't require CDP
+    emitEvent: getMethod(async (channel: string, ...args: unknown[]): Promise<void> => {
+      await execute.apply(this, [
+        browser,
+        cdpBridge as ElectronCdpBridge,
+        (electron, ...inner: unknown[]) => {
+          const [c, a] = inner as [string, unknown[]];
+          const win = electron.BrowserWindow.getFocusedWindow() ?? electron.BrowserWindow.getAllWindows()[0];
+          if (!win) {
+            throw new Error('emitEvent: no BrowserWindow available to receive event');
+          }
+          win.webContents.send(c, ...a);
+        },
+        channel,
+        args,
+      ]);
+      // webContents.send is fire-and-forget from main → renderer. Round-trip
+      // through the renderer with a no-op script so any ipcRenderer.on
+      // listener has fired (and any mocked IPC calls it makes have landed)
+      // before we sample mock state. Mirrors the browser-mode path, which
+      // dispatches listeners synchronously in-page.
+      await browser.execute(() => undefined);
+      await getMockUpdateScheduler(browser).schedule();
+    }),
   } as unknown as BrowserExtension['electron'];
 }

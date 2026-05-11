@@ -67,6 +67,7 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 - 🎯 **Framework-specific automation** - Native integration with Electron, Tauri
 - 🔍 **Smart binary detection** - Automatic app discovery and configuration
 - 🎭 **API mocking & isolation** - Built-in mocking for deterministic tests
+- 🌍 **Browser-only test mode** - Run the renderer in Chrome against a dev server, no binary required. See the [Electron](./packages/electron-service/docs/browser-mode.md) and [Tauri](./packages/tauri-service/docs/browser-mode.md) guides.
 - 🌐 **Cross-platform support** - Write once, test everywhere
 - 🔧 **Consistent API** - Familiar WDIO patterns across all frameworks
 
