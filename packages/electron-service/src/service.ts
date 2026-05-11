@@ -691,6 +691,12 @@ function getElectronAPI(this: ServiceConfig, browser: WebdriverIO.Browser, cdpBr
         channel,
         args,
       ]);
+      // webContents.send is fire-and-forget from main → renderer. Round-trip
+      // through the renderer with a no-op script so any ipcRenderer.on
+      // listener has fired (and any mocked IPC calls it makes have landed)
+      // before we sample mock state. Mirrors the browser-mode path, which
+      // dispatches listeners synchronously in-page.
+      await browser.execute(() => undefined);
       await getMockUpdateScheduler(browser).schedule();
     }),
   } as unknown as BrowserExtension['electron'];

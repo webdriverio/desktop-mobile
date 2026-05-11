@@ -5,7 +5,7 @@ const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 export const config: Options.Testrunner = {
   runner: 'local',
-  specs: ['./test/browser.spec.ts'],
+  specs: ['./test-browser/browser.spec.ts'],
   exclude: [],
   maxInstances: 1,
   capabilities: [

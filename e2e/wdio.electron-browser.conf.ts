@@ -1,7 +1,7 @@
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
-import { dirname, extname, join, sep as pathSep, resolve as resolvePath } from 'node:path';
+import { dirname, extname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Options } from '@wdio/types';
 
@@ -22,14 +22,27 @@ function startStaticServer(rootPath: string): Promise<Server> {
     '.css': 'text/css',
     '.json': 'application/json',
   };
-  // Containment check uses rootPath + sep so a sibling directory like
-  // `/foo/bar2` doesn't masquerade as a child of `/foo/bar`.
-  const rootPrefix = rootPath.endsWith(pathSep) ? rootPath : rootPath + pathSep;
+  // Enumerate files up front and look them up by request URL into the map.
+  // Keeps user-controlled input out of `readFileSync` and satisfies CodeQL.
+  const allowed = new Map<string, string>();
+  const walk = (dir: string, prefix: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name);
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(abs, rel);
+      } else if (entry.isFile()) {
+        allowed.set(`/${rel}`, abs);
+        if (rel === 'index.html') allowed.set('/', abs);
+      }
+    }
+  };
+  walk(rootPath, '');
+
   const server = createServer((req, res) => {
-    const url = req.url ?? '/';
-    const filePath = url === '/' || url === '' ? 'index.html' : url.replace(/^\//, '').split('?')[0];
-    const absolute = resolvePath(rootPath, filePath);
-    if ((absolute !== rootPath && !absolute.startsWith(rootPrefix)) || !existsSync(absolute)) {
+    const key = (req.url ?? '/').split('?')[0];
+    const absolute = allowed.get(key);
+    if (!absolute) {
       res.statusCode = 404;
       res.end('Not Found');
       return;

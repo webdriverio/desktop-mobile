@@ -19,7 +19,7 @@ import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { dirname, extname, join, normalize, sep as pathSep, resolve as resolvePath } from 'node:path';
+import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Add global error handlers to catch silent failures
@@ -207,6 +207,10 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
  * server handle so the caller can `close()` it after tests run. Used in
  * browser-mode package tests where the fixture's `browser/` directory needs to
  * be reachable at a dev-server URL so the worker can navigate to it.
+ *
+ * The set of served files is enumerated at startup; the request handler only
+ * looks up by request URL into that map, so user-controlled input never flows
+ * into a `readFileSync` argument.
  */
 async function startStaticServer(rootPath: string, port: number): Promise<Server> {
   const mimeTypes: Record<string, string> = {
@@ -218,14 +222,25 @@ async function startStaticServer(rootPath: string, port: number): Promise<Server
     '.svg': 'image/svg+xml',
     '.png': 'image/png',
   };
-  // Containment check uses rootPath + sep so a sibling directory like
-  // `/foo/bar2` doesn't masquerade as a child of `/foo/bar`.
-  const rootPrefix = rootPath.endsWith(pathSep) ? rootPath : rootPath + pathSep;
+  const allowed = new Map<string, string>();
+  const walk = (dir: string, prefix: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name);
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(abs, rel);
+      } else if (entry.isFile()) {
+        allowed.set(`/${rel}`, abs);
+        if (rel === 'index.html') allowed.set('/', abs);
+      }
+    }
+  };
+  walk(rootPath, '');
+
   const server = createServer((req, res) => {
-    const url = req.url ?? '/';
-    const filePath = url === '/' || url === '' ? 'index.html' : url.replace(/^\//, '').split('?')[0];
-    const absolute = resolvePath(rootPath, filePath);
-    if ((absolute !== rootPath && !absolute.startsWith(rootPrefix)) || !existsSync(absolute)) {
+    const key = (req.url ?? '/').split('?')[0];
+    const absolute = allowed.get(key);
+    if (!absolute) {
       res.statusCode = 404;
       res.end('Not Found');
       return;
