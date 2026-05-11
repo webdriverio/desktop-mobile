@@ -7,13 +7,11 @@ This document outlines the planned services and their development sequencing for
 ### [@wdio/electron-service](./packages/electron-service) - v10.x
 **Status:** 🚧 Pre-release (migrated from legacy repo)\
 **Platforms:** Windows, macOS, Linux\
-**Browser-only mode:** ✅ Available — test the renderer in Chrome against a Vite dev server, no Electron binary required. See [browser-mode.md](./packages/electron-service/docs/browser-mode.md).\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/electron-service)](https://npmjs.com/package/@wdio/electron-service)
 
 ### [@wdio/tauri-service](./packages/tauri-service) - v1.x
 **Status:** 🚧 Pre-release\
 **Platforms:** Windows, macOS, Linux\
-**Browser-only mode:** ✅ Available — test the frontend in Chrome against a Vite dev server, no Tauri binary required. See [browser-mode.md](./packages/tauri-service/docs/browser-mode.md).\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/tauri-service)](https://npmjs.com/package/@wdio/tauri-service)
 
 ---
@@ -24,7 +22,6 @@ The roadmap above is scoped to *new framework support*. Capability-level feature
 
 | Capability | Status | Notes |
 |---|---|---|
-| **Browser-only test mode** | ✅ Available for Electron and Tauri | Renderer/frontend runs in Chrome against a dev server; native IPC is mocked at the JS boundary. See the browser-mode guides linked above. |
 | **Visual regression testing** | ✅ Available via [`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/) | See [docs/visual-testing.md](./docs/visual-testing.md) for the wiring + Tauri provider notes. |
 | **Video recording** | 🔍 Not yet planned | Treated as a separate track. Universally a debugging artefact rather than a regression signal in the test-frameworks we surveyed. |
 
