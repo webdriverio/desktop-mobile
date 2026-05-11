@@ -828,6 +828,92 @@ importers:
         specifier: ^4.0.18
         version: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@28.1.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
 
+  packages/native-core:
+    dependencies:
+      '@wdio/logger':
+        specifier: catalog:default
+        version: 9.18.0
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../native-types
+      '@wdio/native-utils':
+        specifier: workspace:*
+        version: link:../native-utils
+      debug:
+        specifier: ^4.4.3
+        version: 4.4.3(supports-color@8.1.1)
+      get-port:
+        specifier: ^7.1.0
+        version: 7.2.0
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
+    devDependencies:
+      '@types/debug':
+        specifier: ^4.1.12
+        version: 4.1.13
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.6.0
+      '@vitest/coverage-v8':
+        specifier: ^4.1.0
+        version: 4.1.4(vitest@4.1.4)
+      shx:
+        specifier: ^0.4.0
+        version: 0.4.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@28.1.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
+  packages/native-service-core:
+    dependencies:
+      '@wdio/logger':
+        specifier: catalog:default
+        version: 9.18.0
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../native-types
+      '@wdio/native-utils':
+        specifier: workspace:*
+        version: link:../native-utils
+      debug:
+        specifier: ^4.4.3
+        version: 4.4.3(supports-color@8.1.1)
+      get-port:
+        specifier: ^7.1.0
+        version: 7.2.0
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
+    devDependencies:
+      '@types/debug':
+        specifier: ^4.1.12
+        version: 4.1.13
+      '@types/node':
+        specifier: ^25.5.0
+        version: 25.6.0
+      '@vitest/coverage-v8':
+        specifier: ^4.1.0
+        version: 4.1.4(vitest@4.1.4)
+      shx:
+        specifier: ^0.4.0
+        version: 0.4.0
+      tsx:
+        specifier: ^4.21.0
+        version: 4.21.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.0.18
+        version: 4.1.4(@types/node@25.6.0)(@vitest/coverage-v8@4.1.4)(jsdom@28.1.0)(vite@7.3.2(@types/node@25.6.0)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3))
+
   packages/native-spy:
     devDependencies:
       '@types/node':
