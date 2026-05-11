@@ -95,6 +95,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, instanceId);
         this.embeddedProcesses.set(instanceId, driverInfo);
       } catch (error) {
+        await this.stopAllEmbedded();
         throw new SevereServiceError(
           `Failed to start embedded WebDriver for instance ${instanceId}: ${(error as Error).message}`,
         );
@@ -106,8 +107,7 @@ export default class DioxusLaunchService extends BaseLauncher {
     }
   }
 
-  async onComplete(): Promise<void> {
-    // Stop embedded app processes
+  private async stopAllEmbedded(): Promise<void> {
     for (const [id, info] of this.embeddedProcesses) {
       log.info(`Stopping embedded driver instance ${id}`);
       await stopEmbeddedDriver(info).catch((err) => {
@@ -115,7 +115,10 @@ export default class DioxusLaunchService extends BaseLauncher {
       });
     }
     this.embeddedProcesses.clear();
+  }
 
+  async onComplete(): Promise<void> {
+    await this.stopAllEmbedded();
     // Stop any external (wdio-dioxus-driver) processes managed by BaseLauncher
     await this.stopAllDrivers();
   }

@@ -9,7 +9,7 @@ vi.mock('../src/providers/embedded.js', () => ({
 }));
 
 import DioxusLaunchService from '../src/launcher.js';
-import { startEmbeddedDriver } from '../src/providers/embedded.js';
+import { startEmbeddedDriver, stopEmbeddedDriver } from '../src/providers/embedded.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
 
 const baseConfig = {} as Parameters<DioxusLaunchService['onPrepare']>[0];
@@ -103,6 +103,25 @@ describe('DioxusLaunchService', () => {
       expect(ports[1]).toBe(ports[0] + 1);
       expect((caps[0] as { port?: number }).port).toBe(ports[0]);
       expect((caps[1] as { port?: number }).port).toBe(ports[1]);
+    });
+
+    it('should stop already-started instances when a later one fails', async () => {
+      setPlatform('linux');
+      const fakeInfo = { proc: { pid: 1234, kill: vi.fn() }, logHandlers: [] };
+      vi.mocked(startEmbeddedDriver).mockResolvedValueOnce(fakeInfo).mockRejectedValueOnce(new Error('port in use'));
+
+      const launcher = new DioxusLaunchService(
+        { driverProvider: 'embedded', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+      const caps: DioxusCapabilities[] = [
+        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
+        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
+      ];
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow(/port in use/);
+      expect(vi.mocked(stopEmbeddedDriver)).toHaveBeenCalledWith(fakeInfo);
     });
 
     it('should read driverProvider from capability-level options when present', async () => {
