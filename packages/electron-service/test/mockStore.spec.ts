@@ -73,3 +73,74 @@ describe('clear', () => {
     expect(mockStore.getMocks()).toStrictEqual([]);
   });
 });
+
+describe('setMockWithKey', () => {
+  it('should store the mock under the explicit key, not the mock name', () => {
+    const testMock = { getMockName: () => 'mock name' } as unknown as ElectronMock;
+    mockStore.setMockWithKey('custom-key', testMock);
+    expect(mockStore.getMock('custom-key')).toBe(testMock);
+  });
+
+  it('should allow the same mock to be stored under multiple different keys', () => {
+    const testMock = { getMockName: () => 'shared mock' } as unknown as ElectronMock;
+    mockStore.setMockWithKey('key-a', testMock);
+    mockStore.setMockWithKey('key-b', testMock);
+    expect(mockStore.getMock('key-a')).toBe(testMock);
+    expect(mockStore.getMock('key-b')).toBe(testMock);
+  });
+
+  it('should allow two different mocks with the same name to be stored under different keys (collision prevention)', () => {
+    const mock1 = { getMockName: () => 'same-name' } as unknown as ElectronMock;
+    const mock2 = { getMockName: () => 'same-name' } as unknown as ElectronMock;
+    mockStore.setMockWithKey('key-instance-0', mock1);
+    mockStore.setMockWithKey('key-instance-1', mock2);
+    expect(mockStore.getMock('key-instance-0')).toBe(mock1);
+    expect(mockStore.getMock('key-instance-1')).toBe(mock2);
+  });
+
+  it('should not be retrievable via the mock name', () => {
+    const testMock = { getMockName: () => 'mock name' } as unknown as ElectronMock;
+    mockStore.setMockWithKey('custom-key', testMock);
+    expect(() => mockStore.getMock('mock name')).toThrow('No mock registered for "mock name"');
+  });
+});
+
+describe('deleteMockByRef', () => {
+  it('should delete the entry that holds the given mock reference', () => {
+    const testMock = { getMockName: () => 'ref mock' } as unknown as ElectronMock;
+    mockStore.setMockWithKey('composite-key', testMock);
+
+    const result = mockStore.deleteMockByRef(testMock);
+
+    expect(result).toBe(true);
+    expect(() => mockStore.getMock('composite-key')).toThrow('No mock registered for "composite-key"');
+  });
+
+  it('should return false when the reference is not found', () => {
+    const testMock = { getMockName: () => 'not stored' } as unknown as ElectronMock;
+    expect(mockStore.deleteMockByRef(testMock)).toBe(false);
+  });
+
+  it('should only delete the entry matching the reference, leaving others intact', () => {
+    const mock1 = { getMockName: () => 'mock 1' } as unknown as ElectronMock;
+    const mock2 = { getMockName: () => 'mock 2' } as unknown as ElectronMock;
+    mockStore.setMockWithKey('key-1', mock1);
+    mockStore.setMockWithKey('key-2', mock2);
+
+    mockStore.deleteMockByRef(mock1);
+
+    expect(() => mockStore.getMock('key-1')).toThrow();
+    expect(mockStore.getMock('key-2')).toBe(mock2);
+  });
+
+  it('should find the mock even when stored under a composite null-byte key', () => {
+    const testMock = { getMockName: () => 'channel mock' } as unknown as ElectronMock;
+    const compositeKey = `electron.get-user\x00${0}`;
+    mockStore.setMockWithKey(compositeKey, testMock);
+
+    const result = mockStore.deleteMockByRef(testMock);
+
+    expect(result).toBe(true);
+    expect(() => mockStore.getMock(compositeKey)).toThrow();
+  });
+});

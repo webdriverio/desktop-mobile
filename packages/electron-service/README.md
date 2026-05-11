@@ -10,7 +10,7 @@ Enables cross-platform E2E testing of Electron apps via the extensive WebdriverI
 
 Spiritual successor to [Spectron](https://github.com/electron-userland/spectron) ([RIP](https://github.com/electron-userland/spectron/issues/1045)).
 
-> **v10 highlights** — the package is now scoped as `@wdio/electron-service`. v10 adds class mocking (`browser.electron.mock('Tray')`), main- and renderer-process console log capture, deeplink testing (`browser.electron.triggerDeeplink()`), and an `electronBuilderConfig` option for projects with multiple build configs. See the [v10.0.0 release notes](./docs/release-notes/v10.0.0.md) for the full list, or the [v9 → v10 migration guide](./docs/migration/v9-to-v10.md) if you're upgrading.
+> **v10 highlights** — the package is now scoped as `@wdio/electron-service`. v10 adds class mocking (`browser.electron.mock('Tray')`), main- and renderer-process console log capture, deeplink testing (`browser.electron.triggerDeeplink()`), an `electronBuilderConfig` option for projects with multiple build configs, and a `mode: 'browser'` option for testing the renderer in plain Chrome against a Vite dev server without an Electron binary. See the [v10.0.0 release notes](./docs/release-notes/v10.0.0.md) for the full list, or the [v9 → v10 migration guide](./docs/migration/v9-to-v10.md) if you're upgrading.
 
 ### Features
 
@@ -128,6 +128,7 @@ This is because WDIO uses Chrome for Testing to download Chromedriver, which onl
 - **[Window Management](./docs/window-management.md)** — automatic window focus behaviour
 
 ### Operations
+- **[Browser Mode](./docs/browser-mode.md)** — test the renderer in Chrome against a Vite dev server, no Electron binary required
 - **[Deeplink Testing](./docs/deeplink-testing.md)** — protocol handler tests across platforms
 - **[Standalone Mode](./docs/standalone-mode.md)** — using the service without the WDIO test runner
 - **[Visual Testing](../../docs/visual-testing.md)** — visual regression with `@wdio/visual-service`

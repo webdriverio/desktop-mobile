@@ -40,6 +40,42 @@ const result = await browser.tauri.execute('window.location.href');
 
 **Note:** Requires tauri-plugin-wdio to be installed. See [Plugin Setup](./plugin-setup.md).
 
+**Browser Mode:** Not available. `browser.tauri.execute()` requires a live Tauri backend and plugin bridge. Use `browser.execute()` for renderer-side code, or `browser.tauri.mock()` to intercept Tauri commands.
+
+---
+
+### `browser.tauri.emitEvent(event, payload?, target?)`
+
+Emit a Tauri event to all listeners registered via `listen()` or `once()` in the frontend. The same call works in both native and browser mode — in native mode it routes through Tauri's real `event.emit()` / `event.emitTo()` via the plugin bridge; in browser mode it dispatches through the in-page listener registry installed by the IPC injection.
+
+**Parameters:**
+- `event` (string) - The event name to emit
+- `payload?` (T) - Optional payload, JSON-serialized to listeners
+- `target?` (string | TauriEventTarget) - Optional target filter — emits only to listeners whose `target` matches. Pass a window/webview label as a string, or a structured `TauriEventTarget` object.
+
+**Returns:** `Promise<void>`
+
+**Example:**
+```typescript
+// Frontend subscribes via @tauri-apps/api/event
+import { listen } from '@tauri-apps/api/event';
+const unlisten = await listen<{ rows: number }>('data-loaded', (e) => {
+  document.querySelector('#count')!.textContent = String(e.payload.rows);
+});
+
+// Test emits the event — same line works in native and browser mode
+await browser.tauri.emitEvent('data-loaded', { rows: 3 });
+await expect($('#count')).toHaveText('3');
+
+// Targeted emit — only listeners that subscribed with target 'main' receive it
+await browser.tauri.emitEvent('focus-window', undefined, 'main');
+```
+
+**Browser Mode:** Routes through the in-page registry installed by the IPC injection. `listen()`, `once()`, and `unlisten()` work as expected. See the [Events section in the Browser Mode guide](./browser-mode.md#events) for details.
+
+**See Also:**
+- [Browser Mode Guide — Events](./browser-mode.md#events)
+
 ---
 
 ### `browser.tauri.mock(command)`
@@ -60,6 +96,26 @@ await mock.mockReturnValue('mocked file content');
 const content = await browser.tauri.execute(({ core }) => core.invoke('read_file'));
 expect(content).toBe('mocked file content');
 ```
+
+**Browser Mode:** Works in browser mode — this is the primary testing API in browser mode. The `command` argument is the Tauri command name (matching what the frontend passes to `invoke()`). Trigger the command via a UI interaction or `browser.execute(() => window.__TAURI_INTERNALS__.invoke('command-name'))`, then call `update()` and assert.
+
+```typescript
+// Browser mode — mock a Tauri command
+const mockReadFile = await browser.tauri.mock('read_file');
+await mockReadFile.mockResolvedValue('mocked file content');
+
+// Trigger the command (via UI or directly)
+await browser.execute(() => window.__TAURI_INTERNALS__.invoke('read_file'));
+
+// Sync call data and assert
+await mockReadFile.update();
+expect(mockReadFile).toHaveBeenCalledTimes(1);
+```
+
+See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
+
+**See Also:**
+- [Browser Mode Guide](./browser-mode.md)
 
 ---
 
@@ -154,6 +210,8 @@ await browser.waitUntil(async () => {
 
 See [Deeplink Testing](./deeplink-testing.md) for full usage guide.
 
+**Browser Mode:** Not available. There is no Tauri process to receive the deeplink.
+
 ---
 
 ### `browser.tauri.switchWindow(label)`
@@ -179,6 +237,8 @@ await browser.tauri.switchWindow('main');
 
 **Note:** The window label must exist in your Tauri app. Use `browser.tauri.listWindows()` to get available labels.
 
+**Browser Mode:** Not available. Multi-window support requires a running Tauri app; there is no window-switching concept in browser mode.
+
 ---
 
 ### `browser.tauri.listWindows()`
@@ -192,6 +252,8 @@ Get a list of all available Tauri window labels in the application.
 const windows = await browser.tauri.listWindows();
 console.log(windows); // ['main', 'settings', 'dialog']
 ```
+
+**Browser Mode:** Not available. Throws for the same reason as `switchWindow()`.
 
 ---
 

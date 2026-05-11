@@ -19,6 +19,7 @@ Enables cross-platform E2E testing of Tauri apps via the extensive WebdriverIO e
 - 📊 Backend and frontend log capture
 - 🖥️ Multiremote testing support
 - 🏃 Per-worker driver spawning for parallel testing
+- 🌍 Browser mode — test the Tauri frontend in plain Chrome against a Vite dev server, no Tauri binary or driver required
 
 ## Installation
 
@@ -71,6 +72,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 - [Platform Support](./docs/platform-support.md) - Windows, Linux, macOS
 
 **Guides**
+- [Browser Mode](./docs/browser-mode.md) - Test the renderer in Chrome without a Tauri binary
 - [Usage Examples](./docs/usage-examples.md) - Common testing patterns
 - [Log Forwarding](./docs/log-forwarding.md) - Capture app logs
 - [Edge WebDriver (Windows)](./docs/edge-webdriver-windows.md) - Windows-specific setup

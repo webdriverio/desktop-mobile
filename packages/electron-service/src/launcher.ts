@@ -100,6 +100,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
   #globalOptions: ElectronServiceGlobalOptions;
   #projectRoot: string;
   #usedPorts = new Set<number>();
+  #browserMode = false;
 
   constructor(globalOptions: ElectronServiceGlobalOptions, _caps: unknown, config: Options.Testrunner) {
     this.#globalOptions = globalOptions;
@@ -113,7 +114,52 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           (multiremoteOption) => (multiremoteOption as Capabilities.WithRequestedCapabilities).capabilities,
         );
 
+    // Extract all Electron capabilities once — handles both standard and W3C alwaysMatch format
     const caps = capsList.flatMap((cap) => getElectronCapabilities(cap) as WebdriverIO.Capabilities);
+
+    // Determine and validate run mode across all Electron capabilities
+    const modes = caps.map((cap) => {
+      const capOpts = ((cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] ?? {}) as ElectronServiceGlobalOptions;
+      return capOpts.mode ?? this.#globalOptions.mode ?? 'native';
+    });
+    const uniqueModes = new Set(modes);
+    if (uniqueModes.size > 1) {
+      throw new SevereServiceError(
+        `All Electron capabilities must use the same mode, but found mixed modes: ${[...uniqueModes].join(', ')}. ` +
+          "Set mode consistently across all 'wdio:electronServiceOptions' entries.",
+      );
+    }
+    const mode = modes[0] ?? 'native';
+
+    if (mode === 'browser') {
+      for (const cap of caps) {
+        const capOpts = ((cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] ??
+          {}) as ElectronServiceGlobalOptions;
+        const devServerUrl = capOpts.devServerUrl ?? this.#globalOptions.devServerUrl;
+        if (!devServerUrl) {
+          throw new SevereServiceError('devServerUrl is required when mode is "browser"');
+        }
+        try {
+          new URL(devServerUrl);
+        } catch {
+          throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
+        }
+        cap.browserName = 'chrome';
+        // Preserve user-supplied goog:chromeOptions (args, extensions, prefs, etc.)
+        // but strip `binary` — in browser mode we want system Chrome, not the
+        // Electron binary that may have been passed in for native mode.
+        const chromeOpts = (cap as Record<string, unknown>)['goog:chromeOptions'] as
+          | Record<string, unknown>
+          | undefined;
+        if (chromeOpts && 'binary' in chromeOpts) {
+          delete chromeOpts.binary;
+        }
+        delete (cap as Record<string, unknown>)['wdio:enforceWebDriverClassic'];
+      }
+      this.#browserMode = true;
+      log.info('Browser mode enabled — skipping Electron binary and CDP bridge setup');
+      return;
+    }
     const pkg =
       (await readPackageUp({ cwd: this.#projectRoot })) ||
       ({ packageJson: { dependencies: {}, devDependencies: {} }, path: '' } as NormalizedReadResult);
@@ -288,6 +334,9 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
    * This allows for reliable parallel debugging of multiple Electron instances.
    */
   async onWorkerStart(_cid: string, capabilities: WebdriverIO.Capabilities) {
+    if (this.#browserMode) {
+      return;
+    }
     try {
       const capsList = Array.isArray(capabilities) ? (capabilities as WebdriverIO.Capabilities[]) : [capabilities];
       const caps = capsList.flatMap((cap) => getConvertedElectronCapabilities(cap) as WebdriverIO.Capabilities);

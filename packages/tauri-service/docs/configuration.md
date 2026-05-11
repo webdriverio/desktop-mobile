@@ -264,6 +264,41 @@ statusPollTimeout: 5000
 
 ---
 
+### `devServerUrl` (string, required in browser mode)
+
+URL of the Vite (or other) dev server to navigate to when `mode: 'browser'` is set. Validated with `new URL()` at startup; throws a `SevereServiceError` if missing or malformed when browser mode is active.
+
+**Example:**
+```typescript
+devServerUrl: 'http://localhost:1420'  // Tauri Vite default
+```
+
+**Default:** `undefined`
+
+**Note:** Only used when `mode: 'browser'`. Has no effect in native mode. See [Browser Mode](./browser-mode.md).
+
+---
+
+### `mode` ('native' | 'browser', optional)
+
+Controls how the service connects to your application.
+
+- `'native'` (default) — launches your compiled Tauri binary via tauri-driver and WebKitWebDriver/msedgedriver.
+- `'browser'` — skips all driver and binary setup; sets `browserName = 'chrome'`, navigates to `devServerUrl`, and intercepts `window.__TAURI_INTERNALS__.invoke` so Tauri commands can be mocked without a running Rust backend.
+
+**Example:**
+```typescript
+mode: 'browser'
+```
+
+**Default:** `'native'`
+
+> **Note:** All capabilities in a session must use the same mode. Mixing `'native'` and `'browser'` across capabilities throws a `SevereServiceError` at startup.
+
+See [Browser Mode](./browser-mode.md) for setup, mocking, and limitations.
+
+---
+
 ### `clearMocks` (boolean, optional)
 
 If `true`, all mock call history is cleared before each test. Equivalent to calling `browser.tauri.clearAllMocks()` in a `beforeEach`.

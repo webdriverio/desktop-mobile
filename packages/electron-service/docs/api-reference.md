@@ -284,6 +284,8 @@ const fileIcon = await browser.electron.execute(async (electron) => {
 });
 ```
 
+**Browser Mode:** Not available. `browser.electron.execute()` requires a live main process and CDP bridge. In browser mode, use `browser.execute()` to run code in the renderer or `browser.electron.mock()` to intercept IPC channels.
+
 **See Also:**
 - [Electron APIs Guide](./electron-apis.md)
 
@@ -351,6 +353,8 @@ it('should handle deeplinks', async () => {
 - **macOS**: Works with both packaged binaries and script-based apps. No URL modification.
 - **Linux**: Cannot use `appEntryPoint` (must use packaged binary). Automatically appends `userData` parameter to URL.
 
+**Browser Mode:** Not available. There is no Electron process to receive the deeplink in browser mode.
+
 **See Also:**
 - [Deeplink Testing Guide](./deeplink-testing.md)
 
@@ -416,8 +420,23 @@ await browser.electron.execute((electron) => {
 expect(mockTray.setTitle).toHaveBeenCalledWith('My App');
 ```
 
+**Browser Mode:** The signature changes in browser mode. Pass a single IPC channel name — the string your renderer sends via `ipcRenderer.invoke(channel)`. The two-argument form `mock(apiName, funcName)` throws in browser mode.
+
+```ts
+// Browser mode — mock by IPC channel name
+const mockGetUser = await browser.electron.mock('get-user-data');
+await mockGetUser.mockResolvedValue({ id: 1, name: 'Alice' });
+
+// Trigger the IPC call in your app, then assert
+await mockGetUser.update();
+expect(mockGetUser).toHaveBeenCalledTimes(1);
+```
+
+See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
+
 **See Also:**
 - [Electron APIs Guide](./electron-apis.md#mocking-electron-apis)
+- [Browser Mode Guide](./browser-mode.md)
 
 ---
 
@@ -447,6 +466,8 @@ const { showOpenDialog, showMessageBox } = await browser.electron.mockAll('dialo
 await showOpenDialog.mockReturnValue('I opened a dialog!');
 await showMessageBox.mockReturnValue('I opened a message box!');
 ```
+
+**Browser Mode:** Not available. Use `browser.electron.mock(channel)` to mock individual IPC channels instead.
 
 **See Also:**
 - [Electron APIs Guide](./electron-apis.md#mocking-electron-apis)

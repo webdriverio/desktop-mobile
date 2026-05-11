@@ -199,6 +199,157 @@ describe('TauriAdapter.buildBrowserIpcInjectionScript', () => {
   });
 });
 
+describe('TauriAdapter browser-mode events', () => {
+  const adapter = new TauriAdapter();
+
+  type Listener = (data: { event: string; id: number; payload: unknown }) => void;
+  type Window = {
+    __TAURI_INTERNALS__: {
+      invoke: (cmd: string, args?: unknown, options?: unknown) => Promise<unknown>;
+      transformCallback: (cb: Listener, once?: boolean) => number;
+      runCallback: (id: number, data: unknown) => void;
+      callbacks: Map<number, unknown>;
+    };
+    __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: (event: string, eventId: number) => void };
+    __wdio_emit_tauri_event__: (event: string, payload?: unknown, target?: unknown) => void;
+    __wdio_tauri_listeners__: Record<string, Record<number, { handlerId: number; target?: unknown }>>;
+    __wdio_mocks__: Record<string, unknown>;
+  };
+
+  function setup(extraProps: Record<string, unknown> = {}) {
+    const script = adapter.buildBrowserIpcInjectionScript();
+    return runInBrowserContext(script, extraProps) as unknown as Window;
+  }
+
+  it('should resolve plugin:event|listen with a numeric eventId', async () => {
+    const window = setup();
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback(() => {});
+    const id = (await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'Any' },
+      handler: handlerId,
+    })) as number;
+    expect(typeof id).toBe('number');
+    expect(id).toBeGreaterThan(0);
+  });
+
+  it('should fire the registered handler when emit is dispatched via __wdio_emit_tauri_event__', async () => {
+    const window = setup();
+    const received: unknown[] = [];
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback((data) => received.push(data));
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'Any' },
+      handler: handlerId,
+    });
+    window.__wdio_emit_tauri_event__('foo', { x: 1 });
+    expect(received).toHaveLength(1);
+    const ev = received[0] as { event: string; id: number; payload: { x: number } };
+    expect(ev.event).toBe('foo');
+    expect(ev.payload).toEqual({ x: 1 });
+    expect(typeof ev.id).toBe('number');
+  });
+
+  it('should remove the listener via plugin:event|unlisten', async () => {
+    const window = setup();
+    const received: unknown[] = [];
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback((data) => received.push(data));
+    const id = (await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'Any' },
+      handler: handlerId,
+    })) as number;
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|unlisten', { event: 'foo', eventId: id });
+    window.__wdio_emit_tauri_event__('foo', 'payload');
+    expect(received).toHaveLength(0);
+  });
+
+  it('should also remove the listener via __TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener', async () => {
+    const window = setup();
+    const received: unknown[] = [];
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback((data) => received.push(data));
+    const id = (await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'Any' },
+      handler: handlerId,
+    })) as number;
+    window.__TAURI_EVENT_PLUGIN_INTERNALS__.unregisterListener('foo', id);
+    window.__wdio_emit_tauri_event__('foo', 'payload');
+    expect(received).toHaveLength(0);
+  });
+
+  it('should fire a once-handler exactly once', async () => {
+    const window = setup();
+    const received: unknown[] = [];
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback((data) => received.push(data), true);
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'Any' },
+      handler: handlerId,
+    });
+    window.__wdio_emit_tauri_event__('foo', 'first');
+    window.__wdio_emit_tauri_event__('foo', 'second');
+    expect(received).toHaveLength(1);
+    expect((received[0] as { payload: string }).payload).toBe('first');
+  });
+
+  it('should filter listeners by target on emit_to', async () => {
+    const window = setup();
+    const mainReceived: unknown[] = [];
+    const otherReceived: unknown[] = [];
+    const mainHandlerId = window.__TAURI_INTERNALS__.transformCallback((data) => mainReceived.push(data));
+    const otherHandlerId = window.__TAURI_INTERNALS__.transformCallback((data) => otherReceived.push(data));
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'AnyLabel', label: 'main' },
+      handler: mainHandlerId,
+    });
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'AnyLabel', label: 'other' },
+      handler: otherHandlerId,
+    });
+    window.__wdio_emit_tauri_event__('foo', 'msg', 'main');
+    expect(mainReceived).toHaveLength(1);
+    expect(otherReceived).toHaveLength(0);
+    window.__wdio_emit_tauri_event__('foo', 'msg2');
+    expect(mainReceived).toHaveLength(2);
+    expect(otherReceived).toHaveLength(1);
+  });
+
+  it('should record plugin:event|emit on a user mock and still dispatch to subscribers', async () => {
+    const window = setup();
+    const emitCalls: unknown[] = [];
+    window.__wdio_mocks__['plugin:event|emit'] = (args: unknown) => {
+      emitCalls.push(args);
+    };
+    const received: unknown[] = [];
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback((data) => received.push(data));
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'Any' },
+      handler: handlerId,
+    });
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|emit', { event: 'foo', payload: 42 });
+    expect(emitCalls).toEqual([{ event: 'foo', payload: 42 }]);
+    expect(received).toHaveLength(1);
+    expect((received[0] as { payload: number }).payload).toBe(42);
+  });
+
+  it('should resolve other plugin:* commands with undefined when not mocked', async () => {
+    const window = setup();
+    await expect(window.__TAURI_INTERNALS__.invoke('plugin:fs|read', {})).resolves.toBeUndefined();
+    await expect(window.__TAURI_INTERNALS__.invoke('plugin:window|close', {})).resolves.toBeUndefined();
+  });
+
+  it('should still reject non-plugin commands when not mocked', async () => {
+    const window = setup();
+    await expect(window.__TAURI_INTERNALS__.invoke('my_unknown_cmd', {})).rejects.toThrow(
+      'unmocked Tauri command in browser mode: my_unknown_cmd',
+    );
+  });
+});
+
 describe('createIpcInterceptor buildBrowserIpcInjectionScript delegation', () => {
   it('should delegate to the TauriAdapter', () => {
     const interceptor = createIpcInterceptor('tauri');

@@ -122,6 +122,35 @@ When this option is provided, the service will load this specific configuration 
 Type: `string`
 Example: `'config/electron-builder-staging.config.js'`
 
+### `devServerUrl`:
+
+The URL of the Vite (or webpack) dev server to navigate to when `mode` is `'browser'`. Must be a valid URL; the service throws a `SevereServiceError` at startup if the value is missing or malformed.
+
+Type: `string`
+
+Required when: `mode: 'browser'`
+
+Example: `'http://localhost:5173'`
+
+See the [Browser Mode Guide](./browser-mode.md) for full setup instructions.
+
+### `mode`:
+
+Controls which test execution mode the service uses.
+
+Type: `'native' | 'browser'`
+
+Default: `'native'`
+
+- **`'native'`** (default) — launches your packaged Electron app via Chromedriver, establishes a CDP bridge to the main process, and provides the full `browser.electron.*` API surface.
+- **`'browser'`** — skips binary detection, Chromedriver setup, and the CDP bridge entirely. The service sets `browserName` to `'chrome'` and navigates to `devServerUrl`. IPC calls are intercepted at the `window.electron.ipcRenderer` JavaScript boundary, making it suitable for fast renderer-only tests against a running dev server.
+
+All capabilities in a session must use the same mode; mixing modes across capabilities throws a `SevereServiceError`.
+
+Can be set at the global service level or overridden per capability via `wdio:electronServiceOptions`.
+
+See the [Browser Mode Guide](./browser-mode.md) for a complete walkthrough.
+
 ### `clearMocks`:
 
 Calls .mockClear() on all mocked APIs before each test. This will clear mock history, but not reset its implementation.

@@ -175,6 +175,18 @@ export interface ElectronServiceOptions extends Omit<BaseServiceOptions, Electro
    * @example 'config/electron-builder-staging.config.js'
    */
   electronBuilderConfig?: string;
+  /**
+   * Run mode for the Electron service.
+   * 'browser' runs the frontend in plain Chrome against a dev server with IPC intercepted
+   * at the JS boundary. No Electron binary, no CDP bridge, no display server required.
+   * @default 'native'
+   */
+  mode?: 'native' | 'browser';
+  /**
+   * URL of the Vite (or other) dev server to navigate to when mode is 'browser'.
+   * Required when mode === 'browser'. e.g. 'http://localhost:5173'
+   */
+  devServerUrl?: string;
 }
 
 /**
@@ -246,6 +258,17 @@ export interface ElectronServiceGlobalOptions
    * @default false
    */
   apparmorAutoInstall?: boolean | 'sudo';
+  /**
+   * Run mode for the Electron service.
+   * 'browser' skips binary detection, CDP bridge, and Chromedriver setup.
+   * @default 'native'
+   */
+  mode?: 'native' | 'browser';
+  /**
+   * URL of the dev server to navigate to when mode is 'browser'.
+   * Required when mode === 'browser'. e.g. 'http://localhost:5173'
+   */
+  devServerUrl?: string;
 }
 
 export type ApiCommand = { name: string; bridgeProp: string };

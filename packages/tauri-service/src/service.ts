@@ -1,5 +1,5 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { TauriAPIs, TauriServiceAPI } from '@wdio/native-types';
+import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
 import { createLogger, hasSemicolonOutsideQuotes, waitUntilWindowAvailable } from '@wdio/native-utils';
 import { execute } from './commands/execute.js';
 import { clearAllMocks, isMockFunction, mock, resetAllMocks, restoreAllMocks } from './commands/mock.js';
@@ -322,6 +322,7 @@ export default class TauriWorkerService {
           await browser.execute(injectionScript);
         } catch (error) {
           log.warn('Failed to re-inject IPC script after navigation:', error);
+          throw error;
         }
       }
       return result;
@@ -407,6 +408,63 @@ export default class TauriWorkerService {
           );
         }
         return listWindowLabels(browser);
+      },
+
+      emitEvent: async <T = unknown>(
+        eventName: string,
+        payload?: T,
+        target?: string | TauriEventTarget,
+      ): Promise<void> => {
+        if (browserMode) {
+          await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
+            (...inner: unknown[]) => {
+              const [ev, p, t] = inner as [string, unknown, unknown];
+              // @ts-expect-error - window exists in browser context
+              const w = window as {
+                __wdio_emit_tauri_event__?: (e: string, p: unknown, t: unknown) => void;
+              };
+              if (!w.__wdio_emit_tauri_event__) {
+                throw new Error('Tauri event registry not initialised — is browser mode active?');
+              }
+              w.__wdio_emit_tauri_event__(ev, p, t);
+            },
+            eventName,
+            payload,
+            target,
+          );
+        } else if (target === undefined) {
+          await execute(
+            browser,
+            (tauri: TauriAPIs, ...a: unknown[]) => {
+              const [ev, p] = a as [string, unknown];
+              const ev2 = tauri.event as { emit: (name: string, payload?: unknown) => Promise<void> } | undefined;
+              if (!ev2) {
+                throw new Error('Tauri event API not available — is @tauri-apps/api loaded?');
+              }
+              return ev2.emit(ev, p);
+            },
+            eventName,
+            payload,
+          );
+        } else {
+          await execute(
+            browser,
+            (tauri: TauriAPIs, ...a: unknown[]) => {
+              const [ev, p, t] = a as [string, unknown, unknown];
+              const ev2 = tauri.event as
+                | { emitTo: (target: unknown, name: string, payload?: unknown) => Promise<void> }
+                | undefined;
+              if (!ev2) {
+                throw new Error('Tauri event API not available — is @tauri-apps/api loaded?');
+              }
+              return ev2.emitTo(t, ev, p);
+            },
+            eventName,
+            payload,
+            target,
+          );
+        }
+        await updateAllMocks();
       },
     };
   }
