@@ -194,11 +194,12 @@ await browser.electron.emitEvent('one-shot');
 // listener invoked once
 ```
 
-### Limitations
+### Differences from Native Electron
 
-- **Listeners are wiped on navigation** — `browser.url()` rebuilds the registry. Subscriptions created before navigation will not fire afterwards. This matches the native-mode behaviour after a renderer reload.
-- **The synthetic `IpcRendererEvent` is minimal** — `event.ports` is always an empty array and `event.senderId` is always `0`. Tests that rely on rich event metadata (port transfer, IPC bridging) will need native mode.
-- **Errors thrown inside a listener do not abort sibling listeners** — they're swallowed so one bad handler can't block the rest. If you need to assert on listener errors, throw a sentinel and catch it outside the listener.
+- **`removeAllListeners()` with no argument clears every channel.** Electron documents the signature as `removeAllListeners(channel)` — a single channel string. In browser mode the zero-argument form is also accepted and wipes the full registry, matching Node `EventEmitter#removeAllListeners()` semantics. Convenient as a test-side reset; pass an explicit channel name if you want native-compatible scope.
+- **The synthetic `IpcRendererEvent` is minimal.** `event.ports` is always an empty array and `event.senderId` is always `0`. Tests that rely on rich event metadata (port transfer, IPC bridging) will need native mode.
+- **Errors thrown inside a listener do not abort sibling listeners.** They're swallowed so one bad handler can't block the rest. If you need to assert on listener errors, throw a sentinel and catch it outside the listener.
+- **Listeners are wiped on navigation.** `browser.url()` rebuilds the registry. Subscriptions created before navigation will not fire afterwards. This matches the native-mode behaviour after a renderer reload.
 
 ## Mock Lifecycle Across Tests
 

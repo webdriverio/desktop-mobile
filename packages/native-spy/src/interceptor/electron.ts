@@ -151,6 +151,10 @@ ${WDIO_MOCK_SETUP_SCRIPT}
     return window.electron.ipcRenderer;
   };
   window.electron.ipcRenderer.off = window.electron.ipcRenderer.removeListener;
+  // Electron's documented signature is removeAllListeners(channel) — a single
+  // channel string. We accept the zero-arg form too and use it to clear every
+  // channel at once, mirroring Node EventEmitter's removeAllListeners()
+  // semantics. Useful as a test-side reset; not part of the native API.
   window.electron.ipcRenderer.removeAllListeners = function(channel) {
     if (channel === undefined) {
       window.__wdio_electron_listeners__ = {};
