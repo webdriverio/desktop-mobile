@@ -118,7 +118,15 @@ ${WDIO_MOCK_SETUP_SCRIPT}
     var args = Array.prototype.slice.call(arguments, 1);
     var mock = window.__wdio_mocks__ && window.__wdio_mocks__[channel];
     if (mock && typeof mock === 'function') {
-      return mock.apply(null, args);
+      var result = mock.apply(null, args);
+      if (result && typeof result.then === 'function') {
+        throw new Error(
+          'Electron sendSync mock returned a Promise for channel "' + channel + '". ' +
+          'sendSync is synchronous — use mockReturnValue(...) (not mockResolvedValue) ' +
+          'or a synchronous mockImplementation.'
+        );
+      }
+      return result;
     }
     throw new Error('unmocked Electron IPC channel in browser mode: ' + channel);
   };

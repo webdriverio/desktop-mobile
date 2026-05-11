@@ -126,5 +126,5 @@ export const WDIO_MOCK_SETUP_SCRIPT = `  window.__wdio_call_id__ = window.__wdio
     };
     return mockFn;
   }
-  window.__wdio_spy__ = { fn: createMockFn };
+  if (!window.__wdio_spy__) { window.__wdio_spy__ = { fn: createMockFn }; }
   if (!window.__wdio_mocks__) { window.__wdio_mocks__ = {}; }`;

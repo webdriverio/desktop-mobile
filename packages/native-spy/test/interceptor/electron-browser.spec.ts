@@ -19,6 +19,14 @@ describe('ElectronAdapter.buildBrowserIpcInjectionScript', () => {
     expect(typeof (window.__wdio_spy__ as Record<string, unknown>)?.fn).toBe('function');
   });
 
+  it('should preserve an existing __wdio_spy__ across re-injection', () => {
+    const existingFn = (): unknown => 'existing';
+    const window: Record<string, unknown> = { __wdio_spy__: { fn: existingFn } };
+    const ctx = vm.createContext({ window, Promise });
+    vm.runInContext(adapter.buildBrowserIpcInjectionScript(), ctx);
+    expect((window.__wdio_spy__ as { fn: unknown }).fn).toBe(existingFn);
+  });
+
   it('should create window.__wdio_mocks__ if absent', () => {
     const script = adapter.buildBrowserIpcInjectionScript();
     const window = runInBrowserContext(script);
@@ -98,6 +106,33 @@ describe('ElectronAdapter.buildBrowserIpcInjectionScript', () => {
     const ipcRenderer = (window.electron as Record<string, unknown>).ipcRenderer as Record<string, unknown>;
     const sendSync = ipcRenderer.sendSync as (channel: string) => void;
     expect(() => sendSync('sync-channel')).toThrow('unmocked Electron IPC channel in browser mode: sync-channel');
+  });
+
+  it('should throw with a clear message when a sendSync mock returns a Promise', () => {
+    const script = adapter.buildBrowserIpcInjectionScript();
+    const window = runInBrowserContext(script);
+    const spy = (window.__wdio_spy__ as { fn: () => { mockResolvedValue: (v: unknown) => unknown } }).fn;
+    const mock = spy();
+    (mock as { mockResolvedValue: (v: unknown) => void }).mockResolvedValue('value');
+    (window.__wdio_mocks__ as Record<string, unknown>)['sync-channel'] = mock;
+
+    const ipcRenderer = (window.electron as Record<string, unknown>).ipcRenderer as Record<string, unknown>;
+    const sendSync = ipcRenderer.sendSync as (channel: string) => unknown;
+    expect(() => sendSync('sync-channel')).toThrow(/sendSync is synchronous/);
+    expect(() => sendSync('sync-channel')).toThrow(/sync-channel/);
+  });
+
+  it('should return the unwrapped value when a sendSync mock returns synchronously', () => {
+    const script = adapter.buildBrowserIpcInjectionScript();
+    const window = runInBrowserContext(script);
+    const spy = (window.__wdio_spy__ as { fn: () => { mockReturnValue: (v: unknown) => unknown } }).fn;
+    const mock = spy();
+    (mock as { mockReturnValue: (v: unknown) => void }).mockReturnValue(42);
+    (window.__wdio_mocks__ as Record<string, unknown>)['sync-channel'] = mock;
+
+    const ipcRenderer = (window.electron as Record<string, unknown>).ipcRenderer as Record<string, unknown>;
+    const sendSync = ipcRenderer.sendSync as (channel: string) => unknown;
+    expect(sendSync('sync-channel')).toBe(42);
   });
 
   it('should provide no-op stubs for on, once, removeListener, removeAllListeners', () => {
