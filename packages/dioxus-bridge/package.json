@@ -1,0 +1,58 @@
+{
+  "name": "@wdio/dioxus-bridge",
+  "version": "1.0.0-next.0",
+  "description": "Guest-side JS bundle for the wdio-dioxus-bridge Rust crate. Installs window.__WDIO_DIOXUS__.invoke for use by @wdio/dioxus-service.",
+  "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/dioxus-bridge",
+  "type": "module",
+  "main": "./dist-js/index.js",
+  "types": "./dist-js/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist-js/index.d.ts",
+        "default": "./dist-js/index.js"
+      }
+    }
+  },
+  "files": [
+    "README.md",
+    "dist-js",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "pnpm build:js",
+    "build:js": "tsx scripts/build-guest-js.ts",
+    "test": "vitest run",
+    "test:unit": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "keywords": [
+    "dioxus",
+    "webdriverio",
+    "wdio",
+    "testing",
+    "automation"
+  ],
+  "author": "WebdriverIO Community",
+  "license": "MIT",
+  "engines": {
+    "node": "^18.12.0 || ^20.9.0 || >=22.11.0"
+  },
+  "devDependencies": {
+    "@types/node": "^25.5.0",
+    "@vitest/coverage-v8": "^4.1.0",
+    "esbuild": "^0.27.4",
+    "happy-dom": "^15.11.7",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webdriverio/desktop-mobile.git",
+    "directory": "packages/dioxus-bridge"
+  },
+  "bugs": {
+    "url": "https://github.com/webdriverio/desktop-mobile/issues"
+  }
+}

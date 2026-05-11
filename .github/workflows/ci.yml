@@ -130,6 +130,19 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # Build Dioxus Rust crates - only if Dioxus tests will run.
+  # v1 scope: Linux only. wdio-dioxus-driver is Windows-targeted but
+  # cargo check on Linux still validates the dependency graph and platform-
+  # neutral code paths. Cross-platform verification lands in PR3.
+  build-dioxus-crates-linux:
+    name: Build Dioxus Crates [Linux]
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-crates.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+
   # Build Tauri package test apps - only if Tauri package tests will run
   build-tauri-package-app-linux:
     name: Build Tauri Package Test App [Linux]

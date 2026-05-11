@@ -1,0 +1,76 @@
+//! `wdio-dioxus-bridge` — bridge crate consumed by Dioxus desktop apps that
+//! want to be testable via `@wdio/dioxus-service`.
+//!
+//! v1 ships the automation env-var reader ([`automation`]) and the
+//! `wdio://invoke` IPC channel ([`invoke`]), plus injection of the
+//! `@wdio/dioxus-bridge` guest-js bundle into the webview. Subsequent
+//! milestones will add `log_bridge.rs` (frontend/backend log forwarding),
+//! window state tracking, and the deeplink reference handler.
+//!
+//! # Quick start
+//!
+//! Add to `Cargo.toml`:
+//! ```toml
+//! [dependencies.wdio-dioxus-bridge]
+//! version = "1"
+//! features = ["with-bridge"]
+//! ```
+//!
+//! Wire into your `main.rs`, guarded for debug builds so the bridge never
+//! ships in release:
+//!
+//! ```ignore
+//! fn main() {
+//!     let mut config = dioxus::desktop::Config::new();
+//!     #[cfg(debug_assertions)]
+//!     {
+//!         config = wdio_dioxus_bridge::install(config);
+//!     }
+//!     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
+//! }
+//! ```
+
+pub mod automation;
+pub mod invoke;
+pub mod log_bridge;
+
+use dioxus_desktop::Config;
+
+pub use invoke::CommandRegistry;
+pub use log_bridge::FRONTEND_MARKER;
+
+/// The bundled `@wdio/dioxus-bridge` guest-js — populated at build time by
+/// `build.rs` from `guest-js/dist-js/index.js`. When the bundle hasn't been
+/// built yet, the placeholder is a no-op comment and the bridge silently
+/// degrades to "no JS injected"; rerun `pnpm --filter @wdio/dioxus-bridge
+/// build` to repopulate.
+const GUEST_JS_BUNDLE: &str = include_str!(concat!(env!("OUT_DIR"), "/guest_js_bundle.js"));
+
+/// Install the WDIO bridge into a Dioxus [`Config`]:
+///
+/// 1. Reports the [`automation`] env-var state via tracing.
+/// 2. Registers the `wdio://` custom protocol handler backed by a fresh
+///    [`CommandRegistry`] (with the built-in `__ping` command).
+/// 3. Injects the `@wdio/dioxus-bridge` guest-js bundle into the webview's
+///    document `<head>` so `window.__WDIO_DIOXUS__.invoke` is available
+///    before any app code runs.
+/// 4. Returns the [`Config`] for chainability with the app's own builders.
+pub fn install(config: Config) -> Config {
+  install_with_registry(config, CommandRegistry::new())
+}
+
+/// Variant of [`install`] that accepts a pre-populated [`CommandRegistry`].
+/// Use this when the app needs custom commands beyond the built-ins.
+pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Config {
+  automation::report();
+  log_bridge::register(&registry);
+
+  let registry_for_handler = registry;
+  config
+    .with_custom_protocol("wdio".to_string(), move |_webview_id, request| {
+      invoke::handle_invoke_request(&registry_for_handler, &request)
+    })
+    .with_custom_head(format!(
+      "<script type=\"module\">{GUEST_JS_BUNDLE}</script>"
+    ))
+}

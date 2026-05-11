@@ -18,6 +18,9 @@ on:
       run_tauri:
         description: 'Whether to run Tauri-related tests and builds'
         value: ${{ jobs.detect.outputs.run_tauri }}
+      run_dioxus:
+        description: 'Whether to run Dioxus-related tests and builds'
+        value: ${{ jobs.detect.outputs.run_dioxus }}
       has_shared_changes:
         description: 'Whether shared packages changed (affects both services)'
         value: ${{ jobs.detect.outputs.has_shared_changes }}
@@ -32,6 +35,7 @@ jobs:
     outputs:
       run_electron: ${{ steps.determine.outputs.run_electron || 'false' }}
       run_tauri: ${{ steps.determine.outputs.run_tauri || 'false' }}
+      run_dioxus: ${{ steps.determine.outputs.run_dioxus || 'false' }}
       has_shared_changes: ${{ steps.determine.outputs.has_shared_changes || 'false' }}
       run_lint_only: ${{ steps.determine.outputs.run_lint_only || 'false' }}
 
@@ -60,10 +64,18 @@ jobs:
               - 'packages/tauri-service/**'
               - 'packages/tauri-plugin/**'
 
-            # Shared packages (affect both services)
+            # Dioxus service packages
+            dioxus_service:
+              - 'packages/dioxus-service/**'
+              - 'packages/dioxus-bridge/**'
+              - 'packages/dioxus-driver/**'
+
+            # Shared packages (affect all services)
             shared:
               - 'packages/native-types/**'
               - 'packages/native-utils/**'
+              - 'packages/native-core/**'
+              - 'packages/native-spy/**'
               - 'packages/bundler/**'
 
             # E2E tests
@@ -73,6 +85,10 @@ jobs:
             e2e_tauri:
               - 'e2e/test/tauri/**'
               - 'e2e/wdio.tauri.conf.ts'
+            e2e_dioxus:
+              - 'e2e/test/dioxus/**'
+              - 'e2e/wdio.dioxus.conf.ts'
+              - 'e2e/wdio.dioxus-embedded.conf.ts'
 
             # Test fixtures and apps
             fixtures_electron:
@@ -81,6 +97,9 @@ jobs:
               - 'fixtures/e2e-apps/electron-script/**'
             fixtures_tauri:
               - 'fixtures/e2e-apps/tauri/**'
+            fixtures_dioxus:
+              - 'fixtures/e2e-apps/dioxus/**'
+              - 'fixtures/package-tests/dioxus-app/**'
 
             # Infrastructure (always triggers both)
             infra:
@@ -106,6 +125,7 @@ jobs:
           if [ "${{ inputs.force_all }}" = "true" ]; then
             echo "run_electron=true" >> $GITHUB_OUTPUT
             echo "run_tauri=true" >> $GITHUB_OUTPUT
+            echo "run_dioxus=true" >> $GITHUB_OUTPUT
             echo "has_shared_changes=true" >> $GITHUB_OUTPUT
             echo "::notice::Force all mode enabled - running all tests"
             exit 0
@@ -115,21 +135,27 @@ jobs:
           echo "docs=${{ steps.changes.outputs.docs }}"
           echo "electron_service=${{ steps.changes.outputs.electron_service }}"
           echo "tauri_service=${{ steps.changes.outputs.tauri_service }}"
+          echo "dioxus_service=${{ steps.changes.outputs.dioxus_service }}"
           echo "shared=${{ steps.changes.outputs.shared }}"
           echo "e2e_electron=${{ steps.changes.outputs.e2e_electron }}"
           echo "e2e_tauri=${{ steps.changes.outputs.e2e_tauri }}"
+          echo "e2e_dioxus=${{ steps.changes.outputs.e2e_dioxus }}"
           echo "fixtures_electron=${{ steps.changes.outputs.fixtures_electron }}"
           echo "fixtures_tauri=${{ steps.changes.outputs.fixtures_tauri }}"
+          echo "fixtures_dioxus=${{ steps.changes.outputs.fixtures_dioxus }}"
           echo "infra=${{ steps.changes.outputs.infra }}"
 
           DOCS=${{ steps.changes.outputs.docs }}
           ELECTRON=${{ steps.changes.outputs.electron_service }}
           TAURI=${{ steps.changes.outputs.tauri_service }}
+          DIOXUS=${{ steps.changes.outputs.dioxus_service }}
           SHARED=${{ steps.changes.outputs.shared }}
           E2E_ELECTRON=${{ steps.changes.outputs.e2e_electron }}
           E2E_TAURI=${{ steps.changes.outputs.e2e_tauri }}
+          E2E_DIOXUS=${{ steps.changes.outputs.e2e_dioxus }}
           FIXTURES_ELECTRON=${{ steps.changes.outputs.fixtures_electron }}
           FIXTURES_TAURI=${{ steps.changes.outputs.fixtures_tauri }}
+          FIXTURES_DIOXUS=${{ steps.changes.outputs.fixtures_dioxus }}
           INFRA=${{ steps.changes.outputs.infra }}
 
           # Electron runs if: electron_service || e2e_electron || fixtures_electron || shared || infra
@@ -144,15 +170,22 @@ jobs:
             RUN_TAURI="false"
           fi
 
+          # Dioxus runs if: dioxus_service || e2e_dioxus || fixtures_dioxus || shared || infra
+          RUN_DIOXUS=$(echo "$DIOXUS $E2E_DIOXUS $FIXTURES_DIOXUS $SHARED $INFRA" | grep -o 'true' | head -1 || echo "")
+          if [ -z "$RUN_DIOXUS" ]; then
+            RUN_DIOXUS="false"
+          fi
+
           # Lint-only mode when no service-impacting changes detected
           # Covers docs-only PRs, config-only edits outside infra, etc.
           RUN_LINT_ONLY="false"
-          if [ "$RUN_ELECTRON" = "false" ] && [ "$RUN_TAURI" = "false" ]; then
+          if [ "$RUN_ELECTRON" = "false" ] && [ "$RUN_TAURI" = "false" ] && [ "$RUN_DIOXUS" = "false" ]; then
             RUN_LINT_ONLY="true"
           fi
 
           echo "run_electron=$RUN_ELECTRON" >> $GITHUB_OUTPUT
           echo "run_tauri=$RUN_TAURI" >> $GITHUB_OUTPUT
+          echo "run_dioxus=$RUN_DIOXUS" >> $GITHUB_OUTPUT
           echo "has_shared_changes=$SHARED" >> $GITHUB_OUTPUT
           echo "run_lint_only=$RUN_LINT_ONLY" >> $GITHUB_OUTPUT
 
@@ -164,21 +197,26 @@ jobs:
           echo "| Documentation | $DOCS |" >> $GITHUB_STEP_SUMMARY
           echo "| Electron service | $ELECTRON |" >> $GITHUB_STEP_SUMMARY
           echo "| Tauri service | $TAURI |" >> $GITHUB_STEP_SUMMARY
+          echo "| Dioxus service | $DIOXUS |" >> $GITHUB_STEP_SUMMARY
           echo "| Shared packages | $SHARED |" >> $GITHUB_STEP_SUMMARY
           echo "| E2E Electron | $E2E_ELECTRON |" >> $GITHUB_STEP_SUMMARY
           echo "| E2E Tauri | $E2E_TAURI |" >> $GITHUB_STEP_SUMMARY
+          echo "| E2E Dioxus | $E2E_DIOXUS |" >> $GITHUB_STEP_SUMMARY
           echo "| Fixtures Electron | $FIXTURES_ELECTRON |" >> $GITHUB_STEP_SUMMARY
           echo "| Fixtures Tauri | $FIXTURES_TAURI |" >> $GITHUB_STEP_SUMMARY
+          echo "| Fixtures Dioxus | $FIXTURES_DIOXUS |" >> $GITHUB_STEP_SUMMARY
           echo "| Infrastructure | $INFRA |" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Decisions" >> $GITHUB_STEP_SUMMARY
           echo "- **Run Electron**: $RUN_ELECTRON" >> $GITHUB_STEP_SUMMARY
           echo "- **Run Tauri**: $RUN_TAURI" >> $GITHUB_STEP_SUMMARY
+          echo "- **Run Dioxus**: $RUN_DIOXUS" >> $GITHUB_STEP_SUMMARY
           echo "- **Lint only (no service changes)**: $RUN_LINT_ONLY" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Outputs" >> $GITHUB_STEP_SUMMARY
           echo "- \`run_electron\`: $RUN_ELECTRON" >> $GITHUB_STEP_SUMMARY
           echo "- \`run_tauri\`: $RUN_TAURI" >> $GITHUB_STEP_SUMMARY
+          echo "- \`run_dioxus\`: $RUN_DIOXUS" >> $GITHUB_STEP_SUMMARY
           echo "- \`has_shared_changes\`: $SHARED" >> $GITHUB_STEP_SUMMARY
           echo "- \`run_lint_only\`: $RUN_LINT_ONLY" >> $GITHUB_STEP_SUMMARY
 
@@ -187,13 +225,17 @@ jobs:
           echo "  Documentation: $DOCS"
           echo "  Electron service: $ELECTRON"
           echo "  Tauri service: $TAURI"
+          echo "  Dioxus service: $DIOXUS"
           echo "  Shared packages: $SHARED"
           echo "  E2E Electron: $E2E_ELECTRON"
           echo "  E2E Tauri: $E2E_TAURI"
+          echo "  E2E Dioxus: $E2E_DIOXUS"
           echo "  Fixtures Electron: $FIXTURES_ELECTRON"
           echo "  Fixtures Tauri: $FIXTURES_TAURI"
+          echo "  Fixtures Dioxus: $FIXTURES_DIOXUS"
           echo "  Infrastructure: $INFRA"
           echo ""
           echo "  Run Electron: $RUN_ELECTRON"
           echo "  Run Tauri: $RUN_TAURI"
+          echo "  Run Dioxus: $RUN_DIOXUS"
           echo "  Run lint only: $RUN_LINT_ONLY"
