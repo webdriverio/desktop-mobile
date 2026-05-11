@@ -1,11 +1,12 @@
 //! `wdio-dioxus-bridge` — bridge crate consumed by Dioxus desktop apps that
 //! want to be testable via `@wdio/dioxus-service`.
 //!
-//! v1 ships the automation env-var reader ([`automation`]) and the
-//! `wdio://invoke` IPC channel ([`invoke`]), plus injection of the
-//! `@wdio/dioxus-bridge` guest-js bundle into the webview. Subsequent
-//! milestones will add `log_bridge.rs` (frontend/backend log forwarding),
-//! window state tracking, and the deeplink reference handler.
+//! Ships the automation env-var reader ([`automation`]), the `wdio://invoke`
+//! IPC channel ([`invoke`]), frontend/backend log forwarding
+//! ([`log_bridge`]), and a multi-window registry ([`window_state`]) that
+//! auto-labels Dioxus windows for [`@wdio/dioxus-service`]'s `switchWindow`
+//! / `listWindows` APIs. Subsequent milestones add the deeplink reference
+//! handler.
 //!
 //! # Quick start
 //!
@@ -29,12 +30,27 @@
 //!     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
 //! }
 //! ```
+//!
+//! [`@wdio/dioxus-service`]: https://www.npmjs.com/package/@wdio/dioxus-service
+//!
+//! # Multi-window note
+//!
+//! [`install`] calls [`Config::with_on_window`] to feed each newly-built
+//! window into the window-state registry. Dioxus stores the on-window
+//! callback in an `Option` with no getter, so a subsequent
+//! `config.with_on_window(...)` call by user code would silently replace
+//! the bridge's hook and break multi-window support. **Call
+//! `wdio_dioxus_bridge::install(config)` last in your Config builder
+//! chain**, or invoke [`window_state::register_window`] from your own
+//! on-window callback.
 
 pub mod automation;
 pub mod invoke;
 pub mod log_bridge;
+pub mod window_state;
 
 use dioxus_desktop::Config;
+use serde_json::json;
 
 pub use invoke::CommandRegistry;
 pub use log_bridge::FRONTEND_MARKER;
@@ -64,6 +80,7 @@ pub fn install(config: Config) -> Config {
 pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Config {
   automation::report();
   log_bridge::register(&registry);
+  register_window_commands(&registry);
 
   let registry_for_handler = registry;
   config
@@ -73,4 +90,18 @@ pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Confi
     .with_custom_head(format!(
       "<script type=\"module\">{GUEST_JS_BUNDLE}</script>"
     ))
+    .with_on_window(|window, _dom| {
+      let label = window_state::register_window(&window);
+      tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
+    })
+}
+
+fn register_window_commands(registry: &CommandRegistry) {
+  registry.register("__list_windows", |_args| Ok(json!(window_state::list_labels())));
+  registry.register("__active_window", |_args| {
+    Ok(json!(window_state::get_active_label()))
+  });
+  registry.register("__window_states", |_args| {
+    Ok(json!(window_state::get_window_states()))
+  });
 }

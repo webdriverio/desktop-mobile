@@ -11,6 +11,7 @@ import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from '.
 import { execute } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import mockStore from './mockStore.js';
+import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
 
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
@@ -58,6 +59,8 @@ export default class DioxusWorkerService {
       resetAllMocks,
       restoreAllMocks,
       isMockFunction,
+      switchWindow: (label: string) => switchWindowByLabel(browser, label),
+      listWindows: () => listWindowLabels(browser),
     };
     (browser as unknown as { dioxus: typeof dioxus }).dioxus = dioxus;
   }
@@ -76,7 +79,11 @@ export default class DioxusWorkerService {
    * teardown anyway.
    */
   async after(): Promise<void> {
-    log.debug('DioxusWorkerService.after — clearing process-wide mockStore');
+    log.debug('DioxusWorkerService.after — clearing process-wide mockStore + window cache');
     mockStore.clear();
+    // WDIO's worker `after` runs once per spec; we don't have the browser
+    // ref here (only `before` receives it), so clear every session's cached
+    // label. Safe because each WDIO worker is its own process.
+    clearWindowState();
   }
 }

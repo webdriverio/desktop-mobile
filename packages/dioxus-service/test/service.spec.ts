@@ -14,6 +14,8 @@ type Installed = {
     resetAllMocks: (prefix?: string) => Promise<void>;
     restoreAllMocks: (prefix?: string) => Promise<void>;
     isMockFunction: (x: unknown) => boolean;
+    switchWindow: (label: string) => Promise<void>;
+    listWindows: () => Promise<string[]>;
   };
 };
 
@@ -36,6 +38,8 @@ describe('DioxusWorkerService', () => {
     expect(typeof dioxus.resetAllMocks).toBe('function');
     expect(typeof dioxus.restoreAllMocks).toBe('function');
     expect(typeof dioxus.isMockFunction).toBe('function');
+    expect(typeof dioxus.switchWindow).toBe('function');
+    expect(typeof dioxus.listWindows).toBe('function');
   });
 
   it('should route browser.dioxus.execute through the underlying browser.execute', async () => {

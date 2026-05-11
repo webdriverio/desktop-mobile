@@ -80,10 +80,11 @@ export interface DioxusMock<TArgs extends unknown[] = unknown[], TReturns = unkn
 /**
  * Public `browser.dioxus.*` surface installed by `@wdio/dioxus-service`.
  *
- * Surface in this MVP: `execute`, `mock`, and the mock-lifecycle helpers.
- * `triggerDeeplink`, `switchWindow`, `listWindows`, and per-call execute
- * options land in PR3 alongside the bridge's `window_state` + `deeplink`
- * modules. `emitEvent` is deferred to v1.1 — Dioxus has no native event bus.
+ * Surface in PR3: `execute`, `mock`, the mock-lifecycle helpers, plus
+ * multi-window APIs (`switchWindow`, `listWindows`). `triggerDeeplink` and
+ * per-call execute options land later in PR3 alongside the bridge's
+ * `deeplink` module. `emitEvent` is deferred to v1.1 — Dioxus has no
+ * native event bus.
  */
 export interface DioxusServiceAPI {
   execute<R, A extends unknown[]>(script: string | ((dx: DioxusAPIs, ...a: A) => R), ...args: A): Promise<R>;
@@ -93,6 +94,11 @@ export interface DioxusServiceAPI {
   clearAllMocks(prefix?: string): Promise<void>;
   resetAllMocks(prefix?: string): Promise<void>;
   restoreAllMocks(prefix?: string): Promise<void>;
+
+  /** Switch the WebDriver session to the window labelled `label`. */
+  switchWindow(label: string): Promise<void>;
+  /** List all live window labels in registration order. */
+  listWindows(): Promise<string[]>;
 }
 
 export interface DioxusServiceOptions extends BaseServiceOptions, DriverProviderConfig {
