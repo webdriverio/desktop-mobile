@@ -155,12 +155,25 @@ export async function closeLogWriter(serviceName: string): Promise<void> {
 // during the migration. They will be removed once all callers import the
 // canonical names directly.
 
-/** @deprecated Use {@link LogWriter} with a `serviceName` argument. */
-export const StandaloneLogWriter = LogWriter;
+/**
+ * @deprecated Use {@link LogWriter} with a `serviceName` argument.
+ * Bound to `'electron-service'` for back-compat with the Electron call sites
+ * that historically instantiated this directly.
+ */
+export class StandaloneLogWriter extends LogWriter {
+  constructor() {
+    super('electron-service');
+  }
+}
 
 /** @deprecated Use {@link getLogWriter}(serviceName). */
-export function getStandaloneLogWriter(): LogWriter {
-  return getLogWriter('electron-service');
+export function getStandaloneLogWriter(): StandaloneLogWriter {
+  let instance = singletons.get('electron-service');
+  if (!instance || !(instance instanceof StandaloneLogWriter)) {
+    instance = new StandaloneLogWriter();
+    singletons.set('electron-service', instance);
+  }
+  return instance as StandaloneLogWriter;
 }
 
 /** @deprecated Use {@link isLogWriterInitialized}(serviceName). */

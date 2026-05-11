@@ -736,6 +736,9 @@ importers:
       '@wdio/logger':
         specifier: catalog:default
         version: 9.18.0
+      '@wdio/native-core':
+        specifier: workspace:*
+        version: link:../native-core
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../native-types
