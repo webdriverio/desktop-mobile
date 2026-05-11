@@ -130,10 +130,53 @@ ${WDIO_MOCK_SETUP_SCRIPT}
     }
     throw new Error('unmocked Electron IPC channel in browser mode: ' + channel);
   };
-  window.electron.ipcRenderer.on = function() {};
-  window.electron.ipcRenderer.once = function() {};
-  window.electron.ipcRenderer.removeListener = function() {};
-  window.electron.ipcRenderer.removeAllListeners = function() {};
+  if (!window.__wdio_electron_listeners__) { window.__wdio_electron_listeners__ = {}; }
+  if (typeof window.__wdio_electron_listener_seq__ !== 'number') { window.__wdio_electron_listener_seq__ = 0; }
+  window.electron.ipcRenderer.on = function(channel, fn) {
+    var id = ++window.__wdio_electron_listener_seq__;
+    if (!window.__wdio_electron_listeners__[channel]) { window.__wdio_electron_listeners__[channel] = []; }
+    window.__wdio_electron_listeners__[channel].push({ id: id, fn: fn, once: false });
+    return window.electron.ipcRenderer;
+  };
+  window.electron.ipcRenderer.addListener = window.electron.ipcRenderer.on;
+  window.electron.ipcRenderer.once = function(channel, fn) {
+    var id = ++window.__wdio_electron_listener_seq__;
+    if (!window.__wdio_electron_listeners__[channel]) { window.__wdio_electron_listeners__[channel] = []; }
+    window.__wdio_electron_listeners__[channel].push({ id: id, fn: fn, once: true });
+    return window.electron.ipcRenderer;
+  };
+  window.electron.ipcRenderer.removeListener = function(channel, fn) {
+    var bucket = window.__wdio_electron_listeners__[channel];
+    if (!bucket) { return window.electron.ipcRenderer; }
+    for (var i = 0; i < bucket.length; i++) {
+      if (bucket[i].fn === fn) { bucket.splice(i, 1); break; }
+    }
+    return window.electron.ipcRenderer;
+  };
+  window.electron.ipcRenderer.off = window.electron.ipcRenderer.removeListener;
+  window.electron.ipcRenderer.removeAllListeners = function(channel) {
+    if (channel === undefined) {
+      window.__wdio_electron_listeners__ = {};
+    } else {
+      delete window.__wdio_electron_listeners__[channel];
+    }
+    return window.electron.ipcRenderer;
+  };
+  window.__wdio_emit_electron_event__ = function(channel) {
+    var args = Array.prototype.slice.call(arguments, 1);
+    var bucket = window.__wdio_electron_listeners__[channel];
+    if (!bucket || bucket.length === 0) { return; }
+    var snapshot = bucket.slice();
+    for (var i = 0; i < snapshot.length; i++) {
+      var entry = snapshot[i];
+      if (entry.once) {
+        var idx = bucket.indexOf(entry);
+        if (idx !== -1) { bucket.splice(idx, 1); }
+      }
+      var event = { ports: [], sender: window.electron.ipcRenderer, senderId: 0 };
+      try { entry.fn.apply(null, [event].concat(args)); } catch (e) { /* don't block other listeners */ }
+    }
+  };
 })()`;
   }
 }

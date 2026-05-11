@@ -135,18 +135,127 @@ describe('ElectronAdapter.buildBrowserIpcInjectionScript', () => {
     expect(sendSync('sync-channel')).toBe(42);
   });
 
-  it('should provide no-op stubs for on, once, removeListener, removeAllListeners', () => {
-    const script = adapter.buildBrowserIpcInjectionScript();
-    const window = runInBrowserContext(script);
-    const ipcRenderer = (window.electron as Record<string, unknown>).ipcRenderer as Record<string, unknown>;
-    expect(typeof ipcRenderer.on).toBe('function');
-    expect(typeof ipcRenderer.once).toBe('function');
-    expect(typeof ipcRenderer.removeListener).toBe('function');
-    expect(typeof ipcRenderer.removeAllListeners).toBe('function');
-    expect(() => (ipcRenderer.on as Function)('channel', () => {})).not.toThrow();
-    expect(() => (ipcRenderer.once as Function)('channel', () => {})).not.toThrow();
-    expect(() => (ipcRenderer.removeListener as Function)('channel', () => {})).not.toThrow();
-    expect(() => (ipcRenderer.removeAllListeners as Function)('channel')).not.toThrow();
+  describe('events', () => {
+    type Listener = (event: unknown, ...args: unknown[]) => void;
+    type IpcRenderer = Record<string, unknown> & {
+      on: (c: string, fn: Listener) => unknown;
+      once: (c: string, fn: Listener) => unknown;
+      off: (c: string, fn: Listener) => unknown;
+      removeListener: (c: string, fn: Listener) => unknown;
+      removeAllListeners: (c?: string) => unknown;
+      addListener: (c: string, fn: Listener) => unknown;
+    };
+
+    function setupWindow() {
+      const script = adapter.buildBrowserIpcInjectionScript();
+      const window = runInBrowserContext(script);
+      const ipcRenderer = (window.electron as Record<string, unknown>).ipcRenderer as IpcRenderer;
+      const emit = window.__wdio_emit_electron_event__ as (channel: string, ...args: unknown[]) => void;
+      return { window, ipcRenderer, emit };
+    }
+
+    it('should register on() and fire listeners with a synthetic IpcRendererEvent', () => {
+      const { ipcRenderer, emit } = setupWindow();
+      const calls: unknown[][] = [];
+      ipcRenderer.on('did-update-info', (...args) => calls.push(args));
+      emit('did-update-info', { count: 1 }, 'extra');
+      expect(calls).toHaveLength(1);
+      const [event, payload, extra] = calls[0] as [Record<string, unknown>, unknown, unknown];
+      expect(event).toMatchObject({ ports: [], senderId: 0 });
+      expect(event.sender).toBe(ipcRenderer);
+      expect(payload).toEqual({ count: 1 });
+      expect(extra).toBe('extra');
+    });
+
+    it('should self-remove once() listeners after firing', () => {
+      const { ipcRenderer, emit } = setupWindow();
+      const calls: unknown[][] = [];
+      ipcRenderer.once('ping', (...args) => calls.push(args));
+      emit('ping', 1);
+      emit('ping', 2);
+      expect(calls).toHaveLength(1);
+    });
+
+    it('should remove only the specific listener with removeListener', () => {
+      const { ipcRenderer, emit } = setupWindow();
+      const a: unknown[] = [];
+      const b: unknown[] = [];
+      const fnA: Listener = (..._args) => a.push(_args);
+      const fnB: Listener = (..._args) => b.push(_args);
+      ipcRenderer.on('ev', fnA);
+      ipcRenderer.on('ev', fnB);
+      ipcRenderer.removeListener('ev', fnA);
+      emit('ev', 'payload');
+      expect(a).toHaveLength(0);
+      expect(b).toHaveLength(1);
+    });
+
+    it('should expose off as an alias for removeListener', () => {
+      const { ipcRenderer, emit } = setupWindow();
+      const calls: unknown[][] = [];
+      const fn: Listener = (..._args) => calls.push(_args);
+      ipcRenderer.on('ev', fn);
+      ipcRenderer.off('ev', fn);
+      emit('ev', 1);
+      expect(calls).toHaveLength(0);
+    });
+
+    it('should clear a single channel with removeAllListeners(channel)', () => {
+      const { ipcRenderer, emit } = setupWindow();
+      const a: unknown[][] = [];
+      const b: unknown[][] = [];
+      ipcRenderer.on('keep', (...args) => b.push(args));
+      ipcRenderer.on('drop', (...args) => a.push(args));
+      ipcRenderer.on('drop', (...args) => a.push(args));
+      ipcRenderer.removeAllListeners('drop');
+      emit('drop', 1);
+      emit('keep', 2);
+      expect(a).toHaveLength(0);
+      expect(b).toHaveLength(1);
+    });
+
+    it('should clear every channel with removeAllListeners() (no arg)', () => {
+      const { ipcRenderer, emit } = setupWindow();
+      const calls: unknown[][] = [];
+      ipcRenderer.on('one', (...args) => calls.push(args));
+      ipcRenderer.on('two', (...args) => calls.push(args));
+      ipcRenderer.removeAllListeners();
+      emit('one', 1);
+      emit('two', 2);
+      expect(calls).toHaveLength(0);
+    });
+
+    it('should be a no-op when emitting on a channel with no listeners', () => {
+      const { emit } = setupWindow();
+      expect(() => emit('nobody-listening', 1)).not.toThrow();
+    });
+
+    it('should not let one listener error block the rest', () => {
+      const { ipcRenderer, emit } = setupWindow();
+      const called: unknown[][] = [];
+      ipcRenderer.on('ev', () => {
+        throw new Error('boom');
+      });
+      ipcRenderer.on('ev', (...args) => called.push(args));
+      emit('ev', 1);
+      expect(called).toHaveLength(1);
+    });
+
+    it('should be chainable: on() and off() return ipcRenderer', () => {
+      const { ipcRenderer } = setupWindow();
+      expect(ipcRenderer.on('x', () => {})).toBe(ipcRenderer);
+      expect(ipcRenderer.once('x', () => {})).toBe(ipcRenderer);
+      expect(ipcRenderer.off('x', () => {})).toBe(ipcRenderer);
+      expect(ipcRenderer.removeAllListeners('x')).toBe(ipcRenderer);
+    });
+
+    it('should expose addListener as an alias for on', () => {
+      const { ipcRenderer, emit } = setupWindow();
+      const calls: unknown[][] = [];
+      ipcRenderer.addListener('ev', (...args) => calls.push(args));
+      emit('ev', 'payload');
+      expect(calls).toHaveLength(1);
+    });
   });
 
   describe('fn()', () => {
