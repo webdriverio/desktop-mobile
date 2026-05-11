@@ -32,10 +32,12 @@
 
 pub mod automation;
 pub mod invoke;
+pub mod log_bridge;
 
 use dioxus_desktop::Config;
 
 pub use invoke::CommandRegistry;
+pub use log_bridge::FRONTEND_MARKER;
 
 /// The bundled `@wdio/dioxus-bridge` guest-js — populated at build time by
 /// `build.rs` from `guest-js/dist-js/index.js`. When the bundle hasn't been
@@ -61,6 +63,7 @@ pub fn install(config: Config) -> Config {
 /// Use this when the app needs custom commands beyond the built-ins.
 pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Config {
   automation::report();
+  log_bridge::register(&registry);
 
   let registry_for_handler = registry;
   config

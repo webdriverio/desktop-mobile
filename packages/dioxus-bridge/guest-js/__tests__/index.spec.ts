@@ -86,4 +86,81 @@ describe('@wdio/dioxus-bridge guest-js', () => {
     const { invoke } = await import('../index.js');
     await expect(invoke('nope')).rejects.toThrow(/wdio:\/\/ invoke failed/);
   });
+
+  describe('console wrapper', () => {
+    it('should forward console.log calls to log_frontend with info level', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true, value: null }) });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      // Reset the install guard so the wrapper installs in this test.
+      (window as unknown as Record<string, unknown>).__WDIO_DIOXUS_CONSOLE_INSTALLED__ = undefined;
+      await import('../index.js');
+
+      console.log('hello world');
+      // The forward is async; await a microtask before checking.
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const calls = fetchMock.mock.calls.filter((c) => {
+        const body = JSON.parse((c[1] as { body: string }).body);
+        return body.command === 'log_frontend';
+      });
+      expect(calls.length).toBeGreaterThan(0);
+      const body = JSON.parse(calls[calls.length - 1][1].body);
+      expect(body.args.level).toBe('info');
+      expect(body.args.message).toBe('hello world');
+    });
+
+    it('should map console.error to error level', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true, value: null }) });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      (window as unknown as Record<string, unknown>).__WDIO_DIOXUS_CONSOLE_INSTALLED__ = undefined;
+      await import('../index.js');
+
+      console.error('boom');
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const calls = fetchMock.mock.calls.filter((c) => {
+        const body = JSON.parse((c[1] as { body: string }).body);
+        return body.command === 'log_frontend';
+      });
+      const body = JSON.parse(calls[calls.length - 1][1].body);
+      expect(body.args.level).toBe('error');
+    });
+
+    it('should JSON-stringify non-string args', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true, value: null }) });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      (window as unknown as Record<string, unknown>).__WDIO_DIOXUS_CONSOLE_INSTALLED__ = undefined;
+      await import('../index.js');
+
+      console.info('status', { code: 200 }, true);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      const calls = fetchMock.mock.calls.filter((c) => {
+        const body = JSON.parse((c[1] as { body: string }).body);
+        return body.command === 'log_frontend';
+      });
+      const body = JSON.parse(calls[calls.length - 1][1].body);
+      expect(body.args.message).toContain('status');
+      expect(body.args.message).toContain('{"code":200}');
+      expect(body.args.message).toContain('true');
+    });
+
+    it('should not install twice on the same window', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ json: async () => ({ ok: true, value: null }) });
+      globalThis.fetch = fetchMock as unknown as typeof fetch;
+
+      (window as unknown as Record<string, unknown>).__WDIO_DIOXUS_CONSOLE_INSTALLED__ = undefined;
+      await import('../index.js');
+      const wrapperAfterFirst = console.log;
+
+      // Force the module to re-evaluate. The install guard should hold.
+      vi.resetModules();
+      await import('../index.js');
+
+      expect(console.log).toBe(wrapperAfterFirst);
+    });
+  });
 });
