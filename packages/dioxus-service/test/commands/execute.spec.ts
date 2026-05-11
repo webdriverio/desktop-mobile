@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { execute } from '../../src/commands/execute.js';
+import { execute, runInterceptorScript } from '../../src/commands/execute.js';
 
 function browserStub(returnValue: unknown = undefined): WebdriverIO.Browser {
   const execute = vi.fn().mockResolvedValue(returnValue);
@@ -32,7 +32,12 @@ describe('execute command', () => {
     expect(wrappedScript).toContain('window.__WDIO_DIOXUS__');
     expect(wrappedScript).toContain('userFn');
     expect(wrappedScript).toContain('dx.invoke');
-    expect(forwardedArgs).toEqual([42]);
+    // Args are inlined into the wrapper script as JSON literals — no extra
+    // positional args are forwarded to browser.execute. This keeps the
+    // wrapper portable across WDIO versions that may wrap the script body
+    // in an arrow function (where `arguments` would be unavailable).
+    expect(forwardedArgs).toEqual([]);
+    expect(wrappedScript).toContain('userFn(dx, 42)');
   });
 
   it('should embed an error message when the bridge is not installed', async () => {
@@ -49,11 +54,39 @@ describe('execute command', () => {
     await expect(execute(browser, 'return {}')).resolves.toEqual({ hello: 'world' });
   });
 
-  it('should forward multiple positional args to browser.execute', async () => {
+  it('should inline multiple positional args as JSON into the wrapper', async () => {
     const browser = browserStub();
     await execute(browser, (_dx, _a: number, _b: string, _c: boolean) => null, 1, 'two', true);
 
-    const [, ...forwarded] = vi.mocked(browser.execute).mock.calls[0] as [string, ...unknown[]];
-    expect(forwarded).toEqual([1, 'two', true]);
+    const [wrappedScript, ...forwarded] = vi.mocked(browser.execute).mock.calls[0] as [string, ...unknown[]];
+    // No forwarded positional args — they're inlined into the wrapper.
+    expect(forwarded).toEqual([]);
+    expect(wrappedScript).toContain('userFn(dx, 1, "two", true)');
+  });
+
+  it('should JSON-serialise complex args inline', async () => {
+    const browser = browserStub();
+    await execute(browser, (_dx, _payload: { greeting: string }) => null, { greeting: 'hello' });
+
+    const [wrappedScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
+    expect(wrappedScript).toContain('userFn(dx, {"greeting":"hello"})');
+  });
+});
+
+describe('runInterceptorScript', () => {
+  it('should wrap the script as `return (script)()` so arrow functions actually invoke', async () => {
+    const browser = browserStub('ok');
+    const adapterScript = '(_dx) => { window.__wdio_mocks__.greet = 42; }';
+
+    await runInterceptorScript(browser, adapterScript);
+
+    const [actualScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
+    expect(actualScript).toBe(`return (${adapterScript})()`);
+  });
+
+  it('should return the value produced by browser.execute', async () => {
+    const browser = browserStub({ calls: [['a']], results: [], invocationCallOrder: [1] });
+    const result = await runInterceptorScript(browser, '(_dx) => ({ calls: [["a"]] })');
+    expect(result).toEqual({ calls: [['a']], results: [], invocationCallOrder: [1] });
   });
 });

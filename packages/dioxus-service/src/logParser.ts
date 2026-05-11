@@ -20,21 +20,34 @@ export interface ParsedLog {
   source: 'backend' | 'frontend';
 }
 
-const LEVEL_PATTERNS: Array<{ level: LogLevel; pattern: RegExp }> = [
-  { level: 'error', pattern: /\b(ERROR|Error|error)\b/i },
-  { level: 'warn', pattern: /\b(WARN|Warn|warn|WARNING|Warning|warning)\b/i },
-  { level: 'info', pattern: /\b(INFO|Info|info)\b/i },
-  { level: 'debug', pattern: /\b(DEBUG|Debug|debug)\b/i },
-  { level: 'trace', pattern: /\b(TRACE|Trace|trace)\b/i },
-];
-
+/**
+ * Detect the log level on a backend line by finding the **leftmost** level
+ * token preceded by a word boundary (start-of-line or whitespace).
+ *
+ * Rust `tracing` / `log` emit the level as the first non-timestamp token
+ * in each line. By anchoring to a leading word boundary and returning the
+ * first regex match, level tokens that appear inside the message body
+ * (e.g. `"check error.log"` or `"in ERROR.handler"`) cannot override the
+ * canonical leading level — the line's actual header is always further
+ * left.
+ *
+ * `WARNING` is normalised to `'warn'` for tracing's verbose form. We don't
+ * split on the first colon (an earlier attempt did and broke on
+ * timestamps like `12:00:00`): the leftmost-match property handles
+ * timestamps with embedded colons natively.
+ */
 function detectLevel(line: string): LogLevel {
-  for (const { level, pattern } of LEVEL_PATTERNS) {
-    if (pattern.test(line)) {
-      return level;
-    }
+  const m = line.match(
+    /(?:^|\s)(ERROR|Error|error|WARNING|Warning|warning|WARN|Warn|warn|INFO|Info|info|DEBUG|Debug|debug|TRACE|Trace|trace)\b/,
+  );
+  if (!m) {
+    return 'info';
   }
-  return 'info';
+  const token = m[1].toLowerCase();
+  if (token === 'warning' || token === 'warn') {
+    return 'warn';
+  }
+  return token as LogLevel;
 }
 
 /**

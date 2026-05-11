@@ -38,48 +38,73 @@ pub fn report() {
 #[cfg(test)]
 mod tests {
   use super::*;
+  use std::sync::Mutex;
 
-  // Use a unique env-var name in tests to avoid interference between tests.
-  // The actual `is_requested` reads from the const ENV_VAR — we exercise the
-  // public surface via std::env::set_var/remove_var.
+  // Cargo runs unit tests in this module *concurrently* by default (one
+  // thread per logical CPU). `std::env::set_var` / `remove_var` mutate the
+  // whole process environment, so without serialisation two tests racing
+  // each other can read stale values. We guard every env-var mutation
+  // with this lock to keep them deterministic.
+  static ENV_LOCK: Mutex<()> = Mutex::new(());
+
+  /// RAII helper: take the env-var lock, set ENV_VAR to the supplied value
+  /// (or remove it when `None`), and ensure it's removed when the guard
+  /// drops so a test failure in the middle never leaks state.
+  struct EnvGuard {
+    _lock: std::sync::MutexGuard<'static, ()>,
+  }
+
+  impl EnvGuard {
+    fn new(value: Option<&str>) -> Self {
+      let lock = ENV_LOCK.lock().unwrap_or_else(|p| p.into_inner());
+      // SAFETY: we hold the process-wide lock for the duration of the
+      // EnvGuard, so no other test in this module can race us.
+      unsafe {
+        match value {
+          Some(v) => std::env::set_var(ENV_VAR, v),
+          None => std::env::remove_var(ENV_VAR),
+        }
+      }
+      Self { _lock: lock }
+    }
+  }
+
+  impl Drop for EnvGuard {
+    fn drop(&mut self) {
+      // SAFETY: still inside the locked critical section.
+      unsafe {
+        std::env::remove_var(ENV_VAR);
+      }
+    }
+  }
 
   #[test]
   fn should_report_false_when_env_var_unset() {
-    // SAFETY: tests are single-threaded by default; setting env vars is
-    // valid in this context.
-    unsafe {
-      std::env::remove_var(ENV_VAR);
-    }
+    let _g = EnvGuard::new(None);
     assert!(!is_requested());
   }
 
   #[test]
   fn should_report_true_when_env_var_is_true() {
-    unsafe {
-      std::env::set_var(ENV_VAR, "true");
-    }
+    let _g = EnvGuard::new(Some("true"));
     assert!(is_requested());
-    unsafe {
-      std::env::remove_var(ENV_VAR);
-    }
   }
 
   #[test]
-  fn should_report_false_when_env_var_is_other_value() {
-    unsafe {
-      std::env::set_var(ENV_VAR, "yes");
-    }
+  fn should_report_false_when_env_var_is_yes() {
+    let _g = EnvGuard::new(Some("yes"));
     assert!(!is_requested());
-    unsafe {
-      std::env::set_var(ENV_VAR, "1");
-    }
+  }
+
+  #[test]
+  fn should_report_false_when_env_var_is_one() {
+    let _g = EnvGuard::new(Some("1"));
     assert!(!is_requested());
-    unsafe {
-      std::env::set_var(ENV_VAR, "");
-    }
+  }
+
+  #[test]
+  fn should_report_false_when_env_var_is_empty_string() {
+    let _g = EnvGuard::new(Some(""));
     assert!(!is_requested());
-    unsafe {
-      std::env::remove_var(ENV_VAR);
-    }
   }
 }

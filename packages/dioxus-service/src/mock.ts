@@ -20,7 +20,7 @@ import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { AbstractFn, DioxusMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
-import { execute as dioxusExecute } from './commands/execute.js';
+import { runInterceptorScript } from './commands/execute.js';
 import mockStore from './mockStore.js';
 
 const log = createLogger('dioxus-service', 'mock');
@@ -47,11 +47,11 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   const originalMock = outerMock.mock;
 
   log.debug(`[${command}] Registering inner mock in webview`);
-  await dioxusExecute<void>(browserToUse, interceptor.buildRegistrationScript(command));
+  await runInterceptorScript<void>(browserToUse, interceptor.buildRegistrationScript(command));
   log.debug(`[${command}] Inner mock registered`);
 
   mock.update = async () => {
-    const raw = await dioxusExecute<unknown>(browserToUse, interceptor.buildCallDataReadScript(command));
+    const raw = await runInterceptorScript<unknown>(browserToUse, interceptor.buildCallDataReadScript(command));
     const sync = interceptor.parseCallData(raw);
     const existing = originalMock.calls.length;
 
@@ -77,33 +77,42 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
 
   mock.mockImplementation = async (implFn: AbstractFn) => {
     const s = interceptor.serializeHandler(implFn);
-    await dioxusExecute<void>(browserToUse, interceptor.buildSetImplementationScript(command, s));
+    await runInterceptorScript<void>(browserToUse, interceptor.buildSetImplementationScript(command, s));
     return mock;
   };
 
   mock.mockImplementationOnce = async (implFn: AbstractFn) => {
     const s = interceptor.serializeHandler(implFn);
-    await dioxusExecute<void>(browserToUse, interceptor.buildSetImplementationScript(command, s, true));
+    await runInterceptorScript<void>(browserToUse, interceptor.buildSetImplementationScript(command, s, true));
     return mock;
   };
 
   mock.mockReturnValue = async (value: unknown) => {
-    await dioxusExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockReturnValue', value));
+    await runInterceptorScript<void>(
+      browserToUse,
+      interceptor.buildInnerSetterScript(command, 'mockReturnValue', value),
+    );
     return mock;
   };
 
   mock.mockReturnValueOnce = async (value: unknown) => {
-    await dioxusExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockReturnValueOnce', value));
+    await runInterceptorScript<void>(
+      browserToUse,
+      interceptor.buildInnerSetterScript(command, 'mockReturnValueOnce', value),
+    );
     return mock;
   };
 
   mock.mockResolvedValue = async (value: unknown) => {
-    await dioxusExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockResolvedValue', value));
+    await runInterceptorScript<void>(
+      browserToUse,
+      interceptor.buildInnerSetterScript(command, 'mockResolvedValue', value),
+    );
     return mock;
   };
 
   mock.mockResolvedValueOnce = async (value: unknown) => {
-    await dioxusExecute<void>(
+    await runInterceptorScript<void>(
       browserToUse,
       interceptor.buildInnerSetterScript(command, 'mockResolvedValueOnce', value),
     );
@@ -111,12 +120,15 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   };
 
   mock.mockRejectedValue = async (value: unknown) => {
-    await dioxusExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockRejectedValue', value));
+    await runInterceptorScript<void>(
+      browserToUse,
+      interceptor.buildInnerSetterScript(command, 'mockRejectedValue', value),
+    );
     return mock;
   };
 
   mock.mockRejectedValueOnce = async (value: unknown) => {
-    await dioxusExecute<void>(
+    await runInterceptorScript<void>(
       browserToUse,
       interceptor.buildInnerSetterScript(command, 'mockRejectedValueOnce', value),
     );
@@ -124,14 +136,14 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   };
 
   mock.mockClear = async () => {
-    await dioxusExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockClear'));
+    await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockClear'));
     outerMockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
-    await dioxusExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
+    await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
     outerMockClear();
     outerMockReset();
     outerMock.mockName(currentName);
@@ -139,14 +151,14 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   };
 
   mock.mockRestore = async () => {
-    await dioxusExecute<void>(browserToUse, interceptor.buildUnregistrationScript(command));
+    await runInterceptorScript<void>(browserToUse, interceptor.buildUnregistrationScript(command));
     outerMockClear();
     mockStore.deleteMock(`dioxus.${command}`);
     return mock;
   };
 
   mock.mockReturnThis = async () => {
-    await dioxusExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReturnThis'));
+    await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReturnThis'));
     return mock;
   };
 

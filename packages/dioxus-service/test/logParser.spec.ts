@@ -48,6 +48,19 @@ describe('parseLogLine', () => {
     expect(parseLogLine('plain log without a level')?.level).toBe('info');
   });
 
+  it('should not match a level token that appears in the message body', () => {
+    // The token "error" is inside the message ("error.log"), not the level
+    // header. detectLevel restricts its search to the prefix before the
+    // first colon.
+    const result = parseLogLine('2025-01-01T12:00:00Z INFO my_module: cannot find file — check error.log');
+    expect(result?.level).toBe('info');
+  });
+
+  it('should detect the level from the prefix when the message body would also match', () => {
+    const result = parseLogLine('2025-01-01T12:00:00Z WARN my_module: deprecated path used in error.handler');
+    expect(result?.level).toBe('warn');
+  });
+
   it('should preserve the raw line', () => {
     const raw = '  [WDIO-FRONTEND][INFO] padded  ';
     expect(parseLogLine(raw)?.raw).toBe(raw.trim());
