@@ -571,7 +571,11 @@ async function testExample(
       execCommand(testScript, packageDir, `Running ${mode} tests for ${packageName}`);
     } finally {
       if (staticServer) {
-        await new Promise<void>((resolveClose) => staticServer.close(() => resolveClose()));
+        // Capture in a const so the closure narrows the type — staticServer
+        // is a `let` and TS widens it back to Server | undefined inside the
+        // callback, matching the optional-chain pattern in the e2e conf.
+        const server = staticServer;
+        await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
         log(`Stopped static server for ${packageName}`);
       }
     }
