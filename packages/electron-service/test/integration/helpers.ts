@@ -29,7 +29,13 @@ export interface FakeBrowser {
   overwriteCommand: ReturnType<typeof vi.fn>;
   electron: Record<string, unknown>;
   overrides: Map<string, OverrideFn>;
-  triggerCommand: (name: string) => Promise<unknown>;
+  /**
+   * Invoke a registered command override. The optional `ownerBrowser` is set
+   * as `this.browser` inside the override — use this to simulate WDIO's
+   * multiremote behaviour where the override fires on a root-installed
+   * registration but `this.browser` is the per-instance owning session.
+   */
+  triggerCommand: (name: string, ownerBrowser?: WebdriverIO.Browser) => Promise<unknown>;
 }
 
 export function createFakeBrowser(): FakeBrowser {
@@ -42,13 +48,14 @@ export function createFakeBrowser(): FakeBrowser {
     }),
     electron: {} as Record<string, unknown>,
     overrides,
-    triggerCommand: (name: string) => {
+    triggerCommand: (name: string, ownerBrowser?: WebdriverIO.Browser) => {
       const fn = overrides.get(name);
       if (!fn) {
         throw new Error(`No override registered for command "${name}"`);
       }
       const originalCommand = vi.fn().mockResolvedValue(undefined);
-      return fn.call({}, originalCommand);
+      const ctx = ownerBrowser ? { browser: ownerBrowser } : {};
+      return fn.call(ctx, originalCommand);
     },
   };
   return browser;

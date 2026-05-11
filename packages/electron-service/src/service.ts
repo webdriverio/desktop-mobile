@@ -61,22 +61,36 @@ class MockUpdateScheduler {
 
   schedule(): Promise<void> {
     if (!this.#running) {
-      const p = this.#runOnce().finally(() => {
-        if (this.#running === p) this.#running = null;
-      });
+      const p = this.#wrapRun(this.#runOnce());
       this.#running = p;
       return p;
     }
     if (!this.#queued) {
-      const q = this.#running
-        .catch(() => undefined)
-        .then(() => this.#runOnce())
-        .finally(() => {
-          if (this.#queued === q) this.#queued = null;
-        });
-      this.#queued = q;
+      this.#queued = this.#running.catch(() => undefined).then(() => this.#runOnce());
     }
     return this.#queued;
+  }
+
+  /**
+   * Wrap a batch with an end-of-batch hook that atomically promotes any queued
+   * follow-up into the running slot before clearing it. Without this hop, a
+   * schedule() call arriving between the original batch settling and the
+   * queued chain's #runOnce starting would observe #running=null and spawn a
+   * third batch in parallel with the queued one.
+   */
+  #wrapRun(run: Promise<void>): Promise<void> {
+    let wrapped!: Promise<void>;
+    wrapped = run.finally(() => {
+      if (this.#running !== wrapped) return;
+      if (this.#queued) {
+        const promoted = this.#queued;
+        this.#queued = null;
+        this.#running = this.#wrapRun(promoted);
+      } else {
+        this.#running = null;
+      }
+    });
+    return wrapped;
   }
 
   async #runOnce(): Promise<void> {
@@ -487,7 +501,12 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         // Use Reflect.apply to safely call the original command with the correct 'this' context
         // This avoids TypeScript's strict function signature checking while maintaining runtime safety
         const result = await Reflect.apply(originalCommand, this, args as unknown[]);
-        await getMockUpdateScheduler(browser).schedule();
+        // In multiremote, the override is registered on the root but fires per
+        // instance — this.browser is the per-instance owning session. Route
+        // through that browser's scheduler so per-instance mock keys match;
+        // otherwise the root scheduler filters everything out.
+        const ownerBrowser = (this as { browser?: WebdriverIO.Browser }).browser ?? browser;
+        await getMockUpdateScheduler(ownerBrowser).schedule();
         return result;
       } as Parameters<typeof browser.overwriteCommand>[1];
 

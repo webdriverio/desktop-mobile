@@ -112,6 +112,54 @@ describe('browser mode — MockUpdateScheduler', () => {
   it('should be a no-op when the mock store is empty', async () => {
     await expect(browser.triggerCommand('click')).resolves.not.toThrow();
   });
+
+  it('should not run a parallel batch when a click arrives between running and queued', async () => {
+    const fake = seedMock('appInfo:get');
+
+    // Block the first batch's update so the queued batch is set up.
+    const firstHeld = defer<void>();
+    fake.update.mockImplementationOnce(() => firstHeld.promise);
+    // Block the second (queued) batch as well, so a third click can race in
+    // between the first batch settling and the queued's #runOnce starting.
+    const secondHeld = defer<void>();
+    fake.update.mockImplementationOnce(() => secondHeld.promise);
+
+    const c1 = browser.triggerCommand('click');
+    const c2 = browser.triggerCommand('click');
+
+    // Settle the first batch — between this and the queued batch's #runOnce,
+    // a third schedule() must NOT spawn a parallel #runOnce.
+    firstHeld.resolve();
+    await flushMicrotasks();
+    const c3 = browser.triggerCommand('click');
+    await flushMicrotasks();
+
+    // Only the queued batch should have started (update call count = 2),
+    // not a third concurrent batch.
+    expect(fake.update).toHaveBeenCalledTimes(2);
+
+    secondHeld.resolve();
+    await Promise.all([c1, c2, c3]);
+    // After all settle, click 3's batch ran exactly once.
+    expect(fake.update).toHaveBeenCalledTimes(3);
+  });
+
+  it('should route updates to the per-instance scheduler when the override fires with this.browser set', async () => {
+    // Simulate the multiremote case: the override is registered on `browser`
+    // (the "root"), but a click fires with `this.browser` = a per-instance
+    // session that owns its own mocks.
+    const instanceBrowser = createFakeBrowser();
+    const fake = createFakeMock('electron.instance-channel');
+    const key = browserModeStoreKey(instanceBrowser as unknown as WebdriverIO.Browser, 'instance-channel');
+    mockStore.setMockWithKey(key, fake.mock);
+
+    // Trigger the override registered on `browser` but pass instanceBrowser as
+    // the per-instance owner — the override should route through the
+    // instance's scheduler so the per-instance mock key matches.
+    await browser.triggerCommand('click', instanceBrowser as unknown as WebdriverIO.Browser);
+
+    expect(fake.update).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('browser mode — registration gate', () => {
