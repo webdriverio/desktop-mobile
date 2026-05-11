@@ -2,6 +2,19 @@
 // Re-export all types from split files
 // ============================================================================
 
+// Dioxus types
+export type {
+  DioxusAPIs,
+  DioxusBrowserExtension,
+  DioxusCapabilities,
+  DioxusDriverProvider,
+  DioxusExecuteOptions,
+  DioxusMock,
+  DioxusMockInstance,
+  DioxusServiceAPI,
+  DioxusServiceGlobalOptions,
+  DioxusServiceOptions,
+} from './dioxus.js';
 // Electron types
 export type {
   ApiCommand,
@@ -90,19 +103,21 @@ export type {
 // Combined Browser Extension
 // ============================================================================
 
+import type { DioxusBrowserExtension } from './dioxus.js';
 import type { ElectronBrowserExtension } from './electron.js';
 import type { TauriBrowserExtension } from './tauri.js';
 
 /**
- * Browser extension that supports both Electron and Tauri services
+ * Browser extension that supports Electron, Tauri, and Dioxus services
  */
-export interface BrowserExtension extends ElectronBrowserExtension, TauriBrowserExtension {}
+export interface BrowserExtension extends ElectronBrowserExtension, TauriBrowserExtension, DioxusBrowserExtension {}
 
 // ============================================================================
 // Module Augmentation (WebdriverIO)
 // ============================================================================
 
 import type { fn as vitestFn } from '@wdio/native-spy';
+import type { DioxusServiceGlobalOptions, DioxusServiceOptions } from './dioxus.js';
 import type {
   ElectronInterface,
   ElectronServiceGlobalOptions,
@@ -121,14 +136,18 @@ declare global {
 
   // biome-ignore lint/style/noNamespace: This is a legitimate use of namespace for global augmentation
   namespace WebdriverIO {
-    interface Browser extends ElectronBrowserExtension, TauriBrowserExtension {}
+    interface Browser extends ElectronBrowserExtension, TauriBrowserExtension, DioxusBrowserExtension {}
     interface Element extends ElementBase {}
-    interface MultiRemoteBrowser extends ElectronBrowserExtension, TauriBrowserExtension {}
+    interface MultiRemoteBrowser extends ElectronBrowserExtension, TauriBrowserExtension, DioxusBrowserExtension {}
     interface Capabilities {
       'wdio:electronServiceOptions'?: ElectronServiceOptions;
       'wdio:tauriServiceOptions'?: TauriServiceOptions;
+      'wdio:dioxusServiceOptions'?: DioxusServiceOptions;
     }
-    interface ServiceOption extends ElectronServiceGlobalOptions, TauriServiceGlobalOptions {}
+    interface ServiceOption
+      extends ElectronServiceGlobalOptions,
+        TauriServiceGlobalOptions,
+        DioxusServiceGlobalOptions {}
   }
 
   var __name: (func: Fn) => Fn;
