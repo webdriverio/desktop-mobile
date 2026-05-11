@@ -10,6 +10,7 @@ import { createLogger } from '@wdio/native-utils';
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute } from './commands/execute.js';
 import { mock } from './commands/mock.js';
+import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
 import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
 
@@ -61,6 +62,7 @@ export default class DioxusWorkerService {
       isMockFunction,
       switchWindow: (label: string) => switchWindowByLabel(browser, label),
       listWindows: () => listWindowLabels(browser),
+      triggerDeeplink,
     };
     (browser as unknown as { dioxus: typeof dioxus }).dioxus = dioxus;
   }

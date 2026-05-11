@@ -45,6 +45,7 @@
 //! on-window callback.
 
 pub mod automation;
+pub mod deeplink;
 pub mod invoke;
 pub mod log_bridge;
 pub mod window_state;
