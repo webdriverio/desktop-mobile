@@ -34,7 +34,7 @@ function makeLauncher(globalOpts: Record<string, unknown> = {}): ElectronLaunchS
 
 describe('ElectronLaunchService — browser mode', () => {
   describe('onPrepare', () => {
-    it('sets browserName to "chrome" and removes goog:chromeOptions', async () => {
+    it('should set browserName to "chrome" and strip Electron-specific capability bits', async () => {
       const launcher = makeLauncher();
       const caps: any[] = [
         {
@@ -46,6 +46,26 @@ describe('ElectronLaunchService — browser mode', () => {
       expect(caps[0].browserName).toBe('chrome');
       expect(caps[0]['goog:chromeOptions']).toBeUndefined();
       expect(caps[0]['wdio:enforceWebDriverClassic']).toBeUndefined();
+    });
+
+    it('should preserve user-supplied goog:chromeOptions and strip only the Electron binary', async () => {
+      const launcher = makeLauncher();
+      const caps: any[] = [
+        {
+          browserName: 'electron',
+          'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
+          'goog:chromeOptions': {
+            binary: '/path/to/Electron.app/Contents/MacOS/Electron',
+            args: ['--disable-features=IsolateOrigins', '--no-sandbox'],
+            prefs: { 'profile.default_content_setting_values.notifications': 2 },
+          },
+        },
+      ];
+      await launcher.onPrepare({} as any, caps);
+      expect(caps[0]['goog:chromeOptions']).toEqual({
+        args: ['--disable-features=IsolateOrigins', '--no-sandbox'],
+        prefs: { 'profile.default_content_setting_values.notifications': 2 },
+      });
     });
 
     it('throws SevereServiceError when devServerUrl is missing', async () => {

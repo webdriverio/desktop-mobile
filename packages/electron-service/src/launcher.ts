@@ -145,7 +145,15 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
         }
         cap.browserName = 'chrome';
-        delete (cap as Record<string, unknown>)['goog:chromeOptions'];
+        // Preserve user-supplied goog:chromeOptions (args, extensions, prefs, etc.)
+        // but strip `binary` — in browser mode we want system Chrome, not the
+        // Electron binary that may have been passed in for native mode.
+        const chromeOpts = (cap as Record<string, unknown>)['goog:chromeOptions'] as
+          | Record<string, unknown>
+          | undefined;
+        if (chromeOpts && 'binary' in chromeOpts) {
+          delete chromeOpts.binary;
+        }
         delete (cap as Record<string, unknown>)['wdio:enforceWebDriverClassic'];
       }
       this.#browserMode = true;
