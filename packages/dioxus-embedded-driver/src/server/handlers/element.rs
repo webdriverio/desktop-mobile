@@ -83,11 +83,7 @@ pub async fn find(
   Json(req): Json<FindElementRequest>,
 ) -> WebDriverResult {
   let timeout = session_timeout(&state, &session_id).await?;
-  let counter = {
-    let sessions = state.sessions.read().await;
-    sessions.get(&session_id)?.elements.element_count()
-  };
-  let var = format!("__wdio_elem_{counter}");
+  let var = format!("__wdio_elem_{}", Uuid::new_v4().simple());
   let script = format!(
     "window.{var} = {}; window.{var} !== null && window.{var} !== undefined ? '{}' : null",
     js_locator(&req.using, &req.value),
@@ -241,7 +237,7 @@ pub async fn send_keys(
   Json(req): Json<SendKeysRequest>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let text = req.text.replace('`', "\\`");
+  let text = req.text.replace('`', "\\`").replace("${", "\\${");
   eval(
     format!(
       "(function(){{ var el=window.{var}; el.focus(); el.value+=`{text}`; el.dispatchEvent(new Event('input',{{bubbles:true}})); el.dispatchEvent(new Event('change',{{bubbles:true}})); }})()"

@@ -57,13 +57,15 @@ pub async fn execute_sync(
     session.timeouts.script_ms
   };
 
-  // Wrap the script body the same way msedgedriver/WebKitWebDriver do:
-  // inject it into an anonymous function so `return` works at the top level
-  // and `arguments` array is available.
-  let wrapped = format!(
-    "(function() {{ {} }})()",
-    request.script
-  );
+  // Wrap in an IIFE, forwarding args so `arguments[N]` is accessible inside
+  // the script body per the W3C WebDriver spec.
+  let arg_names: Vec<String> = (0..request.args.len()).map(|i| format!("__arg{i}")).collect();
+  let arg_list = arg_names.join(", ");
+  let wrapped = if arg_list.is_empty() {
+    format!("(function() {{ {} }})()", request.script)
+  } else {
+    format!("(function({arg_list}) {{ {} }})({arg_list})", request.script)
+  };
   run_script(&wrapped, &request.args, timeout_ms).await
 }
 
@@ -103,7 +105,7 @@ pub async fn execute_async(
     args = if arg_names.is_empty() {
       String::new()
     } else {
-      format!("{}, ", arg_names.iter().map(|_| "__arg0").collect::<Vec<_>>().join(", "))
+      format!("{}, ", arg_names.join(", "))
     },
   );
   run_script(&wrapped, &request.args, timeout_ms).await

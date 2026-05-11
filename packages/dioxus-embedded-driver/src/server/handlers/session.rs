@@ -51,8 +51,11 @@ pub async fn create(
   let initial_window = match state.wait_for_window(10_000).await {
     Some(w) => {
       if let Some(label) = target {
-        // Verify the requested label is actually available.
-        if state.list_windows().contains(&label) { label } else { w }
+        if state.list_windows().contains(&label) {
+          label
+        } else {
+          return Err(WebDriverErrorResponse::no_such_window());
+        }
       } else {
         w
       }
