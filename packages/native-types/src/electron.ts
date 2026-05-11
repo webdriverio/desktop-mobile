@@ -31,11 +31,20 @@ export interface ElectronServiceAPI {
    */
   windowHandle?: string;
   /**
-   * Mock a function from the Electron API.
+   * Mock a function from the Electron API (native mode) or an IPC channel
+   * (browser mode).
    *
-   * @param apiName name of the API to mock
-   * @param funcName name of the function to mock
-   * @param mockReturnValue value to return when the mocked function is called
+   * Native mode supports two forms:
+   * - `mock(className)` returns an {@link ElectronClassMock} that mocks every
+   *   method of the named Electron class.
+   * - `mock(apiName, funcName, returnValue?)` mocks a single function on the
+   *   named API and returns an {@link ElectronFunctionMock}.
+   *
+   * Browser mode supports only `mock(channel)`; the two-argument form throws.
+   *
+   * @param classNameOrApiOrChannel - Electron class name, API name, or IPC channel
+   * @param funcName - function name (native two-arg form only)
+   * @param returnValue - initial return value for the mocked function
    * @returns a {@link Promise} that resolves once the mock is registered
    */
   mock: {

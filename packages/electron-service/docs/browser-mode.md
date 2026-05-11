@@ -92,7 +92,7 @@ When the session starts, the service injects a script into the page that:
 1. Creates `window.__wdio_mocks__` — a registry of per-channel mock functions.
 2. Patches `window.electron.ipcRenderer.invoke` to look up `window.__wdio_mocks__[channel]` and call it; throws if the channel has no registered mock.
 3. Patches `send` and `sendSync` to throw immediately for unmocked channels.
-4. Stubs `on`, `once`, `removeListener`, and `removeAllListeners` as no-ops (event listeners are not supported in browser mode).
+4. Replaces `on`, `once`, `removeListener`, `off`, `removeAllListeners`, and `addListener` with a real in-page listener registry — see [Events](#events) below.
 
 The injection script runs again after every `browser.url()` navigation because a page load wipes `window` state.
 
