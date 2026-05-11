@@ -8,7 +8,6 @@ export type {
   DioxusBrowserExtension,
   DioxusCapabilities,
   DioxusDriverProvider,
-  DioxusExecuteOptions,
   DioxusMock,
   DioxusMockInstance,
   DioxusServiceAPI,

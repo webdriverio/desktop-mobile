@@ -47,17 +47,6 @@ export interface DioxusAPIs {
   [key: string]: unknown;
 }
 
-/**
- * Per-call overrides for `browser.dioxus.execute()`. Use `withExecuteOptions()`
- * from `@wdio/dioxus-service` to construct properly-typed instances.
- */
-export interface DioxusExecuteOptions {
-  /** Window label to target (overrides the session default). */
-  windowLabel?: string;
-  /** Sentinel field used to disambiguate options from positional args. */
-  __wdioOptions__: true;
-}
-
 interface DioxusMockContext extends ServiceMockContext {
   results: MockResult[];
 }
@@ -91,14 +80,12 @@ export interface DioxusMock<TArgs extends unknown[] = unknown[], TReturns = unkn
 /**
  * Public `browser.dioxus.*` surface installed by `@wdio/dioxus-service`.
  *
- * `emitEvent` deferred to v1.1 per spec — Dioxus has no native event bus.
+ * Surface in this MVP: `execute`, `mock`, and the mock-lifecycle helpers.
+ * `triggerDeeplink`, `switchWindow`, `listWindows`, and per-call execute
+ * options land in PR3 alongside the bridge's `window_state` + `deeplink`
+ * modules. `emitEvent` is deferred to v1.1 — Dioxus has no native event bus.
  */
 export interface DioxusServiceAPI {
-  execute<R, A extends unknown[]>(
-    script: string | ((dx: DioxusAPIs, ...a: A) => R),
-    options: DioxusExecuteOptions,
-    ...args: A
-  ): Promise<R>;
   execute<R, A extends unknown[]>(script: string | ((dx: DioxusAPIs, ...a: A) => R), ...args: A): Promise<R>;
 
   mock(command: string): Promise<DioxusMock>;
@@ -106,10 +93,6 @@ export interface DioxusServiceAPI {
   clearAllMocks(prefix?: string): Promise<void>;
   resetAllMocks(prefix?: string): Promise<void>;
   restoreAllMocks(prefix?: string): Promise<void>;
-
-  triggerDeeplink(url: string): Promise<void>;
-  switchWindow(label: string): Promise<void>;
-  listWindows(): Promise<string[]>;
 }
 
 export interface DioxusServiceOptions extends BaseServiceOptions, DriverProviderConfig {
