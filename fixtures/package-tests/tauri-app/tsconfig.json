@@ -18,7 +18,8 @@
   },
   "include": [
     "test/**/*.ts",
-    "wdio.conf.ts"
+    "wdio.conf.ts",
+    "wdio.browser.conf.ts"
   ],
   "exclude": [
     "node_modules",

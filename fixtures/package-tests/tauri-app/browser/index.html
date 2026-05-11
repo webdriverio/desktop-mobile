@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Tauri Browser-mode Smoke</title>
+  </head>
+  <body>
+    <h1 data-testid="title">Browser-mode Smoke</h1>
+    <button data-testid="fetch-info">Fetch info</button>
+    <pre data-testid="info"></pre>
+    <script type="module">
+      document.querySelector('[data-testid="fetch-info"]').addEventListener('click', async () => {
+        const info = await window.__TAURI_INTERNALS__.invoke('get_info');
+        document.querySelector('[data-testid="info"]').textContent = JSON.stringify(info);
+      });
+    </script>
+  </body>
+</html>

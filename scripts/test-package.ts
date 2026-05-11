@@ -53,7 +53,8 @@ interface TestOptions {
   moduleType?: 'cjs' | 'esm' | 'both';
   /** 'native' runs the existing app-launch tests. 'browser' starts a static
    * HTTP server against the fixture's `browser/` directory and runs the
-   * browser-mode wdio config. Only meaningful for Electron fixtures today. */
+   * browser-mode wdio config. Picks up any fixture (Electron or Tauri) that
+   * provides a wdio.browser.conf.ts and a browser/ directory. */
   mode?: 'native' | 'browser';
 }
 
@@ -402,8 +403,11 @@ async function testExample(
       }
     }
 
-    // Handle building/copying for different service types
-    if (service === 'tauri') {
+    // Handle building/copying for different service types. Browser mode runs
+    // the frontend in plain Chrome against the static fixture, so the Tauri
+    // plugin build, web build, and pre-built binary are all irrelevant —
+    // skip the entire block.
+    if (service === 'tauri' && mode === 'native') {
       const pluginSourceDir = join(rootDir, 'packages', 'tauri-plugin');
       const pluginDistJsDir = join(pluginSourceDir, 'dist-js');
 

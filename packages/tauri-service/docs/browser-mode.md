@@ -6,6 +6,8 @@ Browser mode lets you test your Tauri frontend UI in plain Chrome against a runn
 
 ### What Is It?
 
+Browser mode is a **frontend-only test mode**. Your frontend code runs for real in Chrome; the Tauri Rust backend is replaced by mocks you define per command. Same WDIO API, same frontend code path — the only thing that changes is what's on the other end of `invoke(...)` and the event plugin.
+
 In normal (`native`) mode the service launches your compiled Tauri app, drives it via tauri-driver and a platform WebDriver, and communicates with the backend through the plugin bridge. Browser mode replaces all of that with a standard Chrome session: it sets `browserName` to `'chrome'`, navigates to your dev server URL, and injects a lightweight script that patches `window.__TAURI_INTERNALS__.invoke` so your Tauri commands can be intercepted in tests.
 
 ### Why Use It?

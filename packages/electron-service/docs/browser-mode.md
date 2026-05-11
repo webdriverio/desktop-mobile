@@ -6,6 +6,8 @@ Browser mode lets you test your Electron renderer UI in plain Chrome against a r
 
 ### What Is It?
 
+Browser mode is a **renderer-only test mode**. Your renderer code runs for real in Chrome; the Electron main process is replaced by mocks you define per IPC channel. Same WDIO API, same renderer code path — the only thing that changes is what's on the other end of `ipcRenderer.invoke` / `send` / `sendSync` / `on`.
+
 In normal (`native`) mode the service launches your compiled Electron app, drives it via Chromedriver, and communicates with the main process through a CDP bridge. Browser mode replaces all of that with a standard Chrome session: it sets `browserName` to `'chrome'`, navigates to your dev server URL, and injects a lightweight script that patches `ipcRenderer.invoke`, `send`, and `sendSync` so your IPC calls can be intercepted in tests.
 
 ### Why Use It?
