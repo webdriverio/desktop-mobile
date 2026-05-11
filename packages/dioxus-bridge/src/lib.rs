@@ -47,12 +47,13 @@
 
 pub mod automation;
 pub mod deeplink;
+pub mod embedded;
 pub mod invoke;
 pub mod log_bridge;
 pub mod window_state;
 
 use dioxus_desktop::Config;
-use serde_json::json;
+use serde_json::{json, Value};
 
 pub use invoke::CommandRegistry;
 pub use log_bridge::FRONTEND_MARKER;
@@ -80,18 +81,47 @@ pub fn install(config: Config) -> Config {
 /// Variant of [`install`] that accepts a pre-populated [`CommandRegistry`].
 /// Use this when the app needs custom commands beyond the built-ins.
 pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Config {
+  install_with_registry_and_config(config, registry, None)
+}
+
+/// Variant of [`install_with_registry`] that also signals the embedded
+/// WebDriver port to the guest-js bundle. Called by
+/// `wdio-dioxus-embedded-driver` so the JS polling loop knows which port is
+/// active without requiring a separate environment variable read in JS.
+pub fn install_with_embedded_port(config: Config, port: u16) -> Config {
+  embedded::init();
+  install_with_registry_and_config(config, CommandRegistry::new(), Some(port))
+}
+
+fn install_with_registry_and_config(
+  config: Config,
+  registry: CommandRegistry,
+  embedded_port: Option<u16>,
+) -> Config {
   automation::report();
   log_bridge::register(&registry);
   register_window_commands(&registry);
+  if embedded_port.is_some() {
+    register_embedded_commands(&registry);
+  }
 
   let registry_for_handler = registry;
+
+  // If the embedded driver is active, inject the port signal before the
+  // module script so the polling loop starts up automatically.
+  let head = match embedded_port {
+    Some(port) => format!(
+      "<script>window.__WDIO_EMBEDDED_PORT={};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>",
+      port
+    ),
+    None => format!("<script type=\"module\">{GUEST_JS_BUNDLE}</script>"),
+  };
+
   config
     .with_custom_protocol("wdio".to_string(), move |_webview_id, request| {
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
-    .with_custom_head(format!(
-      "<script type=\"module\">{GUEST_JS_BUNDLE}</script>"
-    ))
+    .with_custom_head(head)
     .with_on_window(|window, _dom| {
       let label = window_state::register_window(&window);
       tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
@@ -105,5 +135,30 @@ fn register_window_commands(registry: &CommandRegistry) {
   });
   registry.register("__window_states", |_args| {
     Ok(json!(window_state::get_window_states()))
+  });
+}
+
+fn register_embedded_commands(registry: &CommandRegistry) {
+  // __embedded_poll — non-blocking: returns the next pending eval request or
+  // null. Called by the guest-js polling loop every ~10 ms when the embedded
+  // driver is active.
+  registry.register("__embedded_poll", |_args| {
+    match embedded::poll_next() {
+      Some((id, script, args)) => Ok(json!({ "id": id, "script": script, "args": args })),
+      None => Ok(Value::Null),
+    }
+  });
+
+  // __embedded_result — receives the JS-evaluated result for a previously
+  // polled request and delivers it to the waiting Axum handler.
+  registry.register("__embedded_result", |args| {
+    let id = args["id"].as_str().ok_or("missing id")?.to_string();
+    let result = if args["error"].is_null() || !args["error"].is_string() {
+      Ok(args["result"].clone())
+    } else {
+      Err(args["error"].as_str().unwrap_or("unknown error").to_string())
+    };
+    embedded::resolve(&id, result);
+    Ok(Value::Null)
   });
 }

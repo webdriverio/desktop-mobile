@@ -1,9 +1,3 @@
-// @wdio/dioxus-service worker service.
-//
-// PR2 Phase 3: installs the full `browser.dioxus.*` surface — execute +
-// mock + mock-lifecycle helpers. Multi-window routing and triggerDeeplink
-// land in PR3 alongside the bridge's window_state module.
-
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import { createLogger } from '@wdio/native-utils';
 
@@ -12,41 +6,27 @@ import { execute } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
+import type { DioxusServiceOptions } from './types.js';
 import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
 
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
 
 export default class DioxusWorkerService {
-  constructor(_options: unknown, _capabilities: unknown) {
+  private devServerUrl?: string;
+
+  constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
+    this.devServerUrl = (_options as DioxusServiceOptions).devServerUrl;
     log.debug('DioxusWorkerService initialised');
   }
 
   async before(_capabilities: unknown, _specs: string[], browser: WebdriverIO.Browser): Promise<void> {
     log.debug('DioxusWorkerService.before — installing browser.dioxus');
 
-    // Inject the @wdio/native-spy mock-factory infrastructure
-    // (`window.__wdio_spy__` + `window.__wdio_mocks__`) and patch
-    // `window.__WDIO_DIOXUS__.invoke` so registered mocks intercept calls.
-    // Without this, every browser.dioxus.mock() call would fail at
-    // registration with "@wdio/native-spy not available" because the
-    // DioxusAdapter's buildRegistrationScript hard-guards on
-    // `window.__wdio_spy__?.fn`.
-    //
-    // Phase 4 caveat: this script runs once at session start. If the test
-    // navigates to a fresh page (browser.url) the spy infrastructure is
-    // lost. Persistent re-injection on navigation will land alongside
-    // the Tauri-style plugin-served setup in a later phase.
-    try {
-      await browser.execute(interceptor.buildBrowserIpcInjectionScript());
-      log.debug('Injected @wdio/native-spy setup + wdio:// invoke patch');
-    } catch (err) {
-      log.warn(
-        'Failed to inject mock-spy infrastructure in before(); ' +
-          'browser.dioxus.mock() calls will fail. Is wdio_dioxus_bridge::install() ' +
-          'wired into the Dioxus app? Underlying error:',
-        err,
-      );
+    if (this.devServerUrl) {
+      await this.initBrowserMode(browser);
+    } else {
+      await this.injectSpy(browser);
     }
 
     // biome-ignore lint/suspicious/noExplicitAny: WebdriverIO.Browser augmentation
@@ -67,25 +47,42 @@ export default class DioxusWorkerService {
     (browser as unknown as { dioxus: typeof dioxus }).dioxus = dioxus;
   }
 
-  /**
-   * Drop every mock from the process-wide singleton store at the end of
-   * the spec. Without this, a WDIO worker that processes multiple spec
-   * files sequentially carries mocks created in spec A into spec B —
-   * `clearAllMocks()` / `resetAllMocks()` / `restoreAllMocks()` would
-   * then iterate over those stale mocks and dispatch inner-mock scripts
-   * to a browser session that may already have moved on.
-   *
-   * We deliberately only `clear()` the JS-side registry, not call
-   * `restoreAllMocks()` (which would try to unregister inner mocks in
-   * the webview). The inner mocks die with the webview at session
-   * teardown anyway.
-   */
   async after(): Promise<void> {
     log.debug('DioxusWorkerService.after — clearing process-wide mockStore + window cache');
     mockStore.clear();
-    // WDIO's worker `after` runs once per spec; we don't have the browser
-    // ref here (only `before` receives it), so clear every session's cached
-    // label. Safe because each WDIO worker is its own process.
     clearWindowState();
+  }
+
+  private async initBrowserMode(browser: WebdriverIO.Browser): Promise<void> {
+    log.debug(`Browser mode: navigating to ${this.devServerUrl}`);
+    await browser.url(this.devServerUrl!);
+
+    await this.injectSpy(browser);
+
+    // Re-inject spy on every navigation so the mock infrastructure
+    // survives page loads within the same test session.
+    const originalUrl = (browser.url as unknown as (u: string) => Promise<void>).bind(browser);
+    const injectSpy = this.injectSpy.bind(this);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (browser as any).url = async (url: string) => {
+      const result = await originalUrl(url);
+      await injectSpy(browser).catch((err) => {
+        log.warn('Failed to re-inject spy after navigation:', err);
+      });
+      return result;
+    };
+  }
+
+  private async injectSpy(browser: WebdriverIO.Browser): Promise<void> {
+    try {
+      await browser.execute(interceptor.buildBrowserIpcInjectionScript());
+      log.debug('Injected @wdio/native-spy setup + wdio:// invoke patch');
+    } catch (err) {
+      log.warn(
+        'Failed to inject mock-spy infrastructure; browser.dioxus.mock() calls will fail. ' +
+          'In native mode: is wdio_dioxus_bridge::install() wired into the Dioxus app? Underlying error:',
+        err,
+      );
+    }
   }
 }

@@ -108,4 +108,58 @@ describe('DioxusWorkerService', () => {
 
     expect(mockStore.getMocks()).toHaveLength(0);
   });
+
+  describe('browser mode (mode: "browser")', () => {
+    it('should navigate to devServerUrl in before()', async () => {
+      const urlSpy = vi.fn().mockResolvedValue(undefined);
+      const browser = {
+        execute: vi.fn().mockResolvedValue(undefined),
+        url: urlSpy,
+      } as unknown as WebdriverIO.Browser;
+
+      const service = new DioxusWorkerService(
+        { mode: 'browser', devServerUrl: 'http://localhost:3000' } as unknown,
+        {},
+      );
+      await service.before({}, [], browser);
+
+      // urlSpy is the original mock — before() replaces browser.url with a
+      // patched wrapper, but the original spy captured the initial navigation.
+      expect(urlSpy).toHaveBeenCalledWith('http://localhost:3000');
+    });
+
+    it('should still install browser.dioxus in browser mode', async () => {
+      const browser = {
+        execute: vi.fn().mockResolvedValue(undefined),
+        url: vi.fn().mockResolvedValue(undefined),
+      } as unknown as WebdriverIO.Browser;
+
+      const service = new DioxusWorkerService(
+        { mode: 'browser', devServerUrl: 'http://localhost:3000' } as unknown,
+        {},
+      );
+      await service.before({}, [], browser);
+
+      expect((browser as unknown as Installed).dioxus).toBeDefined();
+    });
+
+    it('should patch browser.url to re-inject spy after navigation', async () => {
+      const browser = {
+        execute: vi.fn().mockResolvedValue(undefined),
+        url: vi.fn().mockResolvedValue(undefined),
+      } as unknown as WebdriverIO.Browser;
+
+      const service = new DioxusWorkerService(
+        { mode: 'browser', devServerUrl: 'http://localhost:3000' } as unknown,
+        {},
+      );
+      await service.before({}, [], browser);
+
+      const callsBefore = vi.mocked(browser.execute).mock.calls.length;
+      await (browser as unknown as { url: (u: string) => Promise<void> }).url('http://localhost:3000/page2');
+
+      // After patched url(), execute should have been called again with the injection script
+      expect(vi.mocked(browser.execute).mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+  });
 });

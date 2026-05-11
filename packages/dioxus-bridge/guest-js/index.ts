@@ -93,3 +93,59 @@ if (!(window as unknown as Record<string, unknown>)[CONSOLE_INSTALLED_KEY]) {
   wrapConsoleMethod('debug', 'debug');
   (window as unknown as Record<string, unknown>)[CONSOLE_INSTALLED_KEY] = true;
 }
+
+// ============================================================================
+// Embedded WebDriver polling loop
+// ============================================================================
+// When wdio-dioxus-embedded-driver is active, the bridge injects
+// `window.__WDIO_EMBEDDED_PORT` before this module executes. This loop polls
+// for pending eval requests, executes them, and sends results back — all via
+// the existing wdio:// IPC channel.
+//
+// Polling interval: immediate retry when a command was found (back-pressure
+// free), 10 ms sleep when the queue was empty (low CPU when idle).
+declare global {
+  interface Window {
+    __WDIO_EMBEDDED_PORT?: number;
+    __WDIO_EMBEDDED_RUNNING__?: boolean;
+  }
+}
+
+if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_RUNNING__) {
+  window.__WDIO_EMBEDDED_RUNNING__ = true;
+
+  void (async function embeddedDriverLoop() {
+    while (true) {
+      try {
+        const cmd = (await invoke('__embedded_poll')) as {
+          id: string;
+          script: string;
+          args: unknown[];
+        } | null;
+
+        if (cmd !== null) {
+          let result: unknown = null;
+          let error: string | null = null;
+          try {
+            // Wrap the script body the same way WebDriver does: a function
+            // that receives `arguments` (the args array) and can return a
+            // value. Using AsyncFunction so `await` inside the script works.
+            const AsyncFunction = (async () => {}).constructor as new (
+              ...params: string[]
+            ) => (...args: unknown[]) => Promise<unknown>;
+            const fn = new AsyncFunction(...cmd.args.map((_, i) => `__arg${i}`), cmd.script);
+            result = await fn(...cmd.args);
+          } catch (e) {
+            error = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
+          }
+          await invoke('__embedded_result', { id: cmd.id, result: result ?? null, error });
+        } else {
+          await new Promise<void>((r) => setTimeout(r, 10));
+        }
+      } catch {
+        // Bridge not yet ready or IPC error — back off and retry.
+        await new Promise<void>((r) => setTimeout(r, 100));
+      }
+    }
+  })();
+}
