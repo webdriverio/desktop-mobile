@@ -61,6 +61,7 @@ type DioxusCapability = {
     appBinaryPath: string;
     appArgs: string[];
     driverProvider?: string;
+    dioxusDriverPort?: number;
     captureBackendLogs?: boolean;
     captureFrontendLogs?: boolean;
     backendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
