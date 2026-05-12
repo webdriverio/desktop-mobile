@@ -93,12 +93,17 @@ pub async fn delete(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
-  // Collect element vars and script timeout before dropping the session
-  // so we can delete them from the webview global scope (best-effort).
+  // Acquire write lock for the whole delete to prevent a concurrent DELETE
+  // from interleaving between the var-collection and the session removal.
   let (vars, script_timeout) = {
-    let sessions = state.sessions.read().await;
+    let mut sessions = state.sessions.write().await;
     match sessions.get(&session_id) {
-      Ok(session) => (session.elements.all_vars(), session.timeouts.script_ms),
+      Ok(session) => {
+        let vars = session.elements.all_vars();
+        let timeout = session.timeouts.script_ms;
+        sessions.delete(&session_id);
+        (vars, timeout)
+      }
       Err(_) => return Err(WebDriverErrorResponse::invalid_session_id(&session_id)),
     }
   };
@@ -114,10 +119,5 @@ pub async fn delete(
     let _ = tokio::time::timeout(Duration::from_millis(script_timeout), rx).await;
   }
 
-  let mut sessions = state.sessions.write().await;
-  if sessions.delete(&session_id) {
-    Ok(WebDriverResponse::null())
-  } else {
-    Err(WebDriverErrorResponse::invalid_session_id(&session_id))
-  }
+  Ok(WebDriverResponse::null())
 }

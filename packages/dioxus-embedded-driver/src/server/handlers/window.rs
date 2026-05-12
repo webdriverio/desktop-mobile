@@ -35,19 +35,27 @@ pub struct SwitchWindowRequest {
 }
 
 /// POST `/session/{session_id}/window` — switch to a window by label.
+///
+/// The embedded driver routes all IPC through a single shared channel; it has
+/// no per-window dispatch. Updating `current_window` would not redirect
+/// subsequent commands to the target webview, so this returns an unsupported
+/// error rather than silently executing commands in the wrong window.
+/// Per-window IPC routing requires a bridge-level change outside this driver.
 pub async fn switch_to_window(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
   Json(req): Json<SwitchWindowRequest>,
 ) -> WebDriverResult {
+  let sessions = state.sessions.read().await;
+  let _ = sessions.get(&session_id)?;
+  drop(sessions);
   let labels = wdio_dioxus_bridge::window_state::list_labels();
   if !labels.contains(&req.handle) {
     return Err(WebDriverErrorResponse::no_such_window());
   }
-  let mut sessions = state.sessions.write().await;
-  let session = sessions.get_mut(&session_id)?;
-  session.current_window = req.handle;
-  Ok(WebDriverResponse::null())
+  Err(WebDriverErrorResponse::unsupported_operation(
+    "window switching is not supported by the embedded driver: the IPC channel is not per-window. Use browser.dioxus.switchWindow() instead, which routes through the bridge.",
+  ))
 }
 
 /// DELETE `/session/{session_id}/window` — close the current window.

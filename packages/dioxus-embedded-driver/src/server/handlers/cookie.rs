@@ -18,7 +18,8 @@ async fn eval(script: String, timeout_ms: u64) -> Result<Value, WebDriverErrorRe
   match tokio::time::timeout(Duration::from_millis(timeout_ms), rx).await {
     Ok(Ok(Ok(v))) => Ok(v),
     Ok(Ok(Err(e))) => Err(WebDriverErrorResponse::javascript_error(&e, None)),
-    _ => Err(WebDriverErrorResponse::script_timeout()),
+    Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error("eval channel closed")),
+    Err(_) => Err(WebDriverErrorResponse::script_timeout()),
   }
 }
 

@@ -44,7 +44,7 @@ fn js_locator(using: &str, value: &str) -> String {
     "partial link text" => format!(
       "(function(){{ for(var a of document.querySelectorAll('a')) {{ if(a.textContent.includes({value:?})) return a; }} return null; }})()"
     ),
-    "tag name" => format!("document.querySelector({value:?})"),
+    "tag name" => format!("document.getElementsByTagName({value:?})[0] ?? null"),
     _ => format!("document.querySelector({value:?})"),
   }
 }
@@ -61,7 +61,7 @@ fn js_locator_all(using: &str, value: &str) -> String {
     "partial link text" => format!(
       "Array.from(document.querySelectorAll('a')).filter(function(a){{ return a.textContent.includes({value:?}); }})"
     ),
-    "tag name" => format!("Array.from(document.querySelectorAll({value:?}))"),
+    "tag name" => format!("Array.from(document.getElementsByTagName({value:?}))"),
     _ => format!("Array.from(document.querySelectorAll({value:?}))"),
   }
 }
@@ -193,6 +193,7 @@ pub async fn find_from_element(
       "(function(){{ for(var a of window.{var}.querySelectorAll('a')) {{ if(a.textContent.includes({:?})) return a; }} return null; }})()",
       req.value
     ),
+    "tag name" => format!("window.{var}.getElementsByTagName({:?})[0] ?? null", req.value),
     _ => format!("window.{var}.querySelector({:?})", req.value),
   };
   let script = format!("window.{child_var} = {locator}; return window.{child_var} ? '{child_var}' : null");
@@ -242,6 +243,7 @@ pub async fn find_all_from_element(
       "Array.from(window.{var}.querySelectorAll('a')).filter(function(a){{ return a.textContent.includes({:?}); }})",
       req.value
     ),
+    "tag name" => format!("Array.from(window.{var}.getElementsByTagName({:?}))", req.value),
     _ => format!("Array.from(window.{var}.querySelectorAll({:?}))", req.value),
   };
   let script = format!(
@@ -286,7 +288,7 @@ pub async fn send_keys(
   Json(req): Json<SendKeysRequest>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let text = req.text.replace('`', "\\`").replace("${", "\\${");
+  let text = req.text.replace('\\', "\\\\").replace('`', "\\`").replace("${", "\\${");
   eval(
     format!(
       "(function(){{ var el=window.{var}; el.focus(); el.value+=`{text}`; el.dispatchEvent(new Event('input',{{bubbles:true}})); el.dispatchEvent(new Event('change',{{bubbles:true}})); }})()"
