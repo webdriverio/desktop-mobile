@@ -153,10 +153,9 @@ fn register_embedded_commands(registry: &CommandRegistry) {
   // polled request and delivers it to the waiting Axum handler.
   registry.register("__embedded_result", |args| {
     let id = args["id"].as_str().ok_or("missing id")?.to_string();
-    let result = if args["error"].is_null() || !args["error"].is_string() {
-      Ok(args["result"].clone())
-    } else {
-      Err(args["error"].as_str().unwrap_or("unknown error").to_string())
+    let result = match args["error"].as_str() {
+      Some(err) => Err(err.to_string()),
+      None => Ok(args["result"].clone()),
     };
     embedded::resolve(&id, result);
     Ok(Value::Null)

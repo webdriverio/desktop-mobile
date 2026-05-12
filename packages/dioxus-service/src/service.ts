@@ -68,7 +68,7 @@ export default class DioxusWorkerService {
     const injectSpy = this.injectSpy.bind(this);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     (browser as any).url = async (url?: string) => {
-      const result = await originalUrl(url);
+      const result = url !== undefined ? await originalUrl(url) : await originalUrl();
       if (url !== undefined) {
         await injectSpy(browser).catch((err) => {
           log.warn('Failed to re-inject spy after navigation:', err);
