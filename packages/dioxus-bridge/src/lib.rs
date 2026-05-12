@@ -93,6 +93,14 @@ pub fn install_with_embedded_port(config: Config, port: u16) -> Config {
   install_with_registry_and_config(config, CommandRegistry::new(), Some(port))
 }
 
+/// Like [`install_with_embedded_port`] but accepts a pre-populated
+/// [`CommandRegistry`] so the app can add custom bridge commands alongside
+/// the embedded-driver infrastructure.
+pub fn install_with_embedded_port_and_registry(config: Config, registry: CommandRegistry, port: u16) -> Config {
+  embedded::init();
+  install_with_registry_and_config(config, registry, Some(port))
+}
+
 fn install_with_registry_and_config(
   config: Config,
   registry: CommandRegistry,

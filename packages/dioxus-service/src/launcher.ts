@@ -3,7 +3,7 @@ import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 
-import { linuxExternalProviderUnsupported } from './errors.js';
+import { linuxExternalProviderUnsupported, macosExternalProviderUnsupported } from './errors.js';
 import {
   type EmbeddedDriverInfo,
   getEmbeddedPort,
@@ -64,8 +64,9 @@ export default class DioxusLaunchService extends BaseLauncher {
 
     const provider = mergedOptions.driverProvider ?? 'embedded';
 
-    if (provider === 'external' && process.platform === 'linux') {
-      throw linuxExternalProviderUnsupported();
+    if (provider === 'external') {
+      if (process.platform === 'linux') throw linuxExternalProviderUnsupported();
+      if (process.platform === 'darwin') throw macosExternalProviderUnsupported();
     }
 
     log.info(`Dioxus service onPrepare — provider: ${provider}, platform: ${process.platform}`);

@@ -58,3 +58,29 @@ pub fn install(config: Config) -> Config {
 
   config
 }
+
+/// Like [`install`] but calls `register` with a fresh [`CommandRegistry`]
+/// so the app can add custom commands before the bridge is wired up.
+///
+/// # Example
+/// ```ignore
+/// config = wdio_dioxus_embedded_driver::install_with_commands(config, |registry| {
+///     registry.register("ping_app", |_| Ok(serde_json::json!("pong")));
+/// });
+/// ```
+#[must_use]
+pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
+  config: Config,
+  register: F,
+) -> Config {
+  let port = std::env::var(PORT_ENV_VAR)
+    .ok()
+    .and_then(|s| s.parse::<u16>().ok())
+    .unwrap_or(DEFAULT_PORT);
+  let registry = wdio_dioxus_bridge::CommandRegistry::new();
+  register(&registry);
+  let config = wdio_dioxus_bridge::install_with_embedded_port_and_registry(config, registry, port);
+  server::start(port);
+  tracing::info!(port, "wdio-dioxus-embedded-driver started (with custom commands)");
+  config
+}

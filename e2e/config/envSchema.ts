@@ -8,7 +8,7 @@ import { getE2EAppDirName } from '../lib/utils.js';
  */
 export const EnvSchema = z.object({
   // Core test configuration
-  FRAMEWORK: z.enum(['electron', 'tauri']).default('electron'),
+  FRAMEWORK: z.enum(['electron', 'tauri', 'dioxus']).default('electron'),
   APP: z.enum(['builder', 'forge', 'script', 'basic']).default('builder'),
   MODULE_TYPE: z.enum(['cjs', 'esm']).optional().default('esm'),
   TEST_TYPE: z.enum(['standard', 'window', 'multiremote', 'standalone', 'deeplink']).default('standard'),
@@ -55,7 +55,7 @@ export function validateEnvironment(env: Record<string, string | undefined> = pr
 export class EnvironmentContext {
   constructor(public readonly env: TestEnvironment) {}
 
-  get framework(): 'electron' | 'tauri' {
+  get framework(): 'electron' | 'tauri' | 'dioxus' {
     return this.env.FRAMEWORK;
   }
 
@@ -129,6 +129,10 @@ export class EnvironmentContext {
     if (this.framework === 'tauri') {
       if (!['basic'].includes(this.app)) {
         throw new Error(`Tauri framework only supports 'basic' app, got: ${this.app}`);
+      }
+    } else if (this.framework === 'dioxus') {
+      if (!['basic'].includes(this.app)) {
+        throw new Error(`Dioxus framework only supports 'basic' app, got: ${this.app}`);
       }
     } else if (this.framework === 'electron') {
       if (!['builder', 'forge', 'script'].includes(this.app)) {
