@@ -74,5 +74,6 @@ coverage
 # Bundler fixtures (auto-generated rollup config)
 fixtures/build-*/**/rollup.config.js
 
-
+# MCP config files
+.mcp.json
 
