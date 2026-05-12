@@ -155,15 +155,6 @@ pub fn label_for_id(id: WindowId) -> Option<String> {
     .map(|e| e.label.clone())
 }
 
-/// Reset both the entry list and the monotonic counter. Test-only —
-/// production callers rely on `Weak::upgrade` to filter out dead windows
-/// and the counter is intentionally process-lifetime.
-#[cfg(test)]
-pub(crate) fn reset_for_tests() {
-  let r = registry();
-  r.entries.lock().expect("window-state registry poisoned").clear();
-  *r.total_registered.lock().expect("window-state registry poisoned") = 0;
-}
 
 #[cfg(test)]
 mod tests {

@@ -101,27 +101,32 @@ pub fn resolve(id: &str, result: Result<Value, String>) {
 
 #[cfg(test)]
 mod tests {
+  use tokio::sync::Mutex;
+
   use super::*;
 
-  fn fresh_channel() -> &'static Channel {
-    // Tests share the process-global OnceLock, so the first test to call
-    // init() wins. This is fine — all tests exercise the same code paths.
+  // Serialize all tests that touch the process-global CHANNEL. The OnceLock
+  // cannot be reset between tests, so concurrent access causes the drain-all
+  // in one test to steal items pushed by another.
+  static TEST_LOCK: Mutex<()> = Mutex::const_new(());
+
+  fn setup() {
     init();
-    CHANNEL.get().unwrap()
   }
 
   #[test]
   fn should_start_inactive_before_init() {
-    // Can only verify "active after init" since the OnceLock may already be
-    // set from a concurrent test run. Just confirm init() is idempotent.
     init();
-    init(); // second call should not panic
+    init(); // idempotent — second call must not panic
     assert!(is_active());
   }
 
   #[tokio::test]
   async fn should_round_trip_an_eval_request() {
-    let _ = fresh_channel();
+    let _guard = TEST_LOCK.lock().await;
+    setup();
+    while poll_next().is_some() {} // drain any leftovers from earlier tests
+
     let (tx, rx) = oneshot::channel();
     push("req-1".into(), "return 42".into(), vec![], tx);
 
@@ -137,15 +142,18 @@ mod tests {
 
   #[tokio::test]
   async fn should_return_none_when_queue_is_empty() {
-    let _ = fresh_channel();
-    // Drain any leftovers from other tests
-    while poll_next().is_some() {}
+    let _guard = TEST_LOCK.lock().await;
+    setup();
+    while poll_next().is_some() {} // drain any leftovers from earlier tests
     assert!(poll_next().is_none());
   }
 
   #[tokio::test]
   async fn should_propagate_errors() {
-    let _ = fresh_channel();
+    let _guard = TEST_LOCK.lock().await;
+    setup();
+    while poll_next().is_some() {} // drain any leftovers from earlier tests
+
     let (tx, rx) = oneshot::channel();
     push("req-err".into(), "throw new Error('boom')".into(), vec![], tx);
     let (id, ..) = poll_next().unwrap();
