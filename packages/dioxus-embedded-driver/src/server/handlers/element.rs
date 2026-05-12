@@ -32,6 +32,23 @@ async fn eval(script: String, timeout_ms: u64) -> Result<Value, WebDriverErrorRe
   }
 }
 
+/// Like `eval`, but prepends a JS staleness guard for `window.{var}`. If the
+/// guard fires (the JS context was reset by a page reload), returns
+/// `stale_element_reference` instead of `javascript_error`.
+async fn eval_for_element(
+  var: &str,
+  script: String,
+  timeout_ms: u64,
+) -> Result<Value, WebDriverErrorResponse> {
+  let guarded = format!(
+    "if (typeof window.{var} === 'undefined' || window.{var} === null) throw '__wdio_stale__'; {script}"
+  );
+  match eval(guarded, timeout_ms).await {
+    Err(e) if e.message == "__wdio_stale__" => Err(WebDriverErrorResponse::stale_element_reference()),
+    other => other,
+  }
+}
+
 fn js_locator(using: &str, value: &str) -> String {
   match using {
     "css selector" => format!("document.querySelector({value:?})"),
@@ -199,7 +216,7 @@ pub async fn find_from_element(
   let script = format!("window.{child_var} = {locator}; return window.{child_var} ? '{child_var}' : null");
   let deadline = tokio::time::Instant::now() + Duration::from_millis(implicit_ms);
   loop {
-    let result = eval(script.clone(), script_timeout).await?;
+    let result = eval_for_element(&var, script.clone(), script_timeout).await?;
     match result.as_str() {
       Some(v) => {
         let mut sessions = state.sessions.write().await;
@@ -249,7 +266,7 @@ pub async fn find_all_from_element(
   let script = format!(
     "return (function(){{ var elems={collection}; var vars=[]; for(var i=0;i<elems.length;i++){{ var k='__wdio_ch_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
-  let result = eval(script, timeout).await?;
+  let result = eval_for_element(&var, script, timeout).await?;
   let vars = result.as_array().cloned().unwrap_or_default();
   let mut sessions = state.sessions.write().await;
   let session = sessions.get_mut(&session_id)?;
@@ -267,7 +284,7 @@ pub async fn click(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  eval(format!("window.{var}.click(); null"), timeout).await?;
+  eval_for_element(&var, format!("window.{var}.click(); null"), timeout).await?;
   Ok(WebDriverResponse::null())
 }
 
@@ -277,7 +294,7 @@ pub async fn clear(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  eval(format!("window.{var}.value=''; null"), timeout).await?;
+  eval_for_element(&var, format!("window.{var}.value=''; null"), timeout).await?;
   Ok(WebDriverResponse::null())
 }
 
@@ -289,7 +306,8 @@ pub async fn send_keys(
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
   let text = req.text.replace('\\', "\\\\").replace('`', "\\`").replace("${", "\\${");
-  eval(
+  eval_for_element(
+    &var,
     format!(
       "(function(){{ var el=window.{var}; el.focus(); el.value+=`{text}`; el.dispatchEvent(new Event('input',{{bubbles:true}})); el.dispatchEvent(new Event('change',{{bubbles:true}})); }})()"
     ),
@@ -304,7 +322,7 @@ pub async fn get_text(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("return window.{var}.innerText || window.{var}.textContent || ''"), timeout).await?;
+  let result = eval_for_element(&var, format!("return window.{var}.innerText || window.{var}.textContent || ''"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -314,7 +332,7 @@ pub async fn get_tag_name(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("return window.{var}.tagName.toLowerCase()"), timeout).await?;
+  let result = eval_for_element(&var, format!("return window.{var}.tagName.toLowerCase()"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -324,7 +342,7 @@ pub async fn get_attribute(
   Path((session_id, element_id, name)): Path<(String, String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("return window.{var}.getAttribute({name:?})"), timeout).await?;
+  let result = eval_for_element(&var, format!("return window.{var}.getAttribute({name:?})"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -334,7 +352,7 @@ pub async fn get_property(
   Path((session_id, element_id, name)): Path<(String, String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("return window.{var}[{name:?}] ?? null"), timeout).await?;
+  let result = eval_for_element(&var, format!("return window.{var}[{name:?}] ?? null"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -344,7 +362,8 @@ pub async fn get_css_value(
   Path((session_id, element_id, prop)): Path<(String, String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(
+  let result = eval_for_element(
+    &var,
     format!("return window.getComputedStyle(window.{var}).getPropertyValue({prop:?})"),
     timeout,
   ).await?;
@@ -357,7 +376,8 @@ pub async fn get_rect(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(
+  let result = eval_for_element(
+    &var,
     format!(
       "return (function(){{ var r=window.{var}.getBoundingClientRect(); return {{x:r.left,y:r.top,width:r.width,height:r.height}}; }})()"
     ),
@@ -372,7 +392,7 @@ pub async fn is_selected(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("return !!window.{var}.checked || !!window.{var}.selected"), timeout).await?;
+  let result = eval_for_element(&var, format!("return !!window.{var}.checked || !!window.{var}.selected"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -382,7 +402,8 @@ pub async fn is_displayed(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(
+  let result = eval_for_element(
+    &var,
     format!(
       "return (function(){{ var el=window.{var}; var s=window.getComputedStyle(el); return s.display!=='none' && s.visibility!=='hidden' && s.opacity!=='0'; }})()"
     ),
@@ -397,7 +418,7 @@ pub async fn is_enabled(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("return !window.{var}.disabled"), timeout).await?;
+  let result = eval_for_element(&var, format!("return !window.{var}.disabled"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 

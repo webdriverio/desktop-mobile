@@ -44,6 +44,9 @@ pub async fn navigate(
 ) -> WebDriverResult {
   let timeout = page_load_timeout(&state, &session_id).await?;
   eval(format!("window.location.href = {:?}; null", req.url), timeout).await?;
+  if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+    session.elements.clear();
+  }
   Ok(WebDriverResponse::null())
 }
 
@@ -94,5 +97,8 @@ pub async fn refresh(
 ) -> WebDriverResult {
   let timeout = script_timeout(&state, &session_id).await?;
   eval("window.location.reload(); null".to_string(), timeout).await?;
+  if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+    session.elements.clear();
+  }
   Ok(WebDriverResponse::null())
 }

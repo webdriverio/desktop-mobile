@@ -39,6 +39,12 @@ impl ElementStore {
     self.elements.values().cloned().collect()
   }
 
+  /// Discard all element references. Called after full-page navigation so that
+  /// stale element IDs are no longer resolvable Rust-side.
+  pub fn clear(&mut self) {
+    self.elements.clear();
+  }
+
   /// Build the W3C element reference object for a given element ID.
   pub fn element_ref(id: &str) -> serde_json::Value {
     serde_json::json!({ ELEMENT_KEY: id })
@@ -55,5 +61,14 @@ mod tests {
     let id = store.insert("__wdio_elem_0".into());
     assert_eq!(store.get(&id), Some("__wdio_elem_0"));
     assert!(store.get("no-such-id").is_none());
+  }
+
+  #[test]
+  fn should_clear_all_refs() {
+    let mut store = ElementStore::new();
+    let id = store.insert("__wdio_elem_0".into());
+    store.clear();
+    assert!(store.get(&id).is_none());
+    assert!(store.all_vars().is_empty());
   }
 }
