@@ -2,7 +2,7 @@ import { browser, expect } from '@wdio/globals';
 
 describe('Dioxus execute — advanced', () => {
   it('should execute expression string', async () => {
-    expect(await browser.dioxus.execute('1 + 2 + 3')).toBe(6);
+    expect(await browser.dioxus.execute('return 1 + 2 + 3')).toBe(6);
   });
 
   it('should execute multi-statement string', async () => {
