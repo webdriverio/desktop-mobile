@@ -20,18 +20,20 @@ const browser = await startWdioSession(
   }),
 );
 
-const result = await browser.dioxus.execute('return 42');
-if (result !== 42) {
-  throw new Error(`Execute test failed: expected 42, got ${result}`);
-}
+try {
+  const result = await browser.dioxus.execute('return 42');
+  if (result !== 42) {
+    throw new Error(`Execute test failed: expected 42, got ${result}`);
+  }
 
-const platformInfo = await browser.dioxus.execute(({ invoke }: DioxusAPIs) => invoke('get_platform_info'));
-if (typeof platformInfo !== 'object' || platformInfo === null || !('os' in platformInfo)) {
-  throw new Error(`Platform info test failed: expected object with os field, got ${JSON.stringify(platformInfo)}`);
+  const platformInfo = await browser.dioxus.execute(({ invoke }: DioxusAPIs) => invoke('get_platform_info'));
+  if (typeof platformInfo !== 'object' || platformInfo === null || !('os' in platformInfo)) {
+    throw new Error(`Platform info test failed: expected object with os field, got ${JSON.stringify(platformInfo)}`);
+  }
+} finally {
+  await browser.deleteSession();
+  await cleanupWdioSession(browser);
 }
-
-await browser.deleteSession();
-await cleanupWdioSession(browser);
 
 // On Windows, webdriverio leaves internal handles that prevent clean exit without this.
 process.exit();
