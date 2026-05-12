@@ -75,8 +75,11 @@ pub async fn back(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
-  let timeout = script_timeout(&state, &session_id).await?;
+  let timeout = page_load_timeout(&state, &session_id).await?;
   eval("window.history.back(); null".to_string(), timeout).await?;
+  if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+    session.elements.clear();
+  }
   Ok(WebDriverResponse::null())
 }
 
@@ -85,8 +88,11 @@ pub async fn forward(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
-  let timeout = script_timeout(&state, &session_id).await?;
+  let timeout = page_load_timeout(&state, &session_id).await?;
   eval("window.history.forward(); null".to_string(), timeout).await?;
+  if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+    session.elements.clear();
+  }
   Ok(WebDriverResponse::null())
 }
 
@@ -95,7 +101,7 @@ pub async fn refresh(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
-  let timeout = script_timeout(&state, &session_id).await?;
+  let timeout = page_load_timeout(&state, &session_id).await?;
   eval("window.location.reload(); null".to_string(), timeout).await?;
   if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
     session.elements.clear();
