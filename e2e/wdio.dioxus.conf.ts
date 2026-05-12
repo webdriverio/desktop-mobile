@@ -9,6 +9,8 @@ if (process.platform === 'darwin') {
   process.exit(78);
 }
 
+process.env.DRIVER_PROVIDER = 'official';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -106,7 +108,7 @@ if (testType === 'multiremote') {
         },
       },
       hostname: '127.0.0.1',
-      // port set dynamically by launcher onPrepare when external provider is wired
+      port: 9515,
     },
     browserB: {
       capabilities: {
@@ -128,7 +130,7 @@ if (testType === 'multiremote') {
         },
       },
       hostname: '127.0.0.1',
-      // port set dynamically by launcher onPrepare when external provider is wired
+      port: 9517,
     },
   };
 } else {

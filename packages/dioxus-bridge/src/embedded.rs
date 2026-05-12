@@ -115,9 +115,9 @@ mod tests {
   }
 
   #[test]
-  fn should_start_inactive_before_init() {
+  fn should_be_idempotent_on_repeated_init() {
     init();
-    init(); // idempotent — second call must not panic
+    init(); // second call must not panic
     assert!(is_active());
   }
 
