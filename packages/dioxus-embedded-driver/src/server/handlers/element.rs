@@ -196,9 +196,15 @@ pub async fn find_all_from_element(
     session.elements.get(&element_id).ok_or_else(WebDriverErrorResponse::stale_element_reference)?.to_string()
   };
   let prefix = Uuid::new_v4().simple().to_string();
-  let value_repr = format!("{:?}", req.value);
+  let collection = match req.using.as_str() {
+    "xpath" => format!(
+      "(function(){{ var res=document.evaluate({:?},window.{var},null,XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,null); var arr=[]; for(var i=0;i<res.snapshotLength;i++) arr.push(res.snapshotItem(i)); return arr; }})()",
+      req.value
+    ),
+    _ => format!("Array.from(window.{var}.querySelectorAll({:?}))", req.value),
+  };
   let script = format!(
-    "(function(){{ var elems=Array.from(window.{var}.querySelectorAll({value_repr})); var vars=[]; for(var i=0;i<elems.length;i++){{ var k='__wdio_ch_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
+    "(function(){{ var elems={collection}; var vars=[]; for(var i=0;i<elems.length;i++){{ var k='__wdio_ch_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
   let result = eval(script, timeout).await?;
   let vars = result.as_array().cloned().unwrap_or_default();
