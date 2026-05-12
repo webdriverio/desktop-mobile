@@ -142,25 +142,37 @@ pub async fn find_all(
   Path(session_id): Path<String>,
   Json(req): Json<FindElementRequest>,
 ) -> WebDriverResult {
-  let timeout = session_timeout(&state, &session_id).await?;
+  let (script_timeout, implicit_ms) = {
+    let sessions = state.sessions.read().await;
+    let t = &sessions.get(&session_id)?.timeouts;
+    (t.script_ms, t.implicit_ms)
+  };
   let prefix = Uuid::new_v4().simple().to_string();
   let locator = js_locator_all(&req.using, &req.value);
   let script = format!(
     "return (function(){{ var elems = {locator}; var vars = []; for(var i=0;i<elems.length;i++) {{ var k='__wdio_elem_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
-  let result = eval(script, timeout).await?;
-  let vars = result.as_array().cloned().unwrap_or_default();
-  let mut sessions = state.sessions.write().await;
-  let session = sessions.get_mut(&session_id)?;
-  let refs: Vec<Value> = vars
-    .into_iter()
-    .filter_map(|v| v.as_str().map(str::to_string))
-    .map(|var| {
-      let id = session.elements.insert(var);
-      json!({ ELEMENT_KEY: id })
-    })
-    .collect();
-  Ok(WebDriverResponse::success(refs))
+  let deadline = tokio::time::Instant::now() + Duration::from_millis(implicit_ms);
+  loop {
+    let result = eval(script.clone(), script_timeout).await?;
+    let vars: Vec<String> = result
+      .as_array()
+      .cloned()
+      .unwrap_or_default()
+      .into_iter()
+      .filter_map(|v| v.as_str().map(str::to_string))
+      .collect();
+    if !vars.is_empty() || tokio::time::Instant::now() >= deadline {
+      let mut sessions = state.sessions.write().await;
+      let session = sessions.get_mut(&session_id)?;
+      let refs: Vec<Value> = vars
+        .into_iter()
+        .map(|var| { let id = session.elements.insert(var); json!({ ELEMENT_KEY: id }) })
+        .collect();
+      return Ok(WebDriverResponse::success(refs));
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
 }
 
 /// GET `/session/{session_id}/element/active`
@@ -240,11 +252,13 @@ pub async fn find_all_from_element(
   Path((session_id, element_id)): Path<(String, String)>,
   Json(req): Json<FindElementRequest>,
 ) -> WebDriverResult {
-  let timeout = session_timeout(&state, &session_id).await?;
-  let var = {
+  let (script_timeout, implicit_ms, var) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
-    session.elements.get(&element_id).ok_or_else(WebDriverErrorResponse::stale_element_reference)?.to_string()
+    let v = session.elements.get(&element_id)
+      .ok_or_else(WebDriverErrorResponse::stale_element_reference)?
+      .to_string();
+    (session.timeouts.script_ms, session.timeouts.implicit_ms, v)
   };
   let prefix = Uuid::new_v4().simple().to_string();
   let collection = match req.using.as_str() {
@@ -266,16 +280,27 @@ pub async fn find_all_from_element(
   let script = format!(
     "return (function(){{ var elems={collection}; var vars=[]; for(var i=0;i<elems.length;i++){{ var k='__wdio_ch_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
-  let result = eval_for_element(&var, script, timeout).await?;
-  let vars = result.as_array().cloned().unwrap_or_default();
-  let mut sessions = state.sessions.write().await;
-  let session = sessions.get_mut(&session_id)?;
-  let refs: Vec<Value> = vars
-    .into_iter()
-    .filter_map(|v| v.as_str().map(str::to_string))
-    .map(|v| { let id = session.elements.insert(v); json!({ ELEMENT_KEY: id }) })
-    .collect();
-  Ok(WebDriverResponse::success(refs))
+  let deadline = tokio::time::Instant::now() + Duration::from_millis(implicit_ms);
+  loop {
+    let result = eval_for_element(&var, script.clone(), script_timeout).await?;
+    let vars: Vec<String> = result
+      .as_array()
+      .cloned()
+      .unwrap_or_default()
+      .into_iter()
+      .filter_map(|v| v.as_str().map(str::to_string))
+      .collect();
+    if !vars.is_empty() || tokio::time::Instant::now() >= deadline {
+      let mut sessions = state.sessions.write().await;
+      let session = sessions.get_mut(&session_id)?;
+      let refs: Vec<Value> = vars
+        .into_iter()
+        .map(|v| { let id = session.elements.insert(v); json!({ ELEMENT_KEY: id }) })
+        .collect();
+      return Ok(WebDriverResponse::success(refs));
+    }
+    tokio::time::sleep(Duration::from_millis(50)).await;
+  }
 }
 
 /// POST `/session/{session_id}/element/{element_id}/click`
