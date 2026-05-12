@@ -143,6 +143,21 @@ describe('DioxusWorkerService', () => {
       expect((browser as unknown as Installed).dioxus).toBeDefined();
     });
 
+    it('should read devServerUrl from capability-level wdio:dioxusServiceOptions', async () => {
+      const urlSpy = vi.fn().mockResolvedValue(undefined);
+      const browser = {
+        execute: vi.fn().mockResolvedValue(undefined),
+        url: urlSpy,
+      } as unknown as WebdriverIO.Browser;
+
+      const service = new DioxusWorkerService({} as unknown, {
+        'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:4000' },
+      });
+      await service.before({}, [], browser);
+
+      expect(urlSpy).toHaveBeenCalledWith('http://localhost:4000');
+    });
+
     it('should patch browser.url to re-inject spy after navigation', async () => {
       const browser = {
         execute: vi.fn().mockResolvedValue(undefined),

@@ -16,7 +16,10 @@ export default class DioxusWorkerService {
   private devServerUrl?: string;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
-    this.devServerUrl = (_options as DioxusServiceOptions).devServerUrl;
+    const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
+      'wdio:dioxusServiceOptions'
+    ];
+    this.devServerUrl = capOptions?.devServerUrl ?? _options.devServerUrl;
     log.debug('DioxusWorkerService initialised');
   }
 
