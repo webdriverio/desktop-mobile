@@ -51,6 +51,7 @@
   },
   "dependencies": {
     "@wdio/cli": "catalog:default",
+    "@wdio/dioxus-service": "link:../packages/dioxus-service",
     "@wdio/electron-service": "link:../packages/electron-service",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",
