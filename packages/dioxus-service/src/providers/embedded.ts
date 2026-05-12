@@ -195,7 +195,15 @@ export async function startEmbeddedDriver(
     if (exitHandler) {
       child.removeListener('exit', exitHandler);
     }
+    // Prevent spawnErrorPromise from becoming an unhandled rejection if the
+    // child emits 'error' after startup completes (Node.js 15+ crashes on
+    // unhandled rejections). The long-lived handler below logs post-startup errors.
+    spawnErrorPromise.catch(() => {});
   }
+
+  child.on('error', (err) => {
+    log.warn(`Embedded driver process error (post-startup): ${err.message}`);
+  });
 
   return { proc: child, logHandlers };
 }
