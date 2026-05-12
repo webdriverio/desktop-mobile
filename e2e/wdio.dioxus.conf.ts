@@ -9,7 +9,7 @@ if (process.platform === 'darwin') {
   process.exit(78);
 }
 
-process.env.DRIVER_PROVIDER = 'official';
+process.env.DRIVER_PROVIDER = 'external';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);

@@ -7,10 +7,12 @@ import { getLogDirName, readWdioLogs } from '../../lib/utils.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'embedded' | undefined;
+// Only 'embedded' gets a log-dir prefix; 'external' and unset both map to the
+// prefix-less directory that wdio.dioxus.conf.ts writes via getLogDirName(..., 'official').
+const logProvider = process.env.DRIVER_PROVIDER === 'embedded' ? ('embedded' as const) : undefined;
 
 function getLogDir() {
-  return join(__dirname, '../../logs', getLogDirName('standard', 'dioxus', driverProvider));
+  return join(__dirname, '../../logs', getLogDirName('standard', 'dioxus', logProvider));
 }
 
 describe('Dioxus logging', () => {
