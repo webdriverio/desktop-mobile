@@ -8,6 +8,7 @@ import type { DioxusCapabilities, DioxusDriverProvider, DioxusServiceGlobalOptio
 const log = createLogger('dioxus-service', 'session');
 
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, DioxusLaunchService>();
+const activeServices = new WeakMap<WebdriverIO.Browser, DioxusWorkerService>();
 
 /**
  * Initialize Dioxus service in standalone mode.
@@ -59,6 +60,7 @@ export async function init(
 
   const service = new DioxusWorkerService(serviceOptions ?? {}, capabilities);
   await service.before(capabilities, [], browser);
+  activeServices.set(browser, service);
 
   log.debug('Dioxus standalone session initialised');
   return browser;
@@ -72,6 +74,9 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
+    const service = activeServices.get(browser);
+    await service?.after();
+    activeServices.delete(browser);
     await launcher.onComplete();
     activeLaunchers.delete(browser);
     log.debug('Dioxus standalone session cleaned up');
