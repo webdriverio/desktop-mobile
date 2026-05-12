@@ -40,6 +40,21 @@ impl AppState {
       tokio::time::sleep(std::time::Duration::from_millis(50)).await;
     }
   }
+
+  /// Block until a window with the given label is registered (or timeout elapses).
+  pub async fn wait_for_label(&self, label: &str, timeout_ms: u64) -> bool {
+    let deadline = tokio::time::Instant::now()
+      + std::time::Duration::from_millis(timeout_ms);
+    loop {
+      if self.list_windows().contains(&label.to_string()) {
+        return true;
+      }
+      if tokio::time::Instant::now() >= deadline {
+        return false;
+      }
+      tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+    }
+  }
 }
 
 impl Default for AppState {

@@ -47,20 +47,22 @@ pub async fn create(
 ) -> WebDriverResult {
   let target = extract_window_label(&request.capabilities);
 
-  // Poll for the target window (or first available if no target specified).
-  let initial_window = match state.wait_for_window(10_000).await {
-    Some(w) => {
-      if let Some(label) = target {
-        if state.list_windows().contains(&label) {
-          label
-        } else {
-          return Err(WebDriverErrorResponse::no_such_window());
-        }
+  // Poll for the target window, using the full 10 s budget regardless of
+  // when other windows appear. Without this, a `windowLabel: "settings"`
+  // request would fail immediately if the main window registered first but
+  // the settings window hadn't opened yet.
+  let initial_window = match target {
+    Some(label) => {
+      if state.wait_for_label(&label, 10_000).await {
+        label
       } else {
-        w
+        return Err(WebDriverErrorResponse::no_such_window());
       }
     }
-    None => return Err(WebDriverErrorResponse::no_such_window()),
+    None => match state.wait_for_window(10_000).await {
+      Some(w) => w,
+      None => return Err(WebDriverErrorResponse::no_such_window()),
+    },
   };
 
   let mut sessions = state.sessions.write().await;
