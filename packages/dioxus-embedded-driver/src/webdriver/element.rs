@@ -34,6 +34,11 @@ impl ElementStore {
     self.elements.get(id).map(String::as_str)
   }
 
+  /// All JS variable names currently held by this store.
+  pub fn all_vars(&self) -> Vec<String> {
+    self.elements.values().cloned().collect()
+  }
+
   /// Build the W3C element reference object for a given element ID.
   pub fn element_ref(id: &str) -> serde_json::Value {
     serde_json::json!({ ELEMENT_KEY: id })

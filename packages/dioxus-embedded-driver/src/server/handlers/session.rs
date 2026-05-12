@@ -1,9 +1,12 @@
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::extract::{Path, State};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use tokio::sync::oneshot;
+use uuid::Uuid;
 
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
@@ -90,6 +93,27 @@ pub async fn delete(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
+  // Collect element vars and script timeout before dropping the session
+  // so we can delete them from the webview global scope (best-effort).
+  let (vars, script_timeout) = {
+    let sessions = state.sessions.read().await;
+    match sessions.get(&session_id) {
+      Ok(session) => (session.elements.all_vars(), session.timeouts.script_ms),
+      Err(_) => return Err(WebDriverErrorResponse::invalid_session_id(&session_id)),
+    }
+  };
+
+  if !vars.is_empty() {
+    let cleanup = vars
+      .iter()
+      .map(|v| format!("delete window[{v:?}]"))
+      .collect::<Vec<_>>()
+      .join("; ");
+    let (tx, rx) = oneshot::channel();
+    wdio_dioxus_bridge::embedded::push(Uuid::new_v4().to_string(), format!("{cleanup}; null"), vec![], tx);
+    let _ = tokio::time::timeout(Duration::from_millis(script_timeout), rx).await;
+  }
+
   let mut sessions = state.sessions.write().await;
   if sessions.delete(&session_id) {
     Ok(WebDriverResponse::null())
