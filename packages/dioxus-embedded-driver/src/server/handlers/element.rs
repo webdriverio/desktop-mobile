@@ -91,7 +91,7 @@ pub async fn find(
   let timeout = session_timeout(&state, &session_id).await?;
   let var = format!("__wdio_elem_{}", Uuid::new_v4().simple());
   let script = format!(
-    "window.{var} = {}; window.{var} !== null && window.{var} !== undefined ? '{}' : null",
+    "window.{var} = {}; return window.{var} !== null && window.{var} !== undefined ? '{}' : null",
     js_locator(&req.using, &req.value),
     var
   );
@@ -117,7 +117,7 @@ pub async fn find_all(
   let prefix = Uuid::new_v4().simple().to_string();
   let locator = js_locator_all(&req.using, &req.value);
   let script = format!(
-    "(function(){{ var elems = {locator}; var vars = []; for(var i=0;i<elems.length;i++) {{ var k='__wdio_elem_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
+    "return (function(){{ var elems = {locator}; var vars = []; for(var i=0;i<elems.length;i++) {{ var k='__wdio_elem_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
   let result = eval(script, timeout).await?;
   let vars = result.as_array().cloned().unwrap_or_default();
@@ -141,7 +141,7 @@ pub async fn get_active(
 ) -> WebDriverResult {
   let timeout = session_timeout(&state, &session_id).await?;
   let var = format!("__wdio_active_{}", Uuid::new_v4().simple());
-  let script = format!("window.{var} = document.activeElement; '{var}'");
+  let script = format!("window.{var} = document.activeElement; return '{var}'");
   let result = eval(script, timeout).await?;
   match result.as_str() {
     Some(v) => {
@@ -184,7 +184,7 @@ pub async fn find_from_element(
     ),
     _ => format!("window.{var}.querySelector({:?})", req.value),
   };
-  let script = format!("window.{child_var} = {locator}; window.{child_var} ? '{child_var}' : null");
+  let script = format!("window.{child_var} = {locator}; return window.{child_var} ? '{child_var}' : null");
   let result = eval(script, timeout).await?;
   match result.as_str() {
     Some(v) => {
@@ -226,7 +226,7 @@ pub async fn find_all_from_element(
     _ => format!("Array.from(window.{var}.querySelectorAll({:?}))", req.value),
   };
   let script = format!(
-    "(function(){{ var elems={collection}; var vars=[]; for(var i=0;i<elems.length;i++){{ var k='__wdio_ch_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
+    "return (function(){{ var elems={collection}; var vars=[]; for(var i=0;i<elems.length;i++){{ var k='__wdio_ch_{prefix}_'+i; window[k]=elems[i]; vars.push(k); }} return vars; }})()"
   );
   let result = eval(script, timeout).await?;
   let vars = result.as_array().cloned().unwrap_or_default();
@@ -283,7 +283,7 @@ pub async fn get_text(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("window.{var}.innerText || window.{var}.textContent || ''"), timeout).await?;
+  let result = eval(format!("return window.{var}.innerText || window.{var}.textContent || ''"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -293,7 +293,7 @@ pub async fn get_tag_name(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("window.{var}.tagName.toLowerCase()"), timeout).await?;
+  let result = eval(format!("return window.{var}.tagName.toLowerCase()"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -303,7 +303,7 @@ pub async fn get_attribute(
   Path((session_id, element_id, name)): Path<(String, String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("window.{var}.getAttribute({name:?})"), timeout).await?;
+  let result = eval(format!("return window.{var}.getAttribute({name:?})"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -313,7 +313,7 @@ pub async fn get_property(
   Path((session_id, element_id, name)): Path<(String, String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("window.{var}[{name:?}] ?? null"), timeout).await?;
+  let result = eval(format!("return window.{var}[{name:?}] ?? null"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -324,7 +324,7 @@ pub async fn get_css_value(
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
   let result = eval(
-    format!("window.getComputedStyle(window.{var}).getPropertyValue({prop:?})"),
+    format!("return window.getComputedStyle(window.{var}).getPropertyValue({prop:?})"),
     timeout,
   ).await?;
   Ok(WebDriverResponse::success(result))
@@ -338,7 +338,7 @@ pub async fn get_rect(
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
   let result = eval(
     format!(
-      "(function(){{ var r=window.{var}.getBoundingClientRect(); return {{x:r.left,y:r.top,width:r.width,height:r.height}}; }})()"
+      "return (function(){{ var r=window.{var}.getBoundingClientRect(); return {{x:r.left,y:r.top,width:r.width,height:r.height}}; }})()"
     ),
     timeout,
   ).await?;
@@ -351,7 +351,7 @@ pub async fn is_selected(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("!!window.{var}.checked || !!window.{var}.selected"), timeout).await?;
+  let result = eval(format!("return !!window.{var}.checked || !!window.{var}.selected"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -363,7 +363,7 @@ pub async fn is_displayed(
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
   let result = eval(
     format!(
-      "(function(){{ var el=window.{var}; var s=window.getComputedStyle(el); return s.display!=='none' && s.visibility!=='hidden' && s.opacity!=='0'; }})()"
+      "return (function(){{ var el=window.{var}; var s=window.getComputedStyle(el); return s.display!=='none' && s.visibility!=='hidden' && s.opacity!=='0'; }})()"
     ),
     timeout,
   ).await?;
@@ -376,7 +376,7 @@ pub async fn is_enabled(
   Path((session_id, element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
   let (timeout, var) = element_var(&state, &session_id, &element_id).await?;
-  let result = eval(format!("!window.{var}.disabled"), timeout).await?;
+  let result = eval(format!("return !window.{var}.disabled"), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 

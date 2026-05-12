@@ -33,7 +33,7 @@ pub async fn get_all(
 ) -> WebDriverResult {
   let t = timeout(&state, &session_id).await?;
   let result = eval(
-    "(function(){ var s=document.cookie; if(!s.trim()) return []; return s.split(';').map(function(c){ var p=c.indexOf('='); return {name:c.slice(0,p).trim(),value:c.slice(p+1).trim(),path:'/',domain:'',secure:false,httpOnly:false}; }); })()".to_string(),
+    "return (function(){ var s=document.cookie; if(!s.trim()) return []; return s.split(';').map(function(c){ var p=c.indexOf('='); return {name:c.slice(0,p).trim(),value:c.slice(p+1).trim(),path:'/',domain:'',secure:false,httpOnly:false}; }); })()".to_string(),
     t,
   ).await?;
   Ok(WebDriverResponse::success(result))
@@ -81,7 +81,7 @@ pub async fn get(
   let t = timeout(&state, &session_id).await?;
   let result = eval(
     format!(
-      "(function(){{ var c=document.cookie.split(';').find(c=>c.trim().startsWith({name:?}+'=')); if(!c) return null; var p=c.indexOf('='); return {{name:c.slice(0,p).trim(),value:c.slice(p+1).trim(),path:'/',domain:'',secure:false,httpOnly:false}}; }})()"
+      "return (function(){{ var c=document.cookie.split(';').find(c=>c.trim().startsWith({name:?}+'=')); if(!c) return null; var p=c.indexOf('='); return {{name:c.slice(0,p).trim(),value:c.slice(p+1).trim(),path:'/',domain:'',secure:false,httpOnly:false}}; }})()"
     ),
     t,
   ).await?;

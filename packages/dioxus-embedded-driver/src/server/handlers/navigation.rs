@@ -48,7 +48,7 @@ pub async fn get_url(
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
   let timeout = session_timeout(&state, &session_id).await?;
-  let result = eval("window.location.href".to_string(), timeout).await?;
+  let result = eval("return window.location.href".to_string(), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
@@ -58,7 +58,7 @@ pub async fn get_title(
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
   let timeout = session_timeout(&state, &session_id).await?;
-  let result = eval("document.title".to_string(), timeout).await?;
+  let result = eval("return document.title".to_string(), timeout).await?;
   Ok(WebDriverResponse::success(result))
 }
 
