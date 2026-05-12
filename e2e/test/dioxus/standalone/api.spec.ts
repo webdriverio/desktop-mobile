@@ -15,6 +15,7 @@ const appBinaryPath = path.join(
 const capabilities = createDioxusCapabilities(appBinaryPath, {
   appArgs: ['foo', 'bar=baz'],
   driverProvider: 'embedded',
+  embeddedPort: 4447,
 });
 
 const browser = await startWdioSession(capabilities);
