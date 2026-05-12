@@ -88,22 +88,34 @@ pub async fn find(
   Path(session_id): Path<String>,
   Json(req): Json<FindElementRequest>,
 ) -> WebDriverResult {
-  let timeout = session_timeout(&state, &session_id).await?;
+  let (script_timeout, implicit_ms) = {
+    let sessions = state.sessions.read().await;
+    let t = &sessions.get(&session_id)?.timeouts;
+    (t.script_ms, t.implicit_ms)
+  };
   let var = format!("__wdio_elem_{}", Uuid::new_v4().simple());
   let script = format!(
     "window.{var} = {}; return window.{var} !== null && window.{var} !== undefined ? '{}' : null",
     js_locator(&req.using, &req.value),
     var
   );
-  let result = eval(script, timeout).await?;
-  match result.as_str() {
-    Some(v) if !v.is_empty() => {
-      let mut sessions = state.sessions.write().await;
-      let session = sessions.get_mut(&session_id)?;
-      let elem_id = session.elements.insert(v.to_string());
-      Ok(WebDriverResponse::success(json!({ ELEMENT_KEY: elem_id })))
+  let deadline = tokio::time::Instant::now() + Duration::from_millis(implicit_ms);
+  loop {
+    let result = eval(script.clone(), script_timeout).await?;
+    match result.as_str() {
+      Some(v) if !v.is_empty() => {
+        let mut sessions = state.sessions.write().await;
+        let session = sessions.get_mut(&session_id)?;
+        let elem_id = session.elements.insert(v.to_string());
+        return Ok(WebDriverResponse::success(json!({ ELEMENT_KEY: elem_id })));
+      }
+      _ => {
+        if tokio::time::Instant::now() >= deadline {
+          return Err(WebDriverErrorResponse::no_such_element());
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+      }
     }
-    _ => Err(WebDriverErrorResponse::no_such_element()),
   }
 }
 
@@ -160,14 +172,13 @@ pub async fn find_from_element(
   Path((session_id, element_id)): Path<(String, String)>,
   Json(req): Json<FindElementRequest>,
 ) -> WebDriverResult {
-  let timeout = session_timeout(&state, &session_id).await?;
-  let var = {
+  let (script_timeout, implicit_ms, var) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
-    session.elements.get(&element_id).ok_or_else(WebDriverErrorResponse::stale_element_reference)?.to_string()
+    let v = session.elements.get(&element_id).ok_or_else(WebDriverErrorResponse::stale_element_reference)?.to_string();
+    (session.timeouts.script_ms, session.timeouts.implicit_ms, v)
   };
-  let counter = Uuid::new_v4().simple().to_string();
-  let child_var = format!("__wdio_child_{counter}");
+  let child_var = format!("__wdio_child_{}", Uuid::new_v4().simple());
   let locator = match req.using.as_str() {
     "css selector" => format!("window.{var}.querySelector({:?})", req.value),
     "xpath" => format!(
@@ -185,15 +196,23 @@ pub async fn find_from_element(
     _ => format!("window.{var}.querySelector({:?})", req.value),
   };
   let script = format!("window.{child_var} = {locator}; return window.{child_var} ? '{child_var}' : null");
-  let result = eval(script, timeout).await?;
-  match result.as_str() {
-    Some(v) => {
-      let mut sessions = state.sessions.write().await;
-      let session = sessions.get_mut(&session_id)?;
-      let id = session.elements.insert(v.to_string());
-      Ok(WebDriverResponse::success(json!({ ELEMENT_KEY: id })))
+  let deadline = tokio::time::Instant::now() + Duration::from_millis(implicit_ms);
+  loop {
+    let result = eval(script.clone(), script_timeout).await?;
+    match result.as_str() {
+      Some(v) => {
+        let mut sessions = state.sessions.write().await;
+        let session = sessions.get_mut(&session_id)?;
+        let id = session.elements.insert(v.to_string());
+        return Ok(WebDriverResponse::success(json!({ ELEMENT_KEY: id })));
+      }
+      _ => {
+        if tokio::time::Instant::now() >= deadline {
+          return Err(WebDriverErrorResponse::no_such_element());
+        }
+        tokio::time::sleep(Duration::from_millis(50)).await;
+      }
     }
-    _ => Err(WebDriverErrorResponse::no_such_element()),
   }
 }
 
