@@ -97,6 +97,7 @@ if (testType === 'multiremote') {
           appBinaryPath,
           appArgs: ['--browser=A'],
           driverProvider,
+          dioxusDriverPort: 9515,
           captureBackendLogs: true,
           captureFrontendLogs: true,
           backendLogLevel: 'info',
@@ -104,7 +105,7 @@ if (testType === 'multiremote') {
         },
       },
       hostname: '127.0.0.1',
-      port: 0,
+      // port set dynamically by launcher onPrepare when external provider is wired
     },
     browserB: {
       capabilities: {
@@ -118,6 +119,7 @@ if (testType === 'multiremote') {
           appBinaryPath,
           appArgs: ['--browser=B'],
           driverProvider,
+          dioxusDriverPort: 9517,
           captureBackendLogs: true,
           captureFrontendLogs: true,
           backendLogLevel: 'info',
@@ -125,7 +127,7 @@ if (testType === 'multiremote') {
         },
       },
       hostname: '127.0.0.1',
-      port: 0,
+      // port set dynamically by launcher onPrepare when external provider is wired
     },
   };
 } else {
