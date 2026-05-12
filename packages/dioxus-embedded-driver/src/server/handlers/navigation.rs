@@ -23,7 +23,7 @@ async fn eval(script: String, timeout_ms: u64) -> Result<Value, crate::server::r
 }
 
 async fn session_timeout(state: &Arc<AppState>, session_id: &str) -> Result<u64, crate::server::response::WebDriverErrorResponse> {
-  Ok(state.sessions.read().await.get(session_id)?.timeouts.script_ms)
+  Ok(state.sessions.read().await.get(session_id)?.timeouts.page_load_ms)
 }
 
 #[derive(Debug, Deserialize)]
