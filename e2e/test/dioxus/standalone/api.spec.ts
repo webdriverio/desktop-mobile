@@ -1,4 +1,5 @@
 import path from 'node:path';
+import process from 'node:process';
 import url from 'node:url';
 import { cleanupWdioSession, createDioxusCapabilities, startWdioSession } from '@wdio/dioxus-service';
 import type { DioxusAPIs } from '@wdio/native-types';
@@ -11,33 +12,26 @@ const appBinaryPath = path.join(
   process.platform === 'win32' ? 'wdio-dioxus-e2e-app.exe' : 'wdio-dioxus-e2e-app',
 );
 
-describe('Dioxus standalone API', () => {
-  let standaloneSession: WebdriverIO.Browser;
+const browser = await startWdioSession(
+  createDioxusCapabilities(appBinaryPath, {
+    appArgs: ['foo', 'bar=baz'],
+    driverProvider: 'embedded',
+    embeddedPort: 4447,
+  }),
+);
 
-  before(async () => {
-    standaloneSession = await startWdioSession(
-      createDioxusCapabilities(appBinaryPath, {
-        appArgs: ['foo', 'bar=baz'],
-        driverProvider: 'embedded',
-        embeddedPort: 4447,
-      }),
-    );
-  });
+const result = await browser.dioxus.execute('return 42');
+if (result !== 42) {
+  throw new Error(`Execute test failed: expected 42, got ${result}`);
+}
 
-  after(async () => {
-    await standaloneSession.deleteSession();
-    await cleanupWdioSession(standaloneSession);
-  });
+const platformInfo = await browser.dioxus.execute(({ invoke }: DioxusAPIs) => invoke('get_platform_info'));
+if (typeof platformInfo !== 'object' || platformInfo === null || !('os' in platformInfo)) {
+  throw new Error(`Platform info test failed: expected object with os field, got ${JSON.stringify(platformInfo)}`);
+}
 
-  it('should execute a script and return a primitive value', async () => {
-    const result = await standaloneSession.dioxus.execute('return 42');
-    expect(result).toBe(42);
-  });
+await browser.deleteSession();
+await cleanupWdioSession(browser);
 
-  it('should return platform info with an os field', async () => {
-    const platformInfo = await standaloneSession.dioxus.execute(({ invoke }: DioxusAPIs) =>
-      invoke('get_platform_info'),
-    );
-    expect(typeof platformInfo === 'object' && platformInfo !== null && 'os' in platformInfo).toBe(true);
-  });
-});
+// On Windows, webdriverio leaves internal handles that prevent clean exit without this.
+process.exit();

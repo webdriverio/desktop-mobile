@@ -42,7 +42,7 @@
     "test:e2e:dioxus": "wdio run wdio.dioxus-embedded.conf.ts",
     "test:e2e:dioxus:window": "cross-env TEST_TYPE=window wdio run wdio.dioxus-embedded.conf.ts",
     "test:e2e:dioxus:multiremote": "cross-env TEST_TYPE=multiremote wdio run wdio.dioxus-embedded.conf.ts",
-    "test:e2e:dioxus:standalone": "cross-env TEST_TYPE=standalone wdio run wdio.dioxus-embedded.conf.ts",
+    "test:e2e:dioxus:standalone": "tsx test/dioxus/standalone/api.spec.ts",
     "test:e2e:dioxus:deeplink": "cross-env TEST_TYPE=deeplink wdio run wdio.dioxus-embedded.conf.ts",
     "test:e2e:dioxus-external": "wdio run wdio.dioxus.conf.ts",
     "protocol-install:tauri": "../fixtures/e2e-apps/tauri/scripts/protocol-install.sh",

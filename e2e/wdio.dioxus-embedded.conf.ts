@@ -32,10 +32,6 @@ switch (testType) {
     specs = ['./test/dioxus/multiremote/*.spec.ts'];
     maxInstances = 1;
     break;
-  case 'standalone':
-    specs = ['./test/dioxus/standalone/*.spec.ts'];
-    maxInstances = 1;
-    break;
   case 'window':
     specs = ['./test/dioxus/window.spec.ts'];
     break;
