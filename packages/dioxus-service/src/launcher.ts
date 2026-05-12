@@ -36,8 +36,12 @@ export default class DioxusLaunchService extends BaseLauncher {
     capabilities: DioxusCapabilities[] | Record<string, { capabilities: DioxusCapabilities }>,
   ): Promise<void> {
     const capsList = normaliseCaps(capabilities);
-    const firstCap = capsList[0];
-    const mergedOptions = mergeOptions(this.options, firstCap?.['wdio:dioxusServiceOptions']);
+    // Use the first capability with mode='browser' as the options source so that
+    // browser mode is detected even when set on a non-first capability.
+    const primaryCap =
+      capsList.find((cap) => mergeOptions(this.options, cap['wdio:dioxusServiceOptions']).mode === 'browser') ??
+      capsList[0];
+    const mergedOptions = mergeOptions(this.options, primaryCap?.['wdio:dioxusServiceOptions']);
 
     // Browser mode: skip all binary/driver setup — test runs against a Vite dev server
     if (mergedOptions.mode === 'browser') {
