@@ -1,5 +1,4 @@
 import path from 'node:path';
-import process from 'node:process';
 import url from 'node:url';
 import { cleanupWdioSession, createDioxusCapabilities, startWdioSession } from '@wdio/dioxus-service';
 import type { DioxusAPIs } from '@wdio/native-types';
@@ -12,28 +11,33 @@ const appBinaryPath = path.join(
   process.platform === 'win32' ? 'wdio-dioxus-e2e-app.exe' : 'wdio-dioxus-e2e-app',
 );
 
-const capabilities = createDioxusCapabilities(appBinaryPath, {
-  appArgs: ['foo', 'bar=baz'],
-  driverProvider: 'embedded',
-  embeddedPort: 4447,
+describe('Dioxus standalone API', () => {
+  let standaloneSession: WebdriverIO.Browser;
+
+  before(async () => {
+    standaloneSession = await startWdioSession(
+      createDioxusCapabilities(appBinaryPath, {
+        appArgs: ['foo', 'bar=baz'],
+        driverProvider: 'embedded',
+        embeddedPort: 4447,
+      }),
+    );
+  });
+
+  after(async () => {
+    await standaloneSession.deleteSession();
+    await cleanupWdioSession(standaloneSession);
+  });
+
+  it('should execute a script and return a primitive value', async () => {
+    const result = await standaloneSession.dioxus.execute('return 42');
+    expect(result).toBe(42);
+  });
+
+  it('should return platform info with an os field', async () => {
+    const platformInfo = await standaloneSession.dioxus.execute(({ invoke }: DioxusAPIs) =>
+      invoke('get_platform_info'),
+    );
+    expect(typeof platformInfo === 'object' && platformInfo !== null && 'os' in platformInfo).toBe(true);
+  });
 });
-
-const browser = await startWdioSession(capabilities);
-
-const result = await browser.dioxus.execute('return 42');
-if (result !== 42) {
-  throw new Error(`execute test failed: expected 42, got ${result}`);
-}
-console.log('✅ execute test passed');
-
-const platformInfo = await browser.dioxus.execute(({ invoke }: DioxusAPIs) => invoke('get_platform_info'));
-if (!platformInfo || typeof platformInfo !== 'object' || !('os' in (platformInfo as object))) {
-  throw new Error(`platform info test failed: got ${JSON.stringify(platformInfo)}`);
-}
-console.log('✅ platform info test passed:', platformInfo);
-
-await browser.deleteSession();
-await cleanupWdioSession(browser);
-console.log('✅ cleanup complete');
-
-process.exit();
