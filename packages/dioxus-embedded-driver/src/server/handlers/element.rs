@@ -55,6 +55,12 @@ fn js_locator_all(using: &str, value: &str) -> String {
     "xpath" => format!(
       "(function(){{ var res = document.evaluate({value:?}, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null); var arr=[]; for(var i=0;i<res.snapshotLength;i++) arr.push(res.snapshotItem(i)); return arr; }})()"
     ),
+    "link text" => format!(
+      "Array.from(document.querySelectorAll('a')).filter(function(a){{ return a.textContent.trim()==={value:?}; }})"
+    ),
+    "partial link text" => format!(
+      "Array.from(document.querySelectorAll('a')).filter(function(a){{ return a.textContent.includes({value:?}); }})"
+    ),
     "tag name" => format!("Array.from(document.querySelectorAll({value:?}))"),
     _ => format!("Array.from(document.querySelectorAll({value:?}))"),
   }
@@ -168,6 +174,14 @@ pub async fn find_from_element(
       "document.evaluate({:?}, window.{var}, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null).singleNodeValue",
       req.value
     ),
+    "link text" => format!(
+      "(function(){{ for(var a of window.{var}.querySelectorAll('a')) {{ if(a.textContent.trim()==={:?}) return a; }} return null; }})()",
+      req.value
+    ),
+    "partial link text" => format!(
+      "(function(){{ for(var a of window.{var}.querySelectorAll('a')) {{ if(a.textContent.includes({:?})) return a; }} return null; }})()",
+      req.value
+    ),
     _ => format!("window.{var}.querySelector({:?})", req.value),
   };
   let script = format!("window.{child_var} = {locator}; window.{child_var} ? '{child_var}' : null");
@@ -199,6 +213,14 @@ pub async fn find_all_from_element(
   let collection = match req.using.as_str() {
     "xpath" => format!(
       "(function(){{ var res=document.evaluate({:?},window.{var},null,XPathResult.ORDERED_NODE_SNAPSHOT_TYPE,null); var arr=[]; for(var i=0;i<res.snapshotLength;i++) arr.push(res.snapshotItem(i)); return arr; }})()",
+      req.value
+    ),
+    "link text" => format!(
+      "Array.from(window.{var}.querySelectorAll('a')).filter(function(a){{ return a.textContent.trim()==={:?}; }})",
+      req.value
+    ),
+    "partial link text" => format!(
+      "Array.from(window.{var}.querySelectorAll('a')).filter(function(a){{ return a.textContent.includes({:?}); }})",
       req.value
     ),
     _ => format!("Array.from(window.{var}.querySelectorAll({:?}))", req.value),
