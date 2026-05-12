@@ -21,7 +21,7 @@ pub async fn get_source(
   let id = Uuid::new_v4().to_string();
   wdio_dioxus_bridge::embedded::push(
     id,
-    "document.documentElement.outerHTML".to_string(),
+    "return document.documentElement.outerHTML".to_string(),
     vec![],
     tx,
   );
