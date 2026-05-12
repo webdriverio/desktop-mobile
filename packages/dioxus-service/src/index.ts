@@ -12,6 +12,11 @@ export { DioxusLaunchService as launcher };
 export default DioxusWorkerService;
 
 export { linuxExternalProviderUnsupported, SevereServiceError } from './errors.js';
+export {
+  cleanup as cleanupWdioSession,
+  createDioxusCapabilities,
+  init as startWdioSession,
+} from './session.js';
 export type {
   DioxusCapabilities,
   DioxusDriverProvider,
