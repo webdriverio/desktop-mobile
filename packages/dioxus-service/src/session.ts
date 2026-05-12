@@ -47,8 +47,11 @@ export async function init(
     capabilities,
     connectionRetryTimeout: startTimeout * 4,
     connectionRetryCount: 10,
-  }).catch((error: Error) => {
+  }).catch(async (error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
+    await launcher
+      .onComplete()
+      .catch((cleanupErr: Error) => log.warn(`Failed to stop embedded driver during cleanup: ${cleanupErr.message}`));
     throw error;
   });
 

@@ -114,8 +114,9 @@ mod tests {
     init();
   }
 
-  #[test]
-  fn should_be_idempotent_on_repeated_init() {
+  #[tokio::test]
+  async fn should_be_idempotent_on_repeated_init() {
+    let _guard = TEST_LOCK.lock().await;
     init();
     init(); // second call must not panic
     assert!(is_active());
