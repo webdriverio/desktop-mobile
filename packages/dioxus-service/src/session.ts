@@ -39,7 +39,7 @@ export async function init(
   log.debug(`Standalone connection: ${hostname}:${port}`);
 
   const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
-  const startTimeout = serviceOptions?.statusPollTimeout ?? 60_000;
+  const startTimeout = serviceOptions?.startTimeout ?? 60_000;
 
   const browser = await remote({
     hostname,
