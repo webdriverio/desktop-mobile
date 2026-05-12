@@ -59,7 +59,18 @@ export async function init(
   activeLaunchers.set(browser, launcher);
 
   const service = new DioxusWorkerService(serviceOptions ?? {}, capabilities);
-  await service.before(capabilities, [], browser);
+  try {
+    await service.before(capabilities, [], browser);
+  } catch (error) {
+    await browser
+      .deleteSession()
+      .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
+    await launcher
+      .onComplete()
+      .catch((e: Error) => log.warn(`Failed to stop embedded driver during service.before cleanup: ${e.message}`));
+    activeLaunchers.delete(browser);
+    throw error;
+  }
   activeServices.set(browser, service);
 
   log.debug('Dioxus standalone session initialised');
