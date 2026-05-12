@@ -33,7 +33,7 @@ pub async fn get_all(
 ) -> WebDriverResult {
   let t = timeout(&state, &session_id).await?;
   let result = eval(
-    "return (function(){ var s=document.cookie; if(!s.trim()) return []; return s.split(';').map(function(c){ var p=c.indexOf('='); return {name:c.slice(0,p).trim(),value:c.slice(p+1).trim(),path:'/',domain:'',secure:false,httpOnly:false}; }); })()".to_string(),
+    "return (function(){ var s=document.cookie; if(!s.trim()) return []; return s.split(';').map(function(c){ var p=c.indexOf('='); var n=c.slice(0,p).trim(); var v=c.slice(p+1).trim(); try{n=decodeURIComponent(n);}catch(e){} try{v=decodeURIComponent(v);}catch(e){} return {name:n,value:v,path:'/',domain:'',secure:false,httpOnly:false}; }); })()".to_string(),
     t,
   ).await?;
   Ok(WebDriverResponse::success(result))
@@ -54,7 +54,7 @@ pub async fn add(
   let name = req.cookie["name"].as_str().unwrap_or("").to_string();
   let value = req.cookie["value"].as_str().unwrap_or("").to_string();
   eval(
-    format!("document.cookie = {name:?} + '=' + {value:?}; null"),
+    format!("document.cookie = encodeURIComponent({name:?}) + '=' + encodeURIComponent({value:?}); null"),
     t,
   ).await?;
   Ok(WebDriverResponse::null())
@@ -81,7 +81,7 @@ pub async fn get(
   let t = timeout(&state, &session_id).await?;
   let result = eval(
     format!(
-      "return (function(){{ var c=document.cookie.split(';').find(c=>c.trim().startsWith({name:?}+'=')); if(!c) return null; var p=c.indexOf('='); return {{name:c.slice(0,p).trim(),value:c.slice(p+1).trim(),path:'/',domain:'',secure:false,httpOnly:false}}; }})()"
+      "return (function(){{ var enc=encodeURIComponent({name:?}); var c=document.cookie.split(';').find(function(c){{ return c.trim().startsWith(enc+'='); }}); if(!c) return null; var p=c.indexOf('='); var n=c.slice(0,p).trim(); var v=c.slice(p+1).trim(); try{{n=decodeURIComponent(n);}}catch(e){{}} try{{v=decodeURIComponent(v);}}catch(e){{}} return {{name:n,value:v,path:'/',domain:'',secure:false,httpOnly:false}}; }})()"
     ),
     t,
   ).await?;
@@ -99,7 +99,7 @@ pub async fn delete(
 ) -> WebDriverResult {
   let t = timeout(&state, &session_id).await?;
   eval(
-    format!("document.cookie = {name:?} + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT'; null"),
+    format!("document.cookie = encodeURIComponent({name:?}) + '=;expires=Thu, 01 Jan 1970 00:00:00 GMT'; null"),
     t,
   ).await?;
   Ok(WebDriverResponse::null())
