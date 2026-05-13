@@ -226,7 +226,7 @@ jobs:
               ;;
             dioxus)
               echo "Running Dioxus package tests (using pre-built binaries from separate build job)"
-              if [[ "${{ inputs.os }}" == "ubuntu-latest" || "${{ inputs.os }}" == "ubuntu-24.04-arm" ]]; then
+              if [[ "${{ runner.os }}" == "Linux" ]]; then
                 echo "Using xvfb-run to provide a DISPLAY on Linux (${{ inputs.os }})"
                 xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
                   pnpm run test:package:dioxus -- --skip-build
@@ -240,7 +240,7 @@ jobs:
                 exit 0
               fi
               echo "Running Tauri package tests (using pre-built binaries from separate build job)"
-              if [[ "${{ inputs.os }}" == "ubuntu-latest" || "${{ inputs.os }}" == "ubuntu-24.04-arm" ]]; then
+              if [[ "${{ runner.os }}" == "Linux" ]]; then
                 echo "Using xvfb-run to provide a DISPLAY on Linux (${{ inputs.os }})"
                 # Use 16-bit color depth to avoid pixbuf issues with GTK/WebKit (same as E2E)
                 xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \

@@ -654,7 +654,13 @@ async function testExample(
       // Dioxus: use pre-built binary when skipBuild=true (CI downloads it as a separate artifact)
       const sourceTargetDir = join(rootDir, 'fixtures', 'package-tests', 'dioxus-app', 'src-dioxus', 'target');
       const destTargetDir = join(packageDir, 'src-dioxus', 'target');
-      if (skipBuild && existsSync(sourceTargetDir)) {
+      if (skipBuild) {
+        if (!existsSync(sourceTargetDir)) {
+          throw new Error(
+            `Pre-built Dioxus binary not found at ${sourceTargetDir}. ` +
+              'Was the build artifact downloaded and extracted correctly?',
+          );
+        }
         log(`Copying pre-built Dioxus binary from ${sourceTargetDir}...`);
         mkdirSync(destTargetDir, { recursive: true });
         cpSync(sourceTargetDir, destTargetDir, { recursive: true });
