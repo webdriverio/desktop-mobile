@@ -124,8 +124,9 @@ jobs:
           echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
 
       - name: Build Dioxus Package Test App
-        run: pnpm exec turbo run build --filter=dioxus-app-example --only
+        run: cargo build
         shell: bash
+        working-directory: fixtures/package-tests/dioxus-app/src-dioxus
 
       - name: Upload Dioxus Package Test App Binary
         id: upload-archive

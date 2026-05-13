@@ -137,8 +137,9 @@ jobs:
         shell: bash
 
       - name: 🏗️ Build Dioxus E2E App
-        run: pnpm exec turbo run build --filter=wdio-dioxus-e2e-app
+        run: cargo build
         shell: bash
+        working-directory: fixtures/e2e-apps/dioxus
 
       - name: 📦 Upload Dioxus E2E App Binary
         id: upload-archive
