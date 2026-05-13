@@ -202,6 +202,9 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
         throw new Error(`Dioxus service directory does not exist: ${dioxusServiceDir}`);
       }
       const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+      if (!existsSync(typesDir)) {
+        throw new Error(`Types directory does not exist: ${typesDir}`);
+      }
       execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
       execCommand('pnpm pack', dioxusServiceDir, 'Packing @wdio/dioxus-service');
       result.dioxusServicePath = findTgzFile(dioxusServiceDir, 'wdio-dioxus-service-');

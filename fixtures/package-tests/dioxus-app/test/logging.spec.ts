@@ -18,7 +18,11 @@ function readAllLogs(): string {
 describe('Dioxus log capture (package smoke)', () => {
   it('should capture frontend console logs', async () => {
     await browser.execute(() => console.info('[WDIO:Frontend] pkg-test-frontend-log'));
-    await browser.pause(200);
+    await browser.waitUntil(async () => readAllLogs().includes('pkg-test-frontend-log'), {
+      timeout: 5000,
+      timeoutMsg: 'frontend log not captured within 5s',
+    });
+    expect(readAllLogs()).toContain('pkg-test-frontend-log');
   });
 
   it('should capture backend logs via generate_test_logs', async () => {

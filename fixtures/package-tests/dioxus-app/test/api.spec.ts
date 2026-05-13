@@ -2,6 +2,10 @@ import { expect } from '@wdio/globals';
 import '@wdio/native-types';
 
 describe('Dioxus service package smoke', () => {
+  afterEach(async () => {
+    await browser.dioxus.restoreAllMocks();
+  });
+
   it('should have dioxus service available', async () => {
     expect(browser.dioxus).toBeDefined();
     expect(typeof browser.dioxus.execute).toBe('function');
@@ -20,6 +24,5 @@ describe('Dioxus service package smoke', () => {
     await mock.mockResolvedValue({ os: 'mock-os', arch: 'mock-arch' });
     const result = await browser.dioxus.execute(({ invoke }) => invoke('get_platform_info'));
     expect(result).toEqual({ os: 'mock-os', arch: 'mock-arch' });
-    await browser.dioxus.restoreAllMocks();
   });
 });
