@@ -459,7 +459,7 @@ async function testExample(
               /(tauri-plugin-wdio\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/tauri-plugin"(\s*\})/;
             if (oldPathPattern.test(cargoToml)) {
               // Use absolute path to ensure Cargo can find it
-              const absolutePluginPath = normalize(pluginDestDir);
+              const absolutePluginPath = normalize(pluginDestDir).replace(/\\/g, '/');
               cargoToml = cargoToml.replace(oldPathPattern, `$1"${absolutePluginPath}"$2`);
               writeFileSync(cargoTomlPath, cargoToml);
               log(`✅ Updated Cargo.toml path dependency to absolute path: ${absolutePluginPath}`);
@@ -489,7 +489,7 @@ async function testExample(
             const oldPathPattern =
               /(wdio-dioxus-embedded-driver\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/dioxus-embedded-driver"(\s*[,}])/;
             if (oldPathPattern.test(cargoToml)) {
-              const absoluteDriverPath = normalize(embeddedDriverDestDir);
+              const absoluteDriverPath = normalize(embeddedDriverDestDir).replace(/\\/g, '/');
               cargoToml = cargoToml.replace(oldPathPattern, `$1"${absoluteDriverPath}"$2`);
               writeFileSync(cargoTomlPath, cargoToml);
               log(`✅ Updated Cargo.toml path dependency to: ${absoluteDriverPath}`);
