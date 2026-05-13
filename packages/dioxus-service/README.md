@@ -51,7 +51,7 @@ export const config = {
     {
       browserName: 'dioxus',
       'dioxus:options': {
-        application: './target/release/my-app'
+        application: './target/debug/my-app'
       }
     }
   ]

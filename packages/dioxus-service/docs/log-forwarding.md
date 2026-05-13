@@ -71,6 +71,8 @@ dioxus = { version = "0.6", features = ["desktop"] }
 log = "0.4"
 ```
 
+> **Note:** The `log` crate is a no-op façade until a concrete backend registers itself as the global logger. During WDIO test runs, `wdio-dioxus-bridge` installs its own subscriber automatically. For non-WDIO runs (development, production), add a backend such as `tracing-subscriber` or `env_logger` so your `log::*!()` calls produce output.
+
 The service automatically filters driver-level logs and only captures logs from your Dioxus application.
 
 ## Frontend Log Capture

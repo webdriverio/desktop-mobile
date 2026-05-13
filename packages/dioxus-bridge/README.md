@@ -55,10 +55,7 @@ The bridge uses Dioxus's webview configuration API, not Dioxus's plugin-trait sy
 
 ## Naming
 
-The companion npm package shipping the guest-js bundle is `@wdio/dioxus-bridge`
-(no `-js` suffix), matching the convention from `@wdio/tauri-plugin`. The Rust
-crate is named `wdio-dioxus-bridge` ("bridge" rather than "plugin" because
-Dioxus has no plugin-trait system).
+The companion npm package `@wdio/dioxus-bridge` ships the guest-js bundle (no `-js` suffix, matching the convention from `@wdio/tauri-plugin`). It is **not a separate user-installable package** — `build.rs` bundles it into the Rust crate at compile time, so adding `wdio-dioxus-bridge` to `Cargo.toml` is all that is needed. The Rust crate is named `wdio-dioxus-bridge` ("bridge" rather than "plugin" because Dioxus has no plugin-trait system).
 
 ## Platform Support
 
