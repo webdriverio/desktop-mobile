@@ -61,8 +61,6 @@ edition = "2021"
 
 [dependencies]
 dioxus = { version = "0.6", features = ["desktop"] }
-
-[dependencies]
 wdio-dioxus-bridge = "1"
 ```
 
