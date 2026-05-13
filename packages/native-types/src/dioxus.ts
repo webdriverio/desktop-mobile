@@ -139,6 +139,8 @@ export interface DioxusServiceOptions extends BaseServiceOptions, DriverProvider
   backendLogLevel?: LogLevel;
   /** Minimum frontend log level (default 'info'). */
   frontendLogLevel?: LogLevel;
+  /** Overall app startup budget in ms used for connectionRetryTimeout (default 60000). */
+  startTimeout?: number;
   /** Embedded server status-poll timeout in ms (default 2000). */
   statusPollTimeout?: number;
 }

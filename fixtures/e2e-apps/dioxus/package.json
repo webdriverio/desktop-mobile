@@ -1,0 +1,9 @@
+{
+  "name": "wdio-dioxus-e2e-app",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "cargo build",
+    "build:release": "cargo build --release"
+  }
+}

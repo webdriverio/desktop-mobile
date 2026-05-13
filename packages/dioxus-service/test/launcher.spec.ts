@@ -40,6 +40,19 @@ describe('DioxusLaunchService', () => {
       );
     });
 
+    it('should throw SevereServiceError on macOS + provider=external', async () => {
+      setPlatform('darwin');
+      const launcher = new DioxusLaunchService(
+        { driverProvider: 'external' } as DioxusServiceGlobalOptions,
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+
+      await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).rejects.toThrow(
+        /'external' is not supported on macOS/,
+      );
+    });
+
     it('should not throw on Linux + provider=embedded', async () => {
       setPlatform('linux');
       const launcher = new DioxusLaunchService(

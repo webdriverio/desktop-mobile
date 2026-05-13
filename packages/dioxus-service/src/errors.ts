@@ -25,3 +25,16 @@ export function linuxExternalProviderUnsupported(): Error {
       'for context.',
   );
 }
+
+/**
+ * Compose the error message thrown when a user selects
+ * `driverProvider: 'external'` on macOS. The external provider requires
+ * msedgedriver which is Windows-only.
+ */
+export function macosExternalProviderUnsupported(): Error {
+  return new SevereServiceError(
+    "driverProvider: 'external' is not supported on macOS. " +
+      "Use driverProvider: 'embedded' instead (works on all platforms). " +
+      'The external provider requires msedgedriver which is Windows-only.',
+  );
+}
