@@ -14,6 +14,11 @@ This document outlines the planned services and their development sequencing for
 **Platforms:** Windows, macOS, Linux\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/tauri-service)](https://npmjs.com/package/@wdio/tauri-service)
 
+### [@wdio/dioxus-service](./packages/dioxus-service) - v1.x
+**Status:** 🚧 Pre-release\
+**Platforms:** Windows, macOS, Linux (`'embedded'` provider); Windows only for `'external'` in v1\
+[![npm downloads](https://img.shields.io/npm/dm/@wdio/dioxus-service)](https://npmjs.com/package/@wdio/dioxus-service)
+
 ---
 
 ## Cross-cutting Capabilities
@@ -22,7 +27,7 @@ The roadmap above is scoped to *new framework support*. Capability-level feature
 
 | Capability | Status | Notes |
 |---|---|---|
-| **Visual regression testing** | ✅ Available via [`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/) | See [docs/visual-testing.md](./docs/visual-testing.md) for the wiring + Tauri provider notes. |
+| **Visual regression testing** | ✅ Available via [`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/) | See [docs/visual-testing.md](./docs/visual-testing.md) for the wiring + provider notes. |
 | **Video recording** | 🔍 Not yet planned | Treated as a separate track. Universally a debugging artefact rather than a regression signal in the test-frameworks we surveyed. |
 
 ---
@@ -35,10 +40,10 @@ The table below quantifies the key factors used to prioritise and sequence plann
 |---|---|---|---|---|---|---|---|
 | **Electron** *(existing)* | Desktop | ~120k | Chrome DevTools Protocol (CDP) | ✅ Proven | — | Chromium, Node.js | — |
 | **Tauri** *(existing)* | Desktop | ~100k | tauri-driver + CDP | ✅ Proven | — | Wry, Rust toolchain | — |
+| **Dioxus** *(existing)* | Desktop | ~34k | Wry webview → CDP (shared with Tauri) | ✅ Implemented | High — same Wry/CDP patterns as Tauri service | Wry maturity, Dioxus desktop stability | Low–Medium |
 | **React Native** | Mobile | ~121k | Appium (XCUITest / UiAutomator2) | ✅ Proven | Establishes mobile scaffold | Appium server stability, XCUITest / UiAutomator2 | Medium |
 | **Flutter** | Mobile | ~175k | Appium Flutter Driver | ✅ Production-ready | Reuses React Native mobile scaffold | Appium Flutter Driver maintenance, Dart VM | Medium |
 | **Ionic / Capacitor** | Mobile | ~52k / ~15k | Appium WebView context switching | ✅ Proven | Reuses mobile scaffold; pure WebView — zero new complexity | Appium server, native WebView availability | Low |
-| **Dioxus** | Desktop | ~34k | Wry webview → CDP (shared with Tauri) | 🟡 Emerging | High — same Wry/CDP patterns as Tauri service | Wry maturity, Dioxus desktop stability | Low–Medium |
 | **Electrobun** | Desktop | ~11.7k | Native CDP (port 9222 by convention) | 🟡 Emerging | Medium — CDP attach patterns from Electron service; no driver process | Bun runtime, system webviews, OOPIF (per-tab) target routing | Medium |
 | **Neutralino** | Desktop | ~7.9k | System webview → CDP (devtools endpoint) | 🟡 Emerging | Medium — similar endpoint detection to Electron service | System webview (WebView2 / WebKitGTK) | Low |
 | **Dioxus Mobile** | Mobile | *(same repo)* | Cargo Mobile 2 — experimental | 🔴 Early-stage | Reuses mobile scaffold + Dioxus desktop learnings | Cargo Mobile 2 maturity, platform bridge stability | High |
@@ -47,23 +52,6 @@ The table below quantifies the key factors used to prioritise and sequence plann
 ---
 
 ## Planned Services
-
-### Phase 1: Dioxus Desktop (Q2 2026)
-**Priority:** High - Emerging Rust ecosystem integration
-
-**Target Platforms:** Windows, macOS, Linux
-
-**Why Dioxus first:**
-- Modern Rust-based framework gaining traction
-- Similar architecture to Tauri (leverage existing patterns)
-- Desktop-first approach aligns with current offerings
-- Growing community interest
-
-**Technical approach:**
-- Wry webview automation (WebView2/WKWebView/WebKitGTK)
-- DevTools protocol via CDP sessions (standard Chromedriver)
-- Standard WDIO parallelization
-- Reuses Tauri service launch detection patterns
 
 ### Phase 2: React Native Mobile (Q3 2026)
 **Priority:** High - Mobile testing expansion
