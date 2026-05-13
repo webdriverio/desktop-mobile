@@ -26,7 +26,7 @@ export const config: Options.Testrunner = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  autoXvfb: false,
+  autoXvfb: true,
   services: [['@wdio/dioxus-service', { driverProvider: 'embedded' }]],
   framework: 'mocha',
   reporters: ['spec'],
