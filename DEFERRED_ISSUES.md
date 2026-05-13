@@ -114,3 +114,63 @@ try {
 - `packages/electron-service/src/session.ts` — wrap `service.before()` call (~line 74)
 
 ---
+
+## Log level detector matches message content, not level token position
+
+**Affects:** `@wdio/tauri-service`
+**Pattern found in:** `@wdio/dioxus-service` (`packages/dioxus-service/src/logParser.ts`, PR #276)
+**Not applicable to:** `@wdio/electron-service` (uses CDP `Runtime.consoleAPICalled` events which carry an explicit `type` field)
+
+### Description
+
+`detectLevel` / `extractLogLevel` in both logParsers scans the **entire trimmed line** for any occurrence of `ERROR`, `WARN`, `INFO`, etc. via a word-boundary regex. A log line like:
+
+```
+2025-01-01T12:00:00Z INFO my_module: cannot find file — check error.log
+```
+
+matches `error` first (the literal word in the message body) even though the actual log level is `INFO`. Rust `tracing` / `log` lines always emit the level as the first bracketed token after the timestamp, so anchoring the match to the beginning of the string (or to the first bracketed word) is both more accurate and faster.
+
+### Affected code
+
+`packages/tauri-service/src/logParser.ts` — `LOG_LEVEL_PATTERNS` array (lines 18–24):
+
+```ts
+const LOG_LEVEL_PATTERNS = [
+  { level: 'error', pattern: /\b(ERROR|Error|error)\b/i },
+  { level: 'warn',  pattern: /\b(WARN|Warn|warn|WARNING|...)\b/i },
+  // etc. — all match anywhere in the line
+];
+```
+
+### Fix
+
+Anchor the level token to the expected position in Rust log output (timestamp + space + LEVEL):
+
+```ts
+// Match the first bracketed level token after a timestamp, e.g.:
+// "2025-01-01T00:00:00Z ERROR my_crate: ..."
+// "2025-01-01T00:00:00.000000Z  INFO ..."
+const LOG_LEVEL_PATTERNS = [
+  { level: 'error', pattern: /\bERROR\b/ },
+  { level: 'warn',  pattern: /\bWARN(?:ING)?\b/ },
+  { level: 'info',  pattern: /\bINFO\b/ },
+  { level: 'debug', pattern: /\bDEBUG\b/ },
+  { level: 'trace', pattern: /\bTRACE\b/ },
+];
+
+function extractLogLevel(line: string): LogLevel | null {
+  // Only inspect the first ~40 chars where the level token lives
+  const prefix = line.slice(0, 40);
+  for (const { level, pattern } of LOG_LEVEL_PATTERNS) {
+    if (pattern.test(prefix)) return level;
+  }
+  return null;
+}
+```
+
+### Files to update
+
+- `packages/tauri-service/src/logParser.ts` — `LOG_LEVEL_PATTERNS` and `extractLogLevel`
+
+---
