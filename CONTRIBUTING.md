@@ -14,6 +14,10 @@ Please be respectful and constructive in all interactions. We aim to create a we
 - pnpm 10.27.0
 - Git
 
+For Tauri and Dioxus contributions, you also need:
+
+- Rust (stable toolchain via `rustup`)
+
 ### Setup
 
 1. Fork the repository
@@ -104,6 +108,7 @@ Scope by **framework**, not package name. Most changes that touch a service, its
 # Framework-scoped (changes within one framework's ecosystem)
 git commit -m "feat(tauri): complete mocking"
 git commit -m "fix(electron): windows multiremote"
+git commit -m "fix(dioxus): embedded port conflict on linux"
 
 # No scope (cross-cutting or shared changes)
 git commit -m "refactor: extract shared diagnostics to native-utils"
@@ -281,9 +286,37 @@ When contributing to the Tauri service:
 - Ensure plugin communication works correctly
 - Test with various Tauri configuration patterns
 
-### Future Services
+### Dioxus Service
 
-When new services are added, contribution guidelines will be updated as necessary.
+When contributing to the Dioxus service or its Rust crates (`wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver`):
+
+- Maintain backward compatibility with the `install(config)` bridge API
+- Test on Windows, macOS, and Linux (for the `'embedded'` provider)
+- Always build the Dioxus fixture app in **debug mode** — the bridge is compiled behind `#[cfg(debug_assertions)]` and will not be present in release builds
+- Build the fixture app before running E2E tests:
+  ```bash
+  cd fixtures/e2e-apps/dioxus
+  cargo build
+  ```
+- Run the Dioxus unit and integration tests:
+  ```bash
+  pnpm --filter @wdio/dioxus-service test:unit
+  pnpm --filter @wdio/dioxus-service test:integration
+  ```
+- Run the Dioxus E2E tests (requires a built fixture app):
+  ```bash
+  cd e2e
+  pnpm wdio run wdio.dioxus-embedded.conf.ts
+  ```
+- On Linux, a display server is required. Wrap E2E runs with Xvfb:
+  ```bash
+  export DISPLAY=:99
+  Xvfb :99 -screen 0 1280x800x24 &
+  pnpm wdio run wdio.dioxus-embedded.conf.ts
+  ```
+- The `'external'` provider is Windows-only in v1. Linux support is deferred to v1.1. Do not attempt to test the `'external'` provider on Linux or macOS.
+- When changing the bridge crate, also update `packages/dioxus-bridge/docs/release-notes/` as appropriate
+- See [bridge setup docs](packages/dioxus-service/docs/plugin-setup.md) for how the bridge integrates with a Dioxus application
 
 ### Shared Utilities
 
@@ -305,7 +338,7 @@ Releases are automated via GitHub Actions and triggered by PR labels.
 
 When your PR is merged to `main`, the release workflow checks for release labels:
 
-1. Add a scope label to your PR: `scope:electron`, `scope:tauri`, or `scope:shared`
+1. Add a scope label to your PR: `scope:electron`, `scope:tauri`, `scope:dioxus`, or `scope:shared`
 2. Add a version label: `bump:patch`, `bump:minor`, `bump:major`, or prerelease variants
 3. After CI passes and the PR is merged, the release workflow automatically publishes packages
 
@@ -314,6 +347,7 @@ When your PR is merged to `main`, the release workflow checks for release labels
 **Examples:**
 - `scope:electron` + `bump:major` → Electron packages at major bump
 - `scope:tauri` + `bump:minor` → Tauri packages at minor bump
+- `scope:dioxus` + `bump:patch` → Dioxus packages at patch bump
 - `scope:shared` + `bump:patch` → Shared packages at patch bump
 
 ### Manual Release
@@ -331,6 +365,7 @@ For releases without PR labels or for dry runs:
 |-------|--------|
 | `scope:electron` | Release Electron packages |
 | `scope:tauri` | Release Tauri packages |
+| `scope:dioxus` | Release Dioxus packages |
 | `scope:shared` | Release shared packages |
 | `bump:patch` | Patch bump |
 | `bump:minor` | Minor bump |
@@ -342,6 +377,7 @@ For releases without PR labels or for dry runs:
 
 For testing changes before a stable release, use the `release:prerelease` label combined with a bump label:
 - `scope:electron` + `bump:major` + `release:prerelease` → Electron packages as major prerelease (e.g., 11.0.0-next.0)
+- `scope:dioxus` + `bump:minor` + `release:prerelease` → Dioxus packages as minor prerelease (e.g., 1.1.0-next.0)
 - `scope:shared` + `bump:patch` + `release:prerelease` → Shared packages as patch prerelease (e.g., 2.0.0-next.0)
 
 ### Release Notes Policy
@@ -352,8 +388,9 @@ GitHub release notes are published per **user-installed** package — not per in
 |-----------|-----------------------------|-------------------------|
 | Electron  | `@wdio/electron-service` | `@wdio/electron-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types` |
 | Tauri     | `@wdio/tauri-service`, `tauri-plugin`, `tauri-plugin-webdriver` | — |
+| Dioxus    | `@wdio/dioxus-service` | `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver` |
 
-Tauri publishes three sets of release notes because `tauri-plugin` and `tauri-plugin-webdriver` are installed and configured directly by users in their Tauri app (Cargo dependency, capability/permission setup), so their breaking changes need their own changelog entries. Electron's internal packages have no equivalent direct-install surface.
+Tauri publishes three sets of release notes because `tauri-plugin` and `tauri-plugin-webdriver` are installed and configured directly by users in their Tauri app (Cargo dependency, capability/permission setup), so their breaking changes need their own changelog entries. Electron's and Dioxus's internal packages have no equivalent direct-install surface — users only wire in the bridge crate once and changes are transparent thereafter.
 
 ## Getting Help
 
@@ -370,5 +407,3 @@ Contributors will be:
 - Recognized in release notes
 
 Thank you for contributing! 🎉
-
-

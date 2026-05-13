@@ -9,32 +9,37 @@ This document describes the architecture of the WebdriverIO Desktop & Mobile mon
 |                        WebdriverIO Test Runner                      |
 +---------------------------------------------------------------------+
                                  |
-                     +-----------+-----------+
-                     |                       |
-                     v                       v
-+-----------------------------+   +-----------------------------+
-|   @wdio/electron-service    |   |   @wdio/tauri-service       |
-|   (Electron Testing)        |   |   (Tauri Testing)           |
-+-----------------------------+   +-----------------------------+
-              |                              |
-              v                              v
-+-----------------------------+   +-----------------------------+
-|  @wdio/electron-cdp-bridge  |   |   @wdio/tauri-plugin        |
-|  (Chrome DevTools)          |   |   (Execute, Mock, Logs)     |
-+-----------------------------+   +-----------------------------+
-              |                              |
-              v                    +---------+---------+
-+-----------------------------+    |         |         |
-|      Chromedriver           |    v         v         v
-|      (WebDriver)            |  Embedded  Official  CrabNebula
-+-----------------------------+  (in-app)  (tauri-   (paid)
-              |                   server)   driver)
-              v                    |         |         |
-+-----------------------------+    +---------+---------+
-|   Electron Application      |              v
-+-----------------------------+   +-----------------------------+
-                                  |   Tauri Application         |
-                                  +-----------------------------+
+          +-----------+----------+-----------+
+          |           |                      |
+          v           v                      v
++------------------+ +------------------+ +------------------+
+| @wdio/electron-  | | @wdio/tauri-     | | @wdio/dioxus-    |
+| service          | | service          | | service          |
+| (Electron Tests) | | (Tauri Tests)    | | (Dioxus Tests)   |
++------------------+ +------------------+ +------------------+
+         |                    |                    |
+         v                    v                    v
++------------------+ +------------------+ +------------------+
+| @wdio/electron-  | | @wdio/tauri-     | | wdio-dioxus-     |
+| cdp-bridge       | | plugin           | | bridge           |
+| (Chrome DevTools)| | (Execute, Mock,  | | (Execute, Mock,  |
+|                  | |  Logs)           | |  Logs, Embedded  |
++------------------+ +------------------+  Driver)          |
+         |                    |            +------------------+
+         v           +--------+--------+           |
++------------------+ |        |        |           v
+|   Chromedriver   | v        v        v  +------------------+
+|   (WebDriver)    | Embedded Official CN | wdio-dioxus-     |
++------------------+ (in-app) (tauri- (paid) embedded-driver |
+         |           server) driver)   |  (in-process       |
+         v                    |        |   WebDriver server) |
++------------------+          +--------+  +------------------+
+| Electron App     |                v              |
++------------------+     +------------------+      |
+                          |   Tauri App      |      v
+                          +------------------+ +------------------+
+                                               |   Dioxus App     |
+                                               +------------------+
 ```
 
 ## Package Responsibilities
@@ -45,6 +50,7 @@ This document describes the architecture of the WebdriverIO Desktop & Mobile mon
 |---------|---------------|
 | `@wdio/electron-service` | WebdriverIO service for Electron apps |
 | `@wdio/tauri-service` | WebdriverIO service for Tauri apps |
+| `@wdio/dioxus-service` | WebdriverIO service for Dioxus desktop apps |
 
 ### Bridge/Plugin Packages
 
@@ -52,6 +58,9 @@ This document describes the architecture of the WebdriverIO Desktop & Mobile mon
 |---------|---------------|
 | `@wdio/electron-cdp-bridge` | Chrome DevTools Protocol bridge for main process access |
 | `@wdio/tauri-plugin` | Tauri v2 plugin for backend command invocation |
+| `wdio-dioxus-bridge` | Dioxus bridge crate — IPC channel, mock dispatch, log forwarding, embedded driver wiring |
+| `wdio-dioxus-embedded-driver` | In-process WebDriver HTTP server for Dioxus |
+| `wdio-dioxus-driver` | External WebDriver proxy (fork of tauri-driver); Windows `'external'` provider only |
 
 ### Shared Packages
 
@@ -80,7 +89,7 @@ Runs in the main process (no `browser` access). Responsible for:
 ### Service (`service.ts`)
 
 Runs in the worker process (receives `browser` via `before` hook). Responsible for:
-- API injection (`browser.tauri.*`, `browser.electron.*`)
+- API injection (`browser.tauri.*`, `browser.electron.*`, `browser.dioxus.*`)
 - Mock lifecycle management
 - Log forwarding setup
 - Plugin initialization
@@ -192,3 +201,58 @@ Runs in the worker process (receives `browser` via `before` hook). Responsible f
 |        browser.tauri.execute(), mock(), triggerDeeplink()           |
 +---------------------------------------------------------------------+
 ```
+
+## Dioxus-Specific Architecture
+
+### Driver Providers
+
+```
++---------------------------------------------------------------------+
+|                   @wdio/dioxus-service                              |
++-----------------------------+---------------------------------------+
+                              |
+           +------------------+------------------+
+           v                                     v
++--------------------+              +------------------------+
+|   Embedded         |              |   External             |
+|   (default,        |              |   (Windows only, v1)   |
+|    all platforms)  |              |                        |
++--------------------+              +------------------------+
+| wdio-dioxus-       |              | wdio-dioxus-driver     |
+| embedded-driver    |              | → msedgedriver.exe     |
+| HTTP server inside |              | (WebView2 automation)  |
+| app (wired via     |              |                        |
+| wdio-dioxus-bridge)|              |                        |
++--------------------+              +------------------------+
+```
+
+### Bridge Communication
+
+```
++---------------------------------------------------------------------+
+|                    Dioxus Application (debug build)                 |
++---------------------------------------------------------------------+
+|  Backend (Rust)                |     Frontend (Wry WebView)         |
+|  Rust `log` crate output       |     guest-js bundle                |
+|  captured by bridge            |     (mock interception,            |
+|                                |      console forwarding)           |
++-------------+------------------+----------------+-------------------+
+              |    wdio:// custom protocol        |
+              |<----------------------------------|
+              |                                  |
+              v                                  v
++---------------------------------------------------------------------+
+|               wdio-dioxus-bridge (install(config))                  |
+|  - embedded WebDriver server on DIOXUS_WEBVIEW_AUTOMATION_PORT      |
+|  - wdio:// IPC channel                                              |
+|  - log forwarder                                                     |
++---------------------------------------------------------------------+
+              |
+              v
++---------------------------------------------------------------------+
+|                   @wdio/dioxus-service                              |
+|        browser.dioxus.execute(), mock(), triggerDeeplink()          |
++---------------------------------------------------------------------+
+```
+
+The key architectural difference from Tauri is that Dioxus has no plugin-trait system. The bridge integrates at the `dioxus::desktop::Config` level (via the `install()` function) rather than through a registered plugin chain. The IPC channel is a Wry custom protocol (`wdio://`) rather than Tauri's IPC machinery.

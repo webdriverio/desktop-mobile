@@ -1,6 +1,6 @@
 # Visual Regression Testing
 
-Both `@wdio/electron-service` and `@wdio/tauri-service` compose cleanly with **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)**, which is the recommended way to do visual regression testing (VRT) for desktop apps built on these services.
+`@wdio/electron-service`, `@wdio/tauri-service`, and `@wdio/dioxus-service` all compose cleanly with **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)**, which is the recommended way to do visual regression testing (VRT) for desktop apps built on these services.
 
 This document covers the small amount of glue needed to wire it in, the per-OS baseline convention, Tauri provider differences, and when to reach for the existing mock APIs instead. The visual service itself is documented upstream — start at the [official guide](https://webdriver.io/docs/visual-testing/) for the full API surface.
 
@@ -67,6 +67,36 @@ export const config: Options.Testrunner = {
 };
 ```
 
+**Dioxus** — _`wdio.visual.conf.ts`_
+
+Dioxus only has the `'embedded'` provider for VRT. The `'external'` provider is Windows-only in v1 and not recommended for visual testing.
+
+```ts
+import { join } from 'node:path';
+import type { Options, Services } from '@wdio/types';
+
+const visualService: Services.ServiceEntry = [
+  'visual',
+  {
+    baselineFolder: join(__dirname, '__visual__', process.platform, process.arch, 'baseline'),
+    screenshotPath: join(__dirname, '__visual__', process.platform, process.arch, 'actual'),
+    formatImageName: '{tag}-{width}x{height}',
+    autoSaveBaseline: !process.env.CI,
+  },
+];
+
+export const config: Options.Testrunner = {
+  // ...
+  services: [['@wdio/dioxus-service', { driverProvider: 'embedded' }], visualService],
+  capabilities: [{
+    browserName: 'dioxus',
+    'dioxus:options': {
+      application: '/path/to/your/dioxus-app',
+    },
+  }],
+};
+```
+
 > **ESM configs** — `__dirname` is not defined in ES module configs (`"type": "module"` in `package.json`, or `wdio.conf.mts`). If your config is ESM, derive it from `import.meta.url` at the top of the file:
 >
 > ```ts
@@ -120,6 +150,8 @@ The example above uses `!process.env.CI` so:
 ### Windows subpixel rendering noise (~0.5%)
 
 Consecutive WebView2 / Chromium renders on Windows produce ~0.5% pixel-level mismatch even with no UI change. macOS and Linux render deterministically. `MAX_MISMATCH_PCT = 1` is the lowest threshold that absorbs this noise reliably; real UI changes run ≥10% in practice.
+
+This applies equally to Tauri and Dioxus on Windows since both use WebView2.
 
 ### Stabilising the page before snapshotting
 
@@ -176,6 +208,27 @@ Workarounds:
 
 The first option is the simplest if you just want VRT on macOS.
 
+## Dioxus provider notes
+
+Dioxus has only one provider for VRT: `'embedded'`. This provider captures the webview content (not the native window chrome) on all three platforms.
+
+| Provider | Captures | Native chrome included? | Notes |
+|---|---|---|---|
+| `embedded` | Webview only | ❌ | Works on Windows, macOS, Linux. Recommended. |
+| `external` | Webview only | ❌ | Windows only in v1. Not recommended for VRT; use `embedded` instead. |
+
+Per-provider baselines are not needed for Dioxus in v1 since only `'embedded'` is used across platforms. A per-OS + per-arch directory is still recommended to avoid cross-platform rendering differences.
+
+### Linux headless (Xvfb)
+
+On Linux CI, Dioxus requires a display server. Wrap your visual test run with Xvfb:
+
+```bash
+export DISPLAY=:99
+Xvfb :99 -screen 0 1280x800x24 &
+pnpm wdio run wdio.visual.dioxus.conf.ts
+```
+
 ## Asserting native UI behaviour without pixels
 
 The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. To assert *behaviour* of those surfaces, use the existing mock APIs:
@@ -192,6 +245,13 @@ The visual service captures **webview content only** (with the noted CrabNebula 
   dialogMock.mockReturnValue('/some/file');
   // … exercise the app …
   expect(dialogMock).toHaveBeenCalled();
+  ```
+- **Dioxus** — see [Usage Examples](../packages/dioxus-service/docs/usage-examples.md) and [API Reference](../packages/dioxus-service/docs/api-reference.md):
+  ```ts
+  const commandMock = await browser.dioxus.mock('my_command');
+  commandMock.mockReturnValue({ result: 'mocked' });
+  // … exercise the app …
+  expect(commandMock).toHaveBeenCalled();
   ```
 
 The combination — `@wdio/visual-service` for the in-app UI, the mock APIs for native UI surfaces — is what most desktop-app test suites actually want.
