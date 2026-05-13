@@ -31,6 +31,9 @@ export async function init(
   const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
   const port = (capabilities as { port?: number }).port;
   if (!port) {
+    await launcher
+      .onComplete()
+      .catch((e: Error) => log.warn(`Failed to stop driver during port-check cleanup: ${e.message}`));
     throw new Error(
       'Dioxus driver port was not set on capabilities by onPrepare. ' +
         'This usually means the launcher failed to start the embedded WebDriver server.',
