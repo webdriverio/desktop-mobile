@@ -310,7 +310,7 @@ jobs:
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
 
       - name: Install dependencies
         run: npm install
@@ -318,7 +318,12 @@ jobs:
       - name: Build Dioxus app
         run: cargo build
 
+      - name: Run tests (Linux needs a virtual display for desktop apps)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e
+
       - name: Run tests
+        if: runner.os != 'Linux'
         run: npm run test:e2e
 ```
 

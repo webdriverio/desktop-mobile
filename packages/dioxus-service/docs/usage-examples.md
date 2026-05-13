@@ -116,9 +116,9 @@ describe('Command Mocking', () => {
     const mock = await browser.dioxus.mock('save_data');
     await mock.mockReturnValue({ success: true });
 
-    await browser.dioxus.execute(({ invoke }) => {
-      invoke('save_data', { data: 'test1' });
-      invoke('save_data', { data: 'test2' });
+    await browser.dioxus.execute(async ({ invoke }) => {
+      await invoke('save_data', { data: 'test1' });
+      await invoke('save_data', { data: 'test2' });
     });
 
     await mock.update();

@@ -188,9 +188,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - run: cargo build
         working-directory: apps/dioxus-app
-      - run: npm run test:e2e:dioxus
+      - name: Run tests (Linux needs a virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e:dioxus
+      - name: Run tests
+        if: runner.os != 'Linux'
+        run: npm run test:e2e:dioxus
 
   e2e-tauri:
     strategy:
@@ -200,9 +208,17 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: dtolnay/rust-toolchain@stable
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
       - run: cargo build
         working-directory: apps/tauri-app/src-tauri
-      - run: npm run test:e2e:tauri
+      - name: Run tests (Linux needs a virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e:tauri
+      - name: Run tests
+        if: runner.os != 'Linux'
+        run: npm run test:e2e:tauri
 
   e2e-electron:
     strategy:
@@ -212,7 +228,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: npm run build:electron-app
-      - run: npm run test:e2e:electron
+      - name: Run tests (Linux needs a virtual display)
+        if: runner.os == 'Linux'
+        run: xvfb-run -a npm run test:e2e:electron
+      - name: Run tests
+        if: runner.os != 'Linux'
+        run: npm run test:e2e:electron
 ```
 
 ## See Also
