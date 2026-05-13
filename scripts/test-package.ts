@@ -205,10 +205,12 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
       if (!existsSync(typesDir)) {
         throw new Error(`Types directory does not exist: ${typesDir}`);
       }
-      execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
+      if (!result.typesPath) {
+        execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
+        result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+      }
       execCommand('pnpm pack', dioxusServiceDir, 'Packing @wdio/dioxus-service');
       result.dioxusServicePath = findTgzFile(dioxusServiceDir, 'wdio-dioxus-service-');
-      result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
     }
 
     log(`📦 Packages packed:`);
@@ -491,6 +493,10 @@ async function testExample(
               cargoToml = cargoToml.replace(oldPathPattern, `$1"${absoluteDriverPath}"$2`);
               writeFileSync(cargoTomlPath, cargoToml);
               log(`✅ Updated Cargo.toml path dependency to: ${absoluteDriverPath}`);
+            } else {
+              log(
+                `⚠️  Could not rewrite wdio-dioxus-embedded-driver path dep — pattern did not match. Cargo build may fail if the relative path is unreachable from the isolated environment.`,
+              );
             }
           } else {
             log(`⚠️  Embedded driver source not found at ${embeddedDriverSourceDir}`);
