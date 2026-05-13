@@ -184,10 +184,12 @@ jobs:
       - name: 🪄 Generate Test Commands
         id: gen-test
         uses: actions/github-script@v9
+        env:
+          TEST_TYPE: ${{ inputs.test-type }}
         with:
           script: |
             const ALLOWED = ['standard', 'window', 'multiremote', 'standalone', 'deeplink'];
-            const testType = '${{ inputs.test-type }}'.trim();
+            const testType = process.env.TEST_TYPE.trim();
             if (!ALLOWED.includes(testType)) {
               core.setFailed(`Invalid test-type: "${testType}". Allowed: ${ALLOWED.join(', ')}`);
               return;
