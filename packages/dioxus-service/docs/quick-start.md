@@ -210,7 +210,7 @@ npx wdio run wdio.conf.ts --logLevel debug
 
 The `wdio-dioxus-bridge` crate is not wired into your app. Make sure:
 
-1. Add to `[dev-dependencies]` in `Cargo.toml`:
+1. Add to `[dependencies]` in `Cargo.toml`:
    ```toml
    wdio-dioxus-bridge = "1"
    ```
