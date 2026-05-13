@@ -164,11 +164,14 @@ describe('My Dioxus App', () => {
   });
 
   it('should execute Dioxus commands', async () => {
+    const mock = await browser.dioxus.mock('get_platform_info');
+    await mock.mockReturnValue({ platform: 'linux', arch: 'x86_64' });
+
     const result = await browser.dioxus.execute(({ invoke }) => {
       return invoke('get_platform_info');
     });
 
-    console.log('Platform info:', result);
+    expect(result).toHaveProperty('platform');
   });
 
   it('should mock Dioxus commands', async () => {
