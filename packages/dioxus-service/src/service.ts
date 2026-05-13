@@ -1,4 +1,5 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
+import type { DioxusServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
@@ -23,19 +24,42 @@ export default class DioxusWorkerService {
     log.debug('DioxusWorkerService initialised');
   }
 
-  async before(_capabilities: unknown, _specs: string[], browser: WebdriverIO.Browser): Promise<void> {
+  async before(
+    _capabilities: unknown,
+    _specs: string[],
+    browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
+  ): Promise<void> {
     log.debug('DioxusWorkerService.before — installing browser.dioxus');
 
     if (this.devServerUrl) {
-      await this.initBrowserMode(browser);
-    } else {
-      await this.injectSpy(browser);
+      await this.initBrowserMode(browser as WebdriverIO.Browser);
+      return;
     }
 
-    // biome-ignore lint/suspicious/noExplicitAny: WebdriverIO.Browser augmentation
-    // happens via @wdio/native-types module augmentation; the cast is a transient
-    // accommodation for the in-progress migration.
-    const dioxus: any = {
+    if (browser.isMultiremote) {
+      const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
+      log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
+      this.addDioxusApi(browser as unknown as WebdriverIO.Browser);
+      for (const instanceName of mrBrowser.instances) {
+        const mrInstance = mrBrowser.getInstance(instanceName);
+        log.debug(`Injecting spy + installing dioxus API on instance: ${instanceName}`);
+        await this.injectSpy(mrInstance);
+        this.addDioxusApi(mrInstance);
+      }
+    } else {
+      await this.injectSpy(browser as WebdriverIO.Browser);
+      this.addDioxusApi(browser as WebdriverIO.Browser);
+    }
+  }
+
+  async after(): Promise<void> {
+    log.debug('DioxusWorkerService.after — clearing process-wide mockStore + window cache');
+    mockStore.clear();
+    clearWindowState();
+  }
+
+  private addDioxusApi(browser: WebdriverIO.Browser): void {
+    const dioxus: DioxusServiceAPI = {
       execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
         execute<R, A>(browser, script, ...args),
       mock: (command: string) => mock(command, browser),
@@ -47,13 +71,7 @@ export default class DioxusWorkerService {
       listWindows: () => listWindowLabels(browser),
       triggerDeeplink,
     };
-    (browser as unknown as { dioxus: typeof dioxus }).dioxus = dioxus;
-  }
-
-  async after(): Promise<void> {
-    log.debug('DioxusWorkerService.after — clearing process-wide mockStore + window cache');
-    mockStore.clear();
-    clearWindowState();
+    (browser as unknown as { dioxus: DioxusServiceAPI }).dioxus = dioxus;
   }
 
   private async initBrowserMode(browser: WebdriverIO.Browser): Promise<void> {
@@ -66,8 +84,7 @@ export default class DioxusWorkerService {
     // survives page loads within the same test session.
     const originalUrl = (browser.url as unknown as (u?: string) => Promise<unknown>).bind(browser);
     const injectSpy = this.injectSpy.bind(this);
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (browser as any).url = async (url?: string) => {
+    (browser as unknown as { url: (u?: string) => Promise<unknown> }).url = async (url?: string) => {
       const result = url !== undefined ? await originalUrl(url) : await originalUrl();
       if (url !== undefined) {
         await injectSpy(browser).catch((err) => {
@@ -76,6 +93,8 @@ export default class DioxusWorkerService {
       }
       return result;
     };
+
+    this.addDioxusApi(browser);
   }
 
   private async injectSpy(browser: WebdriverIO.Browser): Promise<void> {
