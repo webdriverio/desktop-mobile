@@ -210,7 +210,7 @@ await mock2.mockResolvedValue('content from app2');
 
 Your renderer called `invoke(command)` before a mock was registered. Call `browser.dioxus.mock(command)` before the code path that triggers the command.
 
-### Mock returns `undefined` after navigation
+### `"unmocked Dioxus command in browser mode"` error after navigation
 
 The browser-side entry was wiped by navigation. Call `mock.mockRestore()` first to delete the worker-side entry, then `browser.dioxus.mock(command)` to re-create both sides.
 
