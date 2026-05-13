@@ -314,6 +314,33 @@ importers:
         specifier: ^7.3.1
         version: 7.3.2(@types/node@25.6.0)(jiti@2.6.1)(terser@5.46.1)(tsx@4.21.0)(yaml@2.8.3)
 
+  fixtures/package-tests/dioxus-app:
+    devDependencies:
+      '@wdio/cli':
+        specifier: ^9.27.0
+        version: 9.27.0(@types/node@25.6.0)(expect-webdriverio@5.6.5)(puppeteer-core@24.41.0)
+      '@wdio/dioxus-service':
+        specifier: workspace:*
+        version: link:../../../packages/dioxus-service
+      '@wdio/globals':
+        specifier: ^9.27.0
+        version: 9.27.0(expect-webdriverio@5.6.5)(webdriverio@9.27.0(puppeteer-core@24.41.0))
+      '@wdio/local-runner':
+        specifier: ^9.27.0
+        version: 9.27.0(@wdio/globals@9.27.0)(webdriverio@9.27.0(puppeteer-core@24.41.0))
+      '@wdio/mocha-framework':
+        specifier: ^9.27.0
+        version: 9.27.0
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../../../packages/native-types
+      '@wdio/spec-reporter':
+        specifier: ^9.27.0
+        version: 9.27.0
+      typescript:
+        specifier: ^5.0.0
+        version: 5.9.3
+
   fixtures/package-tests/electron-builder-app-cjs:
     devDependencies:
       '@types/node':
