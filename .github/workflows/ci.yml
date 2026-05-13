@@ -241,6 +241,18 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  build-dioxus-package-app-linux-arm:
+    name: Build Dioxus Package Test App [Linux-ARM64]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-24.04-arm'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build Tauri package test apps - only if Tauri package tests will run
   build-tauri-package-app-linux:
     name: Build Tauri Package Test App [Linux]
@@ -719,6 +731,20 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       dioxus_cache_key: ${{ needs.build-dioxus-package-app-macos-intel.outputs.cache_key }}
 
+  package-dioxus-linux-arm:
+    name: Package - Dioxus [Linux-ARM64]
+    needs: [detect-changes, build, build-dioxus-package-app-linux-arm]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-24.04-arm'
+      service: 'dioxus'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-linux-arm.outputs.cache_key }}
+
   # Universal binary verification - Electron only
   package-electron-mac-universal:
     name: Package - Electron [macOS-Universal-Verify]
@@ -834,6 +860,7 @@ jobs:
       - package-dioxus-windows
       - package-dioxus-macos-arm
       - package-dioxus-macos-intel
+      - package-dioxus-linux-arm
       - build-matrix
       - package-electron-mac-universal
     runs-on: ubuntu-latest
