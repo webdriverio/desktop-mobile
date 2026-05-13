@@ -486,6 +486,18 @@ async function testExample(
             cpSync(embeddedDriverSourceDir, embeddedDriverDestDir, { recursive: true });
             log(`✅ Embedded driver source copied to ${embeddedDriverDestDir}`);
 
+            // wdio-dioxus-embedded-driver has a path dep on wdio-dioxus-bridge
+            // (path = "../dioxus-bridge"). Copy the bridge alongside the driver so
+            // Cargo can resolve it from the isolated tempDir.
+            const bridgeSourceDir = join(rootDir, 'packages', 'dioxus-bridge');
+            const bridgeDestDir = join(tempDir, 'packages', 'dioxus-bridge');
+            if (existsSync(bridgeSourceDir)) {
+              cpSync(bridgeSourceDir, bridgeDestDir, { recursive: true });
+              log(`✅ Bridge source copied to ${bridgeDestDir}`);
+            } else {
+              log(`⚠️  Bridge source not found at ${bridgeSourceDir}`);
+            }
+
             const oldPathPattern =
               /(wdio-dioxus-embedded-driver\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/dioxus-embedded-driver"(\s*[,}])/;
             if (oldPathPattern.test(cargoToml)) {
