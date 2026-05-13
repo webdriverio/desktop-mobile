@@ -93,14 +93,6 @@ jobs:
             libayatana-appindicator3-1 \
             libxdo3
 
-      # Rust needed for external provider (wdio-dioxus-driver auto-install on Windows)
-      # Only installed on Windows where external provider runs in v1
-      - name: 🦀 Setup Rust (for wdio-dioxus-driver auto-install)
-        if: inputs.os == 'windows-latest'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
-
       - name: 📦 Download Package Build Artifacts
         uses: ./.github/workflows/actions/download-archive
         with:
@@ -196,43 +188,13 @@ jobs:
             }
             const suffix = testType !== 'standard' ? `:${testType}` : '';
             core.setOutput('embedded', `test:e2e:dioxus${suffix}`);
-            // External provider has no per-test-type scripts in v1
-            core.setOutput('external', 'test:e2e:dioxus-external');
 
       # ══════════════════════════════════════════════════════════════
-      # PROVIDER 1: EXTERNAL (wdio-dioxus-driver) — Windows only in v1
+      # PROVIDER 1: EXTERNAL (wdio-dioxus-driver) — not implemented in v1
+      # The external provider requires wdio-dioxus-driver spawning in the launcher,
+      # which is deferred to v1.1. External E2E steps will be added once the
+      # launcher's external path is wired up.
       # ══════════════════════════════════════════════════════════════
-
-      - name: 🧹 Cleanup [External]
-        if: inputs.os == 'windows-latest'
-        shell: bash
-        run: |
-          echo "Cleaning up before External provider tests..."
-          powershell -Command "Get-Process -Name 'wdio-dioxus-driver','msedgedriver','wdio-dioxus-e2e-app' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue" || true
-
-      - name: 🧪 E2E Tests [External]
-        id: test-external
-        if: inputs.os == 'windows-latest'
-        continue-on-error: true
-        shell: pwsh
-        working-directory: e2e
-        env:
-          RUST_BACKTRACE: '1'
-          DRIVER_PROVIDER: 'external'
-        run: |
-          pnpm run ${{ steps.gen-test.outputs.external }}
-
-      - name: 🧹 Post-cleanup [External]
-        if: always() && inputs.os == 'windows-latest'
-        shell: bash
-        run: |
-          echo "Cleaning up after External provider tests..."
-          powershell -Command "Get-Process -Name 'wdio-dioxus-driver','msedgedriver','wdio-dioxus-e2e-app' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue" || true
-
-      - name: 🐛 Debug Information [External]
-        if: always() && inputs.os == 'windows-latest'
-        shell: bash
-        run: pnpm exec tsx e2e/scripts/show-logs.ts --provider external
 
       # ══════════════════════════════════════════════════════════════
       # PROVIDER 2: EMBEDDED (wdio-dioxus-embedded-driver) — all platforms
@@ -295,7 +257,6 @@ jobs:
           echo "| Provider | Result |" >> $GITHUB_STEP_SUMMARY
           echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
 
-          external="${{ steps.test-external.outcome }}"
           embedded="${{ steps.test-embedded.outcome }}"
 
           format_result() {
@@ -309,7 +270,7 @@ jobs:
             esac
           }
 
-          format_result "External (Windows only)" "$external"
+          echo "| External (v1.1) | ⏭️ Not implemented |" >> $GITHUB_STEP_SUMMARY
           format_result "Embedded" "$embedded"
 
       - name: 📦 Upload Test Logs
@@ -326,34 +287,25 @@ jobs:
         if: always()
         shell: bash
         run: |
-          external="${{ steps.test-external.outcome }}"
           embedded="${{ steps.test-embedded.outcome }}"
 
-          failed=false
-
-          check_result() {
-            local provider="$1" outcome="$2"
-            case "$outcome" in
-              success|skipped|"") ;;
-              failure)
-                echo "::error::$provider provider tests failed"
-                failed=true ;;
-              cancelled)
-                echo "::error::$provider provider tests were cancelled"
-                failed=true ;;
-              *)
-                echo "::error::$provider provider had unexpected outcome: $outcome"
-                failed=true ;;
-            esac
-          }
-
-          check_result "External" "$external"
-          check_result "Embedded" "$embedded"
-
-          if [ "$failed" = "true" ]; then
-            exit 1
-          fi
-          echo "All providers passed"
+          case "$embedded" in
+            success|skipped|"")
+              echo "Embedded provider passed"
+              ;;
+            failure)
+              echo "::error::Embedded provider tests failed"
+              exit 1
+              ;;
+            cancelled)
+              echo "::error::Embedded provider tests were cancelled"
+              exit 1
+              ;;
+            *)
+              echo "::error::Embedded provider had unexpected outcome: $embedded"
+              exit 1
+              ;;
+          esac
 
       - name: 🐛 Debug Build on Failure
         if: failure()

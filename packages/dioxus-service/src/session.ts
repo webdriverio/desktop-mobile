@@ -45,10 +45,18 @@ export async function init(
   const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
   const startTimeout = serviceOptions?.startTimeout ?? 60_000;
 
+  // Strip non-W3C props that the launcher sets for its own connection bookkeeping.
+  // webdriverio's remote() validates capabilities against the W3C spec and rejects
+  // unknown keys like "port" and "hostname".
+  const driverCapabilities = structuredClone(capabilities);
+  delete (driverCapabilities as { port?: number }).port;
+  delete (driverCapabilities as { hostname?: string }).hostname;
+  delete (driverCapabilities as { browserName?: string }).browserName;
+
   const browser = await remote({
     hostname,
     port,
-    capabilities,
+    capabilities: driverCapabilities,
     connectionRetryTimeout: startTimeout * 4,
     connectionRetryCount: 10,
   }).catch(async (error: Error) => {
