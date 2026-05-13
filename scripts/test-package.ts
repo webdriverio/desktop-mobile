@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
- * Script to test the wdio-electron-service and wdio-tauri-service packages in the package test apps
- * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|both>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]
+ * Script to test the wdio-electron-service, wdio-tauri-service, and wdio-dioxus-service packages in the package test apps
+ * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|dioxus|both>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]
  *
  * Examples:
  * pnpx tsx scripts/test-package.ts
@@ -10,9 +10,11 @@
  * pnpx tsx scripts/test-package.ts --service=electron --module-type=esm
  * pnpx tsx scripts/test-package.ts --service=electron --mode=browser
  * pnpx tsx scripts/test-package.ts --service=tauri
+ * pnpx tsx scripts/test-package.ts --service=dioxus
  * pnpx tsx scripts/test-package.ts --package=electron-builder-app-cjs
  * pnpx tsx scripts/test-package.ts --package=electron-builder-app-esm
  * pnpx tsx scripts/test-package.ts --package=tauri-app --skip-build
+ * pnpx tsx scripts/test-package.ts --package=dioxus-app --skip-build
  */
 
 import { execSync } from 'node:child_process';
@@ -49,7 +51,7 @@ const rootDir = normalize(join(__dirname, '..'));
 interface TestOptions {
   package?: string;
   skipBuild?: boolean;
-  service?: 'electron' | 'tauri' | 'both';
+  service?: 'electron' | 'tauri' | 'dioxus' | 'both';
   moduleType?: 'cjs' | 'esm' | 'both';
   /** 'native' runs the existing app-launch tests. 'browser' starts a static
    * HTTP server against the fixture's `browser/` directory and runs the
@@ -85,9 +87,10 @@ function execCommand(command: string, cwd: string, description: string) {
   }
 }
 
-async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'both'): Promise<{
+async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'both' = 'both'): Promise<{
   electronServicePath?: string;
   tauriServicePath?: string;
+  dioxusServicePath?: string;
   utilsPath: string;
   spyPath: string;
   corePath: string;
@@ -100,9 +103,10 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
     // Build only the packages required for the requested service. Each
     // service depends on @wdio/native-core (extracted in the Dioxus
     // foundation work), so include it in every filter set.
-    const buildFilters: Record<'electron' | 'tauri' | 'both', string> = {
+    const buildFilters: Record<'electron' | 'tauri' | 'dioxus' | 'both', string> = {
       electron: '--filter=@wdio/electron-service --filter=@wdio/native-spy --filter=@wdio/native-core',
       tauri: '--filter=@wdio/tauri-service --filter=@wdio/native-core',
+      dioxus: '--filter=@wdio/dioxus-service --filter=@wdio/native-core',
       both: '--filter=./packages/*',
     };
     execCommand(`pnpm turbo run build ${buildFilters[service]}`, rootDir, `Building packages for ${service}`);
@@ -145,6 +149,7 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
     const result: {
       electronServicePath?: string;
       tauriServicePath?: string;
+      dioxusServicePath?: string;
       utilsPath: string;
       spyPath: string;
       corePath: string;
@@ -190,6 +195,19 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
       result.tauriServicePath = findTgzFile(tauriServiceDir, 'wdio-tauri-service-');
     }
 
+    // Pack Dioxus service if needed
+    if (service === 'dioxus' || service === 'both') {
+      const dioxusServiceDir = normalize(join(rootDir, 'packages', 'dioxus-service'));
+      if (!existsSync(dioxusServiceDir)) {
+        throw new Error(`Dioxus service directory does not exist: ${dioxusServiceDir}`);
+      }
+      const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+      execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
+      execCommand('pnpm pack', dioxusServiceDir, 'Packing @wdio/dioxus-service');
+      result.dioxusServicePath = findTgzFile(dioxusServiceDir, 'wdio-dioxus-service-');
+      result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+    }
+
     log(`📦 Packages packed:`);
     log(`   Utils: ${utilsPath}`);
     log(`   Spy: ${spyPath}`);
@@ -201,6 +219,12 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
     }
     if (result.tauriServicePath) {
       log(`   Tauri Service: ${result.tauriServicePath}`);
+      if (result.typesPath) {
+        log(`   Types: ${result.typesPath}`);
+      }
+    }
+    if (result.dioxusServicePath) {
+      log(`   Dioxus Service: ${result.dioxusServicePath}`);
       if (result.typesPath) {
         log(`   Types: ${result.typesPath}`);
       }
@@ -274,13 +298,14 @@ async function testExample(
   packages: {
     electronServicePath?: string;
     tauriServicePath?: string;
+    dioxusServicePath?: string;
     utilsPath: string;
     spyPath: string;
     corePath: string;
     typesPath?: string;
     cdpBridgePath?: string;
   },
-  service: 'electron' | 'tauri',
+  service: 'electron' | 'tauri' | 'dioxus',
   _skipBuild: boolean,
   mode: 'native' | 'browser' = 'native',
 ) {
@@ -364,6 +389,13 @@ async function testExample(
       overrides['@wdio/tauri-service'] = `file:${packages.tauriServicePath}`;
       overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
       packagesToInstall.push(packages.typesPath, packages.tauriServicePath);
+    } else if (service === 'dioxus') {
+      if (!packages.dioxusServicePath || !packages.typesPath) {
+        throw new Error('Dioxus service packages not available');
+      }
+      overrides['@wdio/dioxus-service'] = `file:${packages.dioxusServicePath}`;
+      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
+      packagesToInstall.push(packages.typesPath, packages.dioxusServicePath);
     }
 
     packageJson.pnpm = {
@@ -429,6 +461,36 @@ async function testExample(
             }
           } else {
             log(`⚠️  Plugin source not found at ${pluginSourceDir}`);
+          }
+        }
+      }
+    }
+
+    // For Dioxus apps, copy the embedded driver as a Rust path dependency
+    if (service === 'dioxus') {
+      const embeddedDriverSourceDir = join(rootDir, 'packages', 'dioxus-embedded-driver');
+      const embeddedDriverDestDir = join(tempDir, 'packages', 'dioxus-embedded-driver');
+      const cargoTomlPath = join(packageDir, 'src-dioxus', 'Cargo.toml');
+
+      if (existsSync(cargoTomlPath)) {
+        let cargoToml = readFileSync(cargoTomlPath, 'utf-8');
+        if (cargoToml.includes('wdio-dioxus-embedded-driver') && cargoToml.includes('path =')) {
+          if (existsSync(embeddedDriverSourceDir)) {
+            log(`Copying embedded driver source for Rust dependency resolution...`);
+            mkdirSync(dirname(embeddedDriverDestDir), { recursive: true });
+            cpSync(embeddedDriverSourceDir, embeddedDriverDestDir, { recursive: true });
+            log(`✅ Embedded driver source copied to ${embeddedDriverDestDir}`);
+
+            const oldPathPattern =
+              /(wdio-dioxus-embedded-driver\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/dioxus-embedded-driver"(\s*[,}])/;
+            if (oldPathPattern.test(cargoToml)) {
+              const absoluteDriverPath = normalize(embeddedDriverDestDir);
+              cargoToml = cargoToml.replace(oldPathPattern, `$1"${absoluteDriverPath}"$2`);
+              writeFileSync(cargoTomlPath, cargoToml);
+              log(`✅ Updated Cargo.toml path dependency to: ${absoluteDriverPath}`);
+            }
+          } else {
+            log(`⚠️  Embedded driver source not found at ${embeddedDriverSourceDir}`);
           }
         }
       }
@@ -568,7 +630,7 @@ async function testExample(
         }
       }
     } else if (packageJson.scripts?.build && mode === 'native') {
-      // Build Electron apps in isolated environment (browser mode skips the build)
+      // Build Electron and Dioxus apps in isolated environment (browser mode skips the build)
       execCommand('pnpm build', packageDir, `Building ${packageName} app`);
     }
 
@@ -686,12 +748,12 @@ async function main() {
     const serviceArg = args.find((arg) => arg.startsWith('--service='))?.split('=')[1];
 
     // Validate service argument if provided, default to 'both' if not provided
-    let service: 'electron' | 'tauri' | 'both' = 'both';
+    let service: 'electron' | 'tauri' | 'dioxus' | 'both' = 'both';
     if (serviceArg) {
-      if (serviceArg === 'electron' || serviceArg === 'tauri' || serviceArg === 'both') {
+      if (serviceArg === 'electron' || serviceArg === 'tauri' || serviceArg === 'dioxus' || serviceArg === 'both') {
         service = serviceArg;
       } else {
-        throw new Error(`Invalid service value: ${serviceArg}. Must be 'electron', 'tauri', or 'both'`);
+        throw new Error(`Invalid service value: ${serviceArg}. Must be 'electron', 'tauri', 'dioxus', or 'both'`);
       }
     }
 
@@ -727,6 +789,7 @@ async function main() {
     let packages: {
       electronServicePath?: string;
       tauriServicePath?: string;
+      dioxusServicePath?: string;
       utilsPath: string;
       spyPath: string;
       corePath: string;
@@ -769,6 +832,13 @@ async function main() {
         packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
       }
 
+      if (options.service === 'dioxus' || options.service === 'both') {
+        const dioxusServiceDir = normalize(join(rootDir, 'packages', 'dioxus-service'));
+        const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+        packages.dioxusServicePath = findTgzFile(dioxusServiceDir, 'wdio-dioxus-service-');
+        packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+      }
+
       log(`📦 Using existing packages:`);
       log(`   Utils: ${packages.utilsPath}`);
       log(`   Spy: ${packages.spyPath}`);
@@ -780,6 +850,9 @@ async function main() {
       }
       if (packages.tauriServicePath) {
         log(`   Tauri Service: ${packages.tauriServicePath}`);
+      }
+      if (packages.dioxusServicePath) {
+        log(`   Dioxus Service: ${packages.dioxusServicePath}`);
       }
     } else {
       packages = await buildAndPackService(options.service);
@@ -796,12 +869,14 @@ async function main() {
       .map((dirent) => dirent.name)
       .filter((name) => !name.startsWith('.'));
 
-    // Filter packages by service type (electron-* vs tauri-*)
+    // Filter packages by service type (electron-* vs tauri-* vs dioxus-*)
     let filteredDirs = packageTestDirs;
     if (options.service === 'electron') {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('electron-'));
     } else if (options.service === 'tauri') {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('tauri-'));
+    } else if (options.service === 'dioxus') {
+      filteredDirs = packageTestDirs.filter((name) => name.startsWith('dioxus-'));
     }
     // If service is 'both', don't filter
 
@@ -876,7 +951,11 @@ async function main() {
       }
 
       // Detect service type from package name (already filtered by prefix, but needed for testExample)
-      const detectedService: 'electron' | 'tauri' = packageName.startsWith('tauri-') ? 'tauri' : 'electron';
+      const detectedService: 'electron' | 'tauri' | 'dioxus' = packageName.startsWith('tauri-')
+        ? 'tauri'
+        : packageName.startsWith('dioxus-')
+          ? 'dioxus'
+          : 'electron';
 
       // Log module type for Electron packages
       if (detectedService === 'electron') {

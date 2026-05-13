@@ -13,6 +13,7 @@ packages:
   - fixtures/package-tests/electron-script-app-cjs
   - fixtures/package-tests/electron-script-app-esm
   - fixtures/package-tests/tauri-app
+  - fixtures/package-tests/dioxus-app
 allowBuilds:
   edgedriver: false
   electron: true
