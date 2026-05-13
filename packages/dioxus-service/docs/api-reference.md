@@ -387,8 +387,8 @@ console.log(result); // 'default'
 
 ### Mock Properties
 
-- `mock.calls` - Array of call arguments
-- `mock.results` - Array of call results
+- `mock.mock.calls` - Array of call arguments
+- `mock.mock.results` - Array of call results
 - `__isDioxusMock` - Boolean flag identifying Dioxus mocks
 
 ---
