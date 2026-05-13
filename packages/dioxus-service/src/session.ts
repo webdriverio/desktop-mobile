@@ -86,9 +86,16 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
     const service = activeServices.get(browser);
-    await service?.after();
-    activeServices.delete(browser);
-    await launcher.onComplete();
+    try {
+      await service?.after();
+    } catch (e: unknown) {
+      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+    } finally {
+      activeServices.delete(browser);
+    }
+    await launcher
+      .onComplete()
+      .catch((e: Error) => log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`));
     activeLaunchers.delete(browser);
     log.debug('Dioxus standalone session cleaned up');
   } else {

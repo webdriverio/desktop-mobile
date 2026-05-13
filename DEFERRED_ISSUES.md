@@ -29,12 +29,21 @@ In `init()` / `startWdioSession()`, after `service.before()`:
 activeServices.set(browser, service);
 ```
 
-In `cleanup()` / `cleanupWdioSession()`, before `launcher.onComplete()`:
+In `cleanup()` / `cleanupWdioSession()`, before `launcher.onComplete()`. **Important:** wrap `service.after()` in try/finally so `launcher.onComplete()` always runs even if `service.after()` rejects:
 
 ```ts
 const service = activeServices.get(browser);
-await service?.after();
-activeServices.delete(browser);
+try {
+  await service?.after();
+} catch (e: unknown) {
+  log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+} finally {
+  activeServices.delete(browser);
+}
+await launcher
+  .onComplete()
+  .catch((e: Error) => log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`));
+activeLaunchers.delete(browser);
 ```
 
 ### Files to update
