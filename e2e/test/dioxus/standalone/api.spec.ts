@@ -31,7 +31,7 @@ try {
     throw new Error(`Platform info test failed: expected object with os field, got ${JSON.stringify(platformInfo)}`);
   }
 } finally {
-  await browser.deleteSession();
+  await browser.deleteSession().catch((e: Error) => console.error(`deleteSession failed: ${e.message}`));
   await cleanupWdioSession(browser);
 }
 
