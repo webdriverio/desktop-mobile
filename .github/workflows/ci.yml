@@ -192,7 +192,7 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
-  # Build Dioxus package test apps - only if Dioxus package tests will run (Linux + Windows only)
+  # Build Dioxus package test apps - only if Dioxus package tests will run
   build-dioxus-package-app-linux:
     name: Build Dioxus Package Test App [Linux]
     needs: [detect-changes, build]
@@ -213,6 +213,30 @@ jobs:
     secrets: inherit
     with:
       os: 'windows-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-package-app-macos-arm:
+    name: Build Dioxus Package Test App [macOS-ARM]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-package-app-macos-intel:
+    name: Build Dioxus Package Test App [macOS-Intel]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-15-intel'
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -638,7 +662,7 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-macos-intel.outputs.cache_key }}
 
-  # Dioxus package tests - Linux and Windows (macOS uses embedded provider, added in v1.1)
+  # Dioxus package tests - all platforms (mirrors E2E coverage)
   package-dioxus-linux:
     name: Package - Dioxus [Linux]
     needs: [detect-changes, build, build-dioxus-package-app-linux]
@@ -666,6 +690,34 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
       dioxus_cache_key: ${{ needs.build-dioxus-package-app-windows.outputs.cache_key }}
+
+  package-dioxus-macos-arm:
+    name: Package - Dioxus [macOS-ARM]
+    needs: [detect-changes, build, build-dioxus-package-app-macos-arm]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      service: 'dioxus'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-macos-arm.outputs.cache_key }}
+
+  package-dioxus-macos-intel:
+    name: Package - Dioxus [macOS-Intel]
+    needs: [detect-changes, build, build-dioxus-package-app-macos-intel]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-15-intel'
+      service: 'dioxus'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-macos-intel.outputs.cache_key }}
 
   # Universal binary verification - Electron only
   package-electron-mac-universal:
@@ -780,6 +832,8 @@ jobs:
       - package-tauri-distros
       - package-dioxus-linux
       - package-dioxus-windows
+      - package-dioxus-macos-arm
+      - package-dioxus-macos-intel
       - build-matrix
       - package-electron-mac-universal
     runs-on: ubuntu-latest
