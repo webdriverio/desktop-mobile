@@ -6,6 +6,7 @@ packages:
   - fixtures/e2e-apps/electron-forge
   - fixtures/e2e-apps/electron-script
   - fixtures/e2e-apps/tauri
+  - fixtures/e2e-apps/dioxus
   - fixtures/package-tests/electron-builder-app-cjs
   - fixtures/package-tests/electron-builder-app-esm
   - fixtures/package-tests/electron-forge-app-cjs
