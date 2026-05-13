@@ -19,7 +19,7 @@ use std::borrow::Cow;
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use dioxus_desktop::wry::http::{HeaderValue, Request, Response, StatusCode};
+use dioxus_desktop::wry::http::{HeaderMap, HeaderValue, Method, Request, Response, StatusCode};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 
@@ -103,11 +103,28 @@ impl InvokeResponseBody {
   }
 }
 
+fn cors_headers(headers: &mut HeaderMap) {
+  headers.insert("access-control-allow-origin", HeaderValue::from_static("*"));
+  headers.insert("access-control-allow-methods", HeaderValue::from_static("POST, OPTIONS"));
+  headers.insert("access-control-allow-headers", HeaderValue::from_static("content-type"));
+}
+
 /// Handle a single `wdio://` request. Pure function — easy to unit-test.
 pub fn handle_invoke_request(
   registry: &CommandRegistry,
   request: &Request<Vec<u8>>,
 ) -> Response<Cow<'static, [u8]>> {
+  // CORS preflight — WKWebView and WebView2 enforce cross-origin policy even
+  // for custom schemes. The guest-js bundle fetches wdio://invoke from the
+  // dioxus://localhost/ origin (different scheme = different origin), so both
+  // the preflight OPTIONS and the actual POST need CORS headers.
+  if request.method() == Method::OPTIONS {
+    let mut response = Response::new(Cow::Borrowed(b"" as &'static [u8]));
+    *response.status_mut() = StatusCode::OK;
+    cors_headers(response.headers_mut());
+    return response;
+  }
+
   let parsed: Result<InvokeRequestBody, _> = serde_json::from_slice(request.body());
   let body = match parsed {
     Ok(req) => registry.dispatch(&req.command, req.args),
@@ -115,24 +132,13 @@ pub fn handle_invoke_request(
   };
 
   let bytes = serde_json::to_vec(&body).unwrap_or_else(|_| {
-    // Should never happen — serde_json::to_vec on our own types is infallible.
     br#"{"ok":false,"error":"failed to serialise response"}"#.to_vec()
   });
 
-  let status = match body {
-    InvokeResponseBody::Ok { .. } => StatusCode::OK,
-    InvokeResponseBody::Err { .. } => StatusCode::OK,
-    // wdio:// responses always use 200; failure is communicated in the JSON.
-    // Reserving non-200 for genuine HTTP-layer errors keeps the JS-side
-    // unwrap simpler.
-  };
-
   let mut response = Response::new(Cow::Owned(bytes));
-  *response.status_mut() = status;
-  response.headers_mut().insert(
-    "content-type",
-    HeaderValue::from_static("application/json"),
-  );
+  *response.status_mut() = StatusCode::OK;
+  response.headers_mut().insert("content-type", HeaderValue::from_static("application/json"));
+  cors_headers(response.headers_mut());
   response
 }
 
@@ -222,5 +228,32 @@ mod tests {
     let response = handle_invoke_request(&registry, &req(r#"{"command":"greet"}"#));
     let body = parse_body(&response);
     assert_eq!(body["value"], "hello again");
+  }
+
+  #[test]
+  fn should_include_cors_origin_header_on_post_responses() {
+    let registry = CommandRegistry::new();
+    let response = handle_invoke_request(&registry, &req(r#"{"command":"__ping"}"#));
+    assert_eq!(
+      response.headers().get("access-control-allow-origin").map(|v| v.to_str().unwrap()),
+      Some("*"),
+    );
+  }
+
+  #[test]
+  fn should_respond_to_options_preflight_with_cors_headers() {
+    let registry = CommandRegistry::new();
+    let options_req = Request::builder()
+      .method("OPTIONS")
+      .uri("wdio://invoke")
+      .body(vec![])
+      .unwrap();
+    let response = handle_invoke_request(&registry, &options_req);
+    assert_eq!(response.status(), StatusCode::OK);
+    assert_eq!(
+      response.headers().get("access-control-allow-origin").map(|v| v.to_str().unwrap()),
+      Some("*"),
+    );
+    assert!(response.body().is_empty());
   }
 }

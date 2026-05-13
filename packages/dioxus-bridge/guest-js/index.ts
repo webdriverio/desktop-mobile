@@ -36,9 +36,11 @@ interface InvokeResponse {
  * `error` string on failure.
  */
 export async function invoke(command: string, args?: unknown): Promise<unknown> {
+  // Omit Content-Type so the browser sends text/plain — a CORS "simple"
+  // request that skips the OPTIONS preflight. The Rust handler parses the
+  // body as JSON regardless of Content-Type.
   const response = await fetch('wdio://invoke', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ command, args: args ?? null }),
   });
   const body = (await response.json()) as InvokeResponse;
