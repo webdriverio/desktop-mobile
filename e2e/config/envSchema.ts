@@ -14,8 +14,8 @@ export const EnvSchema = z.object({
   TEST_TYPE: z.enum(['standard', 'window', 'multiremote', 'standalone', 'deeplink']).default('standard'),
   BINARY: z.enum(['true', 'false']).default('true'),
 
-  // Driver provider for Tauri (official, crabnebula, embedded)
-  DRIVER_PROVIDER: z.enum(['official', 'crabnebula', 'embedded']).optional(),
+  // Driver provider for Tauri/Dioxus (official, crabnebula, embedded, external)
+  DRIVER_PROVIDER: z.enum(['official', 'crabnebula', 'embedded', 'external']).optional(),
 
   // Special modes
   MAC_UNIVERSAL: z.enum(['true', 'false']).default('false'),
@@ -97,7 +97,7 @@ export class EnvironmentContext {
     return this.env.ENABLE_SPLASH_WINDOW === 'true';
   }
 
-  get driverProvider(): 'official' | 'crabnebula' | 'embedded' | undefined {
+  get driverProvider(): 'official' | 'crabnebula' | 'embedded' | 'external' | undefined {
     return this.env.DRIVER_PROVIDER;
   }
 
