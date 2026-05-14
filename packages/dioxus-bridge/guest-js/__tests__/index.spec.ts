@@ -40,7 +40,6 @@ describe('@wdio/dioxus-bridge guest-js', () => {
       'wdio://invoke',
       expect.objectContaining({
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ command: '__ping', args: { foo: 'bar' } }),
       }),
     );

@@ -45,12 +45,12 @@ runs:
         PRIMARY_KEY="${OS}-${CACHE_PREFIX}-${NAME}-${RUN_ID}${RERUN_SUFFIX}"
         FALLBACK_KEY="${CACHE_PREFIX}-${NAME}-"
 
-        echo "primary_key=${PRIMARY_KEY}" >> $GITHUB_OUTPUT
-        echo "fallback_key=${FALLBACK_KEY}" >> $GITHUB_OUTPUT
+        echo "primary_key=${PRIMARY_KEY}" >> "$GITHUB_OUTPUT"
+        echo "fallback_key=${FALLBACK_KEY}" >> "$GITHUB_OUTPUT"
 
         # Normalize path for cache operations
         NORMALIZED_PATH=$(echo "${{ inputs.path }}/${{ inputs.filename }}" | sed 's|\\|/|g')
-        echo "normalized_path=${NORMALIZED_PATH}" >> $GITHUB_OUTPUT
+        echo "normalized_path=${NORMALIZED_PATH}" >> "$GITHUB_OUTPUT"
 
         echo "Generated cache keys:"
         echo "  primary_key: ${PRIMARY_KEY}"
@@ -103,8 +103,8 @@ runs:
         # Check if gh run download extracted contents directly
         if [ -d "$NORMALIZED_PATH/packages" ] || [ -d "$NORMALIZED_PATH/fixtures" ]; then
           echo "Artifact contents extracted directly to directory"
-          echo "extracted=true" >> $GITHUB_OUTPUT
-          echo "success=true" >> $GITHUB_OUTPUT
+          echo "extracted=true" >> "$GITHUB_OUTPUT"
+          echo "success=true" >> "$GITHUB_OUTPUT"
           echo "::notice::Successfully downloaded and extracted ${{ inputs.name }} from GitHub Artifacts"
           exit 0
         fi
@@ -113,8 +113,8 @@ runs:
         EXPECTED_PATH="$NORMALIZED_PATH/${{ inputs.filename }}"
         if [ -f "$EXPECTED_PATH" ]; then
           echo "Found artifact at expected path: $EXPECTED_PATH"
-          echo "extracted=false" >> $GITHUB_OUTPUT
-          echo "success=true" >> $GITHUB_OUTPUT
+          echo "extracted=false" >> "$GITHUB_OUTPUT"
+          echo "success=true" >> "$GITHUB_OUTPUT"
           echo "::notice::Successfully downloaded ${{ inputs.name }} from GitHub Artifacts"
           exit 0
         fi
@@ -126,8 +126,8 @@ runs:
           if [ "$FIRST_ZIP" != "$EXPECTED_PATH" ]; then
             mv "$FIRST_ZIP" "$EXPECTED_PATH"
           fi
-          echo "extracted=false" >> $GITHUB_OUTPUT
-          echo "success=true" >> $GITHUB_OUTPUT
+          echo "extracted=false" >> "$GITHUB_OUTPUT"
+          echo "success=true" >> "$GITHUB_OUTPUT"
           echo "::notice::Successfully downloaded ${{ inputs.name }} from GitHub Artifacts"
           exit 0
         fi
@@ -326,4 +326,4 @@ runs:
           echo "Cleaned up temporary extraction directory"
         fi
 
-        echo "success=true" >> $GITHUB_OUTPUT
+        echo "success=true" >> "$GITHUB_OUTPUT"

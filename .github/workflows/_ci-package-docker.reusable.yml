@@ -1,5 +1,5 @@
 name: Package (Docker)
-description: 'Runs Tauri package tests in Docker containers across different Linux distributions'
+# Description: Runs Tauri package tests in Docker containers across different Linux distributions
 
 permissions:
   contents: read

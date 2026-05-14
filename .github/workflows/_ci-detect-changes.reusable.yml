@@ -165,12 +165,13 @@ jobs:
       - name: Determine What to Run
         id: determine
         run: |
+          # shellcheck disable=SC2129
           # If force_all is true, always run everything
           if [ "${{ inputs.force_all }}" = "true" ]; then
-            echo "run_electron=true" >> $GITHUB_OUTPUT
-            echo "run_tauri=true" >> $GITHUB_OUTPUT
-            echo "run_dioxus=true" >> $GITHUB_OUTPUT
-            echo "has_shared_changes=true" >> $GITHUB_OUTPUT
+            echo "run_electron=true" >> "$GITHUB_OUTPUT"
+            echo "run_tauri=true" >> "$GITHUB_OUTPUT"
+            echo "run_dioxus=true" >> "$GITHUB_OUTPUT"
+            echo "has_shared_changes=true" >> "$GITHUB_OUTPUT"
             echo "::notice::Force all mode enabled - running all tests"
             exit 0
           fi
@@ -233,45 +234,47 @@ jobs:
             RUN_LINT_ONLY="true"
           fi
 
-          echo "run_electron=$RUN_ELECTRON" >> $GITHUB_OUTPUT
-          echo "run_tauri=$RUN_TAURI" >> $GITHUB_OUTPUT
-          echo "run_dioxus=$RUN_DIOXUS" >> $GITHUB_OUTPUT
-          echo "has_shared_changes=$SHARED" >> $GITHUB_OUTPUT
-          echo "run_lint_only=$RUN_LINT_ONLY" >> $GITHUB_OUTPUT
+          # shellcheck disable=SC2129
+          echo "run_electron=$RUN_ELECTRON" >> "$GITHUB_OUTPUT"
+          echo "run_tauri=$RUN_TAURI" >> "$GITHUB_OUTPUT"
+          echo "run_dioxus=$RUN_DIOXUS" >> "$GITHUB_OUTPUT"
+          echo "has_shared_changes=$SHARED" >> "$GITHUB_OUTPUT"
+          echo "run_lint_only=$RUN_LINT_ONLY" >> "$GITHUB_OUTPUT"
 
           # Create summary for GitHub Step Summary (appears in Actions Summary page)
-          echo "## Change Detection Summary" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Category | Changed |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|---------|" >> $GITHUB_STEP_SUMMARY
-          echo "| Documentation | $DOCS |" >> $GITHUB_STEP_SUMMARY
-          echo "| Electron service | $ELECTRON |" >> $GITHUB_STEP_SUMMARY
-          echo "| Tauri service | $TAURI |" >> $GITHUB_STEP_SUMMARY
-          echo "| Dioxus service | $DIOXUS |" >> $GITHUB_STEP_SUMMARY
-          echo "| Shared packages | $SHARED |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Electron | $E2E_ELECTRON |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Tauri | $E2E_TAURI |" >> $GITHUB_STEP_SUMMARY
-          echo "| E2E Dioxus | $E2E_DIOXUS |" >> $GITHUB_STEP_SUMMARY
-          echo "| Fixtures Electron | $FIXTURES_ELECTRON |" >> $GITHUB_STEP_SUMMARY
-          echo "| Fixtures Tauri | $FIXTURES_TAURI |" >> $GITHUB_STEP_SUMMARY
-          echo "| Fixtures Dioxus | $FIXTURES_DIOXUS |" >> $GITHUB_STEP_SUMMARY
-          echo "| Infrastructure (shared) | $INFRA |" >> $GITHUB_STEP_SUMMARY
-          echo "| Infrastructure (Electron) | $INFRA_ELECTRON |" >> $GITHUB_STEP_SUMMARY
-          echo "| Infrastructure (Tauri) | $INFRA_TAURI |" >> $GITHUB_STEP_SUMMARY
-          echo "| Infrastructure (Dioxus) | $INFRA_DIOXUS |" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Decisions" >> $GITHUB_STEP_SUMMARY
-          echo "- **Run Electron**: $RUN_ELECTRON" >> $GITHUB_STEP_SUMMARY
-          echo "- **Run Tauri**: $RUN_TAURI" >> $GITHUB_STEP_SUMMARY
-          echo "- **Run Dioxus**: $RUN_DIOXUS" >> $GITHUB_STEP_SUMMARY
-          echo "- **Lint only (no service changes)**: $RUN_LINT_ONLY" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Outputs" >> $GITHUB_STEP_SUMMARY
-          echo "- \`run_electron\`: $RUN_ELECTRON" >> $GITHUB_STEP_SUMMARY
-          echo "- \`run_tauri\`: $RUN_TAURI" >> $GITHUB_STEP_SUMMARY
-          echo "- \`run_dioxus\`: $RUN_DIOXUS" >> $GITHUB_STEP_SUMMARY
-          echo "- \`has_shared_changes\`: $SHARED" >> $GITHUB_STEP_SUMMARY
-          echo "- \`run_lint_only\`: $RUN_LINT_ONLY" >> $GITHUB_STEP_SUMMARY
+          # shellcheck disable=SC2129
+          echo "## Change Detection Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Category | Changed |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|---------|" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Documentation | $DOCS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Electron service | $ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Tauri service | $TAURI |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Dioxus service | $DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Shared packages | $SHARED |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| E2E Electron | $E2E_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| E2E Tauri | $E2E_TAURI |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| E2E Dioxus | $E2E_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Fixtures Electron | $FIXTURES_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Fixtures Tauri | $FIXTURES_TAURI |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Fixtures Dioxus | $FIXTURES_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Infrastructure (shared) | $INFRA |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Infrastructure (Electron) | $INFRA_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Infrastructure (Tauri) | $INFRA_TAURI |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Infrastructure (Dioxus) | $INFRA_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Decisions" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Run Electron**: $RUN_ELECTRON" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Run Tauri**: $RUN_TAURI" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Run Dioxus**: $RUN_DIOXUS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Lint only (no service changes)**: $RUN_LINT_ONLY" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Outputs" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`run_electron\`: $RUN_ELECTRON" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`run_tauri\`: $RUN_TAURI" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`run_dioxus\`: $RUN_DIOXUS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`has_shared_changes\`: $SHARED" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`run_lint_only\`: $RUN_LINT_ONLY" >> "$GITHUB_STEP_SUMMARY"
 
           # Also print to logs for debugging
           echo "Change Detection Summary:"

@@ -48,7 +48,7 @@ runs:
           RERUN_SUFFIX=""
         fi
 
-        echo "rerun_suffix=${RERUN_SUFFIX}" >> $GITHUB_OUTPUT
+        echo "rerun_suffix=${RERUN_SUFFIX}" >> "$GITHUB_OUTPUT"
 
     # Compress the specified directories/files into a .zip file
     - name: 🗜️ Compress Files (Unix)
@@ -73,7 +73,7 @@ runs:
         echo "::notice::Artifact ${{ inputs.name }}: created ${HUMAN_SIZE} archive with ${FILE_COUNT} files"
 
         # Export artifact size
-        echo "size=${FILE_SIZE}" >> $GITHUB_OUTPUT
+        echo "size=${FILE_SIZE}" >> "$GITHUB_OUTPUT"
 
     # Compress the specified directories/files into a .zip file (Windows)
     - name: 🗜️ Compress Files (Windows)
@@ -193,9 +193,9 @@ runs:
       shell: bash
       run: |
         if [[ "${{ runner.os }}" == "Windows" ]]; then
-          echo "size=${{ steps.compress-windows.outputs.size }}" >> $GITHUB_OUTPUT
+          echo "size=${{ steps.compress-windows.outputs.size }}" >> "$GITHUB_OUTPUT"
         else
-          echo "size=${{ steps.compress-unix.outputs.size }}" >> $GITHUB_OUTPUT
+          echo "size=${{ steps.compress-unix.outputs.size }}" >> "$GITHUB_OUTPUT"
         fi
 
     # Generate cache keys
@@ -212,15 +212,15 @@ runs:
 
         # Generate platform-specific key (no cross-platform sharing to avoid path issues)
         PLATFORM_KEY="${OS}-${CACHE_PREFIX}-${NAME}-${RUN_ID}${RERUN_SUFFIX}"
-        echo "platform_key=${PLATFORM_KEY}" >> $GITHUB_OUTPUT
+        echo "platform_key=${PLATFORM_KEY}" >> "$GITHUB_OUTPUT"
 
         # Keep standard key for backward compatibility
         STANDARD_KEY="${OS}-${CACHE_PREFIX}-${NAME}-${RUN_ID}${RERUN_SUFFIX}"
-        echo "standard_key=${STANDARD_KEY}" >> $GITHUB_OUTPUT
+        echo "standard_key=${STANDARD_KEY}" >> "$GITHUB_OUTPUT"
 
         # Generate OS-agnostic key (used across platforms)
         AGNOSTIC_KEY="${CACHE_PREFIX}-${NAME}-${RUN_ID}${RERUN_SUFFIX}"
-        echo "agnostic_key=${AGNOSTIC_KEY}" >> $GITHUB_OUTPUT
+        echo "agnostic_key=${AGNOSTIC_KEY}" >> "$GITHUB_OUTPUT"
 
     # Upload to GitHub Artifacts
     - name: 📤 Upload Artifact

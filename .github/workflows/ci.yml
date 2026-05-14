@@ -58,7 +58,7 @@ jobs:
 
   # Run unit tests - skip when only docs changed
   unit-matrix:
-    name: Unit
+    name: Unit [${{ matrix.display-name }}]
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -143,6 +143,116 @@ jobs:
     with:
       os: 'ubuntu-latest'
 
+  # Build Dioxus E2E app binaries - only if Dioxus tests will run
+  build-dioxus-e2e-app-linux:
+    name: Build Dioxus E2E App [Linux]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-e2e-app-windows:
+    name: Build Dioxus E2E App [Windows]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-e2e-app-macos-arm:
+    name: Build Dioxus E2E App [macOS-ARM]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-e2e-app-macos-intel:
+    name: Build Dioxus E2E App [macOS-Intel]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-15-intel'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  # Build Dioxus package test apps - only if Dioxus package tests will run
+  build-dioxus-package-app-linux:
+    name: Build Dioxus Package Test App [Linux]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-package-app-windows:
+    name: Build Dioxus Package Test App [Windows]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-package-app-macos-arm:
+    name: Build Dioxus Package Test App [macOS-ARM]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-package-app-macos-intel:
+    name: Build Dioxus Package Test App [macOS-Intel]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-15-intel'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-dioxus-package-app-linux-arm:
+    name: Build Dioxus Package Test App [Linux-ARM64]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-24.04-arm'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build Tauri package test apps - only if Tauri package tests will run
   build-tauri-package-app-linux:
     name: Build Tauri Package Test App [Linux]
@@ -186,7 +296,7 @@ jobs:
   # Tauri apps are built separately due to longer build times and system dependencies
   # Electron package tests are split by module type (CJS/ESM) for better error isolation
   package-electron-matrix:
-    name: Package - Electron
+    name: Package - Electron [${{ matrix.display-name }}] - ${{ matrix.module-type }}
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -277,7 +387,7 @@ jobs:
   # - CentOS Stream 9: glib 2.68 too old (Tauri requires >= 2.70)
   # - CentOS Stream 10: WebKitGTK removed by Red Hat due to 200+ CVEs and unsustainable maintenance
   package-tauri-distros:
-    name: Package - Tauri (Docker)
+    name: Package - Tauri (Docker) [${{ matrix.display-name }}]
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -301,7 +411,7 @@ jobs:
 
   # Run build tests outside of the main Linux build job
   build-matrix:
-    name: Build
+    name: Build [${{ matrix.display-name }}]
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -325,7 +435,7 @@ jobs:
   # - E2E tests use ESM only (CJS/ESM testing is done in package tests)
   # - Optimize for GitHub Actions concurrency limits
   e2e-matrix:
-    name: E2E - Electron
+    name: E2E - Electron [${{ matrix.display-name }}] - ${{ matrix.scenario }}
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -380,7 +490,7 @@ jobs:
 
   # Electron window tests - run on Linux with splash screen enabled
   e2e-electron-window:
-    name: E2E - Electron [Linux] (window)
+    name: E2E - Electron [${{ matrix.display-name }}] (window) - ${{ matrix.scenario }}
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -486,6 +596,155 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       tauri_cache_key: ${{ needs.build-tauri-e2e-app-macos-intel.outputs.cache_key }}
 
+  # Dioxus E2E tests - embedded provider (all platforms) + external provider (Windows only in v1)
+  # All providers run sequentially per runner; external provider auto-skips on Linux/macOS
+  e2e-dioxus-linux:
+    name: E2E - Dioxus [Linux] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-dioxus-e2e-app-linux]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+    uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-linux.outputs.cache_key }}
+
+  e2e-dioxus-windows:
+    name: E2E - Dioxus [Windows] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-dioxus-e2e-app-windows]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+    uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-windows.outputs.cache_key }}
+
+  e2e-dioxus-macos-arm:
+    name: E2E - Dioxus [macOS-ARM] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-dioxus-e2e-app-macos-arm]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+    uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-macos-arm.outputs.cache_key }}
+
+  e2e-dioxus-macos-intel:
+    name: E2E - Dioxus [macOS-Intel] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-dioxus-e2e-app-macos-intel]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+    uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-15-intel'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-macos-intel.outputs.cache_key }}
+
+  # Dioxus package tests - all platforms (mirrors E2E coverage)
+  package-dioxus-linux:
+    name: Package - Dioxus [Linux]
+    needs: [detect-changes, build, build-dioxus-package-app-linux]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      service: 'dioxus'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-linux.outputs.cache_key }}
+
+  package-dioxus-windows:
+    name: Package - Dioxus [Windows]
+    needs: [detect-changes, build, build-dioxus-package-app-windows]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
+      service: 'dioxus'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-windows.outputs.cache_key }}
+
+  package-dioxus-macos-arm:
+    name: Package - Dioxus [macOS-ARM]
+    needs: [detect-changes, build, build-dioxus-package-app-macos-arm]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      service: 'dioxus'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-macos-arm.outputs.cache_key }}
+
+  package-dioxus-macos-intel:
+    name: Package - Dioxus [macOS-Intel]
+    needs: [detect-changes, build, build-dioxus-package-app-macos-intel]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-15-intel'
+      service: 'dioxus'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-macos-intel.outputs.cache_key }}
+
+  package-dioxus-linux-arm:
+    name: Package - Dioxus [Linux-ARM64]
+    needs: [detect-changes, build, build-dioxus-package-app-linux-arm]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-24.04-arm'
+      service: 'dioxus'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      dioxus_cache_key: ${{ needs.build-dioxus-package-app-linux-arm.outputs.cache_key }}
+
   # Universal binary verification - Electron only
   package-electron-mac-universal:
     name: Package - Electron [macOS-Universal-Verify]
@@ -588,12 +847,38 @@ jobs:
       - e2e-tauri-windows
       - e2e-tauri-macos-arm
       - e2e-tauri-macos-intel
+      - e2e-dioxus-linux
+      - e2e-dioxus-windows
+      - e2e-dioxus-macos-arm
+      - e2e-dioxus-macos-intel
       - package-electron-matrix
       - package-tauri-linux
       - package-tauri-windows
       - package-tauri-linux-arm
       - package-tauri-distros
+      - package-dioxus-linux
+      - package-dioxus-windows
+      - package-dioxus-macos-arm
+      - package-dioxus-macos-intel
+      - package-dioxus-linux-arm
       - build-matrix
+      - build-dioxus-crates-linux
+      - build-tauri-e2e-app-linux
+      - build-tauri-e2e-app-windows
+      - build-tauri-e2e-app-macos-arm
+      - build-tauri-e2e-app-macos-intel
+      - build-tauri-package-app-linux
+      - build-tauri-package-app-windows
+      - build-tauri-package-app-linux-arm
+      - build-dioxus-e2e-app-linux
+      - build-dioxus-e2e-app-windows
+      - build-dioxus-e2e-app-macos-arm
+      - build-dioxus-e2e-app-macos-intel
+      - build-dioxus-package-app-linux
+      - build-dioxus-package-app-windows
+      - build-dioxus-package-app-macos-arm
+      - build-dioxus-package-app-macos-intel
+      - build-dioxus-package-app-linux-arm
       - package-electron-mac-universal
     runs-on: ubuntu-latest
     steps:

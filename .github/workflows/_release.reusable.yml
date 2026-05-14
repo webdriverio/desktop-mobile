@@ -78,7 +78,8 @@ jobs:
 
       - name: Setup Rust
         if: ${{ contains(inputs.scope, 'tauri') }}
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: Install GTK development libraries
         if: ${{ contains(inputs.scope, 'tauri') }}
@@ -102,22 +103,22 @@ jobs:
           scope="${scope#scope:}"
           case "$scope" in
             electron)
-              echo "packages=@wdio/electron-service,@wdio/electron-cdp-bridge" >> $GITHUB_OUTPUT
+              echo "packages=@wdio/electron-service,@wdio/electron-cdp-bridge" >> "$GITHUB_OUTPUT"
               ;;
             tauri)
-              echo "packages=@wdio/tauri-service,@wdio/tauri-plugin,tauri-plugin-wdio-webdriver" >> $GITHUB_OUTPUT
+              echo "packages=@wdio/tauri-service,@wdio/tauri-plugin,tauri-plugin-wdio-webdriver" >> "$GITHUB_OUTPUT"
               ;;
             utils)
-              echo "packages=@wdio/native-utils" >> $GITHUB_OUTPUT
+              echo "packages=@wdio/native-utils" >> "$GITHUB_OUTPUT"
               ;;
             types)
-              echo "packages=@wdio/native-types" >> $GITHUB_OUTPUT
+              echo "packages=@wdio/native-types" >> "$GITHUB_OUTPUT"
               ;;
             spy)
-              echo "packages=@wdio/native-spy" >> $GITHUB_OUTPUT
+              echo "packages=@wdio/native-spy" >> "$GITHUB_OUTPUT"
               ;;
             shared)
-              echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy" >> $GITHUB_OUTPUT
+              echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "::error::Unknown scope: $scope"
@@ -133,29 +134,29 @@ jobs:
 
           # If bump already starts with 'pre', it's already in releasekit format (from auto gate)
           if [[ "$bump" == pre* ]]; then
-            echo "bump=$bump" >> $GITHUB_OUTPUT
-            echo "stable=false" >> $GITHUB_OUTPUT
+            echo "bump=$bump" >> "$GITHUB_OUTPUT"
+            echo "stable=false" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
           case "$release_type" in
             stable)
               # stable release - use bump value
-              echo "bump=$bump" >> $GITHUB_OUTPUT
-              echo "stable=true" >> $GITHUB_OUTPUT
+              echo "bump=$bump" >> "$GITHUB_OUTPUT"
+              echo "stable=true" >> "$GITHUB_OUTPUT"
               ;;
             prerelease)
               # For prerelease increment, use 'prerelease'; otherwise prepend 'pre'
               if [ "$bump" = "prerelease" ]; then
-                echo "bump=prerelease" >> $GITHUB_OUTPUT
+                echo "bump=prerelease" >> "$GITHUB_OUTPUT"
               else
-                echo "bump=pre$bump" >> $GITHUB_OUTPUT
+                echo "bump=pre$bump" >> "$GITHUB_OUTPUT"
               fi
-              echo "stable=false" >> $GITHUB_OUTPUT
+              echo "stable=false" >> "$GITHUB_OUTPUT"
               ;;
             *)
-              echo "bump=$bump" >> $GITHUB_OUTPUT
-              echo "stable=false" >> $GITHUB_OUTPUT
+              echo "bump=$bump" >> "$GITHUB_OUTPUT"
+              echo "stable=false" >> "$GITHUB_OUTPUT"
               ;;
           esac
 
@@ -223,7 +224,7 @@ jobs:
           # Ensure we're on a branch with proper remote tracking
           if ! git symbolic-ref HEAD > /dev/null 2>&1; then
             echo "Currently in detached HEAD, checking out branch..."
-            git checkout -B ${{ inputs.branch || 'main' }} origin/${{ inputs.branch || 'main' }} 2>/dev/null || git checkout ${{ inputs.branch || 'main' }}
+            git checkout -B ${{ inputs.target_branch || 'main' }} origin/${{ inputs.target_branch || 'main' }} 2>/dev/null || git checkout ${{ inputs.target_branch || 'main' }}
           fi
 
       - name: Run ReleaseKit

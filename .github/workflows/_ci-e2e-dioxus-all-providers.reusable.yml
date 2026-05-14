@@ -1,0 +1,317 @@
+name: Dioxus E2E Tests - All Providers
+
+# Description: Runs Dioxus E2E tests for all WebDriver providers (external, embedded) sequentially on a single runner
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Operating system to run tests on'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version to use for testing'
+        required: true
+        type: string
+      test-type:
+        description: 'Test type (standard, window, multiremote, standalone, deeplink)'
+        type: string
+        default: 'standard'
+      build_id:
+        description: 'Build ID from the build job'
+        type: string
+        required: false
+      artifact_size:
+        description: 'Size of the build artifact in bytes'
+        type: string
+        required: false
+      cache_key:
+        description: 'Cache key to use for downloading package artifacts'
+        type: string
+        required: false
+      dioxus_cache_key:
+        description: 'Cache key to use for downloading Dioxus app binaries'
+        type: string
+        required: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  e2e-dioxus:
+    name: Run
+    runs-on: ${{ inputs.os }}
+    steps:
+      # ══════════════════════════════════════════════════════════════
+      # SHARED SETUP (runs once, reused by all providers)
+      # ══════════════════════════════════════════════════════════════
+
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: 🔧 Fix ARM64 Package Sources (Linux)
+        if: runner.os == 'Linux' && runner.arch == 'ARM64'
+        shell: bash
+        run: |
+          echo "Fixing ARM64 package sources for Ubuntu..."
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
+
+          sudo sed -i -e 's/^deb http/deb [arch=amd64] http/' /etc/apt/sources.list
+          sudo sed -i -e 's/^deb mirror/deb [arch=amd64] mirror/' /etc/apt/sources.list
+
+          sudo apt-get update
+
+      - name: 🦀 Install Dioxus Runtime Dependencies (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "Installing Dioxus runtime dependencies for Linux..."
+          if [ "$(uname -m)" != "aarch64" ]; then
+            echo "deb http://archive.ubuntu.com/ubuntu jammy main universe" | sudo tee -a /etc/apt/sources.list > /dev/null
+          fi
+          sudo apt-get update
+          sudo apt-get --fix-broken install -y || true
+
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-0 \
+            libgtk-3-0t64 \
+            libayatana-appindicator3-1 \
+            libxdo3
+
+      - name: 📦 Download Package Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      - name: 📦 Download Dioxus E2E App Binary
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: dioxus-e2e-app-${{ runner.os }}-${{ runner.arch }}
+          path: dioxus-e2e-app-${{ runner.os }}-${{ runner.arch }}
+          filename: artifact.zip
+          cache_key_prefix: dioxus-e2e-app
+          exact_cache_key: ${{ inputs.dioxus_cache_key }}
+
+      - name: ✅ Verify Dioxus Binaries
+        shell: bash
+        run: |
+          # shellcheck disable=SC2012
+          echo "Checking for Dioxus binaries in fixtures/e2e-apps/dioxus/target/"
+
+          if [ ! -d "fixtures/e2e-apps/dioxus" ]; then
+            echo "::error::fixtures/e2e-apps/dioxus directory not found!"
+            exit 1
+          fi
+
+          TARGET_DIRS=$(find fixtures/e2e-apps/dioxus -name "target" -type d 2>/dev/null || true)
+
+          if [ -z "$TARGET_DIRS" ]; then
+            echo "::error::No target directories found! Binaries were not extracted correctly."
+            echo "Directory contents:"
+            ls -la fixtures/e2e-apps/dioxus/ || true
+            exit 1
+          fi
+
+          echo "✅ Found target directories:"
+          echo "$TARGET_DIRS"
+
+          BINARY_COUNT=0
+          for target_dir in $TARGET_DIRS; do
+            if [ "${{ runner.os }}" = "Windows" ]; then
+              if compgen -G "$target_dir/debug/*.exe" > /dev/null 2>&1; then
+                BINARY_COUNT=$((BINARY_COUNT + 1))
+                echo "  ✅ Found Windows binary in $target_dir/debug/"
+              fi
+            elif [ "${{ runner.os }}" = "macOS" ]; then
+              if find "$target_dir/debug" -maxdepth 1 -type f -perm +111 2>/dev/null | grep -q .; then
+                BINARY_COUNT=$((BINARY_COUNT + 1))
+                echo "  ✅ Found macOS binary in $target_dir/debug/"
+              fi
+            else
+              if find "$target_dir/debug" -maxdepth 1 -type f -executable 2>/dev/null | grep -q .; then
+                BINARY_COUNT=$((BINARY_COUNT + 1))
+                echo "  ✅ Found Linux binary in $target_dir/debug/"
+              fi
+            fi
+          done
+
+          if [ "$BINARY_COUNT" -eq 0 ]; then
+            echo "::error::No binaries found in target directories!"
+            echo ""
+            echo "Directory structure for debugging:"
+            for target_dir in $TARGET_DIRS; do
+              echo "=== $target_dir/debug/ ==="
+              # shellcheck disable=SC2012
+              ls -la "$target_dir/debug/" 2>/dev/null | head -20 || echo "Cannot list debug directory"
+            done
+            exit 1
+          fi
+
+          echo "✅ Verification complete: Found $BINARY_COUNT app(s) with binaries"
+
+      - name: 📊 Show Build Information
+        if: inputs.build_id != '' && inputs.artifact_size != ''
+        shell: bash
+        run: |
+          echo "::notice::Package build: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
+          echo "::notice::Dioxus binaries: Using pre-built binaries for ${{ runner.os }}"
+
+      - name: 🪄 Generate Test Commands
+        id: gen-test
+        uses: actions/github-script@v9
+        env:
+          TEST_TYPE: ${{ inputs.test-type }}
+        with:
+          script: |
+            const ALLOWED = ['standard', 'window', 'multiremote', 'standalone', 'deeplink'];
+            const testType = process.env.TEST_TYPE.trim();
+            if (!ALLOWED.includes(testType)) {
+              core.setFailed(`Invalid test-type: "${testType}". Allowed: ${ALLOWED.join(', ')}`);
+              return;
+            }
+            const suffix = testType !== 'standard' ? `:${testType}` : '';
+            core.setOutput('embedded', `test:e2e:dioxus${suffix}`);
+
+      # ══════════════════════════════════════════════════════════════
+      # PROVIDER 1: EXTERNAL (wdio-dioxus-driver) — not implemented in v1
+      # The external provider requires wdio-dioxus-driver spawning in the launcher,
+      # which is deferred to v1.1. External E2E steps will be added once the
+      # launcher's external path is wired up.
+      # ══════════════════════════════════════════════════════════════
+
+      # ══════════════════════════════════════════════════════════════
+      # PROVIDER 2: EMBEDDED (wdio-dioxus-embedded-driver) — all platforms
+      # ══════════════════════════════════════════════════════════════
+
+      - name: 🧹 Cleanup [Embedded]
+        if: always()
+        shell: bash
+        run: |
+          echo "Cleaning up before Embedded provider tests..."
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            powershell -Command "Get-Process -Name 'wdio-dioxus-e2e-app' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue" || true
+          else
+            pkill -9 -f wdio-dioxus-e2e-app || true
+          fi
+
+      - name: 🧪 E2E Tests [Embedded]
+        id: test-embedded
+        continue-on-error: true
+        shell: pwsh
+        working-directory: e2e
+        env:
+          RUST_BACKTRACE: '1'
+          NO_AT_BRIDGE: '1'
+          DRIVER_PROVIDER: 'embedded'
+        run: |
+          if ($env:RUNNER_OS -eq "Linux") {
+            xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" `
+              pnpm run ${{ steps.gen-test.outputs.embedded }}
+          } else {
+            pnpm run ${{ steps.gen-test.outputs.embedded }}
+          }
+
+      - name: 🧹 Post-cleanup [Embedded]
+        if: always()
+        shell: bash
+        run: |
+          echo "Cleaning up after Embedded provider tests..."
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            powershell -Command "Get-Process -Name 'wdio-dioxus-e2e-app' -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue" || true
+          else
+            pkill -9 -f wdio-dioxus-e2e-app || true
+          fi
+
+      - name: 🐛 Debug Information [Embedded]
+        if: always()
+        shell: bash
+        run: pnpm exec tsx e2e/scripts/show-logs.ts --provider embedded
+
+      # ══════════════════════════════════════════════════════════════
+      # REPORTING & ARTIFACTS
+      # ══════════════════════════════════════════════════════════════
+
+      - name: 📊 Provider Summary
+        if: always()
+        shell: bash
+        run: |
+          # shellcheck disable=SC2129
+          echo "## Dioxus E2E Results — ${{ inputs.os }} / ${{ inputs.test-type }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Provider | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
+
+          embedded="${{ steps.test-embedded.outcome }}"
+
+          format_result() {
+            local provider="$1" outcome="$2"
+            case "$outcome" in
+              success)   echo "| $provider | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY" ;;
+              failure)   echo "| $provider | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY" ;;
+              cancelled) echo "| $provider | ⚠️ Cancelled |" >> "$GITHUB_STEP_SUMMARY" ;;
+              skipped|"") echo "| $provider | ⏭️ Skipped |" >> "$GITHUB_STEP_SUMMARY" ;;
+              *)         echo "| $provider | ❓ $outcome |" >> "$GITHUB_STEP_SUMMARY" ;;
+            esac
+          }
+
+          echo "| External (v1.1) | ⏭️ Not implemented |" >> "$GITHUB_STEP_SUMMARY"
+          format_result "Embedded" "$embedded"
+
+      - name: 📦 Upload Test Logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-dioxus-logs-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
+          path: e2e/logs/**/*.log
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: ❌ Check Provider Results
+        if: always()
+        shell: bash
+        run: |
+          embedded="${{ steps.test-embedded.outcome }}"
+
+          case "$embedded" in
+            success|skipped|"")
+              echo "Embedded provider passed"
+              ;;
+            failure)
+              echo "::error::Embedded provider tests failed"
+              exit 1
+              ;;
+            cancelled)
+              echo "::error::Embedded provider tests were cancelled"
+              exit 1
+              ;;
+            *)
+              echo "::error::Embedded provider had unexpected outcome: $embedded"
+              exit 1
+              ;;
+          esac
+
+      - name: 🐛 Debug Build on Failure
+        if: failure()
+        uses: goosewobbler/vscode-server-action@v1.5.0
+        with:
+          timeout: '300000'

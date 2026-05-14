@@ -311,7 +311,7 @@ async function testExample(
     cdpBridgePath?: string;
   },
   service: 'electron' | 'tauri' | 'dioxus',
-  _skipBuild: boolean,
+  skipBuild: boolean,
   mode: 'native' | 'browser' = 'native',
 ) {
   const packageName = packagePath.split(/[/\\]/).pop();
@@ -650,8 +650,26 @@ async function testExample(
           }
         }
       }
+    } else if (service === 'dioxus' && mode === 'native') {
+      // Dioxus: use pre-built binary when skipBuild=true (CI downloads it as a separate artifact)
+      const sourceTargetDir = join(rootDir, 'fixtures', 'package-tests', 'dioxus-app', 'src-dioxus', 'target');
+      const destTargetDir = join(packageDir, 'src-dioxus', 'target');
+      if (skipBuild) {
+        if (!existsSync(sourceTargetDir)) {
+          throw new Error(
+            `Pre-built Dioxus binary not found at ${sourceTargetDir}. ` +
+              'Was the build artifact downloaded and extracted correctly?',
+          );
+        }
+        log(`Copying pre-built Dioxus binary from ${sourceTargetDir}...`);
+        mkdirSync(destTargetDir, { recursive: true });
+        cpSync(sourceTargetDir, destTargetDir, { recursive: true });
+        log(`✅ Pre-built Dioxus binary copied successfully`);
+      } else if (packageJson.scripts?.build) {
+        execCommand('pnpm build', packageDir, `Building ${packageName} app`);
+      }
     } else if (packageJson.scripts?.build && mode === 'native') {
-      // Build Electron and Dioxus apps in isolated environment (browser mode skips the build)
+      // Build other apps (e.g. Electron) in isolated environment
       execCommand('pnpm build', packageDir, `Building ${packageName} app`);
     }
 

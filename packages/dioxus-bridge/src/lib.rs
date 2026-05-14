@@ -115,14 +115,28 @@ fn install_with_registry_and_config(
 
   let registry_for_handler = registry;
 
+  // Compute the `wdio://invoke` URL for the current platform. wry doesn't
+  // register arbitrary custom schemes with WebView2 on Windows; instead it
+  // intercepts `http://{scheme}.*` (see wry::custom_protocol_workaround).
+  // From a page's perspective the scheme `wdio://` is unknown on Windows
+  // and `fetch('wdio://invoke')` is rejected at the network layer before
+  // ever reaching our handler — so we expose the platform-correct URL via
+  // `window.__WDIO_BRIDGE_URL__` and let guest-js use it.
+  let bridge_url = if cfg!(target_os = "windows") {
+    "http://wdio.invoke/"
+  } else {
+    "wdio://invoke"
+  };
+
   // If the embedded driver is active, inject the port signal before the
   // module script so the polling loop starts up automatically.
   let head = match embedded_port {
     Some(port) => format!(
-      "<script>window.__WDIO_EMBEDDED_PORT={};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>",
-      port
+      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};window.__WDIO_EMBEDDED_PORT={port};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
     ),
-    None => format!("<script type=\"module\">{GUEST_JS_BUNDLE}</script>"),
+    None => format!(
+      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
+    ),
   };
 
   config

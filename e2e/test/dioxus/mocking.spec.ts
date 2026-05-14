@@ -35,8 +35,10 @@ describe('Dioxus mocking', () => {
     const mock = await browser.dioxus.mock('get_platform_info');
     await mock.mockReturnValue({ os: 'overridden' });
     await browser.dioxus.resetAllMocks();
-    // After reset, the command should use its real implementation
+    // After reset the mock function has no implementation (vitest mockReset
+    // semantics) — the proxy still intercepts calls but returns undefined/null.
     const result = await browser.dioxus.execute(({ invoke }) => invoke('get_platform_info'));
-    expect((result as { os: string }).os).not.toBe('overridden');
+    const r = result as { os: string } | null | undefined;
+    expect(r?.os).not.toBe('overridden');
   });
 });

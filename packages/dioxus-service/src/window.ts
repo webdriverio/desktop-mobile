@@ -107,6 +107,15 @@ export async function listWindowLabels(browser: WebdriverIO.Browser): Promise<st
  */
 async function resolveLabelToHandle(browser: WebdriverIO.Browser, targetLabel: string): Promise<string> {
   const handles = await browser.getWindowHandles();
+
+  // The embedded driver returns labels as handles (not opaque WebDriver handle IDs).
+  // When targetLabel appears directly in the handles list, no switchToWindow call is
+  // needed — the embedded driver has a single shared IPC channel and rejects window
+  // switching with an "unsupported operation" error regardless.
+  if (handles.includes(targetLabel)) {
+    return targetLabel;
+  }
+
   const discovered = new Map<string, string>();
 
   for (const handle of handles) {

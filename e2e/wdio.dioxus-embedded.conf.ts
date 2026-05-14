@@ -172,6 +172,7 @@ export const config = {
         driverProvider: 'embedded',
       },
     ],
+    '@wdio/visual-service',
   ],
   framework: 'mocha',
   reporters: ['spec'],

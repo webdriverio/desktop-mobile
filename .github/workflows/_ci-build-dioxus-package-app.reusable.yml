@@ -1,6 +1,6 @@
 name: Build Dioxus Package Test App
 
-description: 'Builds Dioxus package test application and creates shareable artifacts'
+# Description: Builds Dioxus package test application and creates shareable artifacts
 
 permissions:
   contents: read
@@ -45,7 +45,7 @@ env:
 
 jobs:
   build-dioxus-package-app:
-    name: Build Dioxus Package Test App
+    name: Build
     runs-on: ${{ inputs.os }}
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}
@@ -75,12 +75,13 @@ jobs:
           exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
       - name: Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: '.'
+          workspaces: 'fixtures/package-tests/dioxus-app/src-dioxus'
           cache-on-failure: true
           cache-targets: false
 
@@ -120,12 +121,21 @@ jobs:
         id: build-info
         shell: bash
         run: |
-          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
-          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+        shell: bash
+
+      - name: Build Dioxus Bridge Guest JS
+        run: pnpm --filter @wdio/dioxus-bridge build
+        shell: bash
 
       - name: Build Dioxus Package Test App
-        run: pnpm exec turbo run build --filter=dioxus-app-example --only
+        run: cargo build
         shell: bash
+        working-directory: fixtures/package-tests/dioxus-app/src-dioxus
 
       - name: Upload Dioxus Package Test App Binary
         id: upload-archive

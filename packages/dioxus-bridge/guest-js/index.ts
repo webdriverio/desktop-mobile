@@ -21,6 +21,13 @@ declare global {
     __WDIO_DIOXUS__?: {
       invoke?: (cmd: string, args?: unknown) => Promise<unknown>;
     };
+    /**
+     * Platform-correct URL for the `wdio://invoke` endpoint. Injected by
+     * the Rust bridge so guest-js doesn't have to know that on Windows
+     * wry rewrites `wdio://` to `http://wdio.*`. Falls back to the native
+     * scheme when missing (macOS/Linux dev/test).
+     */
+    __WDIO_BRIDGE_URL__?: string;
   }
 }
 
@@ -36,9 +43,12 @@ interface InvokeResponse {
  * `error` string on failure.
  */
 export async function invoke(command: string, args?: unknown): Promise<unknown> {
-  const response = await fetch('wdio://invoke', {
+  // Omit Content-Type so the browser sends text/plain — a CORS "simple"
+  // request that skips the OPTIONS preflight. The Rust handler parses the
+  // body as JSON regardless of Content-Type.
+  const url = window.__WDIO_BRIDGE_URL__ ?? 'wdio://invoke';
+  const response = await fetch(url, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ command, args: args ?? null }),
   });
   const body = (await response.json()) as InvokeResponse;

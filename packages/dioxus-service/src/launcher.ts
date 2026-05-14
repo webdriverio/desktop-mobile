@@ -1,4 +1,6 @@
-import { BaseLauncher } from '@wdio/native-core';
+import { join } from 'node:path';
+
+import { BaseLauncher, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
 import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
@@ -72,9 +74,22 @@ export default class DioxusLaunchService extends BaseLauncher {
     log.info(`Dioxus service onPrepare — provider: ${provider}, platform: ${process.platform}`);
 
     if (provider === 'embedded') {
-      await this.prepareEmbedded(capsList);
+      const isMultiremote = !Array.isArray(capabilities);
+      if (isMultiremote) {
+        await this.prepareEmbeddedMultiremote(capabilities as Record<string, { capabilities: DioxusCapabilities }>);
+      } else {
+        await this.prepareEmbedded(capabilities as DioxusCapabilities[]);
+      }
     }
     // provider === 'external': wdio-dioxus-driver spawning wired in a follow-on commit
+
+    if (mergedOptions.captureBackendLogs || mergedOptions.captureFrontendLogs) {
+      if (!isLogWriterInitialized('dioxus-service')) {
+        const logDir = _config.outputDir ?? join(process.cwd(), 'logs');
+        getLogWriter('dioxus-service').initialize(logDir);
+        log.info(`Log capture initialized: ${logDir}`);
+      }
+    }
   }
 
   private async prepareEmbedded(capsList: DioxusCapabilities[]): Promise<void> {
@@ -107,9 +122,52 @@ export default class DioxusLaunchService extends BaseLauncher {
         );
       }
 
+      // Set on the capability itself — wdio run strips these before the W3C session request;
+      // standalone session.ts removes them from the cloned capabilities before remote().
       (cap as { port?: number; hostname?: string }).port = embeddedPort;
       (cap as { port?: number; hostname?: string }).hostname = hostname;
       log.info(`Embedded WebDriver connection set on capabilities[${i}]: ${hostname}:${embeddedPort}`);
+    }
+  }
+
+  private async prepareEmbeddedMultiremote(
+    capabilities: Record<string, { capabilities: DioxusCapabilities }>,
+  ): Promise<void> {
+    const hostname = '127.0.0.1';
+    const entries = Object.entries(capabilities);
+
+    for (let i = 0; i < entries.length; i++) {
+      const [key, instanceConfig] = entries[i];
+      const cap = instanceConfig.capabilities;
+      const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
+      const capPort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
+      const embeddedPort = capPort != null ? capPort : getEmbeddedPort(instanceOptions) + i;
+      const appBinaryPath = cap['dioxus:options']?.application ?? instanceOptions.appBinaryPath;
+
+      if (!appBinaryPath) {
+        throw new SevereServiceError(
+          `Dioxus application path not specified for multiremote instance "${key}". ` +
+            "Set 'dioxus:options'.application or appBinaryPath in wdio:dioxusServiceOptions.",
+        );
+      }
+
+      log.info(`Starting embedded WebDriver for multiremote instance "${key}" on port ${embeddedPort}`);
+
+      try {
+        const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, key);
+        this.embeddedProcesses.set(key, driverInfo);
+      } catch (error) {
+        await this.stopAllEmbedded();
+        throw new SevereServiceError(
+          `Failed to start embedded WebDriver for multiremote instance "${key}": ${(error as Error).message}`,
+        );
+      }
+
+      // For multiremote, port/hostname must be on the outer instance config so WDIO
+      // reads them as connection parameters, not as W3C capability keys.
+      (instanceConfig as { port?: number; hostname?: string }).port = embeddedPort;
+      (instanceConfig as { port?: number; hostname?: string }).hostname = hostname;
+      log.info(`Embedded WebDriver connection set for "${key}": ${hostname}:${embeddedPort}`);
     }
   }
 
