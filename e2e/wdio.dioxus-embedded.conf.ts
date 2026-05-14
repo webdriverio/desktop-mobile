@@ -42,7 +42,7 @@ switch (testType) {
   default:
     specs = ['./test/dioxus/*.spec.ts'];
     maxInstances = 1;
-    exclude = ['./test/dioxus/window.spec.ts', './test/dioxus/deeplink.spec.ts'];
+    exclude = ['./test/dioxus/window.spec.ts', './test/dioxus/deeplink.spec.ts', './test/dioxus/visual.spec.ts'];
     break;
 }
 
