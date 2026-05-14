@@ -35,5 +35,46 @@ fn main() {
   println!("cargo:rerun-if-changed=dist-js/index.js");
   println!("cargo:rerun-if-changed=guest-js/dist-js/index.js");
   println!("cargo:rerun-if-changed=guest-js/index.ts");
+  println!("cargo:rerun-if-changed=package.json");
   println!("cargo:rerun-if-changed=build.rs");
+
+  // Assert npm-bridge and crate versions are in lockstep on their core
+  // version (the part before any `-pre.suffix`). npm uses `-next.N` while
+  // crates.io uses `-rc.N`, so a literal string match isn't appropriate —
+  // we enforce X.Y.Z agreement and let pre-release suffixes diverge per
+  // registry convention.
+  if let Ok(npm_pkg) = fs::read_to_string("package.json") {
+    let crate_version = env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION is set by cargo");
+    let npm_version = extract_npm_version(&npm_pkg).unwrap_or_else(|| {
+      panic!("could not find a `version` field in packages/dioxus-bridge/package.json")
+    });
+    let crate_core = core_version(&crate_version);
+    let npm_core = core_version(&npm_version);
+    if crate_core != npm_core {
+      panic!(
+        "version mismatch between Cargo.toml ({crate_version}) and package.json ({npm_version}) — \
+         core versions must agree (got `{crate_core}` vs `{npm_core}`). Bump both together \
+         before releasing.",
+      );
+    }
+  }
+}
+
+/// Naive JSON scan that pulls the top-level `version` string. Avoids adding
+/// serde_json as a build-dep just for one field.
+fn extract_npm_version(pkg: &str) -> Option<String> {
+  let key = "\"version\"";
+  let i = pkg.find(key)?;
+  let after_key = &pkg[i + key.len()..];
+  let colon = after_key.find(':')?;
+  let after_colon = &after_key[colon + 1..];
+  let open_quote = after_colon.find('"')?;
+  let rest = &after_colon[open_quote + 1..];
+  let close_quote = rest.find('"')?;
+  Some(rest[..close_quote].to_string())
+}
+
+/// Return the core `X.Y.Z` from a SemVer string, dropping any pre-release suffix.
+fn core_version(v: &str) -> &str {
+  v.split('-').next().unwrap_or(v)
 }
