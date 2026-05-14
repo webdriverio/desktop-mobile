@@ -57,6 +57,12 @@ jobs:
         shell: bash
 
       # Static analysis of GitHub Actions workflows. Catches schema errors,
-      # bad expressions, and shellcheck issues in `run:` scripts.
+      # bad expressions, and shellcheck issues in `run:` scripts. Installs
+      # the binary via the upstream download script — the third-party
+      # marketplace wrappers have flaky npm-based setup on newer runners.
       - name: 🔍 Run actionlint
-        uses: raven-actions/actionlint@v2
+        shell: bash
+        run: |
+          bash <(curl --silent --show-error --fail \
+            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color
