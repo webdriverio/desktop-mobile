@@ -74,7 +74,9 @@ async function handleTypeScriptFile(
   configFilePathUrl: string,
   ext: string,
 ): Promise<Record<string, unknown> | undefined> {
-  // For .ts and .mts files, try tsx first
+  // For .ts and .mts files, try tsx first. tsx is an optional peer
+  // dependency (see @wdio/native-utils package.json) so consumers can
+  // skip installing it when they only ship JS/JSON configs.
   if (ext === '.ts' || ext === '.mts') {
     try {
       // @ts-ignore - tsx/esm/api is a runtime import
@@ -82,8 +84,15 @@ async function handleTypeScriptFile(
         tsImport: (url: string, parentURL: string) => Promise<Record<string, unknown>>;
       };
       return await tsxApi.tsImport(configFilePathUrl, import.meta.url);
-    } catch (_error) {
-      // If tsx fails, return undefined to trigger fallback to native import
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException)?.code;
+      if (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') {
+        throw new Error(
+          `Reading a TypeScript config (${configFilePath}) requires the optional peer dependency 'tsx'. ` +
+            `Install it as a devDependency in your project: \`npm install -D tsx\`.`,
+        );
+      }
+      // Any other failure — let the caller fall back to native import.
       return undefined;
     }
   }

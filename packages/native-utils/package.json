@@ -54,8 +54,15 @@
     "find-up-simple": "^1.0.1",
     "json5": "^2.2.3",
     "smol-toml": "^1.6.0",
-    "tsx": "^4.21.0",
     "yaml": "^2.8.2"
+  },
+  "peerDependencies": {
+    "tsx": "^4.21.0"
+  },
+  "peerDependenciesMeta": {
+    "tsx": {
+      "optional": true
+    }
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
@@ -63,6 +70,7 @@
     "@vitest/coverage-v8": "^4.1.0",
     "@wdio/native-types": "workspace:*",
     "shx": "^0.4.0",
+    "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.0.18"
   },
