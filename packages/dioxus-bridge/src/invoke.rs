@@ -114,20 +114,6 @@ pub fn handle_invoke_request(
   registry: &CommandRegistry,
   request: &Request<Vec<u8>>,
 ) -> Response<Cow<'static, [u8]>> {
-  // TEMPORARY DIAGNOSTIC — Windows WebView2 custom-protocol POST body investigation.
-  // Logs method + URI + body length + first 80 chars of body so we can confirm
-  // whether the body survives the WebView2 -> Rust handoff on Windows.
-  let body_bytes = request.body();
-  let body_preview: String = body_bytes.iter().take(80).map(|b| *b as char).collect();
-  tracing::info!(
-    target: "wdio_dioxus_bridge::diag",
-    method = %request.method(),
-    uri = %request.uri(),
-    body_len = body_bytes.len(),
-    body_preview = %body_preview,
-    "wdio:// request received"
-  );
-
   // CORS preflight — WKWebView and WebView2 enforce cross-origin policy even
   // for custom schemes. The guest-js bundle fetches wdio://invoke from the
   // dioxus://localhost/ origin (different scheme = different origin), so both
@@ -140,18 +126,6 @@ pub fn handle_invoke_request(
   }
 
   let parsed: Result<InvokeRequestBody, _> = serde_json::from_slice(request.body());
-  match &parsed {
-    Ok(req) => tracing::info!(
-      target: "wdio_dioxus_bridge::diag",
-      command = %req.command,
-      "wdio:// request parsed"
-    ),
-    Err(err) => tracing::warn!(
-      target: "wdio_dioxus_bridge::diag",
-      error = %err,
-      "wdio:// request parse FAILED"
-    ),
-  }
   let body = match parsed {
     Ok(req) => registry.dispatch(&req.command, req.args),
     Err(err) => InvokeResponseBody::malformed(format!("invalid JSON request: {err}")),
