@@ -123,6 +123,10 @@ jobs:
           echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
           echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
 
+      - name: Build Dioxus Bridge Guest JS
+        run: pnpm --filter @wdio/dioxus-bridge build
+        shell: bash
+
       - name: Build Dioxus Package Test App
         run: cargo build
         shell: bash
