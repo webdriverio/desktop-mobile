@@ -55,3 +55,8 @@ jobs:
       - name: 🔍 Run Format Check
         run: pnpm run format:check
         shell: bash
+
+      # Static analysis of GitHub Actions workflows. Catches schema errors,
+      # bad expressions, and shellcheck issues in `run:` scripts.
+      - name: 🔍 Run actionlint
+        uses: raven-actions/actionlint@v2
