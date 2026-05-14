@@ -78,12 +78,14 @@ async function handleTypeScriptFile(
   // dependency (see @wdio/native-utils package.json) so consumers can
   // skip installing it when they only ship JS/JSON configs.
   if (ext === '.ts' || ext === '.mts') {
+    // Split try blocks so an ERR_MODULE_NOT_FOUND from inside the user's
+    // config isn't misdiagnosed as the tsx loader itself being missing.
+    let tsxApi: { tsImport: (url: string, parentURL: string) => Promise<Record<string, unknown>> };
     try {
       // @ts-ignore - tsx/esm/api is a runtime import
-      const tsxApi = (await import('tsx/esm/api')) as unknown as {
+      tsxApi = (await import('tsx/esm/api')) as unknown as {
         tsImport: (url: string, parentURL: string) => Promise<Record<string, unknown>>;
       };
-      return await tsxApi.tsImport(configFilePathUrl, import.meta.url);
     } catch (error) {
       const code = (error as NodeJS.ErrnoException)?.code;
       if (code === 'ERR_MODULE_NOT_FOUND' || code === 'MODULE_NOT_FOUND') {
@@ -92,7 +94,12 @@ async function handleTypeScriptFile(
             `Install it as a devDependency in your project: \`npm install -D tsx\`.`,
         );
       }
-      // Any other failure — let the caller fall back to native import.
+      return undefined;
+    }
+
+    try {
+      return await tsxApi.tsImport(configFilePathUrl, import.meta.url);
+    } catch (_error) {
       return undefined;
     }
   }
