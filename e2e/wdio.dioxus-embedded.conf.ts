@@ -42,7 +42,7 @@ switch (testType) {
   default:
     specs = ['./test/dioxus/*.spec.ts'];
     maxInstances = 1;
-    exclude = ['./test/dioxus/window.spec.ts', './test/dioxus/deeplink.spec.ts', './test/dioxus/visual.spec.ts'];
+    exclude = ['./test/dioxus/window.spec.ts', './test/dioxus/deeplink.spec.ts'];
     break;
 }
 
@@ -172,6 +172,7 @@ export const config = {
         driverProvider: 'embedded',
       },
     ],
+    '@wdio/visual-service',
   ],
   framework: 'mocha',
   reporters: ['spec'],
