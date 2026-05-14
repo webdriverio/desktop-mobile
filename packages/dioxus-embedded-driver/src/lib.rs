@@ -49,6 +49,11 @@ pub fn install(config: Config) -> Config {
     .and_then(|s| s.parse::<u16>().ok())
     .unwrap_or(DEFAULT_PORT);
 
+  // Use a port-scoped temp directory so concurrent instances (multiremote)
+  // each get their own WebView2/WebKit user data folder and don't conflict.
+  let data_dir = std::env::temp_dir().join(format!("wdio-dioxus-{port}"));
+  let config = config.with_data_directory(data_dir);
+
   // Install bridge + register embedded commands + inject port into guest-js.
   let config = wdio_dioxus_bridge::install_with_embedded_port(config, port);
 
@@ -77,6 +82,12 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
     .ok()
     .and_then(|s| s.parse::<u16>().ok())
     .unwrap_or(DEFAULT_PORT);
+
+  // Use a port-scoped temp directory so concurrent instances (multiremote)
+  // each get their own WebView2/WebKit user data folder and don't conflict.
+  let data_dir = std::env::temp_dir().join(format!("wdio-dioxus-{port}"));
+  let config = config.with_data_directory(data_dir);
+
   let registry = wdio_dioxus_bridge::CommandRegistry::new();
   register(&registry);
   let config = wdio_dioxus_bridge::install_with_embedded_port_and_registry(config, registry, port);

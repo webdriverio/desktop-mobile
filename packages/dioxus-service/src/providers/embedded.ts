@@ -184,7 +184,12 @@ export async function startEmbeddedDriver(
     child.once('exit', exitHandler);
   });
 
-  const readyPromise = pollWebDriverStatus(port, startTimeout);
+  const readyPromise = pollWebDriverStatus(port, startTimeout).then(async () => {
+    // On Windows, add a small delay after ready to allow WebView2 to fully stabilize
+    if (process.platform === 'win32') {
+      await sleep(500);
+    }
+  });
 
   try {
     await Promise.race([readyPromise, spawnErrorPromise, earlyExitPromise]);
