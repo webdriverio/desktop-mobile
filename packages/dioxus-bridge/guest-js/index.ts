@@ -116,6 +116,12 @@ declare global {
 if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_RUNNING__) {
   window.__WDIO_EMBEDDED_RUNNING__ = true;
 
+  // TEMPORARY DIAGNOSTIC — beacon proving the polling-loop branch was taken.
+  // To be removed alongside the bridge invoke.rs diag logs.
+  void fetch('wdio://beacon/polling-loop-start').catch(() => {
+    // ignore — diagnostic only
+  });
+
   void (async function embeddedDriverLoop() {
     while (true) {
       try {

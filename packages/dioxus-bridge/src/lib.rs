@@ -117,9 +117,15 @@ fn install_with_registry_and_config(
 
   // If the embedded driver is active, inject the port signal before the
   // module script so the polling loop starts up automatically.
+  //
+  // TEMPORARY DIAGNOSTIC — fires beacon fetches at three checkpoints so we
+  // can see, in the wdio:// handler logs, exactly how far page-load got on
+  // Windows: (1) inline-script ran, (2) module entered, (3) module reached
+  // the polling loop. Each beacon uses its own URL path so they're trivial
+  // to identify in the diag output. To be removed alongside the diag logs.
   let head = match embedded_port {
     Some(port) => format!(
-      "<script>window.__WDIO_EMBEDDED_PORT={};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>",
+      "<script>window.__WDIO_EMBEDDED_PORT={};fetch('wdio://beacon/inline-script').catch(()=>{{}});</script><script type=\"module\">fetch('wdio://beacon/module-entry').catch(()=>{{}});{GUEST_JS_BUNDLE}</script>",
       port
     ),
     None => format!("<script type=\"module\">{GUEST_JS_BUNDLE}</script>"),
