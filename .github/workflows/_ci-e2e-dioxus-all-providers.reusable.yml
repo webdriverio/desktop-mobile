@@ -1,6 +1,6 @@
 name: Dioxus E2E Tests - All Providers
 
-description: 'Runs Dioxus E2E tests for all WebDriver providers (external, embedded) sequentially on a single runner'
+# Description: Runs Dioxus E2E tests for all WebDriver providers (external, embedded) sequentially on a single runner
 
 permissions:
   contents: read
@@ -114,6 +114,7 @@ jobs:
       - name: ✅ Verify Dioxus Binaries
         shell: bash
         run: |
+          # shellcheck disable=SC2012
           echo "Checking for Dioxus binaries in fixtures/e2e-apps/dioxus/target/"
 
           if [ ! -d "fixtures/e2e-apps/dioxus" ]; then
@@ -159,6 +160,7 @@ jobs:
             echo "Directory structure for debugging:"
             for target_dir in $TARGET_DIRS; do
               echo "=== $target_dir/debug/ ==="
+              # shellcheck disable=SC2012
               ls -la "$target_dir/debug/" 2>/dev/null | head -20 || echo "Cannot list debug directory"
             done
             exit 1
@@ -252,25 +254,26 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "## Dioxus E2E Results — ${{ inputs.os }} / ${{ inputs.test-type }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Provider | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          # shellcheck disable=SC2129
+          echo "## Dioxus E2E Results — ${{ inputs.os }} / ${{ inputs.test-type }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Provider | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
 
           embedded="${{ steps.test-embedded.outcome }}"
 
           format_result() {
             local provider="$1" outcome="$2"
             case "$outcome" in
-              success)   echo "| $provider | ✅ Passed |" >> $GITHUB_STEP_SUMMARY ;;
-              failure)   echo "| $provider | ❌ Failed |" >> $GITHUB_STEP_SUMMARY ;;
-              cancelled) echo "| $provider | ⚠️ Cancelled |" >> $GITHUB_STEP_SUMMARY ;;
-              skipped|"") echo "| $provider | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY ;;
-              *)         echo "| $provider | ❓ $outcome |" >> $GITHUB_STEP_SUMMARY ;;
+              success)   echo "| $provider | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY" ;;
+              failure)   echo "| $provider | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY" ;;
+              cancelled) echo "| $provider | ⚠️ Cancelled |" >> "$GITHUB_STEP_SUMMARY" ;;
+              skipped|"") echo "| $provider | ⏭️ Skipped |" >> "$GITHUB_STEP_SUMMARY" ;;
+              *)         echo "| $provider | ❓ $outcome |" >> "$GITHUB_STEP_SUMMARY" ;;
             esac
           }
 
-          echo "| External (v1.1) | ⏭️ Not implemented |" >> $GITHUB_STEP_SUMMARY
+          echo "| External (v1.1) | ⏭️ Not implemented |" >> "$GITHUB_STEP_SUMMARY"
           format_result "Embedded" "$embedded"
 
       - name: 📦 Upload Test Logs

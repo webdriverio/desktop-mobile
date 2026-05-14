@@ -1,5 +1,5 @@
 name: Lint
-description: 'Runs code quality checks across the codebase'
+# Description: Runs code quality checks across the codebase
 
 permissions:
   contents: read

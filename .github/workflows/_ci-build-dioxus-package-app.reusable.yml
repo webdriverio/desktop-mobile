@@ -1,6 +1,6 @@
 name: Build Dioxus Package Test App
 
-description: 'Builds Dioxus package test application and creates shareable artifacts'
+# Description: Builds Dioxus package test application and creates shareable artifacts
 
 permissions:
   contents: read
@@ -121,8 +121,8 @@ jobs:
         id: build-info
         shell: bash
         run: |
-          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
-          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       - name: Install Dependencies
         run: pnpm install --frozen-lockfile

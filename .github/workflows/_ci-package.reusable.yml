@@ -1,5 +1,5 @@
 name: Package
-description: 'Runs package tests across different operating systems'
+# Description: Runs package tests across different operating systems
 
 permissions:
   contents: read

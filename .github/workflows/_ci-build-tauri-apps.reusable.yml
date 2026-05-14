@@ -1,5 +1,5 @@
 name: Build Tauri Apps
-description: 'Builds Tauri test applications and creates shareable artifacts for E2E testing'
+# Description: Builds Tauri test applications and creates shareable artifacts for E2E testing
 
 permissions:
   contents: read
@@ -145,8 +145,8 @@ jobs:
         id: build-info
         shell: bash
         run: |
-          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
-          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       # Build all Tauri test applications using Turbo
       # This creates the binaries in src-tauri/target/debug

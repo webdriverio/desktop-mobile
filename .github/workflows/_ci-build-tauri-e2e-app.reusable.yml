@@ -1,5 +1,5 @@
 name: Build Tauri E2E App
-description: 'Builds Tauri E2E test application and creates shareable artifacts'
+# Description: Builds Tauri E2E test application and creates shareable artifacts
 
 permissions:
   contents: read
@@ -147,8 +147,8 @@ jobs:
         id: build-info
         shell: bash
         run: |
-          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
-          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       # Download the pre-built packages from the main build job
       # This ensures we use the same build artifacts and avoid rebuilding Node.js packages

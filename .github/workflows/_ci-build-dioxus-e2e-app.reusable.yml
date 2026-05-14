@@ -1,5 +1,5 @@
 name: Build Dioxus E2E App
-description: 'Builds Dioxus E2E test application and creates shareable artifacts'
+# Description: Builds Dioxus E2E test application and creates shareable artifacts
 
 permissions:
   contents: read
@@ -111,8 +111,8 @@ jobs:
         id: build-info
         shell: bash
         run: |
-          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
-          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       - name: 📦 Download Package Build Artifacts
         uses: ./.github/workflows/actions/download-archive
