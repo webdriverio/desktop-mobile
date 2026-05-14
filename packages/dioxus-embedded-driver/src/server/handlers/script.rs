@@ -11,6 +11,7 @@ use uuid::Uuid;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::element::ELEMENT_KEY;
+use crate::webdriver::session::Session;
 
 #[derive(Debug, Deserialize)]
 pub struct ExecuteScriptRequest {
@@ -43,6 +44,36 @@ async fn run_script(
   }
 }
 
+/// Resolve a request's WebDriver args into (call-site expressions, pass-through values).
+///
+/// Each element reference (`{"element-6066-…": id}`) becomes a `window[var]`
+/// expression inserted directly into the JS call site, so the receiving
+/// script gets an actual DOM node. Non-element args become `__argN` slots
+/// and are pushed into `pass_through` for delivery via the embedded queue.
+/// Stale element refs resolve to `null`.
+fn resolve_call_args(session: &Session, args: &[Value]) -> (Vec<String>, Vec<Value>) {
+  let mut call_args: Vec<String> = Vec::new();
+  let mut pass_through: Vec<Value> = Vec::new();
+  let mut pass_idx: usize = 0;
+
+  for arg in args {
+    if let Some(elem_id) = arg.get(ELEMENT_KEY).and_then(|v| v.as_str()) {
+      let js_expr = if let Some(var_name) = session.elements.get(elem_id) {
+        format!("window[{}]", serde_json::to_string(var_name).unwrap_or_else(|_| "null".into()))
+      } else {
+        "null".into()
+      };
+      call_args.push(js_expr);
+    } else {
+      call_args.push(format!("__arg{pass_idx}"));
+      pass_through.push(arg.clone());
+      pass_idx += 1;
+    }
+  }
+
+  (call_args, pass_through)
+}
+
 /// POST `/session/{session_id}/execute/sync`
 ///
 /// Wraps the script body in a function and passes `args` as positional
@@ -57,31 +88,10 @@ pub async fn execute_sync(
   Path(session_id): Path<String>,
   Json(request): Json<ExecuteScriptRequest>,
 ) -> WebDriverResult {
-  let (timeout_ms, call_expr) = {
+  let (timeout_ms, call_expr, pass_through) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
-
-    // Build the argument list for the IIFE call, resolving WebDriver element
-    // references to `window['var_name']` expressions so the receiving script
-    // gets an actual DOM node instead of a plain JSON object.
-    let mut call_args: Vec<String> = Vec::new();
-    let mut pass_through: Vec<Value> = Vec::new();
-    let mut pass_idx: usize = 0;
-
-    for arg in &request.args {
-      if let Some(elem_id) = arg.get(ELEMENT_KEY).and_then(|v| v.as_str()) {
-        let js_expr = if let Some(var_name) = session.elements.get(elem_id) {
-          format!("window[{}]", serde_json::to_string(var_name).unwrap_or_else(|_| "null".into()))
-        } else {
-          "null".into() // stale reference
-        };
-        call_args.push(js_expr);
-      } else {
-        call_args.push(format!("__arg{pass_idx}"));
-        pass_through.push(arg.clone());
-        pass_idx += 1;
-      }
-    }
+    let (call_args, pass_through) = resolve_call_args(session, &request.args);
 
     let param_names: Vec<String> = (0..pass_through.len()).map(|i| format!("__arg{i}")).collect();
     let param_list = param_names.join(", ");
@@ -92,50 +102,61 @@ pub async fn execute_sync(
       format!("return (function({param_list}) {{ {} }})({call_list})", request.script)
     };
 
-    (session.timeouts.script_ms, (call_expr, pass_through))
+    (session.timeouts.script_ms, call_expr, pass_through)
   };
 
-  run_script(&call_expr.0, &call_expr.1, timeout_ms).await
+  run_script(&call_expr, &pass_through, timeout_ms).await
 }
 
 /// POST `/session/{session_id}/execute/async`
 ///
 /// Async scripts receive an extra `done` callback as the last argument.
 /// The script must call it (optionally with a result value) to resolve.
+///
+/// Element references are resolved the same way as in `execute_sync` so
+/// `browser.executeAsync(fn, element)` and WDIO atoms that take elements
+/// receive an actual DOM node rather than a plain JSON object.
 pub async fn execute_async(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
   Json(request): Json<ExecuteScriptRequest>,
 ) -> WebDriverResult {
-  let timeout_ms = {
+  let (timeout_ms, wrapped, pass_through) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
-    session.timeouts.script_ms
+    let (call_args, pass_through) = resolve_call_args(session, &request.args);
+
+    // Inner-function params name each non-element pass-through plus `__done`.
+    // Call site preserves original arg order — resolved element exprs and
+    // `__argN` slots — and appends `__done` so it lands as the last argument,
+    // matching the W3C async-script contract.
+    let param_names: Vec<String> = (0..pass_through.len()).map(|i| format!("__arg{i}")).collect();
+    let param_list = if param_names.is_empty() {
+      "__done".to_string()
+    } else {
+      format!("{}, __done", param_names.join(", "))
+    };
+    let call_list = if call_args.is_empty() {
+      "__done".to_string()
+    } else {
+      format!("{}, __done", call_args.join(", "))
+    };
+
+    let wrapped = format!(
+      r#"return (function() {{
+        return new Promise(function(resolve, reject) {{
+          var __done = function(result) {{ resolve(result); }};
+          try {{ (function({param_list}) {{ {script} }})({call_list}); }}
+          catch (e) {{ reject(e); }}
+        }});
+      }})()"#,
+      param_list = param_list,
+      call_list = call_list,
+      script = request.script,
+    );
+
+    (session.timeouts.script_ms, wrapped, pass_through)
   };
 
-  // Async script: add a `done` callback as the last argument and wrap in a
-  // Promise so the polling loop can await it.
-  let arg_names: Vec<String> = (0..request.args.len()).map(|i| format!("__arg{i}")).collect();
-  let arg_list = if arg_names.is_empty() {
-    "__done".to_string()
-  } else {
-    format!("{}, __done", arg_names.join(", "))
-  };
-  let wrapped = format!(
-    r#"return (function() {{
-      return new Promise(function(resolve, reject) {{
-        var __done = function(result) {{ resolve(result); }};
-        try {{ (function({arg_list}) {{ {script} }})({args}__done); }}
-        catch (e) {{ reject(e); }}
-      }});
-    }})()"#,
-    arg_list = arg_list,
-    script = request.script,
-    args = if arg_names.is_empty() {
-      String::new()
-    } else {
-      format!("{}, ", arg_names.join(", "))
-    },
-  );
-  run_script(&wrapped, &request.args, timeout_ms).await
+  run_script(&wrapped, &pass_through, timeout_ms).await
 }
