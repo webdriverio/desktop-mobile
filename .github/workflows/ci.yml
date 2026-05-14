@@ -862,6 +862,7 @@ jobs:
       - package-dioxus-macos-intel
       - package-dioxus-linux-arm
       - build-matrix
+      - build-dioxus-crates-linux
       - package-electron-mac-universal
     runs-on: ubuntu-latest
     steps:
