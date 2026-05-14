@@ -119,7 +119,12 @@ function main(): void {
   const targets = ARTEFACTS.filter((a) => !wantedScope || a.scope === wantedScope);
 
   console.log('Building workspace first (release artefacts must be in sync with source)…');
-  run('pnpm build', ROOT);
+  const buildResult = run('pnpm build', ROOT);
+  if (buildResult.code !== 0) {
+    console.error('\n❌ Build failed — fix build errors before validating artefacts.');
+    console.error(buildResult.stderr || buildResult.stdout);
+    process.exit(1);
+  }
 
   console.log(`Validating ${targets.length} artefact(s)…\n`);
   const results: Result[] = [];

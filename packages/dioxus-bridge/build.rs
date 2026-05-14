@@ -42,19 +42,28 @@ fn main() {
   // version (the part before any `-pre.suffix`). npm uses `-next.N` while
   // crates.io uses `-rc.N`, so a literal string match isn't appropriate —
   // we enforce X.Y.Z agreement and let pre-release suffixes diverge per
-  // registry convention.
-  if let Ok(npm_pkg) = fs::read_to_string("package.json") {
-    let crate_version = env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION is set by cargo");
-    let npm_version = extract_npm_version(&npm_pkg).unwrap_or_else(|| {
-      panic!("could not find a `version` field in packages/dioxus-bridge/package.json")
-    });
-    let crate_core = core_version(&crate_version);
-    let npm_core = core_version(&npm_version);
-    if crate_core != npm_core {
-      panic!(
-        "version mismatch between Cargo.toml ({crate_version}) and package.json ({npm_version}) — \
-         core versions must agree (got `{crate_core}` vs `{npm_core}`). Bump both together \
-         before releasing.",
+  // registry convention. Surface a cargo:warning when package.json can't
+  // be read so the skip is visible rather than silent.
+  match fs::read_to_string("package.json") {
+    Ok(npm_pkg) => {
+      let crate_version = env::var("CARGO_PKG_VERSION").expect("CARGO_PKG_VERSION is set by cargo");
+      let npm_version = extract_npm_version(&npm_pkg).unwrap_or_else(|| {
+        panic!("could not find a `version` field in packages/dioxus-bridge/package.json")
+      });
+      let crate_core = core_version(&crate_version);
+      let npm_core = core_version(&npm_version);
+      if crate_core != npm_core {
+        panic!(
+          "version mismatch between Cargo.toml ({crate_version}) and package.json ({npm_version}) — \
+           core versions must agree (got `{crate_core}` vs `{npm_core}`). Bump both together \
+           before releasing.",
+        );
+      }
+    }
+    Err(e) => {
+      println!(
+        "cargo:warning=packages/dioxus-bridge/package.json not readable ({e}); \
+         npm↔crate version-sync check skipped.",
       );
     }
   }

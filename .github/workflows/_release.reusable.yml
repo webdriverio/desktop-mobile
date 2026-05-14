@@ -109,7 +109,7 @@ jobs:
               echo "packages=@wdio/tauri-service,@wdio/tauri-plugin,tauri-plugin-wdio-webdriver" >> "$GITHUB_OUTPUT"
               ;;
             dioxus)
-              echo "packages=@wdio/dioxus-service,@wdio/dioxus-bridge,wdio-dioxus-embedded-driver,wdio-dioxus-driver" >> "$GITHUB_OUTPUT"
+              echo "packages=@wdio/dioxus-service,@wdio/dioxus-bridge,wdio-dioxus-bridge,wdio-dioxus-embedded-driver,wdio-dioxus-driver" >> "$GITHUB_OUTPUT"
               ;;
             utils)
               echo "packages=@wdio/native-utils" >> "$GITHUB_OUTPUT"
