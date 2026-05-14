@@ -269,7 +269,7 @@ jobs:
             echo "Checking existing ACL manifest (if present):"
             if [ -f "$APP_DIR/gen/schemas/acl-manifests.json" ]; then
               echo "Existing ACL manifest found:"
-              cat "$APP_DIR/gen/schemas/acl-manifests.json" | jq 'keys' 2>/dev/null || cat "$APP_DIR/gen/schemas/acl-manifests.json" | head -20
+              jq 'keys' "$APP_DIR/gen/schemas/acl-manifests.json" 2>/dev/null || head -20 "$APP_DIR/gen/schemas/acl-manifests.json"
 
               if grep -q '"default"' "$APP_DIR/gen/schemas/acl-manifests.json" 2>/dev/null; then
                 echo "✅ Existing manifest has 'default' capability"
@@ -325,7 +325,7 @@ jobs:
             if [ -f "$ACL_MANIFEST" ]; then
               echo "✅ ACL manifest exists"
               echo "ACL manifest keys:"
-              cat "$ACL_MANIFEST" | jq 'keys' 2>/dev/null || cat "$ACL_MANIFEST" | head -50
+              jq 'keys' "$ACL_MANIFEST" 2>/dev/null || head -50 "$ACL_MANIFEST"
 
               if grep -q '"default"' "$ACL_MANIFEST" 2>/dev/null; then
                 echo "✅ 'default' capability found in ACL manifest"

@@ -62,7 +62,11 @@ jobs:
       # marketplace wrappers have flaky npm-based setup on newer runners.
       - name: 🔍 Run actionlint
         shell: bash
+        # Restrict to top-level workflow files. actionlint's auto-discovery
+        # also walks .github/workflows/actions/*/action.yml, but composite
+        # actions use a different schema and (incorrectly) fail the
+        # workflow-schema checks if passed in.
         run: |
           bash <(curl --silent --show-error --fail \
             https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.12
-          ./actionlint -color
+          ./actionlint -color .github/workflows/*.yml

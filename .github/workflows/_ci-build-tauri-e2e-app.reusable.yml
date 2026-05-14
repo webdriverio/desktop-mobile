@@ -210,7 +210,7 @@ jobs:
           echo "Checking capabilities file..."
           if [ -f "$APP_DIR/capabilities/default.json" ]; then
             echo "✅ Capabilities file exists"
-            cat "$APP_DIR/capabilities/default.json" | head -20 || echo "Failed to read capabilities file"
+            head -20 "$APP_DIR/capabilities/default.json" || echo "Failed to read capabilities file"
 
             # Check if identifier is "default"
             if grep -q '"identifier": "default"' "$APP_DIR/capabilities/default.json"; then
@@ -285,7 +285,7 @@ jobs:
             if [ -f "$ACL_MANIFEST" ]; then
               echo "✅ ACL manifest exists"
               echo "ACL manifest keys:"
-              cat "$ACL_MANIFEST" | jq 'keys' 2>/dev/null || cat "$ACL_MANIFEST" | head -50
+              jq 'keys' "$ACL_MANIFEST" 2>/dev/null || head -50 "$ACL_MANIFEST"
 
               if grep -q '"default"' "$ACL_MANIFEST" 2>/dev/null; then
                 echo "✅ 'default' capability found in ACL manifest"
