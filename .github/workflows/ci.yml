@@ -167,6 +167,30 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  build-tauri-package-app-macos-arm:
+    name: Build Tauri Package Test App [macOS-ARM]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-tauri-package-app-macos-intel:
+    name: Build Tauri Package Test App [macOS-Intel]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-15-intel'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Run package tests after unit tests to ensure the package is built correctly
   # Split Electron and Tauri tests across separate jobs for better parallelization and clarity
   # Electron apps are built inline on the test runner (faster builds, Turbo caching handles it)
@@ -255,6 +279,34 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
       tauri_cache_key: ${{ needs.build-tauri-package-app-linux-arm.outputs.cache_key }}
+
+  package-tauri-macos-arm:
+    name: Package - Tauri [macOS-ARM]
+    needs: [detect-changes, build, build-tauri-package-app-macos-arm]
+    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      service: 'tauri'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      tauri_cache_key: ${{ needs.build-tauri-package-app-macos-arm.outputs.cache_key }}
+
+  package-tauri-macos-intel:
+    name: Package - Tauri [macOS-Intel]
+    needs: [detect-changes, build, build-tauri-package-app-macos-intel]
+    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-15-intel'
+      service: 'tauri'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      tauri_cache_key: ${{ needs.build-tauri-package-app-macos-intel.outputs.cache_key }}
 
   # Run Tauri package tests across different Linux distributions using Docker
   # Tests cross-distro compatibility, tauri-driver auto-installation, and WebKitWebDriver detection
@@ -579,6 +631,8 @@ jobs:
       - package-tauri-linux
       - package-tauri-windows
       - package-tauri-linux-arm
+      - package-tauri-macos-arm
+      - package-tauri-macos-intel
       - package-tauri-distros
       - build-matrix
       - package-electron-mac-universal

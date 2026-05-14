@@ -11,6 +11,7 @@
     "build:web": "tsx scripts/build-web.ts",
     "build": "pnpm build:js && pnpm build:web && tauri build --debug",
     "test": "cross-env DEBUG=@wdio/tauri-service wdio run wdio.conf.ts",
+    "test:embedded": "cross-env DEBUG=@wdio/tauri-service wdio run wdio.embedded.conf.ts",
     "test:browser": "cross-env DEBUG=@wdio/tauri-service wdio run wdio.browser.conf.ts"
   },
   "dependencies": {

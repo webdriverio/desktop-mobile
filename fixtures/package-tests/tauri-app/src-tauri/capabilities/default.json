@@ -33,6 +33,7 @@
         }
       ]
     },
-    "wdio:allow-execute"
+    "wdio:allow-execute",
+    "wdio-webdriver:default"
   ]
 }

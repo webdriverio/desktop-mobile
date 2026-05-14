@@ -189,12 +189,8 @@ jobs:
               pnpm run test:package:electron -- --module-type=${{ inputs.module-type }}
               ;;
             tauri)
-              if [ "${{ inputs.os }}" == "macos-latest" ]; then
-                echo "⚠️  Skipping Tauri package tests on macOS (not supported)"
-                exit 0
-              fi
               echo "Running Tauri package tests (using pre-built binaries from separate build job)"
-              if [[ "${{ inputs.os }}" == "ubuntu-latest" || "${{ inputs.os }}" == "ubuntu-24.04-arm" ]]; then
+              if [[ "${{ runner.os }}" == "Linux" ]]; then
                 echo "Using xvfb-run to provide a DISPLAY on Linux (${{ inputs.os }})"
                 # Use 16-bit color depth to avoid pixbuf issues with GTK/WebKit (same as E2E)
                 xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \

@@ -179,10 +179,17 @@ async fn write_clipboard(content: String) -> Result<(), String> {
 }
 
 fn main() {
-    tauri::Builder::default()
+    let use_embedded_server = std::env::var("WDIO_EMBEDDED_SERVER").is_ok();
+
+    let mut builder = tauri::Builder::default()
         .plugin(tauri_plugin_wdio::init())
-        .plugin(tauri_plugin_fs::init())
-        .invoke_handler(tauri::generate_handler![
+        .plugin(tauri_plugin_fs::init());
+
+    if use_embedded_server {
+        builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+    }
+
+    builder.invoke_handler(tauri::generate_handler![
             get_window_bounds,
             set_window_bounds,
             minimize_window,
@@ -199,5 +206,5 @@ fn main() {
             write_clipboard
         ])
         .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .expect("error while running tauri application")
 }

@@ -567,7 +567,12 @@ async function testExample(
     }
 
     try {
-      const testScript = mode === 'browser' ? 'pnpm test:browser' : 'pnpm test';
+      const testScript =
+        mode === 'browser'
+          ? 'pnpm test:browser'
+          : service === 'tauri' && process.platform === 'darwin'
+            ? 'pnpm test:embedded'
+            : 'pnpm test';
       execCommand(testScript, packageDir, `Running ${mode} tests for ${packageName}`);
     } finally {
       if (staticServer) {
