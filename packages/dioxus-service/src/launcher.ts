@@ -1,4 +1,6 @@
-import { BaseLauncher } from '@wdio/native-core';
+import { join } from 'node:path';
+
+import { BaseLauncher, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
 import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
@@ -80,6 +82,14 @@ export default class DioxusLaunchService extends BaseLauncher {
       }
     }
     // provider === 'external': wdio-dioxus-driver spawning wired in a follow-on commit
+
+    if (mergedOptions.captureBackendLogs || mergedOptions.captureFrontendLogs) {
+      if (!isLogWriterInitialized('dioxus-service')) {
+        const logDir = _config.outputDir ?? join(process.cwd(), 'logs');
+        getLogWriter('dioxus-service').initialize(logDir);
+        log.info(`Log capture initialized: ${logDir}`);
+      }
+    }
   }
 
   private async prepareEmbedded(capsList: DioxusCapabilities[]): Promise<void> {

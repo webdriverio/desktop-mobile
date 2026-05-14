@@ -10,6 +10,7 @@ use uuid::Uuid;
 
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
+use crate::webdriver::element::ELEMENT_KEY;
 
 #[derive(Debug, Deserialize)]
 pub struct ExecuteScriptRequest {
@@ -46,27 +47,55 @@ async fn run_script(
 ///
 /// Wraps the script body in a function and passes `args` as positional
 /// parameters, matching the W3C WebDriver script execution semantics.
+///
+/// WebDriver element references (`{"element-6066-11e4-a52e-4f735466cecf": id}`)
+/// are resolved to `window[varName]` inline so the script receives an actual
+/// DOM node rather than a plain JSON object. This is required for WDIO's
+/// `isDisplayed()` atom and other element-aware scripts.
 pub async fn execute_sync(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
   Json(request): Json<ExecuteScriptRequest>,
 ) -> WebDriverResult {
-  let timeout_ms = {
+  let (timeout_ms, call_expr) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
-    session.timeouts.script_ms
+
+    // Build the argument list for the IIFE call, resolving WebDriver element
+    // references to `window['var_name']` expressions so the receiving script
+    // gets an actual DOM node instead of a plain JSON object.
+    let mut call_args: Vec<String> = Vec::new();
+    let mut pass_through: Vec<Value> = Vec::new();
+    let mut pass_idx: usize = 0;
+
+    for arg in &request.args {
+      if let Some(elem_id) = arg.get(ELEMENT_KEY).and_then(|v| v.as_str()) {
+        let js_expr = if let Some(var_name) = session.elements.get(elem_id) {
+          format!("window[{}]", serde_json::to_string(var_name).unwrap_or_else(|_| "null".into()))
+        } else {
+          "null".into() // stale reference
+        };
+        call_args.push(js_expr);
+      } else {
+        call_args.push(format!("__arg{pass_idx}"));
+        pass_through.push(arg.clone());
+        pass_idx += 1;
+      }
+    }
+
+    let param_names: Vec<String> = (0..pass_through.len()).map(|i| format!("__arg{i}")).collect();
+    let param_list = param_names.join(", ");
+    let call_list = call_args.join(", ");
+    let call_expr = if call_list.is_empty() {
+      format!("return (function() {{ {} }})()", request.script)
+    } else {
+      format!("return (function({param_list}) {{ {} }})({call_list})", request.script)
+    };
+
+    (session.timeouts.script_ms, (call_expr, pass_through))
   };
 
-  // Wrap in an IIFE, forwarding args so `arguments[N]` is accessible inside
-  // the script body per the W3C WebDriver spec.
-  let arg_names: Vec<String> = (0..request.args.len()).map(|i| format!("__arg{i}")).collect();
-  let arg_list = arg_names.join(", ");
-  let wrapped = if arg_list.is_empty() {
-    format!("return (function() {{ {} }})()", request.script)
-  } else {
-    format!("return (function({arg_list}) {{ {} }})({arg_list})", request.script)
-  };
-  run_script(&wrapped, &request.args, timeout_ms).await
+  run_script(&call_expr.0, &call_expr.1, timeout_ms).await
 }
 
 /// POST `/session/{session_id}/execute/async`
