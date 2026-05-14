@@ -45,7 +45,7 @@ env:
 
 jobs:
   build-dioxus-package-app:
-    name: Build Dioxus Package Test App
+    name: Build
     runs-on: ${{ inputs.os }}
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}

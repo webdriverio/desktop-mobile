@@ -53,7 +53,7 @@ jobs:
   # - Test scenario (builder, forge, script)
   # - E2E tests use ESM only (CJS/ESM testing is done in package tests)
   e2e:
-    name: E2E Tests
+    name: Run
     runs-on: ${{ inputs.os }}
     strategy:
       # Continue with other tests even if one fails

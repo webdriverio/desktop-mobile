@@ -58,7 +58,7 @@ jobs:
 
   # Run unit tests - skip when only docs changed
   unit-matrix:
-    name: Unit
+    name: Unit [${{ matrix.display-name }}]
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -296,7 +296,7 @@ jobs:
   # Tauri apps are built separately due to longer build times and system dependencies
   # Electron package tests are split by module type (CJS/ESM) for better error isolation
   package-electron-matrix:
-    name: Package - Electron
+    name: Package - Electron [${{ matrix.display-name }}] - ${{ matrix.module-type }}
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -387,7 +387,7 @@ jobs:
   # - CentOS Stream 9: glib 2.68 too old (Tauri requires >= 2.70)
   # - CentOS Stream 10: WebKitGTK removed by Red Hat due to 200+ CVEs and unsustainable maintenance
   package-tauri-distros:
-    name: Package - Tauri (Docker)
+    name: Package - Tauri (Docker) [${{ matrix.display-name }}]
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -411,7 +411,7 @@ jobs:
 
   # Run build tests outside of the main Linux build job
   build-matrix:
-    name: Build
+    name: Build [${{ matrix.display-name }}]
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -435,7 +435,7 @@ jobs:
   # - E2E tests use ESM only (CJS/ESM testing is done in package tests)
   # - Optimize for GitHub Actions concurrency limits
   e2e-matrix:
-    name: E2E - Electron
+    name: E2E - Electron [${{ matrix.display-name }}] - ${{ matrix.scenario }}
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
@@ -490,7 +490,7 @@ jobs:
 
   # Electron window tests - run on Linux with splash screen enabled
   e2e-electron-window:
-    name: E2E - Electron [Linux] (window)
+    name: E2E - Electron [${{ matrix.display-name }}] (window) - ${{ matrix.scenario }}
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:

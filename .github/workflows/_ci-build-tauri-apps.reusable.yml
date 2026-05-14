@@ -40,7 +40,7 @@ jobs:
   # This job builds all Tauri test applications for the specified OS
   # Unlike package builds, each OS creates its own artifacts since binaries are platform-specific
   build-tauri-apps:
-    name: Build Tauri Apps
+    name: Build
     runs-on: ${{ inputs.os }}
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}

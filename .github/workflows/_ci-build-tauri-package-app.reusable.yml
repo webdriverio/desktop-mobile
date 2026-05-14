@@ -44,7 +44,7 @@ env:
 
 jobs:
   build-tauri-package-app:
-    name: Build Tauri Package Test App
+    name: Build
     runs-on: ${{ inputs.os }}
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}

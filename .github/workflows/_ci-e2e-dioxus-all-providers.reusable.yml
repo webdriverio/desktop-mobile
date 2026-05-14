@@ -44,7 +44,7 @@ env:
 
 jobs:
   e2e-dioxus:
-    name: Dioxus E2E Tests
+    name: Run
     runs-on: ${{ inputs.os }}
     steps:
       # ══════════════════════════════════════════════════════════════

@@ -52,7 +52,7 @@ env:
 jobs:
   # This job runs package tests on multiple Node.js versions and operating systems
   package:
-    name: Package Tests
+    name: Run
     runs-on: ${{ inputs.os }}
     steps:
       # Standard checkout with SSH key for private repositories

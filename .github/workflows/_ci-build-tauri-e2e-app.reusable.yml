@@ -48,7 +48,7 @@ env:
 
 jobs:
   build-tauri-e2e-app:
-    name: Build Tauri E2E App
+    name: Build
     runs-on: ${{ inputs.os }}
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}
