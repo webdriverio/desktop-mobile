@@ -27,7 +27,7 @@ on:
         type: boolean
         default: false
       scope:
-        description: 'Release scope (electron, tauri, shared) — controls build and toolchain steps'
+        description: 'Release scope (electron, tauri, dioxus, utils, types, spy, core, shared) — controls build and toolchain steps'
         required: true
         type: string
     secrets:
@@ -35,7 +35,7 @@ on:
         description: 'SSH deploy key for pushing to the repository'
         required: false
       crates_io_token:
-        description: 'Crates.io token for publishing Rust crates (required for Tauri)'
+        description: 'Crates.io token for publishing Rust crates (required for Tauri and Dioxus)'
         required: false
       ollama_api_key:
         description: 'Ollama API key for LLM-enhanced release notes'
@@ -77,12 +77,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Setup Rust
-        if: ${{ contains(inputs.scope, 'tauri') }}
+        if: ${{ contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus') }}
         shell: bash
         run: rustup update stable && rustup default stable
 
       - name: Install GTK development libraries
-        if: ${{ contains(inputs.scope, 'tauri') }}
+        if: ${{ contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus') }}
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -108,6 +108,9 @@ jobs:
             tauri)
               echo "packages=@wdio/tauri-service,@wdio/tauri-plugin,tauri-plugin-wdio-webdriver" >> "$GITHUB_OUTPUT"
               ;;
+            dioxus)
+              echo "packages=@wdio/dioxus-service,@wdio/dioxus-bridge,wdio-dioxus-embedded-driver,wdio-dioxus-driver" >> "$GITHUB_OUTPUT"
+              ;;
             utils)
               echo "packages=@wdio/native-utils" >> "$GITHUB_OUTPUT"
               ;;
@@ -117,8 +120,11 @@ jobs:
             spy)
               echo "packages=@wdio/native-spy" >> "$GITHUB_OUTPUT"
               ;;
+            core)
+              echo "packages=@wdio/native-core" >> "$GITHUB_OUTPUT"
+              ;;
             shared)
-              echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy" >> "$GITHUB_OUTPUT"
+              echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy,@wdio/native-core" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "::error::Unknown scope: $scope"
@@ -177,6 +183,12 @@ jobs:
                 --filter='@wdio/tauri-plugin...'
               pnpm turbo run build:rust --filter='@wdio/tauri-plugin'
               ;;
+            dioxus)
+              pnpm turbo run build \
+                --filter='@wdio/dioxus-service...' \
+                --filter='@wdio/dioxus-bridge...'
+              pnpm turbo run build:rust --filter='@wdio/dioxus-bridge'
+              ;;
             utils)
               pnpm turbo run build --filter='@wdio/native-utils...'
               ;;
@@ -186,11 +198,15 @@ jobs:
             spy)
               pnpm turbo run build --filter='@wdio/native-spy...'
               ;;
+            core)
+              pnpm turbo run build --filter='@wdio/native-core...'
+              ;;
             shared)
               pnpm turbo run build \
                 --filter='@wdio/native-types...' \
                 --filter='@wdio/native-utils...' \
-                --filter='@wdio/native-spy...'
+                --filter='@wdio/native-spy...' \
+                --filter='@wdio/native-core...'
               ;;
             *)
               echo "::error::Unknown scope: $scope"
