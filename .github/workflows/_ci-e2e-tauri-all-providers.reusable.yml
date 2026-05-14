@@ -96,9 +96,8 @@ jobs:
       # Only installed on Linux/Windows where official provider runs
       - name: 🦀 Setup Rust (for tauri-driver auto-install)
         if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+        shell: bash
+        run: rustup update stable && rustup default stable && rustup component add rustfmt
 
       # WebKitWebDriver needed for official + crabnebula providers on Linux
       - name: 🌐 Install WebKit WebDriver (Linux)

@@ -71,9 +71,8 @@ jobs:
       # The @wdio/tauri-service will automatically install tauri-driver via cargo if not found
       - name: 🦀 Setup Rust (for tauri-driver auto-install)
         if: inputs.service == 'tauri' || inputs.service == 'both'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+        shell: bash
+        run: rustup update stable && rustup default stable && rustup component add rustfmt
 
       # Install Dioxus GTK/WebKit runtime dependencies for Linux (required to run the desktop app)
       - name: 🦀 Install Dioxus Runtime Dependencies (Linux)

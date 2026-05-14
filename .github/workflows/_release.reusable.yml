@@ -78,7 +78,8 @@ jobs:
 
       - name: Setup Rust
         if: ${{ contains(inputs.scope, 'tauri') }}
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: Install GTK development libraries
         if: ${{ contains(inputs.scope, 'tauri') }}

@@ -74,7 +74,8 @@ jobs:
           exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
       - name: 🦀 Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: 🦀 Rust Cache
         uses: Swatinem/rust-cache@v2

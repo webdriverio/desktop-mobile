@@ -62,7 +62,8 @@ jobs:
 
       # Install Rust toolchain for Tauri compilation
       - name: 🦀 Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: 🦀 Rust Cache
         uses: Swatinem/rust-cache@v2

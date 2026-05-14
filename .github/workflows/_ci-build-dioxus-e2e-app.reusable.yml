@@ -63,7 +63,8 @@ jobs:
           node-version: '24'
 
       - name: 🦀 Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: 🦀 Rust Cache
         uses: Swatinem/rust-cache@v2
