@@ -863,6 +863,22 @@ jobs:
       - package-dioxus-linux-arm
       - build-matrix
       - build-dioxus-crates-linux
+      - build-tauri-e2e-app-linux
+      - build-tauri-e2e-app-windows
+      - build-tauri-e2e-app-macos-arm
+      - build-tauri-e2e-app-macos-intel
+      - build-tauri-package-app-linux
+      - build-tauri-package-app-windows
+      - build-tauri-package-app-linux-arm
+      - build-dioxus-e2e-app-linux
+      - build-dioxus-e2e-app-windows
+      - build-dioxus-e2e-app-macos-arm
+      - build-dioxus-e2e-app-macos-intel
+      - build-dioxus-package-app-linux
+      - build-dioxus-package-app-windows
+      - build-dioxus-package-app-macos-arm
+      - build-dioxus-package-app-macos-intel
+      - build-dioxus-package-app-linux-arm
       - package-electron-mac-universal
     runs-on: ubuntu-latest
     steps:
