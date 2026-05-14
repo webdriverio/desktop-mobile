@@ -52,6 +52,7 @@
     "lint:fix:unsafe": "biome check --write --unsafe --formatter-enabled=false --linter-enabled=true . && eslint --cache --fix \"**/*.{j,mj,cj,t}s\"",
     "prepare": "husky",
     "release": "turbo run release --filter=@wdio/electron-service --filter=@wdio/* --only --concurrency=1",
+    "release:dry-run": "tsx ./scripts/release-dry-run.ts",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "test:integration": "turbo run test:integration",
