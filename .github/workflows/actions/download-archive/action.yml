@@ -92,7 +92,9 @@ runs:
         for i in $(seq 1 $MAX_RETRIES); do
           echo "Attempt $i of $MAX_RETRIES"
           : > "$STDERR_FILE"
-          if gh run download --name "${{ inputs.name }}" --dir "${{ inputs.path }}" 2> "$STDERR_FILE"; then
+          # Scope to the current run so gh CLI doesn't page through every
+          # historical artifact in the repo (50k+, drives HTTP 502 stalls).
+          if gh run download "$GITHUB_RUN_ID" --name "${{ inputs.name }}" --dir "${{ inputs.path }}" 2> "$STDERR_FILE"; then
             cat "$STDERR_FILE" >&2 || true
             break
           fi
