@@ -53,6 +53,8 @@
     "prepare": "husky",
     "release": "turbo run release --filter=@wdio/electron-service --filter=@wdio/* --only --concurrency=1",
     "release:dry-run": "tsx ./scripts/release-dry-run.ts",
+    "version:dioxus-bridge": "tsx ./scripts/bump-dioxus-bridge-version.ts",
+    "version:dioxus-bridge:check": "tsx ./scripts/bump-dioxus-bridge-version.ts --check",
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "test:integration": "turbo run test:integration",

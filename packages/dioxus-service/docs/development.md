@@ -228,8 +228,21 @@ done
 
 ### Version-sync conventions
 
-- `@wdio/dioxus-bridge` (npm) and `wdio-dioxus-bridge` (crate) **must ship at the same version**. The Rust crate's `build.rs` reads `package.json` at compile time and treats mismatched versions as a build error.
-- An automated sync script (`scripts/update-dioxus-version.ts`) is deferred to v1.1. For v1, bump both versions by hand in the same commit before triggering the release workflow.
+- `@wdio/dioxus-bridge` (npm) and `wdio-dioxus-bridge` (crate) **must ship at the same core `X.Y.Z` version**. The Rust crate's `build.rs` reads `package.json` at compile time and treats mismatched core versions as a build error. Pre-release suffixes diverge by convention: npm uses `-next.N`, crates.io uses `-rc.N`.
+- Use `scripts/bump-dioxus-bridge-version.ts` to keep them aligned:
+
+  ```sh
+  # Sync mode: read npm version, propagate its core to all Cargo.tomls
+  pnpm version:dioxus-bridge
+
+  # Bump mode: set a new npm version (any valid SemVer), then sync
+  pnpm version:dioxus-bridge 1.0.0-next.1
+
+  # Check mode: exits 1 if anything is out of sync (useful in pre-commit / CI)
+  pnpm version:dioxus-bridge:check
+  ```
+
+  The script also writes the `version =` field on `wdio-dioxus-bridge`'s path-dep in `packages/dioxus-embedded-driver/Cargo.toml` — see the path-dependency section below.
 
 ### Cargo path-dependency requirement
 
