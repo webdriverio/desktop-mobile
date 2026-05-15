@@ -23,11 +23,12 @@
 
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const ROOT = dirname(dirname(fileURLToPath(import.meta.url)));
-const PACK_DIR = '/tmp';
+const PACK_DIR = tmpdir();
 
 type Kind = 'npm' | 'crate';
 
