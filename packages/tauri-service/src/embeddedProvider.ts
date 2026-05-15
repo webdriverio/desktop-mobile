@@ -188,16 +188,43 @@ export async function startEmbeddedDriver(
 
 /**
  * Stop the embedded driver (kill the app process and close log handlers)
+ *
+ * Uses event-based waits (no setTimeout poll loop) and explicitly destroys
+ * the child's stdio streams before signalling, so libuv has no dangling
+ * stream/timer handles when WDIO tears down the event loop. Without this,
+ * Windows runs intermittently hit `Assertion failed: !(handle->flags &
+ * UV_HANDLE_CLOSING)` in `src/win/async.c` after a successful test.
  */
 export async function stopEmbeddedDriver(info: EmbeddedDriverInfo): Promise<void> {
   const { proc: child, logHandlers } = info;
 
-  // Close log handlers first
+  // Detach readline interfaces first: removes all listeners synchronously so
+  // no further 'line' events fire while the underlying pipes are tearing down.
   for (const handler of logHandlers) {
+    try {
+      handler.removeAllListeners();
+    } catch {
+      // Ignore — best-effort detach
+    }
     try {
       handler.close();
     } catch {
       // Ignore errors on close
+    }
+  }
+
+  // Explicitly destroy stdout/stderr streams. Killing the process closes the
+  // OS pipe, but Node's readable wrapper keeps a libuv pipe handle around
+  // until something destroys or fully drains it — destroying it here ensures
+  // the handle is released on a known tick rather than during loop teardown.
+  for (const stream of [child.stdout, child.stderr]) {
+    if (stream && !stream.destroyed) {
+      try {
+        stream.removeAllListeners();
+        stream.destroy();
+      } catch {
+        // Ignore errors on destroy
+      }
     }
   }
 
@@ -208,19 +235,32 @@ export async function stopEmbeddedDriver(info: EmbeddedDriverInfo): Promise<void
 
   log.info(`Stopping embedded driver (PID: ${child.pid})...`);
 
-  // Try graceful shutdown first (SIGTERM)
-  child.kill('SIGTERM');
+  // If the process has already exited (e.g. crashed during teardown), skip the
+  // signal dance entirely.
+  if (child.exitCode !== null || child.signalCode !== null) {
+    log.info('✅ Embedded driver already exited');
+    return;
+  }
 
-  // Wait for process to exit
+  // Wait for the 'exit' event with a hard timeout. Event-based waiting avoids
+  // a setTimeout poll loop that would register many short-lived libuv timer
+  // handles during shutdown.
   const gracefulTimeout = 5000;
-  const startTime = Date.now();
+  const exited = new Promise<boolean>((resolve) => {
+    const onExit = () => resolve(true);
+    child.once('exit', onExit);
+    const timer = setTimeout(() => {
+      child.removeListener('exit', onExit);
+      resolve(false);
+    }, gracefulTimeout);
+    // Allow Node to exit even if this timer is still pending.
+    timer.unref();
+  });
 
-  while (Date.now() - startTime < gracefulTimeout) {
-    if (child.exitCode !== null || child.signalCode !== null) {
-      log.info(`✅ Embedded driver exited gracefully`);
-      return;
-    }
-    await sleep(100);
+  child.kill('SIGTERM');
+  if (await exited) {
+    log.info('✅ Embedded driver exited gracefully');
+    return;
   }
 
   // Force kill if still running

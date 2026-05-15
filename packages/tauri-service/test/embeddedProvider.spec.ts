@@ -251,6 +251,9 @@ describe('stopEmbeddedDriver', () => {
     Object.defineProperty(mockChild, 'signalCode', { value: null, writable: true, configurable: true });
     mockChild.kill = vi.fn().mockImplementation(() => {
       Object.defineProperty(mockChild, 'exitCode', { value: 0, writable: true, configurable: true });
+      // stopEmbeddedDriver now waits on the 'exit' event rather than polling
+      // exitCode, so emit it on the next tick to simulate graceful shutdown.
+      queueMicrotask(() => (mockChild as EventEmitter).emit('exit', 0, null));
       return true;
     });
 
@@ -258,6 +261,7 @@ describe('stopEmbeddedDriver', () => {
     await stopEmbeddedDriver({ proc: mockChild as ChildProcess, logHandlers: [handler] });
 
     expect(mockChild.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(mockChild.kill).not.toHaveBeenCalledWith('SIGKILL');
     expect(handler.close).toHaveBeenCalled();
   });
 

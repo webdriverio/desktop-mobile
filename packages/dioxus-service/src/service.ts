@@ -29,26 +29,48 @@ export default class DioxusWorkerService {
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
-    log.debug('DioxusWorkerService.before — installing browser.dioxus');
+    log.info(
+      `before() start — mode=${this.devServerUrl ? 'browser' : 'native'} ` +
+        `multiremote=${browser.isMultiremote} ` +
+        `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+    );
 
-    if (this.devServerUrl) {
-      await this.initBrowserMode(browser as WebdriverIO.Browser);
-      return;
-    }
-
-    if (browser.isMultiremote) {
-      const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-      log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
-      this.addDioxusApi(browser as unknown as WebdriverIO.Browser);
-      for (const instanceName of mrBrowser.instances) {
-        const mrInstance = mrBrowser.getInstance(instanceName);
-        log.debug(`Injecting spy + installing dioxus API on instance: ${instanceName}`);
-        await this.injectSpy(mrInstance);
-        this.addDioxusApi(mrInstance);
+    let stage = 'init';
+    try {
+      if (this.devServerUrl) {
+        stage = 'initBrowserMode';
+        await this.initBrowserMode(browser as WebdriverIO.Browser);
+        log.info('before() complete (browser mode)');
+        return;
       }
-    } else {
-      await this.injectSpy(browser as WebdriverIO.Browser);
-      this.addDioxusApi(browser as WebdriverIO.Browser);
+
+      if (browser.isMultiremote) {
+        const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
+        log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
+        stage = 'addDioxusApi:root';
+        this.addDioxusApi(browser as unknown as WebdriverIO.Browser);
+        for (const instanceName of mrBrowser.instances) {
+          const mrInstance = mrBrowser.getInstance(instanceName);
+          stage = `injectSpy:${instanceName}`;
+          log.info(`Injecting spy + installing dioxus API on instance: ${instanceName}`);
+          await this.injectSpy(mrInstance);
+          stage = `addDioxusApi:${instanceName}`;
+          this.addDioxusApi(mrInstance);
+        }
+      } else {
+        stage = 'injectSpy:single';
+        await this.injectSpy(browser as WebdriverIO.Browser);
+        stage = 'addDioxusApi:single';
+        this.addDioxusApi(browser as WebdriverIO.Browser);
+      }
+      log.info('before() complete');
+    } catch (error) {
+      log.error(
+        `before() failed at stage="${stage}" — mode=${this.devServerUrl ? 'browser' : 'native'} ` +
+          `multiremote=${browser.isMultiremote}`,
+        error,
+      );
+      throw error;
     }
   }
 
