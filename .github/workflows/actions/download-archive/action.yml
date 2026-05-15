@@ -102,7 +102,7 @@ runs:
             exit 1
           fi
 
-          if grep -qi "rate limit\|HTTP 403" "$STDERR_FILE"; then
+          if grep -qi "rate limit" "$STDERR_FILE"; then
             # Rate limit: per-installation token, ~1h window. Short sleeps are useless.
             case $i in
               1) SLEEP_TIME=60 ;;
