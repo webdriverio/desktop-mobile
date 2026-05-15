@@ -83,8 +83,9 @@ runs:
 
         # Capture stderr so we can distinguish rate-limit failures
         # (per-installation token, hour-long window) from generic transients.
-        # Rate-limit backoff: 60s, 120s, 180s, 300s, 300s, 300s
-        # Generic backoff:     2s,   4s,   8s,  16s,  32s,  60s
+        # 6 attempts, 5 sleeps between them:
+        #   Rate-limit backoff: 60s, 120s, 180s, 300s, 300s
+        #   Generic backoff:     2s,   4s,   8s,  16s,  32s
         MAX_RETRIES=6
         STDERR_FILE=$(mktemp)
         trap 'rm -f "$STDERR_FILE"' EXIT
