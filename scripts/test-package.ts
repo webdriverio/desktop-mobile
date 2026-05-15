@@ -67,15 +67,35 @@ function log(message: string) {
 function execCommand(command: string, cwd: string, description: string) {
   log(`${description}...`);
 
-  try {
-    execSync(command, {
-      cwd: normalize(cwd),
-      stdio: 'inherit',
-      encoding: 'utf-8',
-      shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
-    });
-    log(`✅ ${description} completed`);
-  } catch (error) {
+  // On Windows, pnpm install in isolated package-test environments
+  // intermittently exits non-zero without printing its actual error to
+  // stderr (AV interference / global-store contention is suspected). Retry
+  // once for pnpm commands before surfacing the failure.
+  const isPnpm = command.startsWith('pnpm ');
+  const maxAttempts = isPnpm && process.platform === 'win32' ? 2 : 1;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      execSync(command, {
+        cwd: normalize(cwd),
+        stdio: 'inherit',
+        encoding: 'utf-8',
+        shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
+      });
+      if (attempt > 1) log(`(retry ${attempt - 1} succeeded)`);
+      log(`✅ ${description} completed`);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        console.error(`⚠️  ${description} failed on attempt ${attempt}; retrying after 2s...`);
+        // Synchronous sleep without spawning a child — we're in a sync codepath.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
+      }
+    }
+  }
+  {
+    const error = lastError;
     console.error(`❌ ${description} failed:`);
     if (error instanceof Error) {
       console.error(error.message);
