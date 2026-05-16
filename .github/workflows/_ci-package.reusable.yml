@@ -200,7 +200,7 @@ jobs:
               fi
               ;;
             both)
-              if [ "${{ inputs.os }}" == "macos-latest" ]; then
+              if [[ "${{ runner.os }}" == "macOS" ]]; then
                 echo "⚠️  Skipping Tauri package tests on macOS (not supported)"
                 echo "Module type: ${{ inputs.module-type }}"
                 pnpm run test:package:electron -- --module-type=${{ inputs.module-type }}

@@ -368,52 +368,54 @@ async function testExample(
     mkdirSync(logsDir, { recursive: true });
     log(`✅ Created logs directory: ${logsDir}`);
 
-    // For Tauri apps, ensure the plugin is available as a Rust dependency
-    // The plugin is a path dependency (../../../../packages/tauri-plugin from src-tauri/Cargo.toml)
-    // We need to copy it to the correct relative location in the isolated environment
+    // For Tauri apps, ensure the plugins are available as Rust dependencies.
+    // The plugins are path dependencies (../../../../packages/<plugin> from src-tauri/Cargo.toml)
+    // and need to be copied to the corresponding relative location in the isolated environment.
     if (service === 'tauri') {
-      const pluginSourceDir = join(rootDir, 'packages', 'tauri-plugin');
-      // From tempDir/tauri-app/src-tauri/Cargo.toml, ../../../../packages/tauri-plugin
-      // means: tempDir/packages/tauri-plugin
-      const pluginDestDir = join(tempDir, 'packages', 'tauri-plugin');
       const cargoTomlPath = join(packageDir, 'src-tauri', 'Cargo.toml');
 
       if (existsSync(cargoTomlPath)) {
         let cargoToml = readFileSync(cargoTomlPath, 'utf-8');
-        // Check if plugin is referenced as a path dependency
-        if (cargoToml.includes('tauri-plugin-wdio') && cargoToml.includes('path =')) {
-          // Copy plugin source to make it accessible from isolated environment
-          // This includes the permissions directory which is needed for ACL manifest generation
-          if (existsSync(pluginSourceDir)) {
-            log(`Copying plugin source for Rust dependency resolution...`);
-            mkdirSync(dirname(pluginDestDir), { recursive: true });
-            cpSync(pluginSourceDir, pluginDestDir, { recursive: true });
-            log(`✅ Plugin source copied to ${pluginDestDir}`);
+        const tauriPlugins: { crate: string; packageDir: string }[] = [
+          { crate: 'tauri-plugin-wdio', packageDir: 'tauri-plugin' },
+          { crate: 'tauri-plugin-wdio-webdriver', packageDir: 'tauri-plugin-webdriver' },
+        ];
 
-            // Verify permissions directory was copied
-            const permissionsDir = join(pluginDestDir, 'permissions');
-            if (existsSync(permissionsDir)) {
-              log(`✅ Plugin permissions directory found at ${permissionsDir}`);
-            } else {
-              log(`⚠️  Plugin permissions directory not found at ${permissionsDir}`);
-            }
+        let cargoTomlModified = false;
+        for (const { crate, packageDir: pluginPackageDir } of tauriPlugins) {
+          const pluginSourceDir = join(rootDir, 'packages', pluginPackageDir);
+          const pluginDestDir = join(tempDir, 'packages', pluginPackageDir);
+          const pathPattern = new RegExp(
+            `(${crate}\\s*=\\s*\\{\\s*path\\s*=\\s*)"\\.\\./\\.\\./\\.\\./\\.\\./packages/${pluginPackageDir}"(\\s*\\})`,
+          );
 
-            // Update Cargo.toml path to point to the correct location in isolated environment
-            // From tempDir/tauri-app/src-tauri, ../../packages/tauri-plugin points to tempDir/packages/tauri-plugin
-            // Original path: ../../../../packages/tauri-plugin (for monorepo)
-            // Isolated path: Use absolute path to avoid Cargo path resolution issues
-            const oldPathPattern =
-              /(tauri-plugin-wdio\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/tauri-plugin"(\s*\})/;
-            if (oldPathPattern.test(cargoToml)) {
-              // Use absolute path to ensure Cargo can find it
-              const absolutePluginPath = normalize(pluginDestDir);
-              cargoToml = cargoToml.replace(oldPathPattern, `$1"${absolutePluginPath}"$2`);
-              writeFileSync(cargoTomlPath, cargoToml);
-              log(`✅ Updated Cargo.toml path dependency to absolute path: ${absolutePluginPath}`);
-            }
-          } else {
+          if (!pathPattern.test(cargoToml)) continue;
+
+          if (!existsSync(pluginSourceDir)) {
             log(`⚠️  Plugin source not found at ${pluginSourceDir}`);
+            continue;
           }
+
+          log(`Copying ${crate} source for Rust dependency resolution...`);
+          mkdirSync(dirname(pluginDestDir), { recursive: true });
+          cpSync(pluginSourceDir, pluginDestDir, { recursive: true });
+          log(`✅ ${crate} source copied to ${pluginDestDir}`);
+
+          const permissionsDir = join(pluginDestDir, 'permissions');
+          if (existsSync(permissionsDir)) {
+            log(`✅ ${crate} permissions directory found at ${permissionsDir}`);
+          } else {
+            log(`⚠️  ${crate} permissions directory not found at ${permissionsDir}`);
+          }
+
+          const absolutePluginPath = normalize(pluginDestDir);
+          cargoToml = cargoToml.replace(pathPattern, `$1"${absolutePluginPath}"$2`);
+          cargoTomlModified = true;
+          log(`✅ Updated Cargo.toml ${crate} path dependency to absolute path: ${absolutePluginPath}`);
+        }
+
+        if (cargoTomlModified) {
+          writeFileSync(cargoTomlPath, cargoToml);
         }
       }
     }
