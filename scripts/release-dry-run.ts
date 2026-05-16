@@ -88,7 +88,7 @@ function dryPack(a: Artefact): Result {
   if (!existsSync(dir)) {
     return { artefact: a, outcome: 'fail', detail: `directory missing: ${dir}` };
   }
-  const r = run(`pnpm pack --pack-destination ${PACK_DIR}`, dir);
+  const r = run(`pnpm pack --pack-destination "${PACK_DIR}"`, dir);
   if (r.code === 0) return { artefact: a, outcome: 'pass' };
   return { artefact: a, outcome: 'fail', detail: r.stderr || r.stdout };
 }
