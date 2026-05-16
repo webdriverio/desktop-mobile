@@ -101,6 +101,11 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       await service?.after();
     } catch (e: unknown) {
       log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+    }
+    try {
+      await service?.afterSession();
+    } catch (e: unknown) {
+      log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
     } finally {
       activeServices.delete(browser);
     }
