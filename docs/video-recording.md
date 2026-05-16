@@ -1,8 +1,8 @@
 # Video Recording
 
-Both `@wdio/electron-service` and `@wdio/tauri-service` compose with **[`wdio-video-reporter`](https://webdriver.io/docs/wdio-video-reporter/)** for recording test runs — comparable to Playwright's `recordVideo` or Cypress's built-in video capture. This guide is the small amount you need on top of the [upstream guide](https://webdriver.io/docs/wdio-video-reporter/) — install quirks, output-path conventions, the Tauri provider matrix, and a known issue.
+WDIO's service architecture lets framework services and ecosystem services compose freely. Adding **[`wdio-video-reporter`](https://webdriver.io/docs/wdio-video-reporter/)** for video recording alongside any of our framework services is supported by default — no special integration needed. Comparable to Playwright's `recordVideo` or Cypress's built-in video capture. This guide covers only what's *framework-specific* on top of the [upstream guide](https://webdriver.io/docs/wdio-video-reporter/): install quirks, output-path conventions, and framework-specific known issues.
 
-A complete working setup for Electron and Tauri (electron-builder, electron-forge, electron-script, and tauri packages, each with `wdio.video.conf.ts` + `test/video/video.spec.ts`) lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo.
+A complete working setup for every currently supported framework — see the [README](../README.md) for the list — lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo, each package with `wdio.video.conf.ts` + `test/video/video.spec.ts`.
 
 ## What you get (and what you don't)
 
@@ -59,7 +59,7 @@ const videoReporter = [
 // reporters: ['spec', videoReporter]
 ```
 
-`...subdirs` resolves to `[process.platform, process.arch]` for Electron and `[process.platform, process.arch, driverProvider]` for Tauri — see [Output paths](#output-paths) for why.
+`...subdirs` defaults to `[process.platform, process.arch]`. Some framework services need additional segments — Tauri appends `driverProvider` because its three providers capture differently (see [Tauri provider notes](#tauri-provider-notes)).
 
 > **Heads-up on `saveAllVideos: true`** — there's an [open upstream bug (#862)](https://github.com/webdriverio-community/wdio-video-reporter/issues/862) where the process can hang on exit with this setting on dynamic sites. Our test apps are static so we didn't observe it, but if your CI hangs after switching to `saveAllVideos: true`, this is the suspect. The `!process.env.CI` default above sidesteps it.
 
@@ -74,10 +74,10 @@ Recorded artefacts are platform-specific and per-run — keep them out of versio
 
 ## Output paths
 
-Per-OS / per-arch directories keep artefacts from different runners from colliding. For Tauri the per-provider segment matters too: a video recorded under `embedded` (webview only) looks very different from one recorded under `crabnebula` (full OS window) — keep them separate so you can compare like-for-like across runs.
+Per-OS / per-arch directories keep artefacts from different runners from colliding. Some framework services need additional segments — for Tauri, the per-provider segment matters because a video recorded under `embedded` (webview only) looks very different from one recorded under `crabnebula` (full OS window) — keep them separate so you can compare like-for-like across runs.
 
-- **Electron**: `__video__/<platform>/<arch>/<test-slug>-<timestamp>.webm`
-- **Tauri**: `__video__/<platform>/<arch>/<provider>/<test-slug>-<timestamp>.webm`
+- **Default**: `__video__/<platform>/<arch>/<test-slug>-<timestamp>.webm`
+- **Tauri (extra `<provider>` segment)**: `__video__/<platform>/<arch>/<provider>/<test-slug>-<timestamp>.webm`
 
 Failing tests will produce a `.webm` under `outputDir`. Passing tests will not, unless `saveAllVideos: true`.
 
@@ -112,5 +112,5 @@ Workarounds:
 
 - [`wdio-video-reporter` upstream docs](https://webdriver.io/docs/wdio-video-reporter/) — full API, all reporter options, framework-integration notes.
 - [`wdio-video-reporter` GitHub](https://github.com/webdriverio-community/wdio-video-reporter) — issues, source.
-- [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) — working setup for all four target apps and all three Tauri providers, including a CI matrix.
+- [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) — working setup for every supported framework and (where applicable) per-provider variants, including a CI matrix.
 - Related: [Visual Regression Testing](./visual-testing.md) — regression signal (orthogonal to video, which is a debugging artefact).

@@ -1,8 +1,8 @@
 # Visual Regression Testing
 
-Both `@wdio/electron-service` and `@wdio/tauri-service` compose with **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)** for visual regression testing (VRT). This guide is the small amount you need on top of the [upstream guide](https://webdriver.io/docs/visual-testing/) — output-path conventions, the Tauri provider matrix, and a handful of known issues.
+WDIO's service architecture lets framework services and ecosystem services compose freely. Adding **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)** for visual regression testing (VRT) alongside any of our framework services is supported by default — no special integration needed. This guide covers only what's *framework-specific* on top of the [upstream guide](https://webdriver.io/docs/visual-testing/): output-path conventions, framework-specific known issues, and the mock-API handoff for native UI surfaces.
 
-A complete working setup for Electron and Tauri (electron-builder, electron-forge, electron-script, and tauri packages, each with `wdio.visual.conf.ts` + `test/visual/visual.spec.ts`) lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo.
+A complete working setup for every currently supported framework — see the [README](../README.md) for the list — lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo, each package with `wdio.visual.conf.ts` + `test/visual/visual.spec.ts`.
 
 ## Quick start
 
@@ -31,7 +31,7 @@ const visualService: Services.ServiceEntry = [
 // services: [yourExistingServiceEntry, visualService]
 ```
 
-`...subdirs` resolves to `[process.platform, process.arch]` for Electron and `[process.platform, process.arch, driverProvider]` for Tauri — see [Output paths](#output-paths) for why.
+`...subdirs` defaults to `[process.platform, process.arch]`. Some framework services need additional segments — Tauri appends `driverProvider` because its three providers capture differently (see [Tauri provider notes](#tauri-provider-notes)).
 
 ### 3. Write a spec
 
@@ -50,7 +50,7 @@ Run twice — first writes the baseline (because `autoSaveBaseline` is `true` lo
 
 ## Output paths
 
-Same app, different OS → different font rendering, different anti-aliasing. Per-OS baselines are not optional. The recommended layout — `__visual__/<platform>/<arch>/[<provider>/]...` — is the cheapest sane convention. For Tauri the per-provider segment is also required (see [Tauri provider notes](#tauri-provider-notes)).
+Same app, different OS → different font rendering, different anti-aliasing. Per-OS baselines are not optional. The recommended layout — `__visual__/<platform>/<arch>/[<framework-segments>/]baseline|actual` — is the cheapest sane convention. Most framework services need only `<platform>/<arch>`; Tauri additionally requires a `<provider>` segment (see [Tauri provider notes](#tauri-provider-notes)).
 
 Add `__visual__` to `.gitignore` if you want CI to manage baselines per-runner; check it in if you want explicit baseline review on PRs.
 
@@ -121,7 +121,7 @@ Workarounds:
 
 ## Asserting native UI behaviour without pixels
 
-The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. Use the mock APIs instead:
+The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. Use your framework service's mock APIs instead — they intercept at the framework layer, where the native UI originates. The shape varies per framework; two examples:
 
 - **Electron** — see [API Reference](../packages/electron-service/docs/api-reference.md):
   ```ts
@@ -137,11 +137,11 @@ The visual service captures **webview content only** (with the noted CrabNebula 
   expect(dialogMock).toHaveBeenCalled();
   ```
 
-`@wdio/visual-service` for in-app UI, mock APIs for native UI surfaces — that's the combination most desktop-app suites want.
+`@wdio/visual-service` for in-app UI, framework-service mock APIs for native UI surfaces — that's the combination most desktop-app suites want.
 
 ## Reference
 
 - [`@wdio/visual-service` upstream docs](https://webdriver.io/docs/visual-testing/) — full API, comparison options, ResembleJS engine notes.
 - [`@wdio/visual-service` GitHub](https://github.com/webdriverio/visual-testing) — issues, source.
-- [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) — working setup for all four target apps and all three Tauri providers, including a CI matrix.
+- [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) — working setup for every supported framework and (where applicable) per-provider variants, including a CI matrix.
 - Related: [Video Recording](./video-recording.md) — debugging artefact (orthogonal to VRT, which is a regression signal).
