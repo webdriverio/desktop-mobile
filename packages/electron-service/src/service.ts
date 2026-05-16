@@ -149,108 +149,143 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     _specs: string[],
     instance: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
+    log.info(
+      `before() start — mode=${this.globalOptions.mode ?? 'binary'} ` +
+        `multiremote=${instance.isMultiremote} ` +
+        `instances=${instance.isMultiremote ? (instance as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+    );
     this.browser = instance as WebdriverIO.Browser;
 
-    if (this.globalOptions.mode === 'browser') {
-      await this.initBrowserMode(instance as WebdriverIO.Browser);
-      return;
-    }
-
-    log.debug('Initialising CDP bridge...');
-
-    const cdpBridge = this.browser.isMultiremote ? undefined : await initCdpBridge(this.cdpOptions, capabilities);
-
-    // Initialize log capture if enabled
-    // Note: Renderer logs work via Puppeteer and don't require CDP bridge
-    // Main process logs require CDP bridge
-    if (this.shouldCaptureElectronLogs()) {
-      await this.initializeLogCapture(cdpBridge, this.browser);
-    }
-
-    /**
-     * Add electron API to browser object
-     */
-    this.browser.electron = getElectronAPI.call(this, this.browser, cdpBridge);
-
-    const isElectronApiAvailable = (browser: WebdriverIO.Browser, cdpBridge: ElectronCdpBridge | undefined) =>
-      browser?.electron && typeof browser.electron.execute === 'function' && cdpBridge !== undefined;
-
-    const hasElectronApi = isElectronApiAvailable(this.browser, cdpBridge);
-
-    // Install command overrides if the electron API is available
-    if (hasElectronApi) {
-      this.installCommandOverrides();
-    }
-
-    if (isMultiremote(instance)) {
-      const mrBrowser = instance;
-
-      // Set up electron API for the root multiremote browser
-      // Use the first available instance's CDP bridge, or undefined if none available
-      let rootCdpBridge: ElectronCdpBridge | undefined;
-
-      for (const instanceName of mrBrowser.instances) {
-        const mrInstance = mrBrowser.getInstance(instanceName);
-        const caps =
-          (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
-          (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
-
-        if (caps[CUSTOM_CAPABILITY_NAME]) {
-          const mrCdpBridge = await initCdpBridge(this.cdpOptions, caps);
-          if (mrCdpBridge && !rootCdpBridge) {
-            rootCdpBridge = mrCdpBridge;
-          }
-          break; // Use the first available CDP bridge for the root
-        }
+    let stage = 'init';
+    try {
+      if (this.globalOptions.mode === 'browser') {
+        stage = 'initBrowserMode';
+        await this.initBrowserMode(instance as WebdriverIO.Browser);
+        log.info('before() complete (browser mode)');
+        return;
       }
 
-      mrBrowser.electron = getElectronAPI.call(this, mrBrowser as unknown as WebdriverIO.Browser, rootCdpBridge);
+      stage = 'initCdpBridge:root';
+      log.info('Initialising CDP bridge...');
+      const cdpBridge = this.browser.isMultiremote ? undefined : await initCdpBridge(this.cdpOptions, capabilities);
 
-      for (const instance of mrBrowser.instances) {
-        const mrInstance = mrBrowser.getInstance(instance);
-        const caps =
-          (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
-          (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
+      // Initialize log capture if enabled
+      // Note: Renderer logs work via Puppeteer and don't require CDP bridge
+      // Main process logs require CDP bridge
+      if (this.shouldCaptureElectronLogs()) {
+        stage = 'initializeLogCapture:root';
+        await this.initializeLogCapture(cdpBridge, this.browser);
+      }
 
-        if (!caps[CUSTOM_CAPABILITY_NAME]) {
-          continue;
+      /**
+       * Add electron API to browser object
+       */
+      stage = 'getElectronAPI:root';
+      this.browser.electron = getElectronAPI.call(this, this.browser, cdpBridge);
+
+      const isElectronApiAvailable = (browser: WebdriverIO.Browser, cdpBridge: ElectronCdpBridge | undefined) =>
+        browser?.electron && typeof browser.electron.execute === 'function' && cdpBridge !== undefined;
+
+      const hasElectronApi = isElectronApiAvailable(this.browser, cdpBridge);
+
+      // Install command overrides if the electron API is available
+      if (hasElectronApi) {
+        stage = 'installCommandOverrides';
+        this.installCommandOverrides();
+      }
+
+      if (isMultiremote(instance)) {
+        const mrBrowser = instance;
+
+        // Set up electron API for the root multiremote browser
+        // Use the first available instance's CDP bridge, or undefined if none available
+        let rootCdpBridge: ElectronCdpBridge | undefined;
+
+        for (const instanceName of mrBrowser.instances) {
+          const mrInstance = mrBrowser.getInstance(instanceName);
+          const caps =
+            (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
+            (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
+
+          if (caps[CUSTOM_CAPABILITY_NAME]) {
+            stage = `initCdpBridge:rootFrom:${instanceName}`;
+            const mrCdpBridge = await initCdpBridge(this.cdpOptions, caps);
+            if (mrCdpBridge && !rootCdpBridge) {
+              rootCdpBridge = mrCdpBridge;
+            }
+            break; // Use the first available CDP bridge for the root
+          }
         }
 
-        const mrCdpBridge = await initCdpBridge(this.cdpOptions, caps);
+        mrBrowser.electron = getElectronAPI.call(this, mrBrowser as unknown as WebdriverIO.Browser, rootCdpBridge);
 
-        // Initialize log capture for this multiremote instance
-        // Check if this specific instance has logging enabled
-        const instanceOptions = caps[CUSTOM_CAPABILITY_NAME] || {};
-        const shouldCaptureForInstance = instanceOptions.captureMainProcessLogs || instanceOptions.captureRendererLogs;
-        if (shouldCaptureForInstance) {
-          await this.initializeLogCapture(mrCdpBridge, mrInstance, instance, caps);
+        for (const instance of mrBrowser.instances) {
+          const mrInstance = mrBrowser.getInstance(instance);
+          const caps =
+            (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
+            (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
+
+          if (!caps[CUSTOM_CAPABILITY_NAME]) {
+            continue;
+          }
+
+          stage = `initCdpBridge:${instance}`;
+          log.info(`Initialising CDP bridge for instance: ${instance}`);
+          const mrCdpBridge = await initCdpBridge(this.cdpOptions, caps);
+
+          // Initialize log capture for this multiremote instance
+          // Check if this specific instance has logging enabled
+          const instanceOptions = caps[CUSTOM_CAPABILITY_NAME] || {};
+          const shouldCaptureForInstance =
+            instanceOptions.captureMainProcessLogs || instanceOptions.captureRendererLogs;
+          if (shouldCaptureForInstance) {
+            stage = `initializeLogCapture:${instance}`;
+            await this.initializeLogCapture(mrCdpBridge, mrInstance, instance, caps);
+          }
+
+          mrInstance.electron = getElectronAPI.call(this, mrInstance, mrCdpBridge);
+
+          stage = `getPuppeteer:${instance}`;
+          const mrPuppeteer = await getPuppeteer(mrInstance);
+          stage = `getActiveWindowHandle:${instance}`;
+          mrInstance.electron.windowHandle = await getActiveWindowHandle(mrPuppeteer);
+
+          // wait until an Electron BrowserWindow is available
+          stage = `waitUntilWindowAvailable:${instance}`;
+          await waitUntilWindowAvailable(mrInstance);
+
+          // Check if this specific instance has a functional electron API
+          const hasElectronApiForMrInstance = isElectronApiAvailable(mrInstance, mrCdpBridge);
+
+          if (hasElectronApiForMrInstance) {
+            stage = `copyOriginalApi:${instance}`;
+            await copyOriginalApi(mrInstance);
+          }
+          log.info(`Instance ${instance} ready`);
         }
-
-        mrInstance.electron = getElectronAPI.call(this, mrInstance, mrCdpBridge);
-
-        const mrPuppeteer = await getPuppeteer(mrInstance);
-        mrInstance.electron.windowHandle = await getActiveWindowHandle(mrPuppeteer);
+      } else {
+        stage = 'getPuppeteer:single';
+        const puppeteer = await getPuppeteer(this.browser);
+        stage = 'getActiveWindowHandle:single';
+        this.browser.electron.windowHandle = await getActiveWindowHandle(puppeteer);
 
         // wait until an Electron BrowserWindow is available
-        await waitUntilWindowAvailable(mrInstance);
+        stage = 'waitUntilWindowAvailable:single';
+        await waitUntilWindowAvailable(this.browser);
 
-        // Check if this specific instance has a functional electron API
-        const hasElectronApiForMrInstance = isElectronApiAvailable(mrInstance, mrCdpBridge);
-
-        if (hasElectronApiForMrInstance) {
-          await copyOriginalApi(mrInstance);
+        if (hasElectronApi) {
+          stage = 'copyOriginalApi:single';
+          await copyOriginalApi(this.browser);
         }
       }
-    } else {
-      const puppeteer = await getPuppeteer(this.browser);
-      this.browser.electron.windowHandle = await getActiveWindowHandle(puppeteer);
-
-      // wait until an Electron BrowserWindow is available
-      await waitUntilWindowAvailable(this.browser);
-
-      if (hasElectronApi) {
-        await copyOriginalApi(this.browser);
-      }
+      log.info('before() complete');
+    } catch (error) {
+      log.error(
+        `before() failed at stage="${stage}" — mode=${this.globalOptions.mode ?? 'binary'} ` +
+          `multiremote=${instance.isMultiremote}`,
+        error,
+      );
+      throw error;
     }
   }
 

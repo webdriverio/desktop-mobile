@@ -81,18 +81,43 @@ runs:
       run: |
         mkdir -p "${{ inputs.path }}"
 
-        MAX_RETRIES=3
+        # Capture stderr so we can distinguish rate-limit failures
+        # (per-installation token, hour-long window) from generic transients.
+        # 6 attempts, 5 sleeps between them:
+        #   Rate-limit backoff: 60s, 120s, 180s, 300s, 300s
+        #   Generic backoff:     2s,   4s,   8s,  16s,  32s
+        MAX_RETRIES=6
+        STDERR_FILE=$(mktemp)
+        trap 'rm -f "$STDERR_FILE"' EXIT
         for i in $(seq 1 $MAX_RETRIES); do
           echo "Attempt $i of $MAX_RETRIES"
-          gh run download --name "${{ inputs.name }}" --dir "${{ inputs.path }}" && break
+          : > "$STDERR_FILE"
+          # Scope to the current run so gh CLI doesn't page through every
+          # historical artifact in the repo (50k+, drives HTTP 502 stalls).
+          if gh run download "$GITHUB_RUN_ID" --name "${{ inputs.name }}" --dir "${{ inputs.path }}" 2> "$STDERR_FILE"; then
+            cat "$STDERR_FILE" >&2 || true
+            break
+          fi
+          cat "$STDERR_FILE" >&2 || true
 
           if [ $i -eq $MAX_RETRIES ]; then
             echo "::error::Failed to download artifact after $MAX_RETRIES attempts"
             exit 1
           fi
 
-          SLEEP_TIME=$((2 ** $i))
-          echo "Waiting ${SLEEP_TIME}s before retry..."
+          if grep -qi "rate limit" "$STDERR_FILE"; then
+            # Rate limit: per-installation token, ~1h window. Short sleeps are useless.
+            case $i in
+              1) SLEEP_TIME=60 ;;
+              2) SLEEP_TIME=120 ;;
+              3) SLEEP_TIME=180 ;;
+              *) SLEEP_TIME=300 ;;
+            esac
+            echo "::warning::Hit GitHub API rate limit, waiting ${SLEEP_TIME}s before retry..."
+          else
+            SLEEP_TIME=$((2 ** $i))
+            echo "Waiting ${SLEEP_TIME}s before retry..."
+          fi
           sleep $SLEEP_TIME
         done
 

@@ -73,9 +73,12 @@ jobs:
       - name: 🦀 Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: '.'
+          workspaces: 'fixtures/e2e-apps/tauri/src-tauri'
           cache-on-failure: true
           cache-targets: false
+          # ~/.cargo/bin/ can carry over stale binaries (e.g. rustup-init in
+          # place of cargo) across runs on macOS, breaking the toolchain.
+          cache-bin: false
 
       - name: 🔧 Fix ARM64 Package Sources (Linux)
         if: runner.os == 'Linux' && runner.arch == 'ARM64'
