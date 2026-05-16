@@ -77,8 +77,10 @@ export default class DioxusWorkerService {
   }
 
   async after(): Promise<void> {
-    log.debug('DioxusWorkerService.after — clearing process-wide mockStore + window cache');
-    mockStore.clear();
+    // mockStore is cleared in afterSession() *after* restoreAllMocks() so the
+    // unregistration script can still iterate registered mocks. Clearing here
+    // would leave window.__wdio_mocks__ populated across embedded-mode sessions.
+    log.debug('DioxusWorkerService.after — clearing window cache');
     clearWindowState();
   }
 

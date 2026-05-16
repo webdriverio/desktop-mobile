@@ -97,7 +97,7 @@ describe('DioxusWorkerService', () => {
     expect((browser as unknown as Installed).dioxus).toBeDefined();
   });
 
-  it('should clear the process-wide mockStore in after()', async () => {
+  it('should leave the mockStore intact in after() so afterSession() can restore mocks', async () => {
     const fakeMock = { getMockName: () => 'dioxus.greet' };
     // biome-ignore lint/suspicious/noExplicitAny: test-only cast
     mockStore.setMock(fakeMock as any);
@@ -106,6 +106,19 @@ describe('DioxusWorkerService', () => {
     const service = new DioxusWorkerService({}, {});
     await service.after();
 
+    expect(mockStore.getMocks()).toHaveLength(1);
+  });
+
+  it('should clear the process-wide mockStore in afterSession()', async () => {
+    const fakeMock = { getMockName: () => 'dioxus.greet', mockRestore: vi.fn().mockResolvedValue(undefined) };
+    // biome-ignore lint/suspicious/noExplicitAny: test-only cast
+    mockStore.setMock(fakeMock as any);
+    expect(mockStore.getMocks()).toHaveLength(1);
+
+    const service = new DioxusWorkerService({}, {});
+    await service.afterSession();
+
+    expect(fakeMock.mockRestore).toHaveBeenCalled();
     expect(mockStore.getMocks()).toHaveLength(0);
   });
 

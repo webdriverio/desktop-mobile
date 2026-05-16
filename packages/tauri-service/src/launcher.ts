@@ -994,7 +994,7 @@ export default class TauriLaunchService {
 
     try {
       const { closeLogWriter } = await import('./logWriter.js');
-      closeLogWriter();
+      await closeLogWriter();
     } catch {
       // Log writer may not have been initialized
     }

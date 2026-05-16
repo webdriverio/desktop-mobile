@@ -115,27 +115,31 @@ export async function startEmbeddedDriver(
   const logHandlers: ReadlineInterface[] = [];
   const identifier = `embedded-${port}`;
 
-  const makeOnLine =
-    (src: 'backend' | 'frontend') =>
-    (line: string, id: string | undefined): void => {
-      const parsed = parseLogLine(line);
-      if (!parsed) {
-        return;
-      }
-      const minLevel = src === 'frontend' ? (options.frontendLogLevel ?? 'info') : (options.backendLogLevel ?? 'info');
-      forwardLog(src, parsed.level, parsed.message, minLevel, id);
-    };
-
-  // Embedded driver multiplexes both backend tracing output and frontend
+  // Embedded driver multiplexes backend tracing output and frontend
   // `[WDIO-FRONTEND]` lines on the same stdout/stderr streams; parseLogLine
-  // classifies them. Attach handlers if either capture flag is set so a user
-  // who only opts into captureFrontendLogs still receives output.
+  // classifies via `parsed.source`. Each source is gated by its own capture
+  // flag so a user who only opts into captureFrontendLogs gets frontend lines
+  // (and only frontend lines) — matching the tauri-service logCapture pattern.
+  const onLine = (line: string, id: string | undefined): void => {
+    const parsed = parseLogLine(line);
+    if (!parsed) {
+      return;
+    }
+    if (parsed.source === 'backend' && options.captureBackendLogs) {
+      const minLevel = options.backendLogLevel ?? 'info';
+      forwardLog('backend', parsed.level, parsed.message, minLevel, id);
+    } else if (parsed.source === 'frontend' && options.captureFrontendLogs) {
+      const minLevel = options.frontendLogLevel ?? 'info';
+      forwardLog('frontend', parsed.level, parsed.message, minLevel, id);
+    }
+  };
+
   if (options.captureBackendLogs || options.captureFrontendLogs) {
     const h = createLogCapture({
       stream: child.stdout,
       identifier,
       instanceId,
-      onLine: makeOnLine('backend'),
+      onLine,
     });
     if (h) {
       logHandlers.push(h);
@@ -144,7 +148,7 @@ export async function startEmbeddedDriver(
       stream: child.stderr,
       identifier,
       instanceId,
-      onLine: makeOnLine('backend'),
+      onLine,
     });
     if (errH) {
       logHandlers.push(errH);

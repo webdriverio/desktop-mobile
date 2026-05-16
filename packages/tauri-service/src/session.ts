@@ -163,7 +163,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     await launcher.onComplete(0, minimalConfig, []);
 
     // Close log writer
-    closeLogWriter();
+    await closeLogWriter();
 
     // Remove from active launchers
     activeLaunchers.delete(browser);
