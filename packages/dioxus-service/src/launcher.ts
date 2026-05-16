@@ -73,6 +73,17 @@ export default class DioxusLaunchService extends BaseLauncher {
 
     log.info(`Dioxus service onPrepare — provider: ${provider}, platform: ${process.platform}`);
 
+    // Initialise the LogWriter before spawning the embedded driver so the
+    // startup-phase log lines (subprocess boot + pollWebDriverStatus) are
+    // captured to the file rather than swallowed by the WDIO logger fallback.
+    if (mergedOptions.captureBackendLogs || mergedOptions.captureFrontendLogs) {
+      if (!isLogWriterInitialized('dioxus-service')) {
+        const logDir = _config.outputDir ?? join(process.cwd(), 'logs');
+        getLogWriter('dioxus-service').initialize(logDir);
+        log.info(`Log capture initialized: ${logDir}`);
+      }
+    }
+
     if (provider === 'embedded') {
       const isMultiremote = !Array.isArray(capabilities);
       if (isMultiremote) {
@@ -82,14 +93,6 @@ export default class DioxusLaunchService extends BaseLauncher {
       }
     }
     // provider === 'external': wdio-dioxus-driver spawning wired in a follow-on commit
-
-    if (mergedOptions.captureBackendLogs || mergedOptions.captureFrontendLogs) {
-      if (!isLogWriterInitialized('dioxus-service')) {
-        const logDir = _config.outputDir ?? join(process.cwd(), 'logs');
-        getLogWriter('dioxus-service').initialize(logDir);
-        log.info(`Log capture initialized: ${logDir}`);
-      }
-    }
   }
 
   private async prepareEmbedded(capsList: DioxusCapabilities[]): Promise<void> {

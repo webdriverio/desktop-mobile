@@ -14,6 +14,7 @@ const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
 
 export default class DioxusWorkerService {
+  private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
@@ -29,6 +30,7 @@ export default class DioxusWorkerService {
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
+    this.browser = browser;
     log.info(
       `before() start — mode=${this.devServerUrl ? 'browser' : 'native'} ` +
         `multiremote=${browser.isMultiremote} ` +
@@ -78,6 +80,54 @@ export default class DioxusWorkerService {
     log.debug('DioxusWorkerService.after — clearing process-wide mockStore + window cache');
     mockStore.clear();
     clearWindowState();
+  }
+
+  /**
+   * Explicitly delete the WebDriver session. Without this, WDIO's `bail`/retry
+   * features hit "invalid session id" on the second attempt because the worker
+   * is reused but the previous session is no longer valid server-side.
+   */
+  async afterSession(): Promise<void> {
+    log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
+
+    try {
+      await restoreAllMocks();
+      mockStore.clear();
+    } catch (error) {
+      log.warn('Failed to restore mocks during session cleanup:', error);
+    }
+
+    if (!this.browser) {
+      clearWindowState();
+      return;
+    }
+
+    try {
+      if (!this.browser.isMultiremote) {
+        const stdBrowser = this.browser as WebdriverIO.Browser;
+        if (stdBrowser.sessionId) {
+          log.debug(`Deleting session: ${stdBrowser.sessionId}`);
+          await stdBrowser.deleteSession();
+        }
+      } else {
+        const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
+        for (const instanceName of mrBrowser.instances) {
+          try {
+            const instance = mrBrowser.getInstance(instanceName);
+            if (instance.sessionId) {
+              log.debug(`Deleting session for instance ${instanceName}: ${instance.sessionId}`);
+              await instance.deleteSession();
+            }
+          } catch (error) {
+            log.warn(`Failed to delete session for instance ${instanceName}:`, error);
+          }
+        }
+      }
+    } catch (error) {
+      log.warn('Failed to delete session:', error);
+    } finally {
+      clearWindowState();
+    }
   }
 
   private addDioxusApi(browser: WebdriverIO.Browser): void {

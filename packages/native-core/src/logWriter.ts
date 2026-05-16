@@ -170,6 +170,13 @@ export class StandaloneLogWriter extends LogWriter {
 export function getStandaloneLogWriter(): StandaloneLogWriter {
   let instance = singletons.get('electron-service');
   if (!instance || !(instance instanceof StandaloneLogWriter)) {
+    // If we're replacing an initialised LogWriter, flush + close its stream
+    // first so the previous WriteStream isn't orphaned and leaking an fd.
+    if (instance?.getLogFile()) {
+      void instance.close().catch((err) => {
+        log.warn(`Failed to close orphaned LogWriter for electron-service: ${err}`);
+      });
+    }
     instance = new StandaloneLogWriter();
     singletons.set('electron-service', instance);
   }

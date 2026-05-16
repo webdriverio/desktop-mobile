@@ -126,7 +126,11 @@ export async function startEmbeddedDriver(
       forwardLog(src, parsed.level, parsed.message, minLevel, id);
     };
 
-  if (options.captureBackendLogs) {
+  // Embedded driver multiplexes both backend tracing output and frontend
+  // `[WDIO-FRONTEND]` lines on the same stdout/stderr streams; parseLogLine
+  // classifies them. Attach handlers if either capture flag is set so a user
+  // who only opts into captureFrontendLogs still receives output.
+  if (options.captureBackendLogs || options.captureFrontendLogs) {
     const h = createLogCapture({
       stream: child.stdout,
       identifier,
