@@ -1,10 +1,8 @@
 # Visual Regression Testing
 
-Both `@wdio/electron-service` and `@wdio/tauri-service` compose cleanly with **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)**, which is the recommended way to do visual regression testing (VRT) for desktop apps built on these services.
+Both `@wdio/electron-service` and `@wdio/tauri-service` compose with **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)** for visual regression testing (VRT). This guide is the small amount you need on top of the [upstream guide](https://webdriver.io/docs/visual-testing/) — output-path conventions, the Tauri provider matrix, and a handful of known issues.
 
-This document covers the small amount of glue needed to wire it in, the per-OS baseline convention, Tauri provider differences, and when to reach for the existing mock APIs instead. The visual service itself is documented upstream — start at the [official guide](https://webdriver.io/docs/visual-testing/) for the full API surface.
-
-A complete working example for both Electron and Tauri lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo (electron-builder, electron-forge, electron-script, and tauri packages, each with `wdio.visual.conf.ts` + `test/visual/visual.spec.ts`).
+A complete working setup for Electron and Tauri (electron-builder, electron-forge, electron-script, and tauri packages, each with `wdio.visual.conf.ts` + `test/visual/visual.spec.ts`) lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo.
 
 ## Quick start
 
@@ -14,126 +12,73 @@ A complete working example for both Electron and Tauri lives in the [wdio-deskto
 npm install --save-dev @wdio/visual-service
 ```
 
-### 2. Wire it into your WDIO config
-
-The visual service is added alongside the existing service entry. Per-OS and per-arch baseline folders avoid cross-platform font-rendering noise contaminating diffs.
-
-**Electron** — _`wdio.conf.ts`_
+### 2. Add it to your WDIO config
 
 ```ts
 import { join } from 'node:path';
-import type { Options, Services } from '@wdio/types';
+import type { Services } from '@wdio/types';
 
 const visualService: Services.ServiceEntry = [
   'visual',
   {
-    baselineFolder: join(__dirname, '__visual__', process.platform, process.arch, 'baseline'),
-    screenshotPath: join(__dirname, '__visual__', process.platform, process.arch, 'actual'),
-    formatImageName: '{tag}-{width}x{height}',
-    autoSaveBaseline: !process.env.CI, // local-friendly, CI-strict
-  },
-];
-
-export const config: Options.Testrunner = {
-  // ...
-  services: ['electron', visualService],
-  capabilities: [{ browserName: 'electron' }],
-};
-```
-
-**Tauri** — _`wdio.conf.ts`_
-
-```ts
-import { join } from 'node:path';
-import type { Options, Services } from '@wdio/types';
-
-const driverProvider = 'embedded'; // or 'official' / 'crabnebula'
-
-const visualService: Services.ServiceEntry = [
-  'visual',
-  {
-    // Per-provider directory matters — see the Tauri provider notes below.
-    baselineFolder: join(__dirname, '__visual__', process.platform, process.arch, driverProvider, 'baseline'),
-    screenshotPath: join(__dirname, '__visual__', process.platform, process.arch, driverProvider, 'actual'),
+    baselineFolder: join(__dirname, '__visual__', ...subdirs, 'baseline'),
+    screenshotPath: join(__dirname, '__visual__', ...subdirs, 'actual'),
     formatImageName: '{tag}-{width}x{height}',
     autoSaveBaseline: !process.env.CI,
   },
 ];
 
-export const config: Options.Testrunner = {
-  // ...
-  services: [['@wdio/tauri-service', { driverProvider }], visualService],
-  capabilities: [{ browserName: 'tauri', 'wdio:enforceWebDriverClassic': true }],
-};
+// services: [yourExistingServiceEntry, visualService]
 ```
 
-> **ESM configs** — `__dirname` is not defined in ES module configs (`"type": "module"` in `package.json`, or `wdio.conf.mts`). If your config is ESM, derive it from `import.meta.url` at the top of the file:
->
-> ```ts
-> import { dirname } from 'node:path';
-> import { fileURLToPath } from 'node:url';
->
-> const __dirname = dirname(fileURLToPath(import.meta.url));
-> ```
+`...subdirs` resolves to `[process.platform, process.arch]` for Electron and `[process.platform, process.arch, driverProvider]` for Tauri — see [Output paths](#output-paths) for why.
 
 ### 3. Write a spec
 
 ```ts
-import { $, browser, expect } from '@wdio/globals';
+import { browser, expect } from '@wdio/globals';
 
-// Allow up to 1% mismatch — see "Cross-platform considerations" below for why.
-const MAX_MISMATCH_PCT = 1;
+const MAX_MISMATCH_PCT = 1; // see "Cross-platform considerations"
 
-describe('visual regression', () => {
-  it('matches baseline of full screen', async () => {
-    await browser.execute(async () => {
-      await document.fonts.ready;
-    });
-    const result = await browser.checkScreen('home');
-    expect(result).toBeLessThanOrEqual(MAX_MISMATCH_PCT);
-  });
-
-  it('matches baseline of the toolbar element', async () => {
-    const toolbar = await $('header.toolbar');
-    const result = await browser.checkElement(toolbar, 'toolbar');
-    expect(result).toBeLessThanOrEqual(MAX_MISMATCH_PCT);
-  });
+it('matches baseline', async () => {
+  await browser.execute(async () => { await document.fonts.ready; });
+  expect(await browser.checkScreen('home')).toBeLessThanOrEqual(MAX_MISMATCH_PCT);
 });
 ```
 
-Run twice — first invocation writes the baseline (because `autoSaveBaseline` is `true` locally), second validates the match. Then introduce a UI change and re-run to confirm the diff is surfaced (mismatch will be ≫1%).
+Run twice — first writes the baseline (because `autoSaveBaseline` is `true` locally), second validates the match. Then introduce a UI change and re-run to confirm the diff is surfaced.
 
-## Per-OS baselines are mandatory
+## Output paths
 
-Same app, different OS → different font rendering, different cursor positions, different anti-aliasing. There is no useful "one baseline for every OS" tolerance for desktop apps unless you pay for [Applitools](https://applitools.com/)' Visual AI.
+Same app, different OS → different font rendering, different anti-aliasing. Per-OS baselines are not optional. The recommended layout — `__visual__/<platform>/<arch>/[<provider>/]...` — is the cheapest sane convention. For Tauri the per-provider segment is also required (see [Tauri provider notes](#tauri-provider-notes)).
 
-The recommended layout — `__visual__/<platform>/<arch>/[<provider>/]...` — is the cheapest sane convention. Add `__visual__` to `.gitignore` if you want CI to manage baselines per-runner; check it in if you want explicit baseline review on PRs.
+Add `__visual__` to `.gitignore` if you want CI to manage baselines per-runner; check it in if you want explicit baseline review on PRs.
+
+> **ESM configs** — `__dirname` is not defined in ES module configs (`"type": "module"` in `package.json`, or `wdio.conf.mts`). Derive it from `import.meta.url`:
+>
+> ```ts
+> import { dirname } from 'node:path';
+> import { fileURLToPath } from 'node:url';
+> const __dirname = dirname(fileURLToPath(import.meta.url));
+> ```
 
 ## Cross-platform considerations
 
 ### `autoSaveBaseline` for CI
 
-The example above uses `!process.env.CI` so:
-- Locally: missing baselines are written automatically — convenient.
-- In CI: a missing baseline fails loudly (catches stale or forgotten artefacts) and only updates via an explicit "regenerate baselines" workflow.
+`!process.env.CI` writes missing baselines locally (convenient) and fails loudly in CI (catches stale or forgotten artefacts). Update baselines via an explicit "regenerate baselines" workflow.
 
 ### Windows subpixel rendering noise (~0.5%)
 
-Consecutive WebView2 / Chromium renders on Windows produce ~0.5% pixel-level mismatch even with no UI change. macOS and Linux render deterministically. `MAX_MISMATCH_PCT = 1` is the lowest threshold that absorbs this noise reliably; real UI changes run ≥10% in practice.
+Consecutive WebView2 / Chromium renders on Windows produce ~0.5% pixel-level mismatch with no UI change. macOS and Linux render deterministically. `MAX_MISMATCH_PCT = 1` is the lowest threshold that absorbs this noise reliably; real UI changes run ≥10%.
 
-### Stabilising the page before snapshotting
+### Stabilising the page
 
-Borrowed from Playwright, run before any `checkScreen()` / `checkElement()` call:
+Before any `checkScreen()` / `checkElement()` call:
 
 ```ts
-// Async function so the `document.fonts.ready` Promise is awaited
-// explicitly inside the browser context before the call returns.
-await browser.execute(async () => {
-  await document.fonts.ready;
-});
+await browser.execute(async () => { await document.fonts.ready; });
 await browser.execute(() => {
-  // id-guarded so this is safe to call from `beforeEach` without
-  // accumulating duplicate <style> nodes across tests.
   if (document.getElementById('wdio-vrt-stabilise')) return;
   const style = document.createElement('style');
   style.id = 'wdio-vrt-stabilise';
@@ -145,7 +90,7 @@ await browser.execute(() => {
 });
 ```
 
-Plus mask volatile regions (timestamps, avatars) using the visual service's `hideElements` / `removeElements` options.
+Mask volatile regions (timestamps, avatars) using the visual service's `hideElements` / `removeElements` options.
 
 ## Tauri provider notes
 
@@ -155,13 +100,13 @@ Tauri's three driver providers behave differently for VRT:
 |---|---|---|---|
 | `embedded` | Webview only | ❌ | Default, recommended for most users. Works on macOS, Linux, Windows. |
 | `official` | Webview only | ❌ | Works on Windows. **Known issue on Linux** (see below). No macOS support. |
-| `crabnebula` | OS window (incl. title bar) | ✅ | Captures via OS-level Screen Recording. Requires macOS Screen Recording permission for the host process — non-trivial on hosted CI. |
+| `crabnebula` | OS window (incl. title bar) | ✅ | Captures via OS-level Screen Recording. **macOS CI is excluded** — see below. |
 
-**Per-provider baselines are required.** Switching from `embedded` to `crabnebula` mid-test-suite would mismatch every baseline by ~30% because CrabNebula's screenshot includes the OS title bar and embedded's does not. Use the `<provider>` placeholder in the baseline path as shown above.
+**Per-provider baselines are required.** Switching from `embedded` to `crabnebula` mid-suite would mismatch every baseline by ~30% because CrabNebula's screenshot includes the OS title bar and embedded's does not. Use the `<provider>` segment in your output path.
 
 ### Known issue: `official` provider on Linux
 
-The `tauri-driver` + WebKitGTK + `@wdio/tauri-service`'s `patchedExecute` wrapping interact badly with the visual service's `before()` hook. The hook calls `browser.execute('return window.devicePixelRatio')` which gets wrapped into an `executeAsync` HTTP call that never returns, timing out after ~2 minutes. The visual service then fails to register its commands and every assertion errors with `browser.checkScreen is not a function`.
+`tauri-driver` + WebKitGTK + `@wdio/tauri-service`'s `patchedExecute` interact badly with the visual service's `before()` hook. The hook calls `browser.execute('return window.devicePixelRatio')` which gets wrapped into an `executeAsync` HTTP call that never returns, timing out after ~2 minutes. The visual service then fails to register its commands and every assertion errors with `browser.checkScreen is not a function`.
 
 Workaround: use the `embedded` provider on Linux for visual testing. The `official` provider works fine for non-visual specs there.
 
@@ -171,16 +116,14 @@ CrabNebula's macOS driver captures via OS-level Screen Recording (AVFoundation /
 
 Workarounds:
 - Run visual tests against the `embedded` provider on macOS CI.
-- Use a self-hosted macOS runner with TCC pre-populated for the runner user.
+- Use a self-hosted macOS runner with TCC pre-populated.
 - Skip `crabnebula × macOS-CI × visual` from your matrix and rely on Linux / Windows coverage.
-
-The first option is the simplest if you just want VRT on macOS.
 
 ## Asserting native UI behaviour without pixels
 
-The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. To assert *behaviour* of those surfaces, use the existing mock APIs:
+The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. Use the mock APIs instead:
 
-- **Electron** — see [Electron APIs](../packages/electron-service/docs/electron-apis.md) and [API Reference](../packages/electron-service/docs/api-reference.md):
+- **Electron** — see [API Reference](../packages/electron-service/docs/api-reference.md):
   ```ts
   const menuMock = await browser.electron.mock('Menu', 'setApplicationMenu');
   // … exercise the app …
@@ -194,10 +137,11 @@ The visual service captures **webview content only** (with the noted CrabNebula 
   expect(dialogMock).toHaveBeenCalled();
   ```
 
-The combination — `@wdio/visual-service` for the in-app UI, the mock APIs for native UI surfaces — is what most desktop-app test suites actually want.
+`@wdio/visual-service` for in-app UI, mock APIs for native UI surfaces — that's the combination most desktop-app suites want.
 
 ## Reference
 
 - [`@wdio/visual-service` upstream docs](https://webdriver.io/docs/visual-testing/) — full API, comparison options, ResembleJS engine notes.
-- [`@wdio/visual-service` GitHub](https://github.com/webdriverio/visual-testing) — issues, source, contribution guide.
-- [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) — working VRT setup for all four target apps and all three Tauri providers, including a CI matrix.
+- [`@wdio/visual-service` GitHub](https://github.com/webdriverio/visual-testing) — issues, source.
+- [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) — working setup for all four target apps and all three Tauri providers, including a CI matrix.
+- Related: [Video Recording](./video-recording.md) — debugging artefact (orthogonal to VRT, which is a regression signal).
