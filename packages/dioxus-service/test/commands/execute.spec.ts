@@ -71,6 +71,17 @@ describe('execute command', () => {
     const [wrappedScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
     expect(wrappedScript).toContain('userFn(dx, {"greeting":"hello"})');
   });
+
+  it('should throw a service-attributed error when an arg is not JSON-serialisable', async () => {
+    const browser = browserStub();
+    const circular: { self?: unknown } = {};
+    circular.self = circular;
+
+    await expect(execute(browser, (_dx, _p: unknown) => null, 'ok', circular)).rejects.toThrow(
+      /\[wdio-dioxus-service\].*argument at index 1 is not JSON-serialisable/,
+    );
+    expect(browser.execute).not.toHaveBeenCalled();
+  });
 });
 
 describe('runInterceptorScript', () => {

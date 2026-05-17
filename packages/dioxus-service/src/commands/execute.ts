@@ -37,7 +37,20 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     // wraps the string in a non-async function, so `await` here would be
     // a SyntaxError at runtime. Users that need promise-returning scripts
     // should reach for executeAsync (not yet exposed on browser.dioxus).
-    const argsLiteral = args.map((a) => JSON.stringify(a) ?? 'undefined').join(', ');
+    const argsLiteral = args
+      .map((a, i) => {
+        try {
+          return JSON.stringify(a) ?? 'undefined';
+        } catch (err) {
+          throw new Error(
+            `[wdio-dioxus-service] browser.dioxus.execute argument at index ${i} is not JSON-serialisable ` +
+              `(args are inlined into the script source via JSON.stringify). ` +
+              `This typically means the value contains a circular reference, a BigInt, or a function. ` +
+              `Underlying error: ${(err as Error).message}`,
+          );
+        }
+      })
+      .join(', ');
     const wrapped = `
       const userFn = (${fnSource});
       const dx = window.__WDIO_DIOXUS__;
