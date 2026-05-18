@@ -147,11 +147,11 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
   mockFn.getMockName = (): string => mockNameValue;
 
   mockFn.mockClear = function (this: Mock<T>): Mock<T> {
-    state.calls = [];
-    state.contexts = [];
-    state.results = [];
-    state.invocationCallOrder = [];
-    state.instances = [];
+    state.calls.length = 0;
+    state.contexts.length = 0;
+    state.results.length = 0;
+    state.invocationCallOrder.length = 0;
+    state.instances.length = 0;
     implementationQueue.length = 0;
     return this;
   };

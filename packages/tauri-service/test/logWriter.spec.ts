@@ -103,7 +103,7 @@ describe('logWriter', () => {
     it('should close stream on close()', async () => {
       const mockStream = {
         write: vi.fn(),
-        end: vi.fn(),
+        end: vi.fn((cb?: () => void) => cb?.()),
       };
       vi.mocked(createWriteStream).mockReturnValue(mockStream as unknown as WriteStream);
       vi.mocked(existsSync).mockReturnValue(true);
@@ -111,7 +111,7 @@ describe('logWriter', () => {
       const { getLogWriter } = await import('../src/logWriter.js');
       const writer = getLogWriter();
       writer.initialize('/tmp/logs');
-      writer.close();
+      await writer.close();
 
       expect(mockStream.end).toHaveBeenCalled();
     });
@@ -170,7 +170,7 @@ describe('logWriter', () => {
     it('should close writer and reset singleton', async () => {
       const mockStream = {
         write: vi.fn(),
-        end: vi.fn(),
+        end: vi.fn((cb?: () => void) => cb?.()),
       };
       vi.mocked(createWriteStream).mockReturnValue(mockStream as unknown as WriteStream);
       vi.mocked(existsSync).mockReturnValue(true);
@@ -182,7 +182,7 @@ describe('logWriter', () => {
 
       expect(isLogWriterInitialized()).toBe(true);
 
-      closeLogWriter();
+      await closeLogWriter();
 
       expect(isLogWriterInitialized()).toBe(false);
       expect(mockStream.end).toHaveBeenCalled();

@@ -127,7 +127,11 @@ desktop-mobile/
 ├── packages/               # All packages
 │   ├── electron-service/       # Electron WDIO service
 │   ├── tauri-service/          # Tauri WDIO service
+│   ├── dioxus-service/         # Dioxus WDIO service
 │   ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
+│   ├── dioxus-bridge/          # Dioxus bridge crate (Rust)
+│   ├── dioxus-embedded-driver/ # Dioxus embedded WebDriver server (Rust)
+│   ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows)
 │   ├── electron-cdp-bridge/    # Chrome DevTools Protocol bridge
 │   ├── native-utils/           # Cross-platform utilities
 │   ├── native-types/           # Shared TypeScript type definitions
@@ -136,7 +140,8 @@ desktop-mobile/
 ├── fixtures/              # Test fixtures and example apps
 │   ├── e2e-apps/         # E2E test applications
 │   │   ├── electron-*/   # Electron E2E apps
-│   │   └── tauri/        # Tauri E2E app
+│   │   ├── tauri/        # Tauri E2E app
+│   │   └── dioxus/       # Dioxus E2E app
 │   └── package-tests/     # Package test fixtures
 │       └── tauri-app/     # Tauri package test app
 ├── e2e/                  # E2E test scenarios
@@ -373,6 +378,43 @@ For working with Tauri packages and plugins:
 
 See the [Tauri Plugin README](../packages/tauri-plugin/README.md) for detailed setup instructions.
 
+### Dioxus Development
+
+For working with Dioxus packages:
+
+1. **Install Rust** (if not already installed):
+   ```bash
+   curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+   ```
+
+2. **Install Linux system dependencies** (Linux only):
+   ```bash
+   # Debian/Ubuntu
+   sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+
+   # Fedora
+   sudo dnf install -y webkit2gtk4.1-devel gtk3-devel
+
+   # Arch Linux
+   sudo pacman -S webkit2gtk-4.1 gtk3
+   ```
+
+3. **Build the Dioxus Bridge Crate**:
+   ```bash
+   cd packages/dioxus-bridge
+   cargo build
+   ```
+
+4. **Build the Dioxus Fixture App** (for E2E tests):
+   ```bash
+   cd fixtures/e2e-apps/dioxus
+   cargo build
+   ```
+
+No Dioxus CLI (`dx`) is required for testing — the service builds and runs the app binary directly.
+
+See the [Dioxus Bridge Setup](../packages/dioxus-service/docs/plugin-setup.md) and [Quick Start](../packages/dioxus-service/docs/quick-start.md) for detailed setup instructions.
+
 ## Next Steps
 
 - Read [package-structure.md](./package-structure.md) for package conventions
@@ -380,7 +422,9 @@ See the [Tauri Plugin README](../packages/tauri-plugin/README.md) for detailed s
 - Read [AGENTS.md](../AGENTS.md) for AI assistant context and coding standards
 - Explore the Electron service implementation in `packages/electron-service/`
 - Explore the Tauri service implementation in `packages/tauri-service/`
+- Explore the Dioxus service implementation in `packages/dioxus-service/`
 - See [Tauri Plugin README](../packages/tauri-plugin/README.md) for Tauri plugin setup
+- See [Dioxus Bridge Setup](../packages/dioxus-service/docs/plugin-setup.md) for Dioxus bridge setup
 
 ## AI-Assisted Development
 
@@ -396,5 +440,3 @@ Available slash commands (Claude Code):
 - **Issues**: Report bugs or request features on [GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)
 - **Discussions**: Ask questions on [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
 - **WebdriverIO**: See [WebdriverIO documentation](https://webdriver.io/)
-
-

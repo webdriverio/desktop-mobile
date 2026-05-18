@@ -1,6 +1,9 @@
+import { shouldLog } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 import { getLogWriter, isLogWriterInitialized } from './logWriter.js';
+
+export { shouldLog };
 
 type WdioLogger = ReturnType<typeof createLogger>;
 
@@ -15,24 +18,6 @@ function getLogger(): WdioLogger {
     cachedLogger = createLogger('tauri-service', 'service');
   }
   return cachedLogger;
-}
-
-/**
- * Log level priority (higher number = higher priority)
- */
-const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
-  trace: 0,
-  debug: 1,
-  info: 2,
-  warn: 3,
-  error: 4,
-};
-
-/**
- * Check if a log level meets the minimum level requirement
- */
-export function shouldLog(level: LogLevel, minLevel: LogLevel): boolean {
-  return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[minLevel];
 }
 
 /**

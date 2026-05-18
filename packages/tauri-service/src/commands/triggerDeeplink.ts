@@ -1,5 +1,10 @@
-import { spawn } from 'node:child_process';
+import { executeDeeplinkCommand, getPlatformCommand, validateDeeplinkUrl } from '@wdio/native-core';
 import { createLogger } from '@wdio/native-utils';
+
+// Re-export the framework-agnostic helpers so existing Tauri-side callers
+// keep working without touching their imports. Local callers below use them
+// directly via the import above.
+export { executeDeeplinkCommand, getPlatformCommand, validateDeeplinkUrl };
 
 const log = createLogger('tauri-service', 'triggerDeeplink');
 
@@ -72,121 +77,6 @@ function isEmbeddedProvider(): boolean {
  * validateDeeplinkUrl('https://example.com'); // Throws error
  * ```
  */
-export function validateDeeplinkUrl(url: string): string {
-  let parsedUrl: URL;
-  try {
-    parsedUrl = new URL(url);
-  } catch {
-    throw new Error(`Invalid deeplink URL: ${url}`);
-  }
-
-  const disallowedProtocols = ['http:', 'https:', 'file:'];
-  if (disallowedProtocols.includes(parsedUrl.protocol)) {
-    const protocol = parsedUrl.protocol.slice(0, -1);
-    throw new Error(`Invalid deeplink protocol: ${protocol}. Expected a custom protocol (e.g., myapp://).`);
-  }
-
-  return url;
-}
-
-/**
- * Generates the platform-specific command to trigger the deeplink.
- *
- * @param url - The deeplink URL to trigger
- * @param platform - The platform (win32, darwin, linux)
- * @returns Command and arguments for child_process.spawn
- * @throws Error if platform is unsupported
- *
- * @example
- * ```ts
- * // Windows
- * getPlatformCommand('myapp://test', 'win32');
- * // Returns { command: 'rundll32.exe', args: ['url.dll,FileProtocolHandler', 'myapp://test'] }
- *
- * // macOS
- * getPlatformCommand('myapp://test', 'darwin');
- * // Returns { command: 'open', args: ['myapp://test'] }
- *
- * // Linux
- * getPlatformCommand('myapp://test', 'linux');
- * // Returns { command: 'xdg-open', args: ['myapp://test'] }
- * ```
- */
-export function getPlatformCommand(url: string, platform: string): { command: string; args: string[] } {
-  switch (platform) {
-    case 'win32':
-      return {
-        command: 'rundll32.exe',
-        args: ['url.dll,FileProtocolHandler', url],
-      };
-
-    case 'darwin':
-      return {
-        command: 'open',
-        args: [url],
-      };
-
-    case 'linux':
-      return {
-        command: 'gio',
-        args: ['open', url],
-      };
-
-    default:
-      throw new Error(
-        `Unsupported platform for deeplink triggering: ${platform}. ` +
-          'Supported platforms are: win32, darwin, linux.',
-      );
-  }
-}
-
-/**
- * Executes the deeplink command using child_process.spawn.
- * The process is detached and runs asynchronously in the background.
- *
- * @param command - The command to execute
- * @param args - The command arguments
- * @param env - Optional environment variables to pass (defaults to process.env for embedded mode)
- * @returns A promise that resolves when the command has been spawned successfully
- * @throws Error if the command fails to spawn
- *
- * @example
- * ```ts
- * await executeDeeplinkCommand('open', ['myapp://test']);
- * ```
- */
-export async function executeDeeplinkCommand(command: string, args: string[], env?: NodeJS.ProcessEnv): Promise<void> {
-  return new Promise((resolve, reject) => {
-    try {
-      const fullCommand = `${command} ${args.join(' ')}`;
-      log.info(`Spawning deeplink command: "${fullCommand}"`);
-
-      const childProcess = spawn(command, args, {
-        detached: true,
-        stdio: 'ignore',
-        env: env ?? process.env,
-      });
-
-      const pid = childProcess.pid;
-      log.info(`Deeplink process spawned with PID: ${pid}`);
-
-      childProcess.unref();
-
-      childProcess.on('error', (error) => {
-        log.error(`Failed to spawn deeplink process (PID ${pid}): ${error.message}`);
-        reject(new Error(`Failed to trigger deeplink: ${error.message}`));
-      });
-
-      process.nextTick(() => {
-        log.info(`Deeplink command spawned successfully: PID ${pid}`);
-        resolve();
-      });
-    } catch (error) {
-      log.error(`Failed to trigger deeplink: ${error instanceof Error ? error.message : String(error)}`);
-      reject(new Error(`Failed to trigger deeplink: ${error instanceof Error ? error.message : String(error)}`));
-    }
-  });
-}
 
 /**
  * Triggers a deeplink to the Tauri application for testing protocol handlers.

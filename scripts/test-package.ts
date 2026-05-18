@@ -1,23 +1,27 @@
 #!/usr/bin/env tsx
 /**
- * Script to test the wdio-electron-service and wdio-tauri-service packages in the package test apps
- * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|both>] [--module-type=<cjs|esm|both>] [--skip-build]
+ * Script to test the wdio-electron-service, wdio-tauri-service, and wdio-dioxus-service packages in the package test apps
+ * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|dioxus|both>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]
  *
  * Examples:
  * pnpx tsx scripts/test-package.ts
  * pnpx tsx scripts/test-package.ts --service=electron
  * pnpx tsx scripts/test-package.ts --service=electron --module-type=cjs
  * pnpx tsx scripts/test-package.ts --service=electron --module-type=esm
+ * pnpx tsx scripts/test-package.ts --service=electron --mode=browser
  * pnpx tsx scripts/test-package.ts --service=tauri
+ * pnpx tsx scripts/test-package.ts --service=dioxus
  * pnpx tsx scripts/test-package.ts --package=electron-builder-app-cjs
  * pnpx tsx scripts/test-package.ts --package=electron-builder-app-esm
  * pnpx tsx scripts/test-package.ts --package=tauri-app --skip-build
+ * pnpx tsx scripts/test-package.ts --package=dioxus-app --skip-build
  */
 
 import { execSync } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
-import { dirname, join, normalize } from 'node:path';
+import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 // Add global error handlers to catch silent failures
@@ -47,8 +51,13 @@ const rootDir = normalize(join(__dirname, '..'));
 interface TestOptions {
   package?: string;
   skipBuild?: boolean;
-  service?: 'electron' | 'tauri' | 'both';
+  service?: 'electron' | 'tauri' | 'dioxus' | 'both';
   moduleType?: 'cjs' | 'esm' | 'both';
+  /** 'native' runs the existing app-launch tests. 'browser' starts a static
+   * HTTP server against the fixture's `browser/` directory and runs the
+   * browser-mode wdio config. Picks up any fixture (Electron or Tauri) that
+   * provides a wdio.browser.conf.ts and a browser/ directory. */
+  mode?: 'native' | 'browser';
 }
 
 function log(message: string) {
@@ -58,15 +67,35 @@ function log(message: string) {
 function execCommand(command: string, cwd: string, description: string) {
   log(`${description}...`);
 
-  try {
-    execSync(command, {
-      cwd: normalize(cwd),
-      stdio: 'inherit',
-      encoding: 'utf-8',
-      shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
-    });
-    log(`✅ ${description} completed`);
-  } catch (error) {
+  // On Windows, pnpm install in isolated package-test environments
+  // intermittently exits non-zero without printing its actual error to
+  // stderr (AV interference / global-store contention is suspected). Retry
+  // once for pnpm commands before surfacing the failure.
+  const isPnpm = command.startsWith('pnpm ');
+  const maxAttempts = isPnpm && process.platform === 'win32' ? 2 : 1;
+  let lastError: unknown;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      execSync(command, {
+        cwd: normalize(cwd),
+        stdio: 'inherit',
+        encoding: 'utf-8',
+        shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
+      });
+      if (attempt > 1) log(`(retry ${attempt - 1} succeeded)`);
+      log(`✅ ${description} completed`);
+      return;
+    } catch (error) {
+      lastError = error;
+      if (attempt < maxAttempts) {
+        console.error(`⚠️  ${description} failed on attempt ${attempt}; retrying after 2s...`);
+        // Synchronous sleep without spawning a child — we're in a sync codepath.
+        Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
+      }
+    }
+  }
+  {
+    const error = lastError;
     console.error(`❌ ${description} failed:`);
     if (error instanceof Error) {
       console.error(error.message);
@@ -78,38 +107,51 @@ function execCommand(command: string, cwd: string, description: string) {
   }
 }
 
-async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'both'): Promise<{
+async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'both' = 'both'): Promise<{
   electronServicePath?: string;
   tauriServicePath?: string;
+  dioxusServicePath?: string;
   utilsPath: string;
   spyPath: string;
+  corePath: string;
   typesPath?: string;
   cdpBridgePath?: string;
 }> {
   log(`Building and packing services and dependencies (service: ${service})...`);
 
   try {
-    // Build only the packages required for the requested service
-    const buildFilters: Record<'electron' | 'tauri' | 'both', string> = {
-      electron: '--filter=@wdio/electron-service --filter=@wdio/native-spy',
-      tauri: '--filter=@wdio/tauri-service',
+    // Build only the packages required for the requested service. Each
+    // service depends on @wdio/native-core (extracted in the Dioxus
+    // foundation work), so include it in every filter set.
+    const buildFilters: Record<'electron' | 'tauri' | 'dioxus' | 'both', string> = {
+      electron: '--filter=@wdio/electron-service --filter=@wdio/native-spy --filter=@wdio/native-core',
+      tauri: '--filter=@wdio/tauri-service --filter=@wdio/native-core',
+      dioxus: '--filter=@wdio/dioxus-service --filter=@wdio/native-core',
       both: '--filter=./packages/*',
     };
     execCommand(`pnpm turbo run build ${buildFilters[service]}`, rootDir, `Building packages for ${service}`);
 
-    // Pack native-utils (required for both services)
+    // Pack native-utils (required for all services)
     const utilsDir = normalize(join(rootDir, 'packages', 'native-utils'));
     if (!existsSync(utilsDir)) {
       throw new Error(`Utils directory does not exist: ${utilsDir}`);
     }
     execCommand('pnpm pack', utilsDir, 'Packing @wdio/native-utils');
 
-    // Pack native-spy (required for both services)
+    // Pack native-spy (required for all services)
     const spyDir = normalize(join(rootDir, 'packages', 'native-spy'));
     if (!existsSync(spyDir)) {
       throw new Error(`Spy directory does not exist: ${spyDir}`);
     }
     execCommand('pnpm pack', spyDir, 'Packing @wdio/native-spy');
+
+    // Pack native-core (required for all services — shared launcher
+    // infrastructure introduced with the Dioxus foundation work)
+    const coreDir = normalize(join(rootDir, 'packages', 'native-core'));
+    if (!existsSync(coreDir)) {
+      throw new Error(`Core directory does not exist: ${coreDir}`);
+    }
+    execCommand('pnpm pack', coreDir, 'Packing @wdio/native-core');
 
     const findTgzFile = (dir: string, prefix: string): string => {
       const files = readdirSync(dir);
@@ -122,15 +164,18 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
 
     const utilsPath = findTgzFile(utilsDir, 'wdio-native-utils-');
     const spyPath = findTgzFile(spyDir, 'wdio-native-spy-');
+    const corePath = findTgzFile(coreDir, 'wdio-native-core-');
 
     const result: {
       electronServicePath?: string;
       tauriServicePath?: string;
+      dioxusServicePath?: string;
       utilsPath: string;
       spyPath: string;
+      corePath: string;
       typesPath?: string;
       cdpBridgePath?: string;
-    } = { utilsPath, spyPath };
+    } = { utilsPath, spyPath, corePath };
 
     // Pack Electron service and dependencies if needed
     if (service === 'electron' || service === 'both') {
@@ -170,9 +215,28 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
       result.tauriServicePath = findTgzFile(tauriServiceDir, 'wdio-tauri-service-');
     }
 
+    // Pack Dioxus service if needed
+    if (service === 'dioxus' || service === 'both') {
+      const dioxusServiceDir = normalize(join(rootDir, 'packages', 'dioxus-service'));
+      if (!existsSync(dioxusServiceDir)) {
+        throw new Error(`Dioxus service directory does not exist: ${dioxusServiceDir}`);
+      }
+      const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+      if (!existsSync(typesDir)) {
+        throw new Error(`Types directory does not exist: ${typesDir}`);
+      }
+      if (!result.typesPath) {
+        execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
+        result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+      }
+      execCommand('pnpm pack', dioxusServiceDir, 'Packing @wdio/dioxus-service');
+      result.dioxusServicePath = findTgzFile(dioxusServiceDir, 'wdio-dioxus-service-');
+    }
+
     log(`📦 Packages packed:`);
     log(`   Utils: ${utilsPath}`);
     log(`   Spy: ${spyPath}`);
+    log(`   Core: ${corePath}`);
     if (result.electronServicePath) {
       log(`   Electron Service: ${result.electronServicePath}`);
       log(`   Types: ${result.typesPath}`);
@@ -180,6 +244,12 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
     }
     if (result.tauriServicePath) {
       log(`   Tauri Service: ${result.tauriServicePath}`);
+      if (result.typesPath) {
+        log(`   Types: ${result.typesPath}`);
+      }
+    }
+    if (result.dioxusServicePath) {
+      log(`   Dioxus Service: ${result.dioxusServicePath}`);
       if (result.typesPath) {
         log(`   Types: ${result.typesPath}`);
       }
@@ -195,18 +265,74 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'both' = 'bot
   }
 }
 
+/**
+ * Serve a directory of static files over HTTP on a fixed port. Returns the
+ * server handle so the caller can `close()` it after tests run. Used in
+ * browser-mode package tests where the fixture's `browser/` directory needs to
+ * be reachable at a dev-server URL so the worker can navigate to it.
+ *
+ * The set of served files is enumerated at startup; the request handler only
+ * looks up by request URL into that map, so user-controlled input never flows
+ * into a `readFileSync` argument.
+ */
+async function startStaticServer(rootPath: string, port: number): Promise<Server> {
+  const mimeTypes: Record<string, string> = {
+    '.html': 'text/html',
+    '.js': 'application/javascript',
+    '.mjs': 'application/javascript',
+    '.css': 'text/css',
+    '.json': 'application/json',
+    '.svg': 'image/svg+xml',
+    '.png': 'image/png',
+  };
+  const allowed = new Map<string, string>();
+  const walk = (dir: string, prefix: string) => {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const abs = join(dir, entry.name);
+      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
+      if (entry.isDirectory()) {
+        walk(abs, rel);
+      } else if (entry.isFile()) {
+        allowed.set(`/${rel}`, abs);
+        if (rel === 'index.html') allowed.set('/', abs);
+      }
+    }
+  };
+  walk(rootPath, '');
+
+  const server = createServer((req, res) => {
+    const key = (req.url ?? '/').split('?')[0];
+    const absolute = allowed.get(key);
+    if (!absolute) {
+      res.statusCode = 404;
+      res.end('Not Found');
+      return;
+    }
+    res.setHeader('Content-Type', mimeTypes[extname(absolute)] ?? 'application/octet-stream');
+    res.end(readFileSync(absolute));
+  });
+  await new Promise<void>((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(port, '127.0.0.1', () => resolveListen());
+  });
+  return server;
+}
+
 async function testExample(
   packagePath: string,
   packages: {
     electronServicePath?: string;
     tauriServicePath?: string;
+    dioxusServicePath?: string;
     utilsPath: string;
     spyPath: string;
+    corePath: string;
     typesPath?: string;
     cdpBridgePath?: string;
   },
-  service: 'electron' | 'tauri',
-  _skipBuild: boolean,
+  service: 'electron' | 'tauri' | 'dioxus',
+  skipBuild: boolean,
+  mode: 'native' | 'browser' = 'native',
 ) {
   const packageName = packagePath.split(/[/\\]/).pop();
   if (!packageName) {
@@ -261,8 +387,9 @@ async function testExample(
       ...preservedOverrides,
       '@wdio/native-utils': `file:${packages.utilsPath}`,
       '@wdio/native-spy': `file:${packages.spyPath}`,
+      '@wdio/native-core': `file:${packages.corePath}`,
     };
-    const packagesToInstall: string[] = [packages.utilsPath, packages.spyPath];
+    const packagesToInstall: string[] = [packages.utilsPath, packages.spyPath, packages.corePath];
 
     // Add @wdio/utils override if the tarball exists
     const wdioUtilsTarball = join(rootDir, 'wdio-utils-9.23.3.tgz');
@@ -287,6 +414,13 @@ async function testExample(
       overrides['@wdio/tauri-service'] = `file:${packages.tauriServicePath}`;
       overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
       packagesToInstall.push(packages.typesPath, packages.tauriServicePath);
+    } else if (service === 'dioxus') {
+      if (!packages.dioxusServicePath || !packages.typesPath) {
+        throw new Error('Dioxus service packages not available');
+      }
+      overrides['@wdio/dioxus-service'] = `file:${packages.dioxusServicePath}`;
+      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
+      packagesToInstall.push(packages.typesPath, packages.dioxusServicePath);
     }
 
     packageJson.pnpm = {
@@ -345,7 +479,7 @@ async function testExample(
               /(tauri-plugin-wdio\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/tauri-plugin"(\s*\})/;
             if (oldPathPattern.test(cargoToml)) {
               // Use absolute path to ensure Cargo can find it
-              const absolutePluginPath = normalize(pluginDestDir);
+              const absolutePluginPath = normalize(pluginDestDir).replace(/\\/g, '/');
               cargoToml = cargoToml.replace(oldPathPattern, `$1"${absolutePluginPath}"$2`);
               writeFileSync(cargoTomlPath, cargoToml);
               log(`✅ Updated Cargo.toml path dependency to absolute path: ${absolutePluginPath}`);
@@ -357,8 +491,57 @@ async function testExample(
       }
     }
 
-    // Handle building/copying for different service types
-    if (service === 'tauri') {
+    // For Dioxus apps, copy the embedded driver as a Rust path dependency
+    if (service === 'dioxus') {
+      const embeddedDriverSourceDir = join(rootDir, 'packages', 'dioxus-embedded-driver');
+      const embeddedDriverDestDir = join(tempDir, 'packages', 'dioxus-embedded-driver');
+      const cargoTomlPath = join(packageDir, 'src-dioxus', 'Cargo.toml');
+
+      if (existsSync(cargoTomlPath)) {
+        let cargoToml = readFileSync(cargoTomlPath, 'utf-8');
+        if (cargoToml.includes('wdio-dioxus-embedded-driver') && cargoToml.includes('path =')) {
+          if (existsSync(embeddedDriverSourceDir)) {
+            log(`Copying embedded driver source for Rust dependency resolution...`);
+            mkdirSync(dirname(embeddedDriverDestDir), { recursive: true });
+            cpSync(embeddedDriverSourceDir, embeddedDriverDestDir, { recursive: true });
+            log(`✅ Embedded driver source copied to ${embeddedDriverDestDir}`);
+
+            // wdio-dioxus-embedded-driver has a path dep on wdio-dioxus-bridge
+            // (path = "../dioxus-bridge"). Copy the bridge alongside the driver so
+            // Cargo can resolve it from the isolated tempDir.
+            const bridgeSourceDir = join(rootDir, 'packages', 'dioxus-bridge');
+            const bridgeDestDir = join(tempDir, 'packages', 'dioxus-bridge');
+            if (existsSync(bridgeSourceDir)) {
+              cpSync(bridgeSourceDir, bridgeDestDir, { recursive: true });
+              log(`✅ Bridge source copied to ${bridgeDestDir}`);
+            } else {
+              log(`⚠️  Bridge source not found at ${bridgeSourceDir}`);
+            }
+
+            const oldPathPattern =
+              /(wdio-dioxus-embedded-driver\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/dioxus-embedded-driver"(\s*[,}])/;
+            if (oldPathPattern.test(cargoToml)) {
+              const absoluteDriverPath = normalize(embeddedDriverDestDir).replace(/\\/g, '/');
+              cargoToml = cargoToml.replace(oldPathPattern, `$1"${absoluteDriverPath}"$2`);
+              writeFileSync(cargoTomlPath, cargoToml);
+              log(`✅ Updated Cargo.toml path dependency to: ${absoluteDriverPath}`);
+            } else {
+              log(
+                `⚠️  Could not rewrite wdio-dioxus-embedded-driver path dep — pattern did not match. Cargo build may fail if the relative path is unreachable from the isolated environment.`,
+              );
+            }
+          } else {
+            log(`⚠️  Embedded driver source not found at ${embeddedDriverSourceDir}`);
+          }
+        }
+      }
+    }
+
+    // Handle building/copying for different service types. Browser mode runs
+    // the frontend in plain Chrome against the static fixture, so the Tauri
+    // plugin build, web build, and pre-built binary are all irrelevant —
+    // skip the entire block.
+    if (service === 'tauri' && mode === 'native') {
       const pluginSourceDir = join(rootDir, 'packages', 'tauri-plugin');
       const pluginDistJsDir = join(pluginSourceDir, 'dist-js');
 
@@ -487,12 +670,52 @@ async function testExample(
           }
         }
       }
-    } else if (packageJson.scripts?.build) {
-      // Build Electron apps in isolated environment
+    } else if (service === 'dioxus' && mode === 'native') {
+      // Dioxus: use pre-built binary when skipBuild=true (CI downloads it as a separate artifact)
+      const sourceTargetDir = join(rootDir, 'fixtures', 'package-tests', 'dioxus-app', 'src-dioxus', 'target');
+      const destTargetDir = join(packageDir, 'src-dioxus', 'target');
+      if (skipBuild) {
+        if (!existsSync(sourceTargetDir)) {
+          throw new Error(
+            `Pre-built Dioxus binary not found at ${sourceTargetDir}. ` +
+              'Was the build artifact downloaded and extracted correctly?',
+          );
+        }
+        log(`Copying pre-built Dioxus binary from ${sourceTargetDir}...`);
+        mkdirSync(destTargetDir, { recursive: true });
+        cpSync(sourceTargetDir, destTargetDir, { recursive: true });
+        log(`✅ Pre-built Dioxus binary copied successfully`);
+      } else if (packageJson.scripts?.build) {
+        execCommand('pnpm build', packageDir, `Building ${packageName} app`);
+      }
+    } else if (packageJson.scripts?.build && mode === 'native') {
+      // Build other apps (e.g. Electron) in isolated environment
       execCommand('pnpm build', packageDir, `Building ${packageName} app`);
     }
 
-    execCommand('pnpm test', packageDir, `Running tests for ${packageName}`);
+    let staticServer: Server | undefined;
+    if (mode === 'browser') {
+      const browserDir = join(packageDir, 'browser');
+      if (!existsSync(browserDir)) {
+        throw new Error(`Browser-mode requested but no browser/ directory in ${packageName}. Expected ${browserDir}.`);
+      }
+      log(`Starting static server for ${packageName} from ${browserDir} on http://localhost:5173`);
+      staticServer = await startStaticServer(browserDir, 5173);
+    }
+
+    try {
+      const testScript = mode === 'browser' ? 'pnpm test:browser' : 'pnpm test';
+      execCommand(testScript, packageDir, `Running ${mode} tests for ${packageName}`);
+    } finally {
+      if (staticServer) {
+        // Capture in a const so the closure narrows the type — staticServer
+        // is a `let` and TS widens it back to Server | undefined inside the
+        // callback, matching the optional-chain pattern in the e2e conf.
+        const server = staticServer;
+        await new Promise<void>((resolveClose) => server.close(() => resolveClose()));
+        log(`Stopped static server for ${packageName}`);
+      }
+    }
 
     log(`✅ ${packageName} tests passed!`);
 
@@ -584,12 +807,12 @@ async function main() {
     const serviceArg = args.find((arg) => arg.startsWith('--service='))?.split('=')[1];
 
     // Validate service argument if provided, default to 'both' if not provided
-    let service: 'electron' | 'tauri' | 'both' = 'both';
+    let service: 'electron' | 'tauri' | 'dioxus' | 'both' = 'both';
     if (serviceArg) {
-      if (serviceArg === 'electron' || serviceArg === 'tauri' || serviceArg === 'both') {
+      if (serviceArg === 'electron' || serviceArg === 'tauri' || serviceArg === 'dioxus' || serviceArg === 'both') {
         service = serviceArg;
       } else {
-        throw new Error(`Invalid service value: ${serviceArg}. Must be 'electron', 'tauri', or 'both'`);
+        throw new Error(`Invalid service value: ${serviceArg}. Must be 'electron', 'tauri', 'dioxus', or 'both'`);
       }
     }
 
@@ -603,19 +826,32 @@ async function main() {
       }
     }
 
+    const modeArg = args.find((arg) => arg.startsWith('--mode='))?.split('=')[1];
+    let mode: 'native' | 'browser' = 'native';
+    if (modeArg) {
+      if (modeArg === 'native' || modeArg === 'browser') {
+        mode = modeArg;
+      } else {
+        throw new Error(`Invalid mode value: ${modeArg}. Must be 'native' or 'browser'`);
+      }
+    }
+
     const options: TestOptions = {
       package: args.find((arg) => arg.startsWith('--package='))?.split('=')[1],
       skipBuild: args.includes('--skip-build'),
       service,
       moduleType,
+      mode,
     };
 
     // Build and pack service (unless skipped)
     let packages: {
       electronServicePath?: string;
       tauriServicePath?: string;
+      dioxusServicePath?: string;
       utilsPath: string;
       spyPath: string;
+      corePath: string;
       typesPath?: string;
       cdpBridgePath?: string;
     };
@@ -632,9 +868,11 @@ async function main() {
 
       const utilsDir = normalize(join(rootDir, 'packages', 'native-utils'));
       const spyDir = normalize(join(rootDir, 'packages', 'native-spy'));
+      const coreDir = normalize(join(rootDir, 'packages', 'native-core'));
       packages = {
         utilsPath: findTgzFile(utilsDir, 'wdio-native-utils-'),
         spyPath: findTgzFile(spyDir, 'wdio-native-spy-'),
+        corePath: findTgzFile(coreDir, 'wdio-native-core-'),
       };
 
       if (options.service === 'electron' || options.service === 'both') {
@@ -653,9 +891,17 @@ async function main() {
         packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
       }
 
+      if (options.service === 'dioxus' || options.service === 'both') {
+        const dioxusServiceDir = normalize(join(rootDir, 'packages', 'dioxus-service'));
+        const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+        packages.dioxusServicePath = findTgzFile(dioxusServiceDir, 'wdio-dioxus-service-');
+        packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+      }
+
       log(`📦 Using existing packages:`);
       log(`   Utils: ${packages.utilsPath}`);
       log(`   Spy: ${packages.spyPath}`);
+      log(`   Core: ${packages.corePath}`);
       if (packages.electronServicePath) {
         log(`   Electron Service: ${packages.electronServicePath}`);
         log(`   Types: ${packages.typesPath}`);
@@ -663,6 +909,9 @@ async function main() {
       }
       if (packages.tauriServicePath) {
         log(`   Tauri Service: ${packages.tauriServicePath}`);
+      }
+      if (packages.dioxusServicePath) {
+        log(`   Dioxus Service: ${packages.dioxusServicePath}`);
       }
     } else {
       packages = await buildAndPackService(options.service);
@@ -679,12 +928,14 @@ async function main() {
       .map((dirent) => dirent.name)
       .filter((name) => !name.startsWith('.'));
 
-    // Filter packages by service type (electron-* vs tauri-*)
+    // Filter packages by service type (electron-* vs tauri-* vs dioxus-*)
     let filteredDirs = packageTestDirs;
     if (options.service === 'electron') {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('electron-'));
     } else if (options.service === 'tauri') {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('tauri-'));
+    } else if (options.service === 'dioxus') {
+      filteredDirs = packageTestDirs.filter((name) => name.startsWith('dioxus-'));
     }
     // If service is 'both', don't filter
 
@@ -696,6 +947,13 @@ async function main() {
         filteredDirs = filteredDirs.filter((name) => name.endsWith('-esm') || !name.match(/-cjs$|-esm$/));
       }
       // If moduleType is 'both', include all variants
+    }
+
+    // Browser mode only runs against fixtures that have a wdio.browser.conf.ts
+    // and a browser/ directory to serve. Today that's just the script-app
+    // variants; expand the allowlist when more fixtures opt in.
+    if (options.mode === 'browser') {
+      filteredDirs = filteredDirs.filter((name) => existsSync(join(packagesDir, name, 'wdio.browser.conf.ts')));
     }
 
     // Filter packages if specific one requested
@@ -752,7 +1010,11 @@ async function main() {
       }
 
       // Detect service type from package name (already filtered by prefix, but needed for testExample)
-      const detectedService: 'electron' | 'tauri' = packageName.startsWith('tauri-') ? 'tauri' : 'electron';
+      const detectedService: 'electron' | 'tauri' | 'dioxus' = packageName.startsWith('tauri-')
+        ? 'tauri'
+        : packageName.startsWith('dioxus-')
+          ? 'dioxus'
+          : 'electron';
 
       // Log module type for Electron packages
       if (detectedService === 'electron') {
@@ -760,7 +1022,7 @@ async function main() {
         log(`Testing ${packageName} (${moduleType})`);
       }
 
-      await testExample(packagePath, packages, detectedService, options.skipBuild ?? false);
+      await testExample(packagePath, packages, detectedService, options.skipBuild ?? false, options.mode);
     }
 
     log(`🎉 All package tests completed successfully!`);

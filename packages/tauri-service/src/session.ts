@@ -163,7 +163,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     await launcher.onComplete(0, minimalConfig, []);
 
     // Close log writer
-    closeLogWriter();
+    await closeLogWriter();
 
     // Remove from active launchers
     activeLaunchers.delete(browser);
@@ -184,7 +184,7 @@ export function createTauriCapabilities(
     logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
     commandTimeout?: number;
     startTimeout?: number;
-    driverProvider?: 'official' | 'crabnebula' | 'embedded';
+    driverProvider?: 'external' | 'official' | 'crabnebula' | 'embedded';
     autoInstallTauriDriver?: boolean;
   } = {},
 ): TauriCapabilities {

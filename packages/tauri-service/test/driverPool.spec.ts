@@ -1,26 +1,110 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mockStart = vi.fn();
+// Shared mock state: driverPool is now a Tauri-flavoured wrapper around
+// @wdio/native-core's DriverPool. We mock core's DriverPool with an
+// in-memory fake (Map-backed) and expose mockIsRunning / mockProcPid /
+// mockStop so individual tests can simulate stopped drivers, missing PIDs,
+// etc. without spawning real child processes.
+
 const mockStop = vi.fn();
 const mockIsRunning = vi.fn();
 let mockProcPid: number | undefined = 12345;
+
+interface FakeDriverInfo {
+  process: {
+    stop: () => Promise<void>;
+    isRunning: () => boolean;
+    proc: { pid: number | undefined };
+  };
+  port: number;
+  nativePort: number;
+  mode: 'single' | 'worker' | 'multiremote';
+  identifier: string;
+}
+
+const driverState = new Map<string, FakeDriverInfo>();
+
+vi.mock('@wdio/native-core', async (importActual) => {
+  const actual = await importActual<typeof import('@wdio/native-core')>();
+  return {
+    ...actual,
+    DriverPool: class MockCoreDriverPool {
+      async startDriver(config: {
+        mode: 'single' | 'worker' | 'multiremote';
+        identifier: string;
+        port: number;
+        nativePort: number;
+      }): Promise<FakeDriverInfo> {
+        const info: FakeDriverInfo = {
+          process: {
+            stop: mockStop,
+            isRunning: mockIsRunning,
+            proc: {
+              get pid() {
+                return mockProcPid;
+              },
+            },
+          },
+          port: config.port,
+          nativePort: config.nativePort,
+          mode: config.mode,
+          identifier: config.identifier,
+        };
+        driverState.set(config.identifier, info);
+        return info;
+      }
+
+      async stopDriver(identifier: string): Promise<void> {
+        const info = driverState.get(identifier);
+        if (info) {
+          await info.process.stop();
+          driverState.delete(identifier);
+        }
+      }
+
+      async stopAll(): Promise<void> {
+        for (const info of driverState.values()) {
+          await info.process.stop();
+        }
+        driverState.clear();
+      }
+
+      getDriver(id: string) {
+        return driverState.get(id);
+      }
+
+      getDriverProcess(id: string) {
+        return driverState.get(id)?.process;
+      }
+
+      getStatus(): { running: boolean; count: number; identifiers: string[] } {
+        const identifiers = Array.from(driverState.keys());
+        const runningCount = Array.from(driverState.values()).filter((info) => info.process.isRunning()).length;
+        return {
+          running: runningCount > 0,
+          count: runningCount,
+          identifiers,
+        };
+      }
+
+      getRunningPids(): number[] {
+        const pids: number[] = [];
+        for (const info of driverState.values()) {
+          if (info.process.isRunning() && info.process.proc?.pid) {
+            pids.push(info.process.proc.pid);
+          }
+        }
+        return pids;
+      }
+    },
+  };
+});
 
 vi.mock('../src/driverManager.js', () => ({
   ensureTauriDriver: vi.fn(async () => ({
     ok: true,
     value: { path: '/mock/tauri-driver', method: 'found' as const },
   })),
-}));
-
-vi.mock('../src/driverProcess.js', () => ({
-  DriverProcess: class MockDriverProcess {
-    start = mockStart.mockResolvedValue({ proc: { pid: 12345 } });
-    stop = mockStop.mockResolvedValue(undefined);
-    isRunning = mockIsRunning.mockReturnValue(true);
-    get proc() {
-      return { pid: mockProcPid };
-    }
-  },
 }));
 
 vi.mock('../src/pathResolver.js', () => ({
@@ -32,10 +116,10 @@ describe('DriverPool', () => {
   let ensureTauriDriver: typeof import('../src/driverManager.js').ensureTauriDriver;
 
   beforeEach(async () => {
-    mockStart.mockClear().mockResolvedValue({ proc: { pid: 12345 } });
     mockStop.mockClear().mockResolvedValue(undefined);
     mockIsRunning.mockClear().mockReturnValue(true);
     mockProcPid = 12345;
+    driverState.clear();
 
     const driverManagerMod = await import('../src/driverManager.js');
     ensureTauriDriver = driverManagerMod.ensureTauriDriver;

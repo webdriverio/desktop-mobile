@@ -51,9 +51,18 @@
 
 [`@wdio/tauri-service`](./packages/tauri-service) - Tauri applications (Windows / macOS / Linux)
 
+<h4>
+  <div>
+    <a href="https://www.npmjs.com/package/@wdio/dioxus-service"><img src="https://img.shields.io/badge/@wdio-dioxus--service-8B5CF6?labelColor=1a1a1a&style=plastic" alt="npm package" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/dioxus-service"><img src="https://img.shields.io/npm/v/@wdio/dioxus-service" alt="npm version" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/dioxus-service"><img src="https://img.shields.io/npm/dw/@wdio/dioxus-service" alt="npm downloads" /></a>
+  </div>
+</h4>
+
+[`@wdio/dioxus-service`](./packages/dioxus-service) - Dioxus desktop applications (Windows / macOS / Linux)
+
 ## Planned Support
 
-- **Dioxus** - Modern cross-platform UI framework
 - **React Native** - Popular mobile and desktop framework
 - **Flutter** - Google's UI toolkit for mobile and beyond
 - **Capacitor** - Ionic's cross-platform mobile framework
@@ -64,9 +73,10 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 
 ## Features
 
-- 🎯 **Framework-specific automation** - Native integration with Electron, Tauri
+- 🎯 **Framework-specific automation** - Native integration with Electron, Tauri, Dioxus
 - 🔍 **Smart binary detection** - Automatic app discovery and configuration
 - 🎭 **API mocking & isolation** - Built-in mocking for deterministic tests
+- 🌍 **Browser-only test mode** - Run the renderer in Chrome against a dev server, no binary required. See the [Electron](./packages/electron-service/docs/browser-mode.md), [Tauri](./packages/tauri-service/docs/browser-mode.md), and [Dioxus](./packages/dioxus-service/docs/browser-mode.md) guides.
 - 🌐 **Cross-platform support** - Write once, test everywhere
 - 🔧 **Consistent API** - Familiar WDIO patterns across all frameworks
 
@@ -77,12 +87,16 @@ desktop-mobile/
 ├── packages/                    # Service packages
 │   ├── electron-service/        # Electron service implementation
 │   ├── tauri-service/           # Tauri service implementation
+│   ├── dioxus-service/          # Dioxus service implementation
 │   ├── electron-cdp-bridge/     # Chrome DevTools Protocol bridge
 │   ├── native-utils/            # Cross-platform utilities
 │   ├── native-types/            # TypeScript type definitions
 │   ├── native-spy/              # Spy utilities for mocking
 │   ├── bundler/                 # Build tool for packaging
-│   └── tauri-plugin/            # Tauri plugin for backend access
+│   ├── tauri-plugin/            # Tauri plugin for backend access
+│   ├── dioxus-bridge/           # Dioxus bridge crate (Rust)
+│   ├── dioxus-embedded-driver/  # Dioxus embedded WebDriver server (Rust)
+│   └── dioxus-driver/           # Dioxus external WebDriver proxy (Rust, Windows)
 ├── fixtures/                   # Test fixtures and example apps
 │   ├── e2e-apps/               # E2E test applications
 │   ├── package-tests/          # Package integration tests
@@ -90,7 +104,8 @@ desktop-mobile/
 ├── e2e/                        # End-to-end test suites
 │   ├── test/                   # Test specifications
 │   │   ├── electron/           # Electron E2E tests
-│   │   └── tauri/              # Tauri E2E tests
+│   │   ├── tauri/              # Tauri E2E tests
+│   │   └── dioxus/             # Dioxus E2E tests
 │   └── scripts/                # Test execution scripts
 ├── docs/                       # Documentation
 └── scripts/                    # Build and utility scripts

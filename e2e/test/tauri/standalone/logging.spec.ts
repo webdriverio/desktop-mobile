@@ -54,17 +54,17 @@ console.log('🔍 Debug: Starting Tauri standalone logging test');
 
 const browser = await startWdioSession(sessionOptions);
 
-// Wait for browser to be fully initialized and logs to be ready
-await browser.tauri.execute(({ core }) => core.invoke('get_platform_info'));
-await browser.waitUntil(
-  async () => {
-    const logs = await readWdioLogs(logDir);
-    return logs.length > 0;
-  },
-  { timeout: 10000, timeoutMsg: 'Log infrastructure not ready' },
-);
-
 try {
+  // Wait for browser to be fully initialized and logs to be ready
+  await browser.tauri.execute(({ core }) => core.invoke('get_platform_info'));
+  await browser.waitUntil(
+    async () => {
+      const logs = await readWdioLogs(logDir);
+      return logs.length > 0;
+    },
+    { timeout: 10000, timeoutMsg: 'Log infrastructure not ready' },
+  );
+
   console.log(`[DEBUG] Test will read logs from: ${logDir}`);
   console.log(`[DEBUG] appDir: ${appDir}`);
   console.log(`[DEBUG] appDirName: ${appDirName}`);
@@ -155,18 +155,12 @@ try {
   }
 
   console.log('✅ All Tauri standalone logging tests passed');
-} catch (error) {
-  console.error('❌ Test failed:', error);
-  // Clean up before exiting with error
+} finally {
+  // Clean up - quit the app and stop tauri-driver
   await browser.deleteSession();
   await cleanupWdioSession(browser);
-  process.exit(1);
+  console.log('✅ Cleanup complete');
 }
-
-// Clean up - quit the app and stop tauri-driver
-await browser.deleteSession();
-await cleanupWdioSession(browser);
-console.log('✅ Cleanup complete');
 
 // On Windows, webdriverio's remote() leaves internal handles that prevent Node.js
 // from exiting naturally. Call process.exit() to ensure the test terminates.

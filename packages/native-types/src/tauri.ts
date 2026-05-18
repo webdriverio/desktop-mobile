@@ -77,6 +77,18 @@ export interface TauriMock<TArgs extends unknown[] = unknown[], TReturns = unkno
 }
 
 /**
+ * Tauri event target descriptor — mirrors the EventTarget union from
+ * @tauri-apps/api/event without requiring a runtime dependency on it.
+ */
+export type TauriEventTarget =
+  | { kind: 'Any' }
+  | { kind: 'AnyLabel'; label: string }
+  | { kind: 'App' }
+  | { kind: 'Window'; label: string }
+  | { kind: 'Webview'; label: string }
+  | { kind: 'WebviewWindow'; label: string };
+
+/**
  * Options for browser.tauri.execute() per-call overrides
  * Use withExecuteOptions() from @wdio/tauri-service to create properly-typed options
  */
@@ -260,6 +272,30 @@ export interface TauriServiceAPI {
    * ```
    */
   listWindows: () => Promise<string[]>;
+
+  /**
+   * Emit a Tauri event from the test process to listeners registered in the frontend
+   * via `listen()` / `once()` from `@tauri-apps/api/event`.
+   *
+   * Works in both modes:
+   * - Browser mode: routes through the in-browser listener registry
+   * - Native mode: routes through the real Tauri `event.emit()` / `event.emitTo()` via the backend
+   *
+   * @param event - Event name to emit (e.g. `'data-loaded'`)
+   * @param payload - Optional event payload (JSON-serialised across the boundary)
+   * @param target - Optional target filter — string is treated as `{ kind: 'AnyLabel', label }`,
+   *                 or pass an explicit `TauriEventTarget`. Omit to emit to all subscribers.
+   *
+   * @example
+   * ```js
+   * // Frontend: const unlisten = await listen('data-loaded', (e) => updateUI(e.payload));
+   * await browser.tauri.emitEvent('data-loaded', { rows: 3 });
+   *
+   * // Targeted emit — only listeners that subscribed with target: 'main' fire
+   * await browser.tauri.emitEvent('focus-window', undefined, 'main');
+   * ```
+   */
+  emitEvent: <T = unknown>(event: string, payload?: T, target?: string | TauriEventTarget) => Promise<void>;
 }
 
 /**

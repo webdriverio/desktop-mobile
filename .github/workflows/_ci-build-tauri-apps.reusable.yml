@@ -1,5 +1,5 @@
 name: Build Tauri Apps
-description: 'Builds Tauri test applications and creates shareable artifacts for E2E testing'
+# Description: Builds Tauri test applications and creates shareable artifacts for E2E testing
 
 permissions:
   contents: read
@@ -40,7 +40,7 @@ jobs:
   # This job builds all Tauri test applications for the specified OS
   # Unlike package builds, each OS creates its own artifacts since binaries are platform-specific
   build-tauri-apps:
-    name: Build Tauri Apps
+    name: Build
     runs-on: ${{ inputs.os }}
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}
@@ -62,14 +62,20 @@ jobs:
 
       # Install Rust toolchain for Tauri compilation
       - name: 🦀 Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: 🦀 Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: '.'
+          workspaces: |
+            fixtures/e2e-apps/tauri/src-tauri
+            fixtures/package-tests/tauri-app/src-tauri
           cache-on-failure: true
           cache-targets: false
+          # ~/.cargo/bin/ can carry over stale binaries (e.g. rustup-init in
+          # place of cargo) across runs on macOS, breaking the toolchain.
+          cache-bin: false
 
       # Install Tauri dependencies on Linux
       - name: 🔧 Fix ARM64 Package Sources (Linux)
@@ -144,8 +150,8 @@ jobs:
         id: build-info
         shell: bash
         run: |
-          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
-          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       # Build all Tauri test applications using Turbo
       # This creates the binaries in src-tauri/target/debug

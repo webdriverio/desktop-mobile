@@ -1,5 +1,5 @@
 name: Build Tauri E2E App
-description: 'Builds Tauri E2E test application and creates shareable artifacts'
+# Description: Builds Tauri E2E test application and creates shareable artifacts
 
 permissions:
   contents: read
@@ -48,7 +48,7 @@ env:
 
 jobs:
   build-tauri-e2e-app:
-    name: Build Tauri E2E App
+    name: Build
     runs-on: ${{ inputs.os }}
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}
@@ -67,14 +67,18 @@ jobs:
           node-version: '24'
 
       - name: 🦀 Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: 🦀 Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: '.'
+          workspaces: 'fixtures/e2e-apps/tauri/src-tauri'
           cache-on-failure: true
           cache-targets: false
+          # ~/.cargo/bin/ can carry over stale binaries (e.g. rustup-init in
+          # place of cargo) across runs on macOS, breaking the toolchain.
+          cache-bin: false
 
       - name: 🔧 Fix ARM64 Package Sources (Linux)
         if: runner.os == 'Linux' && runner.arch == 'ARM64'
@@ -146,8 +150,8 @@ jobs:
         id: build-info
         shell: bash
         run: |
-          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
-          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       # Download the pre-built packages from the main build job
       # This ensures we use the same build artifacts and avoid rebuilding Node.js packages
@@ -209,7 +213,7 @@ jobs:
           echo "Checking capabilities file..."
           if [ -f "$APP_DIR/capabilities/default.json" ]; then
             echo "✅ Capabilities file exists"
-            cat "$APP_DIR/capabilities/default.json" | head -20 || echo "Failed to read capabilities file"
+            head -20 "$APP_DIR/capabilities/default.json" || echo "Failed to read capabilities file"
 
             # Check if identifier is "default"
             if grep -q '"identifier": "default"' "$APP_DIR/capabilities/default.json"; then
@@ -284,7 +288,7 @@ jobs:
             if [ -f "$ACL_MANIFEST" ]; then
               echo "✅ ACL manifest exists"
               echo "ACL manifest keys:"
-              cat "$ACL_MANIFEST" | jq 'keys' 2>/dev/null || cat "$ACL_MANIFEST" | head -50
+              jq 'keys' "$ACL_MANIFEST" 2>/dev/null || head -50 "$ACL_MANIFEST"
 
               if grep -q '"default"' "$ACL_MANIFEST" 2>/dev/null; then
                 echo "✅ 'default' capability found in ACL manifest"

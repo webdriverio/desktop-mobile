@@ -72,7 +72,7 @@ Add `__visual__` to `.gitignore` if you want CI to manage baselines per-runner; 
 
 Consecutive WebView2 / Chromium renders on Windows produce ~0.5% pixel-level mismatch with no UI change. macOS and Linux render deterministically. `MAX_MISMATCH_PCT = 1` is the lowest threshold that absorbs this noise reliably; real UI changes run ≥10%.
 
-### Stabilising the page
+### Stabilising the page before snapshotting
 
 Before any `checkScreen()` / `checkElement()` call:
 
@@ -119,9 +119,30 @@ Workarounds:
 - Use a self-hosted macOS runner with TCC pre-populated.
 - Skip `crabnebula × macOS-CI × visual` from your matrix and rely on Linux / Windows coverage.
 
+## Dioxus provider notes
+
+Dioxus has only one provider for VRT: `'embedded'`. This provider captures the webview content (not the native window chrome) on all three platforms.
+
+| Provider | Captures | Native chrome included? | Notes |
+|---|---|---|---|
+| `embedded` | Webview only | ❌ | Works on Windows, macOS, Linux. Recommended. |
+| `external` | Webview only | ❌ | Windows only in v1. Not recommended for VRT; use `embedded` instead. |
+
+Per-provider baselines are not needed for Dioxus in v1 since only `'embedded'` is used across platforms. A per-OS + per-arch directory is still recommended to avoid cross-platform rendering differences.
+
+### Linux headless (Xvfb)
+
+On Linux CI, Dioxus requires a display server. Wrap your visual test run with Xvfb:
+
+```bash
+export DISPLAY=:99
+Xvfb :99 -screen 0 1280x800x24 &
+pnpm wdio run wdio.visual.dioxus.conf.ts
+```
+
 ## Asserting native UI behaviour without pixels
 
-The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. Use your framework service's mock APIs instead — they intercept at the framework layer, where the native UI originates. The shape varies per framework; two examples:
+The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. Use your framework service's mock APIs instead — they intercept at the framework layer, where the native UI originates. The shape varies per framework; examples:
 
 - **Electron** — see [API Reference](../packages/electron-service/docs/api-reference.md):
   ```ts
@@ -135,6 +156,13 @@ The visual service captures **webview content only** (with the noted CrabNebula 
   dialogMock.mockReturnValue('/some/file');
   // … exercise the app …
   expect(dialogMock).toHaveBeenCalled();
+  ```
+- **Dioxus** — see [Usage Examples](../packages/dioxus-service/docs/usage-examples.md) and [API Reference](../packages/dioxus-service/docs/api-reference.md):
+  ```ts
+  const commandMock = await browser.dioxus.mock('my_command');
+  commandMock.mockReturnValue({ result: 'mocked' });
+  // … exercise the app …
+  expect(commandMock).toHaveBeenCalled();
   ```
 
 `@wdio/visual-service` for in-app UI, framework-service mock APIs for native UI surfaces — that's the combination most desktop-app suites want.

@@ -1,5 +1,5 @@
 name: Unit
-description: 'Runs unit and integration tests across different operating systems'
+# Description: Runs unit and integration tests across different operating systems
 
 permissions:
   contents: read

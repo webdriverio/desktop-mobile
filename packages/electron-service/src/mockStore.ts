@@ -13,6 +13,11 @@ export class ElectronServiceMockStore {
     return mock;
   }
 
+  setMockWithKey(key: string, mock: ElectronMock): ElectronMock {
+    this.#mockFns.set(key, mock);
+    return mock;
+  }
+
   getMock(mockId: string): ElectronMock {
     const mock = this.#mockFns.get(mockId);
     if (!mock) {
@@ -28,6 +33,15 @@ export class ElectronServiceMockStore {
 
   deleteMock(mockId: string): boolean {
     return this.#mockFns.delete(mockId);
+  }
+
+  deleteMockByRef(mock: ElectronMock): boolean {
+    for (const [key, m] of this.#mockFns) {
+      if (m === mock) {
+        return this.#mockFns.delete(key);
+      }
+    }
+    return false;
   }
 
   clear(): void {

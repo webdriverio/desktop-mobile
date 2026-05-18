@@ -1,13 +1,22 @@
-import { createInterface, type Interface as ReadlineInterface } from 'node:readline';
+// Tauri-flavoured wrapper around @wdio/native-core/logCapture.
+//
+// The actual readline plumbing and marker detection now lives in core. This
+// wrapper preserves the Tauri-side `LogCaptureOptions` shape (with
+// `options: TauriServiceOptions`) so the three existing call sites
+// (driverProcess.ts, crabnebulaBackend.ts, embeddedProvider.ts) keep working
+// unchanged. It translates the Tauri-style options into core's callback
+// API by binding parseLogLine + forwardLog into an onLine callback and
+// supplying Tauri's startup/error markers.
+
+import type { Interface as ReadlineInterface } from 'node:readline';
 import type { Readable } from 'node:stream';
+
+import { createLogCapture as coreCreateLogCapture } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
 
 import { forwardLog } from './logForwarder.js';
 import { parseLogLine } from './logParser.js';
 import type { TauriServiceOptions } from './types.js';
-
-const log = createLogger('tauri-service', 'launcher');
 
 export interface LogCaptureOptions {
   /** The stream to capture logs from (stdout or stderr) */
@@ -24,57 +33,37 @@ export interface LogCaptureOptions {
   onErrorDetected?: (message: string) => void;
 }
 
+const TAURI_STARTUP_MARKERS = ['tauri-driver started', 'listening on'] as const;
+const TAURI_ERROR_MARKERS = ['can not listen'] as const;
+
 /**
- * Create a log capture handler for a stream (stdout/stderr)
- * Parses log lines and forwards them to the appropriate sink (file or WDIO logger)
- *
- * This is used by both:
- * - embeddedProvider.ts (embedded WebDriver mode)
- * - driverProcess.ts (tauri-driver mode)
- *
- * @param options - Log capture configuration options
- * @returns ReadlineInterface for the stream, or undefined if stream is null
+ * Create a Tauri-flavoured log capture handler for a stream (stdout/stderr).
+ * Parses log lines via {@link parseLogLine} and forwards them via
+ * {@link forwardLog} when the service options enable backend/frontend capture.
  */
-export function createLogCapture(options: LogCaptureOptions): ReadlineInterface | undefined {
-  const { stream, identifier, options: serviceOptions, instanceId, onStartupDetected, onErrorDetected } = options;
+export function createLogCapture(opts: LogCaptureOptions): ReadlineInterface | undefined {
+  const { stream, identifier, options: serviceOptions, instanceId, onStartupDetected, onErrorDetected } = opts;
 
-  if (!stream) {
-    return undefined;
-  }
+  return coreCreateLogCapture({
+    stream,
+    identifier,
+    instanceId,
+    startupMarkers: TAURI_STARTUP_MARKERS,
+    errorMarkers: TAURI_ERROR_MARKERS,
+    onStartupDetected,
+    onErrorDetected,
+    onLine: (line, inst) => {
+      const parsed = parseLogLine(line);
+      if (!parsed) return;
 
-  const rl = createInterface({
-    input: stream,
-    crlfDelay: Infinity,
-  });
-
-  rl.on('line', (line: string) => {
-    // Log raw output for debugging in tauri-driver mode
-    if (onStartupDetected || onErrorDetected) {
-      if (line.includes('tauri-driver started') || line.includes('listening on')) {
-        onStartupDetected?.();
-      }
-      if (line.includes('can not listen')) {
-        onErrorDetected?.(`Failed to bind: ${line}`);
-      }
-    }
-
-    // Parse and forward log if capture is enabled
-    const parsedLog = parseLogLine(line);
-    if (parsedLog) {
-      if (serviceOptions.captureBackendLogs && parsedLog.source !== 'frontend') {
+      if (serviceOptions.captureBackendLogs && parsed.source !== 'frontend') {
         const minLevel = (serviceOptions.backendLogLevel ?? 'info') as LogLevel;
-        forwardLog('backend', parsedLog.level, parsedLog.message, minLevel, parsedLog.prefixedMessage, instanceId);
+        forwardLog('backend', parsed.level, parsed.message, minLevel, parsed.prefixedMessage, inst);
       }
-      if (serviceOptions.captureFrontendLogs && parsedLog.source === 'frontend') {
+      if (serviceOptions.captureFrontendLogs && parsed.source === 'frontend') {
         const minLevel = (serviceOptions.frontendLogLevel ?? 'info') as LogLevel;
-        forwardLog('frontend', parsedLog.level, parsedLog.message, minLevel, parsedLog.prefixedMessage, instanceId);
+        forwardLog('frontend', parsed.level, parsed.message, minLevel, parsed.prefixedMessage, inst);
       }
-    }
+    },
   });
-
-  rl.on('error', (err) => {
-    log.warn(`[${identifier}] Stream error: ${err.message}`);
-  });
-
-  return rl;
 }

@@ -1,18 +1,22 @@
-import { createLogger, isErr } from '@wdio/native-utils';
+// Tauri-flavoured wrapper around @wdio/native-core/driverPool.
+//
+// Core's `DriverPool` is a pure lifecycle manager — it doesn't know how to
+// resolve a driver binary path or where to find a WebKit driver. This
+// wrapper does the Tauri-specific resolution (ensureTauriDriver,
+// getWebKitWebDriverPath) and supplies the Tauri-flavoured log capture
+// callback + startup/error markers, then delegates to core.
+
+import { DriverPool as CoreDriverPool, type DriverInfo } from '@wdio/native-core';
+import type { LogLevel } from '@wdio/native-types';
+import { isErr } from '@wdio/native-utils';
+
 import { ensureTauriDriver } from './driverManager.js';
-import { DriverProcess } from './driverProcess.js';
+import { forwardLog } from './logForwarder.js';
+import { parseLogLine } from './logParser.js';
 import { getWebKitWebDriverPath } from './pathResolver.js';
 import type { TauriServiceOptions } from './types.js';
 
-const log = createLogger('tauri-service');
-
-export interface DriverInfo {
-  process: DriverProcess;
-  port: number;
-  nativePort: number;
-  mode: 'single' | 'worker' | 'multiremote';
-  identifier: string;
-}
+export type { DriverInfo };
 
 export interface DriverStartConfig {
   mode: 'single' | 'worker' | 'multiremote';
@@ -24,8 +28,11 @@ export interface DriverStartConfig {
   instanceId?: string;
 }
 
+const TAURI_STARTUP_MARKERS = ['tauri-driver started', 'listening on'] as const;
+const TAURI_ERROR_MARKERS = ['can not listen'] as const;
+
 export class DriverPool {
-  private drivers = new Map<string, DriverInfo>();
+  private core = new CoreDriverPool();
   private globalOptions: TauriServiceOptions;
   private nativeDriverPath?: string;
 
@@ -35,8 +42,8 @@ export class DriverPool {
   }
 
   async startDriver(config: DriverStartConfig): Promise<DriverInfo> {
-    const options = config.options ?? this.globalOptions;
-    const driverResult = await ensureTauriDriver(options);
+    const serviceOptions = config.options ?? this.globalOptions;
+    const driverResult = await ensureTauriDriver(serviceOptions);
 
     if (isErr(driverResult)) {
       throw driverResult.error;
@@ -45,97 +52,55 @@ export class DriverPool {
     const tauriDriverPath = driverResult.value.path;
     const nativeDriverPath = this.nativeDriverPath ?? getWebKitWebDriverPath();
 
-    if (nativeDriverPath) {
-      log.debug(`[${config.identifier}] Using native driver: ${nativeDriverPath}`);
-    }
-
-    const driverProcess = new DriverProcess();
-
-    await driverProcess.start({
+    return this.core.startDriver({
       mode: config.mode,
       identifier: config.identifier,
       port: config.port,
       nativePort: config.nativePort,
-      tauriDriverPath,
+      driverPath: tauriDriverPath,
       nativeDriverPath,
       env: config.env,
-      options,
       instanceId: config.instanceId,
+      driverName: 'tauri-driver',
+      startupMarkers: TAURI_STARTUP_MARKERS,
+      errorMarkers: TAURI_ERROR_MARKERS,
+      onLogLine: (line, inst) => {
+        const parsed = parseLogLine(line);
+        if (!parsed) return;
+
+        if (serviceOptions.captureBackendLogs && parsed.source !== 'frontend') {
+          const minLevel = (serviceOptions.backendLogLevel ?? 'info') as LogLevel;
+          forwardLog('backend', parsed.level, parsed.message, minLevel, parsed.prefixedMessage, inst);
+        }
+        if (serviceOptions.captureFrontendLogs && parsed.source === 'frontend') {
+          const minLevel = (serviceOptions.frontendLogLevel ?? 'info') as LogLevel;
+          forwardLog('frontend', parsed.level, parsed.message, minLevel, parsed.prefixedMessage, inst);
+        }
+      },
     });
-
-    const info: DriverInfo = {
-      process: driverProcess,
-      port: config.port,
-      nativePort: config.nativePort,
-      mode: config.mode,
-      identifier: config.identifier,
-    };
-
-    this.drivers.set(config.identifier, info);
-
-    log.info(`[${config.identifier}] Driver ready on port ${config.port} (native port: ${config.nativePort})`);
-    return info;
   }
 
   async stopDriver(identifier: string): Promise<void> {
-    const info = this.drivers.get(identifier);
-    if (!info) {
-      log.debug(`No driver found for ${identifier}`);
-      return;
-    }
-
-    log.info(`Stopping driver [${identifier}]`);
-    await info.process.stop();
-    this.drivers.delete(identifier);
-    log.debug(`Driver [${identifier}] stopped and cleaned up`);
+    return this.core.stopDriver(identifier);
   }
 
   async stopAll(): Promise<void> {
-    const count = this.drivers.size;
-    if (count === 0) {
-      return;
-    }
-
-    log.info(`Stopping ${count} driver(s)...`);
-
-    const stopPromises: Promise<void>[] = [];
-    for (const [identifier, info] of this.drivers.entries()) {
-      log.debug(`Stopping driver [${identifier}]...`);
-      stopPromises.push(info.process.stop());
-    }
-
-    await Promise.all(stopPromises);
-    this.drivers.clear();
-
-    log.debug('All drivers stopped');
+    return this.core.stopAll();
   }
 
   getDriver(identifier: string): DriverInfo | undefined {
-    return this.drivers.get(identifier);
+    return this.core.getDriver(identifier);
   }
 
-  getDriverProcess(identifier: string): DriverProcess | undefined {
-    return this.drivers.get(identifier)?.process;
+  getDriverProcess(identifier: string) {
+    return this.core.getDriverProcess(identifier);
   }
 
   getStatus(): { running: boolean; count: number; identifiers: string[] } {
-    const identifiers = Array.from(this.drivers.keys());
-    const runningCount = Array.from(this.drivers.values()).filter((info) => info.process.isRunning()).length;
-
-    return {
-      running: runningCount > 0,
-      count: runningCount,
-      identifiers,
-    };
+    return this.core.getStatus();
   }
 
   getRunningPids(): number[] {
-    const pids: number[] = [];
-    for (const info of this.drivers.values()) {
-      if (info.process.isRunning() && info.process.proc?.pid) {
-        pids.push(info.process.proc.pid);
-      }
-    }
-    return pids;
+    return this.core.getRunningPids();
   }
 }

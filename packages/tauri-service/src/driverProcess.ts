@@ -1,12 +1,22 @@
-import { type ChildProcess, spawn } from 'node:child_process';
-import http from 'node:http';
-import net from 'node:net';
-import type { Interface as ReadlineInterface } from 'node:readline';
-import { createLogger } from '@wdio/native-utils';
-import { createLogCapture } from './logCapture.js';
+// Tauri-flavoured wrapper around @wdio/native-core/DriverProcess.
+//
+// The canonical implementation moved to @wdio/native-core in PR1 of the
+// Dioxus service rollout. This wrapper preserves Tauri's old
+// `DriverStartOptions` shape (with `tauriDriverPath` + `options:
+// TauriServiceOptions`) so existing consumers — notably
+// `test/integration/driverProcess.integration.spec.ts` — keep working.
+//
+// New code should import `DriverProcess` from `@wdio/native-core` directly
+// and pass an `onLogLine` callback instead of a service-options bundle.
+
+import { DriverProcess as CoreDriverProcess, type DriverProcessInfo } from '@wdio/native-core';
+import type { LogLevel } from '@wdio/native-types';
+
+import { forwardLog } from './logForwarder.js';
+import { parseLogLine } from './logParser.js';
 import type { TauriServiceOptions } from './types.js';
 
-const log = createLogger('tauri-service', 'launcher');
+export type { DriverProcessInfo };
 
 export interface DriverStartOptions {
   mode: 'single' | 'worker' | 'multiremote';
@@ -21,326 +31,69 @@ export interface DriverStartOptions {
   instanceId?: string;
 }
 
-export interface DriverProcessInfo {
-  proc: ChildProcess;
-  port: number;
-  nativePort: number;
-  dataDir?: string;
-}
+const TAURI_STARTUP_MARKERS = ['tauri-driver started', 'listening on'] as const;
+const TAURI_ERROR_MARKERS = ['can not listen'] as const;
 
 /**
- * Manages a single tauri-driver process lifecycle
+ * Lifecycle manager for a single tauri-driver subprocess. Thin shim around
+ * the framework-agnostic {@link CoreDriverProcess} in `@wdio/native-core`.
  */
 export class DriverProcess {
-  private _proc?: ChildProcess;
-  private streamHandlers: ReadlineInterface[] = [];
-  private startupTimeout?: ReturnType<typeof setTimeout>;
-  private pollTimer?: ReturnType<typeof setTimeout>;
-  private readonly startTimeout = 30000; // 30 seconds
-  private _port?: number;
-  private _nativePort?: number;
-  private _dataDir?: string;
+  private core = new CoreDriverProcess();
 
-  get proc(): ChildProcess | undefined {
-    return this._proc;
+  get proc() {
+    return this.core.proc;
   }
 
-  get port(): number | undefined {
-    return this._port;
+  get port() {
+    return this.core.port;
   }
 
-  get nativePort(): number | undefined {
-    return this._nativePort;
+  get nativePort() {
+    return this.core.nativePort;
   }
 
-  get dataDir(): string | undefined {
-    return this._dataDir;
+  get dataDir() {
+    return this.core.dataDir;
   }
 
-  async start(options: DriverStartOptions): Promise<DriverProcessInfo> {
-    const { identifier, port, nativePort, tauriDriverPath, nativeDriverPath, env, options: serviceOptions } = options;
+  async start(opts: DriverStartOptions): Promise<DriverProcessInfo> {
+    const serviceOptions = opts.options;
 
-    this._port = port;
-    this._nativePort = nativePort;
-    this._dataDir = options.dataDir;
+    return this.core.start({
+      mode: opts.mode,
+      identifier: opts.identifier,
+      port: opts.port,
+      nativePort: opts.nativePort,
+      driverPath: opts.tauriDriverPath,
+      nativeDriverPath: opts.nativeDriverPath,
+      env: opts.env,
+      dataDir: opts.dataDir,
+      instanceId: opts.instanceId,
+      driverName: 'tauri-driver',
+      startupMarkers: TAURI_STARTUP_MARKERS,
+      errorMarkers: TAURI_ERROR_MARKERS,
+      onLogLine: (line, inst) => {
+        const parsed = parseLogLine(line);
+        if (!parsed) return;
 
-    log.info(`Starting tauri-driver [${identifier}] on port ${port} (native port: ${nativePort})`);
-
-    const args = ['--port', port.toString(), '--native-port', nativePort.toString()];
-
-    if (nativeDriverPath) {
-      args.push('--native-driver', nativeDriverPath);
-      log.debug(`[${identifier}] Using native driver: ${nativeDriverPath}`);
-    }
-
-    return new Promise<DriverProcessInfo>((resolve, reject) => {
-      let settled = false;
-
-      const safeResolve = (info: DriverProcessInfo) => {
-        if (!settled) {
-          settled = true;
-          this.cleanupTimeout();
-          resolve(info);
+        if (serviceOptions.captureBackendLogs && parsed.source !== 'frontend') {
+          const minLevel = (serviceOptions.backendLogLevel ?? 'info') as LogLevel;
+          forwardLog('backend', parsed.level, parsed.message, minLevel, parsed.prefixedMessage, inst);
         }
-      };
-
-      const safeReject = (err: Error) => {
-        if (!settled) {
-          settled = true;
-          this.cleanupTimeout();
-          this.cleanup();
-          reject(err);
+        if (serviceOptions.captureFrontendLogs && parsed.source === 'frontend') {
+          const minLevel = (serviceOptions.frontendLogLevel ?? 'info') as LogLevel;
+          forwardLog('frontend', parsed.level, parsed.message, minLevel, parsed.prefixedMessage, inst);
         }
-      };
-
-      try {
-        const spawnEnv = env ? { ...process.env, ...env } : process.env;
-
-        this._proc = spawn(tauriDriverPath, args, {
-          stdio: ['ignore', 'pipe', 'pipe'],
-          detached: false,
-          env: spawnEnv,
-          shell: process.platform === 'win32',
-        });
-
-        log.info(`[${identifier}] Spawned process with PID: ${this._proc.pid ?? 'unknown'}`);
-
-        // Set startup timeout
-        this.startupTimeout = setTimeout(() => {
-          if (!settled) {
-            safeReject(new Error(`tauri-driver [${identifier}] failed to start within ${this.startTimeout}ms`));
-          }
-        }, this.startTimeout);
-
-        // Setup stream handlers
-        const stdoutHandler = createLogCapture({
-          stream: this._proc.stdout,
-          identifier,
-          options: serviceOptions,
-          onErrorDetected: (message: string) => {
-            safeReject(new Error(message));
-          },
-          instanceId: options.instanceId,
-        });
-
-        const stderrHandler = createLogCapture({
-          stream: this._proc.stderr,
-          identifier,
-          options: serviceOptions,
-          instanceId: options.instanceId,
-        });
-
-        if (stdoutHandler) this.streamHandlers.push(stdoutHandler);
-        if (stderrHandler) this.streamHandlers.push(stderrHandler);
-
-        // Handle process exit during startup
-        this._proc.once('exit', (code, signal) => {
-          if (!settled) {
-            safeReject(
-              new Error(
-                `tauri-driver [${identifier}] exited unexpectedly during startup (code: ${code}, signal: ${signal})`,
-              ),
-            );
-          }
-        });
-
-        this._proc.once('error', (err) => {
-          safeReject(new Error(`tauri-driver [${identifier}] failed to start: ${err.message}`));
-        });
-
-        // Poll for readiness instead of waiting for stdout message
-        this.pollForReadiness(identifier, port, nativePort, options.dataDir, safeResolve, safeReject);
-      } catch (error) {
-        safeReject(error instanceof Error ? error : new Error(String(error)));
-      }
-    });
-  }
-
-  /**
-   * Poll for driver readiness by checking TCP port and HTTP endpoint
-   */
-  private async pollForReadiness(
-    identifier: string,
-    port: number,
-    nativePort: number,
-    dataDir: string | undefined,
-    resolve: (info: DriverProcessInfo) => void,
-    reject: (err: Error) => void,
-  ): Promise<void> {
-    const startTime = Date.now();
-    const timeout = 10000; // 10 seconds
-    const pollInterval = 100; // 100ms between polls
-
-    const poll = async () => {
-      if (!this._proc || this._proc.killed) {
-        reject(new Error(`tauri-driver [${identifier}] process died during startup`));
-        return;
-      }
-
-      if (Date.now() - startTime > timeout) {
-        reject(new Error(`tauri-driver [${identifier}] failed to become ready within ${timeout}ms`));
-        return;
-      }
-
-      // Check if TCP port is open
-      const isPortOpen = await this.isPortOpen(port, 500);
-
-      if (isPortOpen) {
-        // Port is open, check if HTTP endpoint responds
-        try {
-          await this.waitForHttpReady(port, 1000);
-          log.info(`✅ tauri-driver [${identifier}] is ready on port ${port}`);
-          resolve({
-            proc: this._proc,
-            port,
-            nativePort,
-            dataDir,
-          });
-          return;
-        } catch {
-          // Port is open but HTTP not ready yet, continue polling
-        }
-      }
-
-      // Schedule next poll
-      this.pollTimer = setTimeout(poll, pollInterval);
-    };
-
-    // Start polling
-    poll();
-  }
-
-  /**
-   * Check if a TCP port is open
-   */
-  private async isPortOpen(port: number, timeout: number): Promise<boolean> {
-    return new Promise((resolve) => {
-      const socket = new net.Socket();
-      let settled = false;
-
-      const cleanup = () => {
-        if (!settled) {
-          settled = true;
-          socket.destroy();
-        }
-      };
-
-      socket.setTimeout(timeout);
-      socket.once('error', () => {
-        cleanup();
-        resolve(false);
-      });
-      socket.once('timeout', () => {
-        cleanup();
-        resolve(false);
-      });
-
-      socket.connect(port, '127.0.0.1', () => {
-        cleanup();
-        resolve(true);
-      });
-    });
-  }
-
-  /**
-   * Wait for HTTP endpoint to respond
-   */
-  private async waitForHttpReady(port: number, timeout: number): Promise<void> {
-    return new Promise((resolve, reject) => {
-      const request = http.get(`http://127.0.0.1:${port}/status`, (res) => {
-        res.resume();
-        request.destroy();
-        resolve();
-      });
-
-      request.setTimeout(timeout, () => {
-        request.destroy();
-        reject(new Error('HTTP request timeout'));
-      });
-
-      request.on('error', (err) => {
-        request.destroy();
-        reject(err);
-      });
+      },
     });
   }
 
   async stop(): Promise<void> {
-    if (!this._proc || this._proc.killed) {
-      return;
-    }
-
-    log.debug('Stopping tauri-driver...');
-    this._proc.kill('SIGTERM');
-
-    await this.waitForExit();
-    this.cleanup();
-
-    // Additional delay to ensure port is fully released
-    await new Promise<void>((resolve) => setTimeout(resolve, 500));
+    return this.core.stop('tauri-driver');
   }
 
   isRunning(): boolean {
-    return !!this._proc && !this._proc.killed;
-  }
-
-  private async waitForExit(): Promise<void> {
-    const stopTimeout = process.env.CI ? 10000 : 5000;
-
-    return new Promise<void>((resolve) => {
-      let shutdownTimeout: ReturnType<typeof setTimeout> | null = null;
-      let killTimeout: ReturnType<typeof setTimeout> | null = null;
-
-      const cleanup = () => {
-        if (shutdownTimeout) clearTimeout(shutdownTimeout);
-        if (killTimeout) clearTimeout(killTimeout);
-      };
-
-      const onExit = () => {
-        cleanup();
-        log.debug('tauri-driver process exited');
-        resolve();
-      };
-
-      this._proc?.once('exit', onExit);
-
-      shutdownTimeout = setTimeout(() => {
-        log.warn(`tauri-driver did not stop gracefully after ${stopTimeout}ms, forcing kill`);
-        this._proc?.kill('SIGKILL');
-
-        killTimeout = setTimeout(() => {
-          log.warn('tauri-driver force kill timeout, giving up');
-          cleanup();
-          resolve();
-        }, 5000);
-      }, stopTimeout);
-    });
-  }
-
-  private cleanup(): void {
-    this.cleanupTimeout();
-
-    // Close all stream handlers
-    for (const handler of this.streamHandlers) {
-      handler.close();
-    }
-    this.streamHandlers = [];
-
-    // Remove all listeners
-    if (this._proc) {
-      this._proc.removeAllListeners('exit');
-      this._proc.removeAllListeners('error');
-    }
-  }
-
-  private cleanupTimeout(): void {
-    if (this.startupTimeout) {
-      clearTimeout(this.startupTimeout);
-      this.startupTimeout = undefined;
-    }
-    if (this.pollTimer) {
-      clearTimeout(this.pollTimer);
-      this.pollTimer = undefined;
-    }
+    return this.core.isRunning();
   }
 }

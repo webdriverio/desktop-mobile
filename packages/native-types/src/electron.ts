@@ -31,11 +31,20 @@ export interface ElectronServiceAPI {
    */
   windowHandle?: string;
   /**
-   * Mock a function from the Electron API.
+   * Mock a function from the Electron API (native mode) or an IPC channel
+   * (browser mode).
    *
-   * @param apiName name of the API to mock
-   * @param funcName name of the function to mock
-   * @param mockReturnValue value to return when the mocked function is called
+   * Native mode supports two forms:
+   * - `mock(className)` returns an {@link ElectronClassMock} that mocks every
+   *   method of the named Electron class.
+   * - `mock(apiName, funcName, returnValue?)` mocks a single function on the
+   *   named API and returns an {@link ElectronFunctionMock}.
+   *
+   * Browser mode supports only `mock(channel)`; the two-argument form throws.
+   *
+   * @param classNameOrApiOrChannel - Electron class name, API name, or IPC channel
+   * @param funcName - function name (native two-arg form only)
+   * @param returnValue - initial return value for the mocked function
    * @returns a {@link Promise} that resolves once the mock is registered
    */
   mock: {
@@ -112,6 +121,26 @@ export interface ElectronServiceAPI {
    * ```
    */
   triggerDeeplink: (url: string) => Promise<void>;
+  /**
+   * Emit a main → renderer IPC event to listeners registered via
+   * `ipcRenderer.on(channel, listener)` / `.once()`.
+   *
+   * - **Browser mode**: dispatches synthetically to listeners registered in
+   *   the injected `window.__wdio_electron_listeners__` registry.
+   * - **Native mode**: routes through `BrowserWindow.getFocusedWindow()?.webContents.send(channel, ...args)`,
+   *   reaching the actual renderer. The same call site works in both modes.
+   *
+   * @param channel - the IPC channel listeners subscribed to
+   * @param args - payload args forwarded to the listener after a synthetic
+   *   IpcRendererEvent
+   *
+   * @example
+   * ```ts
+   * // app: ipcRenderer.on('did-update-info', (_e, info) => updateUi(info));
+   * await browser.electron.emitEvent('did-update-info', { count: 3 });
+   * ```
+   */
+  emitEvent: (channel: string, ...args: unknown[]) => Promise<void>;
 }
 
 /**
@@ -175,6 +204,18 @@ export interface ElectronServiceOptions extends Omit<BaseServiceOptions, Electro
    * @example 'config/electron-builder-staging.config.js'
    */
   electronBuilderConfig?: string;
+  /**
+   * Run mode for the Electron service.
+   * 'browser' runs the frontend in plain Chrome against a dev server with IPC intercepted
+   * at the JS boundary. No Electron binary, no CDP bridge, no display server required.
+   * @default 'native'
+   */
+  mode?: 'native' | 'browser';
+  /**
+   * URL of the Vite (or other) dev server to navigate to when mode is 'browser'.
+   * Required when mode === 'browser'. e.g. 'http://localhost:5173'
+   */
+  devServerUrl?: string;
 }
 
 /**
@@ -246,6 +287,17 @@ export interface ElectronServiceGlobalOptions
    * @default false
    */
   apparmorAutoInstall?: boolean | 'sudo';
+  /**
+   * Run mode for the Electron service.
+   * 'browser' skips binary detection, CDP bridge, and Chromedriver setup.
+   * @default 'native'
+   */
+  mode?: 'native' | 'browser';
+  /**
+   * URL of the dev server to navigate to when mode is 'browser'.
+   * Required when mode === 'browser'. e.g. 'http://localhost:5173'
+   */
+  devServerUrl?: string;
 }
 
 export type ApiCommand = { name: string; bridgeProp: string };
@@ -469,6 +521,7 @@ export interface ElectronBrowserExtension extends BrowserBase {
    * - {@link ElectronServiceAPI.resetAllMocks `browser.electron.resetAllMocks`} - Reset the Electron API mock functions
    * - {@link ElectronServiceAPI.restoreAllMocks `browser.electron.restoreAllMocks`} - Restore the original Electron API functionality
    * - {@link ElectronServiceAPI.triggerDeeplink `browser.electron.triggerDeeplink`} - Trigger a deeplink to test protocol handlers
+   * - {@link ElectronServiceAPI.emitEvent `browser.electron.emitEvent`} - Emit a main → renderer IPC event to ipcRenderer.on listeners
    * - {@link ElectronServiceAPI.windowHandle `browser.electron.windowHandle`} - Get the current window handle
    */
   electron: ElectronServiceAPI;

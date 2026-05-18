@@ -1,0 +1,80 @@
+{
+  "name": "@wdio/native-core",
+  "version": "1.0.0",
+  "description": "Shared launcher, driver lifecycle, log capture, and port management for WebdriverIO native desktop services",
+  "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/native-core",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": [
+      {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/cjs/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        }
+      },
+      "./dist/cjs/index.js"
+    ]
+  },
+  "engines": {
+    "node": "^18.12.0 || ^20.9.0 || >=22.11.0"
+  },
+  "scripts": {
+    "clean": "shx rm -rf dist coverage .turbo",
+    "build": "tsx ../../scripts/build-package.ts",
+    "build:watch": "tsx ../../scripts/build-package.ts --watch",
+    "dev": "pnpm run build:watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:integration": "vitest run --config vitest.integration.config.ts",
+    "test:integration:watch": "vitest --config vitest.integration.config.ts",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "biome check --linter-enabled=true --formatter-enabled=false src/",
+    "lint:fix": "biome check --write --linter-enabled=true --formatter-enabled=false src/"
+  },
+  "dependencies": {
+    "@wdio/logger": "catalog:default",
+    "@wdio/native-types": "workspace:*",
+    "@wdio/native-utils": "workspace:*",
+    "debug": "^4.4.3",
+    "get-port": "^7.1.0",
+    "tslib": "^2.8.1"
+  },
+  "devDependencies": {
+    "@types/debug": "^4.1.12",
+    "@types/node": "^25.5.0",
+    "@vitest/coverage-v8": "^4.1.0",
+    "shx": "^0.4.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.18"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webdriverio/desktop-mobile.git",
+    "directory": "packages/native-core"
+  },
+  "keywords": [
+    "webdriverio",
+    "wdio",
+    "internal"
+  ]
+}

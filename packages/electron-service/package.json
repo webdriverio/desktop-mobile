@@ -34,6 +34,7 @@
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --coverage",
     "test:unit": "vitest run --coverage",
+    "test:integration": "vitest run -c vitest.integration.config.ts",
     "test:dev": "vitest --coverage",
     "lint": "biome check ."
   },
@@ -64,6 +65,7 @@
     "@wdio/electron-cdp-bridge": "workspace:*",
     "@wdio/globals": "catalog:default",
     "@wdio/logger": "catalog:default",
+    "@wdio/native-core": "workspace:*",
     "@wdio/native-types": "workspace:*",
     "@wdio/native-utils": "workspace:*",
     "compare-versions": "^6.1.1",

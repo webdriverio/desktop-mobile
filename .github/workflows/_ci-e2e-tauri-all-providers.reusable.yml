@@ -1,6 +1,6 @@
 name: Tauri E2E Tests - All Providers
 
-description: 'Runs Tauri E2E tests for all WebDriver providers (official, embedded, CrabNebula) sequentially on a single runner'
+# Description: Runs Tauri E2E tests for all WebDriver providers (official, embedded, CrabNebula) sequentially on a single runner
 
 permissions:
   contents: read
@@ -44,7 +44,7 @@ env:
 
 jobs:
   e2e-tauri:
-    name: Tauri E2E Tests
+    name: Run
     runs-on: ${{ inputs.os }}
     steps:
       # ══════════════════════════════════════════════════════════════
@@ -96,9 +96,8 @@ jobs:
       # Only installed on Linux/Windows where official provider runs
       - name: 🦀 Setup Rust (for tauri-driver auto-install)
         if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+        shell: bash
+        run: rustup update stable && rustup default stable && rustup component add rustfmt
 
       # WebKitWebDriver needed for official + crabnebula providers on Linux
       - name: 🌐 Install WebKit WebDriver (Linux)
@@ -131,6 +130,7 @@ jobs:
       - name: ✅ Verify Tauri Binaries
         shell: bash
         run: |
+          # shellcheck disable=SC2012
           echo "Checking for Tauri binaries in fixtures/e2e-apps/tauri/src-tauri/target/"
 
           if [ ! -d "fixtures/e2e-apps/tauri" ]; then
@@ -185,9 +185,11 @@ jobs:
             echo "Directory structure for debugging:"
             for target_dir in $TARGET_DIRS; do
               echo "=== $target_dir ==="
+              # shellcheck disable=SC2012
               ls -la "$target_dir/" 2>/dev/null | head -10 || echo "Cannot list directory"
               echo ""
               echo "=== $target_dir/debug/ ==="
+              # shellcheck disable=SC2012
               ls -la "$target_dir/debug/" 2>/dev/null | head -20 || echo "Cannot list debug directory"
               if [ "${{ runner.os }}" = "macOS" ]; then
                 echo ""
@@ -273,6 +275,7 @@ jobs:
         if: runner.os != 'macOS'
         shell: bash
         run: |
+          # shellcheck disable=SC2028
           echo "=== Protocol Registration Verification ==="
 
           if [ "${{ runner.os }}" == "Linux" ]; then
@@ -294,6 +297,7 @@ jobs:
 
           elif [ "${{ runner.os }}" == "Windows" ]; then
             echo "Windows: Checking registry..."
+            # shellcheck disable=SC2028
             reg query "HKCR\testapp" 2>nul || echo "❌ Protocol NOT registered in HKCR\testapp"
             reg query "HKCR\testapp\shell\open\command" 2>nul || echo "❌ Command key NOT found"
           fi
@@ -482,10 +486,11 @@ jobs:
         if: always()
         shell: bash
         run: |
-          echo "## Tauri E2E Results — ${{ inputs.os }} / ${{ inputs.test-type }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "| Provider | Result |" >> $GITHUB_STEP_SUMMARY
-          echo "|----------|--------|" >> $GITHUB_STEP_SUMMARY
+          # shellcheck disable=SC2129
+          echo "## Tauri E2E Results — ${{ inputs.os }} / ${{ inputs.test-type }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Provider | Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|----------|--------|" >> "$GITHUB_STEP_SUMMARY"
 
           official="${{ steps.test-official.outcome }}"
           embedded="${{ steps.test-embedded.outcome }}"
@@ -494,11 +499,11 @@ jobs:
           format_result() {
             local provider="$1" outcome="$2"
             case "$outcome" in
-              success)   echo "| $provider | ✅ Passed |" >> $GITHUB_STEP_SUMMARY ;;
-              failure)   echo "| $provider | ❌ Failed |" >> $GITHUB_STEP_SUMMARY ;;
-              cancelled) echo "| $provider | ⚠️ Cancelled |" >> $GITHUB_STEP_SUMMARY ;;
-              skipped|"") echo "| $provider | ⏭️ Skipped |" >> $GITHUB_STEP_SUMMARY ;;
-              *)         echo "| $provider | ❓ $outcome |" >> $GITHUB_STEP_SUMMARY ;;
+              success)   echo "| $provider | ✅ Passed |" >> "$GITHUB_STEP_SUMMARY" ;;
+              failure)   echo "| $provider | ❌ Failed |" >> "$GITHUB_STEP_SUMMARY" ;;
+              cancelled) echo "| $provider | ⚠️ Cancelled |" >> "$GITHUB_STEP_SUMMARY" ;;
+              skipped|"") echo "| $provider | ⏭️ Skipped |" >> "$GITHUB_STEP_SUMMARY" ;;
+              *)         echo "| $provider | ❓ $outcome |" >> "$GITHUB_STEP_SUMMARY" ;;
             esac
           }
 

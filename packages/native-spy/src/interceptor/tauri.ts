@@ -1,5 +1,5 @@
 import type { FrameworkAdapter, InnerMockMethod, InnerMockSetterMethod } from './framework.js';
-import { errorReconstructExpr, mockLookupExpr } from './injection.js';
+import { errorReconstructExpr, mockLookupExpr, WDIO_MOCK_SETUP_SCRIPT } from './injection.js';
 import type { IpcContext } from './ipcContext.js';
 import { buildContextSeedScript } from './ipcContext.js';
 import type { SerializedHandler } from './serialize.js';
@@ -26,9 +26,15 @@ export class TauriAdapter implements FrameworkAdapter {
   const mockObj = ${lookup};
   if (!mockObj?.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
   const m = mockObj.mock;
+  const errorReplacer = function(_k, v) {
+    if (v instanceof Error) {
+      return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
+    }
+    return v;
+  };
   return {
-    calls: JSON.parse(JSON.stringify(m.calls || [])),
-    results: JSON.parse(JSON.stringify(m.results || [])),
+    calls: JSON.parse(JSON.stringify(m.calls || [], errorReplacer)),
+    results: JSON.parse(JSON.stringify(m.results || [], errorReplacer)),
     invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
   };
 }`;
@@ -76,120 +82,107 @@ export class TauriAdapter implements FrameworkAdapter {
 
   buildBrowserIpcInjectionScript(): string {
     return `(function() {
-  window.__wdio_call_id__ = window.__wdio_call_id__ || 0;
-  var NOT_SET = {};
-  function createMockFn() {
-    var _name = 'spy';
-    var _defaultImpl;
-    var _implQueue = [];
-    var _defaultReturnValue = NOT_SET;
-    var _defaultResolvedValue = NOT_SET;
-    var _defaultRejectedValue = NOT_SET;
-    var _returnThis = false;
-    var _calls = [];
-    var _results = [];
-    var _invocationCallOrder = [];
-    function mockFn() {
-      var args = Array.prototype.slice.call(arguments);
-      _calls.push(args);
-      _invocationCallOrder.push(window.__wdio_call_id__++);
-      var impl = _implQueue.length > 0 ? _implQueue.shift() : _defaultImpl;
-      if (impl !== undefined) {
-        try {
-          var val = impl.apply(this, args);
-          _results.push({ type: 'return', value: val });
-          return val;
-        } catch (e) {
-          _results.push({ type: 'throw', value: e });
-          throw e;
-        }
-      } else if (_defaultRejectedValue !== NOT_SET) {
-        var rv = _defaultRejectedValue;
-        var rejectedPromise = Promise.reject(rv);
-        _results.push({ type: 'return', value: rejectedPromise });
-        return rejectedPromise;
-      } else if (_defaultResolvedValue !== NOT_SET) {
-        var p = Promise.resolve(_defaultResolvedValue);
-        _results.push({ type: 'return', value: p });
-        return p;
-      } else if (_returnThis) {
-        _results.push({ type: 'return', value: this });
-        return this;
-      } else if (_defaultReturnValue !== NOT_SET) {
-        _results.push({ type: 'return', value: _defaultReturnValue });
-        return _defaultReturnValue;
-      } else {
-        _results.push({ type: 'return', value: undefined });
-        return undefined;
-      }
-    }
-    mockFn._isMockFunction = true;
-    Object.defineProperty(mockFn, 'mock', {
-      get: function() { return { calls: _calls, results: _results, invocationCallOrder: _invocationCallOrder }; },
-      enumerable: true, configurable: true
-    });
-    mockFn.mockName = function(n) { _name = n; return mockFn; };
-    mockFn.getMockName = function() { return _name; };
-    mockFn.getMockImplementation = function() { return _defaultImpl; };
-    mockFn.mockImplementation = function(fn) { _defaultImpl = fn; _returnThis = false; return mockFn; };
-    mockFn.mockImplementationOnce = function(fn) { _implQueue.push(fn); return mockFn; };
-    mockFn.mockReturnValue = function(val) {
-      _defaultImpl = undefined; _defaultReturnValue = val; _defaultResolvedValue = NOT_SET;
-      _defaultRejectedValue = NOT_SET; _returnThis = false; return mockFn;
-    };
-    mockFn.mockReturnValueOnce = function(val) { _implQueue.push(function() { return val; }); return mockFn; };
-    mockFn.mockResolvedValue = function(val) {
-      _defaultImpl = undefined; _defaultResolvedValue = val; _defaultReturnValue = NOT_SET;
-      _defaultRejectedValue = NOT_SET; _returnThis = false; return mockFn;
-    };
-    mockFn.mockResolvedValueOnce = function(val) {
-      _implQueue.push(function() { return Promise.resolve(val); }); return mockFn;
-    };
-    mockFn.mockRejectedValue = function(val) {
-      _defaultImpl = undefined; _defaultRejectedValue = val; _defaultReturnValue = NOT_SET;
-      _defaultResolvedValue = NOT_SET; _returnThis = false; return mockFn;
-    };
-    mockFn.mockRejectedValueOnce = function(val) {
-      _implQueue.push(function() { return Promise.reject(val); }); return mockFn;
-    };
-    mockFn.mockClear = function() {
-      _calls = []; _results = []; _invocationCallOrder = [];
-      return mockFn;
-    };
-    mockFn.mockReset = function() {
-      mockFn.mockClear();
-      _implQueue = [];
-      _defaultImpl = undefined; _defaultReturnValue = NOT_SET;
-      _defaultResolvedValue = NOT_SET; _defaultRejectedValue = NOT_SET; _returnThis = false;
-      return mockFn;
-    };
-    mockFn.mockReturnThis = function() {
-      _returnThis = true; _defaultReturnValue = NOT_SET; _defaultResolvedValue = NOT_SET;
-      _defaultRejectedValue = NOT_SET; return mockFn;
-    };
-    mockFn.withImplementation = function(fn, callback) {
-      var prevImpl = _defaultImpl, prevQueue = _implQueue.slice(), prevReturnThis = _returnThis;
-      _defaultImpl = fn; _implQueue = []; _returnThis = false;
-      var result = callback();
-      if (result && typeof result.then === 'function') {
-        return result.then(function(r) {
-          _defaultImpl = prevImpl; _implQueue = prevQueue; _returnThis = prevReturnThis; return r;
-        }, function(e) {
-          _defaultImpl = prevImpl; _implQueue = prevQueue; _returnThis = prevReturnThis; throw e;
-        });
-      }
-      _defaultImpl = prevImpl; _implQueue = prevQueue; _returnThis = prevReturnThis;
-      return result;
-    };
-    return mockFn;
-  }
-  window.__wdio_spy__ = { fn: createMockFn };
-  if (!window.__wdio_mocks__) { window.__wdio_mocks__ = {}; }
+${WDIO_MOCK_SETUP_SCRIPT}
   if (!window.__TAURI_INTERNALS__) { window.__TAURI_INTERNALS__ = {}; }
+  if (!window.__TAURI_INTERNALS__.callbacks) {
+    var __wdio_callbacks__ = new Map();
+    var __wdio_uid__ = 0;
+    window.__TAURI_INTERNALS__.callbacks = __wdio_callbacks__;
+    window.__TAURI_INTERNALS__.transformCallback = function(cb, once) {
+      var id = ++__wdio_uid__;
+      __wdio_callbacks__.set(id, function(data) {
+        if (once) { __wdio_callbacks__.delete(id); }
+        return cb && cb(data);
+      });
+      return id;
+    };
+    window.__TAURI_INTERNALS__.runCallback = function(id, data) {
+      var cb = __wdio_callbacks__.get(id);
+      if (cb) { cb(data); }
+    };
+    window.__TAURI_INTERNALS__.unregisterCallback = function(id) {
+      __wdio_callbacks__.delete(id);
+    };
+  }
+  if (!window.__wdio_tauri_listeners__) { window.__wdio_tauri_listeners__ = {}; }
+  if (typeof window.__wdio_event_id_seq__ !== 'number') { window.__wdio_event_id_seq__ = 0; }
+  if (!window.__TAURI_EVENT_PLUGIN_INTERNALS__) {
+    window.__TAURI_EVENT_PLUGIN_INTERNALS__ = {
+      unregisterListener: function(event, eventId) {
+        var bucket = window.__wdio_tauri_listeners__[event];
+        if (bucket) { delete bucket[eventId]; }
+      }
+    };
+  }
+  function __wdio_normalize_target__(t) {
+    if (t === undefined || t === null) { return { kind: 'Any' }; }
+    if (typeof t === 'string') { return { kind: 'AnyLabel', label: t }; }
+    return t;
+  }
+  function __wdio_target_matches__(subscriberTarget, emitTarget) {
+    var s = __wdio_normalize_target__(subscriberTarget);
+    var e = __wdio_normalize_target__(emitTarget);
+    if (s.kind === 'Any' || e.kind === 'Any') { return true; }
+    if (s.kind === 'App' || e.kind === 'App') { return s.kind === e.kind; }
+    return s.label === e.label;
+  }
+  window.__wdio_emit_tauri_event__ = function(eventName, payload, target) {
+    var bucket = window.__wdio_tauri_listeners__[eventName];
+    if (!bucket) { return; }
+    var ids = Object.keys(bucket);
+    for (var i = 0; i < ids.length; i++) {
+      var entry = bucket[ids[i]];
+      if (!entry) { continue; }
+      if (target !== undefined && !__wdio_target_matches__(entry.target, target)) { continue; }
+      window.__TAURI_INTERNALS__.runCallback(entry.handlerId, {
+        event: eventName,
+        id: Number(ids[i]),
+        payload: payload
+      });
+    }
+  };
+  function __wdio_handle_plugin_event__(cmd, args) {
+    if (cmd === 'plugin:event|listen') {
+      var eventId = ++window.__wdio_event_id_seq__;
+      var ev = args && args.event;
+      if (!window.__wdio_tauri_listeners__[ev]) { window.__wdio_tauri_listeners__[ev] = {}; }
+      window.__wdio_tauri_listeners__[ev][eventId] = {
+        handlerId: args && args.handler,
+        target: args && args.target
+      };
+      return Promise.resolve(eventId);
+    }
+    if (cmd === 'plugin:event|unlisten') {
+      var ev2 = args && args.event;
+      var id = args && args.eventId;
+      var bucket = window.__wdio_tauri_listeners__[ev2];
+      if (bucket) { delete bucket[id]; }
+      return Promise.resolve();
+    }
+    if (cmd === 'plugin:event|emit') {
+      window.__wdio_emit_tauri_event__(args && args.event, args && args.payload);
+      return Promise.resolve();
+    }
+    if (cmd === 'plugin:event|emit_to') {
+      window.__wdio_emit_tauri_event__(args && args.event, args && args.payload, args && args.target);
+      return Promise.resolve();
+    }
+    return Promise.resolve();
+  }
   window.__TAURI_INTERNALS__.invoke = function(cmd, args, options) {
     var mock = window.__wdio_mocks__ && window.__wdio_mocks__[cmd];
     if (mock && typeof mock === 'function') {
-      return Promise.resolve().then(function() { return mock(args, options); });
+      var mockResult = Promise.resolve().then(function() { return mock(args, options); });
+      if (cmd && cmd.indexOf('plugin:event|') === 0) {
+        return mockResult.then(function() { return __wdio_handle_plugin_event__(cmd, args); });
+      }
+      return mockResult;
+    }
+    if (cmd && cmd.indexOf('plugin:event|') === 0) {
+      return __wdio_handle_plugin_event__(cmd, args);
+    }
+    if (cmd && cmd.indexOf('plugin:') === 0) {
+      return Promise.resolve();
     }
     return Promise.reject(new Error('unmocked Tauri command in browser mode: ' + cmd));
   };

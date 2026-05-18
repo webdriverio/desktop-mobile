@@ -98,15 +98,10 @@ try {
   console.log('✅ Log filtering test passed');
 
   console.log('✅ All Electron standalone logging tests passed');
-} catch (error) {
-  console.error('❌ Test failed:', error);
-  // Clean up before exiting with error
+} finally {
+  // Clean up - quit the app
   await cleanup();
-  process.exit(1);
+  console.log('✅ Cleanup complete');
 }
-
-// Clean up - quit the app
-await cleanup();
-console.log('✅ Cleanup complete');
 
 process.exit();

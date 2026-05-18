@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Browser-mode Smoke (ESM)</title>
+  </head>
+  <body>
+    <h1 data-testid="title">Browser-mode Smoke</h1>
+    <button type="button" data-testid="fetch-info">Fetch info</button>
+    <pre data-testid="info"></pre>
+    <script type="module">
+      document.querySelector('[data-testid="fetch-info"]').addEventListener('click', async () => {
+        const info = await window.electron.ipcRenderer.invoke('get-info');
+        document.querySelector('[data-testid="info"]').textContent = JSON.stringify(info);
+      });
+    </script>
+  </body>
+</html>

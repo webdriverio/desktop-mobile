@@ -1,5 +1,5 @@
 name: E2E Tests
-description: 'Runs end-to-end tests across different scenarios (ESM only)'
+# Description: Runs end-to-end tests across different scenarios (ESM only)
 
 permissions:
   contents: read
@@ -53,7 +53,7 @@ jobs:
   # - Test scenario (builder, forge, script)
   # - E2E tests use ESM only (CJS/ESM testing is done in package tests)
   e2e:
-    name: E2E Tests
+    name: Run
     runs-on: ${{ inputs.os }}
     strategy:
       # Continue with other tests even if one fails
@@ -125,7 +125,10 @@ jobs:
         env:
           BUILD_CMD: ${{ inputs.build-command }}
           BUILD_FILTER: ${{ steps.gen-build.outputs.result }}
-        run: pnpm exec turbo run $BUILD_CMD $BUILD_FILTER --parallel
+        run: |
+          # BUILD_FILTER intentionally splits into multiple turbo args
+          # shellcheck disable=SC2086
+          pnpm exec turbo run $BUILD_CMD $BUILD_FILTER --parallel
 
       # Setup protocol handlers for deeplink testing
       # Required for Windows and Linux to properly handle testapp:// protocol
@@ -139,12 +142,15 @@ jobs:
           echo "Scenario: ${{ inputs.scenario }}"
           echo ""
 
-          # Determine which app(s) to set up based on scenario
+          # Determine which app(s) to set up based on scenario.
+          # Assign to a shell var first so shellcheck doesn't compare the
+          # literal templated string against the glob patterns (SC2193).
+          SCENARIO="${{ inputs.scenario }}"
           APPS=()
-          if [[ "${{ inputs.scenario }}" == *"builder"* ]]; then
+          if [[ "$SCENARIO" == *"builder"* ]]; then
             APPS+=("electron-builder")
           fi
-          if [[ "${{ inputs.scenario }}" == *"forge"* ]]; then
+          if [[ "$SCENARIO" == *"forge"* ]]; then
             APPS+=("electron-forge")
           fi
 
@@ -156,17 +162,17 @@ jobs:
 
               if [ "$APP" == "electron-builder" ]; then
                 echo "Checking if dist-electron directory exists..."
-                ls -la ./fixtures/e2e-apps/$APP/dist-electron/ || echo "dist-electron/ not found"
+                ls -la ./fixtures/e2e-apps/"$APP"/dist-electron/ || echo "dist-electron/ not found"
               else
                 echo "Checking if out directory exists..."
-                ls -la ./fixtures/e2e-apps/$APP/out/ || echo "out/ not found"
+                ls -la ./fixtures/e2e-apps/"$APP"/out/ || echo "out/ not found"
               fi
               echo ""
 
-              powershell -ExecutionPolicy Bypass -File ./fixtures/e2e-apps/$APP/scripts/setup-protocol-handler.ps1
+              powershell -ExecutionPolicy Bypass -File ./fixtures/e2e-apps/"$APP"/scripts/setup-protocol-handler.ps1
               EXIT_CODE=$?
 
-              if [ $EXIT_CODE -ne 0 ]; then
+              if [ "$EXIT_CODE" -ne 0 ]; then
                 echo "Error: Protocol handler setup failed for $APP with exit code $EXIT_CODE"
                 exit 1
               fi
@@ -176,18 +182,18 @@ jobs:
 
               if [ "$APP" == "electron-builder" ]; then
                 echo "Checking if dist-electron directory exists..."
-                ls -la ./fixtures/e2e-apps/$APP/dist-electron/ || echo "dist-electron/ not found"
+                ls -la ./fixtures/e2e-apps/"$APP"/dist-electron/ || echo "dist-electron/ not found"
               else
                 echo "Checking if out directory exists..."
-                ls -la ./fixtures/e2e-apps/$APP/out/ || echo "out/ not found"
+                ls -la ./fixtures/e2e-apps/"$APP"/out/ || echo "out/ not found"
               fi
               echo ""
 
-              chmod +x ./fixtures/e2e-apps/$APP/scripts/setup-protocol-handler.sh
-              ./fixtures/e2e-apps/$APP/scripts/setup-protocol-handler.sh
+              chmod +x ./fixtures/e2e-apps/"$APP"/scripts/setup-protocol-handler.sh
+              ./fixtures/e2e-apps/"$APP"/scripts/setup-protocol-handler.sh
               EXIT_CODE=$?
 
-              if [ $EXIT_CODE -ne 0 ]; then
+              if [ "$EXIT_CODE" -ne 0 ]; then
                 echo "Error: Protocol handler setup failed for $APP with exit code $EXIT_CODE"
                 exit 1
               fi
@@ -227,7 +233,10 @@ jobs:
         env:
           ENABLE_SPLASH_WINDOW: 'true'
           TEST_TASKS: ${{ steps.gen-test.outputs.result }}
-        run: pnpm exec turbo run $TEST_TASKS --only --log-order=stream
+        run: |
+          # TEST_TASKS intentionally splits into multiple turbo task names
+          # shellcheck disable=SC2086
+          pnpm exec turbo run $TEST_TASKS --only --log-order=stream
 
       # Show logs on failure for debugging
       # CodeQL false positive: This script cannot be poisoned by artifacts because
