@@ -1,0 +1,151 @@
+name: Build Dioxus Package Test App
+
+# Description: Builds Dioxus package test application and creates shareable artifacts
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'OS of runner'
+        required: true
+        type: string
+      build_id:
+        description: 'Build ID from the main build job'
+        type: string
+        required: false
+      artifact_size:
+        description: 'Size of the build artifact in bytes'
+        type: string
+        required: false
+      cache_key:
+        description: 'Cache key to use for downloading artifacts'
+        type: string
+        required: false
+    outputs:
+      build_id:
+        description: 'Unique identifier for this build'
+        value: ${{ jobs.build-dioxus-package-app.outputs.build_id }}
+      build_date:
+        description: 'Timestamp when the build completed'
+        value: ${{ jobs.build-dioxus-package-app.outputs.build_date }}
+      artifact_size:
+        description: 'Size of the build artifact in bytes'
+        value: ${{ jobs.build-dioxus-package-app.outputs.artifact_size }}
+      cache_key:
+        description: 'Cache key used for artifact uploads, can be passed to download actions'
+        value: ${{ jobs.build-dioxus-package-app.outputs.cache_key }}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  build-dioxus-package-app:
+    name: Build
+    runs-on: ${{ inputs.os }}
+    outputs:
+      build_id: ${{ steps.build-info.outputs.build_id }}
+      build_date: ${{ steps.build-info.outputs.build_date }}
+      artifact_size: ${{ steps.upload-archive.outputs.size || '0' }}
+      cache_key: ${{ steps.upload-archive.outputs.cache_key }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: '24'
+
+      # Download the pre-built packages from the main build job
+      # This ensures workspace dependencies (e.g. @wdio/native-spy dist/) are available
+      - name: Download Package Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      - name: Install Rust Toolchain
+        shell: bash
+        run: rustup update stable && rustup default stable
+
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: 'fixtures/package-tests/dioxus-app/src-dioxus'
+          cache-on-failure: true
+          cache-targets: false
+          # ~/.cargo/bin/ can carry over stale binaries (e.g. rustup-init in
+          # place of cargo) across runs on macOS, breaking the toolchain.
+          cache-bin: false
+
+      - name: Fix ARM64 Package Sources (Linux)
+        if: runner.os == 'Linux' && runner.arch == 'ARM64'
+        shell: bash
+        run: |
+          echo "Fixing ARM64 package sources for Ubuntu..."
+          # Add proper arm64 sources for jammy
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
+          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
+
+          # Ensure default sources only use amd64
+          sudo sed -i -e 's/^deb http/deb [arch=amd64] http/' /etc/apt/sources.list
+          sudo sed -i -e 's/^deb mirror/deb [arch=amd64] mirror/' /etc/apt/sources.list
+
+          sudo apt-get update
+
+      - name: Install Dioxus Dependencies (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "Installing Dioxus dependencies for Linux..."
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-dev \
+            libgtk-3-dev \
+            libsoup-3.0-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev \
+            libssl-dev \
+            pkg-config
+
+      - name: Generate Build Information
+        id: build-info
+        shell: bash
+        run: |
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
+
+      - name: Install Dependencies
+        run: pnpm install --frozen-lockfile
+        shell: bash
+
+      - name: Build Dioxus Bridge Guest JS
+        run: pnpm --filter @wdio/dioxus-bridge build
+        shell: bash
+
+      - name: Build Dioxus Package Test App
+        run: cargo build
+        shell: bash
+        working-directory: fixtures/package-tests/dioxus-app/src-dioxus
+
+      - name: Upload Dioxus Package Test App Binary
+        id: upload-archive
+        uses: ./.github/workflows/actions/upload-archive
+        with:
+          name: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}
+          output: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}/artifact.zip
+          paths: fixtures/package-tests/dioxus-app/src-dioxus/target
+          cache_key_prefix: dioxus-package-app
+          retention_days: '90'

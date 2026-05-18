@@ -4,6 +4,7 @@ import debug from 'debug';
 export type LogArea =
   | 'service'
   | 'launcher'
+  | 'session'
   | 'bridge'
   | 'mock'
   | 'bundler'

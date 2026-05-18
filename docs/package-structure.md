@@ -60,20 +60,61 @@ packages/tauri-plugin/
 └── README.md                         # Package documentation
 ```
 
+### Rust/Dioxus Bridge Packages
+
+Dioxus bridge and driver packages (Rust-only, no Tauri plugin system):
+
+```
+packages/dioxus-bridge/
+├── src/
+│   ├── lib.rs                        # Crate entry point — exports install(), automation
+│   ├── automation.rs                 # is_requested() and env-var checks
+│   ├── protocol.rs                   # wdio:// custom protocol registration
+│   └── log.rs                        # Log forwarder
+├── guest-js/                         # Frontend JavaScript bundle (injected into webview)
+│   └── index.ts                      # Mock interception, console forwarding
+├── build.rs                          # Build script (bundles guest-js)
+├── Cargo.toml                        # Rust crate manifest
+└── README.md                         # Package documentation
+
+packages/dioxus-embedded-driver/
+├── src/
+│   └── lib.rs                        # Embedded WebDriver HTTP server
+├── Cargo.toml
+└── README.md
+
+packages/dioxus-driver/
+├── src/
+│   └── main.rs                       # External WebDriver proxy (fork of tauri-driver)
+├── Cargo.toml
+└── README.md
+```
+
 ## Package Naming Conventions
 
 ### Service Packages
 
-All packages use the `@wdio/` scope:
+All npm packages use the `@wdio/` scope:
 
 - `@wdio/electron-service` - Electron WDIO service
 - `@wdio/tauri-service` - Tauri WDIO service
+- `@wdio/dioxus-service` - Dioxus WDIO service
 - `@wdio/electron-cdp-bridge` - Chrome DevTools Protocol bridge
 - `@wdio/native-utils` - Cross-platform utilities
 - `@wdio/native-types` - Shared TypeScript type definitions
 - `@wdio/native-spy` - Spy utilities for mocking
 - `@wdio/tauri-plugin` - Tauri v2 plugin (Rust + JS)
 - `@wdio/bundler` - Build tooling
+
+### Rust Crate Naming
+
+Rust crates use the `wdio-` prefix (kebab-case, matching Cargo conventions):
+
+- `wdio-dioxus-bridge` — bridge crate (not "plugin" — Dioxus has no plugin-trait system)
+- `wdio-dioxus-embedded-driver` — in-process WebDriver server
+- `wdio-dioxus-driver` — external WebDriver proxy (Windows `'external'` provider)
+
+The `wdio-` prefix is used rather than `dioxus-` to leave the `dioxus-*` namespace free for the Dioxus project itself.
 
 ## package.json Template
 
@@ -271,5 +312,3 @@ pnpm turbo release
 5. **Follow TypeScript strict mode** - Enable strict type checking
 6. **Use semantic versioning** - Follow semver for versions
 7. **Avoid breaking changes** - Maintain backward compatibility when possible
-
-

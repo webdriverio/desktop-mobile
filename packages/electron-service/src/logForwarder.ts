@@ -1,26 +1,11 @@
+import { shouldLog } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 import { getStandaloneLogWriter, isStandaloneLogWriterInitialized } from './logWriter.js';
 
+export { shouldLog };
+
 type WdioLogger = ReturnType<typeof createLogger>;
-
-/**
- * Log level priority (higher number = higher priority)
- */
-const LOG_LEVEL_PRIORITY: Record<LogLevel, number> = {
-  trace: 0,
-  debug: 1,
-  info: 2,
-  warn: 3,
-  error: 4,
-};
-
-/**
- * Check if a log level meets the minimum level requirement
- */
-export function shouldLog(level: LogLevel, minLevel: LogLevel): boolean {
-  return LOG_LEVEL_PRIORITY[level] >= LOG_LEVEL_PRIORITY[minLevel];
-}
 
 /**
  * Map Electron log level to WDIO logger method

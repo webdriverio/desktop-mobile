@@ -1,3 +1,10 @@
+# Phase -1 spike (Dioxus automation API check) — throwaway code, do not commit
+/spike/
+
+# Rust build artefacts
+packages/*/target/
+packages/*/Cargo.lock
+
 # Logs
 logs
 logs-*
@@ -67,5 +74,6 @@ coverage
 # Bundler fixtures (auto-generated rollup config)
 fixtures/build-*/**/rollup.config.js
 
-
+# MCP config files
+.mcp.json
 

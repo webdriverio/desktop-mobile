@@ -8,7 +8,7 @@ const __dirname = path.dirname(__filename);
  * Get the path to a mock driver executable, choosing the correct extension for the platform
  * On Windows, use .cmd files; on Unix, use .sh files
  */
-export function getMockDriverPath(name: 'mock-success' | 'mock-bind-fail'): string {
+export function getMockDriverPath(name: 'mock-success' | 'mock-bind-fail' | 'mock-marker-only'): string {
   const fixturesDir = path.join(__dirname, 'fixtures');
 
   if (process.platform === 'win32') {
@@ -20,3 +20,4 @@ export function getMockDriverPath(name: 'mock-success' | 'mock-bind-fail'): stri
 
 export const mockSuccessPath = getMockDriverPath('mock-success');
 export const mockBindFailPath = getMockDriverPath('mock-bind-fail');
+export const mockMarkerOnlyPath = getMockDriverPath('mock-marker-only');

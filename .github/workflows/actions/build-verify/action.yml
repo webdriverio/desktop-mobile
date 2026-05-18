@@ -77,4 +77,4 @@ runs:
         echo "✅ All packages verified successfully"
         echo "::endgroup::"
 
-        echo "success=true" >> $GITHUB_OUTPUT
+        echo "success=true" >> "$GITHUB_OUTPUT"

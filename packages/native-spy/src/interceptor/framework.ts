@@ -1,7 +1,7 @@
 import type { IpcContext } from './ipcContext.js';
 import type { SerializedHandler } from './serialize.js';
 
-export type Framework = 'tauri' | 'electron';
+export type Framework = 'tauri' | 'electron' | 'dioxus';
 export type InnerMockMethod = 'mockClear' | 'mockReset' | 'mockReturnThis';
 export type InnerMockSetterMethod =
   | 'mockReturnValue'
