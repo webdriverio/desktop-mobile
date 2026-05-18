@@ -164,8 +164,9 @@ export async function startEmbeddedDriver(
 
   const startTimeout = options.startTimeout ?? 60_000;
 
+  let spawnErrorHandler: ((err: Error) => void) | undefined;
   const spawnErrorPromise = new Promise<never>((_, reject) => {
-    child.once('error', (err) => {
+    spawnErrorHandler = (err) => {
       cleanup();
       reject(
         new Error(
@@ -174,7 +175,8 @@ export async function startEmbeddedDriver(
             `Build with \`cargo build\` (not --release) for embedded-driver support.`,
         ),
       );
-    });
+    };
+    child.once('error', spawnErrorHandler);
   });
 
   let exitHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
@@ -207,6 +209,12 @@ export async function startEmbeddedDriver(
   } finally {
     if (exitHandler) {
       child.removeListener('exit', exitHandler);
+    }
+    // Without this, a post-startup `error` event (e.g. from a failed kill()
+    // during teardown) would fire the once() callback and tear the running
+    // app down via cleanup() before the long-lived handler below sees it.
+    if (spawnErrorHandler) {
+      child.removeListener('error', spawnErrorHandler);
     }
     // Prevent spawnErrorPromise from becoming an unhandled rejection if the
     // child emits 'error' after startup completes (Node.js 15+ crashes on

@@ -21,6 +21,8 @@ export interface DriverInfo {
   nativePort: number;
   mode: 'single' | 'worker' | 'multiremote';
   identifier: string;
+  /** Driver name used in teardown log messages (e.g. 'tauri-driver'). */
+  driverName?: string;
 }
 
 export interface DriverStartConfig {
@@ -75,6 +77,7 @@ export class DriverPool {
       nativePort: config.nativePort,
       mode: config.mode,
       identifier: config.identifier,
+      driverName: config.driverName,
     };
 
     this.drivers.set(config.identifier, info);
@@ -91,7 +94,7 @@ export class DriverPool {
     }
 
     log.info(`Stopping driver [${identifier}]`);
-    await info.process.stop();
+    await info.process.stop(info.driverName);
     this.drivers.delete(identifier);
     log.debug(`Driver [${identifier}] stopped and cleaned up`);
   }
@@ -107,7 +110,7 @@ export class DriverPool {
     const stopPromises: Promise<void>[] = [];
     for (const [identifier, info] of this.drivers.entries()) {
       log.debug(`Stopping driver [${identifier}]...`);
-      stopPromises.push(info.process.stop());
+      stopPromises.push(info.process.stop(info.driverName));
     }
 
     await Promise.all(stopPromises);
