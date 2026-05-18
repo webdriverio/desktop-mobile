@@ -122,6 +122,42 @@ describe('DriverProcess - Integration', () => {
       expect(driver.isRunning()).toBe(false);
     });
 
+    it('should not hang when stop() is called after the driver has exited naturally', async () => {
+      // Regression: ChildProcess.killed is only true after subprocess.kill().
+      // A process that exits naturally (crash, normal exit) has killed=false
+      // but exitCode/signalCode set, so the old .killed-only guard fell through
+      // to SIGTERM + waitForExit(), where the 'once exit' listener never fired
+      // (the event was already dispatched) and the 10-15s timeout chain ran.
+      await driver.start({
+        mode: 'single',
+        identifier: 'test-driver',
+        port: testPort,
+        nativePort: testNativePort,
+        tauriDriverPath: mockSuccessPath,
+        options: baseOptions,
+      });
+
+      const proc = driver.proc;
+      expect(proc?.pid).toBeDefined();
+
+      // Kill via process.kill() so the wrapper's `.killed` stays false but
+      // the OS-level process actually dies (mimics a natural exit/crash).
+      process.kill(proc!.pid!, 'SIGKILL');
+      await new Promise<void>((resolve) => proc!.once('exit', () => resolve()));
+
+      expect(proc!.killed).toBe(false);
+      expect(proc!.exitCode !== null || proc!.signalCode !== null).toBe(true);
+
+      const start = Date.now();
+      await driver.stop();
+      const elapsed = Date.now() - start;
+
+      // Without the fix this would be ≥ stopTimeout (5s local, 10s CI) + 5s SIGKILL grace.
+      // Allow generous headroom for the 500ms post-cleanup port-release sleep + CI slack.
+      expect(elapsed).toBeLessThan(2000);
+      expect(driver.isRunning()).toBe(false);
+    });
+
     // Note: Force kill (SIGKILL) is not tested here because:
     // 1. It's platform-specific (macOS handles SIGKILL differently than Linux)
     // 2. It's tested implicitly when cleanup runs after test timeouts

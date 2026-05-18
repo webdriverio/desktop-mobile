@@ -318,6 +318,17 @@ export class DriverProcess {
       return;
     }
 
+    // Process already exited naturally (crash or normal exit). `killed` is only
+    // set by an explicit `.kill()` call, so the guard above misses this case —
+    // without the early return, SIGTERM is a no-op and waitForExit() hangs for
+    // the full stopTimeout + 5s SIGKILL grace because the `exit` event already
+    // fired before this listener was attached.
+    if (this._proc.exitCode !== null || this._proc.signalCode !== null) {
+      log.debug(`${driverName} already exited (code=${this._proc.exitCode}, signal=${this._proc.signalCode})`);
+      this.cleanup();
+      return;
+    }
+
     log.debug(`Stopping ${driverName}...`);
     this._proc.kill('SIGTERM');
 
@@ -329,7 +340,17 @@ export class DriverProcess {
   }
 
   isRunning(): boolean {
-    return !!this._proc && !this._proc.killed;
+    if (!this._proc) {
+      return false;
+    }
+    // `.killed` is only set by explicit subprocess.kill() calls. A process that
+    // exited naturally (crash / normal exit) has killed=false but exitCode or
+    // signalCode set, so checking only `.killed` reports a dead process as
+    // running. See the matching guard in stop().
+    if (this._proc.exitCode !== null || this._proc.signalCode !== null) {
+      return false;
+    }
+    return !this._proc.killed;
   }
 
   private async waitForExit(driverName: string): Promise<void> {
