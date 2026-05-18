@@ -122,6 +122,24 @@ describe('DioxusWorkerService', () => {
     expect(mockStore.getMocks()).toHaveLength(0);
   });
 
+  it('should still clear the mockStore in afterSession() when mockRestore() rejects', async () => {
+    // Simulates a closed browser session: browser.execute() in the
+    // unregistration script rejects, restoreAllMocks() bubbles the failure.
+    // The stale entry MUST still be evicted so the next session doesn't see it.
+    const fakeMock = {
+      getMockName: () => 'dioxus.greet',
+      mockRestore: vi.fn().mockRejectedValue(new Error('session closed')),
+    };
+    // biome-ignore lint/suspicious/noExplicitAny: test-only cast
+    mockStore.setMock(fakeMock as any);
+
+    const service = new DioxusWorkerService({}, {});
+    await service.afterSession();
+
+    expect(fakeMock.mockRestore).toHaveBeenCalled();
+    expect(mockStore.getMocks()).toHaveLength(0);
+  });
+
   describe('browser mode (mode: "browser")', () => {
     it('should navigate to devServerUrl in before()', async () => {
       const urlSpy = vi.fn().mockResolvedValue(undefined);
