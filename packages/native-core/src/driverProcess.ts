@@ -172,12 +172,31 @@ export class DriverProcess {
           /* caller didn't wire log capture */
         };
 
+        // When the driver emits a known startupMarker (e.g. 'tauri-driver started'),
+        // resolve immediately rather than waiting for pollForReadiness to round-trip
+        // through the TCP/HTTP poll loop. safeResolve is idempotent, so the poll
+        // path remains a safety net if no marker is seen.
+        const onStartupDetected = () => {
+          log.info(`✅ ${driverName} [${identifier}] startup marker detected`);
+          // this._proc is non-null here (we just spawned it above), but the
+          // signature widens with cleanup() — assert via the original ref.
+          if (this._proc) {
+            safeResolve({
+              proc: this._proc,
+              port,
+              nativePort,
+              dataDir: options.dataDir,
+            });
+          }
+        };
+
         const stdoutHandler = createLogCapture({
           stream: this._proc.stdout,
           identifier,
           instanceId,
           startupMarkers,
           errorMarkers,
+          onStartupDetected,
           onErrorDetected: (message: string) => safeReject(new Error(message)),
           onLine: onLogLine ?? noop,
         });
@@ -188,6 +207,7 @@ export class DriverProcess {
           instanceId,
           startupMarkers,
           errorMarkers,
+          onStartupDetected,
           onErrorDetected: (message: string) => safeReject(new Error(message)),
           onLine: onLogLine ?? noop,
         });

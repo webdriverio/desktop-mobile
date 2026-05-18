@@ -3,7 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { DriverProcess } from '../../src/driverProcess.js';
 import type { TauriServiceOptions } from '../../src/types.js';
-import { mockSuccessPath } from '../mockPaths.js';
+import { mockMarkerOnlyPath, mockSuccessPath } from '../mockPaths.js';
 
 // Mock execSync to prevent ldd errors in tests
 vi.mock('node:child_process', async () => {
@@ -79,6 +79,25 @@ describe('DriverProcess - Integration', () => {
       expect(driver.isRunning()).toBe(true);
       expect(driver.port).toBe(testPort);
       expect(driver.nativePort).toBe(testNativePort);
+    });
+
+    it('should resolve via the startupMarker fast-path before the TCP/HTTP poll completes', async () => {
+      // mock-marker-only emits 'tauri-driver started' but never binds to a port.
+      // The TCP/HTTP poll loop would therefore time out at 10s; if start() returns
+      // quickly anyway, it can only have resolved through the startupMarker path.
+      const start = Date.now();
+      const info = await driver.start({
+        mode: 'single',
+        identifier: 'marker-fast-path',
+        port: testPort,
+        nativePort: testNativePort,
+        tauriDriverPath: mockMarkerOnlyPath,
+        options: baseOptions,
+      });
+      const elapsed = Date.now() - start;
+
+      expect(info.proc.pid).toBeDefined();
+      expect(elapsed).toBeLessThan(2000);
     });
 
     // Note: Error path tests (bind failure, process exit, timeout) are covered in launcher tests.
