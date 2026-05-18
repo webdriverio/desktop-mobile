@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 
-import { BaseLauncher, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
+import { BaseLauncher, closeLogWriter, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
 import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
@@ -188,6 +188,14 @@ export default class DioxusLaunchService extends BaseLauncher {
     await this.stopAllEmbedded();
     // Stop any external (wdio-dioxus-driver) processes managed by BaseLauncher
     await this.stopAllDrivers();
+    // Flush + close the LogWriter (mirrors tauri-service/launcher.ts). Without
+    // this, bytes still in the WriteStream buffer at process exit can be
+    // silently dropped from the captured log file.
+    try {
+      await closeLogWriter('dioxus-service');
+    } catch (error) {
+      log.warn(`Failed to close LogWriter: ${(error as Error).message}`);
+    }
   }
 }
 

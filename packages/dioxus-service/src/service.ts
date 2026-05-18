@@ -94,9 +94,14 @@ export default class DioxusWorkerService {
 
     try {
       await restoreAllMocks();
-      mockStore.clear();
     } catch (error) {
       log.warn('Failed to restore mocks during session cleanup:', error);
+    } finally {
+      // Clear unconditionally — if restoreAllMocks() throws (commonly when the
+      // browser session has already gone away and execute() rejects), leaving
+      // the module-level mockStore populated causes the next session's
+      // createMock() to stack on top of stale entries.
+      mockStore.clear();
     }
 
     if (!this.browser) {
