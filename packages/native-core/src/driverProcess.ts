@@ -250,7 +250,15 @@ export class DriverProcess {
     const pollInterval = 100;
 
     const poll = async () => {
-      if (!this._proc || this._proc.killed) {
+      // Snapshot this._proc into a local so the narrowing survives awaits and
+      // the resolve() call below doesn't need a non-null assertion. The next
+      // poll() invocation re-reads this._proc fresh, so a between-tick
+      // cleanup() that nulls the field is still caught.
+      const proc = this._proc;
+      // Match the stop()/isRunning() guard: ChildProcess.killed only flips
+      // after an explicit subprocess.kill() call, so a process that exited
+      // naturally has killed=false but exitCode or signalCode set.
+      if (!proc || proc.killed || proc.exitCode !== null || proc.signalCode !== null) {
         reject(new Error(`${driverName} [${identifier}] process died during startup`));
         return;
       }
@@ -267,7 +275,7 @@ export class DriverProcess {
           await this.waitForHttpReady(port, 1000);
           log.info(`✅ ${driverName} [${identifier}] is ready on port ${port}`);
           resolve({
-            proc: this._proc,
+            proc,
             port,
             nativePort,
             dataDir,
