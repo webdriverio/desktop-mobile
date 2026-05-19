@@ -67,15 +67,6 @@ Tauri additionally appends `driverProvider` to the path because its three provid
 
 > **Heads-up on `saveAllVideos: true`** — there's an [open upstream bug (#862)](https://github.com/webdriverio-community/wdio-video-reporter/issues/862) where the process can hang on exit with this setting on dynamic sites. Our test apps are static so we didn't observe it, but if your CI hangs after switching to `saveAllVideos: true`, this is the suspect. The `!process.env.CI` default above sidesteps it.
 
-### 3. Ignore the output directory
-
-```
-# .gitignore
-__video__
-```
-
-Recorded artefacts are platform-specific and per-run — keep them out of version control.
-
 ## Output paths
 
 Per-OS / per-arch directories stop artefacts from different runners colliding. Some framework services need additional segments — for Tauri, the per-provider segment matters because a video recorded under `embedded` (webview only) looks very different from one recorded under `crabnebula` (full OS window) — keep them separate so you can compare like-for-like across runs.
@@ -83,7 +74,7 @@ Per-OS / per-arch directories stop artefacts from different runners colliding. S
 - **Default**: `__video__/<platform>/<arch>/<test-slug>-<timestamp>.webm`
 - **Tauri (extra `<provider>` segment)**: `__video__/<platform>/<arch>/<provider>/<test-slug>-<timestamp>.webm`
 
-Failing tests will produce a `.webm` under `outputDir`. Passing tests will not, unless `saveAllVideos: true`.
+Failing tests will produce a `.webm` under `outputDir`. Passing tests will not, unless `saveAllVideos: true`. Recorded artefacts are platform-specific and per-run — add `__video__` to `.gitignore`.
 
 ## Tauri provider notes
 

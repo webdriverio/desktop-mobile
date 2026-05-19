@@ -97,7 +97,7 @@ xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
   pnpm wdio run wdio.visual.conf.ts
 ```
 
-Electron does not need this — it manages its own display.
+Electron does not need a manual wrapper — WDIO manages the display via its `autoXvfb` feature.
 
 ## Tauri provider notes
 
