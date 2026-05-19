@@ -8,7 +8,7 @@ A complete working setup for every currently supported framework — see the [RE
 
 `wdio-video-reporter` captures via **screenshot stitching**, not a real video pipeline: it takes one screenshot after each command in a configurable allowlist (`click`, `setValue`, `keys`, navigation, etc.), optionally plus an interval timer, and stitches the frames into a `.webm` (or `.mp4`) at the end of each test. Practical consequences:
 
-- **Resolution and content** match whatever `browser.saveScreenshot` returns (renderer-only on Electron and Tauri-embedded; OS window on Tauri-CrabNebula via that provider's Screen Recording path).
+- **Resolution and content** match whatever `browser.saveScreenshot` returns — renderer-only for webview-scoped providers (Electron, Tauri-`embedded`, Tauri-`official`, Dioxus-`embedded`); full OS window only on Tauri-`crabnebula` via its Screen Recording path.
 - **Frame rate is effectively the test's command rate**, not real video. With `videoSlowdownMultiplier: 3` (default) you get a 3–10 fps slideshow.
 - **Cursor motion between frames is invisible** ([upstream #588](https://github.com/webdriverio-community/wdio-video-reporter/issues/588)).
 - **Native dialogs, OS menus, tray pop-ups are not captured** — they're outside the webview, and the reporter is webview-scoped (with the noted CrabNebula exception).
@@ -44,13 +44,17 @@ The reporter bundles `ffmpeg` via `@ffmpeg-installer/ffmpeg` — no host install
 The reporter is added to `reporters`, not `services`.
 
 ```ts
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import VideoReporter from 'wdio-video-reporter';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const videoReporter = [
   VideoReporter,
   {
-    outputDir: join(__dirname, '__video__', ...subdirs),
+    // For Tauri, append the driver provider: ..., process.platform, process.arch, driverProvider
+    outputDir: join(__dirname, '__video__', process.platform, process.arch),
     saveAllVideos: !process.env.CI, // full video locally, retain-on-failure in CI
     videoSlowdownMultiplier: 3,
   },
@@ -59,7 +63,7 @@ const videoReporter = [
 // reporters: ['spec', videoReporter]
 ```
 
-`...subdirs` defaults to `[process.platform, process.arch]`. Some framework services need additional segments — Tauri appends `driverProvider` because its three providers capture differently (see [Tauri provider notes](#tauri-provider-notes)).
+Tauri additionally appends `driverProvider` to the path because its three providers capture differently (see [Tauri provider notes](#tauri-provider-notes)).
 
 > **Heads-up on `saveAllVideos: true`** — there's an [open upstream bug (#862)](https://github.com/webdriverio-community/wdio-video-reporter/issues/862) where the process can hang on exit with this setting on dynamic sites. Our test apps are static so we didn't observe it, but if your CI hangs after switching to `saveAllVideos: true`, this is the suspect. The `!process.env.CI` default above sidesteps it.
 
@@ -74,20 +78,12 @@ Recorded artefacts are platform-specific and per-run — keep them out of versio
 
 ## Output paths
 
-Per-OS / per-arch directories keep artefacts from different runners from colliding. Some framework services need additional segments — for Tauri, the per-provider segment matters because a video recorded under `embedded` (webview only) looks very different from one recorded under `crabnebula` (full OS window) — keep them separate so you can compare like-for-like across runs.
+Per-OS / per-arch directories stop artefacts from different runners colliding. Some framework services need additional segments — for Tauri, the per-provider segment matters because a video recorded under `embedded` (webview only) looks very different from one recorded under `crabnebula` (full OS window) — keep them separate so you can compare like-for-like across runs.
 
 - **Default**: `__video__/<platform>/<arch>/<test-slug>-<timestamp>.webm`
 - **Tauri (extra `<provider>` segment)**: `__video__/<platform>/<arch>/<provider>/<test-slug>-<timestamp>.webm`
 
 Failing tests will produce a `.webm` under `outputDir`. Passing tests will not, unless `saveAllVideos: true`.
-
-> **ESM configs** — `__dirname` is not defined in ES module configs (`"type": "module"` in `package.json`, or `wdio.conf.mts`). Derive it from `import.meta.url`:
->
-> ```ts
-> import { dirname } from 'node:path';
-> import { fileURLToPath } from 'node:url';
-> const __dirname = dirname(fileURLToPath(import.meta.url));
-> ```
 
 ## Tauri provider notes
 
@@ -96,7 +92,7 @@ Tauri's three driver providers behave differently for video recording:
 | Provider | Captures | Native chrome included? | Notes |
 |---|---|---|---|
 | `embedded` | Webview only | ❌ | Default, recommended for most users. Works on macOS, Linux, Windows. |
-| `official` | Webview only | ❌ | Works on Linux + Windows. No macOS support. Unlike the visual service, this cell does **not** hit the `executeAsync` hang here — the reporter has no `before()` initialisation script. |
+| `official` | Webview only | ❌ | Works on Linux + Windows. No macOS support. |
 | `crabnebula` | OS window (incl. title bar) | ✅ | Captures via OS-level Screen Recording on macOS. **macOS CI is excluded** — see below. |
 
 ### Known issue: `crabnebula` on hosted macOS CI

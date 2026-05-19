@@ -15,14 +15,18 @@ npm install --save-dev @wdio/visual-service
 ### 2. Add it to your WDIO config
 
 ```ts
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { Services } from '@wdio/types';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 const visualService: Services.ServiceEntry = [
   'visual',
   {
-    baselineFolder: join(__dirname, '__visual__', ...subdirs, 'baseline'),
-    screenshotPath: join(__dirname, '__visual__', ...subdirs, 'actual'),
+    // For Tauri, append the driver provider: ..., process.platform, process.arch, driverProvider, 'baseline'
+    baselineFolder: join(__dirname, '__visual__', process.platform, process.arch, 'baseline'),
+    screenshotPath: join(__dirname, '__visual__', process.platform, process.arch, 'actual'),
     formatImageName: '{tag}-{width}x{height}',
     autoSaveBaseline: !process.env.CI,
   },
@@ -31,7 +35,7 @@ const visualService: Services.ServiceEntry = [
 // services: [yourExistingServiceEntry, visualService]
 ```
 
-`...subdirs` defaults to `[process.platform, process.arch]`. Some framework services need additional segments — Tauri appends `driverProvider` because its three providers capture differently (see [Tauri provider notes](#tauri-provider-notes)).
+Tauri additionally appends `driverProvider` to the path because its three providers capture differently (see [Tauri provider notes](#tauri-provider-notes)).
 
 ### 3. Write a spec
 
@@ -50,17 +54,9 @@ Run twice — first writes the baseline (because `autoSaveBaseline` is `true` lo
 
 ## Output paths
 
-Same app, different OS → different font rendering, different anti-aliasing. Per-OS baselines are not optional. The recommended layout — `__visual__/<platform>/<arch>/[<framework-segments>/]baseline|actual` — is the cheapest sane convention. Most framework services need only `<platform>/<arch>`; Tauri additionally requires a `<provider>` segment (see [Tauri provider notes](#tauri-provider-notes)).
+Same app, different OS → different font rendering, different anti-aliasing. Per-OS baselines are not optional. The recommended layout — `__visual__/<platform>/<arch>/[<framework-segment>/]baseline|actual` — is the cheapest sane convention. Most framework services need only `<platform>/<arch>`; Tauri additionally requires a `<provider>` segment (see [Tauri provider notes](#tauri-provider-notes)).
 
 Add `__visual__` to `.gitignore` if you want CI to manage baselines per-runner; check it in if you want explicit baseline review on PRs.
-
-> **ESM configs** — `__dirname` is not defined in ES module configs (`"type": "module"` in `package.json`, or `wdio.conf.mts`). Derive it from `import.meta.url`:
->
-> ```ts
-> import { dirname } from 'node:path';
-> import { fileURLToPath } from 'node:url';
-> const __dirname = dirname(fileURLToPath(import.meta.url));
-> ```
 
 ## Cross-platform considerations
 
@@ -92,6 +88,17 @@ await browser.execute(() => {
 
 Mask volatile regions (timestamps, avatars) using the visual service's `hideElements` / `removeElements` options.
 
+### Linux: Xvfb display server (Tauri + Dioxus)
+
+Tauri and Dioxus tests on Linux need a display server. Both stacks use wry → WebKitGTK, so wrap your test run with `xvfb-run` at 16-bit colour depth — 24-bit triggers GTK/WebKit pixbuf issues:
+
+```bash
+xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
+  pnpm wdio run wdio.visual.conf.ts
+```
+
+Electron does not need this — it manages its own display.
+
 ## Tauri provider notes
 
 Tauri's three driver providers behave differently for VRT:
@@ -119,26 +126,11 @@ Workarounds:
 - Use a self-hosted macOS runner with TCC pre-populated.
 - Skip `crabnebula × macOS-CI × visual` from your matrix and rely on Linux / Windows coverage.
 
-## Dioxus provider notes
+## Dioxus notes
 
-Dioxus has only one provider for VRT: `'embedded'`. This provider captures the webview content (not the native window chrome) on all three platforms.
+Use the `embedded` provider for VRT on all platforms. The `external` provider is Windows-only in v1 and not recommended for visual testing — use `embedded` instead.
 
-| Provider | Captures | Native chrome included? | Notes |
-|---|---|---|---|
-| `embedded` | Webview only | ❌ | Works on Windows, macOS, Linux. Recommended. |
-| `external` | Webview only | ❌ | Windows only in v1. Not recommended for VRT; use `embedded` instead. |
-
-Per-provider baselines are not needed for Dioxus in v1 since only `'embedded'` is used across platforms. A per-OS + per-arch directory is still recommended to avoid cross-platform rendering differences.
-
-### Linux headless (Xvfb)
-
-On Linux CI, Dioxus requires a display server. Wrap your visual test run with Xvfb:
-
-```bash
-export DISPLAY=:99
-Xvfb :99 -screen 0 1280x800x24 &
-pnpm wdio run wdio.visual.dioxus.conf.ts
-```
+Per-provider baselines are not needed for Dioxus in v1 since only `embedded` is used; the default per-OS + per-arch layout is enough.
 
 ## Asserting native UI behaviour without pixels
 
@@ -159,13 +151,13 @@ The visual service captures **webview content only** (with the noted CrabNebula 
   ```
 - **Dioxus** — see [Usage Examples](../packages/dioxus-service/docs/usage-examples.md) and [API Reference](../packages/dioxus-service/docs/api-reference.md):
   ```ts
-  const commandMock = await browser.dioxus.mock('my_command');
-  commandMock.mockReturnValue({ result: 'mocked' });
+  const clipboardMock = await browser.dioxus.mock('clipboard_read');
+  await clipboardMock.mockReturnValue('mocked clipboard text');
   // … exercise the app …
-  expect(commandMock).toHaveBeenCalled();
+  expect(clipboardMock).toHaveBeenCalled();
   ```
 
-`@wdio/visual-service` for in-app UI, framework-service mock APIs for native UI surfaces — that's the combination most desktop-app suites want.
+`@wdio/visual-service` covers in-app UI; framework-service mock APIs cover native UI surfaces.
 
 ## Reference
 
