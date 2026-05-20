@@ -79,6 +79,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 - [Deeplink Testing](./docs/deeplink-testing.md) - Test protocol handlers
 - [Coexistence](./docs/coexistence.md) - Using alongside Tauri and Electron services
 - [Visual Testing](../../docs/visual-testing.md) - Visual regression with `@wdio/visual-service`
+- [Video Recording](../../docs/video-recording.md) - Record video of test runs with `wdio-video-reporter`
 
 **Help & Support**
 - [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions

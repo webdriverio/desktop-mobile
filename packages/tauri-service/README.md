@@ -78,6 +78,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 - [Edge WebDriver (Windows)](./docs/edge-webdriver-windows.md) - Windows-specific setup
 - [Deeplink Testing](./docs/deeplink-testing.md) - Test protocol handlers
 - [Visual Testing](../../docs/visual-testing.md) - Visual regression with `@wdio/visual-service`
+- [Video Recording](../../docs/video-recording.md) - Record video of test runs with `wdio-video-reporter`
 
 **Help & Support**
 - [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions
