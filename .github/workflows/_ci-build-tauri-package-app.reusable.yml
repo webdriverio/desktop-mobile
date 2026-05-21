@@ -1,5 +1,5 @@
 name: Build Tauri Package Test App
-description: 'Builds Tauri package test application and creates shareable artifacts'
+# Description: Builds Tauri package test application and creates shareable artifacts
 
 permissions:
   contents: read
@@ -44,7 +44,7 @@ env:
 
 jobs:
   build-tauri-package-app:
-    name: Build Tauri Package Test App
+    name: Build
     runs-on: ${{ inputs.os }}
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}
@@ -74,14 +74,18 @@ jobs:
           exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
       - name: 🦀 Install Rust Toolchain
-        uses: dtolnay/rust-toolchain@stable
+        shell: bash
+        run: rustup update stable && rustup default stable
 
       - name: 🦀 Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: '.'
+          workspaces: 'fixtures/package-tests/tauri-app/src-tauri'
           cache-on-failure: true
           cache-targets: false
+          # ~/.cargo/bin/ can carry over stale binaries (e.g. rustup-init in
+          # place of cargo) across runs on macOS, breaking the toolchain.
+          cache-bin: false
 
       - name: 🔧 Fix ARM64 Package Sources (Linux)
         if: runner.os == 'Linux' && runner.arch == 'ARM64'
@@ -153,8 +157,8 @@ jobs:
         id: build-info
         shell: bash
         run: |
-          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> $GITHUB_OUTPUT
-          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> $GITHUB_OUTPUT
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       # Debug: Check environment before build
       - name: 🔍 Debug Tauri Package App Build Environment
@@ -268,7 +272,7 @@ jobs:
             echo "Checking existing ACL manifest (if present):"
             if [ -f "$APP_DIR/gen/schemas/acl-manifests.json" ]; then
               echo "Existing ACL manifest found:"
-              cat "$APP_DIR/gen/schemas/acl-manifests.json" | jq 'keys' 2>/dev/null || cat "$APP_DIR/gen/schemas/acl-manifests.json" | head -20
+              jq 'keys' "$APP_DIR/gen/schemas/acl-manifests.json" 2>/dev/null || head -20 "$APP_DIR/gen/schemas/acl-manifests.json"
 
               if grep -q '"default"' "$APP_DIR/gen/schemas/acl-manifests.json" 2>/dev/null; then
                 echo "✅ Existing manifest has 'default' capability"
@@ -324,7 +328,7 @@ jobs:
             if [ -f "$ACL_MANIFEST" ]; then
               echo "✅ ACL manifest exists"
               echo "ACL manifest keys:"
-              cat "$ACL_MANIFEST" | jq 'keys' 2>/dev/null || cat "$ACL_MANIFEST" | head -50
+              jq 'keys' "$ACL_MANIFEST" 2>/dev/null || head -50 "$ACL_MANIFEST"
 
               if grep -q '"default"' "$ACL_MANIFEST" 2>/dev/null; then
                 echo "✅ 'default' capability found in ACL manifest"

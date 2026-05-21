@@ -1,0 +1,30 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "node",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "outDir": "./dist",
+    "rootDir": "./",
+    "composite": true,
+    "tsBuildInfoFile": "./dist/.tsbuildinfo",
+    "types": [
+      "node",
+      "@wdio/globals"
+    ]
+  },
+  "include": [
+    "test/**/*.ts",
+    "test-browser/**/*.ts",
+    "wdio.conf.ts",
+    "wdio.browser.conf.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "dist",
+    "src-dioxus"
+  ]
+}

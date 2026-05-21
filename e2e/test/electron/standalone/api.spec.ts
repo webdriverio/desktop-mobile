@@ -120,4 +120,11 @@ try {
   console.log('✅ Cleanup complete');
 }
 
-process.exit();
+// Node 24 + Windows can trip `UV_HANDLE_CLOSING` in src/win/async.c during
+// process.exit() if libuv pipe handles from WDIO's HTTP keepalive sockets are
+// closed mid-teardown. Flush microtasks + one macrotask tick before exit so
+// any pending close callbacks settle first. run-matrix.ts also tolerates
+// the assertion as a pass when "✅ Cleanup complete" has been printed.
+await new Promise((resolve) => setImmediate(resolve));
+await new Promise((resolve) => setTimeout(resolve, 50));
+process.exit(0);

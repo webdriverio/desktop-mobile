@@ -1,3 +1,4 @@
+import { DioxusAdapter } from './dioxus.js';
 import { ElectronAdapter } from './electron.js';
 import type { Framework, FrameworkAdapter, InnerMockMethod, InnerMockSetterMethod } from './framework.js';
 import type { IpcContext } from './ipcContext.js';
@@ -109,6 +110,7 @@ class IpcInterceptorImpl implements IpcInterceptor {
 }
 
 export function createIpcInterceptor(framework: Framework, options?: InterceptorOptions): IpcInterceptor {
-  const adapter: FrameworkAdapter = framework === 'tauri' ? new TauriAdapter() : new ElectronAdapter();
+  const adapter: FrameworkAdapter =
+    framework === 'tauri' ? new TauriAdapter() : framework === 'dioxus' ? new DioxusAdapter() : new ElectronAdapter();
   return new IpcInterceptorImpl(adapter, options);
 }

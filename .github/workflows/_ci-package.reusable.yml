@@ -1,5 +1,5 @@
 name: Package
-description: 'Runs package tests across different operating systems'
+# Description: Runs package tests across different operating systems
 
 permissions:
   contents: read
@@ -14,7 +14,7 @@ on:
         type: string
         required: true
       service:
-        description: 'Service to test (electron, tauri, or both)'
+        description: 'Service to test (electron, tauri, dioxus, or both)'
         type: string
         required: false
         default: 'both'
@@ -39,6 +39,10 @@ on:
         description: 'Cache key for Tauri package test app binaries'
         type: string
         required: false
+      dioxus_cache_key:
+        description: 'Cache key for Dioxus package test app binaries'
+        type: string
+        required: false
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -48,7 +52,7 @@ env:
 jobs:
   # This job runs package tests on multiple Node.js versions and operating systems
   package:
-    name: Package Tests
+    name: Run
     runs-on: ${{ inputs.os }}
     steps:
       # Standard checkout with SSH key for private repositories
@@ -67,9 +71,22 @@ jobs:
       # The @wdio/tauri-service will automatically install tauri-driver via cargo if not found
       - name: 🦀 Setup Rust (for tauri-driver auto-install)
         if: inputs.service == 'tauri' || inputs.service == 'both'
-        uses: dtolnay/rust-toolchain@stable
-        with:
-          components: rustfmt
+        shell: bash
+        run: rustup update stable && rustup default stable && rustup component add rustfmt
+
+      # Install Dioxus GTK/WebKit runtime dependencies for Linux (required to run the desktop app)
+      - name: 🦀 Install Dioxus Runtime Dependencies (Linux)
+        if: inputs.service == 'dioxus' && runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "Installing Dioxus runtime dependencies for Linux..."
+          sudo apt-get update
+          sudo apt-get install -y \
+            libwebkit2gtk-4.1-0 \
+            libgtk-3-0t64 \
+            libayatana-appindicator3-1 \
+            libxdo3 \
+            xvfb
 
       # Install WebKit WebDriver and GTK/X11 runtime dependencies for Linux (required by tauri-driver)
       # Note: Build dependencies are handled in the build workflows, we only need runtime libs for testing
@@ -107,7 +124,18 @@ jobs:
       # Download app binaries if testing services that require pre-built apps
       # The download-archive action extracts to workspace root, preserving directory structure
       # Tauri: Archive contains fixtures/package-tests/tauri-app/src-tauri/target
+      # Dioxus: Archive contains fixtures/package-tests/dioxus-app/src-dioxus/target
       # Electron: Apps are built in isolated environments by test-package.ts script
+      - name: 📦 Download Dioxus Package Test App Binary
+        if: inputs.service == 'dioxus'
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}
+          path: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}
+          filename: artifact.zip
+          cache_key_prefix: dioxus-package-app
+          exact_cache_key: ${{ inputs.dioxus_cache_key || '' }}
+
       - name: 📦 Download Tauri Package Test App Binary
         if: inputs.service == 'tauri' || inputs.service == 'both'
         uses: ./.github/workflows/actions/download-archive
@@ -170,6 +198,13 @@ jobs:
              fi
            fi
 
+           # Pack Dioxus service if needed
+           if [ "$SERVICE" == "dioxus" ]; then
+             if [ -d "packages/dioxus-service/dist" ]; then
+               (cd packages/dioxus-service && pnpm pack)
+             fi
+           fi
+
       # Run package tests using test-package.ts script
       # All apps are built in isolated environments (Electron always, Tauri if not skipBuild)
       # Tauri uses skipBuild to copy pre-built binaries from separate build jobs
@@ -187,6 +222,16 @@ jobs:
               echo "Running Electron package tests (apps built in isolated environments)"
               echo "Module type: ${{ inputs.module-type }}"
               pnpm run test:package:electron -- --module-type=${{ inputs.module-type }}
+              ;;
+            dioxus)
+              echo "Running Dioxus package tests (using pre-built binaries from separate build job)"
+              if [[ "${{ runner.os }}" == "Linux" ]]; then
+                echo "Using xvfb-run to provide a DISPLAY on Linux (${{ inputs.os }})"
+                xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
+                  pnpm run test:package:dioxus -- --skip-build
+              else
+                pnpm run test:package:dioxus -- --skip-build
+              fi
               ;;
             tauri)
               echo "Running Tauri package tests (using pre-built binaries from separate build job)"

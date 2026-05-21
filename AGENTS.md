@@ -9,8 +9,9 @@ This is a monorepo providing WebdriverIO services for automated testing of nativ
 **Supported Frameworks:**
 - **Electron** - `@wdio/electron-service` (v10.x)
 - **Tauri** - `@wdio/tauri-service` (v1.x)
+- **Dioxus** - `@wdio/dioxus-service` (v1.x)
 
-**Planned:** Dioxus, React Native, Flutter, Capacitor, Neutralino. See [ROADMAP.md](./ROADMAP.md) for details.
+**Planned:** React Native, Flutter, Capacitor, Neutralino. See [ROADMAP.md](./ROADMAP.md) for details.
 
 ## Tech Stack
 
@@ -28,14 +29,18 @@ This is a monorepo providing WebdriverIO services for automated testing of nativ
 
 ```
 packages/
-├── electron-service/     # Electron WDIO service
-├── tauri-service/        # Tauri WDIO service
-├── tauri-plugin/         # Tauri v2 plugin (Rust + JS)
-├── electron-cdp-bridge/  # Chrome DevTools Protocol bridge
-├── native-utils/         # Cross-platform utilities
-├── native-types/         # TypeScript type definitions
-├── native-spy/           # Spy utilities for mocking
-└── bundler/              # Build tool for packages
+├── electron-service/       # Electron WDIO service
+├── tauri-service/          # Tauri WDIO service
+├── dioxus-service/         # Dioxus WDIO service
+├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
+├── dioxus-bridge/          # Dioxus bridge crate (Rust) — IPC, mocking, log forwarding
+├── dioxus-embedded-driver/ # Dioxus in-process WebDriver server (Rust)
+├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows 'external' provider)
+├── electron-cdp-bridge/    # Chrome DevTools Protocol bridge
+├── native-utils/           # Cross-platform utilities
+├── native-types/           # TypeScript type definitions
+├── native-spy/             # Spy utilities for mocking
+└── bundler/                # Build tool for packages
 
 fixtures/
 ├── e2e-apps/             # E2E test applications

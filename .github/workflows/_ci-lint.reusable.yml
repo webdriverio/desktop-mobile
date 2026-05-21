@@ -1,5 +1,5 @@
 name: Lint
-description: 'Runs code quality checks across the codebase'
+# Description: Runs code quality checks across the codebase
 
 permissions:
   contents: read
@@ -55,3 +55,18 @@ jobs:
       - name: 🔍 Run Format Check
         run: pnpm run format:check
         shell: bash
+
+      # Static analysis of GitHub Actions workflows. Catches schema errors,
+      # bad expressions, and shellcheck issues in `run:` scripts. Installs
+      # the binary via the upstream download script — the third-party
+      # marketplace wrappers have flaky npm-based setup on newer runners.
+      - name: 🔍 Run actionlint
+        shell: bash
+        # Restrict to top-level workflow files. actionlint's auto-discovery
+        # also walks .github/workflows/actions/*/action.yml, but composite
+        # actions use a different schema and (incorrectly) fail the
+        # workflow-schema checks if passed in.
+        run: |
+          bash <(curl --silent --show-error --fail \
+            https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.12
+          ./actionlint -color .github/workflows/*.yml

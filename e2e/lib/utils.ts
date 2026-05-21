@@ -460,19 +460,18 @@ export async function waitForLog(
  * Compute the E2E app directory name based on framework, app type, and binary mode.
  * This is used consistently across envSchema, build scripts, and test runners.
  *
- * @param framework - 'electron' or 'tauri'
- * @param app - App type: 'builder', 'forge', 'script', or 'basic' (for Tauri)
+ * @param framework - 'electron', 'tauri', or 'dioxus'
+ * @param app - App type: 'builder', 'forge', 'script', or 'basic' (for Tauri/Dioxus)
  * @param isScript - Whether this is a script mode (only used for Electron)
  * @returns The computed directory name
  */
 export function getE2EAppDirName(
-  framework: 'electron' | 'tauri',
+  framework: 'electron' | 'tauri' | 'dioxus',
   app: 'builder' | 'forge' | 'script' | 'basic',
   isScript: boolean,
 ): string {
-  if (framework === 'tauri') {
-    // Tauri app directory is always 'tauri' regardless of app type
-    return 'tauri';
+  if (framework === 'tauri' || framework === 'dioxus') {
+    return framework; // 'tauri' or 'dioxus'
   }
 
   if (isScript) {

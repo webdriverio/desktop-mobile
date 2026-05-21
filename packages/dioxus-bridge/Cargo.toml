@@ -1,0 +1,38 @@
+[package]
+name = "wdio-dioxus-bridge"
+version = "1.0.0-rc.0"
+authors = ["WebdriverIO Community"]
+categories = ["development-tools::testing", "gui"]
+license = "Apache-2.0 OR MIT"
+homepage = "https://github.com/webdriverio/desktop-mobile"
+repository = "https://github.com/webdriverio/desktop-mobile"
+description = "Bridge crate that exposes a wdio:// IPC channel inside Dioxus desktop apps for use with @wdio/dioxus-service"
+readme = "README.md"
+edition = "2021"
+rust-version = "1.77.2"
+
+# v1 ships only the automation env-var reader. The full bridge IPC
+# (wdio:// custom protocol + invoke command bus + log forwarder + guest-js
+# injection) lands in subsequent Phase 2 commits.
+
+[lib]
+name = "wdio_dioxus_bridge"
+path = "src/lib.rs"
+
+[dependencies]
+dioxus-desktop = "0.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["sync"] }
+tracing = "0.1"
+
+[dev-dependencies]
+tokio = { version = "1", features = ["sync", "rt-multi-thread", "macros"] }
+
+[features]
+default = []
+# Compile-time gate: turning this off makes `install()` a true no-op (used by
+# release builds where bridge plumbing must not ship). Test/CI builds leave
+# `default = []` so callers explicitly opt in via `with-bridge`. Mirrors the
+# `#[cfg(debug_assertions)]` discipline documented in plugin-setup.md.
+with-bridge = []
