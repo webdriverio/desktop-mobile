@@ -138,12 +138,17 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       activeServices.delete(browser);
     }
 
-    // Close standalone log writer
+    // Close standalone log writer. The map delete is in a finally so a
+    // writer.close() throw can't strand the launcher entry in this regular
+    // Map (not a WeakMap, unlike tauri/dioxus) — that would pin the browser
+    // object indefinitely and leave subsequent cleanup() calls in an
+    // inconsistent state.
     const writer = getStandaloneLogWriter();
-    await writer.close();
-
-    // Remove from active launchers
-    activeLaunchers.delete(browser);
+    try {
+      await writer.close();
+    } finally {
+      activeLaunchers.delete(browser);
+    }
     log.debug('Electron standalone session cleaned up');
   } else {
     log.warn('No launcher found for this browser instance');
