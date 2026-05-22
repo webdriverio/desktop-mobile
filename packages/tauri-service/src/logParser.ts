@@ -69,11 +69,27 @@ function isTauriDriverLog(line: string): boolean {
 }
 
 /**
- * Extract log level from a log line
+ * Heuristic upper bound for where the level token sits in a Rust log line.
+ * `2025-01-01T12:00:00.000000Z  ERROR my_crate ...` puts ERROR around column
+ * 31; a longer bracketed app-name prefix like
+ * `2025-01-01T12:00:00.000000Z  [my-long-application] ERROR ...` pushes it
+ * past column 50. 60 covers both without giving message text enough room to
+ * false-match a level keyword in the body.
+ */
+const LEVEL_SCAN_WINDOW = 60;
+
+/**
+ * Extract log level from a log line.
+ *
+ * Only scans the line's prefix (timestamp + first few tokens) so that a
+ * line body like "cannot find file — check error.log" doesn't get classified
+ * as ERROR. Rust `tracing` / `log` always emits the level token before the
+ * message, so the prefix is where it lives.
  */
 function extractLogLevel(line: string): LogLevel | undefined {
+  const prefix = line.length > LEVEL_SCAN_WINDOW ? line.slice(0, LEVEL_SCAN_WINDOW) : line;
   for (const { level, pattern } of LOG_LEVEL_PATTERNS) {
-    if (pattern.test(line)) {
+    if (pattern.test(prefix)) {
       return level;
     }
   }

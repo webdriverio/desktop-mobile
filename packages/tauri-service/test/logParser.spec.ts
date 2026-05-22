@@ -98,6 +98,24 @@ describe('logParser', () => {
         const result = parseLogLine('some random log message');
         expect(result?.level).toBe('info');
       });
+
+      it('should not mistake a level keyword in the message body for the level', () => {
+        // Regression: Rust `tracing` puts the level immediately after the
+        // timestamp; if we scan the whole line, "error.log" in the message
+        // shadows the real INFO level. The prefix-window heuristic prevents
+        // this without anchoring to a brittle exact column.
+        const result = parseLogLine('2025-01-01T12:00:00Z INFO my_module: cannot find file — check error.log');
+        expect(result?.level).toBe('info');
+      });
+
+      it('should still find the level after a long bracketed app-name prefix', () => {
+        // Microsecond-precision ISO timestamp + a long bracketed prefix
+        // pushes the ERROR token past column 50. The scan window has to
+        // cover this realistic upper bound; a too-tight window would silently
+        // default such lines to 'info'.
+        const result = parseLogLine('2025-01-01T12:00:00.000000Z  [my-long-application] ERROR boom');
+        expect(result?.level).toBe('error');
+      });
     });
 
     describe('source detection', () => {
