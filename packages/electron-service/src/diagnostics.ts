@@ -37,7 +37,7 @@ export async function diagnoseElectronEnvironment(
 ): Promise<DiagnosticResult[]> {
   const results: DiagnosticResult[] = [];
 
-  log.info('Running Electron environment diagnostics...');
+  log.debug('Running Electron environment diagnostics...');
 
   results.push(...diagnosePlatform());
   results.push(...diagnoseDisplay());
@@ -57,7 +57,7 @@ export async function diagnoseElectronEnvironment(
   results.push(...diagnoseLinuxDependencies(ELECTRON_LINUX_PACKAGES));
   results.push(...diagnoseDiskSpace());
 
-  log.info('Diagnostics complete\n');
+  log.debug('Diagnostics complete');
   return results;
 }
 

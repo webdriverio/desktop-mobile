@@ -100,8 +100,6 @@ export async function createClassMock(
   className: string,
   browserContext?: WebdriverIO.Browser,
 ): Promise<ElectronClassMock> {
-  log.debug(`[${className}] createClassMock called - starting class mock creation`);
-
   const browserToUse = browserContext || browser;
 
   const methodNames = await browserToUse.electron.execute<string[] | null, [string, ExecuteOpts]>(
@@ -131,7 +129,8 @@ export async function createClassMock(
   );
 
   if (!methodNames) {
-    log.debug(`[${className}] Class does not exist, returning empty stub`);
+    // Diagnostic: helps surface mis-typed class names or absent main-process classes
+    log.debug(`[${className}] class not found on electron object; returning empty stub`);
     const stubInstance: Record<string, unknown> = {};
     const constructorMock = vitestFn() as unknown as ElectronFunctionMock;
     constructorMock.mockName(`electron.${className}.__constructor`);
@@ -143,11 +142,11 @@ export async function createClassMock(
     return stubInstance as ElectronClassMock;
   }
 
-  log.debug(`[${className}] Found ${methodNames.length} methods: ${methodNames.join(', ')}`);
+  // Diagnostic: helps when a method assertion fails because the method wasn't discovered
+  log.debug(`[${className}] discovered ${methodNames.length} methods: ${methodNames.join(', ')}`);
 
   const stubInstance: Record<string, ElectronFunctionMock | (() => Promise<void>)> = {};
   for (const methodName of methodNames) {
-    log.debug(`[${className}] Creating prototype mock for method: ${methodName}`);
     const methodMock = await createPrototypeMock(className, methodName, browserToUse);
     stubInstance[methodName] = methodMock;
     mockStore.setMock(methodMock);
@@ -192,7 +191,6 @@ export async function createClassMock(
   );
 
   constructorMock.update = async () => {
-    log.debug(`[${className}.__constructor] Starting mock update`);
     const calls =
       (await browserToUse.electron.execute<unknown[][], [string, ExecuteOpts]>(
         (electron, className) => {
@@ -205,12 +203,12 @@ export async function createClassMock(
         { internal: true },
       )) ?? [];
 
-    log.debug(
-      `[${className}.__constructor] Retrieved ${calls.length} calls, outer mock has ${constructorOriginalMock.calls.length} calls`,
-    );
-
     const existingCount = constructorOriginalMock.calls.length;
     if (existingCount < calls.length) {
+      // Load-bearing for diagnosing constructor-mock sync races
+      log.debug(
+        `[${className}.__constructor] mock.update: applying ${calls.length - existingCount} new constructor calls (inner=${calls.length}, outer=${existingCount})`,
+      );
       for (let i = existingCount; i < calls.length; i++) {
         (constructorMock as unknown as (...args: unknown[]) => unknown).apply(constructorMock, calls[i] as unknown[]);
       }
@@ -266,7 +264,6 @@ export async function createClassMock(
   };
 
   constructorMock.mockRestore = async () => {
-    log.debug(`[${className}] Restoring original class constructor`);
     await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
       (_electron, className) => {
         const classMocks = (globalThis as Record<string, unknown>).__electronClassMocks as
@@ -287,7 +284,6 @@ export async function createClassMock(
   mockStore.setMock(constructorMock);
 
   stubInstance.mockRestore = async () => {
-    log.debug(`[${className}] Restoring original class`);
     for (const methodName of methodNames) {
       await (stubInstance[methodName] as ElectronFunctionMock).mockRestore();
     }
@@ -295,8 +291,6 @@ export async function createClassMock(
   };
 
   (stubInstance as ElectronClassMock).getMockName = () => `electron.${className}`;
-
-  log.debug(`[${className}] Class mock created successfully`);
 
   return stubInstance as ElectronClassMock;
 }
