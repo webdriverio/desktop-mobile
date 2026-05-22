@@ -234,10 +234,6 @@ jobs:
               fi
               ;;
             tauri)
-              if [ "${{ inputs.os }}" == "macos-latest" ]; then
-                echo "⚠️  Skipping Tauri package tests on macOS (not supported)"
-                exit 0
-              fi
               echo "Running Tauri package tests (using pre-built binaries from separate build job)"
               if [[ "${{ runner.os }}" == "Linux" ]]; then
                 echo "Using xvfb-run to provide a DISPLAY on Linux (${{ inputs.os }})"
@@ -249,7 +245,7 @@ jobs:
               fi
               ;;
             both)
-              if [ "${{ inputs.os }}" == "macos-latest" ]; then
+              if [[ "${{ runner.os }}" == "macOS" ]]; then
                 echo "⚠️  Skipping Tauri package tests on macOS (not supported)"
                 echo "Module type: ${{ inputs.module-type }}"
                 pnpm run test:package:electron -- --module-type=${{ inputs.module-type }}
