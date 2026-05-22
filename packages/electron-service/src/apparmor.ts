@@ -43,7 +43,7 @@ function isApparmorRestricted(): boolean {
     }
 
     if (!isApparmorRunning) {
-      log.debug('AppArmor not detected (aa-status absent and no profiles file)');
+      log.debug('AppArmor not detected (no conclusive aa-status result and no active profiles file)');
       return false;
     }
 

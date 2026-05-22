@@ -198,7 +198,7 @@ export function formatDiagnosticResults(results: DiagnosticResult[], serviceName
   const errors = results.filter((r) => r.status !== 'ok' && r.status !== 'warn');
 
   // Successful checks are summarised at INFO; full details at DEBUG.
-  if (okCount > 0) {
+  if (results.length > 0) {
     logger.info(
       `Diagnostics: ${okCount} check${okCount === 1 ? '' : 's'} passed${warnings.length ? `, ${warnings.length} warning${warnings.length === 1 ? '' : 's'}` : ''}${errors.length ? `, ${errors.length} error${errors.length === 1 ? '' : 's'}` : ''}`,
     );
