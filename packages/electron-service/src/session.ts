@@ -16,6 +16,11 @@ import ElectronWorkerService from './service.js';
 
 // Store launcher instances for cleanup
 const activeLaunchers = new Map<WebdriverIO.Browser, ElectronLaunchService>();
+// Paired with activeLaunchers so cleanup() can drive the worker-service teardown
+// (mock store + puppeteer session cache) that WDIO's standalone path never
+// invokes itself. Without this, mock state leaks between sequential sessions
+// in the same process.
+const activeServices = new WeakMap<WebdriverIO.Browser, ElectronWorkerService>();
 
 /**
  * Initialize Electron service in standalone mode
@@ -66,12 +71,34 @@ export async function init(
   // initialise session
   const browser = await remote({
     capabilities: capability,
+  }).catch(async (error: Error) => {
+    log.error(`Failed to create remote session: ${error.message}`);
+    // Electron's launcher doesn't spawn its own long-running driver (WDIO
+    // manages chromedriver), so there's no launcher.onComplete to call here.
+    // Close the standalone log writer so its file handle doesn't leak when
+    // the caller never receives a browser to drive cleanup() with.
+    const writer = getStandaloneLogWriter();
+    await writer.close().catch((e: Error) => log.warn(`Failed to close log writer: ${e.message}`));
+    throw error;
   });
 
   // Store launcher for cleanup
   activeLaunchers.set(browser, launcher);
 
-  await service.before(capability, [], browser);
+  // service.before() failure leaves the open WebDriver session running.
+  // Tear it down before rethrowing so the caller doesn't have to.
+  try {
+    await service.before(capability, [], browser);
+  } catch (error) {
+    await browser
+      .deleteSession()
+      .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
+    const writer = getStandaloneLogWriter();
+    await writer.close().catch((e: Error) => log.warn(`Failed to close log writer: ${e.message}`));
+    activeLaunchers.delete(browser);
+    throw error;
+  }
+  activeServices.set(browser, service);
 
   log.debug('Electron standalone session initialized');
   return browser;
@@ -86,6 +113,31 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
+    // Drive the worker-service teardown that standalone init() set up via
+    // service.before(): after() stops log capture / clears puppeteer sessions,
+    // afterSession() restores mocks and clears the process-wide mock store.
+    // Both calls are wrapped so a failure doesn't skip the log writer + map
+    // cleanup that follow.
+    const service = activeServices.get(browser);
+    // after()/afterSession() take WDIO hook args we don't have at the
+    // standalone cleanup site (no config, no specs). Cast to a no-arg shape —
+    // Electron's after() takes none and afterSession() ignores its params.
+    const svc = service as unknown as
+      | { after?: () => void | Promise<void>; afterSession?: () => Promise<void> }
+      | undefined;
+    try {
+      await svc?.after?.();
+    } catch (e) {
+      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+    }
+    try {
+      await svc?.afterSession?.();
+    } catch (e) {
+      log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
+    } finally {
+      activeServices.delete(browser);
+    }
+
     // Close standalone log writer
     const writer = getStandaloneLogWriter();
     await writer.close();
