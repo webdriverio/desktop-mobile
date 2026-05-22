@@ -1,7 +1,7 @@
 import { type Mock, fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, ElectronClassMock, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
-import { buildMockMethods } from './mockFactory.js';
+import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 import mockStore from './mockStore.js';
 
 const log = createLogger('electron-service', 'mock');
@@ -52,6 +52,24 @@ async function createPrototypeMock(
     browserToUse,
   });
 
+  const applyCalls = (data: MockApplyData) => {
+    const calls = data.calls ?? [];
+    const results = data.results ?? [];
+    const existingCount = originalMock.calls.length;
+    if (existingCount < calls.length) {
+      for (let i = existingCount; i < calls.length; i++) {
+        (originalMock.calls as unknown[][]).push(calls[i]);
+        (originalMock.results as { type: string; value: unknown }[]).push(
+          results[i] ?? { type: 'return', value: undefined },
+        );
+        (originalMock.invocationCallOrder as number[]).push(originalMock.invocationCallOrder.length);
+      }
+    }
+  };
+
+  mock.__accessor = { kind: 'prototype', className, methodName } satisfies MockReadAccessor;
+  mock.__applyCalls = applyCalls;
+
   mock.update = async () => {
     const syncData = (await browserToUse.electron.execute<
       { calls: unknown[][]; results: { type: string; value: unknown }[] },
@@ -71,16 +89,7 @@ async function createPrototypeMock(
       { internal: true },
     )) ?? { calls: [], results: [] };
 
-    const existingCount = originalMock.calls.length;
-    if (existingCount < syncData.calls.length) {
-      for (let i = existingCount; i < syncData.calls.length; i++) {
-        (originalMock.calls as unknown[][]).push(syncData.calls[i]);
-        (originalMock.results as { type: string; value: unknown }[]).push(
-          syncData.results[i] ?? { type: 'return', value: undefined },
-        );
-        (originalMock.invocationCallOrder as number[]).push(originalMock.invocationCallOrder.length);
-      }
-    }
+    applyCalls(syncData);
     return mock;
   };
 
@@ -190,6 +199,23 @@ export async function createClassMock(
     { internal: true },
   );
 
+  const applyConstructorCalls = (data: MockApplyData) => {
+    const calls = data.calls ?? [];
+    const existingCount = constructorOriginalMock.calls.length;
+    if (existingCount < calls.length) {
+      // Load-bearing for diagnosing constructor-mock sync races
+      log.debug(
+        `[${className}.__constructor] applying ${calls.length - existingCount} new constructor calls (inner=${calls.length}, outer=${existingCount})`,
+      );
+      for (let i = existingCount; i < calls.length; i++) {
+        (constructorMock as unknown as (...args: unknown[]) => unknown).apply(constructorMock, calls[i] as unknown[]);
+      }
+    }
+  };
+
+  constructorMock.__accessor = { kind: 'constructor', className } satisfies MockReadAccessor;
+  constructorMock.__applyCalls = applyConstructorCalls;
+
   constructorMock.update = async () => {
     const calls =
       (await browserToUse.electron.execute<unknown[][], [string, ExecuteOpts]>(
@@ -203,16 +229,7 @@ export async function createClassMock(
         { internal: true },
       )) ?? [];
 
-    const existingCount = constructorOriginalMock.calls.length;
-    if (existingCount < calls.length) {
-      // Load-bearing for diagnosing constructor-mock sync races
-      log.debug(
-        `[${className}.__constructor] mock.update: applying ${calls.length - existingCount} new constructor calls (inner=${calls.length}, outer=${existingCount})`,
-      );
-      for (let i = existingCount; i < calls.length; i++) {
-        (constructorMock as unknown as (...args: unknown[]) => unknown).apply(constructorMock, calls[i] as unknown[]);
-      }
-    }
+    applyConstructorCalls({ calls });
     return constructorMock;
   };
 

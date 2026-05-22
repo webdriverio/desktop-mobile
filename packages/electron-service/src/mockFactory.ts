@@ -13,6 +13,21 @@ export type MockAccessor =
   | { kind: 'api'; apiName: string; funcName: string }
   | { kind: 'prototype'; className: string; methodName: string };
 
+/**
+ * Shape of mock call data delivered to a mock's `__applyCalls()` by the
+ * batched scheduler. Each mock variant uses what it needs and ignores the
+ * rest (API mocks ignore results; browser-mode mocks consume invocationCallOrder).
+ */
+export interface MockApplyData {
+  calls: unknown[][];
+  results?: Array<{ type: string; value: unknown }>;
+  invocationCallOrder?: number[];
+}
+
+// Re-export the user-facing accessor type from native-types under the local
+// `MockReadAccessor` alias for use across service modules.
+export type { ElectronMockReadAccessor as MockReadAccessor } from '@wdio/native-types';
+
 // ============================================================================
 // Restore helper for API-function mocks
 // ============================================================================
