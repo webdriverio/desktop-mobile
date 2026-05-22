@@ -41,6 +41,7 @@ export type {
   ElectronInterface,
   ElectronMock,
   ElectronMockInstance,
+  ElectronMockReadAccessor,
   ElectronServiceAPI,
   ElectronServiceCapabilities,
   ElectronServiceGlobalOptions,

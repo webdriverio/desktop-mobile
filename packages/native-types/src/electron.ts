@@ -454,7 +454,32 @@ export interface ElectronMockInstance extends Omit<Mock, MockOverride> {
   update(): Promise<ElectronFunctionMock>;
   mock: ElectronMockContext;
   __isElectronMock: boolean;
+  /**
+   * Descriptor used by the service's batched mock-update path to fetch the
+   * inner mock's call data alongside every other registered mock in a single
+   * CDP round-trip. Service-internal — not part of the user-facing API.
+   */
+  __accessor?: ElectronMockReadAccessor;
+  /**
+   * Apply already-fetched call data from the batched read. No I/O — pure local
+   * diff against the outer mock. Service-internal — not part of the user-facing API.
+   */
+  __applyCalls?: (data: {
+    calls: unknown[][];
+    results?: Array<{ type: string; value: unknown }>;
+    invocationCallOrder?: number[];
+  }) => void;
 }
+
+/**
+ * Tag used by the service's batched read to locate the inner mock inside the
+ * Electron process. Must be JSON-serialisable (crosses the CDP boundary).
+ */
+export type ElectronMockReadAccessor =
+  | { kind: 'api'; apiName: string; funcName: string }
+  | { kind: 'prototype'; className: string; methodName: string }
+  | { kind: 'constructor'; className: string }
+  | { kind: 'browser'; channel: string };
 
 /**
  * Type for a mocked Electron class (e.g. `Tray`, `BrowserWindow`).
