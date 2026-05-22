@@ -61,21 +61,21 @@
     "@wdio/visual-service": "^9.2.2",
     "@wdio/xvfb": "catalog:default",
     "electron": "catalog:default",
-    "tsx": "^4.21.0",
+    "tsx": "^4.22.3",
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
     "@crabnebula/tauri-driver": "^2.0.9",
-    "@crabnebula/test-runner-backend": "^0.2.6",
-    "@electron-forge/cli": "^7.11.1",
+    "@crabnebula/test-runner-backend": "^0.2.8",
+    "@electron-forge/cli": "^7.11.2",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^25.5.0",
-    "@vitest/spy": "^4.1.0",
+    "@types/node": "^25.9.1",
+    "@vitest/spy": "^4.1.7",
     "@wdio/native-types": "workspace:*",
     "@wdio/types": "catalog:",
     "cross-env": "^10.1.0",
     "p-limit": "^7.3.0",
     "typescript": "^5.9.3",
-    "zod": "^4.3.6"
+    "zod": "^4.4.3"
   }
 }

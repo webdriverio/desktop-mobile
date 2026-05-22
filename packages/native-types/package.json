@@ -33,9 +33,9 @@
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {
-    "@electron-forge/shared-types": "^7.11.1",
+    "@electron-forge/shared-types": "^7.11.2",
     "@electron/packager": "^19.0.5",
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.9.1",
     "@wdio/globals": "catalog:default",
     "@wdio/native-spy": "workspace:*",
     "@wdio/types": "catalog:default",

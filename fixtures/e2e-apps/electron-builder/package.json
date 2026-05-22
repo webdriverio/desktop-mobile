@@ -15,7 +15,7 @@
     "clean:dist": "pnpm dlx shx rm -rf ./dist ./dist-electron && pnpm dlx shx mkdir -p ./dist"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.9.1",
     "@wdio/cli": "catalog:default",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",
