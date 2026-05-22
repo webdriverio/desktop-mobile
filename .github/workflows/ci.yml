@@ -118,18 +118,6 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
-  build-tauri-e2e-app-macos-intel:
-    name: Build Tauri E2E App [macOS-Intel]
-    needs: [detect-changes, build]
-    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
-    secrets: inherit
-    with:
-      os: 'macos-15-intel'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
-
   # Build Dioxus Rust crates - only if Dioxus tests will run.
   # v1 scope: Linux only. wdio-dioxus-driver is Windows-targeted but
   # cargo check on Linux still validates the dependency graph and platform-
@@ -176,18 +164,6 @@ jobs:
     secrets: inherit
     with:
       os: 'macos-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
-
-  build-dioxus-e2e-app-macos-intel:
-    name: Build Dioxus E2E App [macOS-Intel]
-    needs: [detect-changes, build]
-    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
-    secrets: inherit
-    with:
-      os: 'macos-15-intel'
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -482,7 +458,9 @@ jobs:
       os: ${{ matrix.os }}
 
   # E2E test matrix strategy:
-  # - Run tests across operating systems and architectures (Linux, Windows, macOS ARM, macOS Intel)
+  # - Run tests across operating systems and architectures (Linux, Windows, macOS ARM)
+  # - macOS Intel is only covered by package tests; the runtime path is
+  #   arch-agnostic enough that paying for Intel E2Es isn't worth it
   # - Test 3 scenarios (builder, forge, script)
   # - E2E tests use ESM only (CJS/ESM testing is done in package tests)
   # - Optimize for GitHub Actions concurrency limits
@@ -520,15 +498,6 @@ jobs:
             scenario: forge
           - os: macos-latest
             display-name: macOS-ARM
-            scenario: script
-          - os: macos-15-intel
-            display-name: macOS-Intel
-            scenario: builder
-          - os: macos-15-intel
-            display-name: macOS-Intel
-            scenario: forge
-          - os: macos-15-intel
-            display-name: macOS-Intel
             scenario: script
     uses: ./.github/workflows/_ci-e2e.reusable.yml
     secrets: inherit
@@ -629,25 +598,6 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       tauri_cache_key: ${{ needs.build-tauri-e2e-app-macos-arm.outputs.cache_key }}
 
-  e2e-tauri-macos-intel:
-    name: E2E - Tauri [macOS-Intel] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-tauri-e2e-app-macos-intel]
-    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
-    uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
-    secrets: inherit
-    with:
-      os: 'macos-15-intel'
-      node-version: '24'
-      test-type: ${{ matrix.test-type }}
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
-      tauri_cache_key: ${{ needs.build-tauri-e2e-app-macos-intel.outputs.cache_key }}
-
   # Dioxus E2E tests - embedded provider (all platforms) + external provider (Windows only in v1)
   # All providers run sequentially per runner; external provider auto-skips on Linux/macOS
   e2e-dioxus-linux:
@@ -706,25 +656,6 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
       dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-macos-arm.outputs.cache_key }}
-
-  e2e-dioxus-macos-intel:
-    name: E2E - Dioxus [macOS-Intel] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-dioxus-e2e-app-macos-intel]
-    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
-    uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
-    secrets: inherit
-    with:
-      os: 'macos-15-intel'
-      node-version: '24'
-      test-type: ${{ matrix.test-type }}
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
-      dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-macos-intel.outputs.cache_key }}
 
   # Dioxus package tests - all platforms (mirrors E2E coverage)
   package-dioxus-linux:
@@ -898,11 +829,9 @@ jobs:
       - e2e-tauri-linux
       - e2e-tauri-windows
       - e2e-tauri-macos-arm
-      - e2e-tauri-macos-intel
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
-      - e2e-dioxus-macos-intel
       - package-electron-matrix
       - package-tauri-linux
       - package-tauri-windows
@@ -920,14 +849,12 @@ jobs:
       - build-tauri-e2e-app-linux
       - build-tauri-e2e-app-windows
       - build-tauri-e2e-app-macos-arm
-      - build-tauri-e2e-app-macos-intel
       - build-tauri-package-app-linux
       - build-tauri-package-app-windows
       - build-tauri-package-app-linux-arm
       - build-dioxus-e2e-app-linux
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
-      - build-dioxus-e2e-app-macos-intel
       - build-dioxus-package-app-linux
       - build-dioxus-package-app-windows
       - build-dioxus-package-app-macos-arm
