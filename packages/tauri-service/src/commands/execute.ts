@@ -80,14 +80,6 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     executeOptions = { windowLabel: sessionWindowLabel };
   }
 
-  if (options.windowLabel && options.windowLabel !== sessionWindowLabel) {
-    log.debug(`Using per-call windowLabel: ${effectiveWindowLabel} (session default: ${sessionWindowLabel})`);
-  } else if (options.windowLabel) {
-    log.debug(`Using configured windowLabel: ${effectiveWindowLabel}`);
-  } else if (sessionWindowLabelIsExplicit) {
-    log.debug(`Using session windowLabel: ${sessionWindowLabel}`);
-  }
-
   if (typeof script !== 'string' && typeof script !== 'function') {
     throw new Error('Expecting script to be type of "string" or "function"');
   }
@@ -133,8 +125,6 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
 
     setPluginAvailabilityCached(browser);
     log.debug('Plugin availability cached for browser session');
-  } else {
-    log.debug('Plugin availability cached, skipping check');
   }
 
   const scriptString = typeof script === 'function' ? script.toString() : script;
@@ -206,11 +196,9 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
         throw new Error(parsed.__wdio_error__);
       }
       if (parsed.__wdio_undefined__) {
-        log.debug(`Execute result: undefined`);
         return undefined as unknown as ReturnValue;
       }
       if (parsed.__wdio_value__ !== undefined) {
-        log.debug(`Execute result:`, parsed.__wdio_value__);
         return parsed.__wdio_value__ as ReturnValue;
       }
     }
@@ -220,7 +208,6 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     );
   }
 
-  log.debug(`Execute result:`, result);
   return result as ReturnValue;
 }
 

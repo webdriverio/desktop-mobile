@@ -293,7 +293,7 @@ export default class TauriLaunchService {
     const isMultiremote = !Array.isArray(capabilities);
     this.perWorkerMode = maxInstances > 1 && !isMultiremote;
 
-    log.info(
+    log.debug(
       `Per-worker mode: ${this.perWorkerMode ? 'enabled' : 'disabled'} (maxInstances=${maxInstances}, multiremote=${isMultiremote})`,
     );
 
@@ -346,7 +346,7 @@ export default class TauriLaunchService {
             throw new Error(`Tauri application path not specified for multiremote instance: ${key}`);
           }
 
-          log.info(`Starting embedded WebDriver for ${key} on port ${embeddedPort}`);
+          log.debug(`Starting embedded WebDriver for ${key} on port ${embeddedPort}`);
 
           // Store embedded mode info and app binary path globally for triggerDeeplink
           setEmbeddedModeInfo(true, appBinaryPath);
@@ -363,7 +363,7 @@ export default class TauriLaunchService {
           // Update capabilities to connect to the embedded WebDriver server
           (value as { port?: number; hostname?: string }).port = embeddedPort;
           (value as { port?: number; hostname?: string }).hostname = hostname;
-          log.info(`Set embedded WebDriver connection for ${key}: ${hostname}:${embeddedPort}`);
+          log.debug(`Set embedded WebDriver connection for ${key}: ${hostname}:${embeddedPort}`);
         }
       } else if (isCrabNebula) {
         // CrabNebula provider: spawn tauri-driver per multiremote instance
@@ -405,7 +405,7 @@ export default class TauriLaunchService {
           // On macOS, start backend and set REMOTE_WEBDRIVER_URL for tauri-driver
           if (isMacOS) {
             const backendPort = backendPorts[i];
-            log.info(`Starting CrabNebula test-runner-backend for ${key} on port ${backendPort}`);
+            log.debug(`Starting CrabNebula test-runner-backend for ${key} on port ${backendPort}`);
 
             const { proc } = await startTestRunnerBackend({
               port: backendPort,
@@ -420,7 +420,7 @@ export default class TauriLaunchService {
 
           const { port: driverPort, nativePort: driverNativePort } = driverPortPairs[i];
 
-          log.info(
+          log.debug(
             `Starting tauri-driver for ${key} on ${hostname}:${driverPort} ` +
               `(native port: ${driverNativePort}${isMacOS ? `, backend: ${hostname}:${backendPorts[i]}` : ''})`,
           );
@@ -430,7 +430,7 @@ export default class TauriLaunchService {
           (value as { port?: number; hostname?: string }).port = driverPort;
           (value as { port?: number; hostname?: string }).hostname = hostname;
 
-          log.info(`Set CrabNebula connection for ${key}: ${hostname}:${driverPort}`);
+          log.debug(`Set CrabNebula connection for ${key}: ${hostname}:${driverPort}`);
         }
 
         // Store configs for cycling between workers (backend state degrades across sessions)
@@ -464,7 +464,7 @@ export default class TauriLaunchService {
 
         for (let i = 0; i < capEntries.length; i++) {
           const { port, nativePort } = portPairs[i];
-          log.info(`Allocated ports for instance ${i}: main=${port}, native=${nativePort}`);
+          log.debug(`Allocated ports for instance ${i}: main=${port}, native=${nativePort}`);
         }
 
         // Prepare all instance configs first
@@ -484,7 +484,7 @@ export default class TauriLaunchService {
           (value as { port?: number; hostname?: string }).port = instancePort;
           (value as { port?: number; hostname?: string }).hostname = instanceHost;
 
-          log.info(
+          log.debug(
             `Starting tauri-driver for ${key} (ID: ${instanceId}) on ${instanceHost}:${instancePort} ` +
               `(native port: ${instanceNativePort})`,
           );
@@ -531,7 +531,7 @@ export default class TauriLaunchService {
           throw new Error('Tauri application path not specified in tauri:options.application');
         }
 
-        log.info(`Starting embedded WebDriver for instance ${i} on port ${embeddedPort}`);
+        log.debug(`Starting embedded WebDriver for instance ${i} on port ${embeddedPort}`);
 
         // Store embedded mode info and app binary path globally for triggerDeeplink
         setEmbeddedModeInfo(true, appBinaryPath);
@@ -550,10 +550,7 @@ export default class TauriLaunchService {
         // Update capabilities to connect to the embedded WebDriver server
         (cap as { port?: number; hostname?: string }).port = embeddedPort;
         (cap as { port?: number; hostname?: string }).hostname = hostname;
-        log.info(`Set embedded WebDriver connection on capabilities: ${hostname}:${embeddedPort}`);
-        log.debug(
-          `Updated capabilities: ${JSON.stringify({ port: (cap as Record<string, unknown>).port, hostname: (cap as Record<string, unknown>).hostname })}`,
-        );
+        log.debug(`Set embedded WebDriver connection on capabilities: ${hostname}:${embeddedPort}`);
       }
 
       // Small delay to ensure WebDriver server is fully ready
@@ -562,10 +559,10 @@ export default class TauriLaunchService {
       // Standard session: single shared tauri-driver or per-worker drivers
       if (this.perWorkerMode) {
         // Per-worker mode: drivers will be spawned in onWorkerStart()
-        log.info('Per-worker mode enabled - drivers will be spawned per worker in onWorkerStart()');
+        log.debug('Per-worker mode enabled - drivers will be spawned per worker in onWorkerStart()');
       } else {
         // Single driver mode: spawn one shared driver
-        log.info('Single driver mode - spawning shared tauri-driver');
+        log.debug('Single driver mode - spawning shared tauri-driver');
         const hostname = '127.0.0.1';
 
         // Allocate ports using PortManager
@@ -573,7 +570,7 @@ export default class TauriLaunchService {
 
         try {
           await this.startTauriDriver(port, nativePort, capsList);
-          log.info(`Successfully started tauri-driver on ${hostname}:${port}`);
+          log.info(`tauri-driver listening on ${hostname}:${port}`);
         } catch (error) {
           log.error(`Failed to start tauri-driver: ${error}`);
           throw new SevereServiceError(`Failed to start tauri-driver: ${(error as Error).message}`);
@@ -583,7 +580,7 @@ export default class TauriLaunchService {
         for (const cap of capsList) {
           (cap as { port?: number; hostname?: string }).port = port;
           (cap as { port?: number; hostname?: string }).hostname = hostname;
-          log.info(`Set tauri-driver connection on capabilities: ${hostname}:${port}`);
+          log.debug(`Set tauri-driver connection on capabilities: ${hostname}:${port}`);
         }
 
         // Store config for cycling between workers if CrabNebula on macOS
@@ -678,7 +675,7 @@ export default class TauriLaunchService {
 
     // Log DISPLAY status
     if (process.platform === 'linux') {
-      log.info(`Worker ${cid} DISPLAY: ${process.env.DISPLAY || 'not set'}`);
+      log.debug(`Worker ${cid} DISPLAY: ${process.env.DISPLAY || 'not set'}`);
     }
 
     if (!firstCap) {
@@ -713,7 +710,7 @@ export default class TauriLaunchService {
     // Per-worker mode: spawn dedicated driver for this worker
     // Skip for embedded provider - driver is already spawned in onPrepare
     if (this.perWorkerMode && !instanceId && !this.isEmbeddedMode) {
-      log.info(`Per-worker mode: spawning tauri-driver for worker ${cid}`);
+      log.debug(`Per-worker mode: spawning tauri-driver for worker ${cid}`);
 
       // Allocate ports for this worker
       const { port, nativePort } = await this.allocateWorkerPorts(cid);
@@ -734,7 +731,7 @@ export default class TauriLaunchService {
         if (manageBackend) {
           // Allocate unique port for this worker's backend using PortManager
           const backendPort = await this.backendPortManager.allocatePort();
-          log.info(`Spawning test-runner-backend for worker ${cid} on port ${backendPort}`);
+          log.debug(`Spawning test-runner-backend for worker ${cid} on port ${backendPort}`);
 
           try {
             const { proc } = await startTestRunnerBackend({
@@ -745,7 +742,7 @@ export default class TauriLaunchService {
             await waitTestRunnerBackendReady('127.0.0.1', backendPort, 30000);
             this.workerBackends.set(cid, { proc, port: backendPort });
             workerEnv.REMOTE_WEBDRIVER_URL = `http://127.0.0.1:${backendPort}`;
-            log.info(`Worker ${cid} backend ready on port ${backendPort}`);
+            log.debug(`Worker ${cid} backend ready on port ${backendPort}`);
           } catch (error) {
             log.error(`Failed to start test-runner-backend for worker ${cid}: ${error}`);
             throw error;
@@ -869,7 +866,7 @@ export default class TauriLaunchService {
     const preferredNativePort = 4445 + status.count;
     const { port, nativePort } = await this.portManager.allocatePortPair(preferredPort, preferredNativePort);
 
-    log.info(`Allocated ports for worker ${workerId}: main=${port}, native=${nativePort}`);
+    log.debug(`Allocated ports for worker ${workerId}: main=${port}, native=${nativePort}`);
     return { port, nativePort };
   }
 
@@ -910,7 +907,7 @@ export default class TauriLaunchService {
     // Stop worker's test-runner-backend if spawned (CrabNebula per-worker mode)
     const workerBackend = this.workerBackends.get(cid);
     if (workerBackend) {
-      log.info(`Stopping test-runner-backend for worker ${cid}`);
+      log.debug(`Stopping test-runner-backend for worker ${cid}`);
       await stopTestRunnerBackend(workerBackend.proc);
       this.workerBackends.delete(cid);
     }

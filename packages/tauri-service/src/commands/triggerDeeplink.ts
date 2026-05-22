@@ -19,7 +19,7 @@ interface TauriServiceContext {
 export function setCrabnebulaModeInfo(isCrabnebula: boolean): void {
   if (isCrabnebula) {
     process.env.__WDIO_TAURI_CRABNEBULA__ = 'true';
-    log.info('Set CrabNebula mode env: isCrabnebula=true');
+    log.debug('Set CrabNebula mode env: isCrabnebula=true');
   }
 }
 
@@ -40,7 +40,7 @@ export function setEmbeddedModeInfo(isEmbedded: boolean, appBinaryPath?: string)
     if (appBinaryPath) {
       process.env.__WDIO_TAURI_APP_BINARY__ = appBinaryPath;
     }
-    log.info(`Set embedded mode env: isEmbedded=true, appBinaryPath=${appBinaryPath}`);
+    log.debug(`Set embedded mode env: isEmbedded=true, appBinaryPath=${appBinaryPath}`);
   }
 }
 
@@ -77,7 +77,6 @@ function isEmbeddedProvider(): boolean {
  * validateDeeplinkUrl('https://example.com'); // Throws error
  * ```
  */
-
 /**
  * Triggers a deeplink to the Tauri application for testing protocol handlers.
  *
@@ -104,11 +103,10 @@ function isEmbeddedProvider(): boolean {
  * ```
  */
 export async function triggerDeeplink(this: TauriServiceContext, url: string): Promise<void> {
-  log.info(`triggerDeeplink called with URL: ${url}`);
+  log.info(`Triggering deeplink: ${url}`);
 
   const validatedUrl = validateDeeplinkUrl(url);
   const platform = process.platform;
-  log.info(`Platform: ${platform}`);
 
   // For embedded or CrabNebula mode, use browser.execute to directly inject the deeplink.
   // This bypasses platform-specific single-instance IPC mechanisms (D-Bus on Linux,
@@ -122,8 +120,7 @@ export async function triggerDeeplink(this: TauriServiceContext, url: string): P
   }
 
   if (providerName) {
-    log.info(`${providerName} mode: injecting deeplink via browser.execute`);
-    log.info(`URL: ${validatedUrl}`);
+    log.debug(`${providerName} mode: injecting deeplink via browser.execute`);
 
     if (!this.browser) {
       throw new Error(`${providerName} deeplink injection requires browser context`);
@@ -154,7 +151,7 @@ export async function triggerDeeplink(this: TauriServiceContext, url: string): P
       `;
       await this.browser.execute(script);
 
-      log.info(`Deeplink injected successfully: ${validatedUrl}`);
+      log.debug(`Deeplink injected successfully: ${validatedUrl}`);
       return;
     } catch (error) {
       log.error(`Failed to inject deeplink via browser.execute: ${error}`);
@@ -165,11 +162,11 @@ export async function triggerDeeplink(this: TauriServiceContext, url: string): P
   // Standard approach for tauri-driver: use platform-specific commands
   const { command, args } = getPlatformCommand(validatedUrl, platform);
   const fullCommand = `${command} ${args.join(' ')}`;
-  log.info(`Full deeplink command: "${fullCommand}"`);
+  log.debug(`Full deeplink command: "${fullCommand}"`);
 
   try {
     await executeDeeplinkCommand(command, args);
-    log.info(`Deeplink triggered successfully: ${validatedUrl}`);
+    log.debug(`Deeplink triggered successfully: ${validatedUrl}`);
   } catch (error) {
     log.error(`Failed to trigger deeplink: ${error instanceof Error ? error.message : String(error)}`);
     throw error;
