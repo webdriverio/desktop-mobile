@@ -5,6 +5,8 @@ import type {
   BrowserExtension,
   ElectronFunctionMock,
   ElectronInterface,
+  ElectronMock,
+  ElectronMockReadAccessor,
   ElectronServiceGlobalOptions,
   ElectronType,
   ExecuteOpts,
@@ -111,18 +113,172 @@ class MockUpdateScheduler {
     log.debug(`Found ${mocks.length} mocks to update`);
     if (mocks.length === 0) return;
 
+    // Split mocks by accessor kind so we can route each subset through the
+    // right transport in exactly one round-trip: native mocks ride
+    // browser.electron.execute() over CDP, browser-mode mocks ride a plain
+    // browser.execute() against window.__wdio_mocks__. Mocks without an
+    // accessor (legacy test doubles) fall back to per-mock update().
+    const native: Array<[string, ElectronMock]> = [];
+    const browserMode: Array<[string, ElectronMock]> = [];
+    const legacy: Array<[string, ElectronMock]> = [];
+    for (const entry of mocks) {
+      const [, m] = entry;
+      const acc = (m as { __accessor?: ElectronMockReadAccessor }).__accessor;
+      if (acc?.kind === 'browser') {
+        browserMode.push(entry);
+      } else if (acc && typeof (m as { __applyCalls?: unknown }).__applyCalls === 'function') {
+        native.push(entry);
+      } else {
+        legacy.push(entry);
+      }
+    }
+
     try {
-      await Promise.all(
-        mocks.map(async ([mockId, mock]) => {
-          log.debug(`Updating mock: ${mockId}`);
-          await mock.update();
-          log.debug(`Mock update completed: ${mockId}`);
+      await Promise.all([
+        batchUpdateNativeMocks(this.#browser, native),
+        batchUpdateBrowserModeMocks(this.#browser, browserMode),
+        ...legacy.map(async ([mockId, m]) => {
+          log.debug(`Updating legacy mock (no accessor): ${mockId}`);
+          await m.update?.();
         }),
-      );
+      ]);
       log.debug('All mock updates completed successfully');
     } catch (error) {
       log.warn('Mock update batch failed:', error);
     }
+  }
+}
+
+/**
+ * Walk every registered native mock through a single browser.electron.execute()
+ * round-trip. The inner script discriminates by accessor kind (api / prototype /
+ * constructor), returns a map keyed by mockId, and each mock applies its own
+ * slice locally via __applyCalls (no further I/O).
+ */
+async function batchUpdateNativeMocks(
+  browser: WebdriverIO.Browser,
+  entries: Array<[string, ElectronMock]>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const items: Array<[string, ElectronMockReadAccessor]> = entries.map(([id, m]) => [
+    id,
+    (m as { __accessor: ElectronMockReadAccessor }).__accessor,
+  ]);
+
+  const data =
+    (await browser.electron.execute<
+      Record<string, { calls: unknown[][]; results: Array<{ type: string; value: unknown }> }>,
+      [Array<[string, ElectronMockReadAccessor]>, ExecuteOpts]
+    >(
+      (electron, items) => {
+        const out: Record<string, { calls: unknown[][]; results: Array<{ type: string; value: unknown }> }> = {};
+        for (const item of items) {
+          const id = item[0];
+          const acc = item[1];
+          try {
+            let target:
+              | { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }
+              | undefined;
+            if (acc.kind === 'api') {
+              const api = electron[acc.apiName as keyof typeof electron] as unknown as
+                | Record<string, { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }>
+                | undefined;
+              target = api?.[acc.funcName];
+            } else if (acc.kind === 'prototype') {
+              const cls = electron[acc.className as keyof typeof electron] as unknown as
+                | {
+                    prototype?: Record<
+                      string,
+                      { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }
+                    >;
+                  }
+                | undefined;
+              target = cls?.prototype?.[acc.methodName];
+            } else if (acc.kind === 'constructor') {
+              target = electron[acc.className as keyof typeof electron] as unknown as typeof target;
+            }
+            if (target?.mock) {
+              out[id] = {
+                calls: target.mock.calls ? JSON.parse(JSON.stringify(target.mock.calls)) : [],
+                results: target.mock.results ? JSON.parse(JSON.stringify(target.mock.results)) : [],
+              };
+            } else {
+              out[id] = { calls: [], results: [] };
+            }
+          } catch (_e) {
+            out[id] = { calls: [], results: [] };
+          }
+        }
+        return out;
+      },
+      items,
+      { internal: true },
+    )) ?? {};
+
+  for (const [id, m] of entries) {
+    const slice = data[id] ?? { calls: [], results: [] };
+    (
+      m as { __applyCalls?: (d: { calls: unknown[][]; results?: Array<{ type: string; value: unknown }> }) => void }
+    ).__applyCalls?.(slice);
+  }
+}
+
+/**
+ * Walk every registered browser-mode mock through a single browser.execute()
+ * round-trip against window.__wdio_mocks__. Raw call data is run through
+ * the interceptor's parseCallData() per mock to reconstruct Error markers,
+ * then handed to __applyCalls.
+ */
+async function batchUpdateBrowserModeMocks(
+  browser: WebdriverIO.Browser,
+  entries: Array<[string, ElectronMock]>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const ids = entries.map(([id]) => id);
+  const channels = entries.map(([, m]) => {
+    const acc = (m as { __accessor: ElectronMockReadAccessor }).__accessor;
+    return acc.kind === 'browser' ? acc.channel : '';
+  });
+
+  const script = `(function() {
+  var ids = ${JSON.stringify(ids)};
+  var channels = ${JSON.stringify(channels)};
+  var out = {};
+  var errorReplacer = function(_k, v) {
+    if (v instanceof Error) {
+      return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
+    }
+    return v;
+  };
+  for (var i = 0; i < channels.length; i++) {
+    var mockObj = window.__wdio_mocks__ && window.__wdio_mocks__[channels[i]];
+    if (!mockObj || !mockObj.mock) {
+      out[ids[i]] = { calls: [], results: [], invocationCallOrder: [] };
+      continue;
+    }
+    var m = mockObj.mock;
+    out[ids[i]] = {
+      calls: JSON.parse(JSON.stringify(m.calls || [], errorReplacer)),
+      results: JSON.parse(JSON.stringify(m.results || [], errorReplacer)),
+      invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
+    };
+  }
+  return out;
+})()`;
+  const raw = (await browser.execute(`return ${script}`)) as Record<string, unknown> | null;
+  const data = raw && typeof raw === 'object' ? raw : {};
+
+  for (const [id, m] of entries) {
+    const parsed = browserInterceptor.parseCallData(data[id]);
+    (
+      m as {
+        __applyCalls?: (d: {
+          calls: unknown[][];
+          results?: Array<{ type: string; value: unknown }>;
+          invocationCallOrder?: number[];
+        }) => void;
+      }
+    ).__applyCalls?.(parsed);
   }
 }
 
