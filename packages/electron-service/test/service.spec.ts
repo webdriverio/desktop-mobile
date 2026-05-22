@@ -333,6 +333,55 @@ describe('Electron Worker Service', () => {
       expect(mockC.__applyCalls).toHaveBeenCalledTimes(1);
     });
 
+    it('should isolate per-reader failures in the browser-mode batch', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const keyA = browserModeStoreKey(browser, 'ipc-a');
+      const keyB = browserModeStoreKey(browser, 'ipc-b');
+      const mockA = {
+        __accessor: { kind: 'browser', channel: 'ipc-a' },
+        __applyCalls: vi.fn(),
+      };
+      const mockB = {
+        __accessor: { kind: 'browser', channel: 'ipc-b' },
+        __applyCalls: vi.fn(),
+      };
+
+      // Simulate the inner wrapper's per-reader try/catch: ipc-a returns real
+      // data while ipc-b's reader threw. The healthy mock should still apply
+      // its slice, and the failing one should still receive a slice (empty +
+      // __error stripped by parseCallData) so the scheduler doesn't stall.
+      const browserExecute = browser.execute as unknown as ReturnType<typeof vi.fn>;
+      browserExecute.mockReset();
+      browserExecute.mockResolvedValue({
+        [keyA]: { calls: [['x']], results: [{ type: 'return', value: undefined }], invocationCallOrder: [1] },
+        [keyB]: { calls: [], results: [], invocationCallOrder: [], __error: 'reader threw' },
+      });
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      storeModule.default.getMocks.mockReturnValueOnce([
+        [keyA, mockA],
+        [keyB, mockB],
+      ]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      await overrideFn.call({} as unknown as WebdriverIO.Element, vi.fn().mockResolvedValue('ok'));
+
+      // Healthy mock still receives its data — one bad reader doesn't tank the batch.
+      expect(mockA.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockA.__applyCalls.mock.calls[0][0]).toMatchObject({ calls: [['x']] });
+      // Failing mock still gets a call (with empty calls from parseCallData) so the
+      // scheduler completes cleanly.
+      expect(mockB.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockB.__applyCalls.mock.calls[0][0]).toMatchObject({ calls: [] });
+    });
+
     it('should propagate per-mock __error markers from native batch to __applyCalls', async () => {
       instance = new ElectronWorkerService({}, {});
       await instance.before({}, [], browser);

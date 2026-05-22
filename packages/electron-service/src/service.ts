@@ -261,9 +261,21 @@ async function batchUpdateBrowserModeMocks(
     (innerIds: string[], innerScripts: string[]) => {
       const out: Record<string, unknown> = {};
       for (let i = 0; i < innerScripts.length; i++) {
-        // biome-ignore lint/security/noGlobalEval: interceptor-built script wrapper
-        const reader = new Function(`return (${innerScripts[i]});`)() as (...a: unknown[]) => unknown;
-        out[innerIds[i]] = reader();
+        try {
+          // biome-ignore lint/security/noGlobalEval: interceptor-built script wrapper
+          const reader = new Function(`return (${innerScripts[i]});`)() as (...a: unknown[]) => unknown;
+          out[innerIds[i]] = reader();
+        } catch (e) {
+          // Isolate per-reader failures so one bad channel doesn't tank the
+          // whole batch — mirrors batchUpdateNativeMocks. The outer loop
+          // surfaces __error via log.warn before forwarding to __applyCalls.
+          out[innerIds[i]] = {
+            calls: [],
+            results: [],
+            invocationCallOrder: [],
+            __error: e instanceof Error ? e.message : String(e),
+          };
+        }
       }
       return out;
     },
@@ -273,7 +285,11 @@ async function batchUpdateBrowserModeMocks(
   const data = raw && typeof raw === 'object' ? raw : {};
 
   for (const [id, m] of entries) {
-    const parsed = browserInterceptor.parseCallData(data[id]);
+    const slice = data[id] as { __error?: string } | undefined;
+    if (slice?.__error) {
+      log.warn(`Browser-mode batch read failed for mock "${id}": ${slice.__error}`);
+    }
+    const parsed = browserInterceptor.parseCallData(slice ?? null);
     (
       m as {
         __applyCalls?: (d: {
