@@ -333,6 +333,41 @@ describe('Electron Worker Service', () => {
       expect(mockC.__applyCalls).toHaveBeenCalledTimes(1);
     });
 
+    it('should propagate per-mock __error markers from native batch to __applyCalls', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const executeMock = vi.mocked(await import('../src/commands/executeCdp.js')).execute;
+      executeMock.mockClear();
+      // Simulate the inner script catching a per-mock failure and emitting
+      // an __error marker. The outer code log.warns it and still forwards the
+      // slice to __applyCalls so the scheduler doesn't stall — empty calls
+      // reaching the outer mock are the observable signal that the read failed.
+      executeMock.mockResolvedValue({
+        'electron.app.getName': { calls: [], results: [], __error: 'boom: app undefined' },
+      });
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockObj = {
+        __accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+        __applyCalls: vi.fn(),
+      };
+      storeModule.default.getMocks.mockReturnValueOnce([['electron.app.getName', mockObj]]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      await overrideFn.call({} as unknown as WebdriverIO.Element, vi.fn().mockResolvedValue('ok'));
+
+      expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockObj.__applyCalls).toHaveBeenCalledWith(
+        expect.objectContaining({ calls: [], __error: 'boom: app undefined' }),
+      );
+    });
+
     it('should batch updates for ≥2 browser-mode mocks into a single browser.execute call', async () => {
       instance = new ElectronWorkerService({}, {});
       await instance.before({}, [], browser);

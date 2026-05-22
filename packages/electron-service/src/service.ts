@@ -165,13 +165,19 @@ async function batchUpdateNativeMocks(
     (m as { __accessor: ElectronMockReadAccessor }).__accessor,
   ]);
 
+  type NativeSlice = {
+    calls: unknown[][];
+    results: Array<{ type: string; value: unknown }>;
+    __error?: string;
+  };
+
   const data =
     (await browser.electron.execute<
-      Record<string, { calls: unknown[][]; results: Array<{ type: string; value: unknown }> }>,
+      Record<string, NativeSlice>,
       [Array<[string, ElectronMockReadAccessor]>, ExecuteOpts]
     >(
       (electron, items) => {
-        const out: Record<string, { calls: unknown[][]; results: Array<{ type: string; value: unknown }> }> = {};
+        const out: Record<string, NativeSlice> = {};
         for (const item of items) {
           const id = item[0];
           const acc = item[1];
@@ -205,8 +211,10 @@ async function batchUpdateNativeMocks(
             } else {
               out[id] = { calls: [], results: [] };
             }
-          } catch (_e) {
-            out[id] = { calls: [], results: [] };
+          } catch (e) {
+            // Surface the error to the WDIO worker — empty calls would
+            // otherwise let assertions pass vacuously.
+            out[id] = { calls: [], results: [], __error: e instanceof Error ? e.message : String(e) };
           }
         }
         return out;
@@ -217,6 +225,9 @@ async function batchUpdateNativeMocks(
 
   for (const [id, m] of entries) {
     const slice = data[id] ?? { calls: [], results: [] };
+    if (slice.__error) {
+      log.warn(`Native batch read failed for mock "${id}": ${slice.__error}`);
+    }
     (
       m as { __applyCalls?: (d: { calls: unknown[][]; results?: Array<{ type: string; value: unknown }> }) => void }
     ).__applyCalls?.(slice);
@@ -225,9 +236,12 @@ async function batchUpdateNativeMocks(
 
 /**
  * Walk every registered browser-mode mock through a single browser.execute()
- * round-trip against window.__wdio_mocks__. Raw call data is run through
- * the interceptor's parseCallData() per mock to reconstruct Error markers,
- * then handed to __applyCalls.
+ * round-trip against window.__wdio_mocks__. Each channel's read script is
+ * built by the interceptor (same serialisation contract as per-mock update()),
+ * then the batch wrapper invokes them inside one round-trip. Ids and scripts
+ * are passed as WebDriver args so null-byte mockStore keys don't ride a
+ * source-string boundary. Raw payloads run through parseCallData() per mock
+ * to reconstruct Error markers, then go to __applyCalls.
  */
 async function batchUpdateBrowserModeMocks(
   browser: WebdriverIO.Browser,
@@ -239,33 +253,23 @@ async function batchUpdateBrowserModeMocks(
     const acc = (m as { __accessor: ElectronMockReadAccessor }).__accessor;
     return acc.kind === 'browser' ? acc.channel : '';
   });
+  // One script per channel — same source the per-mock update() path uses, so
+  // both paths share a single Error-serialisation contract.
+  const perChannelScripts = channels.map((ch) => browserInterceptor.buildCallDataReadScript(ch));
 
-  const script = `(function() {
-  var ids = ${JSON.stringify(ids)};
-  var channels = ${JSON.stringify(channels)};
-  var out = {};
-  var errorReplacer = function(_k, v) {
-    if (v instanceof Error) {
-      return { __wdioError: true, name: v.name, message: v.message, stack: v.stack };
-    }
-    return v;
-  };
-  for (var i = 0; i < channels.length; i++) {
-    var mockObj = window.__wdio_mocks__ && window.__wdio_mocks__[channels[i]];
-    if (!mockObj || !mockObj.mock) {
-      out[ids[i]] = { calls: [], results: [], invocationCallOrder: [] };
-      continue;
-    }
-    var m = mockObj.mock;
-    out[ids[i]] = {
-      calls: JSON.parse(JSON.stringify(m.calls || [], errorReplacer)),
-      results: JSON.parse(JSON.stringify(m.results || [], errorReplacer)),
-      invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
-    };
-  }
-  return out;
-})()`;
-  const raw = (await browser.execute(`return ${script}`)) as Record<string, unknown> | null;
+  const raw = (await browser.execute(
+    (innerIds: string[], innerScripts: string[]) => {
+      const out: Record<string, unknown> = {};
+      for (let i = 0; i < innerScripts.length; i++) {
+        // biome-ignore lint/security/noGlobalEval: interceptor-built script wrapper
+        const reader = new Function(`return (${innerScripts[i]});`)() as (...a: unknown[]) => unknown;
+        out[innerIds[i]] = reader();
+      }
+      return out;
+    },
+    ids,
+    perChannelScripts,
+  )) as Record<string, unknown> | null;
   const data = raw && typeof raw === 'object' ? raw : {};
 
   for (const [id, m] of entries) {
