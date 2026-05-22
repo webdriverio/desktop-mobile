@@ -11,6 +11,9 @@ const log = createLogger('tauri-service', 'service');
 
 // Store launcher instances for cleanup (WeakMap for automatic GC if cleanup() not called)
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, TauriLaunchService>();
+// Paired with activeLaunchers so cleanup() can drive the worker-service teardown
+// (mock store + window state) that WDIO's standalone path never invokes itself.
+const activeServices = new WeakMap<WebdriverIO.Browser, TauriWorkerService>();
 
 async function checkDriverHealth(hostname: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
@@ -117,6 +120,11 @@ export async function init(
 
   log.debug(`Starting remote session with startTimeout=${startTimeout}ms`);
 
+  // Minimal Testrunner-shaped config used to call launcher.onComplete during
+  // standalone teardown. The launcher's onComplete only reads .capabilities,
+  // so the shape is intentionally bare.
+  const minimalConfig = { capabilities: [] } as unknown as Options.Testrunner;
+
   // Initialize session - connection info must be at top level, not in capabilities
   // Use extended timeouts for native desktop apps which may take longer to start
   const browser = await remote({
@@ -125,9 +133,15 @@ export async function init(
     capabilities: driverCapabilities,
     connectionRetryTimeout: startTimeout * 4,
     connectionRetryCount: 10,
-  }).catch((error: Error) => {
+  }).catch(async (error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
     log.error(`This may indicate tauri-driver crashed or the app failed to start`);
+    // remote() failure leaves tauri-driver + msedgedriver running because the
+    // caller never sees a browser and can't invoke cleanup(). Tear them down
+    // here before rethrowing so the process doesn't accumulate ghosts.
+    await launcher
+      .onComplete(0, minimalConfig, [])
+      .catch((e: Error) => log.warn(`Failed to stop tauri-driver during remote() cleanup: ${e.message}`));
     throw error;
   });
 
@@ -136,8 +150,22 @@ export async function init(
   // Store launcher for cleanup
   activeLaunchers.set(browser, launcher);
 
-  // Initialize the service
-  await service.before(capabilities, [], browser);
+  // service.before() failure leaves both the open WebDriver session AND
+  // tauri-driver running. Tear both down before rethrowing so the caller
+  // doesn't have to.
+  try {
+    await service.before(capabilities, [], browser);
+  } catch (error) {
+    await browser
+      .deleteSession()
+      .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
+    await launcher
+      .onComplete(0, minimalConfig, [])
+      .catch((e: Error) => log.warn(`Failed to stop tauri-driver during service.before cleanup: ${e.message}`));
+    activeLaunchers.delete(browser);
+    throw error;
+  }
+  activeServices.set(browser, service);
 
   log.debug('Tauri standalone session initialized');
   return browser;
@@ -152,6 +180,27 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
+    // Drive the worker-service teardown (mock store clear, window state) that
+    // standalone init() set up via service.before(). Both calls are wrapped so
+    // a failure doesn't skip the launcher.onComplete that stops tauri-driver.
+    const service = activeServices.get(browser);
+    // after()/afterSession() take WDIO hook args we don't have at the
+    // standalone cleanup site (no test config, no specs). Cast to a no-arg
+    // shape — Tauri's impls ignore their params.
+    const svc = service as unknown as { after?: () => Promise<void>; afterSession?: () => Promise<void> } | undefined;
+    try {
+      await svc?.after?.();
+    } catch (e) {
+      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+    }
+    try {
+      await svc?.afterSession?.();
+    } catch (e) {
+      log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
+    } finally {
+      activeServices.delete(browser);
+    }
+
     // End worker session
     await launcher.onWorkerEnd('standalone');
 
