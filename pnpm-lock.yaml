@@ -677,8 +677,8 @@ importers:
         specifier: ^4.60.4
         version: 4.60.4
       rollup-plugin-node-externals:
-        specifier: ^9.0.1
-        version: 9.0.1(rollup@4.60.4)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0))
+        specifier: ^8.1.2
+        version: 8.1.2(rollup@4.60.4)
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -6447,17 +6447,11 @@ packages:
     resolution: {integrity: sha512-CHhPh+UNHD2GTXNYhPWLnU8ONHdI+5DI+4EYIAOaiD63rHeYlZvyh8P+in5999TTSFgUYuKUAjzRI4mdh/p+2A==}
     engines: {node: '>=8.0'}
 
-  rollup-plugin-node-externals@9.0.1:
-    resolution: {integrity: sha512-Yp91CX1ebDA8s4+BY7bOOdhF8VRR1XAKnSsHeVhYg4DW4MRXPsF4F2FnSsN9ghJgFhHl3L1uyK7A9NA/SF4Zgw==}
-    engines: {node: '>= 24'}
+  rollup-plugin-node-externals@8.1.2:
+    resolution: {integrity: sha512-EuB6/lolkMLK16gvibUjikERq5fCRVIGwD2xue/CrM8D0pz5GXD2V6N8IrgxegwbcUoKkUFI8VYCEEv8MMvgpA==}
+    engines: {node: '>= 21 || ^20.6.0 || ^18.19.0'}
     peerDependencies:
       rollup: ^4.0.0
-      vite: '>=5.0.0'
-    peerDependenciesMeta:
-      rollup:
-        optional: true
-      vite:
-        optional: true
 
   rollup@4.60.1:
     resolution: {integrity: sha512-VmtB2rFU/GroZ4oL8+ZqXgSA38O6GR8KSIvWmEFv63pQ0G6KaBH9s07PO8XTXP4vI+3UJUEypOfjkGfmSBBR0w==}
@@ -13312,10 +13306,9 @@ snapshots:
       sprintf-js: 1.1.3
     optional: true
 
-  rollup-plugin-node-externals@9.0.1(rollup@4.60.4)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0)):
-    optionalDependencies:
+  rollup-plugin-node-externals@8.1.2(rollup@4.60.4):
+    dependencies:
       rollup: 4.60.4
-      vite: 7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.3)(yaml@2.9.0)
 
   rollup@4.60.1:
     dependencies:
