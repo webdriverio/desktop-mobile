@@ -322,29 +322,32 @@ importers:
   fixtures/package-tests/dioxus-app:
     devDependencies:
       '@wdio/cli':
-        specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.0.4)
+        specifier: 9.27.0
+        version: 9.27.0(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.0.4)
       '@wdio/dioxus-service':
         specifier: workspace:*
         version: link:../../../packages/dioxus-service
       '@wdio/globals':
-        specifier: ^9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.0.4))
+        specifier: 9.27.0
+        version: 9.27.0(expect-webdriverio@5.6.5)(webdriverio@9.27.0(puppeteer-core@25.0.4))
       '@wdio/local-runner':
-        specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.0.4))
+        specifier: 9.27.0
+        version: 9.27.0(@wdio/globals@9.27.0)(webdriverio@9.27.0(puppeteer-core@25.0.4))
       '@wdio/mocha-framework':
-        specifier: ^9.27.1
-        version: 9.27.1
+        specifier: 9.27.0
+        version: 9.27.0
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../../../packages/native-types
       '@wdio/spec-reporter':
-        specifier: ^9.27.1
-        version: 9.27.1
+        specifier: 9.27.0
+        version: 9.27.0
       typescript:
         specifier: ^5.0.0
         version: 5.9.3
+      webdriverio:
+        specifier: 9.27.0
+        version: 9.27.0(puppeteer-core@25.0.4)
 
   fixtures/package-tests/electron-builder-app-cjs:
     devDependencies:
@@ -9227,7 +9230,7 @@ snapshots:
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.1
 
   '@npmcli/move-file@2.0.1':
     dependencies:
