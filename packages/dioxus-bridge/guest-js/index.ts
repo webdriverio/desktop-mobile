@@ -124,6 +124,18 @@ declare global {
 if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_RUNNING__) {
   window.__WDIO_EMBEDDED_RUNNING__ = true;
 
+  // Heartbeat — independent of the polling loop. Lives in its own setInterval
+  // so we can tell whether (a) the polling loop died but JS+fetch are still
+  // working, or (b) the whole webview is wedged. Sends a one-shot fire-and-
+  // forget __diag invoke every 2s. Drop once root-cause is found.
+  let __heartbeatTick = 0;
+  setInterval(() => {
+    __heartbeatTick++;
+    void invoke('__diag', `heartbeat #${__heartbeatTick}`).catch(() => {
+      // Intentionally swallow — heartbeat is purely diagnostic.
+    });
+  }, 2000);
+
   void (async function embeddedDriverLoop() {
     while (true) {
       try {

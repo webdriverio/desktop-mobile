@@ -161,6 +161,16 @@ fn register_window_commands(registry: &CommandRegistry) {
 }
 
 fn register_embedded_commands(registry: &CommandRegistry) {
+  // __diag — fire-and-forget diagnostic from guest-js. Used by the heartbeat
+  // setInterval in guest-js/index.ts to prove the webview JS context is
+  // still running even when the polling loop has died. Temporary; remove
+  // once the macOS-ARM CI hang is rooted-out.
+  registry.register("__diag", |args| {
+    let msg = args.as_str().unwrap_or("(no msg)");
+    tracing::warn!(target: "wdio_dioxus_bridge::diag", "{}", msg);
+    Ok(Value::Null)
+  });
+
   // __embedded_poll — non-blocking: returns the next pending eval request or
   // null. Called by the guest-js polling loop every ~10 ms when the embedded
   // driver is active.
