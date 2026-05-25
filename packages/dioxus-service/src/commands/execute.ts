@@ -51,6 +51,12 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
         }
       })
       .join(', ');
+    // The user's function is wrapped in an explicit Promise so any
+    // synchronous throw is converted to a controlled rejection — protects
+    // against WKWebView edge cases where an AsyncFunction body throwing
+    // through an IIFE can leave the eval pipeline in an inconsistent state.
+    // Promise.resolve(...).then(resolve, reject) handles both sync values
+    // and returned promises (incl. those that reject after an await).
     const wrapped = `
       const userFn = (${fnSource});
       const dx = window.__WDIO_DIOXUS__;
@@ -60,7 +66,13 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
           'Did you forget to call wdio_dioxus_bridge::install(config) in your Dioxus main.rs?'
         );
       }
-      return userFn(dx, ${argsLiteral});
+      return new Promise(function (resolve, reject) {
+        try {
+          Promise.resolve(userFn(dx, ${argsLiteral})).then(resolve, reject);
+        } catch (e) {
+          reject(e);
+        }
+      });
     `;
     return (await browser.execute(wrapped)) as ReturnValue;
   }
