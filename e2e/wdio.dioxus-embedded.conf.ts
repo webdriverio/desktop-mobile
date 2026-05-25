@@ -49,6 +49,10 @@ switch (testType) {
 type DioxusCapability = {
   browserName?: 'dioxus';
   'wdio:enforceWebDriverClassic'?: boolean;
+  // DIAGNOSTIC (revert when macOS-ARM polling-loop hang is rooted out):
+  // shrinks the embedded driver's per-session script_timeout so a hung
+  // executeScript fails in 5s instead of the 30s default.
+  timeouts?: { script?: number; pageLoad?: number; implicit?: number };
   'dioxus:options': {
     application: string;
     args?: string[];
@@ -86,6 +90,7 @@ if (testType === 'multiremote') {
       capabilities: {
         browserName: 'dioxus',
         'wdio:enforceWebDriverClassic': true,
+        timeouts: { script: 5000 },
         'dioxus:options': {
           application: appBinaryPath,
           args: ['--browser=A'],
@@ -108,6 +113,7 @@ if (testType === 'multiremote') {
       capabilities: {
         browserName: 'dioxus',
         'wdio:enforceWebDriverClassic': true,
+        timeouts: { script: 5000 },
         'dioxus:options': {
           application: appBinaryPath,
           args: ['--browser=B'],
@@ -132,6 +138,7 @@ if (testType === 'multiremote') {
     {
       browserName: 'dioxus',
       'wdio:enforceWebDriverClassic': true,
+      timeouts: { script: 5000 },
       'dioxus:options': {
         application: appBinaryPath,
         args: ['foo', 'bar=baz'],
@@ -159,11 +166,18 @@ export const config = {
   maxInstances,
   capabilities,
   logLevel: 'info',
-  bail: 0,
+  // DIAGNOSTIC (root-causing macOS-ARM polling-loop death — revert when fixed):
+  //   bail:1 → stop after first spec failure so we don't wait 60+ min
+  //     watching the cascade.
+  //   connectionRetryCount:0 → disable WDIO's 3-retry on failed commands.
+  //     A hung executeScript no longer eats 30s × 3; fails in one 30s window.
+  //   mochaOpts.timeout:30000 → match the script_timeout window so the
+  //     mocha test doesn't wait an extra 90s after the script gives up.
+  bail: 1,
   baseUrl: '',
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
-  connectionRetryCount: 3,
+  connectionRetryCount: 0,
   autoXvfb: false,
   services: [
     [
@@ -178,7 +192,7 @@ export const config = {
   reporters: ['spec'],
   mochaOpts: {
     ui: 'bdd',
-    timeout: 120000,
+    timeout: 30000,
   },
   outputDir: logDir,
 };
