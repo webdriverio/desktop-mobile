@@ -150,7 +150,14 @@ if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_R
           }
           try {
             await invoke('__embedded_result', { id: cmd.id, result: result ?? null, error });
-          } catch {
+          } catch (e) {
+            // Diagnostic: capture *why* result delivery failed so the
+            // backend log can show the actual error (not just that retry kicked in).
+            console.warn(
+              '[wdio-dioxus-bridge result-deliver-err]',
+              cmd.id,
+              e instanceof Error ? `${e.name}: ${e.message}` : String(e),
+            );
             // Result delivery failed (e.g. IPC teardown during navigation).
             // Attempt once more with an error marker so the Axum oneshot
             // sender is resolved rather than leaking until script timeout.
@@ -167,8 +174,12 @@ if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_R
         } else {
           await new Promise<void>((r) => setTimeout(r, 10));
         }
-      } catch {
-        // Bridge not yet ready or IPC error — back off and retry.
+      } catch (e) {
+        // Diagnostic: the silent catch was hiding a deterministic throw on
+        // macOS-ARM CI after a script that rejects via invoke(). console.warn
+        // is wrapped to call invoke('log_frontend') fire-and-forget, so the
+        // error string lands in captured backend logs.
+        console.warn('[wdio-dioxus-bridge poll-loop]', e instanceof Error ? `${e.name}: ${e.message}` : String(e));
         await new Promise<void>((r) => setTimeout(r, 100));
       }
     }
