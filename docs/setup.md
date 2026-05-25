@@ -6,10 +6,15 @@ This guide will help you set up the WebdriverIO Desktop & Mobile monorepo for de
 
 Before you begin, ensure you have the following installed:
 
-- **Node.js**: Version 24 LTS
+- **Node.js**: Version 24 LTS (for development on this repository)
   ```bash
   node --version  # Should be v24.x
   ```
+
+  > This is the contributor toolchain requirement. End users of the
+  > published packages only need a Node version that works with the
+  > parent webdriverio — see
+  > [CONTRIBUTING.md → Node version support](../CONTRIBUTING.md#node-version-support).
 
 - **pnpm**: Version 10.27.0 or higher
   ```bash

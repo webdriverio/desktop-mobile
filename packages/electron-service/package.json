@@ -25,7 +25,7 @@
     ]
   },
   "engines": {
-    "node": "^20.19.0 || >=22.12.0"
+    "node": ">=18.20.0"
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
@@ -61,7 +61,7 @@
   "dependencies": {
     "@babel/parser": "^7.29.3",
     "@electron/fuses": "^2.1.0",
-    "@electron/packager": "^20.0.0",
+    "@electron/packager": "^18.4.4",
     "@wdio/electron-cdp-bridge": "workspace:*",
     "@wdio/globals": "catalog:default",
     "@wdio/logger": "catalog:default",
@@ -75,7 +75,7 @@
     "fast-copy": "^4.0.2",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
-    "puppeteer-core": "^25.0.4",
+    "puppeteer-core": "^24.41.0",
     "recast": "^0.23.9",
     "webdriverio": "catalog:default",
     "yaml": "^2.9.0"

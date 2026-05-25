@@ -23,6 +23,14 @@ allowBuilds:
   esbuild: true
   geckodriver: false
 blockExoticSubdeps: false
+# Pin puppeteer-core to the v24 line that still supports Node 18 (matches
+# the shipped engines field of @wdio/electron-service). Without this override
+# pnpm hoists v25 to satisfy webdriverio's puppeteer-core peerDep range
+# `>=22.x || <=24.x` — the OR makes it effectively unconstrained, so pnpm
+# happily picks v25 (which requires Node 22.12+). Drop this override when
+# we move to WDIO v10 and bump our engines past Node 18.
+overrides:
+  puppeteer-core: ^24.41.0
 catalogs:
   default:
     '@wdio/cli': ^9.27.1

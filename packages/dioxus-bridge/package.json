@@ -37,7 +37,7 @@
   "author": "WebdriverIO Community",
   "license": "MIT",
   "engines": {
-    "node": "^18.12.0 || ^20.9.0 || >=22.11.0"
+    "node": ">=18.20.0"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
