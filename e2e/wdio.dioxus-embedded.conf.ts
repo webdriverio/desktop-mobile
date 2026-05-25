@@ -40,7 +40,23 @@ switch (testType) {
     maxInstances = 1;
     break;
   default:
-    specs = ['./test/dioxus/*.spec.ts'];
+    // DIAGNOSTIC: api.spec.ts moved to last. On main + this branch's CI,
+    // api.spec.ts is the only spec that passes on macOS-ARM (it runs first
+    // alphabetically). If the failure is positional (every spec after the
+    // first hangs) api.spec.ts will now also fail and application.spec.ts
+    // (now first) will pass. If api.spec.ts still passes here, it's
+    // spec-content-specific and we move to option 1 (dep bisection).
+    // Revert to glob `'./test/dioxus/*.spec.ts'` once diagnosed.
+    specs = [
+      './test/dioxus/application.spec.ts',
+      './test/dioxus/execute-advanced.spec.ts',
+      './test/dioxus/execute-data-types.spec.ts',
+      './test/dioxus/logging.embedded.spec.ts',
+      './test/dioxus/logging.spec.ts',
+      './test/dioxus/mocking.spec.ts',
+      './test/dioxus/visual.spec.ts',
+      './test/dioxus/api.spec.ts',
+    ];
     maxInstances = 1;
     exclude = ['./test/dioxus/window.spec.ts', './test/dioxus/deeplink.spec.ts'];
     break;
