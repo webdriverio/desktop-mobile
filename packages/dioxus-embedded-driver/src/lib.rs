@@ -30,6 +30,11 @@ pub mod webdriver;
 
 use dioxus_desktop::Config;
 
+/// Re-export the bridge's `automation` module so apps using only
+/// `wdio-dioxus-embedded-driver` can gate code on the WDIO automation
+/// env var without adding a separate dep on `wdio-dioxus-bridge`.
+pub use wdio_dioxus_bridge::automation;
+
 /// Default port for the embedded WebDriver HTTP server.
 pub const DEFAULT_PORT: u16 = 4444;
 

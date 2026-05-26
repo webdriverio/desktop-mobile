@@ -17,6 +17,15 @@ fn main() {
 
     #[cfg(debug_assertions)]
     {
+        // Under WDIO automation on macOS, disable WKWebView background
+        // throttling so the embedded driver's polling loop survives spec
+        // boundaries on headless CI hosts. Requires patched dioxus-desktop
+        // (see Cargo.toml `[patch.crates-io]`) until upstream PR lands.
+        if wdio_dioxus_embedded_driver::automation::is_requested() {
+            config = config.with_background_throttling(
+                dioxus::desktop::wry::BackgroundThrottlingPolicy::Disabled,
+            );
+        }
         config = wdio_dioxus_embedded_driver::install_with_commands(config, |registry| {
             registry.register("get_platform_info", |_args| {
                 Ok(json!({

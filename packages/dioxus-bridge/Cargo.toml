@@ -36,11 +36,3 @@ default = []
 # `default = []` so callers explicitly opt in via `with-bridge`. Mirrors the
 # `#[cfg(debug_assertions)]` discipline documented in plugin-setup.md.
 with-bridge = []
-# Opt-in compile-time gate for the WKWebView background-throttling fix. Set
-# when the consuming app patches dioxus-desktop to a version that exposes
-# `Config::with_background_throttling` (currently only the goosewobbler
-# fork on branch `feat/desktop-background-throttling-policy-v0.7.9`).
-# Standalone `cargo check` on this crate doesn't pull the patched
-# dioxus-desktop, so the feature must default to off to keep that build
-# green. Remove when upstream Dioxus ships the API.
-with-background-throttling = []
