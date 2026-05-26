@@ -226,21 +226,6 @@ jobs:
           if ($env:RUNNER_OS -eq "Linux") {
             xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" `
               pnpm run ${{ steps.gen-test.outputs.embedded }}
-          } elseif ($env:RUNNER_OS -eq "macOS") {
-            # DIAGNOSTIC (revert when the macOS-ARM polling-loop freeze is
-            # root-caused): the Dioxus embedded driver runs in-process with
-            # the app's Tokio runtime + webview JS thread, so when macOS App
-            # Nap throttles the host app, both the Axum server AND the
-            # polling loop freeze and never recover. Tauri E2E doesn't hit
-            # this because tauri-driver / WebKitWebDriver runs externally
-            # and keeps the app awake. Two suppressions, belt-and-braces:
-            #   * NSAppSleepDisabled=YES → disables App Nap entirely for the
-            #     child process tree (the most targeted fix for process
-            #     throttling; -u flag alone only lasts 5s without -t).
-            #   * caffeinate -dims → prevents display/idle/disk/system sleep
-            #     for the lifetime of the spawned pnpm command.
-            $env:NSAppSleepDisabled = 'YES'
-            caffeinate -dims -- pnpm run ${{ steps.gen-test.outputs.embedded }}
           } else {
             pnpm run ${{ steps.gen-test.outputs.embedded }}
           }

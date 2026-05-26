@@ -127,14 +127,7 @@ pub fn handle_invoke_request(
 
   let parsed: Result<InvokeRequestBody, _> = serde_json::from_slice(request.body());
   let body = match parsed {
-    Ok(req) => {
-      // Trace every invoke command name so CI artifact logs reveal exactly
-      // where the polling loop stalls when scripts time out on macOS-ARM.
-      // Cheap (one tracing call per HTTP request, no allocation in the
-      // hot path beyond the existing dispatch).
-      tracing::debug!(target: "wdio_dioxus_bridge::invoke", command = %req.command, "invoke");
-      registry.dispatch(&req.command, req.args)
-    }
+    Ok(req) => registry.dispatch(&req.command, req.args),
     Err(err) => InvokeResponseBody::malformed(format!("invalid JSON request: {err}")),
   };
 

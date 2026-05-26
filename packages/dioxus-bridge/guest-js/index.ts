@@ -124,18 +124,6 @@ declare global {
 if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_RUNNING__) {
   window.__WDIO_EMBEDDED_RUNNING__ = true;
 
-  // Heartbeat — independent of the polling loop. Lives in its own setInterval
-  // so we can tell whether (a) the polling loop died but JS+fetch are still
-  // working, or (b) the whole webview is wedged. Sends a one-shot fire-and-
-  // forget __diag invoke every 2s. Drop once root-cause is found.
-  let __heartbeatTick = 0;
-  setInterval(() => {
-    __heartbeatTick++;
-    void invoke('__diag', `heartbeat #${__heartbeatTick}`).catch(() => {
-      // Intentionally swallow — heartbeat is purely diagnostic.
-    });
-  }, 2000);
-
   void (async function embeddedDriverLoop() {
     while (true) {
       try {
@@ -162,14 +150,7 @@ if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_R
           }
           try {
             await invoke('__embedded_result', { id: cmd.id, result: result ?? null, error });
-          } catch (e) {
-            // Diagnostic: capture *why* result delivery failed so the
-            // backend log can show the actual error (not just that retry kicked in).
-            console.warn(
-              '[wdio-dioxus-bridge result-deliver-err]',
-              cmd.id,
-              e instanceof Error ? `${e.name}: ${e.message}` : String(e),
-            );
+          } catch {
             // Result delivery failed (e.g. IPC teardown during navigation).
             // Attempt once more with an error marker so the Axum oneshot
             // sender is resolved rather than leaking until script timeout.
@@ -180,18 +161,14 @@ if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_R
                 error: 'IPC error during result delivery',
               });
             } catch {
-              console.warn('[wdio-dioxus-bridge] dropped command', cmd.id, '— IPC unavailable');
+              // IPC unavailable — drop the command; the Axum-side script
+              // timeout will surface the failure to WebDriver.
             }
           }
         } else {
           await new Promise<void>((r) => setTimeout(r, 10));
         }
-      } catch (e) {
-        // Diagnostic: the silent catch was hiding a deterministic throw on
-        // macOS-ARM CI after a script that rejects via invoke(). console.warn
-        // is wrapped to call invoke('log_frontend') fire-and-forget, so the
-        // error string lands in captured backend logs.
-        console.warn('[wdio-dioxus-bridge poll-loop]', e instanceof Error ? `${e.name}: ${e.message}` : String(e));
+      } catch {
         await new Promise<void>((r) => setTimeout(r, 100));
       }
     }

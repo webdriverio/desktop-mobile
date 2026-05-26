@@ -139,9 +139,7 @@ fn install_with_registry_and_config(
     ),
   };
 
-  // `mut` is conditional on the with-background-throttling feature below.
-  #[allow(unused_mut)]
-  let mut config = config
+  config
     .with_custom_protocol("wdio".to_string(), move |_webview_id, request| {
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
@@ -149,25 +147,7 @@ fn install_with_registry_and_config(
     .with_on_window(|window, _dom| {
       let label = window_state::register_window(&window);
       tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
-    });
-
-  // Under automation, ask wry to disable WKWebView background throttling. The
-  // WebContent process otherwise gets suspended on a headless host (no visible
-  // window, no user input), freezing the embedded driver's JS polling loop at
-  // every spec boundary. End-user apps are unaffected because they don't set
-  // DIOXUS_WEBVIEW_AUTOMATION; only the @wdio/dioxus-service launcher sets it.
-  //
-  // Gated on the `with-background-throttling` Cargo feature because the
-  // `Config::with_background_throttling` method only exists in our forked
-  // dioxus-desktop (and in upstream once the PR lands). Standalone `cargo
-  // check` on this crate uses the published dioxus-desktop, which doesn't
-  // have the method — so the gate keeps that build green.
-  #[cfg(feature = "with-background-throttling")]
-  if automation::is_requested() {
-    config = config.with_background_throttling(dioxus_desktop::wry::BackgroundThrottlingPolicy::Disabled);
-  }
-
-  config
+    })
 }
 
 fn register_window_commands(registry: &CommandRegistry) {
@@ -181,16 +161,6 @@ fn register_window_commands(registry: &CommandRegistry) {
 }
 
 fn register_embedded_commands(registry: &CommandRegistry) {
-  // __diag — fire-and-forget diagnostic from guest-js. Used by the heartbeat
-  // setInterval in guest-js/index.ts to prove the webview JS context is
-  // still running even when the polling loop has died. Temporary; remove
-  // once the macOS-ARM CI hang is rooted-out.
-  registry.register("__diag", |args| {
-    let msg = args.as_str().unwrap_or("(no msg)");
-    tracing::warn!(target: "wdio_dioxus_bridge::diag", "{}", msg);
-    Ok(Value::Null)
-  });
-
   // __embedded_poll — non-blocking: returns the next pending eval request or
   // null. Called by the guest-js polling loop every ~10 ms when the embedded
   // driver is active.
