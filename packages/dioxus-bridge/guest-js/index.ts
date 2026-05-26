@@ -129,35 +129,34 @@ if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_R
   // visible/focused — which is always the case on a headless CI runner. The
   // suspension freezes the polling loop, breaking the embedded driver flow.
   //
-  // Starting a silent AudioContext oscillator keeps the page classified as
-  // "playing media" in WebKit's eyes, which exempts it from background
-  // throttling. Zero audible output (gain 0). Gated on __WDIO_EMBEDDED_PORT
-  // so end-user apps without the embedded driver never run this. Replace
-  // with `Config::with_background_throttling(Disabled)` once Dioxus exposes
-  // the wry API (https://github.com/DioxusLabs/dioxus — upstream PR pending).
+  // We use a muted, looping HTMLAudioElement to keep the page classified as
+  // "playing media" in WebKit's eyes — which exempts it from background
+  // throttling. AudioContext was tried first but WebKit's autoplay policy
+  // leaves it in `suspended` state without a user gesture, so the throttling
+  // exemption isn't granted. Muted HTMLMediaElement autoplay is more
+  // permissive in WKWebView. Gated on __WDIO_EMBEDDED_PORT so end-user apps
+  // without the embedded driver never run this. Replace with
+  // `Config::with_background_throttling(Disabled)` once Dioxus exposes the
+  // wry API (https://github.com/DioxusLabs/dioxus — upstream PR pending).
   try {
-    const Ctx =
-      (window as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
-      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
-    if (Ctx) {
-      const ctx = new Ctx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      gain.gain.value = 0;
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      // If the autoplay policy left the context suspended, try to resume.
-      // resume() on a fresh context with no user gesture may reject in some
-      // configs — we swallow because the oscillator still ties up the
-      // hardware-output graph, which is enough to defeat throttling.
-      if (ctx.state === 'suspended') {
-        void ctx.resume().catch(() => {});
-      }
-      void invoke('__diag', `audio-keepalive started (state=${ctx.state})`).catch(() => {});
-    } else {
-      void invoke('__diag', 'audio-keepalive skipped (no AudioContext)').catch(() => {});
-    }
+    // 0.1s silent mono 8kHz WAV — smallest valid file we can autoplay-loop.
+    const SILENT_WAV =
+      'data:audio/wav;base64,UklGRkAAAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YR' +
+      'wAAACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgIA=';
+    const audio = new Audio(SILENT_WAV);
+    audio.loop = true;
+    audio.muted = true;
+    audio.volume = 0;
+    audio
+      .play()
+      .then(() => {
+        void invoke('__diag', `audio-keepalive started (playing=${!audio.paused}, muted=${audio.muted})`).catch(
+          () => {},
+        );
+      })
+      .catch((e: Error) => {
+        void invoke('__diag', `audio-keepalive play() rejected: ${e.name}: ${e.message}`).catch(() => {});
+      });
   } catch (e) {
     void invoke(
       '__diag',
