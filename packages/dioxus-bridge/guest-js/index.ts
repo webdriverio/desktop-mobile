@@ -124,6 +124,47 @@ declare global {
 if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_RUNNING__) {
   window.__WDIO_EMBEDDED_RUNNING__ = true;
 
+  // WKWebView background-throttling workaround. On macOS, WebKit suspends the
+  // WebContent process (where this JS lives) when the host window isn't
+  // visible/focused — which is always the case on a headless CI runner. The
+  // suspension freezes the polling loop, breaking the embedded driver flow.
+  //
+  // Starting a silent AudioContext oscillator keeps the page classified as
+  // "playing media" in WebKit's eyes, which exempts it from background
+  // throttling. Zero audible output (gain 0). Gated on __WDIO_EMBEDDED_PORT
+  // so end-user apps without the embedded driver never run this. Replace
+  // with `Config::with_background_throttling(Disabled)` once Dioxus exposes
+  // the wry API (https://github.com/DioxusLabs/dioxus — upstream PR pending).
+  try {
+    const Ctx =
+      (window as unknown as { AudioContext?: typeof AudioContext }).AudioContext ??
+      (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext;
+    if (Ctx) {
+      const ctx = new Ctx();
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      gain.gain.value = 0;
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start();
+      // If the autoplay policy left the context suspended, try to resume.
+      // resume() on a fresh context with no user gesture may reject in some
+      // configs — we swallow because the oscillator still ties up the
+      // hardware-output graph, which is enough to defeat throttling.
+      if (ctx.state === 'suspended') {
+        void ctx.resume().catch(() => {});
+      }
+      void invoke('__diag', `audio-keepalive started (state=${ctx.state})`).catch(() => {});
+    } else {
+      void invoke('__diag', 'audio-keepalive skipped (no AudioContext)').catch(() => {});
+    }
+  } catch (e) {
+    void invoke(
+      '__diag',
+      `audio-keepalive failed: ${e instanceof Error ? `${e.name}: ${e.message}` : String(e)}`,
+    ).catch(() => {});
+  }
+
   // Heartbeat — independent of the polling loop. Lives in its own setInterval
   // so we can tell whether (a) the polling loop died but JS+fetch are still
   // working, or (b) the whole webview is wedged. Sends a one-shot fire-and-
