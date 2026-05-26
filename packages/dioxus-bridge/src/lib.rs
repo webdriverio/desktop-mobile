@@ -139,6 +139,8 @@ fn install_with_registry_and_config(
     ),
   };
 
+  // `mut` is conditional on the with-background-throttling feature below.
+  #[allow(unused_mut)]
   let mut config = config
     .with_custom_protocol("wdio".to_string(), move |_webview_id, request| {
       invoke::handle_invoke_request(&registry_for_handler, &request)
@@ -154,6 +156,13 @@ fn install_with_registry_and_config(
   // window, no user input), freezing the embedded driver's JS polling loop at
   // every spec boundary. End-user apps are unaffected because they don't set
   // DIOXUS_WEBVIEW_AUTOMATION; only the @wdio/dioxus-service launcher sets it.
+  //
+  // Gated on the `with-background-throttling` Cargo feature because the
+  // `Config::with_background_throttling` method only exists in our forked
+  // dioxus-desktop (and in upstream once the PR lands). Standalone `cargo
+  // check` on this crate uses the published dioxus-desktop, which doesn't
+  // have the method — so the gate keeps that build green.
+  #[cfg(feature = "with-background-throttling")]
   if automation::is_requested() {
     config = config.with_background_throttling(dioxus_desktop::wry::BackgroundThrottlingPolicy::Disabled);
   }

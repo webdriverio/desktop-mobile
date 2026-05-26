@@ -25,3 +25,11 @@ thiserror = "2"
 tokio = { version = "1", features = ["rt-multi-thread", "sync", "net", "time"] }
 tracing = "0.1"
 uuid = { version = "1", features = ["v4"] }
+
+[features]
+default = []
+# Forwards to wdio-dioxus-bridge/with-background-throttling. Binary apps
+# that patch dioxus-desktop to expose `Config::with_background_throttling`
+# enable this on their dep on this crate; the bridge then disables WKWebView
+# throttling under automation. See packages/dioxus-bridge/Cargo.toml.
+with-background-throttling = ["wdio-dioxus-bridge/with-background-throttling"]

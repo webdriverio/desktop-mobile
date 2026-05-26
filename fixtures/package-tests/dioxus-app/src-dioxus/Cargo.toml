@@ -9,7 +9,7 @@ path = "src/main.rs"
 
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] }
-wdio-dioxus-embedded-driver = { path = "../../../../packages/dioxus-embedded-driver" }
+wdio-dioxus-embedded-driver = { path = "../../../../packages/dioxus-embedded-driver", features = ["with-background-throttling"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
