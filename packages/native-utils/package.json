@@ -59,6 +59,7 @@
   "peerDependencies": {
     "tsx": "^4.22.3"
   },
+
   "peerDependenciesMeta": {
     "tsx": {
       "optional": true
