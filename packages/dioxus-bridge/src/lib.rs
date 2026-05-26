@@ -139,7 +139,7 @@ fn install_with_registry_and_config(
     ),
   };
 
-  config
+  let mut config = config
     .with_custom_protocol("wdio".to_string(), move |_webview_id, request| {
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
@@ -147,7 +147,18 @@ fn install_with_registry_and_config(
     .with_on_window(|window, _dom| {
       let label = window_state::register_window(&window);
       tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
-    })
+    });
+
+  // Under automation, ask wry to disable WKWebView background throttling. The
+  // WebContent process otherwise gets suspended on a headless host (no visible
+  // window, no user input), freezing the embedded driver's JS polling loop at
+  // every spec boundary. End-user apps are unaffected because they don't set
+  // DIOXUS_WEBVIEW_AUTOMATION; only the @wdio/dioxus-service launcher sets it.
+  if automation::is_requested() {
+    config = config.with_background_throttling(dioxus_desktop::wry::BackgroundThrottlingPolicy::Disabled);
+  }
+
+  config
 }
 
 fn register_window_commands(registry: &CommandRegistry) {

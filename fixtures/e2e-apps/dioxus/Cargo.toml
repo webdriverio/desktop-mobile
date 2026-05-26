@@ -14,3 +14,20 @@ serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+
+# Temporary patch until upstream Dioxus releases the matching API.
+# Exposes Config::with_background_throttling so the wdio-dioxus-bridge
+# can disable WKWebView WebContent suspension under automation. Track
+# upstream PR — drop the [patch] block once the published dioxus-desktop
+# version contains the change.
+#
+# We have to patch the whole dioxus family (not just dioxus-desktop)
+# because the meta `dioxus` crate from crates.io brings its own copy of
+# dioxus-core, and Cargo treats `dioxus-core` from crates.io as different
+# from `dioxus-core` referenced from the patched git workspace (even at
+# the same version). Patching the whole family forces a single workspace
+# resolution so the type identities line up.
+[patch.crates-io]
+dioxus = { git = "https://github.com/goosewobbler/dioxus.git", branch = "feat/desktop-background-throttling-policy-v0.7.9" }
+dioxus-core = { git = "https://github.com/goosewobbler/dioxus.git", branch = "feat/desktop-background-throttling-policy-v0.7.9" }
+dioxus-desktop = { git = "https://github.com/goosewobbler/dioxus.git", branch = "feat/desktop-background-throttling-policy-v0.7.9" }
