@@ -10,7 +10,7 @@
     "preview": "electron-vite preview",
     "start": "electron .",
     "clean": "pnpm clean:dist && pnpm dlx shx rm -rf ./node_modules ./wdio-logs",
-    "clean:dist": "pnpm dlx shx rm -rf ./dist && pnpm dlx shx mkdir -p ./dist"
+    "clean:dist": "tsx ../../../scripts/clean-dist.ts ./dist"
   },
   "devDependencies": {
     "@types/node": "^25.9.1",
