@@ -49,6 +49,9 @@ catalogs:
     electron: 41.2.0
     electron-builder: 26.8.1
     '@electron-forge/cli': 7.11.1
+  # Non-default catalogs only need entries for deps whose version differs from
+  # `default`. For anything missing (e.g. `@wdio/xvfb` was never published in
+  # v8), the switch script falls back to `catalog:default` automatically.
   minimum:
     '@wdio/cli': v8
     '@wdio/globals': v8
@@ -57,13 +60,7 @@ catalogs:
     '@wdio/mocha-framework': v8
     '@wdio/spec-reporter': v8
     '@wdio/types': v8
-    '@wdio/xvfb': v8
     electron: 28.3.3
-    # Build tools mirrored from `default` — we don't currently test against
-    # older forge/builder lines, but the entries are needed so the
-    # `pnpm catalog:minimum` switch script doesn't write broken refs.
-    electron-builder: 26.8.1
-    '@electron-forge/cli': 7.11.1
     webdriverio: v8
   next:
     '@wdio/cli': latest
@@ -75,8 +72,5 @@ catalogs:
     '@wdio/types': latest
     '@wdio/xvfb': latest
     electron-nightly: 44.0.0-nightly.20260521
-    # electron-builder has a `next` dist-tag we can track; forge doesn't,
-    # so it stays at the same exact pin as `default`.
     electron-builder: next
-    '@electron-forge/cli': 7.11.1
     webdriverio: latest
