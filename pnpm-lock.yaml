@@ -172,7 +172,7 @@ importers:
         specifier: workspace:*
         version: link:../packages/native-types
       '@wdio/types':
-        specifier: 'catalog:'
+        specifier: catalog:default
         version: 9.27.1
       cross-env:
         specifier: ^10.1.0

@@ -72,7 +72,7 @@
     "@types/node": "^25.9.1",
     "@vitest/spy": "^4.1.7",
     "@wdio/native-types": "workspace:*",
-    "@wdio/types": "catalog:",
+    "@wdio/types": "catalog:default",
     "cross-env": "^10.1.0",
     "p-limit": "^7.3.0",
     "typescript": "^5.9.3",

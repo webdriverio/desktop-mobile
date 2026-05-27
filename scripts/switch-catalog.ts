@@ -60,7 +60,10 @@ for (const line of workspaceLines) {
   }
 
   if (inPackages && line.startsWith('  - ')) {
-    const packagePath = line.trim().replace(/^-\s*['"]|['"]$/g, '');
+    const packagePath = line
+      .trim()
+      .replace(/^-\s*/, '')
+      .replace(/^['"]|['"]$/g, '');
     WORKSPACE_PACKAGES.add(packagePath);
     continue;
   }
@@ -86,9 +89,28 @@ for (const line of workspaceLines) {
   }
 }
 
+// Only handles "dir/*" trailing-glob; the workspace doesn't use anything fancier.
+function expandWorkspacePath(entry: string): string[] {
+  if (!entry.endsWith('/*')) return [entry];
+  const parent = entry.slice(0, -2);
+  const parentAbs = path.join(rootDir, parent);
+  if (!fs.existsSync(parentAbs)) return [];
+  return fs
+    .readdirSync(parentAbs, { withFileTypes: true })
+    .filter((dirent) => dirent.isDirectory())
+    .map((dirent) => `${parent}/${dirent.name}`);
+}
+
+const EXPANDED_PACKAGES = new Set<string>();
+for (const entry of WORKSPACE_PACKAGES) {
+  for (const expanded of expandWorkspacePath(entry)) {
+    EXPANDED_PACKAGES.add(expanded);
+  }
+}
+
 // Convert Sets to arrays and sort for consistent ordering
 const CATALOG_DEPENDENCIES_ARRAY = Array.from(CATALOG_DEPENDENCIES).sort();
-const WORKSPACE_PACKAGES_ARRAY = Array.from(WORKSPACE_PACKAGES).sort();
+const WORKSPACE_PACKAGES_ARRAY = Array.from(EXPANDED_PACKAGES).sort();
 
 // Handle CLI arguments
 const catalogName = process.argv[2]?.toLowerCase() as CatalogName | undefined;
@@ -113,7 +135,10 @@ try {
     const packageJsonPath = path.join(rootDir, packagePath, 'package.json');
 
     if (!fs.existsSync(packageJsonPath)) {
-      console.warn(`Warning: No package.json found in ${packagePath}`);
+      const isRustOnlyPackage = fs.existsSync(path.join(rootDir, packagePath, 'Cargo.toml'));
+      if (!isRustOnlyPackage) {
+        console.warn(`Warning: No package.json found in ${packagePath}`);
+      }
       continue;
     }
 
