@@ -41,7 +41,7 @@ catalogs:
     '@wdio/spec-reporter': ^9.27.1
     '@wdio/types': 9.27.1
     '@wdio/xvfb': ^9.27.1
-    electron: 42.2.0
+    electron: 41.2.0
     webdriverio: ^9.27.1
   minimum:
     '@wdio/cli': ^8.43.0

@@ -21,7 +21,7 @@
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",
     "@wdio/mocha-framework": "catalog:default",
-    "electron": "41.2.0",
+    "electron": "catalog:default",
     "electron-vite": "^5.0.0",
     "typescript": "^5.9.3",
     "webdriverio": "catalog:default"
