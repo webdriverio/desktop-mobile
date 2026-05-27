@@ -12,6 +12,26 @@ inputs:
 runs:
   using: composite
   steps:
+    # Defender real-time scanning intercepts .exe writes during chromedriver
+    # extraction (`@puppeteer/browsers`) and Electron app packaging (Forge /
+    # `@electron/packager`) on Windows runners. The writing tool exits 0 but
+    # the destination directory ends up missing the executable; downstream
+    # checks then fail with "browser folder exists but executable is missing"
+    # (chromedriver) or "Could not find Electron app built with Electron
+    # Forge!" (Forge). Excluding the temp + runner-temp paths and the test
+    # processes addresses both classes of failure at the source.
+    - name: 🛡️ Exclude temp paths from Windows Defender
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        Add-MpPreference -ExclusionPath "$env:TEMP" -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionPath "$env:RUNNER_TEMP" -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE" -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionProcess "node.exe" -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionProcess "electron.exe" -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionProcess "chromedriver.exe" -ErrorAction SilentlyContinue
+        Add-MpPreference -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
+
     - name: 🧰 Setup PNPM Package Manager
       uses: pnpm/action-setup@v6
       with:
