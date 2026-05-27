@@ -102,8 +102,19 @@ Mocks span two process boundaries — an **inner mock** in the app context and a
 - Arrow functions for callbacks
 
 ### Comments
-- No comments unless explicitly requested
-- JSDoc for public APIs only when necessary
+- Default to writing no comments. Add one only when the **why** is
+  non-obvious — a hidden constraint, a subtle invariant, a workaround for a
+  specific bug, behavior that would surprise a reader. If removing the
+  comment wouldn't confuse a future reader, don't write it.
+- Don't restate what the code already says. A descriptive variable or
+  function name removes the need for a comment that describes the same
+  thing in prose.
+- Don't couple comments to details that will drift — specific version
+  numbers, file paths to other code, ticket references, names of commits
+  or PRs. These rot the moment the code or its environment changes. Keep
+  the rationale, drop the citation: `// Forge silently broke packaging in
+  a patch release` rather than `// Forge 7.11.2 silently broke packaging`.
+- JSDoc for public APIs only when necessary.
 
 ## Testing
 

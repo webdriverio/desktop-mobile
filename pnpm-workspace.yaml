@@ -33,8 +33,6 @@ overrides:
   puppeteer-core: ^24.41.0
 catalogs:
   default:
-    # WebdriverIO + @wdio/* pinned exact (no caret). Floating patches have
-    # caused intermittent CI breakages — bump deliberately in a dedicated PR.
     '@wdio/cli': 9.27.1
     '@wdio/globals': 9.27.1
     '@wdio/local-runner': 9.27.1
@@ -44,14 +42,13 @@ catalogs:
     '@wdio/types': 9.27.1
     '@wdio/xvfb': 9.27.1
     webdriverio: 9.27.1
-    # Native runtimes / build tools — pinned exact for the same reason.
-    # Forge 7.11.2 silently broke packaging via a TTY-detection change.
     electron: 41.2.0
     electron-builder: 26.8.1
     '@electron-forge/cli': 7.11.1
   # Non-default catalogs only need entries for deps whose version differs from
-  # `default`. For anything missing (e.g. `@wdio/xvfb` was never published in
-  # v8), the switch script falls back to `catalog:default` automatically.
+  # `default`. The switch script falls back to `catalog:default` for any dep
+  # not listed here (e.g. when an upstream dep is new and has no older
+  # equivalent to put in `minimum`).
   minimum:
     '@wdio/cli': v8
     '@wdio/globals': v8
