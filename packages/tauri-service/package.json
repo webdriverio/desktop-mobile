@@ -6,7 +6,7 @@
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/tauri-service",
   "license": "MIT",
   "engines": {
-    "node": ">=18.20.0"
+    "node": "^18.12.0 || ^20.9.0 || >=22.11.0"
   },
   "main": "./dist/cjs/index.js",
   "module": "./dist/esm/index.js",

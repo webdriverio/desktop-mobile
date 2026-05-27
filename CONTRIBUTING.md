@@ -10,16 +10,13 @@ Please be respectful and constructive in all interactions. We aim to create a we
 
 ### Prerequisites
 
-- Node.js 24 LTS (for development on this repository)
+- Node.js 24 LTS (contributor toolchain — end-user Node range is defined per-package via `engines`)
 - pnpm 10.27.0
 - Git
 
 For Tauri and Dioxus contributions, you also need:
 
 - Rust (stable toolchain via `rustup`)
-
-> End users of the published packages don't need this Node version — see
-> [Node version support](#node-version-support).
 
 ### Setup
 
@@ -131,26 +128,6 @@ Then create a pull request on GitHub with:
 - Description of what changed and why
 - Reference to any related issues
 - Screenshots (if applicable)
-
-## Node version support
-
-Shipped packages' `engines.node` range matches the parent project,
-[webdriverio](https://github.com/webdriverio/webdriverio). End users
-need a Node version that works with webdriverio — the engines field on
-each shipped `package.json` is the source of truth, no extra docs to
-keep in sync.
-
-When webdriverio cuts a new major that drops older Node, we cut a
-matching major of the affected `@wdio/*-service` packages with the
-bumped engines field. The shipped floor doesn't move outside of a
-coordinated major release.
-
-The dev toolchain in this repo may require a newer Node than the shipped
-floor (Node 24 LTS is recommended). End users are unaffected by this.
-
-When adding a runtime `dependency` to a shipped package, check its
-`engines.node` is satisfied by our current shipped range. Dev
-dependencies are unconstrained.
 
 ## Coding Standards
 

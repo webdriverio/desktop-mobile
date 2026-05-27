@@ -116,9 +116,7 @@ desktop-mobile/
 
 ### Requirements
 
-- Node.js 24 LTS for development on this repository (end users of the
-  published packages need a Node version that works with the parent
-  webdriverio — see [Node version support](./CONTRIBUTING.md#node-version-support))
+- Node.js 24 LTS
 - pnpm 10.27.0
 
 ### Setup
