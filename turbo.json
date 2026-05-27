@@ -331,7 +331,8 @@
       "outputs": [
         "dist/**",
         "out/**"
-      ]
+      ],
+      "cache": false
     },
     "electron-script-e2e-app#build": {
       "dependsOn": [
@@ -357,7 +358,8 @@
       "outputs": [
         "dist/**",
         "out/**"
-      ]
+      ],
+      "cache": false
     },
     "tauri-e2e-app#build": {
       "dependsOn": [

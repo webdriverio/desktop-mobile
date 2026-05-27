@@ -67,7 +67,7 @@
   "devDependencies": {
     "@crabnebula/tauri-driver": "^2.0.9",
     "@crabnebula/test-runner-backend": "^0.2.8",
-    "@electron-forge/cli": "7.11.1",
+    "@electron-forge/cli": "catalog:default",
     "@types/mocha": "^10.0.10",
     "@types/node": "^25.9.1",
     "@vitest/spy": "^4.1.7",
