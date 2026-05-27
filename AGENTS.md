@@ -109,11 +109,15 @@ Mocks span two process boundaries — an **inner mock** in the app context and a
 - Don't restate what the code already says. A descriptive variable or
   function name removes the need for a comment that describes the same
   thing in prose.
-- Don't couple comments to details that will drift — specific version
-  numbers, file paths to other code, ticket references, names of commits
-  or PRs. These rot the moment the code or its environment changes. Keep
-  the rationale, drop the citation: `// Forge silently broke packaging in
-  a patch release` rather than `// Forge 7.11.2 silently broke packaging`.
+- Don't couple comments to details that drift without signal — specific
+  version numbers, transient stack traces, "this used to do X". These rot
+  silently as the environment changes. Keep the rationale, drop the
+  citation: `// Forge silently broke packaging in a patch release` rather
+  than `// Forge 7.11.2 silently broke packaging`.
+- **Do** link load-bearing tracking refs — an issue or PR whose resolution
+  removes or rewrites the commented code. These are the opposite of drift:
+  they're an active signal to update. `// Workaround for forge/forge#4219;
+  drop once a fix lands` is useful even years later.
 - JSDoc for public APIs only when necessary.
 
 ## Testing
