@@ -9,20 +9,6 @@ inputs:
 runs:
   using: composite
   steps:
-    # Defender intercepts .exe writes during build/extract; the writing tool
-    # exits 0 but the file ends up missing on disk.
-    - name: 🛡️ Exclude temp paths from Windows Defender
-      if: runner.os == 'Windows'
-      shell: pwsh
-      run: |
-        Add-MpPreference -ExclusionPath "$env:TEMP" -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionPath "$env:RUNNER_TEMP" -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionPath "$env:GITHUB_WORKSPACE" -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionProcess "node.exe" -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionProcess "electron.exe" -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionProcess "chromedriver.exe" -ErrorAction SilentlyContinue
-        Add-MpPreference -ExclusionExtension ".exe" -ErrorAction SilentlyContinue
-
     - name: 🧰 Setup PNPM Package Manager
       uses: pnpm/action-setup@v6
       with:
