@@ -65,7 +65,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24.15.0'
+          node-version: '24'
 
       # Install Rust toolchain for auto-installing tauri-driver if testing Tauri service
       # The @wdio/tauri-service will automatically install tauri-driver via cargo if not found

@@ -47,7 +47,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24.15.0'
+          node-version: '24'
 
       # Download the pre-built packages from the build job
       # This ensures all tests use the same build artifacts

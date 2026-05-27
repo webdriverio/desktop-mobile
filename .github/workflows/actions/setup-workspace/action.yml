@@ -2,12 +2,9 @@ name: 'Setup Development Environment'
 description: 'Sets up Node.js environment with PNPM for CI/CD workflows'
 inputs:
   node-version:
-    description: 'Node.js version to use for the environment (e.g., "24.15.0")'
+    description: 'Node.js version to use for the environment (e.g., "24")'
     required: false
-    # Pinned exact: Node 24.16.0 (rolled out in runner image 20260525.x) silently
-    # breaks @electron/packager "Finalizing package" cross-platform. Bump when
-    # upstream confirms a fix.
-    default: '24.15.0'
+    default: '24'
 
 runs:
   using: composite

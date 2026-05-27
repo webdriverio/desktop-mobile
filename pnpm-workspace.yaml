@@ -23,6 +23,11 @@ allowBuilds:
   esbuild: true
   geckodriver: false
 blockExoticSubdeps: false
+# yauzl@2 (via extract-zip → @electron/packager) is broken on Node 24.16+; the
+# Forge maintainer recommends overriding to yauzl@3.3.1 until extract-zip is
+# replaced. See electron/forge#4277 and electron/electron#51619.
+overrides:
+  yauzl: ^3.3.1
 catalogs:
   default:
     '@wdio/cli': 9.27.1

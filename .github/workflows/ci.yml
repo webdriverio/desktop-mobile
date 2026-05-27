@@ -503,7 +503,7 @@ jobs:
     secrets: inherit
     with:
       os: ${{ matrix.os }}
-      node-version: '24.15.0'
+      node-version: '24'
       scenario: ${{ matrix.scenario }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -531,7 +531,7 @@ jobs:
     secrets: inherit
     with:
       os: ${{ matrix.os }}
-      node-version: '24.15.0'
+      node-version: '24'
       scenario: ${{ matrix.scenario }}
       variant: window
       build_id: ${{ needs.build.outputs.build_id }}
@@ -553,7 +553,7 @@ jobs:
     secrets: inherit
     with:
       os: 'ubuntu-latest'
-      node-version: '24.15.0'
+      node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -572,7 +572,7 @@ jobs:
     secrets: inherit
     with:
       os: 'windows-latest'
-      node-version: '24.15.0'
+      node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -591,7 +591,7 @@ jobs:
     secrets: inherit
     with:
       os: 'macos-latest'
-      node-version: '24.15.0'
+      node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -612,7 +612,7 @@ jobs:
     secrets: inherit
     with:
       os: 'ubuntu-latest'
-      node-version: '24.15.0'
+      node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -631,7 +631,7 @@ jobs:
     secrets: inherit
     with:
       os: 'windows-latest'
-      node-version: '24.15.0'
+      node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -650,7 +650,7 @@ jobs:
     secrets: inherit
     with:
       os: 'macos-latest'
-      node-version: '24.15.0'
+      node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -741,7 +741,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24.15.0'
+          node-version: '24'
 
       - name: 📦 Download Build Artifacts
         uses: ./.github/workflows/actions/download-archive

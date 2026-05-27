@@ -60,7 +60,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24.15.0'
+          node-version: '24'
 
       - name: 🦀 Install Rust Toolchain
         shell: bash
