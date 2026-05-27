@@ -48,8 +48,6 @@
     "forge": {
       "outDir": "dist-electron",
       "packagerConfig": {
-        "name": "Forge App Example",
-        "executableName": "forge-app-example",
         "osxSign": false
       },
       "makers": [
