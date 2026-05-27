@@ -50,16 +50,21 @@ catalogs:
     electron-builder: 26.8.1
     '@electron-forge/cli': 7.11.1
   minimum:
-    '@wdio/cli': ^8.43.0
-    '@wdio/globals': ^8.43.0
-    '@wdio/local-runner': ^8.43.0
-    '@wdio/logger': ^8.41.0
-    '@wdio/mocha-framework': ^8.41.0
-    '@wdio/spec-reporter': ^9.19.1
-    '@wdio/types': ^8.41.0
-    '@wdio/xvfb': ^9.19.1
+    '@wdio/cli': v8
+    '@wdio/globals': v8
+    '@wdio/local-runner': v8
+    '@wdio/logger': v8
+    '@wdio/mocha-framework': v8
+    '@wdio/spec-reporter': v8
+    '@wdio/types': v8
+    '@wdio/xvfb': v8
     electron: 28.3.3
-    webdriverio: ^8.43.0
+    # Build tools mirrored from `default` — we don't currently test against
+    # older forge/builder lines, but the entries are needed so the
+    # `pnpm catalog:minimum` switch script doesn't write broken refs.
+    electron-builder: 26.8.1
+    '@electron-forge/cli': 7.11.1
+    webdriverio: v8
   next:
     '@wdio/cli': latest
     '@wdio/globals': latest
@@ -70,4 +75,8 @@ catalogs:
     '@wdio/types': latest
     '@wdio/xvfb': latest
     electron-nightly: 44.0.0-nightly.20260521
+    # electron-builder has a `next` dist-tag we can track; forge doesn't,
+    # so it stays at the same exact pin as `default`.
+    electron-builder: next
+    '@electron-forge/cli': 7.11.1
     webdriverio: latest
