@@ -84,7 +84,7 @@ jobs:
         uses: goosewobbler/releasekit@v0.19.3
         with:
           mode: gate
-          node-version: '24'
+          node-version: '24.15.0'
           project-dir: .
           branch: main
           json: "true"

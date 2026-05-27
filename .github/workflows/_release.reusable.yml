@@ -67,7 +67,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '24'
+          node-version: '24.15.0'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Setup pnpm
@@ -248,7 +248,7 @@ jobs:
         uses: goosewobbler/releasekit@v0.19.3
         with:
           mode: release
-          node-version: '24'
+          node-version: '24.15.0'
           target: ${{ inputs.target_packages || steps.targets.outputs.packages }}
           branch: ${{ inputs.target_branch }}
           bump: ${{ steps.params.outputs.bump }}

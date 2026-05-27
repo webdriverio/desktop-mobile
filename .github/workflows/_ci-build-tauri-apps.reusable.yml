@@ -58,7 +58,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: '24.15.0'
 
       # Install Rust toolchain for Tauri compilation
       - name: 🦀 Install Rust Toolchain

@@ -61,7 +61,7 @@ jobs:
       - name: Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: '24.15.0'
 
       # Download the pre-built packages from the main build job
       # This ensures workspace dependencies (e.g. @wdio/native-spy dist/) are available
