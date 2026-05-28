@@ -33,10 +33,11 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     // emit arrow functions — and arrow functions have no own `arguments`
     // binding). Inlining keeps the call-site portable.
     //
-    // The wrapper body MUST stay synchronous: WebDriver's executeScript
-    // wraps the string in a non-async function, so `await` here would be
-    // a SyntaxError at runtime. Users that need promise-returning scripts
-    // should reach for executeAsync (not yet exposed on browser.dioxus).
+    // The wrapper body itself stays synchronous (no top-level `await`), but
+    // returns a Promise. Both driver paths await it before delivering the
+    // result: the embedded driver via guest-js's AsyncFunction polling loop,
+    // and the external driver via the W3C WebDriver executeScript spec which
+    // requires drivers to resolve a returned promise before completing.
     const argsLiteral = args
       .map((a, i) => {
         try {
