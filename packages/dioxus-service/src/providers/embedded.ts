@@ -253,6 +253,14 @@ export async function stopEmbeddedDriver(info: EmbeddedDriverInfo): Promise<void
     return;
   }
 
+  // Guard against issuing a kill on a process that has already exited: during
+  // Windows teardown the app/driver can exit on its own while we're tearing
+  // down, and a redundant kill() emits a spurious ESRCH 'error' event.
+  if (info.proc.exitCode !== null || info.proc.signalCode !== null) {
+    log.debug('Embedded driver already exited, skipping kill');
+    return;
+  }
+
   log.info(`Stopping embedded driver (PID: ${info.proc.pid})…`);
   info.proc.kill('SIGTERM');
 
