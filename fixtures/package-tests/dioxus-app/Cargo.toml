@@ -1,0 +1,19 @@
+# Cargo workspace root for the Dioxus package-test fixture.
+#
+# Mirrors the Tauri fixtures: the Rust crate lives under `src-dioxus/`
+# and `target/` lives at the workspace root. Both shipped Wry services
+# (@wdio/tauri-service, @wdio/dioxus-service) trust the user-supplied
+# binary path verbatim; this fixture verifies that against the
+# workspace-with-subdir-member layout most non-trivial apps take.
+
+[workspace]
+resolver = "2"
+members = ["src-dioxus"]
+
+# Temporary patch until upstream Dioxus releases the matching API. See
+# fixtures/e2e-apps/dioxus/Cargo.toml for the full patch rationale and
+# the upstream PR link. Keep both files' `rev` in sync.
+[patch.crates-io]
+dioxus = { git = "https://github.com/goosewobbler/dioxus.git", rev = "c03c394d3213fd8fdf28fa4fda380725e5148d36" }
+dioxus-core = { git = "https://github.com/goosewobbler/dioxus.git", rev = "c03c394d3213fd8fdf28fa4fda380725e5148d36" }
+dioxus-desktop = { git = "https://github.com/goosewobbler/dioxus.git", rev = "c03c394d3213fd8fdf28fa4fda380725e5148d36" }

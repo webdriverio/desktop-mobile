@@ -15,10 +15,6 @@ serde_json = "1"
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Temporary patch until upstream Dioxus releases the matching API. See
-# fixtures/e2e-apps/dioxus/Cargo.toml for the full patch rationale and
-# the upstream PR link. Keep both files' `rev` in sync.
-[patch.crates-io]
-dioxus = { git = "https://github.com/goosewobbler/dioxus.git", rev = "c03c394d3213fd8fdf28fa4fda380725e5148d36" }
-dioxus-core = { git = "https://github.com/goosewobbler/dioxus.git", rev = "c03c394d3213fd8fdf28fa4fda380725e5148d36" }
-dioxus-desktop = { git = "https://github.com/goosewobbler/dioxus.git", rev = "c03c394d3213fd8fdf28fa4fda380725e5148d36" }
+# Note: the upstream-dioxus [patch.crates-io] block lives at the workspace
+# root Cargo.toml. Cargo ignores [patch] in non-root members, so the patch
+# must be declared once at the workspace root to apply to this crate.
