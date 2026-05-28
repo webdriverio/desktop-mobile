@@ -27,6 +27,8 @@ export const config = {
 
 Path to the compiled Tauri application binary (executable). The service trusts this path as-is and spawns it directly — it does **not** try to resolve a binary from a project root or read `tauri.conf.json`.
 
+> **Migrating from v1.0.x?** Earlier versions auto-resolved a binary from a project directory (e.g. `application: '.'` would walk `<root>/src-tauri/target/debug/<productName>`). That resolver has been removed because it broke for Cargo workspaces, release builds, and `productName`-vs-Cargo-package-name mismatches (#295). Point `application` (or `appBinaryPath`) at the **built binary path** directly. If you pass a directory by mistake, the service throws a clear migration error rather than letting `spawn` fail with `EISDIR`.
+
 **Example:**
 ```typescript
 appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows, single-crate
