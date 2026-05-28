@@ -203,6 +203,19 @@ export default class TauriLaunchService {
       const appBinaryPath = resolveAppBinaryPath(instanceOptions, tauriOptions);
       log.debug(`App binary: ${appBinaryPath}`);
 
+      // Update the application path to the resolved binary path. Must happen
+      // before the Windows block: that block `break`s out of the loop after
+      // the Edge WebDriver check, so any writeback below it is unreachable on
+      // Windows and downstream consumers (embedded provider, tauri-driver)
+      // would see the original (possibly empty) tauri:options.application.
+      tauriOptions.application = appBinaryPath;
+
+      // Validate app args if provided
+      const appArgs = tauriOptions.args || [];
+      if (appArgs.length > 0) {
+        log.debug(`App args: ${JSON.stringify(appArgs)}`);
+      }
+
       // Ensure Edge WebDriver compatibility on Windows
       // This checks if msedgedriver matches the WebView2 version in the Tauri binary and downloads if needed
       // Only runs on Windows; skipped on Linux/macOS
@@ -233,15 +246,6 @@ export default class TauriLaunchService {
         }
         break;
       }
-
-      // Validate app args if provided
-      const appArgs = tauriOptions.args || [];
-      if (appArgs.length > 0) {
-        log.debug(`App args: ${JSON.stringify(appArgs)}`);
-      }
-
-      // Update the application path to the resolved binary path
-      tauriOptions.application = appBinaryPath;
     }
 
     // For embedded provider: skip tauri-driver installation
