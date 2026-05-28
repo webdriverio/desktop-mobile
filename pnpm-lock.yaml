@@ -31,8 +31,8 @@ catalogs:
       specifier: 9.27.1
       version: 9.27.1
     '@wdio/xvfb':
-      specifier: 9.27.1
-      version: 9.27.1
+      specifier: 9.27.2
+      version: 9.27.2
     electron:
       specifier: 41.2.0
       version: 41.2.0
@@ -139,7 +139,7 @@ importers:
         version: 9.2.2(webdriverio@9.27.1(puppeteer-core@25.0.4))
       '@wdio/xvfb':
         specifier: catalog:default
-        version: 9.27.1
+        version: 9.27.2
       electron:
         specifier: catalog:default
         version: 41.2.0
@@ -3597,6 +3597,10 @@ packages:
     resolution: {integrity: sha512-7qOnrAF+3o+bg0ijqIoxsXloCQZ9sG9o8Jt9btg4NiyC6mRIQoqxnQBDo0M/v4ZnmAaz/hSCDvQNU0Y/7baNZA==}
     engines: {node: '>=18'}
 
+  '@wdio/xvfb@9.27.2':
+    resolution: {integrity: sha512-Rj8AP/VYVd5clZFKy+P7zzoXCKshjrog6lcV65nnUzATbUYT/PpUCy6OhEWHTSmLQY2Oc5ztY/IetLSg4nmB3w==}
+    engines: {node: '>=18'}
+
   '@webassemblyjs/ast@1.14.1':
     resolution: {integrity: sha512-nuBEDgQfm1ccRp/8bCQrx1frohyufl4JlbMMZ4P1wpeOfDhF6FQkxZJ1b/e+PLwr6X1Nhw6OLme5usuBWYBvuQ==}
 
@@ -3645,6 +3649,7 @@ packages:
   '@xmldom/xmldom@0.8.12':
     resolution: {integrity: sha512-9k/gHF6n/pAi/9tqr3m3aqkuiNosYTurLLUtc7xQ9sxB/wm7WPygCv8GYa6mS0fLJEHhqMC1ATYhz++U/lRHqg==}
     engines: {node: '>=10.0.0'}
+    deprecated: this version has critical issues, please update to the latest version
 
   '@xmldom/xmldom@0.9.10':
     resolution: {integrity: sha512-A9gOqLdi6cV4ibazAjcQufGj0B1y/vDqYrcuP6d/6x8P27gRS8643Dj9o1dEKtB6O7fwxb2FgBmJS2mX7gpvdw==}
@@ -9992,6 +9997,10 @@ snapshots:
     dependencies:
       '@wdio/logger': 9.18.0
 
+  '@wdio/xvfb@9.27.2':
+    dependencies:
+      '@wdio/logger': 9.18.0
+
   '@webassemblyjs/ast@1.14.1':
     dependencies:
       '@webassemblyjs/helper-numbers': 1.13.2
@@ -12585,7 +12594,7 @@ snapshots:
 
   node-abi@4.28.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.1
 
   node-addon-api@1.7.2:
     optional: true
@@ -12608,7 +12617,7 @@ snapshots:
       make-fetch-happen: 14.0.3
       nopt: 8.1.0
       proc-log: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.1
       tar: 7.5.13
       tinyglobby: 0.2.16
       which: 5.0.0
