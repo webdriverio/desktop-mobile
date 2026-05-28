@@ -131,6 +131,54 @@ function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateSchedul
 
 const log = createLogger('electron-service', 'service');
 
+const TEARDOWN_TIMEOUT_MS = 10_000;
+
+// CDP teardown failure modes that are benign once the debugger socket is gone:
+// the bridge reports "WebSocket is not connected" / "connection has been
+// closed", or the underlying socket drops (UND_ERR_CLOSED / ECONNRESET). These
+// must not fail an otherwise-green run.
+const BENIGN_TEARDOWN_ERROR_PATTERNS = [
+  'websocket is not connected',
+  'connection has been closed',
+  'connection closed',
+  'und_err_closed',
+  'econnreset',
+  'econnrefused',
+  'socket hang up',
+  'other side closed',
+];
+
+function isBenignTeardownError(error: unknown): boolean {
+  const haystack = `${(error as { message?: string })?.message ?? error ?? ''} ${
+    (error as { code?: string })?.code ?? ''
+  }`.toLowerCase();
+  return BENIGN_TEARDOWN_ERROR_PATTERNS.some((pattern) => haystack.includes(pattern));
+}
+
+/**
+ * Run a teardown operation bounded by a timeout so a stalled CDP round-trip
+ * can't block the hook until the CI step timeout. On timeout the operation is
+ * abandoned (settled to undefined) rather than rejected — teardown is best-effort.
+ */
+async function runBounded<T>(op: () => Promise<T>, timeoutMs: number, label: string): Promise<T | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try {
+    return await Promise.race([
+      op(),
+      new Promise<undefined>((resolve) => {
+        timer = setTimeout(() => {
+          log.debug(`${label} timed out after ${timeoutMs}ms during teardown`);
+          resolve(undefined);
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer) {
+      clearTimeout(timer);
+    }
+  }
+}
+
 type ElementCommands = 'click' | 'doubleClick' | 'setValue' | 'clearValue';
 
 export default class ElectronWorkerService extends ServiceConfig implements Services.ServiceInstance {
@@ -318,8 +366,24 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async afterSession() {
-    await restoreAllMocks();
-    mockStore.clear();
+    // restoreAllMocks() drives a CDP send() per mock. During teardown the
+    // debugger socket may already be gone, so a send() either rejects with
+    // "WebSocket is not connected" or stalls against a half-open socket until
+    // each per-command timeout fires — on Windows this hangs the worker until
+    // the CI step timeout kills it, AFTER the test passed. Bound it and swallow
+    // benign disconnect errors so teardown always completes. mockStore.clear()
+    // must still run regardless so the next session starts with a clean store.
+    try {
+      await runBounded(() => restoreAllMocks(), TEARDOWN_TIMEOUT_MS, 'restoreAllMocks');
+    } catch (error) {
+      if (isBenignTeardownError(error)) {
+        log.debug('Ignoring benign teardown error during restoreAllMocks:', error);
+      } else {
+        log.warn('Failed to restore mocks during session cleanup:', error);
+      }
+    } finally {
+      mockStore.clear();
+    }
   }
 
   /**
