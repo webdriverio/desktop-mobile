@@ -25,15 +25,18 @@ export const config = {
 
 ### `appBinaryPath` (string, optional)
 
-Path to the compiled Tauri application binary (executable).
+Path to the compiled Tauri application binary (executable). Use this when `tauri:options.application` isn't set, or when the app lives in a layout the legacy resolver doesn't understand — Cargo workspaces (where `target/` is at the workspace root, sibling to `src-tauri/`), release builds, or any non-default output dir.
 
 **Example:**
 ```typescript
 appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows
-appBinaryPath: './src-tauri/target/release/my-app',     // Linux
+appBinaryPath: './src-tauri/target/release/my-app',     // Linux/macOS
+appBinaryPath: './target/release/my-app',               // Cargo workspace layout
 ```
 
-**Default:** Auto-detected from capabilities if not provided
+**Resolution order:** `tauri:options.application` (capability-level) takes precedence; `appBinaryPath` (service-level) is the fallback. When `tauri:options.application` already points at an existing build artefact (file, or `.app` bundle on macOS), it's trusted as-is — so passing the literal binary path there also bypasses the legacy resolver.
+
+**Default:** Auto-detected from `tauri:options.application` via the legacy resolver (`<appPath>/src-tauri/target/debug/<productName>`) when neither this nor an existing binary path is given.
 
 **Note:** Path should be absolute or relative to the WebdriverIO config directory.
 

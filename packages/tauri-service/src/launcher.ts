@@ -6,6 +6,7 @@ import type { LogLevel } from '@wdio/native-types';
 import { createLogger, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
+import { resolveAppBinaryPath } from './appBinaryResolver.js';
 import { setCrabnebulaModeInfo, setEmbeddedModeInfo } from './commands/triggerDeeplink.js';
 import { startTestRunnerBackend, stopTestRunnerBackend, waitTestRunnerBackendReady } from './crabnebulaBackend.js';
 import { diagnoseTauriEnvironment } from './diagnostics.js';
@@ -20,7 +21,7 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
-import { getTauriAppInfo, getTauriBinaryPath, getWebKitWebDriverPath } from './pathResolver.js';
+import { getTauriAppInfo, getWebKitWebDriverPath } from './pathResolver.js';
 import { PortManager } from './portManager.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
@@ -188,15 +189,19 @@ export default class TauriLaunchService {
       // tauri-driver doesn't need it and will reject it during capability matching
       delete (cap as { browserName?: string }).browserName;
 
-      // Get Tauri app binary path from tauri:options
-      const tauriOptions = cap['tauri:options'];
-      if (!tauriOptions?.application) {
-        throw new Error('Tauri application path not specified in tauri:options.application');
+      // Resolve the Tauri app binary path. Precedence:
+      //   1. tauri:options.application (capability-level)
+      //   2. wdio:tauriServiceOptions.appBinaryPath (service-level)
+      // If the capability-level application already points at a built
+      // artefact, trust it (supports Cargo workspace layouts and release
+      // builds the legacy resolver doesn't understand). See appBinaryResolver.ts.
+      const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
+      if (!cap['tauri:options']) {
+        cap['tauri:options'] = { application: '' };
       }
-
-      // Store original app path for getting version info
-      const originalAppPath = tauriOptions.application;
-      const appBinaryPath = await getTauriBinaryPath(originalAppPath);
+      const tauriOptions = cap['tauri:options'];
+      const originalAppPath = tauriOptions.application || instanceOptions.appBinaryPath || '';
+      const appBinaryPath = await resolveAppBinaryPath(instanceOptions, tauriOptions);
       log.debug(`App binary: ${appBinaryPath}`);
 
       // Ensure Edge WebDriver compatibility on Windows
