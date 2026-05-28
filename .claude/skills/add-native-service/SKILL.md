@@ -53,8 +53,8 @@ Every framework here resolves to a point on two axes. Decide both before writing
 
 | Framework has… | Use | Example |
 |---|---|---|
-| a plugin system | a **plugin crate** registered by the app | Tauri → `tauri-plugin-wdio` |
-| no plugin system | a **bridge crate** that injects guest-js via the Config's custom-head + a `wdio://` custom protocol | Dioxus → `wdio-dioxus-bridge` |
+| a plugin system | **plugin crate(s)** registered by the app — note these are *separate concerns*: one plugin for execute/mock IPC, and (for the embedded provider) a **second** plugin for the embedded WebDriver server | Tauri → `tauri-plugin-wdio` (execute/mock) **+** `tauri-plugin-wdio-webdriver` (embedded server) |
+| no plugin system | a **bridge crate** that injects guest-js via the Config's custom-head + a `wdio://` custom protocol (the same bridge also wires the embedded server) | Dioxus → `wdio-dioxus-bridge` |
 
 CDP frameworks need **no** in-app plumbing — Chromium exposes the protocol natively; a test-side CDP bridge package handles the connection.
 
@@ -147,7 +147,7 @@ See [ci-and-release.md](ci-and-release.md) → "CI gates". Add `run_<framework>`
 ### Phase 5 — Fixtures, E2E, docs, release
 
 - `fixtures/e2e-apps/<framework>/` — minimal app: execute + mock + multi-window.
-- `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,mocking,window}.spec.ts` mirroring `e2e/test/tauri/`.
+- `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,mocking,window}.spec.ts` mirroring `e2e/test/tauri/`. Also add `logging.external.spec.ts` if the service has an **external** driver provider — capturing the driver subprocess's stdout/stderr is a distinct code path from in-app frontend/backend logging and needs its own coverage.
 - `e2e/wdio.<framework>.conf.ts` (+ `wdio.<framework>-embedded.conf.ts` for a Wry embedded provider).
 - `packages/<framework>-service/README.md` + `docs/` set + per-crate READMEs.
 - Root `README.md`, `ROADMAP.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/*.md` updates.
@@ -196,6 +196,7 @@ Every PR must be green on all affected service suites + any `cargo test`. No reg
 7. **(Wry) `shared` paths-filter gaps.** Every `packages/native-*` must be in the `shared` filter of `_ci-detect-changes.reusable.yml`. Easy to miss; was a latent CI gap before Dioxus.
 8. **(Wry) gitignore Rust artefacts.** `packages/*/target/` and `packages/*/Cargo.lock` in root `.gitignore` — once caused a 42 MB accidental commit.
 9. **(Wry) Rust env-var tests** use `unsafe { std::env::set_var(...) }` (2024 edition). Keep them in one `mod tests` or clean up to avoid parallel interference.
+10. **Async `LogWriter.close()`.** `@wdio/native-core`'s `LogWriter.close()` is async — it calls `stream.end(callback)` and waits for the flush. Launchers must `await closeLogWriter(...)` in `onComplete`, and tests exercising that path must mock `end: vi.fn((cb?) => cb?.())` so the promise resolves. Porting a synchronous Tauri-style `close()` caller without awaiting silently hangs the test.
 
 ## Verification checklist (per PR)
 
