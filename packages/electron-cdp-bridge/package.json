@@ -48,7 +48,7 @@
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.7",
     "cross-env": "^10.1.0",
-    "devtools-protocol": "^0.0.1634055",
+    "devtools-protocol": "^0.0.1636713",
     "get-port": "^7.1.0",
     "nock": "^14.0.15",
     "shx": "^0.4.0",
