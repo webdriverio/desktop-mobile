@@ -83,6 +83,10 @@ fixtures/e2e-apps/tauri/target/
 fixtures/package-tests/dioxus-app/target/
 fixtures/e2e-apps/dioxus/target/
 
+# Fixture Cargo.lock files are not tracked — fixtures are ephemerally
+# built in CI and shouldn't pin dependency graphs across the workspace.
+fixtures/**/Cargo.lock
+
 # Bundler fixtures (auto-generated rollup config)
 fixtures/build-*/**/rollup.config.js
 
