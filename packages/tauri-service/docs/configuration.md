@@ -25,20 +25,19 @@ export const config = {
 
 ### `appBinaryPath` (string, optional)
 
-Path to the compiled Tauri application binary (executable). Use this when `tauri:options.application` isn't set, or when the app lives in a layout the legacy resolver doesn't understand — Cargo workspaces (where `target/` is at the workspace root, sibling to `src-tauri/`), release builds, or any non-default output dir.
+Path to the compiled Tauri application binary (executable). The service trusts this path as-is and spawns it directly — it does **not** try to resolve a binary from a project root or read `tauri.conf.json`.
 
 **Example:**
 ```typescript
-appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows
-appBinaryPath: './src-tauri/target/release/my-app',     // Linux/macOS
-appBinaryPath: './target/release/my-app',               // Cargo workspace layout
+appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows, single-crate
+appBinaryPath: './src-tauri/target/release/my-app',     // Linux/macOS, single-crate
+appBinaryPath: './target/release/my-app',               // Cargo workspace (target/ at workspace root)
+appBinaryPath: './target/release/bundle/macos/My App.app',  // macOS .app bundle
 ```
 
-**Resolution order:** `tauri:options.application` (capability-level) takes precedence; `appBinaryPath` (service-level) is the fallback. When `tauri:options.application` already points at an existing build artefact (file, or `.app` bundle on macOS), it's trusted as-is — so passing the literal binary path there also bypasses the legacy resolver.
+**Resolution order:** `tauri:options.application` (capability-level) takes precedence; `appBinaryPath` (service-level) is used when no capability-level `application` is set. At least one of the two must be supplied; spawning surfaces a clear OS error if the path is wrong.
 
-**Default:** Auto-detected from `tauri:options.application` via the legacy resolver (`<appPath>/src-tauri/target/debug/<productName>`) when neither this nor an existing binary path is given.
-
-**Note:** Path should be absolute or relative to the WebdriverIO config directory.
+**Note:** Path should be absolute or relative to the WebdriverIO config directory. Use a `.app` bundle path on macOS if your build produces one; otherwise point at the raw binary inside `target/<profile>/`.
 
 ---
 

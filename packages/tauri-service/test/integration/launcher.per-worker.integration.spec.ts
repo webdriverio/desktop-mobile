@@ -13,8 +13,6 @@ vi.mock('../../src/driverManager.js', () => ({
 }));
 
 vi.mock('../../src/pathResolver.js', () => ({
-  getTauriAppInfo: vi.fn().mockResolvedValue({ version: '1.0.0' }),
-  getTauriBinaryPath: vi.fn().mockResolvedValue('/app/my-app'),
   getWebKitWebDriverPath: vi.fn().mockReturnValue('/usr/bin/WebKitWebDriver'),
 }));
 
