@@ -162,13 +162,16 @@ See [ci-and-release.md](ci-and-release.md) → "CI gates". Add `run_<framework>`
 | Browser API surface | `browser.<framework>.*` | `browser.dioxus.execute(...)` | all |
 | CDP bridge package | `@wdio/<framework>-cdp-bridge` | `@wdio/electron-cdp-bridge` | CDP |
 | Capability key | `<framework>:options` | `dioxus:options` | Wry |
-| Automation env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION` | `DIOXUS_WEBVIEW_AUTOMATION` | Wry |
+| Automation toggle env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION` | `DIOXUS_WEBVIEW_AUTOMATION` | Wry |
+| Embedded-driver port env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` | `DIOXUS_WEBVIEW_AUTOMATION_PORT` | Wry/embedded |
 | Window namespace | `window.__WDIO_<FRAMEWORK>__` | `window.__WDIO_DIOXUS__` | Wry |
 | npm bridge JS bundle | `@wdio/<framework>-bridge` (no `-js`) | `@wdio/dioxus-bridge` | Wry/bridge |
 | Rust bridge crate | `wdio-<framework>-bridge` | `wdio-dioxus-bridge` | Wry/bridge |
 | Rust driver crate (external) | `wdio-<framework>-driver` (NOT `<framework>-driver`) | `wdio-dioxus-driver` | Wry/external |
 | Rust embedded server (bridge route) | `wdio-<framework>-embedded-driver` | `wdio-dioxus-embedded-driver` | Wry/embedded, no plugin system |
 | Rust embedded server (plugin route) | `<framework>-plugin-wdio-webdriver`-style | `tauri-plugin-wdio-webdriver` | Wry/embedded, has plugin system |
+
+For a **new** service, pair the embedded port var with the toggle prefix: `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` (as Dioxus does). Tauri's `TAURI_WEBDRIVER_PORT` predates this convention — don't copy it.
 
 **`wdio-` prefix on Rust crates** leaves the unprefixed name (e.g. `dioxus-driver`) free for the framework's own project. The embedded server takes the **plugin** form when the framework has a plugin system (Tauri ships `tauri-plugin-wdio-webdriver` alongside the execute/mock plugin `tauri-plugin-wdio`) and the standalone `wdio-<framework>-embedded-driver` crate form otherwise (Dioxus, wired in via the bridge). **Providers** are `'external'` / `'embedded'` — `'official'` is a deprecated Tauri-only alias.
 

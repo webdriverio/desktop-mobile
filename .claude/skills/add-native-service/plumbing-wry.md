@@ -20,7 +20,7 @@ External is **not available on macOS** for Wry today, and on Linux depends on th
 
 ### Embedded provider — in-process WebDriver server
 
-**Recommended default, and supported by both shipped Wry services.** A W3C WebDriver HTTP server (Axum) compiled into the app. No external driver to install — **works on all three OSes** (macOS additionally requires the app-level `with_background_throttling` mitigation — see the macOS gotcha at the end of this file; without it the embedded loop silently hangs on headless CI). The service spawns the app directly, sets the automation env vars (`<FRAMEWORK>_WEBVIEW_AUTOMATION` + a port var, e.g. `TAURI_WEBDRIVER_PORT` / `DIOXUS_WEBVIEW_AUTOMATION_PORT`), polls `/status` until `ready: true`, then opens a WebDriver session pointed at that port.
+**Recommended default, and supported by both shipped Wry services.** A W3C WebDriver HTTP server (Axum) compiled into the app. No external driver to install — **works on all three OSes** (macOS additionally requires the app-level `with_background_throttling` mitigation — see the macOS gotcha at the end of this file; without it the embedded loop silently hangs on headless CI). The service spawns the app directly, sets the automation env vars (`<FRAMEWORK>_WEBVIEW_AUTOMATION` + a port var — use `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` for a new service as Dioxus does; Tauri's `TAURI_WEBDRIVER_PORT` predates the convention), polls `/status` until `ready: true`, then opens a WebDriver session pointed at that port.
 
 **Two delivery routes, mirroring the in-app plumbing axis (below):**
 

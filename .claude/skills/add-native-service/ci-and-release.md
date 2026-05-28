@@ -14,7 +14,7 @@ This computes per-framework `run_*` flags from path filters so CI only runs affe
    - `e2e_<framework>`: `e2e/test/<framework>/**`, `e2e/wdio.<framework>.conf.ts` (+ `wdio.<framework>-embedded.conf.ts`).
    - `fixtures_<framework>`: `fixtures/e2e-apps/<framework>/**`, `fixtures/package-tests/<framework>-app/**`.
    - `infra_<framework>`: the per-framework reusable workflow files (see below).
-3. **Extend the `shared` filter** to include every `packages/native-*` (`native-types`, `native-utils`, `native-core`, `native-spy`). Missing one is a latent CI gap (gotcha 7 in SKILL.md).
+3. **Extend the `shared` filter** to include every `packages/native-*` (`native-types`, `native-utils`, `native-core`, `native-spy`). Missing one is a latent CI gap (see the `shared` paths-filter gotcha in SKILL.md → Common gotchas).
 4. In the `determine` step compute `run_<framework> = <framework>_service || e2e_<framework> || fixtures_<framework> || shared || infra || infra_<framework>`, and set it under the "run everything" branch (e.g. when CI infra itself changes).
 
 ### `ci.yml`
