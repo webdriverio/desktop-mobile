@@ -6,77 +6,77 @@
     <title>Tauri Basic App</title>
     <style>
       body {
-        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-        display: flex;
-        flex-direction: column;
-        justify-content: center;
-        align-items: center;
-        height: 100vh;
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
         margin: 0;
+        padding: 20px;
         background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         color: white;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
       }
-
       .container {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(15px);
+        border-radius: 25px;
+        padding: 50px;
         text-align: center;
-        background: rgba(255, 255, 255, 0.1);
-        padding: 2rem;
-        border-radius: 1rem;
-        backdrop-filter: blur(10px);
-        box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        max-width: 800px;
+        width: 100%;
       }
-
       h1 {
-        font-size: 2.5rem;
-        margin-bottom: 1rem;
-        font-weight: 300;
+        margin: 0 0 25px 0;
+        font-size: 3em;
+        font-weight: 200;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
       }
-
+      button {
+        background: rgba(255, 255, 255, 0.25);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 1em;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(5px);
+        margin: 8px;
+      }
+      button:hover {
+        background: rgba(255, 255, 255, 0.35);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+      }
       .counter-section {
         margin: 2rem 0;
       }
-
       #counter {
-        font-size: 4rem;
+        font-size: 4em;
         font-weight: bold;
         margin: 1rem 0;
         color: #61dafb;
       }
-
-      button {
-        padding: 12px 24px;
-        font-size: 1.1rem;
-        cursor: pointer;
-        border: none;
-        border-radius: 8px;
-        background: linear-gradient(45deg, #61dafb, #21a1f1);
-        color: white;
-        transition: all 0.3s ease;
-        margin: 0.5rem;
-        box-shadow: 0 4px 15px rgba(97, 218, 251, 0.3);
-      }
-
-      button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(97, 218, 251, 0.4);
-      }
-
-      button:active {
-        transform: translateY(0);
-      }
-
       .info-section {
-        margin-top: 2rem;
-        font-size: 0.9rem;
-        opacity: 0.8;
+        margin-top: 40px;
+        padding: 25px;
+        background: rgba(0, 0, 0, 0.25);
+        border-radius: 15px;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        font-size: 0.95em;
+        line-height: 1.5;
+        border: 1px solid rgba(255, 255, 255, 0.1);
       }
-
       .status {
         margin-top: 1rem;
         padding: 0.5rem;
         background: rgba(255, 255, 255, 0.1);
         border-radius: 4px;
-        font-family: monospace;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
       }
     </style>
   </head>
