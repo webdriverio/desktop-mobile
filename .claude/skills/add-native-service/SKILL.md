@@ -146,12 +146,41 @@ See [ci-and-release.md](ci-and-release.md) → "CI gates". Add `run_<framework>`
 
 ### Phase 5 — Fixtures, E2E, docs, release
 
-- `fixtures/e2e-apps/<framework>/` — minimal app: execute + mock + multi-window.
+- `fixtures/e2e-apps/<framework>/` — minimal app exercising the service surface (execute + mock + multi-window). See **Fixture app conventions** below.
+- `fixtures/package-tests/<framework>-app/` — package-install smoke fixture. Same visual conventions; reduced functional surface (typically just `#app-title` + `#status`).
 - `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,mocking,window}.spec.ts` mirroring `e2e/test/tauri/`. Also add `logging.external.spec.ts` if the service has an **external** driver provider — capturing the driver subprocess's stdout/stderr is a distinct code path from in-app frontend/backend logging and needs its own coverage.
 - `e2e/wdio.<framework>.conf.ts` (+ `wdio.<framework>-embedded.conf.ts` for a Wry embedded provider).
 - `packages/<framework>-service/README.md` + `docs/` set + per-crate READMEs.
 - Root `README.md`, `ROADMAP.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/*.md` updates.
 - Release pipeline — see [ci-and-release.md](ci-and-release.md) → "Release pipeline".
+
+#### Fixture app conventions
+
+The same convergence principle that applies to the API surface ([features.md](features.md)) applies to fixtures. Every fixture — both `fixtures/e2e-apps/<framework>/` and `fixtures/package-tests/<framework>-app/` — uses a **shared visual + functional template** so a screenshot of one is largely interchangeable with a screenshot of any other. New fixtures must adopt it.
+
+**Visual template ("big-glass"):**
+
+- Background: `linear-gradient(135deg, #667eea 0%, #764ba2 100%)` (purple). Splash screens use the same gradient.
+- `.container`: `background: rgba(255, 255, 255, 0.15)`, `backdrop-filter: blur(15px)`, `border-radius: 25px`, `padding: 50px`, `max-width: 800px`, with a `border: 1px solid rgba(255, 255, 255, 0.25)` and `box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15)`.
+- `h1`: `font-size: 3em`, `font-weight: 200`, text-shadow `0 2px 10px rgba(0, 0, 0, 0.3)`.
+- `button`: white-translucent (`rgba(255, 255, 255, 0.25)`, `border: 2px solid rgba(255, 255, 255, 0.4)`), `border-radius: 12px`, hover lifts with `translateY(-3px)`.
+- `#counter` (when present): `font-size: 4em`, `color: #61dafb` (carried over from the original Tauri theme — the only colour accent on top of the white-on-purple base).
+- `.info-section` panel for status/log output: `background: rgba(0, 0, 0, 0.25)`, `border-radius: 15px`, SF Mono / Monaco font.
+- White text throughout.
+
+**Functional content:**
+
+- When the framework can render a UI, ship an **increment / decrement / reset counter + status panel**. Stable selectors: `#app-title`, `#counter`, `#increment-button`, `#decrement-button`, `#reset-button`, `#status` (used by `visual.spec.ts` and `application.spec.ts`).
+- CDP fixtures (Electron) additionally include the window-resize / show-dialog buttons that exercise Electron's extras — these are framework-additive and live alongside the standard counter UI, not in place of it.
+- The package-test fixture is allowed to ship a reduced surface (typically just `#app-title` + `#status`) since the install-smoke spec doesn't need the counter — but the visual styling stays identical.
+
+**Canonical references:**
+
+- HTML fixtures: `fixtures/e2e-apps/electron-builder/src/renderer/index.html`.
+- rsx / Rust fixtures: `fixtures/e2e-apps/dioxus/src/main.rs` (CSS lives in a `SHARED_STYLES: &str` const fed into the rsx `style { }` block).
+- Tauri counter UI on the shared theme: `fixtures/e2e-apps/tauri/index.html`.
+
+Don't introduce a new per-framework gradient or container style — pick `.container` + counter rule from the references above and only add framework-specific *content* on top.
 
 ## Naming conventions
 
