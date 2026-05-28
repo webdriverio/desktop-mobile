@@ -1,61 +1,32 @@
-import { statSync } from 'node:fs';
 import { createLogger } from '@wdio/native-utils';
-import { getTauriBinaryPath } from './pathResolver.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'utils');
 
 /**
- * Treat a path as a usable build artefact when:
- * - it points to an existing regular file (typical compiled binary), or
- * - it points to a macOS `.app` bundle (a directory ending in `.app`).
+ * Resolve the path to the built Tauri app binary that the launcher should
+ * spawn. Matches `@wdio/dioxus-service`: the user supplies the literal
+ * binary path (or a macOS `.app` bundle) and the service trusts it.
  *
- * Anything else (project root, `src-tauri/` dir, missing path) falls
- * through to the legacy resolver which knows how to walk a Tauri v1
- * single-crate layout.
- */
-export function looksLikeBuiltBinary(candidate: string, platform: NodeJS.Platform = process.platform): boolean {
-  try {
-    const stat = statSync(candidate);
-    if (stat.isFile()) return true;
-    if (platform === 'darwin' && stat.isDirectory() && candidate.endsWith('.app')) return true;
-    return false;
-  } catch {
-    return false;
-  }
-}
-
-/**
- * Resolve the path to the built Tauri app binary that the service should
- * launch. Precedence matches `@wdio/dioxus-service`:
- *
+ * Precedence:
  *   1. `tauri:options.application` from capabilities.
  *   2. `appBinaryPath` from `wdio:tauriServiceOptions`.
  *
- * The capability-level `application`, when given, is trusted as-is if it
- * already points at a usable build artefact (file, or `.app` bundle on
- * macOS). That lets users declare an exact binary path for layouts the
- * legacy resolver doesn't understand — Cargo workspaces (`target/` at the
- * workspace root, sibling to `src-tauri/`), release builds, or any
- * non-default output dir. Otherwise it falls back to
- * {@link getTauriBinaryPath}, which assumes the Tauri v1 single-crate
- * layout (`<appPath>/src-tauri/target/debug/<productName>`).
- *
- * Service-level `appBinaryPath` is always trusted as the literal binary
- * path — matching the Dioxus convention where `appBinaryPath` is an
- * escape hatch for the resolver, not an input to it.
+ * Path validity is not checked here — the spawn at launch time surfaces a
+ * clear OS error if the path is wrong. The previous "auto-resolve from a
+ * project root" behaviour (the Tauri v1 single-crate
+ * `<appPath>/src-tauri/target/debug/<productName>` pattern) was removed
+ * because it never worked for Cargo workspaces, release builds, or any
+ * non-default output dir — see issue #295.
  */
-export async function resolveAppBinaryPath(
+export function resolveAppBinaryPath(
   options: Pick<TauriServiceOptions, 'appBinaryPath'>,
   tauriOptions: { application?: string } | undefined,
-): Promise<string> {
+): string {
   const fromCap = tauriOptions?.application;
   if (fromCap) {
-    if (looksLikeBuiltBinary(fromCap)) {
-      log.debug(`Trusting tauri:options.application as-is (built artefact): ${fromCap}`);
-      return fromCap;
-    }
-    return getTauriBinaryPath(fromCap);
+    log.debug(`Using tauri:options.application: ${fromCap}`);
+    return fromCap;
   }
 
   if (options.appBinaryPath) {
@@ -65,6 +36,7 @@ export async function resolveAppBinaryPath(
 
   throw new Error(
     'Tauri application path not specified. ' +
-      "Set 'tauri:options'.application or appBinaryPath in wdio:tauriServiceOptions.",
+      "Set 'tauri:options'.application or appBinaryPath in wdio:tauriServiceOptions " +
+      "to the path of your built Tauri binary (e.g. 'target/release/my-app').",
   );
 }

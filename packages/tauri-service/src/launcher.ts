@@ -21,7 +21,7 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
-import { getTauriAppInfo, getWebKitWebDriverPath } from './pathResolver.js';
+import { getWebKitWebDriverPath } from './pathResolver.js';
 import { PortManager } from './portManager.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
@@ -200,8 +200,7 @@ export default class TauriLaunchService {
         cap['tauri:options'] = { application: '' };
       }
       const tauriOptions = cap['tauri:options'];
-      const originalAppPath = tauriOptions.application || instanceOptions.appBinaryPath || '';
-      const appBinaryPath = await resolveAppBinaryPath(instanceOptions, tauriOptions);
+      const appBinaryPath = resolveAppBinaryPath(instanceOptions, tauriOptions);
       log.debug(`App binary: ${appBinaryPath}`);
 
       // Ensure Edge WebDriver compatibility on Windows
@@ -243,18 +242,6 @@ export default class TauriLaunchService {
 
       // Update the application path to the resolved binary path
       tauriOptions.application = appBinaryPath;
-
-      // Don't set browserName - tauri-driver works best with it unset
-      // Only set browserVersion for display purposes in test output
-      // Note: This will show as "undefined(version)" but at least shows the version
-      try {
-        const appInfo = await getTauriAppInfo(originalAppPath);
-        if (appInfo.version) {
-          cap.browserVersion = appInfo.version;
-        }
-      } catch {
-        // If we can't get the version, leave it undefined
-      }
     }
 
     // For embedded provider: skip tauri-driver installation

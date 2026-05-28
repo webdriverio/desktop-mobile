@@ -104,14 +104,3 @@ export interface TauriDriverProcess {
   port: number;
   status: 'starting' | 'running' | 'stopped' | 'error';
 }
-
-/**
- * Tauri app information
- */
-export interface TauriAppInfo {
-  name: string;
-  version: string;
-  binaryPath: string;
-  configPath: string;
-  targetDir: string;
-}
