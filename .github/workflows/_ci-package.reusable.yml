@@ -123,8 +123,8 @@ jobs:
 
       # Download app binaries if testing services that require pre-built apps
       # The download-archive action extracts to workspace root, preserving directory structure
-      # Tauri: Archive contains fixtures/package-tests/tauri-app/src-tauri/target
-      # Dioxus: Archive contains fixtures/package-tests/dioxus-app/src-dioxus/target
+      # Tauri: Archive contains fixtures/package-tests/tauri-app/target
+      # Dioxus: Archive contains fixtures/package-tests/dioxus-app/target
       # Electron: Apps are built in isolated environments by test-package.ts script
       - name: 📦 Download Dioxus Package Test App Binary
         if: inputs.service == 'dioxus'

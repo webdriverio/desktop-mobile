@@ -146,6 +146,6 @@ jobs:
         with:
           name: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}
           output: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}/artifact.zip
-          paths: fixtures/package-tests/dioxus-app/src-dioxus/target
+          paths: fixtures/package-tests/dioxus-app/target
           cache_key_prefix: dioxus-package-app
           retention_days: '90'
