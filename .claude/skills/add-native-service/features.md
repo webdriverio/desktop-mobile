@@ -1,0 +1,65 @@
+# Feature inventory — converge on one surface
+
+**Guiding principle: every service should expose as close to an identical API and feature surface as possible.** A user who knows `@wdio/electron-service` should be able to move to `@wdio/tauri-service` or a new service with minimal relearning. Mocking is the template — it's already standardised across all three services, and new features should be designed the same way: one shape, same method names, same option names, same semantics.
+
+So the default answer to "should this service have feature X?" is **yes, with the same surface as the others**. You only omit a standard feature when the framework genuinely lacks the underlying concept — and then you document it as a known gap, not a design choice. Framework-specific work is *additive* (extra methods on top of the shared surface), never a divergent reinvention of something that already has a standard shape.
+
+## The standard `browser.<framework>.*` surface
+
+| Method | Standard? | Electron | Tauri | Dioxus |
+|---|---|---|---|---|
+| `execute(script, …args)` | ✅ every service | ✅ | ✅ | ✅ |
+| `mock(target)` | ✅ every service | ✅ | ✅ | ✅ |
+| `clearAllMocks` / `resetAllMocks` / `restoreAllMocks` | ✅ every service | ✅ | ✅ | ✅ |
+| `isMockFunction` | ✅ every service | ✅ | ✅ | ✅ |
+| `triggerDeeplink(url)` | ✅ every service | ✅ | ✅ | ✅ |
+| `switchWindow` / `listWindows` | ✅ standard multi-window API | ⚠️ gap¹ | ✅ | ✅ |
+| `emitEvent(...)` | ✅ where an event bus exists | ✅ | ✅ | ⚠️ gap² |
+| `mockAll(apiName)` / class mock | extension (object-API frameworks) | ✅ | — | — |
+
+¹ Electron currently exposes `windowHandle` + automatic window focus instead of `switchWindow`/`listWindows`. Treat this as a **known divergence to converge**, not a template — a new multi-window service should implement `switchWindow`/`listWindows` (the Wry standard).
+² Dioxus has no event bus today, so it omits `emitEvent`. Documented gap, not a deliberate exclusion.
+
+## Tier 1 — Standard surface (implement the same shape in every service)
+
+These are the baseline. Match method names, option names, and semantics to the existing services exactly.
+
+- **`execute(script, …args)`** — run a function in the app context with the framework API handle injected. CDP: `Runtime.evaluate`/`callFunctionOn`; Wry: WebDriver `execute` / the bridge `wdio://` invoke.
+- **Mocking** — the canonical example of standardisation. Vitest-like surface (`mock`, `clearAllMocks`, `resetAllMocks`, `restoreAllMocks`, `isMockFunction`) over `@wdio/native-spy`, with the two-process inner/outer split (inner intercepts in-app, outer for assertions, one-way `update()` sync). New services reuse this design wholesale — see `agent-os/standards/global/mock-architecture.md`. Do not invent a different mocking idiom.
+- **Deeplink / protocol testing** — `triggerDeeplink(url)`; OS-level trigger (`rundll32`/`xdg-open`/`open`) is portable, only the app-side handler differs.
+- **Multi-window** — `switchWindow(label)` / `listWindows()` is the standard. Wry tracks a label registry in the bridge (`window_state`); a CDP service maps it onto CDP targets. Implement this shape whenever the framework has addressable windows/targets.
+- **Log capture** — backend (main/native) + frontend (renderer/webview), gated by `captureBackendLogs` / `captureFrontendLogs` with per-stream level options. `logForwarder`/`logParser` stay framework-local (formats differ); only `shouldLog` is shared.
+- **Browser mode** — test the frontend in plain Chrome against a dev server; launcher detects `mode: 'browser'` and skips binary/driver setup.
+- **Standalone / session mode** — `session.ts` exporting `create<Framework>Capabilities`, `startWdioSession`, `cleanup`. Same trio in every service.
+- **Multiremote + per-worker parallelism** — **universal.** Every service supports driving multiple app instances at once and parallel workers. Wry services give each worker its own driver/port via `@wdio/native-core`'s `PortManager`/`DriverPool`; CDP services attach per-instance. Handle both the array-caps and multiremote-record caps shapes in the launcher (see `dioxus-service/src/launcher.ts` `prepareEmbedded` vs `prepareEmbeddedMultiremote`).
+- **Headless / CI execution** — **universal.** Every service must run headless on CI across all supported platforms — services exist to run in CI. Windows and macOS need no special handling; Linux needs a virtual display. **WDIO provides this, not the service**: the `@wdio/xvfb` package (being renamed `@wdio/display-server` in WDIO v10) plus the `autoXvfb` config option start an Xvfb display for the **worker** process. CDP services (e.g. Electron) set `autoXvfb: true` and rely on it directly. **Wry services need a different approach**: their driver runs in the **launcher** process (not the worker) and needs the display *before* the worker starts, so worker-level `autoXvfb` doesn't cover it — they set `autoXvfb: false` and wrap the entire test command in `xvfb-run` in CI (see `e2e/wdio.tauri.conf.ts` / `e2e/wdio.dioxus.conf.ts`). `@wdio/display-server` is expected to manage this launcher-process case too once released. Headless-on-all-supported-platforms is the target; the mechanism is the above (and evolving), not something the service implements itself.
+- **Config option naming** — keep user-facing options consistent across services (`appBinaryPath`/`application`, `captureBackendLogs`, `mode`, `devServerUrl`, etc.). A new option that has an analogue elsewhere should reuse the existing name.
+
+## Tier 2 — Conditional only on the framework having the concept
+
+Still aim to ship these with the standard surface; the *only* gate is whether the framework has the underlying capability. If it does, match the existing API; if it doesn't, record a documented gap.
+
+- **`emitEvent`** — implement it (matching Electron/Tauri's shape) when the framework has an event bus. Omit + document only if it has none (Dioxus).
+
+## Tier 3 — Framework-specific (additive extensions and internal mechanisms)
+
+These are genuinely bound to one framework's model. They sit *on top of* the shared surface — they never replace a standard API. Build an analogue only if your framework has the same concept.
+
+- **API-surface extensions**: Electron `mockAll(apiName)` + class mocking (`classMock.ts`, `mockFactory.ts`) — richer because Electron exposes object/class APIs, not a single invoke bus. The core `mock()` lifecycle is still the standard; this is extra.
+- **Provider/driver mechanisms**: Tauri's CrabNebula provider + Edge WebDriver management; Dioxus's embedded WebDriver server crate + `wdio://` bridge IPC. Internal plumbing, not user-facing API.
+- **Platform/runtime specifics**: Electron fuses (`fuses.ts`), AppArmor (`apparmor.ts`), Chromedriver version matching (`electronVersion.ts`).
+- **Auto binary-path detection** — the *mechanism* is framework-specific (Electron reads Forge/Builder config; Tauri reads `tauri.conf.json`), but the *user-facing option* (`appBinaryPath`/`application`) is standard. Port auto-detection only when the framework has one canonical build tool with a stable output layout; otherwise expose the standard explicit-path option and skip the detection machinery (guessing wrong is worse than asking). The *API stays consistent* either way.
+
+## Not service features (docs only)
+
+**Visual regression testing and video recording are not features of any service here** — and not something to implement. They're demonstrated in the `docs/` set as *usage examples* showing how a service composes with **third-party WDIO packages we don't control** (e.g. `@wdio/visual-service`, `wdio-video-reporter`). They work because the service produces a standard WebdriverIO session, not because of any code we ship. Include the demonstrating docs in a new service's doc set, but never list them as service features or build anything for them.
+
+## Applying this to a new service
+
+Whatever the archetype, ship the **entire standard surface** (Tier 1) matching the existing method and option names — execute, mocking, deeplink, multi-window, log capture, browser mode, standalone, multiremote, plus headless. Then:
+
+- **Multi-window/targets**: implement `switchWindow`/`listWindows`. For a CDP framework with multiple addressable targets (per-tab/OOPIF webviews), realise this surface over those targets — same API, mapped onto target routing, not a new idiom.
+- **`emitEvent`**: include it if the framework exposes an event bus; otherwise document the gap.
+- **Auto binary detection**: implement the *mechanism* only if the framework has one canonical build tool with a stable output layout; otherwise expose the standard explicit-path option (`appBinaryPath`/`application`) and skip detection. The user-facing API stays the same either way.
+- **Don't reinvent**: mocking, execute, and log capture come straight from the shared design — copy the shape.
+- **Don't port** (Tier 3): another framework's platform/runtime specifics (Electron fuses/AppArmor/Chromedriver-versioning, Tauri CrabNebula, Dioxus bridge crate) unless your framework has the same concept.

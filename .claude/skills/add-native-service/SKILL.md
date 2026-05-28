@@ -1,255 +1,218 @@
 ---
 name: Add Native Service
-description: Process for adding a new framework service (e.g. @wdio/dioxus-service, @wdio/electrobun-service, @wdio/capacitor-service) to this monorepo. Use this skill when the user asks to add support for a new desktop or mobile framework, when extending the supported-frameworks list in ROADMAP.md, or when bootstrapping any new @wdio/<framework>-service package.
+description: Runbook for adding a new native-app testing service to this WebdriverIO monorepo. Covers every shipped desktop architecture — Electron's CDP attach, Tauri's external WebDriver driver, and Dioxus's in-process embedded driver + bridge crate — and is abstracted to apply to any new desktop framework. Use this skill when asked to add support for a new desktop framework, to bootstrap a new @wdio/<framework>-service package, to extend the supported-frameworks list in ROADMAP.md, or when shipping/refactoring any of the existing electron, tauri, or dioxus services along the shared pattern. (Mobile frameworks are expected to introduce new patterns warranting a future revision.)
 ---
 
 # Add Native Service
 
-A runbook for bootstrapping a new WebdriverIO service package in this monorepo. Distilled from the Dioxus service implementation (PR1 + PR2 of branch `feat/dioxus-mvp`); will be refined as subsequent services land.
+A runbook for bootstrapping a new WebdriverIO service package in this monorepo. It abstracts over the **three architectures already shipped here** so the same process can ship any of them:
 
-This skill assumes the new service follows the established pattern: a TypeScript service package, optional Rust crate(s) for in-app bridge / driver plumbing, fixtures, E2E specs, and CI gating.
+- **Electron** (`@wdio/electron-service`) — CDP attach, no driver process, no Rust.
+- **Tauri** (`@wdio/tauri-service`) — Wry webview, external WebDriver driver + Tauri plugin crate.
+- **Dioxus** (`@wdio/dioxus-service`) — Wry webview, in-process embedded WebDriver server + bridge crate.
+
+If you follow this skill against any of those frameworks you should land in the same place the shipped package already is, and the same process bootstraps the next desktop framework. See `ROADMAP.md` for what's planned.
+
+The single most important step is **Step 0**: identify which architecture archetype your framework falls into. It decides whether Phase 2 builds Rust crates, attaches over CDP, or forks a driver — and which existing service you clone.
+
+**Scope:** this skill currently targets **desktop** frameworks. The first mobile service is expected to introduce new patterns (device/emulator management, Appium-style webview contexts) that will warrant a major revision — don't assume this runbook covers mobile yet.
 
 ## When to use
 
-- A new framework (Electrobun, Neutralino, Flutter, React Native, Capacitor, etc.) is being added to the supported-frameworks list per `ROADMAP.md`.
-- An existing pre-1.0 service is being promoted to its first real package (Phase 0 spike → first MVP).
-- You need to validate that a new framework can be automated before committing to a service implementation.
+- A new desktop framework is being added per `ROADMAP.md`.
+- An existing pre-1.0 service is being promoted from a Phase 0 spike to its first MVP package.
+- You're validating that a framework can be automated before committing to a service implementation.
+- You're refactoring one of the shipped services and want to keep it aligned with the shared pattern.
 
 ## When NOT to use
 
-- Adding features to an already-shipped service (`@wdio/tauri-service`, `@wdio/electron-service`, `@wdio/dioxus-service`) — those have their own conventions documented in each package's README.
-- Pure refactors of `@wdio/native-core` — see `agent-os/specs/<spec>/IMPLEMENTATION_PLAN.md` for the standards extraction process.
+- Adding a feature to an already-shipped service — those have package-local conventions in each `README.md` / `docs/`.
+- Pure refactors of `@wdio/native-core` — see the relevant `agent-os/specs/<spec>/` plan.
 
-## High-level architecture
+## Step 0 — Identify the integration archetype
+
+Every framework here resolves to a point on two axes. Decide both before writing code (confirm them in the Phase 0 spike).
+
+**Axis 1 — Transport: how does the test process drive the app?**
+
+| | Signal | Path | Clone |
+|---|---|---|---|
+| **CDP attach** | Runtime exposes a Chrome DevTools Protocol endpoint (Chromium-based runtimes, e.g. Electron) | Attach a WebSocket CDP client. No driver process, no in-app Rust. | `@wdio/electron-service` + `@wdio/electron-cdp-bridge` |
+| **WebDriver** | App embeds a system webview via **Wry** (Tauri, Dioxus) or another WebView host with no CDP | Drive a W3C WebDriver endpoint. Needs in-app plumbing + a driver. | `@wdio/tauri-service` or `@wdio/dioxus-service` |
+
+**Axis 2 — (WebDriver only) Driver model: where does the WebDriver server live?**
+
+| | Description | Reference |
+|---|---|---|
+| **external** | A driver subprocess proxies WebDriver to the platform webview driver (`msedgedriver` / `webkit2gtk-driver`). Driver is a fork of `tauri-driver`. **Not available on macOS** for any Wry service. | Tauri (Linux/Windows), Dioxus (Windows only) |
+| **embedded** | An in-process W3C WebDriver HTTP server compiled into the app. No external driver to install — works on all 3 OSes. Delivered as a **plugin the app registers** (Tauri → `tauri-plugin-wdio-webdriver`) or a **crate wired via the bridge** (Dioxus → `wdio-dioxus-embedded-driver`). | Tauri + Dioxus (Dioxus default) |
+
+**Both shipped Wry services support both providers** (Tauri also offers a CrabNebula provider). Pick `'embedded'` as the default if you can — it removes per-OS driver installation. How the embedded server is delivered follows Axis 2b: a plugin where the framework has a plugin system, a bridge-wired crate where it doesn't.
+
+**Axis 2b — (WebDriver only) In-app plumbing: how do test hooks get into the app?**
+
+| Framework has… | Use | Example |
+|---|---|---|
+| a plugin system | **plugin crate(s)** registered by the app — note these are *separate concerns*: one plugin for execute/mock IPC, and (for the embedded provider) a **second** plugin for the embedded WebDriver server | Tauri → `tauri-plugin-wdio` (execute/mock) **+** `tauri-plugin-wdio-webdriver` (embedded server) |
+| no plugin system | a **bridge crate** that injects guest-js via the Config's custom-head + a `wdio://` custom protocol (the same bridge also wires the embedded server) | Dioxus → `wdio-dioxus-bridge` |
+
+CDP frameworks need **no** in-app plumbing — Chromium exposes the protocol natively; a test-side CDP bridge package handles the connection.
+
+→ **Worked detail:** [plumbing-cdp.md](plumbing-cdp.md) (CDP path — Electron) · [plumbing-wry.md](plumbing-wry.md) (Wry path — Tauri/Dioxus).
+
+## Architecture layering
 
 ```
-@wdio/native-types       — type-only; framework-specific types + module augmentation
+@wdio/native-types       — type-only; framework types + module augmentation
 @wdio/native-utils       — generic primitives (logger, Result, config readers)
 @wdio/native-spy         — mock framework + per-framework interceptor adapters
-@wdio/native-core        — shared launcher infrastructure (PortManager, DriverPool,
-                            DriverProcess, BaseLauncher, logCapture skeleton, logWriter,
-                            deeplink helpers, logLevel)
+@wdio/native-core        — shared launcher infra (PortManager, DriverPool, DriverProcess,
+                            BaseLauncher, logWriter, deeplink helpers, logLevel)
 @wdio/<framework>-service — your new package
-packages/<framework>-bridge — Rust crate (optional, if the app needs in-app plumbing)
-packages/<framework>-driver — Rust crate (optional, if external WebDriver proxy needed)
+packages/<framework>-*    — Rust crates (Wry path only)
 ```
 
-Reuse what you can from `@wdio/native-core` (port management, driver lifecycle, log writer); add framework-specific behaviour on top.
+New services build **on `@wdio/native-core`** (Tauri and Dioxus do; Electron predates the extraction and is being migrated). Reuse port management, driver lifecycle, and log writing; add framework behaviour on top. Audit before extracting more into core — extract only what's duplicated bit-for-bit (see gotcha 2).
+
+## Feature scope
+
+**Converge on one surface.** Every service should expose as close to an identical API and feature set as possible — a user moving between `@wdio/electron-service`, `@wdio/tauri-service`, and a new service should barely relearn anything. Mocking is the template: one Vitest-like shape, standardised across all three. Design new features the same way (same method names, option names, semantics). The default answer to "should this service have feature X?" is **yes, with the same surface as the others**; you only omit a standard feature when the framework lacks the underlying concept, and then you document it as a known gap.
+
+- **Standard surface — ship in every service, identical shape:** `execute`, mocking (`mock` + `clear/reset/restoreAllMocks` + `isMockFunction`, via `@wdio/native-spy`), `triggerDeeplink`, multi-window `switchWindow`/`listWindows`, backend+frontend log capture, browser mode, standalone/session mode, **multiremote + per-worker parallelism**, **headless on all supported platforms** (provided by WDIO's `@wdio/xvfb` / `autoXvfb` — being renamed `@wdio/display-server` in v10 — not by the service; CDP services use `autoXvfb` directly, Wry services wrap the command in `xvfb-run` because their driver runs in the launcher process), consistent config-option names.
+- **Conditional only on the framework having the concept** (ship with the standard shape if it does): `emitEvent` (needs an event bus).
+- **Framework-specific — additive, never a divergent reinvention:** Electron `mockAll`/class-mock + fuses/AppArmor/Chromedriver-versioning, Tauri CrabNebula provider, Dioxus bridge IPC. The *mechanism* of auto binary-path detection is framework-specific (skip when there's no canonical build tool), but the user-facing `appBinaryPath`/`application` option stays standard.
+- **Not service features** (docs only, don't build): visual regression and video recording — usage examples composing with third-party WDIO packages we don't control (`@wdio/visual-service`, `wdio-video-reporter`).
+
+→ **Full inventory, the known divergences to converge (Electron's window model, Dioxus's missing `emitEvent`), and the pattern behind each:** [features.md](features.md).
 
 ## Process
 
 ### Phase 0 — Pre-implementation spike
 
-Validate the platform constraints before writing any production code. Spikes are throwaway — they live in `/spike/<service-name>-spike/` (gitignored).
+Validate platform constraints before any production code. Spikes are throwaway — they live in `/spike/<service>-spike/` (gitignored); the output is the **findings doc**, not the source.
 
-1. Create the spike directory and a minimal app that uses the framework's public API.
-2. Identify the **single most consequential unknown** for the service. Examples:
-   - Dioxus: "can a third-party crate flip Wry's `set_allows_automation`?"
-   - Electrobun: "is there a stable CDP port and what's the discovery convention?"
-   - Capacitor: "what WebView context name does Appium see?"
-3. Write code that tries to exercise that unknown. If it fails, identify the workaround (upstream patch needed? alternate API? scope reduction?).
-4. Write `spike/FINDINGS.md` capturing:
-   - The question, the answer, and the citations (file paths, source snippets).
-   - The decision tree for the production implementation.
-   - Any platform-by-platform variance (often the most important section — see the Dioxus matrix where the same Wry API is a no-op on Win/Mac but blocking on Linux).
-5. Apply the findings to the implementation plan: update Risks, Platform Matrix, and Phasing.
+1. Create a minimal app exercising the framework's public API.
+2. **Confirm the Step 0 archetype** (does it expose CDP? which driver model? plugin or bridge?).
+3. Identify the single most consequential unknown and write code that exercises it. Examples: "can a third-party crate flip Wry's `set_allows_automation`?" (Dioxus); "what's the CDP debugger-port discovery convention for this runtime?" (a CDP framework); "does the framework expose multiple addressable webview targets?".
+4. Write `spike/FINDINGS.md`: the question, the answer with citations, the decision tree, and any **platform-by-platform variance** (often the most important section — e.g. the Dioxus Wry API is a no-op on Win/Mac but blocking on Linux).
+5. Fold findings into the implementation plan: Risks, Platform Matrix, Phasing.
 
-The spike is throwaway code — its output is the FINDINGS document, not the source. Don't merge the spike directory.
+### Phase 1 — TypeScript service skeleton (shared, all archetypes)
 
-### Phase 1 — TypeScript service skeleton
-
-Create `packages/<framework>-service/` with:
+Create `packages/<framework>-service/`:
 
 ```
-packages/<framework>-service/
-├── package.json
-├── tsconfig.json
-├── vitest.config.ts                    (unit, parallel)
-├── vitest.integration.config.ts        (integration, fileParallelism: false)
-└── src/
-    ├── index.ts                        public exports (default = worker, launcher = launch service)
-    ├── launcher.ts                     extends BaseLauncher
-    ├── service.ts                      installs browser.<framework>.* surface
-    ├── errors.ts                       SevereServiceError helpers
-    └── types.ts                        re-exports public types from @wdio/native-types
+src/
+├── index.ts        public exports: default = worker service, named `launcher` = launch service
+├── launcher.ts     extends BaseLauncher (main process)
+├── service.ts      installs browser.<framework>.* surface (worker process)
+├── session.ts      standalone-mode helpers (createXCapabilities, startWdioSession, cleanup)
+├── errors.ts       SevereServiceError helpers
+└── types.ts        re-exports public types from @wdio/native-types
 ```
 
 **Conventions:**
 
-- Initial version: `1.0.0-next.0` (pre-release).
-- `package.json` must include `@wdio/native-core`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-utils` as workspace deps. Mirror `@wdio/tauri-service`'s package.json structure exactly — exports, scripts, devDependencies, peerDependencies. The build script is `tsx ../../scripts/build-package.ts`.
-- `vitest.integration.config.ts` MUST use `fileParallelism: false` + 30s timeout + `setupFiles: ['test/integration/setup.ts']`.
-- `tsconfig.json` extends `../../tsconfig.base.json`, output to `./dist`, root `./src`.
+- Initial npm version `1.0.0-next.0`. Build script: `tsx ../../scripts/build-package.ts`.
+- Mirror the closest sibling's `package.json` exactly (exports, scripts, devDeps, peerDeps): CDP → clone `@wdio/electron-service`; Wry → clone `@wdio/tauri-service`. Always depend on `@wdio/native-core`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-utils` as workspace deps.
+- `vitest.integration.config.ts` MUST set `fileParallelism: false` + 30s timeout + `setupFiles: ['test/integration/setup.ts']`.
+- `tsconfig.json` extends `../../tsconfig.base.json`, out `./dist`, root `./src`.
+- `index.ts`: `export { default as launcher } from './launcher.js'`, `export { default } from './service.js'`, plus session helpers and public types. Import `'@wdio/native-types'` for side-effect module augmentation.
 
-**`launcher.ts`:** extend `BaseLauncher` from `@wdio/native-core`. Implement `onPrepare` and `onComplete`. Guard with platform-specific `SevereServiceError` throws when a platform/provider combination is known unsupportable (per spike findings).
+**`launcher.ts`** extends `BaseLauncher`; implement `onPrepare` / `onComplete`. Throw a platform-specific `SevereServiceError` when a platform/provider combination is known-unsupportable (per spike). Handle browser mode (skip binary/driver setup) and multiremote shapes if in scope.
 
-**Types in `@wdio/native-types/src/<framework>.ts`:**
-- `<Framework>APIs` — bridge-installed window surface
-- `<Framework>ExecuteOptions` — per-call execute overrides
-- `<Framework>Mock<T,R>` + `<Framework>MockInstance` — mock function shapes (mirror `TauriMock`)
-- `<Framework>ServiceAPI` — full `browser.<framework>.*` interface
-- `<Framework>ServiceOptions` + `<Framework>ServiceGlobalOptions` — config shapes
-- `<Framework>DriverProvider` — `'external' | 'embedded'` union (use `'external'`, NOT `'official'` — the latter is deprecated and only kept as a Tauri alias)
-- `<Framework>Capabilities` — capability shape (interface, NOT extending `Capabilities.RequestedStandaloneCapabilities` directly because dynamic members confuse Rollup; intersect with it at the service level if needed)
-- `<Framework>BrowserExtension` — adds `<framework>` field to BrowserBase
+**Types in `@wdio/native-types/src/<framework>.ts`** (mirror `tauri.ts`):
+`<Framework>APIs`, `<Framework>ExecuteOptions`, `<Framework>Mock<T,R>` + `<Framework>MockInstance`, `<Framework>ServiceAPI`, `<Framework>ServiceOptions` + `<Framework>ServiceGlobalOptions`, `<Framework>Capabilities`, `<Framework>BrowserExtension`. WebDriver path also: `<Framework>DriverProvider` (`'external' | 'embedded'` — never `'official'`, a deprecated Tauri alias). Then wire `@wdio/native-types/src/index.ts`: re-export the types, extend `BrowserExtension`, and `declare global { namespace WebdriverIO }` for `Browser`, `Capabilities['wdio:<framework>ServiceOptions']`, and `ServiceOption`.
 
-Then wire into `@wdio/native-types/src/index.ts`:
-- `export type { ... } from './<framework>.js';`
-- `BrowserExtension extends ... <Framework>BrowserExtension {}`
-- `declare global { namespace WebdriverIO { interface Browser extends ... }`, `interface Capabilities { 'wdio:<framework>ServiceOptions'?: ... }`, `interface ServiceOption extends ... <Framework>ServiceGlobalOptions {}`
+> `<Framework>Capabilities` must be a **plain interface** — do NOT extend `Capabilities.RequestedStandaloneCapabilities` (Rollup's TS plugin can't extend dynamic-member interfaces). Intersect with it at service-level aliases instead (see `TauriServiceRequestedStandaloneCapabilities`).
 
-### Phase 2 — Rust crates (if needed)
+### Phase 2 — Native plumbing (archetype-specific)
 
-Two patterns:
+- **CDP path** → [plumbing-cdp.md](plumbing-cdp.md): CDP bridge connection, binary/build detection, no Rust.
+- **Wry path** → [plumbing-wry.md](plumbing-wry.md): driver crate (external), bridge/plugin crate + guest-js, embedded WebDriver server crate, Cargo conventions, macOS throttling.
 
-**Driver crate** (e.g. `packages/<framework>-driver/` → `wdio-<framework>-driver`): forked from `tauri-driver` if the framework uses Wry. ~200 LOC delta:
-- Rename crate + binary to `wdio-<framework>-driver` (the `wdio-` prefix leaves the unprefixed namespace free for the framework's project).
-- Capability namespace: `"<framework>:options"` (matches your TS `<framework>:options` capability key).
-- Env var: `<FRAMEWORK>_WEBVIEW_AUTOMATION` (and drop the legacy `TAURI_AUTOMATION` form).
-- Document the upstream-sync policy in the crate's README.
+### Phase 3 — Tests (shared)
 
-**Bridge crate** (e.g. `packages/<framework>-bridge/` → `wdio-<framework>-bridge`): new code. v1 minimum slice is just `automation.rs` (reads `<FRAMEWORK>_WEBVIEW_AUTOMATION`, logs state). Full IPC (`wdio://` custom protocol + invoke command bus + log forwarder + guest-js) is Phase 3 work, not Phase 2.
-
-**Cargo conventions:**
-- Edition `"2021"`, rust-version `"1.77.2"` (matches tauri-driver).
-- License `Apache-2.0 OR MIT`.
-- Initial version `1.0.0-rc.0`.
-- `with-bridge` feature flag (default off) so release builds can compile out the crate.
-
-**Gitignore at repo root:**
-```
-packages/*/target/
-packages/*/Cargo.lock
-```
-
-(Matches existing tauri-plugin convention — Cargo.lock for these crates is not committed.)
-
-### Phase 3 — Tests
-
-**Conventions:**
-- Use `it('should ...')` throughout. Never `it('does X', ...)` or `it('returns Y', ...)`. Tauri's existing suite is the reference.
-- Test files: `test/<module>.spec.ts` for unit, `test/integration/<module>.integration.spec.ts` for integration.
-- Mock at the `@wdio/native-core` boundary, not at local module boundaries. If a service module is a thin wrapper around core, the test should `vi.mock('@wdio/native-core', ...)` with a Map-backed in-memory fake — see `packages/tauri-service/test/driverPool.spec.ts` for the reference pattern.
-- Rust unit tests: inline `#[cfg(test)] mod tests` blocks. Use `should_*` function names.
-
-**Minimum spec inventory at Phase 1 commit:**
-- `test/index.spec.ts` — public export shape
-- `test/errors.spec.ts` — error helpers
-- `test/launcher.spec.ts` — platform × provider matrix (especially any SevereServiceError throws)
-
-Coverage target: ≥80% statement coverage per `AGENTS.md`. Thin-wrapper packages can declare an exception in `vitest.config.ts` with a comment explaining why.
+- `it('should ...')` throughout — never `it('does X')` / `it('returns Y')`. Tauri's suite is the reference.
+- Files: `test/<module>.spec.ts` (unit), `test/integration/<module>.integration.spec.ts` (integration).
+- Mock at the **`@wdio/native-core` boundary**, not local module boundaries, when a service module is a thin wrapper around core — otherwise the mock never reaches the real spawn/IO. Map-backed in-memory fake; see `packages/tauri-service/test/driverPool.spec.ts`.
+- Rust: inline `#[cfg(test)] mod tests` with `should_*` names.
+- Minimum at Phase 1 commit: `test/index.spec.ts` (export shape), `test/errors.spec.ts`, `test/launcher.spec.ts` (platform × provider matrix incl. every `SevereServiceError` throw).
+- Coverage ≥80% (per `AGENTS.md`); thin-wrapper packages may declare an exception in `vitest.config.ts` with a comment explaining why.
 
 ### Phase 4 — CI gates
 
-In `.github/workflows/_ci-detect-changes.reusable.yml`:
+See [ci-and-release.md](ci-and-release.md) → "CI gates". Add `run_<framework>` outputs, path filters (`<framework>_service`, `e2e_<framework>`, `fixtures_<framework>`, `infra_<framework>`), extend the `shared` filter for any new `native-*` package, and clone the per-framework reusable workflows.
 
-1. Add `run_<framework>` to the outputs declarations + computation.
-2. Add filters under `paths-filter`:
-   - `<framework>_service`: `packages/<framework>-service/**`, plus any Rust crate paths.
-   - `e2e_<framework>`: `e2e/test/<framework>/**`, `e2e/wdio.<framework>.conf.ts`, etc.
-   - `fixtures_<framework>`: `fixtures/e2e-apps/<framework>/**`, `fixtures/package-tests/<framework>-app/**`.
-3. **Extend the `shared` filter** to include any new packages added under `packages/native-*` (e.g., `packages/native-spy/**`, `packages/native-core/**` — these are easy to forget and were latent CI gaps before Dioxus).
-4. Add `RUN_<FRAMEWORK>` to the lint-only gate.
+### Phase 5 — Fixtures, E2E, docs, release
 
-In `.github/workflows/ci.yml`: add `<framework>`-gated jobs mirroring Tauri's set, conditioned on `needs.detect-changes.outputs.run_<framework> == 'true'`.
-
-New reusable workflows (clone from Tauri equivalents):
-- `_ci-build-<framework>-apps.reusable.yml`
-- `_ci-build-<framework>-e2e-app.reusable.yml`
-- `_ci-build-<framework>-package-app.reusable.yml`
-- `_ci-e2e-<framework>-all-providers.reusable.yml`
-
-Extend `_ci-package.reusable.yml` and `_ci-package-docker.reusable.yml` to accept `<framework>` in the service matrix.
-
-### Phase 5 — Fixtures, E2E specs, docs, release pipeline
-
-This phase is large and is broken out per the standard 4-PR split (see Plan / PR split below). At the very least, before merging the MVP:
-
-- `fixtures/e2e-apps/<framework>/` — minimal app demonstrating execute + mock + multi-window.
-- `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,logging.external,mocking,window}.spec.ts` — core E2E set, mirroring `e2e/test/tauri/`.
-- `e2e/wdio.<framework>.conf.ts` (provider `'external'`) + `e2e/wdio.<framework>-embedded.conf.ts` (provider `'embedded'`).
-- `packages/<framework>-service/README.md` + `docs/` set (quick-start, configuration, api-reference, usage-examples, plugin-setup, platform-support, troubleshooting, release-notes/v1.0.0.md).
-- Each Rust crate gets its own README.
+- `fixtures/e2e-apps/<framework>/` — minimal app: execute + mock + multi-window.
+- `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,mocking,window}.spec.ts` mirroring `e2e/test/tauri/`. Also add `logging.external.spec.ts` if the service has an **external** driver provider — capturing the driver subprocess's stdout/stderr is a distinct code path from in-app frontend/backend logging and needs its own coverage.
+- `e2e/wdio.<framework>.conf.ts` (+ `wdio.<framework>-embedded.conf.ts` for a Wry embedded provider).
+- `packages/<framework>-service/README.md` + `docs/` set + per-crate READMEs.
 - Root `README.md`, `ROADMAP.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/*.md` updates.
-- Release pipeline: update `.github/workflows/release.yml` + `_release.reusable.yml` for npm publish (`@wdio/<framework>-service`, `@wdio/<framework>-bridge`) and crates.io publish (`wdio-<framework>-driver`, `wdio-<framework>-bridge`, `wdio-<framework>-embedded-driver`).
+- Release pipeline — see [ci-and-release.md](ci-and-release.md) → "Release pipeline".
 
 ## Naming conventions
 
-| What | Convention | Example |
-|---|---|---|
-| npm service package | `@wdio/<framework>-service` | `@wdio/dioxus-service` |
-| npm bridge JS bundle | `@wdio/<framework>-bridge` (no `-js` suffix) | `@wdio/dioxus-bridge` |
-| Rust bridge crate | `wdio-<framework>-bridge` | `wdio-dioxus-bridge` |
-| Rust driver crate | `wdio-<framework>-driver` (NOT `<framework>-driver`) | `wdio-dioxus-driver` |
-| Rust embedded crate | `wdio-<framework>-embedded-driver` | `wdio-dioxus-embedded-driver` |
-| Capability key | `<framework>:options` | `dioxus:options` |
-| WDIO service options key | `wdio:<framework>ServiceOptions` | `wdio:dioxusServiceOptions` |
-| Window namespace | `window.__WDIO_<FRAMEWORK>__` | `window.__WDIO_DIOXUS__` |
-| Automation env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION` | `DIOXUS_WEBVIEW_AUTOMATION` |
-| Browser API surface | `browser.<framework>.*` | `browser.dioxus.execute(...)` |
+| What | Convention | Example | Path |
+|---|---|---|---|
+| npm service package | `@wdio/<framework>-service` | `@wdio/dioxus-service` | all |
+| WDIO service options key | `wdio:<framework>ServiceOptions` | `wdio:dioxusServiceOptions` | all |
+| Browser API surface | `browser.<framework>.*` | `browser.dioxus.execute(...)` | all |
+| CDP bridge package | `@wdio/<framework>-cdp-bridge` | `@wdio/electron-cdp-bridge` | CDP |
+| Capability key | `<framework>:options` | `dioxus:options` | Wry |
+| Automation toggle env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION` | `DIOXUS_WEBVIEW_AUTOMATION` | Wry |
+| Embedded-driver port env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` | `DIOXUS_WEBVIEW_AUTOMATION_PORT` | Wry/embedded |
+| Window namespace | `window.__WDIO_<FRAMEWORK>__` | `window.__WDIO_DIOXUS__` | Wry |
+| npm bridge JS bundle | `@wdio/<framework>-bridge` (no `-js`) | `@wdio/dioxus-bridge` | Wry/bridge |
+| Rust bridge crate | `wdio-<framework>-bridge` | `wdio-dioxus-bridge` | Wry/bridge |
+| Rust driver crate (external) | `wdio-<framework>-driver` (NOT `<framework>-driver`) | `wdio-dioxus-driver` | Wry/external |
+| Rust embedded server (bridge route) | `wdio-<framework>-embedded-driver` | `wdio-dioxus-embedded-driver` | Wry/embedded, no plugin system |
+| Rust embedded server (plugin route) | `<framework>-plugin-wdio-webdriver`-style | `tauri-plugin-wdio-webdriver` | Wry/embedded, has plugin system |
 
-**Why `wdio-` prefix on Rust crates:** Leaves the unprefixed namespace (e.g. `dioxus-driver`) free for the framework's own project, which may want to use it for their official tooling.
+For a **new** service, pair the embedded port var with the toggle prefix: `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` (as Dioxus does). Tauri's `TAURI_WEBDRIVER_PORT` predates this convention — don't copy it.
 
-**Provider names:** Use `'external'` and `'embedded'`. `'official'` is a deprecated Tauri alias only — don't introduce it on new services.
+**`wdio-` prefix on Rust crates** leaves the unprefixed name (e.g. `dioxus-driver`) free for the framework's own project. The embedded server takes the **plugin** form when the framework has a plugin system (Tauri ships `tauri-plugin-wdio-webdriver` alongside the execute/mock plugin `tauri-plugin-wdio`) and the standalone `wdio-<framework>-embedded-driver` crate form otherwise (Dioxus, wired in via the bridge). **Providers** are `'external'` / `'embedded'` — `'official'` is a deprecated Tauri-only alias.
 
 ## Plan / PR split
 
-For a service this size, default to a 4-PR stacked split:
+Default to a 4-PR stacked split:
 
 | PR | Branch (off main) | Scope |
 |---|---|---|
-| **PR1: Foundation** | `feat/<service>-foundation` | Any `@wdio/native-core` extractions needed; deprecation aliases on existing services. |
-| **PR2: MVP** | `feat/<service>-mvp` (off PR1) | TS service skeleton, Rust crate skeletons, basic execute + mock, minimum CI. |
-| **PR3: Feature Complete** | `feat/<service>-feature-complete` (off PR2) | Multi-window, deeplink, embedded provider, browser mode, macOS, visual testing. |
-| **PR4: Ship** | `feat/<service>-ship` (off PR3) | Package-test fixture, full doc set, complete CI, release pipeline. |
+| **PR1: Foundation** | `feat/<service>-foundation` | `@wdio/native-core` extractions; deprecation aliases on existing services. |
+| **PR2: MVP** | `feat/<service>-mvp` (off PR1) | TS skeleton, native-plumbing skeleton, basic execute + mock, minimum CI. |
+| **PR3: Feature Complete** | `feat/<service>-feature-complete` (off PR2) | Multi-window, deeplink, second provider, browser mode, macOS, headless on all supported platforms. |
+| **PR4: Ship** | `feat/<service>-ship` (off PR3) | Package-test fixture, full docs, complete CI, release pipeline. |
 
-Each PR must have green tests on all three suites (`@wdio/<framework>-service`, `@wdio/tauri-service`, `@wdio/electron-service`) plus any Rust `cargo test`. No regressions, ever.
+Every PR must be green on all affected service suites + any `cargo test`. No regressions, ever.
 
 ## Common gotchas
 
-1. **Spike before commit.** The Dioxus spike revealed Linux `'external'` was blocked by an upstream Dioxus API gap. Doing the spike first scoped v1 to Windows-only `'external'` rather than blocking the whole release on an external dependency. Always run a Phase 0 spike.
-
-2. **Don't extract speculatively.** During PR1, the Dioxus plan called for extracting `logForwarder` + `logParser` into `@wdio/native-core`. The audit revealed those are too framework-specific to unify (Tauri text-line vs Electron CDP events). Only `shouldLog` was genuinely shared. Audit before extracting; extract only what's actually duplicated bit-for-bit.
-
-3. **Mock at the right boundary.** When a service module is a thin wrapper around `@wdio/native-core`, tests must mock at the core boundary (`vi.mock('@wdio/native-core', ...)`) not the local module. Otherwise the mock won't reach the actual spawn/IO call. Pattern: Map-backed in-memory fake. See `packages/tauri-service/test/driverPool.spec.ts`.
-
-4. **`Capabilities.RequestedStandaloneCapabilities` cannot be extended.** Rollup's TS plugin can't extend dynamic-member interfaces. Declare `<Framework>Capabilities` as a plain interface and intersect with `Capabilities.RequestedStandaloneCapabilities` at the service-level type aliases (see `TauriServiceRequestedStandaloneCapabilities` for the pattern).
-
-5. **Async log writer close.** Core's `LogWriter.close()` is async (calls `stream.end(callback)` and waits for flush). When porting Tauri-style synchronous `close()` callers, mock `end: vi.fn((cb?) => cb?.())` so the underlying promise resolves in tests, and remember to `await` close calls.
-
-6. **`shared` paths-filter gaps.** `packages/native-spy/**` and `packages/native-core/**` need to be in the `shared` filter of `_ci-detect-changes.reusable.yml`. Easy to miss; resulted in latent CI gaps before Dioxus PR1.
-
-7. **Gitignore Rust build artefacts.** `packages/*/target/` and `packages/*/Cargo.lock` go in the root `.gitignore`. Forgetting this can result in a 42 MB accidental commit of build artifacts (yes, this happened during Dioxus PR2).
-
-8. **Rust env-var tests use `unsafe { std::env::set_var(...) }`** in 2024 edition. Tests should be in a single `mod tests` to avoid parallel-test interference, or clean up afterwards.
+1. **Pick the archetype first.** Cloning the wrong reference is the most expensive mistake. A CDP-based framework cloned from `tauri-service` would build a driver fork and Rust crates it never needs; a Wry framework cloned from `electron-service` would have no way to drive the webview. Confirm CDP vs WebDriver in the spike.
+2. **Don't extract speculatively.** The Dioxus plan called for hoisting `logForwarder`/`logParser` into core; the audit found them too framework-specific (Tauri text-line vs Electron CDP events). Only `shouldLog` was genuinely shared. Audit before extracting.
+3. **Mock at the right boundary.** Thin wrappers over `@wdio/native-core` must be tested by mocking core (`vi.mock('@wdio/native-core', …)`), not the local module — see `tauri-service/test/driverPool.spec.ts`.
+4. **`Capabilities.RequestedStandaloneCapabilities` can't be extended** (Rollup TS plugin). Declare a plain interface; intersect at service aliases.
+5. **(Wry) npm↔crate version lockstep.** The bridge crate's `build.rs` asserts the crate `Cargo.toml` and `package.json` agree on core `X.Y.Z`. npm uses `-next.N`, crates.io uses `-rc.N` — bump both together. See [plumbing-wry.md](plumbing-wry.md).
+6. **(Wry/embedded) macOS background throttling.** WKWebView suspends the WebContent process running the JS polling loop when unfocused/napping on CI. The bridge sets `<FRAMEWORK>_WEBVIEW_AUTOMATION` and the app disables `with_background_throttling`. See [plumbing-wry.md](plumbing-wry.md).
+7. **(Wry) `shared` paths-filter gaps.** Every `packages/native-*` must be in the `shared` filter of `_ci-detect-changes.reusable.yml`. Easy to miss; was a latent CI gap before Dioxus.
+8. **(Wry) gitignore Rust artefacts.** `packages/*/target/` and `packages/*/Cargo.lock` in root `.gitignore` — once caused a 42 MB accidental commit.
+9. **(Wry) Rust env-var tests** use `unsafe { std::env::set_var(...) }` (2024 edition). Keep them in one `mod tests` or clean up to avoid parallel interference.
+10. **Async `LogWriter.close()`.** `@wdio/native-core`'s `LogWriter.close()` is async — it calls `stream.end(callback)` and waits for the flush. Launchers must `await closeLogWriter(...)` in `onComplete`, and tests exercising that path must mock `end: vi.fn((cb?) => cb?.())` so the promise resolves. Porting a synchronous Tauri-style `close()` caller without awaiting silently hangs the test.
 
 ## Verification checklist (per PR)
 
-Before merging each PR:
-
 - [ ] `pnpm --filter @wdio/<framework>-service typecheck` clean
-- [ ] `pnpm --filter @wdio/<framework>-service test:unit` green (all `it('should ...')`)
+- [ ] `pnpm --filter @wdio/<framework>-service test:unit` green (all `it('should …')`)
 - [ ] `pnpm --filter @wdio/<framework>-service test:coverage` ≥ 80%
-- [ ] `pnpm --filter @wdio/tauri-service test:unit` no regressions
-- [ ] `pnpm --filter @wdio/electron-service test:unit` no regressions
-- [ ] `pnpm --filter @wdio/native-core test:unit` no regressions
-- [ ] `cargo check` clean for each new Rust crate
-- [ ] `cargo test` green for each new Rust crate
-- [ ] No `packages/*/target/` files staged
+- [ ] No regressions: `@wdio/tauri-service`, `@wdio/electron-service`, `@wdio/dioxus-service`, `@wdio/native-core` unit suites
+- [ ] (Wry) `cargo check` + `cargo test` green for each new crate; no `packages/*/target/` staged
 
-## Reference implementations
+## Reference implementations (worked examples by archetype)
 
-- **Dioxus service** — `packages/dioxus-service/`, `packages/dioxus-bridge/`, `packages/dioxus-driver/`. The reference for this skill.
-- **Tauri service** — `packages/tauri-service/`. The mature, fully-shipped reference (multi-window, multiremote, browser mode, all three providers).
-- **Electron service** — `packages/electron-service/`. The CDP-based alternative architecture; useful when the framework doesn't use Wry.
-- **Plan files** — `~/.claude/plans/<plan-name>.md`. Always start with a plan that captures Strategy decisions, Package layout, Phasing, Risks, and Open decisions.
-- **Spike findings** — `spike/FINDINGS.md`. Captures the Phase 0 spike for whatever question is being investigated.
-
-## Versioning over time
-
-This skill captures the process as of PR2 of the Dioxus service. Update it as later phases land:
-
-- After PR2 MVP: add specifics about bridge IPC (invoke.rs, log_bridge.rs) and guest-js bundle layout.
-- After PR3 Feature Complete: add specifics about embedded WebDriver crates and macOS quirks.
-- After PR4 Ship: add the full release / publishing checklist with concrete `gh release` + `cargo publish` flow.
-- Promote skill from `.claude/skills/add-native-service/SKILL.md` to a markdown reference in `agent-os/standards/` once a third service has gone through the process and the patterns are settled.
+- **CDP** — `packages/electron-service/` + `packages/electron-cdp-bridge/`. The reference for any new CDP-based service.
+- **Wry / plugin system** — `packages/tauri-service/` + `packages/tauri-plugin/` (execute/mock) + `packages/tauri-plugin-webdriver/` (`tauri-plugin-wdio-webdriver`, embedded server). Mature; all providers (external, embedded, CrabNebula), multiremote, browser mode. The reference for the **plugin-route embedded provider**.
+- **Wry / no plugin system (bridge)** — `packages/dioxus-service/` + `dioxus-bridge` / `dioxus-embedded-driver` / `dioxus-driver`. The reference for the **bridge-route embedded provider** and for frameworks without a plugin system.
+- **Plan files** — `~/.claude/plans/<plan>.md`. Start every service with a plan capturing Strategy, Package layout, Phasing, Risks, Open decisions.
+- **Spike findings** — `spike/FINDINGS.md`.
