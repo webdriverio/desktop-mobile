@@ -10,7 +10,7 @@ Please be respectful and constructive in all interactions. We aim to create a we
 
 ### Prerequisites
 
-- Node.js 24 LTS
+- Node.js 24 LTS (contributor toolchain — end-user Node range is defined per-package via `engines`)
 - pnpm 10.27.0
 - Git
 

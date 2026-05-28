@@ -12,11 +12,11 @@
     "build:mac-universal": "electron-vite build && pnpm build:package:mac-universal",
     "preview": "electron-vite preview",
     "clean": "pnpm clean:dist && pnpm dlx shx rm -rf ./node_modules ./wdio-logs",
-    "clean:dist": "pnpm dlx shx rm -rf ./dist ./out && pnpm dlx shx mkdir -p ./dist"
+    "clean:dist": "tsx ../../../scripts/clean-dist.ts ./dist ./out"
   },
   "devDependencies": {
-    "@electron-forge/cli": "^7.11.1",
-    "@types/node": "^25.5.0",
+    "@electron-forge/cli": "catalog:default",
+    "@types/node": "^25.9.1",
     "@wdio/cli": "catalog:default",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",

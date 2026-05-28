@@ -33,10 +33,11 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     // emit arrow functions — and arrow functions have no own `arguments`
     // binding). Inlining keeps the call-site portable.
     //
-    // The wrapper body MUST stay synchronous: WebDriver's executeScript
-    // wraps the string in a non-async function, so `await` here would be
-    // a SyntaxError at runtime. Users that need promise-returning scripts
-    // should reach for executeAsync (not yet exposed on browser.dioxus).
+    // The wrapper body itself stays synchronous (no top-level `await`), but
+    // returns a Promise. Both driver paths await it before delivering the
+    // result: the embedded driver via guest-js's AsyncFunction polling loop,
+    // and the external driver via the W3C WebDriver executeScript spec which
+    // requires drivers to resolve a returned promise before completing.
     const argsLiteral = args
       .map((a, i) => {
         try {
@@ -51,6 +52,12 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
         }
       })
       .join(', ');
+    // The user's function is wrapped in an explicit Promise so any
+    // synchronous throw is converted to a controlled rejection — protects
+    // against WKWebView edge cases where an AsyncFunction body throwing
+    // through an IIFE can leave the eval pipeline in an inconsistent state.
+    // Promise.resolve(...).then(resolve, reject) handles both sync values
+    // and returned promises (incl. those that reject after an await).
     const wrapped = `
       const userFn = (${fnSource});
       const dx = window.__WDIO_DIOXUS__;
@@ -60,7 +67,13 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
           'Did you forget to call wdio_dioxus_bridge::install(config) in your Dioxus main.rs?'
         );
       }
-      return userFn(dx, ${argsLiteral});
+      return new Promise(function (resolve, reject) {
+        try {
+          Promise.resolve(userFn(dx, ${argsLiteral})).then(resolve, reject);
+        } catch (e) {
+          reject(e);
+        }
+      });
     `;
     return (await browser.execute(wrapped)) as ReturnValue;
   }

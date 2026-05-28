@@ -12,16 +12,16 @@
     "build:mac-universal": "electron-vite build && pnpm build:package:mac-universal",
     "preview": "electron-vite preview",
     "clean": "pnpm clean:dist && pnpm dlx shx rm -rf ./node_modules pnpm-lock.yaml ./wdio-logs",
-    "clean:dist": "pnpm dlx shx rm -rf ./dist ./dist-electron && pnpm dlx shx mkdir -p ./dist"
+    "clean:dist": "tsx ../../../scripts/clean-dist.ts ./dist ./dist-electron"
   },
   "devDependencies": {
-    "@types/node": "^25.5.0",
+    "@types/node": "^25.9.1",
     "@wdio/cli": "catalog:default",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",
     "@wdio/mocha-framework": "catalog:default",
     "electron": "catalog:default",
-    "electron-builder": "26.8.1",
+    "electron-builder": "catalog:default",
     "electron-vite": "^5.0.0",
     "typescript": "^5.9.3",
     "webdriverio": "catalog:default"

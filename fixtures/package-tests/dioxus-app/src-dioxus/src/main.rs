@@ -17,6 +17,11 @@ fn main() {
 
     #[cfg(debug_assertions)]
     {
+        if wdio_dioxus_embedded_driver::automation::is_requested() {
+            config = config.with_background_throttling(
+                dioxus::desktop::wry::BackgroundThrottlingPolicy::Disabled,
+            );
+        }
         config = wdio_dioxus_embedded_driver::install_with_commands(config, |registry| {
             registry.register("get_platform_info", |_args| {
                 Ok(json!({

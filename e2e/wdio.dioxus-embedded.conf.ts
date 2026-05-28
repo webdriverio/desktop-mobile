@@ -159,7 +159,6 @@ export const config = {
   maxInstances,
   capabilities,
   logLevel: 'info',
-  bail: 0,
   baseUrl: '',
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
@@ -178,7 +177,7 @@ export const config = {
   reporters: ['spec'],
   mochaOpts: {
     ui: 'bdd',
-    timeout: 120000,
+    timeout: 60000,
   },
   outputDir: logDir,
 };

@@ -38,12 +38,15 @@ function sortDependencies(deps: Record<string, string> | undefined): Record<stri
 const workspaceContent = fs.readFileSync(workspaceFile, 'utf8');
 const workspaceLines = workspaceContent.split('\n');
 let inCatalogs = false;
-let inFirstCatalog = false;
 let inPackages = false;
-const CATALOG_DEPENDENCIES = new Set<string>();
+let currentCatalogName: string | null = null;
+// Map: catalog name (e.g. "default") -> Set of dep names declared in that catalog.
+// Used so the switch loop can detect deps that exist in `default` but not in the
+// target catalog and fall back to `catalog:default` rather than write a broken
+// `catalog:<missing>` ref.
+const CATALOGS = new Map<string, Set<string>>();
 const WORKSPACE_PACKAGES = new Set<string>();
 
-// Parse the workspace YAML to get dependencies from first catalog and package paths
 for (const line of workspaceLines) {
   const trimmedLine = line.trim();
 
@@ -60,35 +63,58 @@ for (const line of workspaceLines) {
   }
 
   if (inPackages && line.startsWith('  - ')) {
-    const packagePath = line.trim().replace(/^-\s*['"]|['"]$/g, '');
+    const packagePath = line
+      .trim()
+      .replace(/^-\s*/, '')
+      .replace(/^['"]|['"]$/g, '');
     WORKSPACE_PACKAGES.add(packagePath);
     continue;
   }
 
+  // A catalog header line: 2-space indent, no further indent, ends with ":".
+  // e.g. "  default:", "  minimum:", "  next:".
   if (inCatalogs && line.startsWith('  ') && !line.startsWith('    ')) {
-    // We found a new catalog section
-    if (inFirstCatalog) {
-      // We've already processed the first catalog, so we can stop
-      break;
+    const headerMatch = trimmedLine.match(/^([^:]+):$/);
+    if (headerMatch) {
+      currentCatalogName = headerMatch[1];
+      CATALOGS.set(currentCatalogName, new Set());
     }
-    // This is the first catalog we've found
-    inFirstCatalog = true;
     continue;
   }
 
-  if (inFirstCatalog && line.startsWith('    ')) {
+  if (inCatalogs && currentCatalogName && line.startsWith('    ')) {
     const [packagePart] = line.split(':').map((part) => part.trim());
-    if (packagePart) {
-      // Strip apostrophes from package names
+    if (packagePart && !packagePart.startsWith('#')) {
       const cleanPackageName = packagePart.replace(/^['"]|['"]$/g, '');
-      CATALOG_DEPENDENCIES.add(cleanPackageName);
+      CATALOGS.get(currentCatalogName)?.add(cleanPackageName);
     }
+  }
+}
+
+const CATALOG_DEPENDENCIES = CATALOGS.get('default') ?? new Set<string>();
+
+// Only handles "dir/*" trailing-glob; the workspace doesn't use anything fancier.
+function expandWorkspacePath(entry: string): string[] {
+  if (!entry.endsWith('/*')) return [entry];
+  const parent = entry.slice(0, -2);
+  const parentAbs = path.join(rootDir, parent);
+  if (!fs.existsSync(parentAbs)) return [];
+  return fs
+    .readdirSync(parentAbs, { withFileTypes: true })
+    .filter((dirent) => dirent.isDirectory())
+    .map((dirent) => `${parent}/${dirent.name}`);
+}
+
+const EXPANDED_PACKAGES = new Set<string>();
+for (const entry of WORKSPACE_PACKAGES) {
+  for (const expanded of expandWorkspacePath(entry)) {
+    EXPANDED_PACKAGES.add(expanded);
   }
 }
 
 // Convert Sets to arrays and sort for consistent ordering
 const CATALOG_DEPENDENCIES_ARRAY = Array.from(CATALOG_DEPENDENCIES).sort();
-const WORKSPACE_PACKAGES_ARRAY = Array.from(WORKSPACE_PACKAGES).sort();
+const WORKSPACE_PACKAGES_ARRAY = Array.from(EXPANDED_PACKAGES).sort();
 
 // Handle CLI arguments
 const catalogName = process.argv[2]?.toLowerCase() as CatalogName | undefined;
@@ -96,6 +122,18 @@ const catalogName = process.argv[2]?.toLowerCase() as CatalogName | undefined;
 if (!catalogName || !VALID_CATALOGS.includes(catalogName)) {
   console.error(`Error: Please specify a valid catalog: ${VALID_CATALOGS.join(', ')}`);
   process.exit(1);
+}
+
+// Resolve the catalog ref a dep should use under the target catalog. If the
+// target catalog contains the dep, use it directly. Otherwise fall back to
+// `catalog:default` so deps that exist only in default (e.g. @wdio/xvfb, which
+// is v9-only and has no v8 to put in the `minimum` catalog) don't produce a
+// broken `catalog:<missing>` ref. The next predictable case for this is the
+// `@wdio/xvfb` → `@wdio/display-server` rename in WDIO v10.
+function resolveCatalogRef(dep: string, target: CatalogName): string {
+  const targetDeps = CATALOGS.get(target);
+  if (targetDeps?.has(dep)) return `catalog:${target}`;
+  return 'catalog:default';
 }
 
 try {
@@ -113,7 +151,10 @@ try {
     const packageJsonPath = path.join(rootDir, packagePath, 'package.json');
 
     if (!fs.existsSync(packageJsonPath)) {
-      console.warn(`Warning: No package.json found in ${packagePath}`);
+      const isRustOnlyPackage = fs.existsSync(path.join(rootDir, packagePath, 'Cargo.toml'));
+      if (!isRustOnlyPackage) {
+        console.warn(`Warning: No package.json found in ${packagePath}`);
+      }
       continue;
     }
 
@@ -135,7 +176,7 @@ try {
           packageJson.devDependencies['electron-nightly'] = `catalog:${catalogName}`;
           console.log(`  Replaced electron with electron-nightly in ${packagePath}`);
         } else {
-          packageJson.devDependencies[dep] = `catalog:${catalogName}`;
+          packageJson.devDependencies[dep] = resolveCatalogRef(dep, catalogName);
         }
         changed = true;
       }
@@ -149,7 +190,7 @@ try {
           packageJson.dependencies['electron-nightly'] = `catalog:${catalogName}`;
           console.log(`  Replaced electron with electron-nightly in ${packagePath}`);
         } else {
-          packageJson.dependencies[dep] = `catalog:${catalogName}`;
+          packageJson.dependencies[dep] = resolveCatalogRef(dep, catalogName);
         }
         changed = true;
       }

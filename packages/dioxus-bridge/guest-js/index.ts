@@ -161,14 +161,14 @@ if (typeof window.__WDIO_EMBEDDED_PORT === 'number' && !window.__WDIO_EMBEDDED_R
                 error: 'IPC error during result delivery',
               });
             } catch {
-              console.warn('[wdio-dioxus-bridge] dropped command', cmd.id, '— IPC unavailable');
+              // IPC unavailable — drop the command; the Axum-side script
+              // timeout will surface the failure to WebDriver.
             }
           }
         } else {
           await new Promise<void>((r) => setTimeout(r, 10));
         }
       } catch {
-        // Bridge not yet ready or IPC error — back off and retry.
         await new Promise<void>((r) => setTimeout(r, 100));
       }
     }
