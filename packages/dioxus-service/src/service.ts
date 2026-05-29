@@ -1,6 +1,6 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute } from './commands/execute.js';
@@ -15,62 +15,31 @@ const interceptor = createIpcInterceptor('dioxus');
 
 const SESSION_DELETE_TIMEOUT_MS = 10_000;
 
-// During teardown the embedded driver may already have dropped the session (or
-// be mid-shutdown), so a DELETE races the server going away. The benign
-// outcomes — session already gone, or the connection closing under us — must
-// not propagate: on Windows webdriverio retries the DELETE, the socket closes
-// (UND_ERR_CLOSED), and a libuv double-close assertion crashes the worker
-// (0xC0000409) AFTER the test itself passed. Swallow-and-debug those here.
-const BENIGN_TEARDOWN_ERROR_PATTERNS = [
-  'session not found',
-  'invalid session id',
-  'session id is null',
-  'und_err_closed',
-  'econnreset',
-  'econnrefused',
-  'socket hang up',
-  'other side closed',
-];
-
-function isBenignTeardownError(error: unknown): boolean {
-  const haystack = `${(error as { message?: string })?.message ?? error ?? ''} ${
-    (error as { code?: string })?.code ?? ''
-  }`.toLowerCase();
-  return BENIGN_TEARDOWN_ERROR_PATTERNS.some((pattern) => haystack.includes(pattern));
-}
-
 /**
  * Delete a WebDriver session defensively during teardown. Bounded by a timeout
  * so a hanging/retrying DELETE can't block the worker until the CI step timeout,
  * and benign "session already gone / connection closed" errors are debug-logged
- * rather than rethrown (they otherwise escalate into the libuv crash above).
+ * rather than rethrown — left to propagate, the retried DELETE closes the socket
+ * and a libuv double-close assertion crashes the Windows worker after the test
+ * already passed. See @wdio/native-utils teardown helpers.
  */
 async function safeDeleteSession(browser: WebdriverIO.Browser, label: string): Promise<void> {
   if (!browser.sessionId) {
     return;
   }
   log.debug(`Deleting session${label ? ` for ${label}` : ''}: ${browser.sessionId}`);
-  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    await Promise.race([
-      browser.deleteSession(),
-      new Promise<void>((resolve) => {
-        timer = setTimeout(() => {
-          log.debug(`deleteSession timed out after ${SESSION_DELETE_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`);
-          resolve();
-        }, SESSION_DELETE_TIMEOUT_MS);
-      }),
-    ]);
+    await runBounded(
+      () => browser.deleteSession(),
+      SESSION_DELETE_TIMEOUT_MS,
+      () => log.debug(`deleteSession timed out after ${SESSION_DELETE_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`),
+    );
   } catch (error) {
     if (isBenignTeardownError(error)) {
       log.debug(`Ignoring benign teardown error during deleteSession${label ? ` (${label})` : ''}:`, error);
       return;
     }
     throw error;
-  } finally {
-    if (timer) {
-      clearTimeout(timer);
-    }
   }
 }
 
