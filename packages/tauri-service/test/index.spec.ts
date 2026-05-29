@@ -41,6 +41,11 @@ describe('Tauri Service package exports', () => {
     expect(typeof mod.cleanupWdioSession).toBe('function');
   });
 
+  it('should export withExecuteOptions', async () => {
+    const mod = await import('../src/index.js');
+    expect(typeof mod.withExecuteOptions).toBe('function');
+  });
+
   it('should export browser', async () => {
     const mod = await import('../src/index.js');
     expect(mod.browser).toBeDefined();

@@ -2,9 +2,10 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import url from 'node:url';
-import { cleanupWdioSession, createTauriCapabilities, getTauriBinaryPath, startWdioSession } from '@wdio/tauri-service';
+import { cleanupWdioSession, createTauriCapabilities, startWdioSession } from '@wdio/tauri-service';
 import '@wdio/native-types';
 import { xvfb } from '@wdio/xvfb';
+import { resolveTauriFixtureBinary } from '../../../lib/utils.js';
 
 // Get the directory name once at the top
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -21,7 +22,7 @@ if (!fs.existsSync(appDir)) {
 }
 
 // Resolve binary path
-const appBinaryPath = await getTauriBinaryPath(appDir);
+const appBinaryPath = resolveTauriFixtureBinary(appDir);
 console.log(`🔍 Using Tauri binary: ${appBinaryPath}`);
 
 // Create session options

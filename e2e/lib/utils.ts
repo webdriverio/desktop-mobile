@@ -234,6 +234,44 @@ export function safeJsonParse<T>(json: string, fallback: T): T {
 }
 
 /**
+ * Resolve the built Tauri fixture binary for the given app directory.
+ *
+ * @wdio/tauri-service no longer auto-detects the binary — it takes an explicit
+ * path — so the e2e suite owns the fixture layout knowledge. This mirrors the
+ * debug build the fixtures produce: `<appPath>/src-tauri/target/debug/<productName>`
+ * (`.exe` on Windows, lowercased on Linux). Shared by wdio.tauri.conf.ts and the
+ * standalone specs so the layout is defined in exactly one place.
+ */
+export function resolveTauriFixtureBinary(appPath: string): string {
+  const targetDir = path.join(appPath, 'src-tauri', 'target', 'debug');
+  const tauriConfigPath = path.join(appPath, 'src-tauri', 'tauri.conf.json');
+
+  if (!fileExists(tauriConfigPath)) {
+    throw new Error(`Tauri config not found: ${tauriConfigPath}`);
+  }
+
+  const tauriConfig = safeJsonParse<{ productName?: string }>(fs.readFileSync(tauriConfigPath, 'utf-8'), {});
+  const productName = tauriConfig.productName || 'tauri-app';
+
+  let appBinaryPath: string;
+  if (process.platform === 'win32') {
+    appBinaryPath = path.join(targetDir, `${productName}.exe`);
+  } else if (process.platform === 'linux') {
+    appBinaryPath = path.join(targetDir, productName.toLowerCase());
+  } else if (process.platform === 'darwin') {
+    appBinaryPath = path.join(targetDir, productName);
+  } else {
+    throw new Error(`Unsupported platform for Tauri: ${process.platform}`);
+  }
+
+  if (!fileExists(appBinaryPath)) {
+    throw new Error(`Tauri binary not found: ${appBinaryPath}. Make sure the app is built.`);
+  }
+
+  return appBinaryPath;
+}
+
+/**
  * Get the log directory name for a test configuration
  * Centralizes the naming convention across all config files and scripts
  *
