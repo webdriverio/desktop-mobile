@@ -6,14 +6,13 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const appPath = path.resolve(__dirname);
-const targetDir = join(appPath, 'src-dioxus', 'target', 'debug');
+// Cargo workspace layout: target/ at the workspace root, sibling to src-dioxus/.
+const targetDir = join(appPath, 'target', 'debug');
 const binaryName = process.platform === 'win32' ? 'dioxus-package-test-app.exe' : 'dioxus-package-test-app';
 const appBinaryPath = join(targetDir, binaryName);
 
 if (!existsSync(appBinaryPath)) {
-  throw new Error(
-    `Dioxus binary not found: ${appBinaryPath}. Run 'cargo build --manifest-path src-dioxus/Cargo.toml' first.`,
-  );
+  throw new Error(`Dioxus binary not found: ${appBinaryPath}. Run 'cargo build' from this directory first.`);
 }
 
 type DioxusCapability = {

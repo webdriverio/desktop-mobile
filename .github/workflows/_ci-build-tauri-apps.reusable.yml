@@ -154,7 +154,7 @@ jobs:
           echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
 
       # Build all Tauri test applications using Turbo
-      # This creates the binaries in src-tauri/target/debug
+      # This creates the binaries in target/debug
       # Build both E2E app and package test app
       - name: 🏗️ Build All Tauri Apps
         run: pnpm exec turbo run ${{ inputs.build-command }} --filter=tauri-e2e-app --filter=tauri-app-example --only --parallel
@@ -170,6 +170,6 @@ jobs:
         with:
           name: tauri-apps-${{ runner.os }}
           output: tauri-apps-${{ runner.os }}/artifact.zip
-          paths: fixtures/e2e-apps/tauri/src-tauri/target fixtures/package-tests/tauri-app/src-tauri/target
+          paths: fixtures/e2e-apps/tauri/target fixtures/package-tests/tauri-app/target
           cache_key_prefix: tauri-apps
           retention_days: '90'

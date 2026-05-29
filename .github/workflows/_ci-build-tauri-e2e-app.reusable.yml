@@ -195,8 +195,8 @@ jobs:
           if [ -d "fixtures/e2e-apps/tauri/src-tauri/gen" ]; then
             rm -rf fixtures/e2e-apps/tauri/src-tauri/gen
           fi
-          if [ -d "fixtures/e2e-apps/tauri/src-tauri/target" ]; then
-            rm -rf fixtures/e2e-apps/tauri/src-tauri/target
+          if [ -d "fixtures/e2e-apps/tauri/target" ]; then
+            rm -rf fixtures/e2e-apps/tauri/target
           fi
 
       # Debug: Check environment before build
@@ -361,7 +361,7 @@ jobs:
         with:
           name: tauri-e2e-app-${{ runner.os }}-${{ runner.arch }}
           output: tauri-e2e-app-${{ runner.os }}-${{ runner.arch }}/artifact.zip
-          paths: fixtures/e2e-apps/tauri/src-tauri/target
+          paths: fixtures/e2e-apps/tauri/target
           cache_key_prefix: tauri-e2e-app
           retention_days: '90'
 

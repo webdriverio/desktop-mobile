@@ -6,7 +6,8 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const appPath = path.resolve(__dirname);
-const tauriTargetDir = join(appPath, 'src-tauri', 'target', 'debug');
+// Cargo workspace layout: target/ at the workspace root, sibling to src-tauri/.
+const tauriTargetDir = join(appPath, 'target', 'debug');
 const tauriConfigPath = join(appPath, 'src-tauri', 'tauri.conf.json');
 
 if (!existsSync(tauriConfigPath)) {

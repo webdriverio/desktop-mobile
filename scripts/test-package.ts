@@ -568,9 +568,9 @@ async function testExample(
         execCommand('pnpm build:web', packageDir, `Building web frontend for ${packageName}`);
       }
 
-      // Copy src-tauri/target directory from pre-built artifacts
-      const sourceTargetDir = join(rootDir, 'fixtures', 'package-tests', 'tauri-app', 'src-tauri', 'target');
-      const destTargetDir = join(packageDir, 'src-tauri', 'target');
+      // Copy the workspace target directory from pre-built artifacts
+      const sourceTargetDir = join(rootDir, 'fixtures', 'package-tests', 'tauri-app', 'target');
+      const destTargetDir = join(packageDir, 'target');
 
       if (existsSync(sourceTargetDir)) {
         log(`Copying pre-built Tauri binary from ${sourceTargetDir}...`);
@@ -674,8 +674,8 @@ async function testExample(
       }
     } else if (service === 'dioxus' && mode === 'native') {
       // Dioxus: use pre-built binary when skipBuild=true (CI downloads it as a separate artifact)
-      const sourceTargetDir = join(rootDir, 'fixtures', 'package-tests', 'dioxus-app', 'src-dioxus', 'target');
-      const destTargetDir = join(packageDir, 'src-dioxus', 'target');
+      const sourceTargetDir = join(rootDir, 'fixtures', 'package-tests', 'dioxus-app', 'target');
+      const destTargetDir = join(packageDir, 'target');
       if (skipBuild) {
         if (!existsSync(sourceTargetDir)) {
           throw new Error(
