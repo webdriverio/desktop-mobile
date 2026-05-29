@@ -27,6 +27,11 @@ export {
 } from './result.js';
 export { hasSemicolonOutsideQuotes, hasTopLevelArrow } from './script-detect.js';
 export { selectExecutable, validateBinaryPaths } from './selectExecutable.js';
-export { BENIGN_TEARDOWN_ERROR_PATTERNS, isBenignTeardownError, runBounded } from './teardown.js';
+export {
+  BENIGN_TEARDOWN_ERROR_PATTERNS,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  isBenignTeardownError,
+  runBounded,
+} from './teardown.js';
 export { waitUntilWindowAvailable } from './window.js';
 export { createLogger };

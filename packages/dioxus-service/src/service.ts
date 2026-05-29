@@ -1,6 +1,6 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute } from './commands/execute.js';
@@ -12,8 +12,6 @@ import { clearWindowState, listWindowLabels, switchWindowByLabel } from './windo
 
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
-
-const TEARDOWN_TIMEOUT_MS = 10_000;
 
 /**
  * Delete a WebDriver session defensively during teardown. Bounded by a timeout
@@ -31,8 +29,8 @@ async function safeDeleteSession(browser: WebdriverIO.Browser, label: string): P
   try {
     await runBounded(
       () => browser.deleteSession(),
-      TEARDOWN_TIMEOUT_MS,
-      () => log.debug(`deleteSession timed out after ${TEARDOWN_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.debug(`deleteSession timed out after ${DEFAULT_TEARDOWN_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`),
     );
   } catch (error) {
     if (isBenignTeardownError(error)) {
@@ -128,7 +126,7 @@ export default class DioxusWorkerService {
       // socket and block the worker before safeDeleteSession() is ever reached.
       await runBounded(
         () => restoreAllMocks(),
-        TEARDOWN_TIMEOUT_MS,
+        DEFAULT_TEARDOWN_TIMEOUT_MS,
         () => log.debug('restoreAllMocks timed out during teardown'),
       );
     } catch (error) {
