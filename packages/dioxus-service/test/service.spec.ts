@@ -140,6 +140,63 @@ describe('DioxusWorkerService', () => {
     expect(mockStore.getMocks()).toHaveLength(0);
   });
 
+  describe('afterSession() session teardown', () => {
+    function makeNativeBrowser(deleteSession: () => Promise<void>): WebdriverIO.Browser {
+      return {
+        isMultiremote: false,
+        sessionId: 'sess-1',
+        execute: vi.fn().mockResolvedValue(undefined),
+        deleteSession: vi.fn(deleteSession),
+      } as unknown as WebdriverIO.Browser;
+    }
+
+    it('should delete the session when one is present', async () => {
+      const browser = makeNativeBrowser(() => Promise.resolve());
+      const service = new DioxusWorkerService({}, {});
+      await service.before({}, [], browser);
+
+      await service.afterSession();
+
+      expect(browser.deleteSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow a benign "Session not found" error instead of rethrowing', async () => {
+      // The Windows flake: deleteSession sees the session already gone; left to
+      // propagate it triggers a retry that closes the socket and crashes libuv.
+      const browser = makeNativeBrowser(() => Promise.reject(new Error('Session not found')));
+      const service = new DioxusWorkerService({}, {});
+      await service.before({}, [], browser);
+
+      await expect(service.afterSession()).resolves.toBeUndefined();
+      expect(browser.deleteSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow a connection-closed (UND_ERR_CLOSED) error during teardown', async () => {
+      const closed = Object.assign(new Error('other side closed'), { code: 'UND_ERR_CLOSED' });
+      const browser = makeNativeBrowser(() => Promise.reject(closed));
+      const service = new DioxusWorkerService({}, {});
+      await service.before({}, [], browser);
+
+      await expect(service.afterSession()).resolves.toBeUndefined();
+    });
+
+    it('should not hang when deleteSession never settles (bounded by timeout)', async () => {
+      vi.useFakeTimers();
+      try {
+        const browser = makeNativeBrowser(() => new Promise<void>(() => {}));
+        const service = new DioxusWorkerService({}, {});
+        await service.before({}, [], browser);
+
+        const pending = service.afterSession();
+        await vi.advanceTimersByTimeAsync(10_000);
+
+        await expect(pending).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+  });
+
   describe('browser mode (mode: "browser")', () => {
     it('should navigate to devServerUrl in before()', async () => {
       const urlSpy = vi.fn().mockResolvedValue(undefined);

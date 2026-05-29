@@ -1,6 +1,6 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute } from './commands/execute.js';
@@ -12,6 +12,36 @@ import { clearWindowState, listWindowLabels, switchWindowByLabel } from './windo
 
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
+
+const TEARDOWN_TIMEOUT_MS = 10_000;
+
+/**
+ * Delete a WebDriver session defensively during teardown. Bounded by a timeout
+ * so a hanging/retrying DELETE can't block the worker until the CI step timeout,
+ * and benign "session already gone / connection closed" errors are debug-logged
+ * rather than rethrown — left to propagate, the retried DELETE closes the socket
+ * and a libuv double-close assertion crashes the Windows worker after the test
+ * already passed. See @wdio/native-utils teardown helpers.
+ */
+async function safeDeleteSession(browser: WebdriverIO.Browser, label: string): Promise<void> {
+  if (!browser.sessionId) {
+    return;
+  }
+  log.debug(`Deleting session${label ? ` for ${label}` : ''}: ${browser.sessionId}`);
+  try {
+    await runBounded(
+      () => browser.deleteSession(),
+      TEARDOWN_TIMEOUT_MS,
+      () => log.debug(`deleteSession timed out after ${TEARDOWN_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`),
+    );
+  } catch (error) {
+    if (isBenignTeardownError(error)) {
+      log.debug(`Ignoring benign teardown error during deleteSession${label ? ` (${label})` : ''}:`, error);
+      return;
+    }
+    throw error;
+  }
+}
 
 export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
@@ -93,9 +123,20 @@ export default class DioxusWorkerService {
     log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
 
     try {
-      await restoreAllMocks();
+      // Bound + benign-swallow like the delete below: if the app has already
+      // exited, restoreAllMocks()'s browser.execute() can hang on a half-open
+      // socket and block the worker before safeDeleteSession() is ever reached.
+      await runBounded(
+        () => restoreAllMocks(),
+        TEARDOWN_TIMEOUT_MS,
+        () => log.debug('restoreAllMocks timed out during teardown'),
+      );
     } catch (error) {
-      log.warn('Failed to restore mocks during session cleanup:', error);
+      if (isBenignTeardownError(error)) {
+        log.debug('Ignoring benign teardown error during restoreAllMocks:', error);
+      } else {
+        log.warn('Failed to restore mocks during session cleanup:', error);
+      }
     } finally {
       // Clear unconditionally — if restoreAllMocks() throws (commonly when the
       // browser session has already gone away and execute() rejects), leaving
@@ -111,20 +152,12 @@ export default class DioxusWorkerService {
 
     try {
       if (!this.browser.isMultiremote) {
-        const stdBrowser = this.browser as WebdriverIO.Browser;
-        if (stdBrowser.sessionId) {
-          log.debug(`Deleting session: ${stdBrowser.sessionId}`);
-          await stdBrowser.deleteSession();
-        }
+        await safeDeleteSession(this.browser as WebdriverIO.Browser, '');
       } else {
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
         for (const instanceName of mrBrowser.instances) {
           try {
-            const instance = mrBrowser.getInstance(instanceName);
-            if (instance.sessionId) {
-              log.debug(`Deleting session for instance ${instanceName}: ${instance.sessionId}`);
-              await instance.deleteSession();
-            }
+            await safeDeleteSession(mrBrowser.getInstance(instanceName), `instance ${instanceName}`);
           } catch (error) {
             log.warn(`Failed to delete session for instance ${instanceName}:`, error);
           }
