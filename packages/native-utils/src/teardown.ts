@@ -10,6 +10,12 @@
  * swallow benign teardown errors and bound the operations.
  */
 
+/**
+ * Default teardown deadline (ms): how long a single teardown op may run before
+ * it is abandoned. Shared so electron- and dioxus-service stay in sync.
+ */
+export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
+
 // Benign teardown failure modes across providers: WebDriver session lifecycle,
 // CDP-bridge disconnects, and raw socket teardown. Matching a superset across
 // services is safe — every entry is benign once teardown has begun.
@@ -47,8 +53,15 @@ export async function runBounded<T>(
 ): Promise<T | undefined> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
+    // If the timeout wins, the abandoned op may still reject later (e.g. the OS
+    // resets the socket after the deadline). Attach a no-op rejection handler so
+    // that late rejection can't surface as an unhandledRejection — the very
+    // teardown crash this guard exists to prevent. The race still propagates a
+    // rejection that arrives before the timeout.
+    const opPromise = op();
+    opPromise.catch(() => {});
     return await Promise.race([
-      op(),
+      opPromise,
       new Promise<undefined>((resolve) => {
         timer = setTimeout(() => {
           onTimeout?.();

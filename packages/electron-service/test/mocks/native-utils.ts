@@ -49,6 +49,7 @@ export const validateBinaryPaths = vi.fn();
 // than stub them, so afterSession() tests exercise the real logic.
 export {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
   isBenignTeardownError,
   runBounded,
 } from '../../../native-utils/src/teardown.js';
