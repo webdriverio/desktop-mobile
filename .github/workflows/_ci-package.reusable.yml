@@ -205,6 +205,24 @@ jobs:
              fi
            fi
 
+      # TESTBED (#306): warm the @electron/get cache (~/.cache/electron) that
+      # electron-forge's @electron/packager uses, BEFORE the isolated package
+      # tests build the forge fixture. On cold CI runners forge's `package` bails
+      # at "Copying files" without writing a binary and listr swallows the
+      # @electron/get error; invoking the download here surfaces it unmediated
+      # and (if it succeeds) warms the cache so forge packaging works.
+      - name: 🔥 Pre-warm Electron packager cache (testbed #306)
+        if: inputs.service == 'electron' || inputs.service == 'both'
+        continue-on-error: true
+        shell: bash
+        env:
+          DEBUG: '@electron/get*'
+        run: |
+          echo "=== ~/.cache/electron BEFORE ===" && du -sh ~/.cache/electron 2>/dev/null || echo "(empty)"
+          node scripts/prewarm-electron.cjs && echo "[prewarm] step OK" || echo "[prewarm] step FAILED (continuing)"
+          echo "=== ~/.cache/electron AFTER ===" && du -sh ~/.cache/electron 2>/dev/null || echo "(empty)"
+          ls -la ~/.cache/electron 2>/dev/null || true
+
       # Run package tests using test-package.ts script
       # All apps are built in isolated environments (Electron always, Tauri if not skipBuild)
       # Tauri uses skipBuild to copy pre-built binaries from separate build jobs

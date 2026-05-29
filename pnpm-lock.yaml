@@ -53,6 +53,9 @@ importers:
       '@biomejs/biome':
         specifier: 2.4.15
         version: 2.4.15
+      '@electron/get':
+        specifier: 3.1.0
+        version: 3.1.0
       '@inquirer/prompts':
         specifier: ^8.4.3
         version: 8.4.3(@types/node@25.9.1)
@@ -12585,7 +12588,7 @@ snapshots:
 
   node-abi@4.28.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.1
 
   node-addon-api@1.7.2:
     optional: true
@@ -12608,7 +12611,7 @@ snapshots:
       make-fetch-happen: 14.0.3
       nopt: 8.1.0
       proc-log: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.1
       tar: 7.5.13
       tinyglobby: 0.2.16
       which: 5.0.0
