@@ -130,7 +130,13 @@ function electronPackagedAppExists(packageDir: string): boolean {
     name === 'linux-unpacked' ||
     name.startsWith('linux-');
   return readdirSync(distElectronDir, { withFileTypes: true }).some(
-    (entry) => entry.isDirectory() && (entry.name.includes(forgeSuffix) || isBuilderAppDir(entry.name)),
+    (entry) =>
+      entry.isDirectory() &&
+      (entry.name.includes(forgeSuffix) || isBuilderAppDir(entry.name)) &&
+      // Guard the packager finalization race: the output dir can be created
+      // while the binary is never written into it. A non-empty dir means the
+      // package step actually produced output, not just an empty shell.
+      readdirSync(join(distElectronDir, entry.name)).length > 0,
   );
 }
 
