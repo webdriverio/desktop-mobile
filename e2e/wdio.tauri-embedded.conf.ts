@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import type { NormalizedPackageJson } from '@wdio/native-types';
 
 import { createEnvironmentContext } from './config/envSchema.js';
-import { fileExists, getLogDirName, safeJsonParse } from './lib/utils.js';
+import { fileExists, getLogDirName, resolveTauriFixtureBinary, safeJsonParse } from './lib/utils.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -65,41 +65,11 @@ async function getTauriEmbeddedConfigContext(): Promise<TauriEmbeddedConfigConte
 
   console.log('🔍 Setting up Tauri Embedded test with app binary path');
 
-  // Use debug builds for testing (includes tauri-plugin-automation for CrabNebula macOS).
-  // Cargo workspace layout: target/ at the workspace root, sibling to src-tauri/.
-  const tauriTargetDir = join(appPath, 'target', 'debug');
-  const tauriConfigPath = join(appPath, 'src-tauri', 'tauri.conf.json');
-
-  if (!fileExists(tauriConfigPath)) {
-    throw new Error(`Tauri config not found: ${tauriConfigPath}`);
-  }
-
-  const tauriConfig = safeJsonParse(readFileSync(tauriConfigPath, 'utf-8'), {});
-  const productName = (tauriConfig as { productName?: string })?.productName || 'tauri-app';
-
-  console.log('🔍 Tauri config debug:');
-  console.log('  Config path:', tauriConfigPath);
-  console.log('  productName:', (tauriConfig as { productName?: string })?.productName);
-  console.log('  Resolved productName:', productName);
-
-  // Platform-specific binary paths
-  let appBinaryPath: string;
-  if (process.platform === 'win32') {
-    appBinaryPath = join(tauriTargetDir, `${productName}.exe`);
-  } else if (process.platform === 'linux') {
-    appBinaryPath = join(tauriTargetDir, productName.toLowerCase());
-  } else if (process.platform === 'darwin') {
-    // macOS support via embedded provider
-    appBinaryPath = join(tauriTargetDir, productName);
-  } else {
-    throw new Error(`Unsupported platform for Tauri: ${process.platform}`);
-  }
-
+  // Resolve the built fixture binary (shared with wdio.tauri.conf.ts and the
+  // standalone specs). Uses debug builds — they include tauri-plugin-automation
+  // needed by the CrabNebula provider on macOS.
+  const appBinaryPath = resolveTauriFixtureBinary(appPath);
   console.log(`Using Tauri binary: ${appBinaryPath}`);
-
-  if (!fileExists(appBinaryPath)) {
-    throw new Error(`Tauri binary not found: ${appBinaryPath}. Make sure the app is built.`);
-  }
 
   return {
     envContext,
