@@ -13,7 +13,7 @@ import { clearWindowState, listWindowLabels, switchWindowByLabel } from './windo
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
 
-const SESSION_DELETE_TIMEOUT_MS = 10_000;
+const TEARDOWN_TIMEOUT_MS = 10_000;
 
 /**
  * Delete a WebDriver session defensively during teardown. Bounded by a timeout
@@ -31,8 +31,8 @@ async function safeDeleteSession(browser: WebdriverIO.Browser, label: string): P
   try {
     await runBounded(
       () => browser.deleteSession(),
-      SESSION_DELETE_TIMEOUT_MS,
-      () => log.debug(`deleteSession timed out after ${SESSION_DELETE_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`),
+      TEARDOWN_TIMEOUT_MS,
+      () => log.debug(`deleteSession timed out after ${TEARDOWN_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`),
     );
   } catch (error) {
     if (isBenignTeardownError(error)) {
@@ -123,9 +123,20 @@ export default class DioxusWorkerService {
     log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
 
     try {
-      await restoreAllMocks();
+      // Bound + benign-swallow like the delete below: if the app has already
+      // exited, restoreAllMocks()'s browser.execute() can hang on a half-open
+      // socket and block the worker before safeDeleteSession() is ever reached.
+      await runBounded(
+        () => restoreAllMocks(),
+        TEARDOWN_TIMEOUT_MS,
+        () => log.debug('restoreAllMocks timed out during teardown'),
+      );
     } catch (error) {
-      log.warn('Failed to restore mocks during session cleanup:', error);
+      if (isBenignTeardownError(error)) {
+        log.debug('Ignoring benign teardown error during restoreAllMocks:', error);
+      } else {
+        log.warn('Failed to restore mocks during session cleanup:', error);
+      }
     } finally {
       // Clear unconditionally — if restoreAllMocks() throws (commonly when the
       // browser session has already gone away and execute() rejects), leaving
