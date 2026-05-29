@@ -48,8 +48,7 @@
     "forge": {
       "outDir": "dist-electron",
       "packagerConfig": {
-        "osxSign": false,
-        "derefSymlinks": true
+        "osxSign": false
       },
       "makers": [
         {
