@@ -191,7 +191,7 @@ export class BuildManager {
    * Check if Tauri app has valid build artifacts
    */
   private hasValidTauriBuildArtifacts(appPath: string): boolean {
-    const tauriTargetDir = join(appPath, 'src-tauri', 'target', 'debug');
+    const tauriTargetDir = join(appPath, 'target', 'debug');
 
     if (!dirExists(tauriTargetDir)) {
       console.log(`🔍 Debug: No Tauri target directory found at ${tauriTargetDir}`);
@@ -386,12 +386,12 @@ export class BuildManager {
     console.log('🧹 Cleaning Tauri apps...');
     for (const appDir of tauriAppDirs) {
       const appPath = join(e2eAppsDir, appDir);
-      const targetPath = join(appPath, 'src-tauri', 'target');
+      const targetPath = join(appPath, 'target');
 
       try {
         if (dirExists(targetPath)) {
           execSync(`rm -rf "${targetPath}"`, { stdio: 'inherit' });
-          console.log(`  Cleaned: ${appDir}/src-tauri/target`);
+          console.log(`  Cleaned: ${appDir}/target`);
         }
       } catch (error) {
         console.warn(`Warning: Failed to clean Tauri ${appDir}:`, error);
