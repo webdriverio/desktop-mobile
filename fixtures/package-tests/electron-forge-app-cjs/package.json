@@ -8,7 +8,7 @@
   "scripts": {
     "clean": "pnpx shx rm -rf dist dist-electron node_modules",
     "dev": "electron-vite dev",
-    "build": "electron-vite build && electron-packager . --out=dist-electron --overwrite",
+    "build": "electron-vite build && electron-forge package",
     "preview": "electron-vite preview",
     "start": "electron .",
     "test": "cross-env DEBUG=wdio-electron-service wdio run wdio.conf.ts",
@@ -20,7 +20,6 @@
     "@electron-forge/maker-rpm": "7.11.1",
     "@electron-forge/maker-squirrel": "7.11.1",
     "@electron-forge/maker-zip": "7.11.1",
-    "@electron/packager": "18.4.4",
     "@types/node": "^25.9.1",
     "@wdio/cli": "^9.27.1",
     "@wdio/electron-service": "workspace:*",
@@ -49,7 +48,8 @@
     "forge": {
       "outDir": "dist-electron",
       "packagerConfig": {
-        "osxSign": false
+        "osxSign": false,
+        "derefSymlinks": true
       },
       "makers": [
         {
