@@ -9,4 +9,4 @@ $ProjectRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent (Split
 
 $SharedScript = Join-Path $ProjectRoot "scripts\protocol-handlers\setup-protocol-handler.ps1"
 
-& $SharedScript -AppDir $AppDir -ExecutableName "tauri-e2e-app.exe" -SearchPaths @("src-tauri\target\release","src-tauri\target\debug") -AppDisplayName "Tauri E2E Test App"
+& $SharedScript -AppDir $AppDir -ExecutableName "tauri-e2e-app.exe" -SearchPaths @("target\release","target\debug") -AppDisplayName "Tauri E2E Test App"

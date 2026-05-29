@@ -238,7 +238,7 @@ tsx scripts/build-apps.ts --clean
 - **Script apps**: `dist/` directory with main.js
 
 #### Tauri Apps
-- **Basic/Advanced apps**: `src-tauri/target/release/` with compiled binaries
+- **Basic/Advanced apps**: `target/release/` with compiled binaries (Cargo workspace root)
 
 ## Test Applications
 
