@@ -65,6 +65,29 @@ jobs:
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 
+      # Reclaim disk as early as possible — before setup/install/artifact-download
+      # consume the headroom. Electron Linux E2E runs have intermittently crashed
+      # with "No space left on device", taking down the runner worker before logs
+      # could even upload (seen on #298/#301). Dependency-free: plain shell, no
+      # third-party action. Every removal is guarded so it can never fail the job.
+      - name: 🧹 Free Disk Space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "=== Disk usage before cleanup ==="
+          df -h /
+          # Toolchains preinstalled on the runner image but unused by these
+          # Electron/web E2E tests. Each guarded so a missing path is harmless.
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /usr/local/lib/android || true
+          sudo rm -rf /opt/ghc || true
+          sudo rm -rf /usr/local/.ghcup || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /usr/share/swift || true
+          sudo docker image prune --all --force || true
+          echo "=== Disk usage after cleanup ==="
+          df -h /
+
       # Set up Node.js and PNPM using the reusable action
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
