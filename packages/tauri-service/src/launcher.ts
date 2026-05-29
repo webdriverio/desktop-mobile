@@ -6,6 +6,7 @@ import type { LogLevel } from '@wdio/native-types';
 import { createLogger, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
+import { resolveAppBinaryPath } from './appBinaryResolver.js';
 import { setCrabnebulaModeInfo, setEmbeddedModeInfo } from './commands/triggerDeeplink.js';
 import { startTestRunnerBackend, stopTestRunnerBackend, waitTestRunnerBackendReady } from './crabnebulaBackend.js';
 import { diagnoseTauriEnvironment } from './diagnostics.js';
@@ -20,7 +21,7 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
-import { getTauriAppInfo, getTauriBinaryPath, getWebKitWebDriverPath } from './pathResolver.js';
+import { getWebKitWebDriverPath } from './pathResolver.js';
 import { PortManager } from './portManager.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
@@ -188,16 +189,32 @@ export default class TauriLaunchService {
       // tauri-driver doesn't need it and will reject it during capability matching
       delete (cap as { browserName?: string }).browserName;
 
-      // Get Tauri app binary path from tauri:options
-      const tauriOptions = cap['tauri:options'];
-      if (!tauriOptions?.application) {
-        throw new Error('Tauri application path not specified in tauri:options.application');
+      // Resolve the Tauri app binary path. Precedence:
+      //   1. tauri:options.application (capability-level)
+      //   2. wdio:tauriServiceOptions.appBinaryPath (service-level)
+      // If the capability-level application already points at a built
+      // artefact, trust it (supports Cargo workspace layouts and release
+      // builds the legacy resolver doesn't understand). See appBinaryResolver.ts.
+      const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
+      if (!cap['tauri:options']) {
+        cap['tauri:options'] = { application: '' };
       }
-
-      // Store original app path for getting version info
-      const originalAppPath = tauriOptions.application;
-      const appBinaryPath = await getTauriBinaryPath(originalAppPath);
+      const tauriOptions = cap['tauri:options'];
+      const appBinaryPath = resolveAppBinaryPath(instanceOptions, tauriOptions);
       log.debug(`App binary: ${appBinaryPath}`);
+
+      // Update the application path to the resolved binary path. Must happen
+      // before the Windows block: that block `break`s out of the loop after
+      // the Edge WebDriver check, so any writeback below it is unreachable on
+      // Windows and downstream consumers (embedded provider, tauri-driver)
+      // would see the original (possibly empty) tauri:options.application.
+      tauriOptions.application = appBinaryPath;
+
+      // Validate app args if provided
+      const appArgs = tauriOptions.args || [];
+      if (appArgs.length > 0) {
+        log.debug(`App args: ${JSON.stringify(appArgs)}`);
+      }
 
       // Ensure Edge WebDriver compatibility on Windows
       // This checks if msedgedriver matches the WebView2 version in the Tauri binary and downloads if needed
@@ -228,27 +245,6 @@ export default class TauriLaunchService {
           log.info(`✅ Using existing msedgedriver ${edgeDriverResult.value.driverVersion}`);
         }
         break;
-      }
-
-      // Validate app args if provided
-      const appArgs = tauriOptions.args || [];
-      if (appArgs.length > 0) {
-        log.debug(`App args: ${JSON.stringify(appArgs)}`);
-      }
-
-      // Update the application path to the resolved binary path
-      tauriOptions.application = appBinaryPath;
-
-      // Don't set browserName - tauri-driver works best with it unset
-      // Only set browserVersion for display purposes in test output
-      // Note: This will show as "undefined(version)" but at least shows the version
-      try {
-        const appInfo = await getTauriAppInfo(originalAppPath);
-        if (appInfo.version) {
-          cap.browserVersion = appInfo.version;
-        }
-      } catch {
-        // If we can't get the version, leave it undefined
       }
     }
 

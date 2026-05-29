@@ -25,17 +25,21 @@ export const config = {
 
 ### `appBinaryPath` (string, optional)
 
-Path to the compiled Tauri application binary (executable).
+Path to the compiled Tauri application binary (executable). The service trusts this path as-is and spawns it directly — it does **not** try to resolve a binary from a project root or read `tauri.conf.json`.
+
+> **Migrating from v1.0.x?** Earlier versions auto-resolved a binary from a project directory (e.g. `application: '.'` would walk `<root>/src-tauri/target/debug/<productName>`). That resolver has been removed because it broke for Cargo workspaces, release builds, and `productName`-vs-Cargo-package-name mismatches (#295). Point `application` (or `appBinaryPath`) at the **built binary path** directly. If you pass a directory by mistake, the service throws a clear migration error rather than letting `spawn` fail with `EISDIR`.
 
 **Example:**
 ```typescript
-appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows
-appBinaryPath: './src-tauri/target/release/my-app',     // Linux
+appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows, single-crate
+appBinaryPath: './src-tauri/target/release/my-app',     // Linux/macOS, single-crate
+appBinaryPath: './target/release/my-app',               // Cargo workspace (target/ at workspace root)
+appBinaryPath: './target/release/bundle/macos/My App.app',  // macOS .app bundle
 ```
 
-**Default:** Auto-detected from capabilities if not provided
+**Resolution order:** `tauri:options.application` (capability-level) takes precedence; `appBinaryPath` (service-level) is used when no capability-level `application` is set. At least one of the two must be supplied; spawning surfaces a clear OS error if the path is wrong.
 
-**Note:** Path should be absolute or relative to the WebdriverIO config directory.
+**Note:** Path should be absolute or relative to the WebdriverIO config directory. Use a `.app` bundle path on macOS if your build produces one; otherwise point at the raw binary inside `target/<profile>/`.
 
 ---
 
