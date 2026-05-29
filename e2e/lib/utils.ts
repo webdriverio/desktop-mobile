@@ -238,12 +238,13 @@ export function safeJsonParse<T>(json: string, fallback: T): T {
  *
  * @wdio/tauri-service no longer auto-detects the binary — it takes an explicit
  * path — so the e2e suite owns the fixture layout knowledge. This mirrors the
- * debug build the fixtures produce: `<appPath>/src-tauri/target/debug/<productName>`
- * (`.exe` on Windows, lowercased on Linux). Shared by wdio.tauri.conf.ts and the
+ * debug build the fixtures produce at the Cargo workspace root:
+ * `<appPath>/target/debug/<productName>` (`.exe` on Windows, lowercased on
+ * Linux). Shared by wdio.tauri.conf.ts, wdio.tauri-embedded.conf.ts and the
  * standalone specs so the layout is defined in exactly one place.
  */
 export function resolveTauriFixtureBinary(appPath: string): string {
-  const targetDir = path.join(appPath, 'src-tauri', 'target', 'debug');
+  const targetDir = path.join(appPath, 'target', 'debug');
   const tauriConfigPath = path.join(appPath, 'src-tauri', 'tauri.conf.json');
 
   if (!fileExists(tauriConfigPath)) {

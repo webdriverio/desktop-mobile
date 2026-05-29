@@ -367,7 +367,7 @@
         "^build"
       ],
       "outputs": [
-        "src-tauri/target/**"
+        "target/**"
       ]
     },
     "tauri-app-example#build": {
@@ -376,7 +376,7 @@
         "^build"
       ],
       "outputs": [
-        "src-tauri/target/**"
+        "target/**"
       ]
     }
   }
