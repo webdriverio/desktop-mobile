@@ -60,4 +60,35 @@ describe('runBounded', () => {
       clearSpy.mockRestore();
     }
   });
+
+  it('should swallow a late rejection from the abandoned op without an unhandledRejection', async () => {
+    // Guards the no-op .catch on the abandoned op promise: if the timeout wins
+    // and the stalled op rejects LATER (e.g. the OS resets the socket after the
+    // deadline), that must not become an unhandledRejection — the very teardown
+    // crash runBounded exists to prevent.
+    const unhandled = vi.fn();
+    process.on('unhandledRejection', unhandled);
+    try {
+      vi.useFakeTimers();
+      let rejectOp!: (reason: unknown) => void;
+      const pending = runBounded(
+        () =>
+          new Promise<string>((_, reject) => {
+            rejectOp = reject;
+          }),
+        5000,
+      );
+      await vi.advanceTimersByTimeAsync(5000);
+      await expect(pending).resolves.toBeUndefined();
+
+      rejectOp(new Error('socket reset after teardown deadline'));
+      vi.useRealTimers();
+      await new Promise((resolve) => setTimeout(resolve, 0));
+
+      expect(unhandled).not.toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+      process.off('unhandledRejection', unhandled);
+    }
+  });
 });

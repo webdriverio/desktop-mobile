@@ -9,7 +9,13 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import { createLogger, isBenignTeardownError, runBounded, waitUntilWindowAvailable } from '@wdio/native-utils';
+import {
+  createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  isBenignTeardownError,
+  runBounded,
+  waitUntilWindowAvailable,
+} from '@wdio/native-utils';
 import type { Capabilities, Services } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
@@ -130,8 +136,6 @@ function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateSchedul
 }
 
 const log = createLogger('electron-service', 'service');
-
-const TEARDOWN_TIMEOUT_MS = 10_000;
 
 type ElementCommands = 'click' | 'doubleClick' | 'setValue' | 'clearValue';
 
@@ -330,7 +334,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     try {
       await runBounded(
         () => restoreAllMocks(),
-        TEARDOWN_TIMEOUT_MS,
+        DEFAULT_TEARDOWN_TIMEOUT_MS,
         () => log.debug('restoreAllMocks timed out during teardown'),
       );
     } catch (error) {
