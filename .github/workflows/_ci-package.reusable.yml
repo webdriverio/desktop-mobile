@@ -216,6 +216,9 @@ jobs:
           # Disable AT-SPI accessibility bus warnings (same as E2E)
           NO_AT_BRIDGE: '1'
           SERVICE: ${{ inputs.service }}
+          # TESTBED (#306): trace electron-forge + @electron/packager + @electron/get to
+          # diagnose the silent "Could not find Electron app" packaging bail on CI runners.
+          DEBUG: 'electron-forge:*,@electron/*,electron-packager'
         run: |
           case "$SERVICE" in
             electron)
