@@ -43,3 +43,13 @@ export const wrapAsync = vi.fn();
 // Select executable
 export const selectExecutable = vi.fn();
 export const validateBinaryPaths = vi.fn();
+
+// Teardown helpers are pure utilities the service depends on for real behavior
+// (bounded timeout, benign-error matching) — re-export the actual source rather
+// than stub them, so afterSession() tests exercise the real logic.
+export {
+  BENIGN_TEARDOWN_ERROR_PATTERNS,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  isBenignTeardownError,
+  runBounded,
+} from '../../../native-utils/src/teardown.js';

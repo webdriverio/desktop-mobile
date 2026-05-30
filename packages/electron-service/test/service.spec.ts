@@ -8,6 +8,7 @@ import { mock } from '../src/commands/mock.js';
 import { mockAll } from '../src/commands/mockAll.js';
 import { resetAllMocks } from '../src/commands/resetAllMocks.js';
 import { restoreAllMocks } from '../src/commands/restoreAllMocks.js';
+import mockStore from '../src/mockStore.js';
 import ElectronWorkerService from '../src/service.js';
 import { clearPuppeteerSessions, ensureActiveWindowFocus } from '../src/window.js';
 import { mockProcessProperty } from './helpers.js';
@@ -71,6 +72,7 @@ vi.mock('../src/mockStore', () => {
         throw new Error('No mock registered for key');
       }),
       setMockWithKey: vi.fn(),
+      clear: vi.fn(),
     },
   };
 });
@@ -1277,5 +1279,52 @@ describe('Electron Worker Service', () => {
         await expect(perInstanceBrowser.electron.mock('read_file')).resolves.toBeDefined();
       });
     });
+  });
+});
+
+describe('Electron Worker Service - afterSession()', () => {
+  it('should restore mocks, then clear the mock store', async () => {
+    vi.mocked(restoreAllMocks).mockResolvedValueOnce(undefined);
+    const instance = new ElectronWorkerService({}, {});
+
+    await instance.afterSession();
+
+    expect(restoreAllMocks).toHaveBeenCalledTimes(1);
+    expect(mockStore.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('should swallow a benign CDP disconnect error and still clear the store', async () => {
+    // The Windows hang: a CDP send() during teardown rejects with "WebSocket is
+    // not connected" once the debugger socket is gone; left to propagate it fails
+    // an otherwise-green run. It must be swallowed, and the store still cleared.
+    vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('WebSocket is not connected'));
+    const instance = new ElectronWorkerService({}, {});
+
+    await expect(instance.afterSession()).resolves.toBeUndefined();
+    expect(mockStore.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('should still clear the store after a non-benign restore error', async () => {
+    vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('unexpected teardown failure'));
+    const instance = new ElectronWorkerService({}, {});
+
+    await expect(instance.afterSession()).resolves.toBeUndefined();
+    expect(mockStore.clear).toHaveBeenCalledTimes(1);
+  });
+
+  it('should not hang when restoreAllMocks never settles, bounded by timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      vi.mocked(restoreAllMocks).mockImplementationOnce(() => new Promise<void>(() => {}));
+      const instance = new ElectronWorkerService({}, {});
+
+      const pending = instance.afterSession();
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      await expect(pending).resolves.toBeUndefined();
+      expect(mockStore.clear).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
