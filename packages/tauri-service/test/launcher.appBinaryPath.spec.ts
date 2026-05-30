@@ -38,7 +38,10 @@ vi.mock('../src/driverPool.js', () => ({
 vi.mock('../src/portManager.js', () => ({
   PortManager: class MockPortManager {
     allocatePortPair = vi.fn().mockResolvedValue({ port: 4444, nativePort: 4445 });
-    allocatePorts = vi.fn().mockResolvedValue([{ port: 4444, nativePort: 4445 }]);
+    allocatePorts = vi.fn().mockResolvedValue([
+      { port: 4444, nativePort: 4445 },
+      { port: 4446, nativePort: 4447 },
+    ]);
     allocatePort = vi.fn().mockResolvedValue(4444);
     clear = vi.fn();
   },
@@ -102,7 +105,7 @@ describe('TauriLaunchService — appBinaryPath resolution', () => {
     expect(caps[0]['tauri:options']?.application).toBe(APP_BINARY);
   });
 
-  it('should write back tauri:options.application on Windows before the Edge-driver break exits the loop', async () => {
+  it('should write back tauri:options.application on Windows', async () => {
     Object.defineProperty(process, 'platform', { value: 'win32' });
     const launcher = createLauncher();
     const caps: any[] = [
@@ -113,10 +116,27 @@ describe('TauriLaunchService — appBinaryPath resolution', () => {
 
     await launcher.onPrepare({ maxInstances: 1 } as any, caps);
 
-    // Regression guard for the P1 in PR #303: the writeback must happen
-    // before the `if (process.platform === 'win32') { ... break; }` block,
-    // otherwise downstream consumers see an empty application string.
     expect(caps[0]['tauri:options']?.application).toBe(APP_BINARY);
+  });
+
+  it('should resolve appBinaryPath for every multiremote capability on Windows', async () => {
+    Object.defineProperty(process, 'platform', { value: 'win32' });
+    const launcher = createLauncher();
+    const capabilities: any = {
+      instanceA: {
+        capabilities: { 'wdio:tauriServiceOptions': { appBinaryPath: '/bin/app-a', driverProvider: 'embedded' } },
+      },
+      instanceB: {
+        capabilities: { 'wdio:tauriServiceOptions': { appBinaryPath: '/bin/app-b', driverProvider: 'embedded' } },
+      },
+    };
+
+    await launcher.onPrepare({ maxInstances: 1 } as any, capabilities);
+
+    // Windows runs an extra Edge-driver step; guard that it doesn't stop
+    // per-capability resolution before instances 2..N.
+    expect(capabilities.instanceA.capabilities['tauri:options']?.application).toBe('/bin/app-a');
+    expect(capabilities.instanceB.capabilities['tauri:options']?.application).toBe('/bin/app-b');
   });
 
   it('should prefer capability-level application over service-level appBinaryPath', async () => {

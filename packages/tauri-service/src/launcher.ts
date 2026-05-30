@@ -178,7 +178,8 @@ export default class TauriLaunchService {
       return;
     }
 
-    // Validate capabilities
+    // Validate capabilities and resolve each one's app binary.
+    let firstResolvedBinaryPath: string | undefined;
     for (const cap of capsList) {
       // Validate that browserName is either not set, 'tauri', or 'wry'
       if (cap.browserName && cap.browserName !== 'tauri' && cap.browserName !== 'wry') {
@@ -203,48 +204,46 @@ export default class TauriLaunchService {
       const appBinaryPath = resolveAppBinaryPath(instanceOptions, tauriOptions);
       log.debug(`App binary: ${appBinaryPath}`);
 
-      // Update the application path to the resolved binary path. Must happen
-      // before the Windows block: that block `break`s out of the loop after
-      // the Edge WebDriver check, so any writeback below it is unreachable on
-      // Windows and downstream consumers (embedded provider, tauri-driver)
-      // would see the original (possibly empty) tauri:options.application.
       tauriOptions.application = appBinaryPath;
+      if (firstResolvedBinaryPath === undefined) {
+        firstResolvedBinaryPath = appBinaryPath;
+      }
 
       // Validate app args if provided
       const appArgs = tauriOptions.args || [];
       if (appArgs.length > 0) {
         log.debug(`App args: ${JSON.stringify(appArgs)}`);
       }
+    }
 
-      // Ensure Edge WebDriver compatibility on Windows
-      // This checks if msedgedriver matches the WebView2 version in the Tauri binary and downloads if needed
-      // Only runs on Windows; skipped on Linux/macOS
+    // Ensure Edge WebDriver compatibility on Windows — once, after all caps are
+    // resolved. msedgedriver is a single machine-global driver, so one check
+    // (matched to the first resolved binary) covers every instance. Keep this
+    // outside the resolution loop: a break here would skip the remaining caps.
+    if (process.platform === 'win32' && firstResolvedBinaryPath !== undefined) {
       const autoDownloadEdgeDriver = this.options.autoDownloadEdgeDriver ?? true;
-      if (process.platform === 'win32') {
-        log.debug('Checking Edge WebDriver compatibility...');
-        const edgeDriverResult = await ensureMsEdgeDriver(appBinaryPath, autoDownloadEdgeDriver);
+      log.debug('Checking Edge WebDriver compatibility...');
+      const edgeDriverResult = await ensureMsEdgeDriver(firstResolvedBinaryPath, autoDownloadEdgeDriver);
 
-        if (isErr(edgeDriverResult)) {
-          const errorMsg = edgeDriverResult.error.message;
-          log.error(`Edge WebDriver check failed: ${errorMsg}`);
+      if (isErr(edgeDriverResult)) {
+        const errorMsg = edgeDriverResult.error.message;
+        log.error(`Edge WebDriver check failed: ${errorMsg}`);
 
-          if (!autoDownloadEdgeDriver) {
-            throw new Error(
-              `${errorMsg}\n` +
-                `To auto-fix: set autoDownloadEdgeDriver: true in tauri service options.\n` +
-                `Or manually download from: https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/`,
-            );
-          } else {
-            log.warn(`${errorMsg} - continuing anyway, test may fail with version mismatch`);
-          }
-        } else if (edgeDriverResult.value.method === 'downloaded') {
-          log.info(
-            `✅ Downloaded msedgedriver ${edgeDriverResult.value.driverVersion} for WebView2 ${edgeDriverResult.value.edgeVersion}`,
+        if (!autoDownloadEdgeDriver) {
+          throw new Error(
+            `${errorMsg}\n` +
+              `To auto-fix: set autoDownloadEdgeDriver: true in tauri service options.\n` +
+              `Or manually download from: https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/`,
           );
-        } else if (edgeDriverResult.value.method === 'found') {
-          log.info(`✅ Using existing msedgedriver ${edgeDriverResult.value.driverVersion}`);
+        } else {
+          log.warn(`${errorMsg} - continuing anyway, test may fail with version mismatch`);
         }
-        break;
+      } else if (edgeDriverResult.value.method === 'downloaded') {
+        log.info(
+          `✅ Downloaded msedgedriver ${edgeDriverResult.value.driverVersion} for WebView2 ${edgeDriverResult.value.edgeVersion}`,
+        );
+      } else if (edgeDriverResult.value.method === 'found') {
+        log.info(`✅ Using existing msedgedriver ${edgeDriverResult.value.driverVersion}`);
       }
     }
 
