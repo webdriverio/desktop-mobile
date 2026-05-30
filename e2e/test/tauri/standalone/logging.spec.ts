@@ -2,10 +2,16 @@ import fs from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 import url from 'node:url';
-import { cleanupWdioSession, createTauriCapabilities, getTauriBinaryPath, startWdioSession } from '@wdio/tauri-service';
+import { cleanupWdioSession, createTauriCapabilities, startWdioSession } from '@wdio/tauri-service';
 import '@wdio/native-types';
 import { xvfb } from '@wdio/xvfb';
-import { assertLogContains, getLogDirName, readWdioLogs, waitForLog } from '../../../lib/utils.js';
+import {
+  assertLogContains,
+  getLogDirName,
+  readWdioLogs,
+  resolveTauriFixtureBinary,
+  waitForLog,
+} from '../../../lib/utils.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
@@ -19,7 +25,7 @@ if (!fs.existsSync(appDir)) {
 }
 
 // Resolve binary path
-const appBinaryPath = await getTauriBinaryPath(appDir);
+const appBinaryPath = resolveTauriFixtureBinary(appDir);
 
 // Get driver provider from environment
 const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded';

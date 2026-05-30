@@ -471,47 +471,6 @@ console.log(result); // 'default'
 
 These functions are exported from `@wdio/tauri-service` for use in standalone mode or custom setups.
 
-### `getTauriAppInfo(appPath)`
-
-Get information about a Tauri application from its tauri.conf.json.
-
-**Parameters:**
-- `appPath` (string) - Path to the Tauri app directory
-
-**Returns:** `Promise<TauriAppInfo>`
-
-**Example:**
-```typescript
-import { getTauriAppInfo } from '@wdio/tauri-service';
-
-const appInfo = await getTauriAppInfo('./fixtures/e2e-apps/tauri');
-console.log(appInfo.name);       // e.g., "my-app"
-console.log(appInfo.version);    // e.g., "0.1.0"
-console.log(appInfo.binaryPath); // resolved path to binary
-console.log(appInfo.configPath); // path to tauri.conf.json
-console.log(appInfo.targetDir);  // path to target directory
-```
-
----
-
-### `getTauriBinaryPath(appPath)`
-
-Resolve the path to the Tauri application binary. Handles platform-specific paths (`.exe` on Windows, `.app` on macOS, etc.).
-
-**Parameters:**
-- `appPath` (string) - Path to the Tauri app directory
-
-**Returns:** `Promise<string>`
-
-**Example:**
-```typescript
-import { getTauriBinaryPath } from '@wdio/tauri-service';
-
-const binaryPath = await getTauriBinaryPath('./fixtures/e2e-apps/tauri');
-```
-
----
-
 ### `startWdioSession(capabilities, globalOptions?)`
 
 Initialize the Tauri service in standalone mode. Use this when you want to manage the session manually outside of WebdriverIO's lifecycle.
@@ -572,18 +531,6 @@ const capabilities = createTauriCapabilities('./path/to/app.exe', {
 ---
 
 ## Exported Types
-
-### `TauriAppInfo`
-
-```typescript
-interface TauriAppInfo {
-  name: string;
-  version: string;
-  binaryPath: string;
-  configPath: string;
-  targetDir: string;
-}
-```
 
 ### `TauriCapabilities`
 

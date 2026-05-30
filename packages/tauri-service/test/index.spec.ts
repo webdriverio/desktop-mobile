@@ -26,16 +26,6 @@ describe('Tauri Service package exports', () => {
     expect(typeof mod.launcher).toBe('function');
   });
 
-  it('should export getTauriBinaryPath', async () => {
-    const mod = await import('../src/index.js');
-    expect(typeof mod.getTauriBinaryPath).toBe('function');
-  });
-
-  it('should export getTauriAppInfo', async () => {
-    const mod = await import('../src/index.js');
-    expect(typeof mod.getTauriAppInfo).toBe('function');
-  });
-
   it('should export createTauriCapabilities', async () => {
     const mod = await import('../src/index.js');
     expect(typeof mod.createTauriCapabilities).toBe('function');
@@ -49,6 +39,11 @@ describe('Tauri Service package exports', () => {
   it('should export cleanupWdioSession (cleanup)', async () => {
     const mod = await import('../src/index.js');
     expect(typeof mod.cleanupWdioSession).toBe('function');
+  });
+
+  it('should export withExecuteOptions', async () => {
+    const mod = await import('../src/index.js');
+    expect(typeof mod.withExecuteOptions).toBe('function');
   });
 
   it('should export browser', async () => {
