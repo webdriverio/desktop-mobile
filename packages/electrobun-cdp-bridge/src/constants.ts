@@ -2,11 +2,12 @@ export const REQUEST_TIMEOUT = 10000;
 export const DEFAULT_HOSTNAME = 'localhost';
 
 /**
- * Default CEF remote-debugging port. Electrobun's CEF renderer auto-selects a
- * free port in [DEFAULT_PORT_RANGE_START, DEFAULT_PORT_RANGE_END] at app startup
- * (`FindAvailableRemoteDebugPort(9222, 9232)` in its native wrapper), falling
- * back to 9222. The launcher therefore *discovers* which port an instance chose
- * by scanning the range rather than dictating it — see the service launcher.
+ * CEF's default remote-debugging port and the auto-scan range its renderer uses
+ * when an app pins no port (`FindAvailableRemoteDebugPort(9222, 9232)` in the
+ * native wrapper). The service launcher does NOT rely on the scan: it pins a
+ * specific port per worker by writing `chromiumFlags.remote-debugging-port` into
+ * that worker's bundle `build.json`, so the bridge connects to a known
+ * `host:port`. This constant is the connection default/fallback.
  */
 export const DEFAULT_PORT = 9222;
 export const DEFAULT_PORT_RANGE_START = 9222;

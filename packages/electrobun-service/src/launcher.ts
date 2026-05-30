@@ -2,7 +2,7 @@ import { BaseLauncher, closeLogWriter, isLogWriterInitialized } from '@wdio/nati
 import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 
-import { DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
+import { DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
 import { SevereServiceError } from './errors.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions } from './types.js';
@@ -25,16 +25,21 @@ const log = createLogger(SERVICE_NAME, 'launcher');
 export default class ElectrobunLaunchService extends BaseLauncher {
   constructor(
     private options: ElectrobunServiceGlobalOptions,
-    capabilities: ElectrobunCapabilities,
-    config: Options.Testrunner,
+    _capabilities: ElectrobunCapabilities,
+    _config: Options.Testrunner,
   ) {
+    const basePort = options.remoteDebuggingPort ?? DEFAULT_DEBUG_PORT_BASE;
     super({
-      basePort: options.remoteDebuggingPort ?? DEFAULT_REMOTE_DEBUGGING_PORT,
-      baseNativePort: (options.remoteDebuggingPort ?? DEFAULT_REMOTE_DEBUGGING_PORT) + 1,
+      basePort,
+      // Electrobun is CDP-attach: there is no separate native driver process, so
+      // baseNativePort is nominal. Anchored alongside basePort, clear of CEF's
+      // [9222, 9232] auto-scan range so PortManager never hands out a port CEF
+      // might grab for an un-pinned app.
+      baseNativePort: basePort + 1,
     });
+    // Don't serialise the full testrunner config/capabilities — they can carry
+    // credentials (reporter tokens, cloud keys) that shouldn't land in debug logs.
     log.debug('ElectrobunLaunchService initialised');
-    log.debug('Capabilities:', JSON.stringify(capabilities, null, 2));
-    log.debug('Config:', JSON.stringify(config, null, 2));
   }
 
   async onPrepare(
