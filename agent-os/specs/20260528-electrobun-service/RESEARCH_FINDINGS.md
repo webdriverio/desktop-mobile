@@ -62,28 +62,42 @@ Every CEF webview exposes: `__electrobun` (`receiveMessageFromBun`, `receiveInte
 
 Followed up on blocker 1 by reading the macOS native wrapper + `chromium_flags.h`:
 
-- **Port — launch-overridable ✅.** `startEventLoop`/`CefMainArgs` is built from the process's own
-  `[NSProcessInfo arguments]` (`nativeWrapper.mm:5824–5832`), so `--remote-debugging-port=N` passed to
-  the app binary at launch reaches CEF's global command line. `chromiumFlags` from `build.json` are
-  applied *separately* in `OnBeforeCommandLineProcessing`. The command-line switch wins over
-  `settings.remote_debugging_port` (the 9222–9232 scan). **Plan: build the app WITHOUT pinning the
-  port in `chromiumFlags`; the launcher passes a distinct allocated `--remote-debugging-port` per
-  spawn.** (No need to scan/discover.)
-- **Cache / user-data isolation — NOT launch-overridable ❌.** `settings.root_cache_path` =
-  `buildAppDataPath(appSupport, g_electrobunIdentifier, g_electrobunChannel, "CEF")`
-  (`nativeWrapper.mm:5895–5908`). `identifier`/`channel` are set via FFI in
-  `startEventLoop(identifier, name, channel)` (`:6794`) from the Bun process's `_carrotContext`
-  (`bun/index.ts:51,205`) — i.e. the app's build/launch context, not a CLI flag or env var. Because
-  `root_cache_path` is set explicitly, CEF ignores a `--user-data-dir` switch. A bundle-copy doesn't
-  help (the identifier isn't read from `build.json`). **Consequence: two instances of the same app
-  share the cache root → CEF folds the 2nd into the 1st (the spike's single-instance finding).**
+- **Port — per-bundle, NOT a launch arg ⚠️ (source-inference corrected by empirical test).** The
+  source path suggested `CefMainArgs(argc, argv)` (`nativeWrapper.mm:5832`) would let a launch-time
+  `--remote-debugging-port` reach CEF — **but the shipped launcher disproves this.** The built
+  `Contents/Resources/main.js` only forwards identifier/name/channel into the native run-main-thread
+  entry; it never propagates process argv to CEF, and the port is read **exclusively** from
+  `Contents/Resources/build.json` `chromiumFlags.remote-debugging-port` by `libNativeWrapper.dylib`
+  at runtime (pinned 9333 + `--remote-debugging-port=9351` arg → CEF stayed on 9333; emptied config +
+  arg → fell back to 9222). **So the port is fixed per bundle.** To vary it per worker, give each
+  worker its own bundle copy (`cp -c`, APFS clone ≈ instant) with the port written into that copy's
+  `build.json` (no full rebuild — the dylib re-reads `build.json` at runtime).
+- **Cache / user-data isolation — `CFFIXED_USER_HOME` works ✅.** `settings.root_cache_path` =
+  `buildAppDataPath(appSupport, identifier, channel, "CEF")` (`nativeWrapper.mm:5895–5908`), and
+  `NSApplicationSupportDirectory` resolves via `CFCopyHomeDirectoryURL()` which honors
+  **`CFFIXED_USER_HOME`**. Setting a distinct `CFFIXED_USER_HOME` per launch redirects each instance's
+  CEF cache to its own root (verified: real home stayed clean; `HOME` not required, harmless to also
+  set). This defeats CEF's single-instance-per-cache-root folding.
 
-**Implication for multiremote / per-worker parallelism:** there is **no local mechanism** to give
-concurrent same-app instances distinct cache roots. True parallelism is **blocked pending an upstream
-Electrobun change** (expose a cache-root / channel / `--user-data-dir` override at launch) — the same
-shape as Dioxus's Linux-external provider being blocked on an upstream Wry PR. **Recommendation:**
-ship single-instance MVP + feature surface now; document multiremote/parallel as a known limitation
-with an upstream tracking issue.
+**Implication for multiremote / per-worker parallelism — ACHIEVABLE on macOS, no upstream change.**
+Empirically confirmed: with per-instance `CFFIXED_USER_HOME` + per-instance `build.json` port, two
+concurrent same-app instances both served CDP and were independently driveable (`Runtime.evaluate`
+`1+1`→`2` on both ports, 2 process trees, 2 distinct caches, zero "Opening in existing browser
+session"). **Mechanism the launcher must implement:** per worker → clone the `.app` (APFS `cp -c`),
+write a distinct allocated `remote-debugging-port` into the clone's `Contents/Resources/build.json`,
+launch with a distinct `CFFIXED_USER_HOME` temp dir. Single-instance (MVP) is the same path with N=1.
+(Linux/Windows isolation still unverified — CI.)
+
+### CFFIXED_USER_HOME workaround test (decisive evidence)
+- Control (no home override): only 1 of 2 ports served CDP; instance B logged `Opening in existing
+  browser session`; both resolved the same `~/Library/Application Support/<id>/dev/CEF`.
+- Workaround (`CFFIXED_USER_HOME=/tmp/eb-home-N` per instance): both `:9361/json/version` and
+  `:9362/json/version` live simultaneously, 2 CEF trees, caches under each redirected home, both WS-
+  driveable. `CFFIXED_USER_HOME` alone is sufficient.
+- Launch-arg port override: **does not work** (see above) → per-worker bundle copy required.
+- Caveats: benign `Cannot create profile at path .../partitions/default` + transient
+  `blink.mojom.Widget` warnings appear in ALL runs (incl. baseline), not caused by the redirect;
+  bundled resources render fine under a redirected home; startup time unaffected.
 
 ## API gotcha worth recording
 `app` is a **named export** (`import { app } from "electrobun/bun"`), not on the default export. `Electrobun.app.on(...)` throws; the default export only carries `.events`.
