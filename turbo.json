@@ -257,6 +257,23 @@
         "dist/**"
       ]
     },
+    "@wdio/electrobun-cdp-bridge#build": {
+      "dependsOn": [
+        "@wdio/native-utils#build",
+        "typecheck"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
+    "@wdio/electrobun-service#build": {
+      "dependsOn": [
+        "@wdio/electrobun-cdp-bridge#build"
+      ],
+      "outputs": [
+        "dist/**"
+      ]
+    },
     "@wdio/tauri-plugin#build": {
       "dependsOn": [
         "@wdio/tauri-plugin#build:js"
