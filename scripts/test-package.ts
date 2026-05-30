@@ -51,10 +51,10 @@ const rootDir = normalize(join(__dirname, '..'));
 
 /**
  * Reads version overrides from the workspace's pnpm-workspace.yaml so the isolated
- * package-test install inherits them. Without this, transitive fixes such as the
- * yauzl override (extract-zip/@electron/packager unzip is broken on Node 24.16+;
- * see electron/forge#4277) never reach the sandboxed install and forge packaging
- * silently produces no binary. file:/link:/workspace: specs are skipped — they
+ * package-test install resolves the same dependency versions as the monorepo.
+ * Without this, a transitive version fix pinned at the workspace level never reaches
+ * the sandbox, so a fixture can resolve a known-broken dependency and fail in ways
+ * that don't reproduce locally. file:/link:/workspace: specs are skipped — they
  * point at monorepo-relative paths that can't resolve from the temp dir.
  */
 function readWorkspaceOverrides(): Record<string, string> {
@@ -132,39 +132,6 @@ function execCommand(command: string, cwd: string, description: string) {
     }
     throw error;
   }
-}
-
-/**
- * Detect whether an Electron packaging tool produced an app under `dist-electron/`.
- *
- * electron-vite writes its JS bundle to `dist/`, so the presence of a populated
- * `dist-electron/<app>/` subdirectory is the signal that the packaging step
- * (`electron-forge package` or `electron-builder`) actually emitted a binary —
- * Forge names it `<name>-<platform>-<arch>`, builder names it
- * `win-unpacked` / `mac*` / `linux*-unpacked`. We match by platform rather than
- * reconstructing the exact arch so the check survives arch-specific runners.
- */
-function electronPackagedAppExists(packageDir: string): boolean {
-  const distElectronDir = join(packageDir, 'dist-electron');
-  if (!existsSync(distElectronDir)) {
-    return false;
-  }
-  const forgeSuffix = `-${process.platform}-`;
-  const isBuilderAppDir = (name: string): boolean =>
-    name === 'win-unpacked' ||
-    name === 'mac' ||
-    name.startsWith('mac-') ||
-    name === 'linux-unpacked' ||
-    name.startsWith('linux-');
-  return readdirSync(distElectronDir, { withFileTypes: true }).some(
-    (entry) =>
-      entry.isDirectory() &&
-      (entry.name.includes(forgeSuffix) || isBuilderAppDir(entry.name)) &&
-      // Guard the packager finalization race: the output dir can be created
-      // while the binary is never written into it. A non-empty dir means the
-      // package step actually produced output, not just an empty shell.
-      readdirSync(join(distElectronDir, entry.name)).length > 0,
-  );
 }
 
 async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'both' = 'both'): Promise<{
@@ -442,8 +409,8 @@ async function testExample(
       }
     }
 
-    // Inherit workspace-level overrides (e.g. the yauzl fix for @electron/packager
-    // on Node 24.16+) so the sandboxed install matches the monorepo's resolution.
+    // Inherit workspace-level overrides so the sandboxed install resolves the same
+    // dependency versions as the monorepo.
     const workspaceOverrides = readWorkspaceOverrides();
     for (const [key, value] of Object.entries(workspaceOverrides)) {
       log(`  Applying workspace override: ${key}@${value}`);
@@ -761,44 +728,7 @@ async function testExample(
       }
     } else if (packageJson.scripts?.build && mode === 'native') {
       // Build other apps (e.g. Electron) in isolated environment
-      const buildScript: string = packageJson.scripts.build;
-      // Only forge/builder fixtures package a binary into dist-electron; the
-      // script-only fixture stops at the electron-vite bundle and has nothing
-      // to verify.
-      const packagesElectronApp =
-        service === 'electron' &&
-        (buildScript.includes('electron-forge package') || buildScript.includes('electron-builder'));
-
-      if (!packagesElectronApp) {
-        execCommand('pnpm build', packageDir, `Building ${packageName} app`);
-      } else {
-        // `electron-forge package` intermittently exits 0 without writing the
-        // packaged app (an @electron/packager finalization race), which later
-        // makes WDIO's onPrepare throw "Could not find Electron app built...".
-        // Verify the binary landed and rebuild if it silently went missing.
-        const maxBuildAttempts = 3;
-        let built = false;
-        for (let attempt = 1; attempt <= maxBuildAttempts; attempt++) {
-          execCommand('pnpm build', packageDir, `Building ${packageName} app (attempt ${attempt})`);
-          if (electronPackagedAppExists(packageDir)) {
-            built = true;
-            break;
-          }
-          if (attempt < maxBuildAttempts) {
-            console.error(
-              `⚠️  ${packageName}: build reported success but no packaged app under dist-electron/; rebuilding after 2s...`,
-            );
-            Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 2000);
-          }
-        }
-        if (!built) {
-          throw new Error(
-            `${packageName}: 'pnpm build' completed but produced no packaged Electron app under ` +
-              `${join(packageDir, 'dist-electron')} after ${maxBuildAttempts} attempts. ` +
-              'This is the electron-forge packaging finalization race; the binary was never written.',
-          );
-        }
-      }
+      execCommand('pnpm build', packageDir, `Building ${packageName} app`);
     }
 
     let staticServer: Server | undefined;
