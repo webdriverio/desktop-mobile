@@ -58,6 +58,33 @@ Every CEF webview exposes: `__electrobun` (`receiveMessageFromBun`, `receiveInte
    - **B2 (hard crash):** the bundler renames `import {join}`→`join5` for the WGPU chunk but drops `dirname`, so the Bun worker dies on boot with `ReferenceError: dirname is not defined` in `findWgpuLibraryPath`.
 4. **Version skew** — npm `electrobun` 1.18.1 lags source/CEF 1.18.4-beta.3 / Chromium 147. Pin compatible Electrobun + chromedriver (major 147) explicitly.
 
+## Launch-time control mechanism (PR2 source investigation)
+
+Followed up on blocker 1 by reading the macOS native wrapper + `chromium_flags.h`:
+
+- **Port — launch-overridable ✅.** `startEventLoop`/`CefMainArgs` is built from the process's own
+  `[NSProcessInfo arguments]` (`nativeWrapper.mm:5824–5832`), so `--remote-debugging-port=N` passed to
+  the app binary at launch reaches CEF's global command line. `chromiumFlags` from `build.json` are
+  applied *separately* in `OnBeforeCommandLineProcessing`. The command-line switch wins over
+  `settings.remote_debugging_port` (the 9222–9232 scan). **Plan: build the app WITHOUT pinning the
+  port in `chromiumFlags`; the launcher passes a distinct allocated `--remote-debugging-port` per
+  spawn.** (No need to scan/discover.)
+- **Cache / user-data isolation — NOT launch-overridable ❌.** `settings.root_cache_path` =
+  `buildAppDataPath(appSupport, g_electrobunIdentifier, g_electrobunChannel, "CEF")`
+  (`nativeWrapper.mm:5895–5908`). `identifier`/`channel` are set via FFI in
+  `startEventLoop(identifier, name, channel)` (`:6794`) from the Bun process's `_carrotContext`
+  (`bun/index.ts:51,205`) — i.e. the app's build/launch context, not a CLI flag or env var. Because
+  `root_cache_path` is set explicitly, CEF ignores a `--user-data-dir` switch. A bundle-copy doesn't
+  help (the identifier isn't read from `build.json`). **Consequence: two instances of the same app
+  share the cache root → CEF folds the 2nd into the 1st (the spike's single-instance finding).**
+
+**Implication for multiremote / per-worker parallelism:** there is **no local mechanism** to give
+concurrent same-app instances distinct cache roots. True parallelism is **blocked pending an upstream
+Electrobun change** (expose a cache-root / channel / `--user-data-dir` override at launch) — the same
+shape as Dioxus's Linux-external provider being blocked on an upstream Wry PR. **Recommendation:**
+ship single-instance MVP + feature surface now; document multiremote/parallel as a known limitation
+with an upstream tracking issue.
+
 ## API gotcha worth recording
 `app` is a **named export** (`import { app } from "electrobun/bun"`), not on the default export. `Electrobun.app.on(...)` throws; the default export only carries `.events`.
 
