@@ -112,6 +112,8 @@ export interface ElectrobunServiceOptions extends BaseServiceOptions {
   mode?: 'native' | 'browser';
   /** When `mode === 'browser'`, the URL of the running dev server. */
   devServerUrl?: string;
+  /** Extra environment variables to set on the spawned app process (native mode). */
+  env?: Record<string, string>;
   /**
    * Force a specific CEF remote-debugging port. Normally unnecessary: the launcher
    * allocates a free port per worker and **pins** it by writing it into that
@@ -133,6 +135,7 @@ export interface ElectrobunServiceOptions extends BaseServiceOptions {
 export interface ElectrobunServiceGlobalOptions extends BaseServiceGlobalOptions {
   mode?: 'native' | 'browser';
   devServerUrl?: string;
+  env?: Record<string, string>;
   remoteDebuggingPort?: number;
   cdpConnectionTimeout?: number;
   cdpConnectionRetryCount?: number;
