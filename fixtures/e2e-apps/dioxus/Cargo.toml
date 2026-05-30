@@ -1,3 +1,13 @@
+# Explicit single-crate Cargo workspace: the [workspace] block makes
+# this manifest a workspace root with the local [package] as its only
+# member. target/ lives at this directory (the workspace root). Matches
+# what users get when they `cargo new` and later add a [workspace]
+# declaration — a valid and common layout that @wdio/dioxus-service
+# must support alongside the workspace-with-subdir-member shape used by
+# the Tauri fixtures.
+[workspace]
+resolver = "2"
+
 [package]
 name = "wdio-dioxus-e2e-app"
 version = "0.1.0"

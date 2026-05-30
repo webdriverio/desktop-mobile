@@ -378,7 +378,7 @@ jobs:
         with:
           name: tauri-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}
           output: tauri-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}/artifact.zip
-          paths: fixtures/package-tests/tauri-app/src-tauri/target
+          paths: fixtures/package-tests/tauri-app/target
           cache_key_prefix: tauri-package-app
           retention_days: '90'
 

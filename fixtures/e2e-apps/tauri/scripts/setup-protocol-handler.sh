@@ -11,6 +11,6 @@ PROJECT_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 "$PROJECT_ROOT/scripts/protocol-handlers/setup-protocol-handler.sh" \
     "$APP_DIR" \
     "tauri-e2e-app" \
-    "src-tauri/target/release,src-tauri/target/debug" \
+    "target/release,target/debug" \
     "tauri-e2e-app-testapp" \
     "Tauri E2E Test App"

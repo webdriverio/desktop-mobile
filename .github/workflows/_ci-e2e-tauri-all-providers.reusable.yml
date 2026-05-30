@@ -131,7 +131,7 @@ jobs:
         shell: bash
         run: |
           # shellcheck disable=SC2012
-          echo "Checking for Tauri binaries in fixtures/e2e-apps/tauri/src-tauri/target/"
+          echo "Checking for Tauri binaries in fixtures/e2e-apps/tauri/target/"
 
           if [ ! -d "fixtures/e2e-apps/tauri" ]; then
             echo "::error::fixtures/e2e-apps/tauri directory not found!"
@@ -235,8 +235,8 @@ jobs:
           if [ "${{ runner.os }}" == "Windows" ]; then
             echo "Setting up Windows protocol handler..."
 
-            echo "Checking if src-tauri/target directory exists..."
-            ls -la ./fixtures/e2e-apps/tauri/src-tauri/target/ || echo "src-tauri/target/ not found"
+            echo "Checking if target directory exists..."
+            ls -la ./fixtures/e2e-apps/tauri/target/ || echo "target/ not found"
             echo ""
 
             powershell -ExecutionPolicy Bypass -File ./fixtures/e2e-apps/tauri/scripts/setup-protocol-handler.ps1
@@ -250,8 +250,8 @@ jobs:
           elif [ "${{ runner.os }}" == "Linux" ]; then
             echo "Setting up Linux protocol handler..."
 
-            echo "Checking if src-tauri/target directory exists..."
-            ls -la ./fixtures/e2e-apps/tauri/src-tauri/target/ || echo "src-tauri/target/ not found"
+            echo "Checking if target directory exists..."
+            ls -la ./fixtures/e2e-apps/tauri/target/ || echo "target/ not found"
             echo ""
 
             chmod +x ./fixtures/e2e-apps/tauri/scripts/setup-protocol-handler.sh

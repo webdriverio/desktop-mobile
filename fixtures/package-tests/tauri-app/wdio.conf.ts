@@ -8,8 +8,9 @@ const __dirname = dirname(__filename);
 // Application directory
 const appPath = path.resolve(__dirname);
 
-// Resolve Tauri binary path (following E2E pattern)
-const tauriTargetDir = join(appPath, 'src-tauri', 'target', 'debug');
+// Resolve Tauri binary path. The fixture is a Cargo workspace so the
+// build output lives at <root>/target/<profile>/ (not src-tauri/target/).
+const tauriTargetDir = join(appPath, 'target', 'debug');
 const tauriConfigPath = join(appPath, 'src-tauri', 'tauri.conf.json');
 
 if (!existsSync(tauriConfigPath)) {

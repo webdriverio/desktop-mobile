@@ -1,0 +1,11 @@
+# Cargo workspace root for the Tauri package-test fixture.
+#
+# Tauri's convention of nesting the Rust crate under `src-tauri/` while
+# keeping `target/` at the workspace root (here, this directory) is the
+# realistic shape most non-trivial Tauri apps take. Converging the fixture
+# on it ensures @wdio/tauri-service is verified against the layout users
+# most commonly ship — see issue #295 for the regression this guards.
+
+[workspace]
+resolver = "2"
+members = ["src-tauri"]
