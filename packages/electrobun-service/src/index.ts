@@ -17,4 +17,9 @@ export { ElectrobunLaunchService as launcher };
 export default ElectrobunWorkerService;
 
 export { cefRendererRequired, deeplinkUnsupportedOnPlatform, SevereServiceError } from './errors.js';
+export {
+  cleanup as cleanupWdioSession,
+  createElectrobunCapabilities,
+  init as startWdioSession,
+} from './session.js';
 export type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';

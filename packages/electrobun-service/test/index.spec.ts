@@ -30,4 +30,11 @@ describe('@wdio/electrobun-service public exports', () => {
     const { SevereServiceError } = await import('../src/index.js');
     expect(SevereServiceError).toBeTypeOf('function');
   });
+
+  it('should expose the standalone session helpers', async () => {
+    const mod = await import('../src/index.js');
+    expect(mod.startWdioSession).toBeTypeOf('function');
+    expect(mod.cleanupWdioSession).toBeTypeOf('function');
+    expect(mod.createElectrobunCapabilities).toBeTypeOf('function');
+  });
 });
