@@ -23,6 +23,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { parse as parseYaml } from 'yaml';
 
 // Add global error handlers to catch silent failures
 process.on('uncaughtException', (error) => {
@@ -47,6 +48,32 @@ const __filename = (() => {
 
 const __dirname = dirname(__filename);
 const rootDir = normalize(join(__dirname, '..'));
+
+/**
+ * Reads version overrides from the workspace's pnpm-workspace.yaml so the isolated
+ * package-test install resolves the same dependency versions as the monorepo.
+ * Without this, a transitive version fix pinned at the workspace level never reaches
+ * the sandbox, so a fixture can resolve a known-broken dependency and fail in ways
+ * that don't reproduce locally. file:/link:/workspace: specs are skipped — they
+ * point at monorepo-relative paths that can't resolve from the temp dir.
+ */
+function readWorkspaceOverrides(): Record<string, string> {
+  const workspaceYamlPath = join(rootDir, 'pnpm-workspace.yaml');
+  if (!existsSync(workspaceYamlPath)) {
+    return {};
+  }
+  const parsed = parseYaml(readFileSync(workspaceYamlPath, 'utf-8')) as { overrides?: Record<string, string> };
+  const overrides = parsed?.overrides ?? {};
+  return Object.fromEntries(
+    Object.entries(overrides).filter(
+      ([, value]) =>
+        typeof value === 'string' &&
+        !value.startsWith('file:') &&
+        !value.startsWith('link:') &&
+        !value.startsWith('workspace:'),
+    ),
+  );
+}
 
 interface TestOptions {
   package?: string;
@@ -382,8 +409,17 @@ async function testExample(
       }
     }
 
-    // Build overrides and packages to install based on service type
+    // Inherit workspace-level overrides so the sandboxed install resolves the same
+    // dependency versions as the monorepo.
+    const workspaceOverrides = readWorkspaceOverrides();
+    for (const [key, value] of Object.entries(workspaceOverrides)) {
+      log(`  Applying workspace override: ${key}@${value}`);
+    }
+
+    // Build overrides and packages to install based on service type. Precedence
+    // (lowest → highest): workspace, fixture source, local @wdio/* file overrides.
     const overrides: Record<string, string> = {
+      ...workspaceOverrides,
       ...preservedOverrides,
       '@wdio/native-utils': `file:${packages.utilsPath}`,
       '@wdio/native-spy': `file:${packages.spyPath}`,
