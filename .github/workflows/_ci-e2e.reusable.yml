@@ -84,6 +84,12 @@ jobs:
           sudo rm -rf /usr/local/.ghcup || true
           sudo rm -rf /opt/hostedtoolcache/CodeQL || true
           sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/lib/jvm || true
+          sudo rm -rf /usr/local/share/powershell || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /usr/local/graalvm || true
+          sudo rm -rf /opt/hostedtoolcache/Ruby /opt/hostedtoolcache/go /opt/hostedtoolcache/PyPy || true
+          sudo apt-get clean || true
           sudo docker image prune --all --force || true
           echo "=== Disk usage after cleanup ==="
           df -h /
@@ -289,3 +295,23 @@ jobs:
         if: failure()
         with:
           timeout: '300000'
+
+      # The build/install footprint can fill the runner disk by job end, which
+      # then fails the job's post-actions as they write to a full disk. Tests and
+      # log upload are done by here; reclaim that footprint. Runs last so the
+      # failure-debug steps above still see the build artifacts.
+      - name: 🧹 Reclaim disk before teardown (Linux)
+        if: always() && runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo "=== Disk before teardown cleanup ==="
+          df -h /
+          rm -rf ~/.cache/electron ~/.cache/electron-builder 2>/dev/null || true
+          store="$(pnpm store path 2>/dev/null || true)"
+          if [ -n "$store" ]; then
+            rm -rf "$store" 2>/dev/null || true
+          fi
+          find "$GITHUB_WORKSPACE" -type d -name node_modules -prune -exec rm -rf {} + 2>/dev/null || true
+          find "$GITHUB_WORKSPACE" -type d \( -name dist-electron -o -name out \) -prune -exec rm -rf {} + 2>/dev/null || true
+          echo "=== Disk after teardown cleanup ==="
+          df -h /
