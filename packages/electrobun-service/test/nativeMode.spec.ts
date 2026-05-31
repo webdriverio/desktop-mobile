@@ -155,6 +155,18 @@ describe('nativeMode', () => {
       expect(port).toBe(9333);
     });
 
+    it('should remove the cloned bundle dir if pinning the port throws (no temp-dir leak)', () => {
+      writeRemoteDebuggingPortMock.mockImplementationOnce(() => {
+        throw new Error('EACCES: build.json not writable');
+      });
+
+      expect(() =>
+        spawnElectrobunApp({ app: APP, appArgs: [], port: 9333, options: {} as ElectrobunServiceOptions }),
+      ).toThrow('EACCES');
+
+      expect(rmSyncMock).toHaveBeenCalledWith(CLONE_PARENT, { recursive: true, force: true });
+    });
+
     it('should spawn the CLONED binary with a per-run CFFIXED_USER_HOME', () => {
       const result = spawnElectrobunApp({
         app: APP,

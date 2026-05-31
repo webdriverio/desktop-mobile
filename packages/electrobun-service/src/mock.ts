@@ -197,7 +197,9 @@ export async function createMock(
 
   mock.mockRestore = async () => {
     await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target));
-    outerMockClear();
+    // Match vitest semantics: restore fully resets the outer spy (history +
+    // implementation), not just clears its call history.
+    outerMockReset();
     store.deleteMock(target);
     return mock;
   };
