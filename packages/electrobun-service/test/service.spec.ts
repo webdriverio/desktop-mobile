@@ -198,14 +198,7 @@ describe('ElectrobunWorkerService', () => {
         /not implemented yet/,
       );
     });
-
-    it('should reject triggerDeeplink (not implemented on macOS, unsupported elsewhere)', async () => {
-      const browser = makeBrowser();
-      const service = new ElectrobunWorkerService({}, {});
-      await service.before(nativeCap(), [], browser);
-
-      await expect((browser as unknown as Installed).electrobun.triggerDeeplink('app://x')).rejects.toThrow();
-    });
+    // triggerDeeplink is now real (macOS) — covered in test/triggerDeeplink.spec.ts.
   });
 
   describe('teardown', () => {

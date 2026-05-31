@@ -3,8 +3,8 @@ import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 import { execute } from './commands/execute.js';
+import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
-import { deeplinkUnsupportedOnPlatform } from './errors.js';
 import type { ElectrobunServiceOptions } from './types.js';
 
 const log = createLogger(SERVICE_NAME, 'service');
@@ -144,12 +144,7 @@ function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge): void {
     clearAllMocks: () => Promise.reject(notImplemented('clearAllMocks')),
     resetAllMocks: () => Promise.reject(notImplemented('resetAllMocks')),
     restoreAllMocks: () => Promise.reject(notImplemented('restoreAllMocks')),
-    triggerDeeplink: () => {
-      if (process.platform !== 'darwin') {
-        return Promise.reject(deeplinkUnsupportedOnPlatform());
-      }
-      return Promise.reject(notImplemented('triggerDeeplink'));
-    },
+    triggerDeeplink: (url: string) => triggerDeeplink(url),
   };
   (browser as unknown as { electrobun: ElectrobunServiceAPI }).electrobun = electrobun;
   log.debug('Installed browser.electrobun.*');
