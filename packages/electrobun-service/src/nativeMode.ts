@@ -70,18 +70,25 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
   const cloneParentDir = mkdtempSync(join(tmpdir(), 'wdio-electrobun-bundle-'));
   const clonedBundlePath = join(cloneParentDir, basename(bundlePath));
 
-  if (process.platform === 'darwin') {
-    try {
-      execFileSync('cp', ['-Rc', bundlePath, clonedBundlePath]);
-      return { cloneParentDir, clonedBundlePath };
-    } catch (error) {
-      // Non-APFS volume (clonefile unsupported) — fall back to a full recursive copy.
-      log.debug(`APFS clone failed for ${bundlePath}, falling back to recursive copy: ${(error as Error).message}`);
+  try {
+    if (process.platform === 'darwin') {
+      try {
+        execFileSync('cp', ['-Rc', bundlePath, clonedBundlePath]);
+        return { cloneParentDir, clonedBundlePath };
+      } catch (error) {
+        // Non-APFS volume (clonefile unsupported) — fall back to a full recursive copy.
+        log.debug(`APFS clone failed for ${bundlePath}, falling back to recursive copy: ${(error as Error).message}`);
+      }
     }
-  }
 
-  cpSync(bundlePath, clonedBundlePath, { recursive: true });
-  return { cloneParentDir, clonedBundlePath };
+    cpSync(bundlePath, clonedBundlePath, { recursive: true });
+    return { cloneParentDir, clonedBundlePath };
+  } catch (error) {
+    // The copy failed (e.g. cpSync threw) — remove the empty temp parent mkdtempSync
+    // created so it doesn't leak, then rethrow.
+    rmSync(cloneParentDir, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 /**

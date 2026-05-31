@@ -132,6 +132,16 @@ describe('nativeMode', () => {
         recursive: true,
       });
     });
+
+    it('should remove the empty temp parent dir if the copy throws (no leak)', () => {
+      setPlatform('linux');
+      cpSyncMock.mockImplementationOnce(() => {
+        throw new Error('ENOSPC: no space left on device');
+      });
+
+      expect(() => cloneAppBundle('/apps/Demo')).toThrow('ENOSPC');
+      expect(rmSyncMock).toHaveBeenCalledWith('/tmp/wdio-electrobun-bundle-xyz', { recursive: true, force: true });
+    });
   });
 
   describe('spawnElectrobunApp', () => {
