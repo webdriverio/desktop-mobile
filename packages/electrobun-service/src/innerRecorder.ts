@@ -219,7 +219,11 @@ export function buildSetValueScript(target: string, method: InnerMockSetterMetho
     var entry = reg && reg[${key}];
     if (!entry || !entry.spy) { return; }
     var _v = ${valueLiteral};
-    var arg = (_v && typeof _v === 'object' && _v.__wdioError === true) ? new Error(_v.message) : _v;
+    var arg = _v;
+    if (_v && typeof _v === 'object' && _v.__wdioError === true) {
+      arg = new Error(_v.message);
+      if (_v.name) { arg.name = _v.name; }
+    }
     entry.spy.${method}(arg);
   })()`;
 }

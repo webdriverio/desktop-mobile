@@ -98,7 +98,7 @@ function parseCallData(raw: unknown): CallData {
 /** Serialise a value/error to a JS literal for inlining into a setter script. */
 function valueLiteral(value: unknown, target: string): string {
   if (value instanceof Error) {
-    return JSON.stringify({ __wdioError: true, message: value.message });
+    return JSON.stringify({ __wdioError: true, name: value.name, message: value.message });
   }
   return jsonLiteral(value, `browser.electrobun.mock("${target}") value`);
 }
