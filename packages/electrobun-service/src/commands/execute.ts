@@ -30,6 +30,14 @@ interface EvaluateResponse {
 function inlineArgs(args: unknown[]): string {
   return args
     .map((arg, index) => {
+      // JSON.stringify(fn) / JSON.stringify(symbol) returns `undefined` rather
+      // than throwing, which would silently drop the arg — reject those up front.
+      if (typeof arg === 'function' || typeof arg === 'symbol') {
+        throw new Error(
+          `browser.electrobun.execute argument at index ${index} is not JSON-serialisable ` +
+            `(a ${typeof arg} cannot be inlined into the script source; JSON.stringify would silently drop it).`,
+        );
+      }
       try {
         return JSON.stringify(arg) ?? 'undefined';
       } catch (err) {

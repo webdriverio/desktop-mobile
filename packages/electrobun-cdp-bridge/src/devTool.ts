@@ -85,10 +85,10 @@ export class DevTool {
     const resolvedOptions: RequestOptions = Object.assign({}, this.#options, options);
     log.debug('Request to the debugger', resolvedOptions);
     return new Promise((resolve, reject) => {
+      // Order matters: run the request only AFTER the port opens. A `.catch().then()`
+      // chain would still run the `.then()` after the port-wait rejected (catch
+      // resolves), firing a request at a port that never opened.
       this.#waitDebuggerPort()
-        .catch(() => {
-          reject(new Error(ERROR_MESSAGE.TIMEOUT_WAIT_PORT));
-        })
         .then(() => {
           const req = http.request(resolvedOptions, (res) => {
             let data = '';
@@ -126,6 +126,9 @@ export class DevTool {
           });
 
           req.end();
+        })
+        .catch(() => {
+          reject(new Error(ERROR_MESSAGE.TIMEOUT_WAIT_PORT));
         });
     });
   }
