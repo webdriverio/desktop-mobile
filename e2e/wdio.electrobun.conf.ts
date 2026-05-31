@@ -45,7 +45,9 @@ function resolveElectrobunAppPath(dir: string): string {
   // (the on-disk layout there is unverified — see the service RESEARCH_FINDINGS).
   const bundles = globSync(join(buildDir, '**', '*.app'));
   if (bundles.length > 0) {
-    return bundles.sort()[0];
+    // Newest-built wins (mtime desc) when the toolchain emits more than one
+    // environment dir (dev / canary / stable), rather than a lexicographic pick.
+    return bundles.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
   }
 
   throw new Error(
