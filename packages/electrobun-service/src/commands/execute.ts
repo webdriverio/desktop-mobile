@@ -27,28 +27,58 @@ interface EvaluateResponse {
   };
 }
 
+/**
+ * Serialise a value to a JS literal for inlining into a script source, rejecting
+ * anything `JSON.stringify` would silently drop or choke on. Shared by `execute`
+ * (user args) and the mock layer (impl/return values pushed into the page).
+ *
+ * @param context - caller label used in the error message (e.g. `browser.electrobun.execute`).
+ * @param index - optional positional index appended to the error message.
+ */
+export function jsonLiteral(value: unknown, context: string, index?: number): string {
+  const at = index === undefined ? '' : ` at index ${index}`;
+  // JSON.stringify(fn) / JSON.stringify(symbol) returns `undefined` rather than
+  // throwing, which would silently drop the value — reject those up front.
+  if (typeof value === 'function' || typeof value === 'symbol') {
+    throw new Error(
+      `${context}${at} is not JSON-serialisable ` +
+        `(a ${typeof value} cannot be inlined into the script source; JSON.stringify would silently drop it).`,
+    );
+  }
+  try {
+    return JSON.stringify(value) ?? 'undefined';
+  } catch (err) {
+    throw new Error(
+      `${context}${at} is not JSON-serialisable ` +
+        '(values are inlined into the script source via JSON.stringify). This typically means the ' +
+        `value contains a circular reference, a BigInt, or a function. Underlying error: ${(err as Error).message}`,
+    );
+  }
+}
+
 function inlineArgs(args: unknown[]): string {
-  return args
-    .map((arg, index) => {
-      // JSON.stringify(fn) / JSON.stringify(symbol) returns `undefined` rather
-      // than throwing, which would silently drop the arg — reject those up front.
-      if (typeof arg === 'function' || typeof arg === 'symbol') {
-        throw new Error(
-          `browser.electrobun.execute argument at index ${index} is not JSON-serialisable ` +
-            `(a ${typeof arg} cannot be inlined into the script source; JSON.stringify would silently drop it).`,
-        );
-      }
-      try {
-        return JSON.stringify(arg) ?? 'undefined';
-      } catch (err) {
-        throw new Error(
-          `browser.electrobun.execute argument at index ${index} is not JSON-serialisable ` +
-            '(args are inlined into the script source via JSON.stringify). This typically means the ' +
-            `value contains a circular reference, a BigInt, or a function. Underlying error: ${(err as Error).message}`,
-        );
-      }
-    })
-    .join(', ');
+  return args.map((arg, index) => jsonLiteral(arg, 'browser.electrobun.execute argument', index)).join(', ');
+}
+
+/**
+ * Evaluate a raw JS expression in the active CEF content target and return its
+ * (returned-by-value) result. Centralises `Runtime.evaluate` + exception
+ * handling for both `execute` and the mock layer. Never issues Page.navigate.
+ */
+export async function evaluateInActiveTarget<ReturnValue>(bridge: CdpBridge, expression: string): Promise<ReturnValue> {
+  const response = (await bridge.send('Runtime.evaluate', {
+    expression,
+    returnByValue: true,
+    awaitPromise: true,
+  })) as EvaluateResponse;
+
+  if (response.exceptionDetails) {
+    const detail =
+      response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Unknown evaluation error';
+    throw new Error(`browser.electrobun.execute failed: ${detail}`);
+  }
+
+  return response.result?.value as ReturnValue;
 }
 
 /**
@@ -73,17 +103,5 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
         })()`
       : script;
 
-  const response = (await bridge.send('Runtime.evaluate', {
-    expression,
-    returnByValue: true,
-    awaitPromise: true,
-  })) as EvaluateResponse;
-
-  if (response.exceptionDetails) {
-    const detail =
-      response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Unknown evaluation error';
-    throw new Error(`browser.electrobun.execute failed: ${detail}`);
-  }
-
-  return response.result?.value as ReturnValue;
+  return evaluateInActiveTarget<ReturnValue>(bridge, expression);
 }
