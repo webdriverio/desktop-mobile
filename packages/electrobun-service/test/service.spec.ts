@@ -176,27 +176,59 @@ describe('ElectrobunWorkerService', () => {
     });
   });
 
-  describe('stubs', () => {
-    it('should reject mock / clearAllMocks / resetAllMocks / restoreAllMocks as not implemented', async () => {
+  describe('mock surface (wired over the bridge)', () => {
+    // Detailed inner-recorder semantics live in test/mock.spec.ts / allMocks.spec.ts;
+    // here we assert installApi wires the family onto the bridge-backed store.
+    it('should install a recorder via Runtime.evaluate and return an electrobun mock', async () => {
       const browser = makeBrowser();
       const service = new ElectrobunWorkerService({}, {});
       await service.before(nativeCap(), [], browser);
       const { electrobun } = browser as unknown as Installed;
 
-      await expect(electrobun.mock('x')).rejects.toThrow(/not implemented yet/);
-      await expect(electrobun.clearAllMocks()).rejects.toThrow(/not implemented yet/);
-      await expect(electrobun.resetAllMocks()).rejects.toThrow(/not implemented yet/);
-      await expect(electrobun.restoreAllMocks()).rejects.toThrow(/not implemented yet/);
+      const mock = await electrobun.mock('api.fetchData');
+
+      expect((mock as unknown as { __isElectrobunMock: boolean }).__isElectrobunMock).toBe(true);
+      expect(mock.getMockName()).toBe('electrobun.api.fetchData');
+      const [method, params] = sendMock.mock.calls[0];
+      expect(method).toBe('Runtime.evaluate');
+      expect(params.expression).toContain('__WDIO_ELECTROBUN_MOCKS__');
+      expect(params.expression).toContain('api.fetchData');
     });
 
-    it('should throw for isMockFunction as not implemented', async () => {
+    it('should report mocks via isMockFunction and resolve clear/reset/restore-all', async () => {
       const browser = makeBrowser();
       const service = new ElectrobunWorkerService({}, {});
       await service.before(nativeCap(), [], browser);
+      const { electrobun } = browser as unknown as Installed;
 
-      expect(() => (browser as unknown as Installed).electrobun.isMockFunction(() => undefined)).toThrow(
-        /not implemented yet/,
-      );
+      const mock = await electrobun.mock('api.fetchData');
+      expect(electrobun.isMockFunction(mock)).toBe(true);
+      expect(electrobun.isMockFunction('api.fetchData')).toBe(true);
+      expect(electrobun.isMockFunction(() => undefined)).toBe(false);
+
+      await expect(electrobun.clearAllMocks()).resolves.toBeUndefined();
+      await expect(electrobun.resetAllMocks()).resolves.toBeUndefined();
+      await expect(electrobun.restoreAllMocks()).resolves.toBeUndefined();
+    });
+
+    it('should keep a separate mock store per multiremote instance', async () => {
+      const instanceA = {} as WebdriverIO.Browser;
+      const instanceB = {} as WebdriverIO.Browser;
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const caps = { browserA: { capabilities: nativeCap(9361) }, browserB: { capabilities: nativeCap(9362) } };
+
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(caps, [], mrBrowser);
+
+      const electrobunA = (instanceA as unknown as Installed).electrobun;
+      const electrobunB = (instanceB as unknown as Installed).electrobun;
+      await electrobunA.mock('api.only');
+      expect(electrobunA.isMockFunction('api.only')).toBe(true);
+      expect(electrobunB.isMockFunction('api.only')).toBe(false);
     });
     // triggerDeeplink is now real (macOS) — covered in test/triggerDeeplink.spec.ts.
   });
