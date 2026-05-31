@@ -18,6 +18,7 @@ type PromiseHandlers = {
   // biome-ignore lint/suspicious/noExplicitAny: resolve callback needs flexible type
   resolve: (value?: any) => void;
   reject: (reason?: unknown) => void;
+  timer?: ReturnType<typeof setTimeout>;
 };
 
 type EventValue = {
@@ -50,6 +51,7 @@ export class Connection extends EventEmitter {
   #ws: WebSocket | null = null;
   #promises = new Map<number, PromiseHandlers>();
   #commandId = CONNECT_PROMISE_ID;
+  #closeReason: Error | undefined;
 
   constructor(webSocketDebuggerUrl: string, options?: { timeout?: number }) {
     super();
@@ -92,14 +94,14 @@ export class Connection extends EventEmitter {
         reject(new Error(ERROR_MESSAGE.NOT_CONNECTED));
         return;
       }
-      this.#promises.set(message.id, { resolve, reject });
-      this.#ws.send(JSON.stringify(message));
-      setTimeout(() => {
+      const timer = setTimeout(() => {
         if (this.#promises.has(message.id)) {
           this.#promises.delete(message.id);
           reject(new Error(`${ERROR_MESSAGE.TIMEOUT_CONNECTION} ${message.id}`));
         }
       }, this.#timeout);
+      this.#promises.set(message.id, { resolve, reject, timer });
+      this.#ws.send(JSON.stringify(message));
     });
   }
 
@@ -127,7 +129,8 @@ export class Connection extends EventEmitter {
     });
     ws.on('close', () => {
       log.trace(ERROR_MESSAGE.CONNECTION_CLOSED);
-      this.#rejectAllPromises();
+      this.#rejectAllPromises(this.#closeReason);
+      this.#closeReason = undefined;
       this.#ws = null;
     });
   }
@@ -145,6 +148,9 @@ export class Connection extends EventEmitter {
     const handler = this.#promises.get(message.id);
     if (!handler) {
       return;
+    }
+    if (handler.timer) {
+      clearTimeout(handler.timer);
     }
     if (message.error) {
       handler.reject(new Error(message.error.message));
@@ -165,17 +171,20 @@ export class Connection extends EventEmitter {
   }
 
   #close(error?: unknown) {
-    if (error) {
-      this.#rejectAllPromises(error as Error);
-    }
     return new Promise<void>((resolve) => {
       if (this.#ws && this.#ws.readyState !== WebSocket.CLOSED) {
+        // Reject pending promises via the single 'close' handler (it fires on
+        // ws.close() below), passing the error reason through #closeReason —
+        // avoids rejecting them here AND again in the handler.
+        this.#closeReason = error as Error | undefined;
         this.#ws.once('close', () => {
           this.#ws = null;
           resolve();
         });
         this.#ws.close();
       } else {
+        // No open socket → no 'close' event coming; reject directly.
+        this.#rejectAllPromises(error as Error | undefined);
         this.#ws = null;
         resolve();
       }
@@ -186,6 +195,9 @@ export class Connection extends EventEmitter {
     const message = error ? `${ERROR_MESSAGE.ERROR_INTERNAL} ${error.message}` : ERROR_MESSAGE.CONNECTION_CLOSED;
     const reason = new Error(message);
     this.#promises.forEach((handler) => {
+      if (handler.timer) {
+        clearTimeout(handler.timer);
+      }
       handler.reject(reason);
     });
     this.#promises.clear();
