@@ -102,14 +102,13 @@ jobs:
       - name: ✅ Verify Electrobun Bundle
         shell: bash
         run: |
-          # shellcheck disable=SC2012
           if [ ! -d "fixtures/e2e-apps/electrobun/build" ]; then
             echo "::error::Electrobun build dir not found — bundle was not extracted correctly."
-            ls -la fixtures/e2e-apps/electrobun/ || true
+            find fixtures/e2e-apps/electrobun/ -maxdepth 1 || true
             exit 1
           fi
           echo "Electrobun build tree:"
-          ls -R fixtures/e2e-apps/electrobun/build | head -50
+          find fixtures/e2e-apps/electrobun/build | head -50
 
       - name: 📊 Show Build Information
         if: inputs.build_id != '' && inputs.artifact_size != ''

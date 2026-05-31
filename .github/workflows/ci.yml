@@ -173,10 +173,12 @@ jobs:
   # the biggest unknown in this pipeline: a beta Bun/CEF toolchain that pulls a
   # ~150MB CEF download. macOS is the validated platform.
   #
-  # Linux is a SEPARATE build job marked allow-failure (continue-on-error) and
-  # kept easy to disable: comment out `build-electrobun-e2e-app-linux` and its
-  # dependent `e2e-electrobun-linux` to drop Linux entirely while the Linux CDP
-  # path (/json endpoint) is unverified.
+  # Linux is a SEPARATE build job kept allow-failure by being left OUT of
+  # `ci-status.needs` (GitHub forbids `continue-on-error` on reusable-workflow
+  # jobs), so a red Linux leg can't block the verified macOS pipeline while the
+  # Linux CDP path (/json endpoint) is unverified. To drop Linux entirely,
+  # comment out `build-electrobun-e2e-app-linux` and its dependent
+  # `e2e-electrobun-linux`.
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
@@ -194,9 +196,9 @@ jobs:
     name: Build Electrobun E2E App [Linux]
     needs: [detect-changes, build]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    # Allow-failure: the Linux CEF build/runtime is unverified. A red here must
-    # not block the (verified) macOS pipeline.
-    continue-on-error: true
+    # Allow-failure: the Linux CEF build/runtime is unverified. Kept non-blocking
+    # by exclusion from `ci-status.needs` (continue-on-error is not permitted on a
+    # reusable-workflow job), so a red here can't block the verified macOS pipeline.
     uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
     secrets: inherit
     with:
@@ -729,10 +731,10 @@ jobs:
     name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
     needs: [detect-changes, build, build-electrobun-e2e-app-linux]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    # Allow-failure: Linux CDP attach (CEF /json endpoint) is unverified. Keep
-    # this green-or-skip in ci-status; flip to required once Linux is confirmed.
+    # Allow-failure: Linux CDP attach (CEF /json endpoint) is unverified. Kept
+    # non-blocking by exclusion from `ci-status.needs` (continue-on-error is not
+    # permitted on a reusable-workflow job); add it there once Linux is confirmed.
     # Deeplink auto-skips on Linux (macOS-only), so only standard+window run.
-    continue-on-error: true
     strategy:
       fail-fast: false
       matrix:
@@ -923,11 +925,11 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
-      # e2e-electrobun-linux is allow-failure (continue-on-error) so its
-      # conclusion is reported as success even when the Linux CDP path fails —
-      # safe to gate on while Linux is unverified.
+      # e2e-electrobun-linux is intentionally NOT listed: Linux CDP is unverified
+      # and continue-on-error isn't allowed on reusable-workflow jobs, so it is
+      # kept non-blocking by exclusion. It still runs (for signal) under its own
+      # gate; add it here once the Linux CDP path is confirmed.
       - e2e-electrobun-macos-arm
-      - e2e-electrobun-linux
       - package-electron-matrix
       - package-tauri-linux
       - package-tauri-windows
@@ -952,8 +954,8 @@ jobs:
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
       - build-electrobun-e2e-app-macos-arm
-      # build-electrobun-e2e-app-linux is allow-failure (continue-on-error).
-      - build-electrobun-e2e-app-linux
+      # build-electrobun-e2e-app-linux is intentionally NOT listed (allow-failure
+      # by exclusion — see the e2e-electrobun-linux note above).
       - build-dioxus-package-app-linux
       - build-dioxus-package-app-windows
       - build-dioxus-package-app-macos-arm
