@@ -1,0 +1,137 @@
+import { existsSync, globSync, statSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+import type { ElectrobunCapabilities, ElectrobunServiceOptions } from '@wdio/native-types';
+
+import { getLogDirName } from './lib/utils.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'electrobun');
+
+/**
+ * Locate the built Electrobun `.app` bundle.
+ *
+ * Electrobun is CDP-attach (like Electron, unlike the Wry-based Tauri/Dioxus): the
+ * launcher spawns the binary and the worker attaches over CDP, so we hand the
+ * service the bundle path via `appBinaryPath` exactly as the Electron config hands
+ * it a resolved binary.
+ *
+ * Electrobun writes the bundle under `build/<environment>/<AppName>.app` and the
+ * environment subdir (dev/canary/stable) is not fixed across the beta toolchain,
+ * so we glob for the first `.app` rather than hardcoding a subpath. CI can pin an
+ * exact bundle via `ELECTROBUN_APP_PATH` (set after the build step) to avoid any
+ * ambiguity. macOS is the only validated platform (see the service's
+ * RESEARCH_FINDINGS); the Windows/Linux bundle layout is unverified.
+ */
+function resolveElectrobunAppPath(dir: string): string {
+  const override = process.env.ELECTROBUN_APP_PATH;
+  if (override) {
+    return override;
+  }
+
+  const buildDir = join(dir, 'build');
+  if (!existsSync(buildDir)) {
+    throw new Error(
+      `Electrobun build directory not found: ${buildDir}. ` +
+        'Run `electrobun build` in fixtures/e2e-apps/electrobun first ' +
+        '(or set ELECTROBUN_APP_PATH to the built bundle).',
+    );
+  }
+
+  // macOS: a `.app` bundle. Other platforms: pin the binary via ELECTROBUN_APP_PATH
+  // (the on-disk layout there is unverified — see the service RESEARCH_FINDINGS).
+  const bundles = globSync(join(buildDir, '**', '*.app'));
+  if (bundles.length > 0) {
+    return bundles.sort()[0];
+  }
+
+  throw new Error(
+    `No Electrobun .app bundle found under ${buildDir}. ` +
+      'Set ELECTROBUN_APP_PATH to the built app bundle (or its inner binary).',
+  );
+}
+
+const appBinaryPath = resolveElectrobunAppPath(appDir);
+if (!existsSync(appBinaryPath)) {
+  throw new Error(`Electrobun app path does not exist: ${appBinaryPath}. Make sure the app is built.`);
+}
+// Surface a clear error if the resolved path is unreadable before WDIO starts.
+void statSync(appBinaryPath);
+
+const testType = (process.env.TEST_TYPE as string) || 'standard';
+
+let specs: string[] = [];
+let exclude: string[] = [];
+let maxInstances = 5;
+
+switch (testType) {
+  case 'window':
+    specs = ['./test/electrobun/window.spec.ts'];
+    break;
+  case 'deeplink':
+    // Deeplink tests dispatch the OS protocol handler and must not race parallel apps.
+    specs = ['./test/electrobun/deeplink.spec.ts'];
+    maxInstances = 1;
+    break;
+  default:
+    specs = ['./test/electrobun/*.spec.ts'];
+    // window: enumerates the two CEF page targets; runs in its own pass.
+    // deeplink: macOS-only, single-instance, dispatches the OS protocol handler.
+    exclude = ['./test/electrobun/window.spec.ts', './test/electrobun/deeplink.spec.ts'];
+    break;
+}
+
+type ElectrobunCapability = ElectrobunCapabilities & {
+  'wdio:electrobunServiceOptions': ElectrobunServiceOptions;
+};
+
+const electrobunServiceOptions: ElectrobunServiceOptions = {
+  appBinaryPath,
+  appArgs: ['foo', 'bar=baz'],
+  // Forward the Bun backend's stdout/stderr into the WDIO log for the logging spec.
+  captureBackendLogs: true,
+  backendLogLevel: 'info',
+};
+
+const capabilities: ElectrobunCapability[] = [
+  {
+    // CDP-attach: the launcher rewrites this to 'chrome' and sets
+    // goog:chromeOptions.debuggerAddress onto the capability in onWorkerStart.
+    browserName: 'chrome',
+    'wdio:electrobunServiceOptions': electrobunServiceOptions,
+  },
+];
+
+const logDirName = getLogDirName(testType, 'electrobun');
+const logDir = join(__dirname, 'logs', logDirName);
+
+export const config = {
+  runner: 'local',
+  specs,
+  exclude,
+  maxInstances,
+  capabilities,
+  logLevel: 'info',
+  bail: 0,
+  baseUrl: '',
+  waitforTimeout: 10000,
+  connectionRetryTimeout: 120000,
+  connectionRetryCount: 3,
+  // Electrobun is CDP-attach: the app binary is spawned from the worker process
+  // (no separate driver in the launcher needing a display), so the Electron
+  // headless approach applies — let @wdio/xvfb auto-manage Xvfb on Linux rather
+  // than wrapping the whole command with xvfb-run (the Wry tauri/dioxus path).
+  autoXvfb: true,
+  services: ['electrobun'],
+  framework: 'mocha',
+  reporters: ['spec'],
+  mochaOpts: {
+    ui: 'bdd',
+    timeout: 60000,
+    retries: 2,
+  },
+  outputDir: logDir,
+};

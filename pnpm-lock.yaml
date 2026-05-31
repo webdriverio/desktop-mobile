@@ -116,6 +116,9 @@ importers:
       '@wdio/dioxus-service':
         specifier: link:../packages/dioxus-service
         version: link:../packages/dioxus-service
+      '@wdio/electrobun-service':
+        specifier: link:../packages/electrobun-service
+        version: link:../packages/electrobun-service
       '@wdio/electron-service':
         specifier: link:../packages/electron-service
         version: link:../packages/electron-service
