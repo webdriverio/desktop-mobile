@@ -217,6 +217,18 @@ Default to a 4-PR stacked split:
 
 Every PR must be green on all affected service suites + any `cargo test`. No regressions, ever.
 
+**Split E2E into its own PR when the fixture's build+run in CI is itself high-risk.** The 4-PR default folds the E2E specs + `wdio.<framework>.conf.ts` + CI gates into Ship. That's fine for a framework with a *mature, proven build toolchain*. But for an **immature/novel toolchain** — a pre-1.0/beta CLI, large per-OS runtime downloads, a new driver, or a platform whose automation path is unverified — getting the fixture to build and run headless in CI is usually the single biggest unknown, and it's iterative and flaky-prone. Bundling that into Ship holds docs + release hostage to it and risks publishing a service E2E never actually exercised. In that case use a **5-PR split**: insert a dedicated **PR4: E2E** (`feat/<service>-e2e`) — fixture CI build + `_ci-build-<framework>-e2e-app` / `-all-providers` reusable workflows + e2e specs + `wdio.<framework>.conf.ts` + headless — and make **PR5: Ship** (docs + release) depend on it, so you *prove it runs before you publish*. (Electrobun is the worked example: beta Bun/CEF toolchain with build defects + an unverified Linux CDP path.) Keep the e2e *fixture app* itself in PR3 either way; it's only the CI-build-and-run that warrants isolating.
+
+The 5-PR split, mirroring the table above:
+
+| PR | Branch (off main) | Scope |
+|---|---|---|
+| **PR1: Foundation** | `feat/<service>-foundation` | As in the 4-PR split. |
+| **PR2: MVP** | `feat/<service>-mvp` (off PR1) | As in the 4-PR split. |
+| **PR3: Feature Complete** | `feat/<service>-feature-complete` (off PR2) | As in the 4-PR split, **plus the e2e fixture app** (the app source — not its CI run). |
+| **PR4: E2E** | `feat/<service>-e2e` (off PR3) | Fixture CI build + `_ci-build-<framework>-e2e-app` / `-all-providers` reusable workflows, e2e specs, `wdio.<framework>.conf.ts`, headless. The risky "prove it runs in CI" PR. |
+| **PR5: Ship** | `feat/<service>-ship` (off PR4) | Package-test fixture, full docs, complete CI gates, release pipeline (everything from 4-PR Ship except the e2e specs, which moved to PR4). |
+
 ## Common gotchas
 
 1. **Pick the archetype first.** Cloning the wrong reference is the most expensive mistake. A CDP-based framework cloned from `tauri-service` would build a driver fork and Rust crates it never needs; a Wry framework cloned from `electron-service` would have no way to drive the webview. Confirm CDP vs WebDriver in the spike.
