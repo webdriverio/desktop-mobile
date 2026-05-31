@@ -172,13 +172,25 @@ export function buildReadCallDataScript(target: string): string {
     var entry = reg && reg[${key}];
     if (!entry || !entry.spy || !entry.spy.mock) { return { calls: [], results: [], invocationCallOrder: [] }; }
     var m = entry.spy.mock;
-    var errorReplacer = function(_k, v) {
-      if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
-      return v;
+    // Fresh replacer per stringify: serialise Errors to a marker, and guard
+    // against circular/function values (e.g. mockReturnThis storing a live
+    // \`this\` that back-references its parent) so update() never throws a
+    // "Converting circular structure to JSON" out of the page.
+    var makeSafe = function() {
+      var seen = [];
+      return function(_k, v) {
+        if (v instanceof Error) { return { __wdioError: true, name: v.name, message: v.message, stack: v.stack }; }
+        if (typeof v === 'function') { return '[Function]'; }
+        if (v && typeof v === 'object') {
+          if (seen.indexOf(v) !== -1) { return '[Circular]'; }
+          seen.push(v);
+        }
+        return v;
+      };
     };
     return {
-      calls: JSON.parse(JSON.stringify(m.calls || [], errorReplacer)),
-      results: JSON.parse(JSON.stringify(m.results || [], errorReplacer)),
+      calls: JSON.parse(JSON.stringify(m.calls || [], makeSafe())),
+      results: JSON.parse(JSON.stringify(m.results || [], makeSafe())),
       invocationCallOrder: JSON.parse(JSON.stringify(m.invocationCallOrder || [])),
     };
   })()`;
