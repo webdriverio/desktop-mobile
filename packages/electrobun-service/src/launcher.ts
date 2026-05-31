@@ -55,6 +55,20 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     capabilities: ElectrobunCapabilities[] | Record<string, { capabilities: ElectrobunCapabilities }>,
   ): Promise<void> {
     const capsList = normaliseCaps(capabilities);
+
+    // Reject a mixed browser-mode + native-mode capability set: this launcher
+    // applies one mode to all caps (browser mode forces browserName:'chrome' on
+    // every cap and skips setup; native mode spawns a binary per cap). Silently
+    // treating a native cap as browser (or vice-versa) because a sibling cap set
+    // the other mode would be a confusing footgun — fail fast on a consistent mode.
+    const modes = capsList.map((cap) => mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap)).mode);
+    if (modes.some((mode) => mode === 'browser') && modes.some((mode) => mode !== 'browser')) {
+      throw new SevereServiceError(
+        'Mixed browser-mode and native-mode Electrobun capabilities in a single run are not supported. ' +
+          'Set `mode` consistently across all capabilities (all "browser", or all native).',
+      );
+    }
+
     // Detect browser mode even when set on a non-first capability.
     const primaryCap =
       capsList.find(

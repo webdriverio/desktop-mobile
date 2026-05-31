@@ -87,6 +87,16 @@ describe('ElectrobunLaunchService', () => {
 
       expect(vi.mocked(spawnElectrobunApp)).not.toHaveBeenCalled();
     });
+
+    it('should reject a mixed browser-mode + native-mode capability set', async () => {
+      const launcher = makeLauncher({});
+      const caps: ElectrobunCapabilities[] = [
+        { 'wdio:electrobunServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:3000' } },
+        { 'wdio:electrobunServiceOptions': { mode: 'native' } },
+      ];
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow(/Mixed browser-mode and native-mode/);
+    });
   });
 
   describe('onPrepare — native mode', () => {
