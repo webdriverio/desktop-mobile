@@ -168,6 +168,43 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # ────────────────────────────────────────────────────────────────────────
+  # Electrobun E2E app (CEF bundle, no Rust crates). The CEF fixture build is
+  # the biggest unknown in this pipeline: a beta Bun/CEF toolchain that pulls a
+  # ~150MB CEF download. macOS is the validated platform.
+  #
+  # Linux is a SEPARATE build job marked allow-failure (continue-on-error) and
+  # kept easy to disable: comment out `build-electrobun-e2e-app-linux` and its
+  # dependent `e2e-electrobun-linux` to drop Linux entirely while the Linux CDP
+  # path (/json endpoint) is unverified.
+  # ────────────────────────────────────────────────────────────────────────
+  build-electrobun-e2e-app-macos-arm:
+    name: Build Electrobun E2E App [macOS-ARM]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-electrobun-e2e-app-linux:
+    name: Build Electrobun E2E App [Linux]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    # Allow-failure: the Linux CEF build/runtime is unverified. A red here must
+    # not block the (verified) macOS pipeline.
+    continue-on-error: true
+    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build Dioxus package test apps - only if Dioxus package tests will run
   build-dioxus-package-app-linux:
     name: Build Dioxus Package Test App [Linux]
@@ -657,6 +694,60 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-macos-arm.outputs.cache_key }}
 
+  # ────────────────────────────────────────────────────────────────────────
+  # Electrobun E2E tests (single CDP-attach provider — no provider matrix).
+  #
+  # macOS-ARM is the verified/required platform. Linux is a separate job marked
+  # allow-failure: the Linux CDP path (CEF serving /json) is unverified and may
+  # not come up. To disable Linux entirely while it's unverified, comment out
+  # both `build-electrobun-e2e-app-linux` (above) and `e2e-electrobun-linux`
+  # (below) and remove them from the ci-status `needs:` list.
+  #
+  # Test-type matrix: 'standard' (api/application/execute/logging/mock),
+  # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
+  # ────────────────────────────────────────────────────────────────────────
+  e2e-electrobun-macos-arm:
+    name: E2E - Electrobun [macOS-ARM] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-electrobun-e2e-app-macos-arm]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window', 'deeplink']
+    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      electrobun_cache_key: ${{ needs.build-electrobun-e2e-app-macos-arm.outputs.cache_key }}
+
+  e2e-electrobun-linux:
+    name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-electrobun-e2e-app-linux]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    # Allow-failure: Linux CDP attach (CEF /json endpoint) is unverified. Keep
+    # this green-or-skip in ci-status; flip to required once Linux is confirmed.
+    # Deeplink auto-skips on Linux (macOS-only), so only standard+window run.
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window']
+    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      electrobun_cache_key: ${{ needs.build-electrobun-e2e-app-linux.outputs.cache_key }}
+
   # Dioxus package tests - all platforms (mirrors E2E coverage)
   package-dioxus-linux:
     name: Package - Dioxus [Linux]
@@ -832,6 +923,11 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
+      # e2e-electrobun-linux is allow-failure (continue-on-error) so its
+      # conclusion is reported as success even when the Linux CDP path fails —
+      # safe to gate on while Linux is unverified.
+      - e2e-electrobun-macos-arm
+      - e2e-electrobun-linux
       - package-electron-matrix
       - package-tauri-linux
       - package-tauri-windows
@@ -855,6 +951,9 @@ jobs:
       - build-dioxus-e2e-app-linux
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
+      - build-electrobun-e2e-app-macos-arm
+      # build-electrobun-e2e-app-linux is allow-failure (continue-on-error).
+      - build-electrobun-e2e-app-linux
       - build-dioxus-package-app-linux
       - build-dioxus-package-app-windows
       - build-dioxus-package-app-macos-arm
