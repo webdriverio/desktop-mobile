@@ -110,9 +110,17 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   const clonedBinaryPath = app.binaryPath.replace(app.bundlePath, clonedBundlePath);
   const clonedBuildJsonPath = app.buildJsonPath.replace(app.bundlePath, clonedBundlePath);
 
-  writeRemoteDebuggingPort(clonedBuildJsonPath, port);
-
-  const userHomeDir = mkdtempSync(join(tmpdir(), 'wdio-electrobun-home-'));
+  // The clone isn't tracked for teardown until we return the process handle, so
+  // if pinning the port or creating the home dir throws, remove it here to avoid
+  // leaking the (large, CEF-bearing) temp dir.
+  let userHomeDir: string;
+  try {
+    writeRemoteDebuggingPort(clonedBuildJsonPath, port);
+    userHomeDir = mkdtempSync(join(tmpdir(), 'wdio-electrobun-home-'));
+  } catch (error) {
+    rmSync(cloneParentDir, { recursive: true, force: true });
+    throw error;
+  }
 
   const env: NodeJS.ProcessEnv = {
     ...process.env,
