@@ -113,9 +113,11 @@ export interface ElectrobunServiceOptions extends BaseServiceOptions {
   /** When `mode === 'browser'`, the URL of the running dev server. */
   devServerUrl?: string;
   /**
-   * Explicit CEF remote-debugging port escape hatch. By default CEF auto-selects
-   * a port in the 9222–9232 range at startup and the launcher discovers it, so
-   * this is only needed to pin a specific port.
+   * Force a specific CEF remote-debugging port. Normally unnecessary: the launcher
+   * allocates a free port per worker and **pins** it by writing it into that
+   * worker's bundle `build.json` (CEF reads the port from build.json, not from a
+   * launch arg). Parallel/multiremote runs each get a distinct auto-allocated,
+   * pinned port — set this only to force one instance onto a known fixed port.
    */
   remoteDebuggingPort?: number;
   /** Per-instance CDP connection timeout in ms. @default 10000 */
