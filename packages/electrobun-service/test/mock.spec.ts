@@ -84,6 +84,15 @@ describe('createMock (Electrobun mocking)', () => {
       expect(mock.getMockName()).toBe('electrobun.api.fetchData');
     });
 
+    it('should reject a target that is not a valid dotted property path', async () => {
+      const { bridge, send } = makeBridge({ api: { fetchData: () => 1 } });
+
+      await expect(createMock("api['fetch-data']", bridge, store)).rejects.toThrow(/valid dotted property path/);
+      await expect(createMock("x'); doEvil(); //", bridge, store)).rejects.toThrow(/valid dotted property path/);
+      // Rejected before any script reaches the page.
+      expect(send).not.toHaveBeenCalled();
+    });
+
     it('should throw inside the page when the target is not a function', async () => {
       const { bridge } = makeBridge({ api: { fetchData: 42 } });
 

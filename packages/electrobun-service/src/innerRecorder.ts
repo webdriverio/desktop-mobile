@@ -22,8 +22,22 @@ import type { InnerMockSetterMethod } from './mockTypes.js';
 
 const REGISTRY = 'window.__WDIO_ELECTROBUN_MOCKS__';
 
-/** JSON literal of a target path, safe to inline as an object key / string arg. */
+// A mock target is a dotted path of JS identifiers (`api.fetchData`) — that's all
+// the RESOLVE_PATH `.split('.')` walk can address. Restricting to that charset here
+// means the value inlined into the evaluated scripts below can never contain a
+// quote, backslash, newline, or line/paragraph separator, so `JSON.stringify` is a
+// provably-safe escaping into the JS-string context (closes the CodeQL
+// `js/bad-code-sanitization` reports on the `${key}` interpolations).
+const VALID_TARGET = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
+
+/** JSON literal of a validated target path, safe to inline as an object key / string arg. */
 function pathLiteral(target: string): string {
+  if (!VALID_TARGET.test(target)) {
+    throw new Error(
+      `browser.electrobun.mock target ${JSON.stringify(target)} is not a valid dotted property path ` +
+        `(expected identifiers separated by dots, e.g. 'api.fetchData').`,
+    );
+  }
   return JSON.stringify(target);
 }
 
