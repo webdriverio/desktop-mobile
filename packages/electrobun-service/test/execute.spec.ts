@@ -44,6 +44,22 @@ describe('execute', () => {
     await expect(execute(bridge, (_eb, _arg: unknown) => undefined, circular)).rejects.toThrow(/not JSON-serialisable/);
   });
 
+  it('should reject function/symbol args instead of silently dropping them', async () => {
+    const { bridge, send } = makeBridge({ result: { value: undefined } });
+
+    await expect(
+      execute(
+        bridge,
+        (_eb, _arg: unknown) => undefined,
+        () => 1,
+      ),
+    ).rejects.toThrow(/not JSON-serialisable/);
+    await expect(execute(bridge, (_eb, _arg: unknown) => undefined, Symbol('s'))).rejects.toThrow(
+      /not JSON-serialisable/,
+    );
+    expect(send).not.toHaveBeenCalled();
+  });
+
   it('should surface Runtime.evaluate exceptionDetails as a thrown error', async () => {
     const { bridge } = makeBridge({ exceptionDetails: { text: 'ReferenceError: x is not defined' } });
 
