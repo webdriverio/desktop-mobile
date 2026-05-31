@@ -83,6 +83,12 @@ export class CdpBridge {
         this.#connections.delete(label);
       }
     }
+    // If the active target was pruned (its window closed), auto-advance to the
+    // first surviving target so subsequent send()/on() don't throw an opaque
+    // NOT_CONNECTED — callers can still switchTarget() explicitly.
+    if (this.#activeLabel && !live.has(this.#activeLabel)) {
+      this.#activeLabel = this.#targets[0]?.label;
+    }
     return [...this.#targets];
   }
 

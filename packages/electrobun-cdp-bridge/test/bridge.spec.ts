@@ -94,4 +94,27 @@ describe('CdpBridge multi-target routing', () => {
 
     await expect(bridge.connect()).rejects.toThrow();
   });
+
+  it('should auto-advance the active target when the active window is pruned on refresh', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+    expect(bridge.activeLabel).toBe('main');
+
+    h.targets = [target('B', 'views://secondview/index.html')]; // 'main' (A) closed
+    await bridge.refresh();
+
+    expect(bridge.activeLabel).toBe('window-1');
+  });
+
+  it('should clear the active target when all targets disappear on refresh', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+
+    h.targets = [];
+    await bridge.refresh();
+
+    expect(bridge.activeLabel).toBeUndefined();
+  });
 });
