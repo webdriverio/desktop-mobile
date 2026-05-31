@@ -5,8 +5,10 @@ import { cefRendererRequired } from '../src/errors.js';
 
 // Mock the IO-bound config helpers so the launcher matrix can be driven without
 // a real bundle on disk. resolveElectrobunApp returns a fixed resolved app;
-// verifyCefRenderer / writeRemoteDebuggingPort are spied so throws + port pinning
-// can be asserted. (Their real behaviour is covered in electrobunConfig.spec.ts.)
+// verifyCefRenderer is spied so throws can be asserted. The launcher no longer
+// pins the port itself — that now happens inside the (mocked) spawn path — but
+// writeRemoteDebuggingPort is still mocked so we can assert the launcher never
+// calls it directly. (Real behaviour is covered in electrobunConfig.spec.ts.)
 vi.mock('../src/electrobunConfig.js', () => ({
   resolveElectrobunApp: vi.fn(() => ({
     binaryPath: '/apps/Demo.app/Contents/MacOS/Demo',
@@ -19,11 +21,12 @@ vi.mock('../src/electrobunConfig.js', () => ({
   writeRemoteDebuggingPort: vi.fn(),
 }));
 
-// Mock the native-mode spawn so no real process is launched.
+// Mock the native-mode spawn so no real process is launched (and no real bundle
+// is cloned). The clone + port-pin now live inside spawnElectrobunApp.
 vi.mock('../src/nativeMode.js', () => ({
   spawnElectrobunApp: vi.fn(() => ({
     proc: { pid: 4321, exitCode: null, signalCode: null, kill: vi.fn() },
-    userHomeDir: '/tmp/wdio-electrobun-home-test',
+    cleanupDirs: ['/tmp/wdio-electrobun-home-test', '/tmp/wdio-electrobun-bundle-test'],
     port: 9333,
     logHandlers: [],
   })),
@@ -129,24 +132,44 @@ describe('ElectrobunLaunchService', () => {
   });
 
   describe('onWorkerStart — native mode', () => {
-    it('should allocate a port, pin it into build.json, spawn, and set debuggerAddress', async () => {
+    it('should allocate a port, spawn with the resolved app, and set debuggerAddress', async () => {
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
       await launcher.onPrepare(baseConfig, [{}]);
 
       const cap: ElectrobunCapabilities = {};
       await launcher.onWorkerStart('0-0', [cap]);
 
-      expect(vi.mocked(writeRemoteDebuggingPort)).toHaveBeenCalledTimes(1);
-      const [buildJsonPath, port] = vi.mocked(writeRemoteDebuggingPort).mock.calls[0];
-      expect(buildJsonPath).toBe('/apps/Demo.app/Contents/Resources/build.json');
-      expect(typeof port).toBe('number');
-
       expect(vi.mocked(spawnElectrobunApp)).toHaveBeenCalledTimes(1);
       const spawnArg = vi.mocked(spawnElectrobunApp).mock.calls[0][0];
-      expect(spawnArg.binaryPath).toBe('/apps/Demo.app/Contents/MacOS/Demo');
-      expect(spawnArg.port).toBe(port);
+      expect(spawnArg.app.bundlePath).toBe('/apps/Demo.app');
+      expect(spawnArg.app.buildJsonPath).toBe('/apps/Demo.app/Contents/Resources/build.json');
+      expect(typeof spawnArg.port).toBe('number');
 
-      expect(cap['goog:chromeOptions']).toEqual({ debuggerAddress: `localhost:${port}` });
+      expect(cap['goog:chromeOptions']).toEqual({ debuggerAddress: `localhost:${spawnArg.port}` });
+    });
+
+    it('should NOT pin the port directly — clone + port-write happen inside the spawn path', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      await launcher.onPrepare(baseConfig, [{}]);
+
+      await launcher.onWorkerStart('0-0', [{}]);
+
+      expect(vi.mocked(writeRemoteDebuggingPort)).not.toHaveBeenCalled();
+    });
+
+    it('should allocate a distinct port + spawn per capability for multiremote', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      await launcher.onPrepare(baseConfig, [{}, {}]);
+
+      const caps: ElectrobunCapabilities[] = [{}, {}];
+      await launcher.onWorkerStart('0-0', caps);
+
+      expect(vi.mocked(spawnElectrobunApp)).toHaveBeenCalledTimes(2);
+      const portA = vi.mocked(spawnElectrobunApp).mock.calls[0][0].port;
+      const portB = vi.mocked(spawnElectrobunApp).mock.calls[1][0].port;
+      expect(portA).not.toBe(portB);
+      expect((caps[0]['goog:chromeOptions'] as Record<string, unknown>).debuggerAddress).toBe(`localhost:${portA}`);
+      expect((caps[1]['goog:chromeOptions'] as Record<string, unknown>).debuggerAddress).toBe(`localhost:${portB}`);
     });
 
     it('should preserve existing goog:chromeOptions when setting debuggerAddress', async () => {

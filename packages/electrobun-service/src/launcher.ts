@@ -3,12 +3,7 @@ import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 
 import { DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
-import {
-  type ResolvedElectrobunApp,
-  resolveElectrobunApp,
-  verifyCefRenderer,
-  writeRemoteDebuggingPort,
-} from './electrobunConfig.js';
+import { type ResolvedElectrobunApp, resolveElectrobunApp, verifyCefRenderer } from './electrobunConfig.js';
 import { SevereServiceError } from './errors.js';
 import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp } from './nativeMode.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
@@ -23,10 +18,11 @@ const log = createLogger(SERVICE_NAME, 'launcher');
  * the worker attaches over CDP through Chromedriver (`debuggerAddress`). It
  * extends `BaseLauncher` to reuse `@wdio/native-core`'s port/process/log infra.
  *
- * Native-mode flow (MVP, single-instance):
+ * Native-mode flow (parallel-safe):
  *  - `onPrepare`: resolve + CEF-verify each app bundle, force `browserName: 'chrome'`.
- *  - `onWorkerStart`: allocate a port, pin it into the bundle's build.json, spawn
- *    the app with a per-run CFFIXED_USER_HOME, and set `goog:chromeOptions.debuggerAddress`.
+ *  - `onWorkerStart`: allocate a port, then spawn the app — the spawn path clones
+ *    the bundle per worker, pins the port into the clone's build.json, and uses a
+ *    per-run CFFIXED_USER_HOME — and set `goog:chromeOptions.debuggerAddress`.
  *  - `onComplete`: kill spawned apps + clean temp dirs.
  */
 export default class ElectrobunLaunchService extends BaseLauncher {
@@ -86,9 +82,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       return;
     }
 
-    // Native mode (MVP single-instance): resolve + CEF-verify each bundle, force
-    // chrome capability. The app spawn + port pinning happen in onWorkerStart so
-    // each worker gets a freshly allocated port.
+    // Native mode: resolve + CEF-verify each bundle, force chrome capability. The
+    // app clone + port pinning + spawn happen in onWorkerStart so each worker gets
+    // a freshly allocated port pinned into its own bundle clone.
     this.resolvedApps = [];
     for (const cap of capsList) {
       const instanceOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
@@ -117,8 +113,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
 
     for (let i = 0; i < capsList.length; i++) {
       const cap = capsList[i];
-      // MVP single-instance: one resolved app drives all workers. PR3 clones the
-      // bundle per worker; until then app[0] is the canonical bundle.
+      // The resolved bundle is the source template; each worker (cid) clones it
+      // and pins its own port inside spawnApp, so one resolved app safely drives
+      // any number of parallel workers.
       const app = this.resolvedApps[i] ?? this.resolvedApps[0];
       if (!app) {
         throw new SevereServiceError(
@@ -130,12 +127,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       const instanceOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
       const port = await this.portManager.allocatePort(this.options.remoteDebuggingPort ?? DEFAULT_DEBUG_PORT_BASE);
 
-      // Pin the allocated port into the bundle's build.json — the CEF port is
-      // fixed per bundle (a launch arg does NOT work, see RESEARCH_FINDINGS).
-      // TODO(PR3): clone the bundle per worker and pin into the clone instead of
-      // mutating the shared bundle in place (mutation is acceptable single-instance).
-      writeRemoteDebuggingPort(app.buildJsonPath, port);
-
+      // The allocated port is pinned into the per-worker bundle clone inside
+      // spawnApp — the CEF port is fixed per bundle (a launch arg does NOT work,
+      // see RESEARCH_FINDINGS), so the clone is what makes parallel workers safe.
       const spawned = this.spawnApp(app, port, instanceOptions, cid);
       this.spawnedApps.push(spawned);
 
@@ -156,7 +150,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     instanceId?: string,
   ): ElectrobunAppProcess {
     return spawnElectrobunApp({
-      binaryPath: app.binaryPath,
+      app,
       appArgs: options.appArgs ?? [],
       port,
       options,
