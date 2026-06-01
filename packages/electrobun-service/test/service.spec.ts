@@ -202,6 +202,21 @@ describe('ElectrobunWorkerService', () => {
       expect(switchTargetMock).toHaveBeenCalledWith('second');
     });
 
+    it('should also sync the WebDriver session window on switchWindow', async () => {
+      const browser = makeBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(nativeCap(), [], browser);
+      vi.mocked(browser.getWindowHandles).mockClear();
+      vi.mocked(browser.switchToWindow).mockClear();
+
+      await (browser as unknown as Installed).electrobun.switchWindow('window-1');
+
+      // Not just the bridge target — $/click must follow, so the session re-syncs.
+      expect(switchTargetMock).toHaveBeenCalledWith('window-1');
+      expect(browser.getWindowHandles).toHaveBeenCalled();
+      expect(browser.switchToWindow).toHaveBeenCalled();
+    });
+
     it('should delegate listWindows to bridge.listWindows', async () => {
       const browser = makeBrowser();
       const service = new ElectrobunWorkerService({}, {});
