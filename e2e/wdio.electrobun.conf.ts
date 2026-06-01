@@ -43,7 +43,10 @@ function resolveElectrobunAppPath(dir: string): string {
 
   // macOS: a `.app` bundle. Other platforms: pin the binary via ELECTROBUN_APP_PATH
   // (the on-disk layout there is unverified — see the service RESEARCH_FINDINGS).
-  const bundles = globSync(join(buildDir, '**', '*.app'));
+  // `**/*.app` also matches the helper bundles nested INSIDE the main app
+  // (`…/Contents/Frameworks/bun Helper (GPU).app`, …) — those have no CEF framework,
+  // so keep only top-level `.app`s or we'd resolve appBinaryPath to a helper.
+  const bundles = globSync(join(buildDir, '**', '*.app')).filter((p) => !/\.app[\\/]/.test(p));
   if (bundles.length > 0) {
     // Newest-built wins (mtime desc) when the toolchain emits more than one
     // environment dir (dev / canary / stable), rather than a lexicographic pick.
