@@ -121,12 +121,20 @@ jobs:
             exit 1
           fi
 
-      - name: 📦 Upload Electrobun E2E App Bundle
+      # NOT the shared zip-based upload-archive action: the macOS .app carries CEF
+      # framework symlinks that `zip -r` resolves/duplicates, and download-archive's
+      # extract heuristic only restores dist/target dirs (never build/). A
+      # symlink-preserving tarball shared via actions/upload-artifact round-trips the
+      # bundle intact.
+      - name: 🗜️ Archive bundle (tar preserves .app framework symlinks)
         id: upload-archive
-        uses: ./.github/workflows/actions/upload-archive
+        shell: bash
+        run: tar -czpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun build
+
+      - name: 📦 Upload Electrobun E2E App Bundle
+        uses: actions/upload-artifact@v4
         with:
-          name: electrobun-e2e-app-${{ runner.os }}-${{ runner.arch }}
-          output: electrobun-e2e-app-${{ runner.os }}-${{ runner.arch }}/artifact.zip
-          paths: fixtures/e2e-apps/electrobun/build
-          cache_key_prefix: electrobun-e2e-app
-          retention_days: '90'
+          name: electrobun-e2e-bundle-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/electrobun-e2e-bundle.tgz
+          retention-days: 1
+          if-no-files-found: error

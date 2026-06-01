@@ -90,14 +90,19 @@ jobs:
           cache_key_prefix: wdio-desktop-build
           exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
+      # Symlink-preserving tarball (see the build workflow) — NOT the shared
+      # zip/dist-target download-archive, which can't round-trip the CEF .app.
       - name: 📦 Download Electrobun E2E App Bundle
-        uses: ./.github/workflows/actions/download-archive
+        uses: actions/download-artifact@v4
         with:
-          name: electrobun-e2e-app-${{ runner.os }}-${{ runner.arch }}
-          path: electrobun-e2e-app-${{ runner.os }}-${{ runner.arch }}
-          filename: artifact.zip
-          cache_key_prefix: electrobun-e2e-app
-          exact_cache_key: ${{ inputs.electrobun_cache_key }}
+          name: electrobun-e2e-bundle-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}
+
+      - name: 🗜️ Extract Electrobun Bundle
+        shell: bash
+        run: |
+          mkdir -p fixtures/e2e-apps/electrobun
+          tar -xzpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun
 
       - name: ✅ Verify Electrobun Bundle
         shell: bash
