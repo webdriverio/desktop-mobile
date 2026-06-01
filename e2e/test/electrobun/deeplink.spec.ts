@@ -5,6 +5,14 @@ import '@wdio/native-types';
 // platforms (Windows/Linux URL-scheme registration is not yet available upstream).
 // The fixture's Bun backend (src/bun/index.ts) handles `open-url` and pushes the
 // URL into the main view's window.__wdioDeeplinks array + the #status element.
+//
+// ⚠️ NOT RUN IN CI (skipped). `open <url>` must reach the running instance, but
+// electrobun has no single-instance / open-url routing, so with the per-worker
+// bundle clone macOS launches a SECOND instance that can't surface into the
+// worker's session. Not fixable from the fixture/service. The CI matrix runs only
+// `standard` (see ci.yml + the agent-os plan "Framework gaps"). Runnable LOCALLY
+// via `TEST_TYPE=deeplink pnpm test:e2e:electrobun`; re-folded into CI once
+// electrobun adds a single-instance lock + open-url routing.
 const isMacOS = process.platform === 'darwin';
 
 // The execute callback runs in the CEF webview, where globalThis is the page

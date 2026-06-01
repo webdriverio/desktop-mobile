@@ -77,10 +77,14 @@ const testType = (process.env.TEST_TYPE as string) || 'standard';
 
 let specs: string[] = [];
 let exclude: string[] = [];
-// Pinned to 1 while single-instance CEF-on-CI is being stabilised — rules out
-// parallel-CEF profile/resource contention. Raise once parallel runs are verified.
+// Pinned to 1: multiremote is blocked upstream (CEF can't isolate ≥2 instances —
+// see the agent-os plan "Framework gaps"). Electrobun is single-instance for now.
 let maxInstances = 1;
 
+// CI runs ONLY `standard` (see ci.yml — the macOS matrix is `['standard']`). The
+// `window` (multi-window) and `deeplink` cases are kept for LOCAL runs
+// (`TEST_TYPE=window|deeplink`) but are not wired into CI: both hit upstream CEF
+// gaps (per-window partition / no open-url routing) documented in their spec files.
 switch (testType) {
   case 'window':
     specs = ['./test/electrobun/window.spec.ts'];
