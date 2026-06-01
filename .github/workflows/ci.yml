@@ -723,6 +723,9 @@ jobs:
   # Test-type matrix: 'standard' (api/application/execute/logging/mock),
   # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
   # ────────────────────────────────────────────────────────────────────────
+  # REQUIRED gate (listed in ci-status.needs): the `standard` suite only
+  # (api/application/execute/logging/mock). window + deeplink are split into the
+  # allow-failure job below — see that job's note for why.
   e2e-electrobun-macos-arm:
     name: E2E - Electrobun [macOS-ARM] - ${{ matrix.test-type }}
     needs: [detect-changes, build, build-electrobun-e2e-app-macos-arm]
@@ -730,7 +733,36 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'deeplink']
+        test-type: ['standard']
+    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  # ALLOW-FAILURE (excluded from ci-status.needs, like the Linux/Windows legs).
+  # window (two CEF views) and deeplink (open-url) both hit an upstream CEF
+  # chrome-runtime limitation: BrowserWindow forces a `persist:default` partition
+  # the chrome runtime cannot create as a non-global profile ("Cannot create
+  # profile at …/CEF/partitions/default"), so both webviews fall back to the
+  # shared global context and the second window's renderer browser-info response
+  # times out — a multi-browser-on-global-context race electrobun's own native
+  # code documents. Not fixable from the fixture/service (BrowserWindow exposes no
+  # partition; a chromiumFlags probe was inert). Fold these back into the required
+  # job above once electrobun makes the failed-profile fallback ephemeral-per-
+  # webview or exposes a per-window partition.
+  e2e-electrobun-macos-arm-advanced:
+    name: E2E - Electrobun [macOS-ARM] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-electrobun-e2e-app-macos-arm]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['window', 'deeplink']
     uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
     secrets: inherit
     with:
@@ -959,10 +991,12 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
-      # e2e-electrobun-linux is intentionally NOT listed: Linux CDP is unverified
-      # and continue-on-error isn't allowed on reusable-workflow jobs, so it is
-      # kept non-blocking by exclusion. It still runs (for signal) under its own
-      # gate; add it here once the Linux CDP path is confirmed.
+      # e2e-electrobun-linux and e2e-electrobun-macos-arm-advanced (window+deeplink)
+      # are intentionally NOT listed — kept non-blocking by exclusion
+      # (continue-on-error isn't allowed on reusable-workflow jobs). Linux CDP is
+      # unverified; the macOS window/deeplink legs hit an upstream CEF chrome-runtime
+      # profile limitation (see that job's note). Both still run for signal; re-add
+      # once confirmed/fixed. The required macOS gate is the `standard` suite only.
       - e2e-electrobun-macos-arm
       - package-electron-matrix
       - package-tauri-linux
