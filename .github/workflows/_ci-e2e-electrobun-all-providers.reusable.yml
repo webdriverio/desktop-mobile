@@ -112,8 +112,10 @@ jobs:
             find fixtures/e2e-apps/electrobun/ -maxdepth 1 || true
             exit 1
           fi
-          echo "Electrobun build tree:"
-          find fixtures/e2e-apps/electrobun/build | head -50
+          echo "Electrobun build tree (truncated):"
+          # `… | head` closes the pipe early; under `set -o pipefail -e` the upstream
+          # `find` then dies with SIGPIPE (141) and fails the step — so tolerate it.
+          find fixtures/e2e-apps/electrobun/build -maxdepth 3 2>/dev/null | head -50 || true
 
       - name: 📊 Show Build Information
         if: inputs.build_id != '' && inputs.artifact_size != ''
