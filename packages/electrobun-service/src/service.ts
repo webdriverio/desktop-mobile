@@ -100,29 +100,41 @@ export default class ElectrobunWorkerService {
     this.mockStores.push(mockStore);
     installApi(browser, bridge, mockStore);
 
-    await this.focusMainContentWindow(browser);
+    await this.focusMainContentWindow(browser, bridge);
   }
 
   /**
    * Align the WebDriver session window with the app's main content. Chromedriver,
    * attaching to the CEF debug port, makes its session window whatever page CEF
-   * lists first — often a blank shell (`about:blank`) distinct from the `views://…`
-   * content. Without this, `$()`/`click`/`getText` would target the blank document
-   * (while `execute`/`mock`, which go through the CdpBridge, correctly drive the
-   * content). Switch the session to the first non-blank window so element commands
-   * hit the app by default. Best-effort: a failure here is logged, not fatal —
-   * callers can still `switchToWindow` themselves.
+   * lists first — often a blank shell (`about:blank`), or the wrong content window
+   * when several are open (the fixture opens main + second). Without this, `$()`/
+   * `click`/`getText` would target the blank/wrong document while `execute`/`mock`
+   * (CdpBridge) drive the right one. Switch the session to the window matching the
+   * bridge's active (`main`) target so element commands and `execute` agree;
+   * fall back to the first non-blank window. Best-effort: failures are logged, not
+   * fatal — callers can still `switchToWindow` themselves.
    */
-  private async focusMainContentWindow(browser: WebdriverIO.Browser): Promise<void> {
+  private async focusMainContentWindow(browser: WebdriverIO.Browser, bridge: CdpBridge): Promise<void> {
     try {
+      const targets = bridge.listTargets();
+      const mainUrl = targets.find((t) => t.label === bridge.activeLabel)?.url ?? targets[0]?.url;
       const handles = await browser.getWindowHandles();
+      let fallback: string | undefined;
       for (const handle of handles) {
         await browser.switchToWindow(handle);
         const url = await browser.getUrl().catch(() => '');
-        if (url && !url.startsWith('about:') && !url.startsWith('chrome')) {
-          log.info(`WebDriver session focused on content window: ${url}`);
+        if (mainUrl && url === mainUrl) {
+          log.info(`WebDriver session focused on the main content window: ${url}`);
           return;
         }
+        if (!fallback && url && !url.startsWith('about:') && !url.startsWith('chrome')) {
+          fallback = handle;
+        }
+      }
+      if (fallback) {
+        await browser.switchToWindow(fallback);
+        log.info("WebDriver session focused on a content window (bridge 'main' URL not matched).");
+        return;
       }
       log.warn('No non-blank content window found to focus; element commands may target a blank document.');
     } catch (error) {

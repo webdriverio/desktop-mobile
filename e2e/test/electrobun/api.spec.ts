@@ -51,10 +51,21 @@ describe('Electrobun API', () => {
       // e2e tsconfig has no DOM lib (these specs run via tsx, not tsc), so reach
       // it through a minimally-typed globalThis rather than a bare global.
       type Doc = { getElementById(id: string): { textContent: string | null } | null };
-      const result = await browser.electrobun.execute(() => {
-        const el = (globalThis as unknown as { document: Doc }).document.getElementById('app-title');
-        return el ? el.textContent : undefined;
-      });
+      const readTitle = () =>
+        browser.electrobun.execute(() => {
+          const el = (globalThis as unknown as { document: Doc }).document.getElementById('app-title');
+          return el ? el.textContent : undefined;
+        });
+      // The webview may still be painting when the bridge attaches, so poll for the
+      // title rather than reading once (avoids a flaky read-before-render).
+      let result: string | null | undefined;
+      await browser.waitUntil(
+        async () => {
+          result = await readTitle();
+          return typeof result === 'string' && result.includes('Electrobun');
+        },
+        { timeout: 10_000, timeoutMsg: 'fixture #app-title never rendered' },
+      );
       expect(result).toContain('Electrobun');
     });
   });

@@ -4,6 +4,10 @@ const connectMock = vi.fn().mockResolvedValue(undefined);
 const sendMock = vi.fn();
 const switchTargetMock = vi.fn().mockResolvedValue(undefined);
 const listWindowsMock = vi.fn().mockReturnValue(['main', 'second']);
+const targetsMock = vi.fn().mockReturnValue([
+  { id: 't-main', label: 'main', url: 'views://mainview/index.html', webSocketDebuggerUrl: 'ws://x/main' },
+  { id: 't-2', label: 'window-1', url: 'views://secondview/index.html', webSocketDebuggerUrl: 'ws://x/2' },
+]);
 const closeMock = vi.fn().mockResolvedValue(undefined);
 const cdpBridgeCtor = vi.fn();
 
@@ -16,6 +20,8 @@ vi.mock('@wdio/electrobun-cdp-bridge', () => ({
     send = sendMock;
     switchTarget = switchTargetMock;
     listWindows = listWindowsMock;
+    listTargets = targetsMock;
+    activeLabel = 'main';
     close = closeMock;
   },
 }));
@@ -53,6 +59,10 @@ describe('ElectrobunWorkerService', () => {
     connectMock.mockResolvedValue(undefined);
     sendMock.mockResolvedValue({ result: { value: undefined } });
     listWindowsMock.mockReturnValue(['main', 'second']);
+    targetsMock.mockReturnValue([
+      { id: 't-main', label: 'main', url: 'views://mainview/index.html', webSocketDebuggerUrl: 'ws://x/main' },
+      { id: 't-2', label: 'window-1', url: 'views://secondview/index.html', webSocketDebuggerUrl: 'ws://x/2' },
+    ]);
     closeMock.mockResolvedValue(undefined);
   });
 
