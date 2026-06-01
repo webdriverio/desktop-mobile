@@ -34,6 +34,17 @@ export default {
     mac: {
       bundleCEF,
       defaultRenderer: 'cef',
+      // Bounded CEF-on-CI probe (PR4 gated window/deeplink legs). The CEF
+      // chrome-runtime logs "Cannot create profile" for the persist:default
+      // partition that BrowserWindow forces, so both webviews fall back to the
+      // shared global context and the second window's renderer browser-info
+      // response times out. Ask Chromium to initialise its profile cleanly under
+      // automation (skip first-run / default-browser prompts) before deciding to
+      // gate these legs as a documented CEF gap.
+      chromiumFlags: {
+        'no-first-run': true,
+        'no-default-browser-check': true,
+      },
     },
     win: {
       bundleCEF,
