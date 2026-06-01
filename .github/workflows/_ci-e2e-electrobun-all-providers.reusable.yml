@@ -98,7 +98,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p fixtures/e2e-apps/electrobun
-          tar -xzpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun
+          # Windows: --force-local so GNU tar reads D:\… as a path, not a remote host
+          # (see the build workflow). macOS bsdtar lacks the flag, so Windows-only.
+          flags=""
+          [ "$RUNNER_OS" = "Windows" ] && flags="--force-local"
+          tar $flags -xzpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun
 
       - name: ✅ Verify Electrobun Bundle
         shell: bash

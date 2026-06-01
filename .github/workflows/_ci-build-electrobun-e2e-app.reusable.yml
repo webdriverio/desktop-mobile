@@ -120,7 +120,13 @@ jobs:
       # bundle intact.
       - name: 🗜️ Archive bundle (tar preserves .app framework symlinks)
         shell: bash
-        run: tar -czpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun build
+        run: |
+          # On Windows, $RUNNER_TEMP is a drive path (D:\a\_temp) and GNU tar reads the
+          # `D:` as a remote host ("Cannot connect to D:") — --force-local treats it as
+          # a local path. macOS bsdtar lacks that flag, so only pass it on Windows.
+          flags=""
+          [ "$RUNNER_OS" = "Windows" ] && flags="--force-local"
+          tar $flags -czpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun build
 
       - name: 📦 Upload Electrobun E2E App Bundle
         uses: actions/upload-artifact@v4
