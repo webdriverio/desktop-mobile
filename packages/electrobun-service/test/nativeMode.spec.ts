@@ -5,6 +5,7 @@ import { SevereServiceError } from 'webdriverio';
 const spawnMock = vi.fn();
 const execFileSyncMock = vi.fn();
 const mkdtempSyncMock = vi.fn();
+const mkdirSyncMock = vi.fn();
 const cpSyncMock = vi.fn();
 const rmSyncMock = vi.fn();
 const createLogCaptureMock = vi.fn();
@@ -17,6 +18,7 @@ vi.mock('node:child_process', () => ({
 
 vi.mock('node:fs', () => ({
   mkdtempSync: (...args: unknown[]) => mkdtempSyncMock(...args),
+  mkdirSync: (...args: unknown[]) => mkdirSyncMock(...args),
   cpSync: (...args: unknown[]) => cpSyncMock(...args),
   rmSync: (...args: unknown[]) => rmSyncMock(...args),
 }));
@@ -189,6 +191,9 @@ describe('nativeMode', () => {
       expect(binary).toBe('/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/MacOS/Demo');
       expect(args).toEqual(['--flag']);
       expect(opts.env.CFFIXED_USER_HOME).toBe(USER_HOME);
+      // CEF needs the standard macOS Library/Application Support parent to exist in
+      // the redirected home, or it can't create its profile and never opens the port.
+      expect(mkdirSyncMock).toHaveBeenCalledWith(`${USER_HOME}/Library/Application Support`, { recursive: true });
       expect(result.cleanupDirs).toEqual([USER_HOME, CLONE_PARENT]);
     });
 

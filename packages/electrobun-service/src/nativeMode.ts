@@ -19,7 +19,7 @@
 // node:fs at the @wdio/native-core + node boundary; the live path is E2E-only.
 
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { cpSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { Interface as ReadlineInterface } from 'node:readline';
@@ -124,6 +124,11 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   try {
     writeRemoteDebuggingPort(clonedBuildJsonPath, port);
     userHomeDir = mkdtempSync(join(tmpdir(), 'wdio-electrobun-home-'));
+    // CEF builds its profile under `$CFFIXED_USER_HOME/Library/Application Support/…`.
+    // A fresh mkdtemp home lacks that standard macOS structure, and CEF won't create
+    // the missing parents — it fails with "Cannot create profile at path …" and never
+    // opens the debugger port. Pre-create the parent so CEF can lay down its profile.
+    mkdirSync(join(userHomeDir, 'Library', 'Application Support'), { recursive: true });
   } catch (error) {
     rmSync(cloneParentDir, { recursive: true, force: true });
     throw error;
