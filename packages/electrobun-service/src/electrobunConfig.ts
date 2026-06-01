@@ -145,14 +145,38 @@ function resolveMacosBinary(bundlePath: string, originalPath: string): string {
     return originalPath;
   }
   const macosDir = join(bundlePath, 'Contents', 'MacOS');
-  // Convention: the launcher exe is named after the bundle (`Foo.app` → `Foo`).
-  const guessedName = basename(bundlePath).replace(/\.app$/, '');
-  const guessed = join(macosDir, guessedName);
-  if (pathExists(guessed)) {
-    return guessed;
+  // Candidate exe names, most authoritative first:
+  //  - Info.plist CFBundleExecutable (the launch binary the OS would exec);
+  //  - `launcher` — Electrobun names its launch exe this, NOT after the bundle;
+  //  - `Foo.app` → `Foo` (the generic macOS convention).
+  // Spawning the `.app` directory itself is not executable (EACCES), so we must
+  // resolve a real file here.
+  const candidates = [
+    readCFBundleExecutable(join(bundlePath, 'Contents', 'Info.plist')),
+    'launcher',
+    basename(bundlePath).replace(/\.app$/, ''),
+  ];
+  for (const name of candidates) {
+    if (!name) {
+      continue;
+    }
+    const exe = join(macosDir, name);
+    if (pathExists(exe) && !isDirectory(exe)) {
+      return exe;
+    }
   }
   // Fall back to the original path (may be the binary itself or a non-standard layout).
   return originalPath;
+}
+
+/** Read CFBundleExecutable from an XML Info.plist; undefined for a binary plist / on error. */
+function readCFBundleExecutable(plistPath: string): string | undefined {
+  try {
+    const xml = readFileSync(plistPath, 'utf8');
+    return xml.match(/<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/)?.[1]?.trim();
+  } catch {
+    return undefined;
+  }
 }
 
 /**
