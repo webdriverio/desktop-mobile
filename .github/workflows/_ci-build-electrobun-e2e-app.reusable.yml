@@ -36,12 +36,6 @@ on:
       build_date:
         description: 'Timestamp when the build completed'
         value: ${{ jobs.build-electrobun-e2e-app.outputs.build_date }}
-      artifact_size:
-        description: 'Size of the build artifact in bytes'
-        value: ${{ jobs.build-electrobun-e2e-app.outputs.artifact_size }}
-      cache_key:
-        description: 'Cache key used for artifact uploads, can be passed to download actions'
-        value: ${{ jobs.build-electrobun-e2e-app.outputs.cache_key }}
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -55,8 +49,6 @@ jobs:
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}
       build_date: ${{ steps.build-info.outputs.build_date }}
-      artifact_size: ${{ steps.upload-archive.outputs.size || '0' }}
-      cache_key: ${{ steps.upload-archive.outputs.cache_key }}
     steps:
       - name: 👷 Checkout Repository
         uses: actions/checkout@v6
@@ -127,7 +119,6 @@ jobs:
       # symlink-preserving tarball shared via actions/upload-artifact round-trips the
       # bundle intact.
       - name: 🗜️ Archive bundle (tar preserves .app framework symlinks)
-        id: upload-archive
         shell: bash
         run: tar -czpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun build
 

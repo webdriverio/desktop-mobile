@@ -725,7 +725,6 @@ jobs:
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
-      electrobun_cache_key: ${{ needs.build-electrobun-e2e-app-macos-arm.outputs.cache_key }}
 
   e2e-electrobun-linux:
     name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
@@ -748,7 +747,6 @@ jobs:
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
-      electrobun_cache_key: ${{ needs.build-electrobun-e2e-app-linux.outputs.cache_key }}
 
   # Dioxus package tests - all platforms (mirrors E2E coverage)
   package-dioxus-linux:

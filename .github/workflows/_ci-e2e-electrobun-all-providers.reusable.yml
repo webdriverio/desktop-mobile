@@ -34,10 +34,6 @@ on:
         description: 'Cache key to use for downloading package artifacts'
         type: string
         required: false
-      electrobun_cache_key:
-        description: 'Cache key to use for downloading the Electrobun app bundle'
-        type: string
-        required: false
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
