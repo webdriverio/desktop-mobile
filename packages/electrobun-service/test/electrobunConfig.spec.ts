@@ -229,6 +229,19 @@ describe('electrobunConfig', () => {
       expect(after?.chromiumFlags?.['remote-debugging-port']).toBe('9351');
     });
 
+    it('should also pin user-data-dir when provided (and omit it when not)', () => {
+      const p = join(root, 'build.json');
+      writeFileSync(p, JSON.stringify({ name: 'Demo' }), 'utf8');
+
+      writeRemoteDebuggingPort(p, 9352, '/tmp/wdio-electrobun-userdata-abc');
+      expect(readBuildJson(p)?.chromiumFlags?.['user-data-dir']).toBe('/tmp/wdio-electrobun-userdata-abc');
+
+      // Omitted → no user-data-dir key written.
+      writeFileSync(p, JSON.stringify({ name: 'Demo' }), 'utf8');
+      writeRemoteDebuggingPort(p, 9353);
+      expect(readBuildJson(p)?.chromiumFlags?.['user-data-dir']).toBeUndefined();
+    });
+
     it('should throw a SevereServiceError when build.json does not exist', () => {
       expect(() => writeRemoteDebuggingPort(join(root, 'missing', 'build.json'), 9333)).toThrow(SevereServiceError);
       expect(() => writeRemoteDebuggingPort(join(root, 'missing', 'build.json'), 9333)).toThrow(/not found/);

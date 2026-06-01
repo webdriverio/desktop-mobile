@@ -70,7 +70,9 @@ const testType = (process.env.TEST_TYPE as string) || 'standard';
 
 let specs: string[] = [];
 let exclude: string[] = [];
-let maxInstances = 5;
+// Pinned to 1 while single-instance CEF-on-CI is being stabilised — rules out
+// parallel-CEF profile/resource contention. Raise once parallel runs are verified.
+let maxInstances = 1;
 
 switch (testType) {
   case 'window':

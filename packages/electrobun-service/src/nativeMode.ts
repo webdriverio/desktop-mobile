@@ -2,24 +2,25 @@
 //
 // Electrobun is CDP-attach: the launcher spawns the built app binary, CEF binds
 // the port pinned in build.json, and the worker's CdpBridge attaches over CDP.
-// This module owns the per-worker bundle clone, the spawn + per-run
-// CFFIXED_USER_HOME temp dir + backend log capture, and the teardown that kills
-// the process and removes both temp dirs.
+// This module owns the per-worker bundle clone, the spawn + per-run --user-data-dir
+// temp dir + backend log capture, and the teardown that kills the process and
+// removes both temp dirs.
 //
 // Multi-worker parallelism needs two isolations per worker (RESEARCH_FINDINGS):
-//  - a distinct CFFIXED_USER_HOME → CEF's single-instance-per-cache-root folding
-//    keys on the cache root, so a per-run home gives each launch its own session;
-//  - a private bundle clone → CEF reads the remote-debugging port ONLY from the
-//    bundle's build.json (not a launch arg), so each worker needs its own bundle
-//    copy to pin its own port. We clone here and write the port into the clone,
-//    never mutating the user's shared bundle.
+//  - a distinct --user-data-dir → gives CEF a flat, creatable profile root and stops
+//    a second launch folding into the first (a redirected $HOME failed to create the
+//    profile under Library/Application Support in CI);
+//  - a private bundle clone → CEF reads chromiumFlags (remote-debugging-port +
+//    user-data-dir) ONLY from the bundle's build.json (not a launch arg), so each
+//    worker needs its own bundle copy to pin its own flags. We clone here and write
+//    the flags into the clone, never mutating the user's shared bundle.
 //
 // E2E-validation gap: clone/spawn/teardown can only be exercised against a real
 // built CEF bundle (none in unit tests). Unit tests mock node:child_process /
 // node:fs at the @wdio/native-core + node boundary; the live path is E2E-only.
 
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { cpSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
+import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import type { Interface as ReadlineInterface } from 'node:readline';
@@ -38,7 +39,7 @@ const SIGKILL_GRACE_MS = 5_000;
 
 export interface ElectrobunAppProcess {
   proc: ChildProcess;
-  /** Temp dirs to remove on teardown: the per-run CFFIXED_USER_HOME + the bundle-clone parent. */
+  /** Temp dirs to remove on teardown: the per-run --user-data-dir + the bundle-clone parent. */
   cleanupDirs: string[];
   /** Allocated CEF remote-debugging port (pinned into the cloned bundle's build.json). */
   port: number;
@@ -94,10 +95,10 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
 /**
  * Spawn a built Electrobun app for native-mode CDP attach.
  *
- * Clones the resolved bundle into a per-worker temp dir, pins `port` into the
- * clone's build.json (CEF reads the port from build.json, never a launch arg),
- * creates a per-run `CFFIXED_USER_HOME` temp dir for an isolated CEF cache root,
- * spawns the CLONED binary, and (when log capture is enabled) wires stdout/stderr
+ * Clones the resolved bundle into a per-worker temp dir, pins `port` + a per-run
+ * `--user-data-dir` into the clone's build.json (CEF reads chromiumFlags there, not
+ * argv) so each worker has an isolated, creatable CEF profile, spawns the CLONED
+ * binary, and (when log capture is enabled) wires stdout/stderr
  * through `createLogCapture`. Returns the process handle plus the temp dirs so the
  * launcher can tear them all down.
  */
@@ -118,17 +119,17 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   const clonedBuildJsonPath = app.buildJsonPath.replace(app.bundlePath, clonedBundlePath);
 
   // The clone isn't tracked for teardown until we return the process handle, so
-  // if pinning the port or creating the home dir throws, remove it here to avoid
+  // if pinning the flags or creating the profile dir throws, remove it here to avoid
   // leaking the (large, CEF-bearing) temp dir.
-  let userHomeDir: string;
+  let userDataDir: string;
   try {
-    writeRemoteDebuggingPort(clonedBuildJsonPath, port);
-    userHomeDir = mkdtempSync(join(tmpdir(), 'wdio-electrobun-home-'));
-    // CEF builds its profile under `$CFFIXED_USER_HOME/Library/Application Support/…`.
-    // A fresh mkdtemp home lacks that standard macOS structure, and CEF won't create
-    // the missing parents — it fails with "Cannot create profile at path …" and never
-    // opens the debugger port. Pre-create the parent so CEF can lay down its profile.
-    mkdirSync(join(userHomeDir, 'Library', 'Application Support'), { recursive: true });
+    userDataDir = mkdtempSync(join(tmpdir(), 'wdio-electrobun-userdata-'));
+    // Isolate each worker's CEF profile via a per-run --user-data-dir, written into
+    // the clone's build.json (CEF reads chromiumFlags there, not argv). A flat temp
+    // dir is one CEF can create — unlike a redirected $HOME, where it fails with
+    // "Cannot create profile at path .../Library/Application Support/...". A distinct
+    // dir per worker also stops CEF folding a second launch into the first.
+    writeRemoteDebuggingPort(clonedBuildJsonPath, port, userDataDir);
   } catch (error) {
     rmSync(cloneParentDir, { recursive: true, force: true });
     throw error;
@@ -137,9 +138,6 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     ...options.env,
-    // Redirect CEF's cache root to a per-run dir so a stale cache can't fold this
-    // launch into an existing browser session (RESEARCH_FINDINGS §CFFIXED_USER_HOME).
-    CFFIXED_USER_HOME: userHomeDir,
   };
 
   log.info(`Spawning Electrobun app: ${clonedBinaryPath} ${appArgs.join(' ')} (CDP port ${port})`);
@@ -173,12 +171,12 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
     log.error(`Electrobun app process error: ${err.message}`);
   });
 
-  return { proc, cleanupDirs: [userHomeDir, cloneParentDir], port, logHandlers };
+  return { proc, cleanupDirs: [userDataDir, cloneParentDir], port, logHandlers };
 }
 
 /**
  * Stop a spawned Electrobun app: close log handlers, SIGTERM (SIGKILL after a
- * grace period), then remove the per-run CFFIXED_USER_HOME temp dir and the
+ * grace period), then remove the per-run --user-data-dir temp dir and the
  * bundle-clone parent. Tolerant of an already-dead process and missing temp dirs.
  */
 export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void> {

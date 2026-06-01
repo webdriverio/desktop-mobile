@@ -23,6 +23,7 @@ import { cefRendererRequired, SevereServiceError } from './errors.js';
 const log = createLogger(SERVICE_NAME, 'config');
 
 const REMOTE_DEBUGGING_FLAG = 'remote-debugging-port';
+const USER_DATA_DIR_FLAG = 'user-data-dir';
 
 /** Parsed shape of a bundle's `build.json` (only the keys this service reads). */
 export interface BuildJson {
@@ -270,14 +271,17 @@ export function getRemoteDebuggingPort(buildJson: BuildJson | undefined): number
 }
 
 /**
- * Pin a CEF remote-debugging port into a bundle's `build.json`, writing it as a
- * string under `chromiumFlags["remote-debugging-port"]` and preserving every
- * other key. The launcher calls this so CEF binds the allocated port at startup.
+ * Pin a CEF remote-debugging port (and optional `--user-data-dir`) into a bundle's
+ * `build.json` under `chromiumFlags`, preserving every other key. CEF reads these
+ * flags from build.json (not argv), so this is how the launcher both fixes the CDP
+ * endpoint and isolates each worker's profile. A distinct `user-data-dir` per worker
+ * gives CEF a flat, creatable profile root — unlike a redirected `$HOME`, where CEF
+ * fails with "Cannot create profile at path .../Library/Application Support/...".
  *
  * @throws SevereServiceError when build.json is missing/unwritable — without it
  *   the port can't be pinned and the worker's CDP attach has no fixed endpoint.
  */
-export function writeRemoteDebuggingPort(buildJsonPath: string, port: number): void {
+export function writeRemoteDebuggingPort(buildJsonPath: string, port: number, userDataDir?: string): void {
   const existing = readBuildJson(buildJsonPath);
   if (!existing) {
     if (!pathExists(buildJsonPath)) {
@@ -297,12 +301,15 @@ export function writeRemoteDebuggingPort(buildJsonPath: string, port: number): v
     chromiumFlags: {
       ...existing.chromiumFlags,
       [REMOTE_DEBUGGING_FLAG]: String(port),
+      ...(userDataDir ? { [USER_DATA_DIR_FLAG]: userDataDir } : {}),
     },
   };
 
   try {
     writeFileSync(buildJsonPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
-    log.debug(`Pinned remote-debugging-port=${port} into ${buildJsonPath}`);
+    log.debug(
+      `Pinned remote-debugging-port=${port}${userDataDir ? ` + user-data-dir=${userDataDir}` : ''} into ${buildJsonPath}`,
+    );
   } catch (error) {
     throw new SevereServiceError(
       `Failed to write the CEF remote-debugging port into ${buildJsonPath}: ${(error as Error).message}`,
