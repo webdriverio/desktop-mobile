@@ -23,14 +23,12 @@ import type { InnerMockSetterMethod } from './mockTypes.js';
 const REGISTRY = 'window.__WDIO_ELECTROBUN_MOCKS__';
 
 // A mock target is a dotted path of JS identifiers (`api.fetchData`) — that's all
-// the RESOLVE_PATH `.split('.')` walk can address. Restricting to that charset here
-// means the value inlined into the evaluated scripts below can never contain a
-// quote, backslash, newline, or line/paragraph separator, so `JSON.stringify` is a
-// provably-safe escaping into the JS-string context (closes the CodeQL
-// `js/bad-code-sanitization` reports on the `${key}` interpolations).
+// the RESOLVE_PATH `.split('.')` walk can address. The VALID_TARGET guard rejects
+// anything else (clear errors + defense-in-depth: a target that passes can't carry
+// a quote, backslash, newline, or line/paragraph separator).
 const VALID_TARGET = /^[A-Za-z_$][A-Za-z0-9_$]*(\.[A-Za-z_$][A-Za-z0-9_$]*)*$/;
 
-/** JSON literal of a validated target path, safe to inline as an object key / string arg. */
+/** JS-source literal of a validated target path, safe to inline as an object key / string arg. */
 function pathLiteral(target: string): string {
   if (!VALID_TARGET.test(target)) {
     throw new Error(
@@ -38,7 +36,16 @@ function pathLiteral(target: string): string {
         `(expected identifiers separated by dots, e.g. 'api.fetchData').`,
     );
   }
-  return JSON.stringify(target);
+  // The `${key}` interpolations below land in a JS *source* string (Runtime.evaluate),
+  // not a JSON/data context. JSON.stringify leaves the two chars that terminate a JS
+  // source-string literal — U+2028 / U+2029 — raw, and doesn't neutralise `</script>`
+  // for HTML-embedded eval, so finish the escaping. The VALID_TARGET guard already makes
+  // these no-ops, but this is the escaping CodeQL's js/bad-code-sanitization recognises
+  // (a regex `.test()` guard alone does not).
+  return JSON.stringify(target)
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029')
+    .replace(/</g, '\\x3C');
 }
 
 /**
