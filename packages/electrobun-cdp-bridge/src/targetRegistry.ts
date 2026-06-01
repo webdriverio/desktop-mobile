@@ -56,7 +56,15 @@ export class TargetRegistry {
 
   /** Reconcile against a fresh `/json` listing; returns live content targets in label order. */
   reconcile(list: DebuggerList): TargetRegistryEntry[] {
-    const content = list.map(toPageTarget).filter((target) => target.class === 'content');
+    // Sort by URL before assigning labels: CEF's /json order isn't stable, so the
+    // first content target (which becomes `main`) would otherwise flip between
+    // windows across runs. URL order is deterministic and puts the primary window
+    // (`views://mainview/…`) ahead of secondary ones (`views://secondview/…`), so
+    // `main` is consistently the app's main window.
+    const content = list
+      .map(toPageTarget)
+      .filter((target) => target.class === 'content')
+      .sort((a, b) => a.url.localeCompare(b.url));
     const liveIds = new Set(content.map((target) => target.id));
 
     for (const target of content) {
