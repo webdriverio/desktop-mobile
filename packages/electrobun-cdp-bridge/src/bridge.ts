@@ -49,16 +49,19 @@ export class CdpBridge {
   #activeLabel: string | undefined;
 
   constructor(options?: CdpBridgeOptions) {
-    this.#options = Object.assign(
-      {
-        host: DEFAULT_HOSTNAME,
-        port: DEFAULT_PORT,
-        timeout: REQUEST_TIMEOUT,
-        waitInterval: DEFAULT_RETRY_INTERVAL,
-        connectionRetryCount: DEFAULT_MAX_RETRY_COUNT,
-      },
-      options,
-    );
+    // Per-field `??` rather than Object.assign: a caller passing an explicit
+    // `undefined` (e.g. an unset service option) must fall back to the default, not
+    // overwrite it. Object.assign copies undefined values, which left `timeout`
+    // undefined (so waitPort never actually waited → immediate-fail hammering) and
+    // `connectionRetryCount` undefined (so `retries >= undefined` never capped →
+    // effectively unbounded retries).
+    this.#options = {
+      host: options?.host ?? DEFAULT_HOSTNAME,
+      port: options?.port ?? DEFAULT_PORT,
+      timeout: options?.timeout ?? REQUEST_TIMEOUT,
+      waitInterval: options?.waitInterval ?? DEFAULT_RETRY_INTERVAL,
+      connectionRetryCount: options?.connectionRetryCount ?? DEFAULT_MAX_RETRY_COUNT,
+    };
     this.#devTool = new DevTool(this.#options);
   }
 
