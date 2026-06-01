@@ -48,9 +48,18 @@ function resolveElectrobunAppPath(dir: string): string {
   // so keep only top-level `.app`s or we'd resolve appBinaryPath to a helper.
   const bundles = globSync(join(buildDir, '**', '*.app')).filter((p) => !/\.app[\\/]/.test(p));
   if (bundles.length > 0) {
-    // Newest-built wins (mtime desc) when the toolchain emits more than one
-    // environment dir (dev / canary / stable), rather than a lexicographic pick.
-    return bundles.sort((a, b) => statSync(b).mtimeMs - statSync(a).mtimeMs)[0];
+    // Newest-built wins when the toolchain emits more than one environment dir
+    // (dev / canary / stable), rather than a lexicographic pick. Stat each path
+    // once up front — not inside the comparator, which would re-stat O(n log n)
+    // times — and tolerate a bundle that races away between glob and stat.
+    const mtimeOf = (p: string): number => {
+      try {
+        return statSync(p).mtimeMs;
+      } catch {
+        return 0;
+      }
+    };
+    return bundles.map((path) => ({ path, mtime: mtimeOf(path) })).sort((a, b) => b.mtime - a.mtime)[0].path;
   }
 
   throw new Error(
@@ -63,8 +72,6 @@ const appBinaryPath = resolveElectrobunAppPath(appDir);
 if (!existsSync(appBinaryPath)) {
   throw new Error(`Electrobun app path does not exist: ${appBinaryPath}. Make sure the app is built.`);
 }
-// Surface a clear error if the resolved path is unreadable before WDIO starts.
-void statSync(appBinaryPath);
 
 const testType = (process.env.TEST_TYPE as string) || 'standard';
 

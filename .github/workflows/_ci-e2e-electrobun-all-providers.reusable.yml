@@ -144,10 +144,16 @@ jobs:
         if: always()
         shell: bash
         run: |
+          # Match the per-worker clone temp-dir prefix (wdio-electrobun-bundle-*),
+          # which appears in every spawned process's argv — the launcher binary, the
+          # bun child, and CEF helper subprocesses — rather than the .app display
+          # name. The macOS bundle keeps spaces ("WDIO Electrobun E2E-dev.app") while
+          # the Windows exe name does not, so a name-based match misses the CEF
+          # helpers; the temp-dir prefix is stable across both.
           if [ "${{ runner.os }}" == "Windows" ]; then
-            powershell -Command "Get-Process | Where-Object { \$_.ProcessName -like '*WDIO*Electrobun*' } | Stop-Process -Force -ErrorAction SilentlyContinue" || true
+            powershell -Command "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*wdio-electrobun-bundle*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" || true
           else
-            pkill -9 -f 'WDIO Electrobun E2E' || true
+            pkill -9 -f 'wdio-electrobun-bundle' || true
           fi
 
       - name: 🧪 E2E Tests
@@ -166,10 +172,16 @@ jobs:
         if: always()
         shell: bash
         run: |
+          # Match the per-worker clone temp-dir prefix (wdio-electrobun-bundle-*),
+          # which appears in every spawned process's argv — the launcher binary, the
+          # bun child, and CEF helper subprocesses — rather than the .app display
+          # name. The macOS bundle keeps spaces ("WDIO Electrobun E2E-dev.app") while
+          # the Windows exe name does not, so a name-based match misses the CEF
+          # helpers; the temp-dir prefix is stable across both.
           if [ "${{ runner.os }}" == "Windows" ]; then
-            powershell -Command "Get-Process | Where-Object { \$_.ProcessName -like '*WDIO*Electrobun*' } | Stop-Process -Force -ErrorAction SilentlyContinue" || true
+            powershell -Command "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*wdio-electrobun-bundle*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" || true
           else
-            pkill -9 -f 'WDIO Electrobun E2E' || true
+            pkill -9 -f 'wdio-electrobun-bundle' || true
           fi
 
       - name: 🐛 Debug Information
