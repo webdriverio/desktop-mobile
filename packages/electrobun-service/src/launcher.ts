@@ -29,7 +29,13 @@ export default class ElectrobunLaunchService extends BaseLauncher {
   private browserMode = false;
   /** Resolved app bundle per capability index, set in onPrepare for onWorkerStart. */
   private resolvedApps: ResolvedElectrobunApp[] = [];
-  private spawnedApps: ElectrobunAppProcess[] = [];
+  /**
+   * Spawned apps keyed by worker cid. Torn down per-spec in onWorkerEnd so apps
+   * don't accumulate across a run — multiple live CEF instances contend (profile
+   * creation / resources) even when specs run serially. onComplete sweeps any
+   * stragglers (e.g. a worker that never reported end).
+   */
+  private spawnedAppsByCid = new Map<string, ElectrobunAppProcess[]>();
 
   constructor(
     private options: ElectrobunServiceGlobalOptions,
@@ -124,6 +130,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     }
 
     const capsList = Array.isArray(capabilities) ? capabilities : [capabilities];
+    const workerApps: ElectrobunAppProcess[] = [];
 
     for (let i = 0; i < capsList.length; i++) {
       const cap = capsList[i];
@@ -145,7 +152,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       // spawnApp — the CEF port is fixed per bundle (a launch arg does NOT work,
       // see RESEARCH_FINDINGS), so the clone is what makes parallel workers safe.
       const spawned = this.spawnApp(app, port, instanceOptions, cid);
-      this.spawnedApps.push(spawned);
+      workerApps.push(spawned);
 
       const existingChromeOptions = (cap['goog:chromeOptions'] ?? {}) as Record<string, unknown>;
       cap['goog:chromeOptions'] = {
@@ -153,6 +160,22 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         debuggerAddress: `localhost:${port}`,
       };
       log.info(`Worker ${cid}: Electrobun app on CDP port ${port} (debuggerAddress set)`);
+    }
+
+    this.spawnedAppsByCid.set(cid, workerApps);
+  }
+
+  /** Tear down this worker's app(s) when its spec finishes, so they don't accumulate. */
+  async onWorkerEnd(cid: string): Promise<void> {
+    const apps = this.spawnedAppsByCid.get(cid);
+    if (!apps) {
+      return;
+    }
+    this.spawnedAppsByCid.delete(cid);
+    for (const app of apps) {
+      await stopElectrobunApp(app).catch((error: Error) => {
+        log.warn(`Worker ${cid}: failed to stop Electrobun app: ${error.message}`);
+      });
     }
   }
 
@@ -173,12 +196,14 @@ export default class ElectrobunLaunchService extends BaseLauncher {
   }
 
   async onComplete(): Promise<void> {
-    for (const app of this.spawnedApps) {
-      await stopElectrobunApp(app).catch((error: Error) => {
-        log.warn(`Failed to stop Electrobun app: ${error.message}`);
-      });
+    for (const apps of this.spawnedAppsByCid.values()) {
+      for (const app of apps) {
+        await stopElectrobunApp(app).catch((error: Error) => {
+          log.warn(`Failed to stop Electrobun app: ${error.message}`);
+        });
+      }
     }
-    this.spawnedApps = [];
+    this.spawnedAppsByCid.clear();
 
     await this.stopAllDrivers();
     if (isLogWriterInitialized(SERVICE_NAME)) {

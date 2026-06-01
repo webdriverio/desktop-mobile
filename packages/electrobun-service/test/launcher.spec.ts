@@ -247,4 +247,27 @@ describe('ElectrobunLaunchService', () => {
       await expect(launcher.onComplete()).resolves.toBeUndefined();
     });
   });
+
+  describe('onWorkerEnd', () => {
+    it('should stop the worker app per-spec so apps do not accumulate', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      await launcher.onPrepare(baseConfig, [{}]);
+      await launcher.onWorkerStart('0-0', [{}]);
+
+      await expect(launcher.onWorkerEnd('0-0')).resolves.toBeUndefined();
+      expect(vi.mocked(stopElectrobunApp)).toHaveBeenCalledTimes(1);
+
+      // Already torn down — onComplete must not stop it again.
+      await launcher.onComplete();
+      expect(vi.mocked(stopElectrobunApp)).toHaveBeenCalledTimes(1);
+    });
+
+    it('should resolve when the worker never spawned an app', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      await launcher.onPrepare(baseConfig, [{}]);
+
+      await expect(launcher.onWorkerEnd('0-9')).resolves.toBeUndefined();
+      expect(vi.mocked(stopElectrobunApp)).not.toHaveBeenCalled();
+    });
+  });
 });
