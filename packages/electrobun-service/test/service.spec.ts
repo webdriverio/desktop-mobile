@@ -29,8 +29,22 @@ function nativeCap(port = 9333): Record<string, unknown> {
   return { 'goog:chromeOptions': { debuggerAddress: `localhost:${port}` } };
 }
 
-function makeBrowser(): WebdriverIO.Browser {
-  return { isMultiremote: false, sessionId: 'abc' } as unknown as WebdriverIO.Browser;
+function makeBrowser(
+  windows: { handle: string; url: string }[] = [
+    { handle: 'win-blank', url: 'about:blank' },
+    { handle: 'win-main', url: 'views://mainview/index.html' },
+  ],
+): WebdriverIO.Browser {
+  let current = windows[0]?.handle;
+  return {
+    isMultiremote: false,
+    sessionId: 'abc',
+    getWindowHandles: vi.fn().mockResolvedValue(windows.map((w) => w.handle)),
+    switchToWindow: vi.fn(async (handle: string) => {
+      current = handle;
+    }),
+    getUrl: vi.fn(async () => windows.find((w) => w.handle === current)?.url ?? ''),
+  } as unknown as WebdriverIO.Browser;
 }
 
 describe('ElectrobunWorkerService', () => {
@@ -56,6 +70,19 @@ describe('ElectrobunWorkerService', () => {
       expect(cdpBridgeCtor).toHaveBeenCalledTimes(1);
       expect(cdpBridgeCtor.mock.calls[0][0]).toMatchObject({ host: 'localhost', port: 9350 });
       expect(connectMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should focus the WebDriver session on the content window, not a blank shell', async () => {
+      const browser = makeBrowser([
+        { handle: 'win-blank', url: 'about:blank' },
+        { handle: 'win-main', url: 'views://mainview/index.html' },
+      ]);
+      const service = new ElectrobunWorkerService({}, {});
+
+      await service.before(nativeCap(), [], browser);
+
+      // Ends on the content window so $/click target the app, not about:blank.
+      expect(vi.mocked(browser.switchToWindow).mock.calls.at(-1)?.[0]).toBe('win-main');
     });
 
     it('should install browser.electrobun with the full API surface', async () => {

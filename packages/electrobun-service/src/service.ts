@@ -99,6 +99,35 @@ export default class ElectrobunWorkerService {
     const mockStore = new ElectrobunMockStore();
     this.mockStores.push(mockStore);
     installApi(browser, bridge, mockStore);
+
+    await this.focusMainContentWindow(browser);
+  }
+
+  /**
+   * Align the WebDriver session window with the app's main content. Chromedriver,
+   * attaching to the CEF debug port, makes its session window whatever page CEF
+   * lists first — often a blank shell (`about:blank`) distinct from the `views://…`
+   * content. Without this, `$()`/`click`/`getText` would target the blank document
+   * (while `execute`/`mock`, which go through the CdpBridge, correctly drive the
+   * content). Switch the session to the first non-blank window so element commands
+   * hit the app by default. Best-effort: a failure here is logged, not fatal —
+   * callers can still `switchToWindow` themselves.
+   */
+  private async focusMainContentWindow(browser: WebdriverIO.Browser): Promise<void> {
+    try {
+      const handles = await browser.getWindowHandles();
+      for (const handle of handles) {
+        await browser.switchToWindow(handle);
+        const url = await browser.getUrl().catch(() => '');
+        if (url && !url.startsWith('about:') && !url.startsWith('chrome')) {
+          log.info(`WebDriver session focused on content window: ${url}`);
+          return;
+        }
+      }
+      log.warn('No non-blank content window found to focus; element commands may target a blank document.');
+    } catch (error) {
+      log.warn(`Could not focus the main content window: ${(error as Error).message}`);
+    }
   }
 
   async after(): Promise<void> {
