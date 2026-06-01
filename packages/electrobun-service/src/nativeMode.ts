@@ -118,10 +118,10 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   const clonedBinaryPath = app.binaryPath.replace(app.bundlePath, clonedBundlePath);
   const clonedBuildJsonPath = app.buildJsonPath.replace(app.bundlePath, clonedBundlePath);
 
-  // The clone isn't tracked for teardown until we return the process handle, so
-  // if pinning the flags or creating the profile dir throws, remove it here to avoid
-  // leaking the (large, CEF-bearing) temp dir.
-  let userDataDir: string;
+  // Neither temp dir is tracked for teardown until we return the process handle, so
+  // if creating the profile dir or pinning the flags throws, remove both here to
+  // avoid leaking them (the clone is the large, CEF-bearing one).
+  let userDataDir: string | undefined;
   try {
     userDataDir = mkdtempSync(join(tmpdir(), 'wdio-electrobun-userdata-'));
     // Isolate each worker's CEF profile via a per-run --user-data-dir, written into
@@ -132,6 +132,9 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
     writeRemoteDebuggingPort(clonedBuildJsonPath, port, userDataDir);
   } catch (error) {
     rmSync(cloneParentDir, { recursive: true, force: true });
+    if (userDataDir) {
+      rmSync(userDataDir, { recursive: true, force: true });
+    }
     throw error;
   }
 

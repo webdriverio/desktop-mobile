@@ -165,7 +165,7 @@ describe('nativeMode', () => {
       expect(port).toBe(9333);
     });
 
-    it('should remove the cloned bundle dir if pinning the port throws (no temp-dir leak)', () => {
+    it('should remove BOTH the clone and the user-data-dir if pinning the port throws (no temp-dir leak)', () => {
       writeRemoteDebuggingPortMock.mockImplementationOnce(() => {
         throw new Error('EACCES: build.json not writable');
       });
@@ -174,7 +174,10 @@ describe('nativeMode', () => {
         spawnElectrobunApp({ app: APP, appArgs: [], port: 9333, options: {} as ElectrobunServiceOptions }),
       ).toThrow('EACCES');
 
+      // userDataDir is created before the port is pinned, so a pin failure must clean
+      // it up too — not just the clone.
       expect(rmSyncMock).toHaveBeenCalledWith(CLONE_PARENT, { recursive: true, force: true });
+      expect(rmSyncMock).toHaveBeenCalledWith(USER_HOME, { recursive: true, force: true });
     });
 
     it('should spawn the CLONED binary and pin a per-run --user-data-dir into its build.json', () => {
