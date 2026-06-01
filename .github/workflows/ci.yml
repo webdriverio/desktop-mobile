@@ -207,6 +207,21 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # Exploratory (allow-failure by exclusion from ci-status, like Linux): Windows CEF
+  # is unverified, but it's the most promising next platform (Chromium/WebView2 are
+  # CDP-capable). Just seeing what happens — not a merge gate.
+  build-electrobun-e2e-app-windows:
+    name: Build Electrobun E2E App [Windows]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build Dioxus package test apps - only if Dioxus package tests will run
   build-dioxus-package-app-linux:
     name: Build Dioxus Package Test App [Linux]
@@ -742,6 +757,27 @@ jobs:
     secrets: inherit
     with:
       os: 'ubuntu-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  # Exploratory (allow-failure by exclusion from ci-status, like Linux): does the
+  # WebDriver/CDP attach work against Windows CEF? Deeplink is macOS-only, so only
+  # standard+window run.
+  e2e-electrobun-windows:
+    name: E2E - Electrobun [Windows] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-electrobun-e2e-app-windows]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window']
+    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
       node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
