@@ -132,7 +132,7 @@ describe('ElectrobunWorkerService', () => {
       expect(params.expression).toContain('__WDIO_ELECTROBUN__');
     });
 
-    it('should pass a raw string expression through unchanged', async () => {
+    it('should wrap a raw string expression so its value is returned', async () => {
       sendMock.mockResolvedValueOnce({ result: { value: 'ok' } });
       const browser = makeBrowser();
       const service = new ElectrobunWorkerService({}, {});
@@ -141,7 +141,7 @@ describe('ElectrobunWorkerService', () => {
       const result = await (browser as unknown as Installed).electrobun.execute('1 + 1');
 
       expect(result).toBe('ok');
-      expect(sendMock.mock.calls[0][1].expression).toBe('1 + 1');
+      expect(sendMock.mock.calls[0][1].expression).toBe('(async function () { return (1 + 1); })()');
     });
 
     it('should throw when Runtime.evaluate reports exceptionDetails', async () => {
