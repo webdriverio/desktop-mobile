@@ -56,7 +56,8 @@ export const config = {
   services: ['electrobun'],
   capabilities: [
     {
-      browserName: 'chrome',
+      // The launcher rewrites this to 'chrome' + sets the CDP debuggerAddress.
+      browserName: 'electrobun',
       // Pin Chromedriver to the CEF Chromium major (147 for current Electrobun).
       browserVersion: '147',
       'wdio:electrobunServiceOptions': {

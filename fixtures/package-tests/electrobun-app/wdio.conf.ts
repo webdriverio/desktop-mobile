@@ -59,10 +59,11 @@ type ElectrobunCapability = ElectrobunCapabilities & {
 
 const capabilities: ElectrobunCapability[] = [
   {
-    // CDP-attach: the launcher rewrites this to 'chrome' + sets debuggerAddress in
-    // onWorkerStart. Pin the driver to CEF's Chromium major (147) so WDIO doesn't fetch a
-    // newer Chromedriver that refuses to attach. Bump alongside the Electrobun/CEF pin.
-    browserName: 'chrome',
+    // Idiomatic, like the sibling services (browserName: 'tauri'/'dioxus'): the launcher
+    // rewrites 'electrobun' → 'chrome' + sets debuggerAddress in onWorkerStart. Pin the
+    // driver to CEF's Chromium major (147) so WDIO doesn't fetch a newer Chromedriver that
+    // refuses to attach. Bump alongside the Electrobun/CEF pin.
+    browserName: 'electrobun',
     browserVersion: '147',
     'wdio:electrobunServiceOptions': electrobunServiceOptions,
   },

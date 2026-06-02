@@ -134,9 +134,9 @@ const electrobunServiceOptions: ElectrobunServiceOptions = {
 
 const capabilities: ElectrobunCapability[] = [
   {
-    // CDP-attach: the launcher rewrites this to 'chrome' and sets
+    // CDP-attach: the launcher rewrites this 'electrobun' → 'chrome' and sets
     // goog:chromeOptions.debuggerAddress onto the capability in onWorkerStart.
-    browserName: 'chrome',
+    browserName: 'electrobun',
     // Electrobun 1.18.1 bundles CEF on Chromium 147 (147.0.7727.118); pin the
     // driver to that major so WDIO doesn't fetch the latest (148+), which refuses
     // to attach with "only supports Chrome version N". Matching the major is what
