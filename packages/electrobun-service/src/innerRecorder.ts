@@ -244,6 +244,7 @@ export function buildSetValueScript(target: string, method: InnerMockSetterMetho
     if (_v && typeof _v === 'object' && _v.__wdioError === true) {
       arg = new Error(_v.message);
       if (_v.name) { arg.name = _v.name; }
+      if (_v.stack) { arg.stack = _v.stack; }
     }
     entry.spy.${method}(arg);
   })()`;

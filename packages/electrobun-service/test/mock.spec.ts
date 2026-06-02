@@ -178,6 +178,23 @@ describe('createMock (Electrobun mocking)', () => {
       await expect(spy()).rejects.toThrow(/boom/);
     });
 
+    it('should preserve the Error name and stack through reconstruction', async () => {
+      const { bridge, window } = makeBridge({ api: { fetchData: () => 'real' } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      const original = new TypeError('bad shape');
+      original.stack = 'TypeError: bad shape\n    at original (api.ts:1:1)';
+
+      await mock.mockRejectedValue(original);
+
+      const spy = (window.api as { fetchData: () => Promise<unknown> }).fetchData;
+      const rejected = await spy().then(
+        () => undefined,
+        (e: Error) => e,
+      );
+      expect(rejected?.name).toBe('TypeError');
+      expect(rejected?.stack).toBe(original.stack);
+    });
+
     it('should run the pushed mockImplementation in the page', async () => {
       const { bridge, window } = makeBridge({ api: { add: () => 0 } });
       const mock = await createMock('api.add', bridge, store);
