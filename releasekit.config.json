@@ -30,6 +30,8 @@
       "electron-script-e2e-app",
       "tauri-app-example",
       "tauri-e2e-app",
+      "dioxus-app-example",
+      "wdio-dioxus-e2e-app",
       "electrobun-app-example",
       "electrobun-e2e-app"
     ]
@@ -42,6 +44,7 @@
       "scope:types": "@wdio/native-types",
       "scope:spy": "@wdio/native-spy",
       "scope:tauri": "@wdio/tauri-*",
+      "scope:dioxus": "@wdio/dioxus-*",
       "scope:electron": "@wdio/electron-*",
       "scope:electrobun": "@wdio/electrobun-*"
     }
