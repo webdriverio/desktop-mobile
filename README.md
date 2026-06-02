@@ -61,6 +61,10 @@
 
 [`@wdio/dioxus-service`](./packages/dioxus-service) - Dioxus desktop applications (Windows / macOS / Linux)
 
+## Experimental Support
+
+> Early (`0.x`) support — scope is limited and the surface may change as upstream gaps are resolved. Not yet at parity with the frameworks above.
+
 <h4>
   <div>
     <a href="https://www.npmjs.com/package/@wdio/electrobun-service"><img src="https://img.shields.io/badge/@wdio-electrobun--service-E8590C?labelColor=1a1a1a&style=plastic" alt="npm package" /></a>
@@ -69,7 +73,7 @@
   </div>
 </h4>
 
-[`@wdio/electrobun-service`](./packages/electrobun-service) - Electrobun desktop applications (**macOS only** in `0.x`; requires the CEF renderer — see the package README)
+[`@wdio/electrobun-service`](./packages/electrobun-service) - Electrobun desktop applications — **experimental**, **macOS only** (`0.x`), requires the CEF renderer. Linux/Windows plus multiremote / multi-window / deeplink are upstream-blocked ([#317](https://github.com/webdriverio/desktop-mobile/issues/317)). See the [package README](./packages/electrobun-service).
 
 ## Planned Support
 
