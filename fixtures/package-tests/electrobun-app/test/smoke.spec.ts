@@ -27,12 +27,24 @@ describe('@wdio/electrobun-service package install', () => {
     expect(title).toContain('Electrobun');
   });
 
-  it('should read the status element from the webview DOM', async () => {
+  it('should reflect the view script through the status element', async () => {
+    // The mainview script overwrites #status to "Application loaded successfully" on load,
+    // so reading it confirms the view's JS ran (not just the static HTML). Poll in case the
+    // script hasn't run yet when the bridge first attaches.
     type Doc = { getElementById(id: string): { textContent: string | null } | null };
-    const status = await browser.electrobun.execute(() => {
-      const el = (globalThis as unknown as { document: Doc }).document.getElementById('status');
-      return el ? el.textContent : undefined;
-    });
-    expect(status).toContain('Ready');
+    const readStatus = () =>
+      browser.electrobun.execute(() => {
+        const el = (globalThis as unknown as { document: Doc }).document.getElementById('status');
+        return el ? el.textContent : undefined;
+      });
+    let status: string | null | undefined;
+    await browser.waitUntil(
+      async () => {
+        status = await readStatus();
+        return typeof status === 'string' && status.includes('loaded successfully');
+      },
+      { timeout: 10_000, timeoutMsg: '#status was not updated by the view script' },
+    );
+    expect(status).toContain('loaded successfully');
   });
 });
