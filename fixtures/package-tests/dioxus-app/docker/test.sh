@@ -89,7 +89,9 @@ run_tests_in_container() {
             pnpm test
 
             echo '=== Copying logs to mounted volume ==='
-            cp -r fixtures/package-tests/dioxus-app/logs* /workspace/logs-output/ 2>/dev/null || echo 'No logs to copy'
+            # Absolute path: CWD is the app dir at this point, so a repo-relative
+            # path would double-nest and silently copy nothing.
+            cp -r /workspace/fixtures/package-tests/dioxus-app/logs* /workspace/logs-output/ 2>/dev/null || echo 'No logs to copy'
 
             # Clean up Xvfb if it was started
             if [ ! -z \"\$XVFB_PID\" ]; then

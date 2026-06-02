@@ -38,6 +38,12 @@ RUN xbps-install -yf util-linux util-linux-common libblkid libuuid libmount libf
 # Dioxus desktop renders through Wry → WebKitGTK; these are the build deps.
 # The 'embedded' driver needs NO system WebKitWebDriver binary, so no
 # /usr/sbin/WebKitWebDriver symlink dance is required.
+#
+# Unlike the other four images, no separate libappindicator / xdotool packages
+# are installed. dioxus-desktop pulls muda/tray-icon/libxdo into the graph, but
+# on Void those FFI deps resolve from the webkit2gtk41 + gtk+3 stack — the
+# sibling Tauri Void image builds the identical crate graph green with exactly
+# these packages, so adding more would only diverge from that proven reference.
 RUN xbps-install -y \
         libwebkit2gtk41 \
         libwebkit2gtk41-devel \
