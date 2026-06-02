@@ -98,12 +98,21 @@ export function resolveElectrobunApp(
     return resolveMacosApp(appBinaryPath);
   }
 
-  // Windows/Linux: layout unverified. Best-effort — treat the path as the binary
-  // with a sibling build.json. TODO(PR3/CI): verify the real on-disk layout on
-  // Windows and Linux and tighten this resolution.
+  // Windows/Linux: electrobun emits `<App>/bin/launcher[.exe]` with build.json under
+  // `<App>/Resources/` (verified from the CI build artifacts). When the binary sits in
+  // a `bin/` dir, the bundle root is its grandparent and Resources/build.json hang off
+  // that; otherwise (a flat/custom layout) fall back to a sibling build.json.
   const binaryPath = appBinaryPath;
-  const bundlePath = dirname(binaryPath);
-  const resourcesDir = bundlePath;
+  const binDir = dirname(binaryPath);
+  let bundlePath: string;
+  let resourcesDir: string;
+  if (basename(binDir) === 'bin') {
+    bundlePath = dirname(binDir);
+    resourcesDir = join(bundlePath, 'Resources');
+  } else {
+    bundlePath = binDir;
+    resourcesDir = binDir;
+  }
   const buildJsonPath = join(resourcesDir, 'build.json');
   const identifier = readBuildJson(buildJsonPath)?.identifier;
   return { binaryPath, bundlePath, resourcesDir, buildJsonPath, identifier };

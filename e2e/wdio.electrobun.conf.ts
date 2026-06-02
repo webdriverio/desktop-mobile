@@ -41,17 +41,11 @@ function resolveElectrobunAppPath(dir: string): string {
     );
   }
 
-  // macOS: a `.app` bundle. Other platforms: pin the binary via ELECTROBUN_APP_PATH
-  // (the on-disk layout there is unverified — see the service RESEARCH_FINDINGS).
-  // `**/*.app` also matches the helper bundles nested INSIDE the main app
-  // (`…/Contents/Frameworks/bun Helper (GPU).app`, …) — those have no CEF framework,
-  // so keep only top-level `.app`s or we'd resolve appBinaryPath to a helper.
-  const bundles = globSync(join(buildDir, '**', '*.app')).filter((p) => !/\.app[\\/]/.test(p));
-  if (bundles.length > 0) {
-    // Newest-built wins when the toolchain emits more than one environment dir
-    // (dev / canary / stable), rather than a lexicographic pick. Stat each path
-    // once up front — not inside the comparator, which would re-stat O(n log n)
-    // times — and tolerate a bundle that races away between glob and stat.
+  // Newest-built wins when the toolchain emits more than one environment dir
+  // (dev / canary / stable), rather than a lexicographic pick. Stat each candidate
+  // once up front — not inside the comparator, which would re-stat O(n log n) times —
+  // and tolerate a path that races away between glob and stat.
+  const newest = (paths: string[]): string => {
     const mtimeOf = (p: string): number => {
       try {
         return statSync(p).mtimeMs;
@@ -59,12 +53,36 @@ function resolveElectrobunAppPath(dir: string): string {
         return 0;
       }
     };
-    return bundles.map((path) => ({ path, mtime: mtimeOf(path) })).sort((a, b) => b.mtime - a.mtime)[0].path;
+    return paths.map((path) => ({ path, mtime: mtimeOf(path) })).sort((a, b) => b.mtime - a.mtime)[0].path;
+  };
+
+  if (process.platform === 'darwin') {
+    // macOS: a `.app` bundle (the binary lives in Contents/MacOS). `**/*.app` also
+    // matches helper bundles nested INSIDE the main app
+    // (`…/Contents/Frameworks/bun Helper (GPU).app`) — those have no CEF framework,
+    // so keep only top-level `.app`s or we'd resolve appBinaryPath to a helper.
+    const bundles = globSync(join(buildDir, '**', '*.app')).filter((p) => !/\.app[\\/]/.test(p));
+    if (bundles.length > 0) {
+      return newest(bundles);
+    }
+    throw new Error(
+      `No Electrobun .app bundle found under ${buildDir}. ` +
+        'Set ELECTROBUN_APP_PATH to the built app bundle (or its inner binary).',
+    );
   }
 
+  // Linux/Windows: electrobun emits `build/<env>/<App>/bin/launcher[.exe]` with a
+  // sibling `Resources/build.json` (no `.app`), so glob for the launcher binary. The
+  // helper executables are named `bun Helper (…)`, never `launcher`, so this can't
+  // match a helper.
+  const launcherName = process.platform === 'win32' ? 'launcher.exe' : 'launcher';
+  const launchers = globSync(join(buildDir, '**', 'bin', launcherName));
+  if (launchers.length > 0) {
+    return newest(launchers);
+  }
   throw new Error(
-    `No Electrobun .app bundle found under ${buildDir}. ` +
-      'Set ELECTROBUN_APP_PATH to the built app bundle (or its inner binary).',
+    `No Electrobun launcher (bin/${launcherName}) found under ${buildDir}. ` +
+      'Set ELECTROBUN_APP_PATH to the built launcher binary.',
   );
 }
 
