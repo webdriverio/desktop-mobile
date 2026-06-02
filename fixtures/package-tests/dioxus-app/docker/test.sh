@@ -63,6 +63,15 @@ run_tests_in_container() {
             set -e
             export TURBO_TELEMETRY_DISABLED=1
             export DISPLAY=:99
+            # The Dioxus embedded app uses a plain Wry WebKitGTK webview (not the
+            # WebKitWebDriver automation webview the sibling Tauri image drives), and
+            # in a bare container with no GPU stack that webview hangs initialising
+            # its accelerated compositor / DMABUF renderer — the page's JS never
+            # progresses, so every bridge round-trip times out. Force the software
+            # path. Tauri's image needs neither because its automation webview takes
+            # a different rendering path.
+            export WEBKIT_DISABLE_COMPOSITING_MODE=1
+            export WEBKIT_DISABLE_DMABUF_RENDERER=1
 
             echo '=== Starting Xvfb ==='
             # Start Xvfb in background (some distros use different paths)

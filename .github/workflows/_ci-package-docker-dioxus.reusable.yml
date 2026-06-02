@@ -33,6 +33,7 @@ jobs:
           ./test.sh ${{ inputs.distro }} test
 
       - name: Copy logs to workspace
+        if: always()
         run: |
           # Copy Docker test logs to workspace for upload
           mkdir -p fixtures/package-tests/dioxus-app/logs-docker/
