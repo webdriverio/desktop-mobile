@@ -130,12 +130,6 @@ const electrobunServiceOptions: ElectrobunServiceOptions = {
   // Forward the Bun backend's stdout/stderr into the WDIO log for the logging spec.
   captureBackendLogs: true,
   backendLogLevel: 'info',
-  // Only the window suite opens the fixture's second CEF window. Two windows force
-  // the persist:default/global-context race that can break either window's render
-  // (see the fixture + the gated -advanced CI job), so single-window suites
-  // (standard, deeplink) stay stable. The launcher forwards this env to the Bun
-  // backend, which gates `new BrowserWindow` on it.
-  ...(testType === 'window' ? { env: { WDIO_ELECTROBUN_SECOND_WINDOW: '1' } } : {}),
 };
 
 const capabilities: ElectrobunCapability[] = [

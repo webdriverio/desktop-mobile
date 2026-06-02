@@ -55,14 +55,18 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      # CEF runtime dependencies on Linux. Unverified — the Linux CDP path is not
-      # yet confirmed to serve /json (the Linux e2e job is allow-failure upstream).
+      # CEF + native-wrapper runtime dependencies on Linux. libwebkit2gtk-4.1-0 is
+      # required even though we use the CEF renderer: electrobun's libNativeWrapper.so
+      # links webkit2gtk (it supports both renderers), so it won't dlopen without it
+      # ("libwebkit2gtk-4.1.so.0: cannot open shared object file"). The rest are CEF's
+      # Chromium runtime libs.
       - name: 🐧 Install CEF Runtime Dependencies (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y \
+            libwebkit2gtk-4.1-0 \
             libnss3 \
             libatk1.0-0 \
             libatk-bridge2.0-0 \
