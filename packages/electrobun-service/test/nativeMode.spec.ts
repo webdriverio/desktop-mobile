@@ -174,7 +174,7 @@ describe('nativeMode', () => {
       expect(port).toBe(9333);
     });
 
-    it('should remove BOTH the clone and the user-data-dir if pinning the port throws (no temp-dir leak)', () => {
+    it('should remove the clone if pinning the port throws (no temp-dir leak)', () => {
       writeRemoteDebuggingPortMock.mockImplementationOnce(() => {
         throw new Error('EACCES: build.json not writable');
       });
@@ -183,13 +183,10 @@ describe('nativeMode', () => {
         spawnElectrobunApp({ app: APP, appArgs: [], port: 9333, options: {} as ElectrobunServiceOptions }),
       ).toThrow('EACCES');
 
-      // userDataDir is created before the port is pinned, so a pin failure must clean
-      // it up too — not just the clone.
       expect(rmSyncMock).toHaveBeenCalledWith(CLONE_PARENT, { recursive: true, force: true });
-      expect(rmSyncMock).toHaveBeenCalledWith(USER_HOME, { recursive: true, force: true });
     });
 
-    it('should spawn the CLONED binary and pin a per-run --user-data-dir into its build.json', () => {
+    it('should spawn the CLONED binary and pin the port WITHOUT a separate --user-data-dir', () => {
       const result = spawnElectrobunApp({
         app: APP,
         appArgs: ['--flag'],
@@ -200,14 +197,13 @@ describe('nativeMode', () => {
       const [binary, args] = spawnMock.mock.calls[0] as [string, string[]];
       expect(binary).toBe('/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/MacOS/Demo');
       expect(args).toEqual(['--flag']);
-      // Profile isolation is the per-run --user-data-dir written into the clone's
-      // build.json (a flat, creatable dir CEF can use), not a redirected $HOME.
+      // No --user-data-dir: CEF uses its own root_cache_path so the persist:default
+      // partition profile is created inside the profile dir (avoids the catch-22).
       expect(writeRemoteDebuggingPortMock).toHaveBeenCalledWith(
         '/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/Resources/build.json',
         9333,
-        USER_HOME,
       );
-      expect(result.cleanupDirs).toEqual([USER_HOME, CLONE_PARENT]);
+      expect(result.cleanupDirs).toEqual([CLONE_PARENT]);
     });
 
     it('should wrap the spawn in xvfb-run on Linux (headless CI needs an X display)', () => {
@@ -259,7 +255,6 @@ describe('nativeMode', () => {
       expect(writeRemoteDebuggingPortMock).toHaveBeenCalledWith(
         '/tmp/wdio-electrobun-bundle-xyz/Demo/build.json',
         9333,
-        USER_HOME,
       );
       // On Linux the cloned binary is spawned under xvfb-run (headless CI display).
       const [command, args] = spawnMock.mock.calls[0] as [string, string[]];
