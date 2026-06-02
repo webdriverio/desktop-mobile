@@ -14,10 +14,10 @@ on:
         type: string
         required: true
       service:
-        description: 'Service to test (electron, tauri, dioxus, or both)'
+        description: 'Service to test (electron, tauri, dioxus, electrobun, or all)'
         type: string
         required: false
-        default: 'both'
+        default: 'all'
       module-type:
         description: 'Module type for Electron package tests (cjs, esm, or both)'
         type: string
@@ -70,7 +70,7 @@ jobs:
       # Install Rust toolchain for auto-installing tauri-driver if testing Tauri service
       # The @wdio/tauri-service will automatically install tauri-driver via cargo if not found
       - name: 🦀 Setup Rust (for tauri-driver auto-install)
-        if: inputs.service == 'tauri' || inputs.service == 'both'
+        if: inputs.service == 'tauri' || inputs.service == 'all'
         shell: bash
         run: rustup update stable && rustup default stable && rustup component add rustfmt
 
@@ -91,7 +91,7 @@ jobs:
       # Install WebKit WebDriver and GTK/X11 runtime dependencies for Linux (required by tauri-driver)
       # Note: Build dependencies are handled in the build workflows, we only need runtime libs for testing
       - name: 🌐 Install WebKit WebDriver and GTK/X11 Runtime Dependencies (Linux)
-        if: (inputs.service == 'tauri' || inputs.service == 'both') && runner.os == 'Linux'
+        if: (inputs.service == 'tauri' || inputs.service == 'all') && runner.os == 'Linux'
         shell: bash
         run: |
           echo "Installing WebKit WebDriver and GTK/X11 runtime dependencies for Linux..."
@@ -137,7 +137,7 @@ jobs:
           exact_cache_key: ${{ inputs.dioxus_cache_key || '' }}
 
       - name: 📦 Download Tauri Package Test App Binary
-        if: inputs.service == 'tauri' || inputs.service == 'both'
+        if: inputs.service == 'tauri' || inputs.service == 'all'
         uses: ./.github/workflows/actions/download-archive
         with:
           name: tauri-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}
@@ -145,6 +145,28 @@ jobs:
           filename: artifact.zip
           cache_key_prefix: tauri-package-app
           exact_cache_key: ${{ inputs.tauri_cache_key || '' }}
+
+      # Electrobun is a CEF/Bun build whose macOS .app carries framework symlinks; it
+      # ships as a symlink-preserving tarball via actions/upload-artifact (NOT the
+      # zip-based download-archive used above), mirroring the e2e flow. macOS-only.
+      - name: 📦 Download Electrobun Package Test App Bundle
+        if: inputs.service == 'electrobun'
+        uses: actions/download-artifact@v4
+        with:
+          name: electrobun-package-app-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}
+
+      - name: 🗜️ Extract Electrobun Bundle
+        if: inputs.service == 'electrobun'
+        shell: bash
+        run: |
+          mkdir -p fixtures/package-tests/electrobun-app
+          tar -xzpf "${RUNNER_TEMP}/electrobun-package-app.tgz" -C fixtures/package-tests/electrobun-app
+          if [ ! -d "fixtures/package-tests/electrobun-app/build" ]; then
+            echo "::error::Electrobun package-app build dir not found — bundle was not extracted correctly."
+            find fixtures/package-tests/electrobun-app/ -maxdepth 1 || true
+            exit 1
+          fi
 
       # Verify the extracted dist directories exist
       - name: 🔍 Verify Extracted Files
@@ -179,7 +201,7 @@ jobs:
           done
 
           # Pack Electron service and dependencies if needed
-          if [ "$SERVICE" == "electron" ] || [ "$SERVICE" == "both" ]; then
+          if [ "$SERVICE" == "electron" ] || [ "$SERVICE" == "all" ]; then
             if [ -d "packages/electron-cdp-bridge/dist" ]; then
               (cd packages/electron-cdp-bridge && pnpm pack)
             fi
@@ -189,7 +211,7 @@ jobs:
           fi
 
            # Pack Tauri service and plugin if needed
-           if [ "$SERVICE" == "tauri" ] || [ "$SERVICE" == "both" ]; then
+           if [ "$SERVICE" == "tauri" ] || [ "$SERVICE" == "all" ]; then
              if [ -d "packages/tauri-plugin/dist-js" ]; then
                (cd packages/tauri-plugin && pnpm pack)
              fi
@@ -202,6 +224,16 @@ jobs:
            if [ "$SERVICE" == "dioxus" ]; then
              if [ -d "packages/dioxus-service/dist" ]; then
                (cd packages/dioxus-service && pnpm pack)
+             fi
+           fi
+
+           # Pack Electrobun service + its CDP bridge if needed
+           if [ "$SERVICE" == "electrobun" ]; then
+             if [ -d "packages/electrobun-cdp-bridge/dist" ]; then
+               (cd packages/electrobun-cdp-bridge && pnpm pack)
+             fi
+             if [ -d "packages/electrobun-service/dist" ]; then
+               (cd packages/electrobun-service && pnpm pack)
              fi
            fi
 
@@ -244,7 +276,7 @@ jobs:
                 pnpm run test:package:tauri -- --skip-build
               fi
               ;;
-            both)
+            all)
               if [[ "${{ runner.os }}" == "macOS" ]]; then
                 echo "⚠️  Skipping Tauri package tests on macOS (not supported)"
                 echo "Module type: ${{ inputs.module-type }}"
@@ -260,6 +292,11 @@ jobs:
                 xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
                   pnpm run test:package:tauri -- --skip-build
               fi
+              ;;
+            electrobun)
+              # macOS-only (CEF). Uses the pre-built bundle extracted above; no xvfb (macOS).
+              echo "Running Electrobun package tests (macOS-only; using the pre-built CEF bundle)"
+              pnpm run test:package:electrobun -- --skip-build
               ;;
             *)
               echo "Invalid service: $SERVICE"

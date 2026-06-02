@@ -180,6 +180,7 @@ jobs:
             # Electrobun-only workflow files (no -crates: Electrobun has no Rust)
             infra_electrobun:
               - '.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml'
+              - '.github/workflows/_ci-build-electrobun-package-app.reusable.yml'
               - '.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml'
 
       - name: Determine What to Run
