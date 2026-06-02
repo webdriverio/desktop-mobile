@@ -117,7 +117,11 @@ describe('electrobunConfig', () => {
       mkdirSync(resourcesDir, { recursive: true });
       const binaryPath = join(binDir, 'launcher');
       writeFileSync(binaryPath, '#!/bin/sh\n', 'utf8');
-      writeFileSync(join(resourcesDir, 'build.json'), JSON.stringify({ identifier: 'com.wdio.electrobun.e2e' }), 'utf8');
+      writeFileSync(
+        join(resourcesDir, 'build.json'),
+        JSON.stringify({ identifier: 'com.wdio.electrobun.e2e' }),
+        'utf8',
+      );
 
       const resolved = resolveElectrobunApp(binaryPath, 'linux');
 

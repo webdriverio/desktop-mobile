@@ -70,6 +70,15 @@ function setPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { value: platform, configurable: true });
 }
 
+// These suites mock setPlatform('darwin') to exercise the macOS clone/spawn paths, but
+// node:path uses the RUNNER's separator regardless — so their hardcoded POSIX path
+// assertions can't match on a Windows runner (the logic is OS-identical since the
+// platform is mocked, and is covered on Linux/macOS; real Windows behaviour is exercised
+// by the e2e suite). Skip on win32 rather than re-assert every path per separator.
+// Aliased to describe.skip (not describe.skipIf) so vitest/valid-describe-callback
+// doesn't trip on a curried describe modifier with no name/callback.
+const describePosixPaths = process.platform === 'win32' ? describe.skip : describe;
+
 describe('nativeMode', () => {
   let proc: FakeProc;
 
@@ -89,7 +98,7 @@ describe('nativeMode', () => {
     vi.useRealTimers();
   });
 
-  describe('cloneAppBundle', () => {
+  describePosixPaths('cloneAppBundle', () => {
     it('should use the APFS clonefile (cp -Rc) on darwin', () => {
       setPlatform('darwin');
 
@@ -144,7 +153,7 @@ describe('nativeMode', () => {
     });
   });
 
-  describe('spawnElectrobunApp', () => {
+  describePosixPaths('spawnElectrobunApp', () => {
     it('should clone the bundle and pin the port into the CLONE build.json (not the original)', () => {
       spawnElectrobunApp({
         app: APP,
@@ -308,7 +317,7 @@ describe('nativeMode', () => {
     });
   });
 
-  describe('stopElectrobunApp', () => {
+  describePosixPaths('stopElectrobunApp', () => {
     it('should close log handlers, SIGTERM the live process, and remove every cleanup dir', async () => {
       const handler = { close: vi.fn() };
       // Process exits promptly after SIGTERM.
@@ -373,7 +382,7 @@ describe('nativeMode', () => {
       vi.stubGlobal('fetch', fetchMock);
 
       await expect(waitForCdpReady(9333, 1000)).resolves.toBeUndefined();
-      expect(fetchMock).toHaveBeenCalledWith('http://localhost:9333/json', expect.anything());
+      expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:9333/json', expect.anything());
     });
 
     it('should resolve (not throw) on timeout when no page target ever appears', async () => {

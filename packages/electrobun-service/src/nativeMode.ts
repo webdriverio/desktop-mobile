@@ -194,7 +194,9 @@ const CDP_READY_POLL_MS = 250;
  */
 export async function waitForCdpReady(port: number, timeoutMs: number = CDP_READY_TIMEOUT_MS): Promise<void> {
   const deadline = Date.now() + timeoutMs;
-  const url = `http://localhost:${port}/json`;
+  // 127.0.0.1, not 'localhost': CEF binds the debugger on IPv4, but Node resolves
+  // 'localhost' to IPv6 ::1 first on Windows/Linux CI, so the fetch would always fail.
+  const url = `http://127.0.0.1:${port}/json`;
   let lastError = 'no response';
   while (Date.now() < deadline) {
     try {
@@ -212,7 +214,7 @@ export async function waitForCdpReady(port: number, timeoutMs: number = CDP_READ
     await sleep(CDP_READY_POLL_MS);
   }
   log.warn(
-    `CEF CDP endpoint localhost:${port} not ready after ${timeoutMs}ms (${lastError}); ` +
+    `CEF CDP endpoint 127.0.0.1:${port} not ready after ${timeoutMs}ms (${lastError}); ` +
       "proceeding — the worker's session attach may fail",
   );
 }

@@ -157,7 +157,11 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       const existingChromeOptions = (cap['goog:chromeOptions'] ?? {}) as Record<string, unknown>;
       cap['goog:chromeOptions'] = {
         ...existingChromeOptions,
-        debuggerAddress: `localhost:${port}`,
+        // 127.0.0.1, not 'localhost': CEF binds the debugger on IPv4, but Node/
+        // Chromedriver resolve 'localhost' to IPv6 ::1 first on Windows/Linux CI →
+        // the attach (and the /json poll below) fail. The bridge inherits this host
+        // via parseDebuggerAddress, so it connects on IPv4 too.
+        debuggerAddress: `127.0.0.1:${port}`,
       };
 
       // Wait for CEF to actually serve /json with a page target before the worker's
