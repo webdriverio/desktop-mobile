@@ -45,13 +45,22 @@ function makeLauncher(options: ElectrobunServiceGlobalOptions): ElectrobunLaunch
   return new ElectrobunLaunchService(options, {} as ElectrobunCapabilities, baseConfig);
 }
 
+// Native mode is macOS-only (0.x), so default every test to darwin; the platform-guard
+// tests below override to linux/win32. Restored after each test.
+const originalPlatform = process.platform;
+function setPlatform(value: NodeJS.Platform): void {
+  Object.defineProperty(process, 'platform', { value, writable: true, configurable: true });
+}
+
 describe('ElectrobunLaunchService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    setPlatform('darwin');
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    setPlatform(originalPlatform);
   });
 
   describe('onPrepare — browser mode', () => {
@@ -139,6 +148,37 @@ describe('ElectrobunLaunchService', () => {
       await launcher.onPrepare(baseConfig, caps);
 
       expect(vi.mocked(resolveElectrobunApp)).toHaveBeenCalledWith('/apps/PerCap.app');
+    });
+
+    it('should fail fast with a SevereServiceError in native mode on Linux (CEF macOS-only)', async () => {
+      setPlatform('linux');
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+
+      await expect(launcher.onPrepare(baseConfig, [{}])).rejects.toThrow(SevereServiceError);
+      // Fails fast — before touching the bundle.
+      expect(vi.mocked(resolveElectrobunApp)).not.toHaveBeenCalled();
+    });
+
+    it('should explain native mode is macOS-only and cite the #317 follow-up on Windows', async () => {
+      setPlatform('win32');
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+
+      const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
+      expect(error).toBeInstanceOf(SevereServiceError);
+      expect((error as Error).message).toMatch(/macOS/);
+      expect((error as Error).message).toContain('win32');
+      expect((error as Error).message).toContain('issues/317');
+    });
+
+    it('should NOT apply the macOS-only guard in browser mode on Linux', async () => {
+      setPlatform('linux');
+      const launcher = makeLauncher({ mode: 'browser', devServerUrl: 'http://localhost:3000' });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare(baseConfig, caps);
+
+      expect(caps[0].browserName).toBe('chrome');
+      expect(vi.mocked(resolveElectrobunApp)).not.toHaveBeenCalled();
     });
   });
 
