@@ -118,18 +118,54 @@ launcher tests can exercise both branches.
 NOT-RUN-IN-CI header comment, runnable locally via `TEST_TYPE=…`, and excluded from the CI matrix.
 They are the re-enable checklist for when upstream lands.
 
-**Document + file upstream.** Record every gap as a known limitation in the service README/docs and
-`ROADMAP.md`; file one upstream issue per fix-area (cite exact source refs); link the issues into the
-docs + the CI re-add notes. As each lands: re-add the job, drop the runtime-guard branch, lift the
-docs limitation, and bump the minor version.
+**Document + file upstream — aggregate in the plan first, then ONE issue.** As you discover gaps,
+collect them into a dedicated **"Upstream fixes needed"** section of the implementation plan — each
+with its impact on the surface, the feature/platform it unblocks, and **exact source refs**
+(`file:line`). Gaps surface across many debugging sessions; without one home in the plan they get lost,
+and that section becomes the turnkey brief for the post-ship filing step. Before filing anything,
+**search the upstream repo's issues (open *and* closed)** for every gap: a young/beta upstream usually
+already tracks several, and a **closed** issue often explains current behaviour — e.g. a "completed"
+fix that was really a band-aid fallback is frequently *why* one platform works while others don't.
+Then choose the filing shape by **whether aggregation actually helps triage** — the gap *count* is
+only a heuristic, so don't reflexively build (or skip) an umbrella on a number alone:
+- **One gap → never an umbrella.** Nothing to aggregate. If it's already tracked upstream, comment
+  on / +1 the existing issue; if it's net-new, file one focused issue.
+- **Two gaps → usually still no umbrella, but combine if related.** If the two share a root cause or
+  the same consumer goal, file **one issue covering both** — a lightweight combined issue, *not* the
+  full see-also structure. If they're unrelated, handle each on its own (comment on the existing
+  issue, or file a focused one). The deciding question is "does framing them together help the
+  maintainer?", not "are there two of them?".
+- **Three or more related gaps → ONE umbrella issue**, framed around the consumer goal ("drive `<framework>`
+  apps with external WebDriver/CDP automation"). For each gap that **already has an issue**, link it
+  (`see also #N`) — don't duplicate. Each **net-new** gap (no existing issue) is captured *by the
+  umbrella itself*, since the umbrella is a new issue: describe it inline as its own section with
+  source refs. Only **split a net-new gap into its own dedicated issue** (then link it from the
+  umbrella, `see also #N`) when it's large and cleanly separable enough that the maintainer would want
+  to triage/close it independently — otherwise inline is enough. A single well-researched issue
+  connecting the maintainer's own scattered issues to a concrete use case triages far better — and
+  gives you **one canonical URL** to link everywhere — than several parallel issues that duplicate
+  what's already filed. Drop a one-line cross-link comment on the most directly related existing issues.
+
+Record every gap as a known limitation in the service README/docs +
+`ROADMAP.md`, and link the umbrella issue into the docs + the CI re-add notes. As each underlying fix
+lands: re-add the job, drop the runtime-guard branch, lift the docs limitation, and bump the minor
+version.
 
 > **Worked example — `@wdio/electrobun-service`.** Electrobun's CEF chrome-runtime can't create the
 > `persist:default` partition profile its `BrowserWindow` forces; macOS recovers via a global-context
 > fallback but Linux/Windows serve no `/json`, and multiremote/multi-window/deeplink all trace to the
 > same gap — none fixable from the service. So v1 ships **macOS-only, single-window, `0.1.0`**: the
 > Linux/Windows build+e2e jobs are removed (not allow-failure), the window/deeplink specs are
-> skipped-but-kept, a macOS-only runtime guard fails fast elsewhere, and upstream issues are filed
-> (highest-leverage: an ephemeral-per-webview profile fallback).
+> skipped-but-kept, and a macOS-only runtime guard fails fast elsewhere. The plan's "Framework gaps"
+> aggregates every gap with source refs; the **search-first** pass found the upstream already tracking
+> most of them — `#380` (the proper profile-isolation fix), `#445` (remote-debugging opt-in, but only
+> noting macOS — Linux's `remote_debugging_port` is *commented out*), `#448` (a user hitting the same
+> Linux profile error), plus `#278`/`#122` **closed** (the global-context band-aid that explains macOS
+> recovery, and a prior e2e request). So rather than file four duplicates, the post-ship step is **one
+> umbrella issue** ("enable external WebDriver/CDP automation for CEF apps") that links those, adds the
+> net-new findings (the Linux commented-out port; the macOS-recovers/others-don't `/json` asymmetry;
+> single-instance lock + `open-url` routing for deeplink — which has *no* existing issue), and is the
+> one URL linked from the docs.
 
 ## Process
 
@@ -137,11 +173,12 @@ docs limitation, and bump the minor version.
 
 Validate platform constraints before any production code. Spikes are throwaway — they live in `/spike/<service>-spike/` (gitignored); the output is the **findings doc**, not the source.
 
-1. Create a minimal app exercising the framework's public API.
-2. **Confirm the Step 0 archetype** (does it expose CDP? which driver model? plugin or bridge?).
-3. Identify the single most consequential unknown and write code that exercises it. Examples: "can a third-party crate flip Wry's `set_allows_automation`?" (Dioxus); "what's the CDP debugger-port discovery convention for this runtime?" (a CDP framework); "does the framework expose multiple addressable webview targets?".
-4. Write `spike/FINDINGS.md`: the question, the answer with citations, the decision tree, and any **platform-by-platform variance** (often the most important section — e.g. the Dioxus Wry API is a no-op on Win/Mac but blocking on Linux).
-5. Fold findings into the implementation plan: Risks, Platform Matrix, Phasing.
+1. **Check out the target framework's source locally — a hard precursor, not optional.** Clone the upstream repo at a known-good *released* tag (don't `file:`-link it into the build; pin the published release — see Risks). You will read it constantly throughout the whole project: to confirm the Step 0 archetype, to find the runtime's debug-port / automation conventions, and — every time you later hit an upstream gap — to trace it to an exact `file:line` you can cite. A service built without the framework source open beside you is guesswork; note its path in the plan (e.g. `~/Workspace/<framework>`) so later sessions reuse it.
+2. Create a minimal app exercising the framework's public API.
+3. **Confirm the Step 0 archetype** (does it expose CDP? which driver model? plugin or bridge?) — by reading the source from step 1, not by assuming.
+4. Identify the single most consequential unknown and write code that exercises it. Examples: "can a third-party crate flip Wry's `set_allows_automation`?" (Dioxus); "what's the CDP debugger-port discovery convention for this runtime?" (a CDP framework); "does the framework expose multiple addressable webview targets?".
+5. Write `spike/FINDINGS.md`: the question, the answer with citations (`file:line` into the local checkout), the decision tree, and any **platform-by-platform variance** (often the most important section — e.g. the Dioxus Wry API is a no-op on Win/Mac but blocking on Linux).
+6. Fold findings into the implementation plan: Risks, Platform Matrix, Phasing.
 
 ### Phase 1 — TypeScript service skeleton (shared, all archetypes)
 
