@@ -18,11 +18,14 @@ const log = createLogger(SERVICE_NAME, 'launcher');
  * the worker attaches over CDP through Chromedriver (`debuggerAddress`). It
  * extends `BaseLauncher` to reuse `@wdio/native-core`'s port/process/log infra.
  *
- * Native-mode flow (parallel-safe):
+ * v1 is macOS-only + single-instance (`maxInstances=1`): CEF can't isolate the
+ * forced `persist:default` profile per worker, so we do NOT redirect the cache root
+ * (no `CFFIXED_USER_HOME`, no per-worker `--user-data-dir`) — CEF uses its own
+ * `root_cache_path`. See the implementation plan "Framework gaps". Native-mode flow:
  *  - `onPrepare`: resolve + CEF-verify each app bundle, force `browserName: 'chrome'`.
- *  - `onWorkerStart`: allocate a port, then spawn the app — the spawn path clones
- *    the bundle per worker, pins the port into the clone's build.json, and uses a
- *    per-run CFFIXED_USER_HOME — and set `goog:chromeOptions.debuggerAddress`.
+ *  - `onWorkerStart`: allocate a port; spawn the app (the spawn path clones the bundle
+ *    and pins the port into the clone's build.json); wait for CEF to serve `/json`;
+ *    set `goog:chromeOptions.debuggerAddress`.
  *  - `onComplete`: kill spawned apps + clean temp dirs.
  */
 export default class ElectrobunLaunchService extends BaseLauncher {
