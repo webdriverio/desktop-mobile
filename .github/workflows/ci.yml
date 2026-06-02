@@ -173,12 +173,11 @@ jobs:
   # the biggest unknown in this pipeline: a beta Bun/CEF toolchain that pulls a
   # ~150MB CEF download. macOS is the validated platform.
   #
-  # Linux is a SEPARATE build job kept allow-failure by being left OUT of
-  # `ci-status.needs` (GitHub forbids `continue-on-error` on reusable-workflow
-  # jobs), so a red Linux leg can't block the verified macOS pipeline while the
-  # Linux CDP path (/json endpoint) is unverified. To drop Linux entirely,
-  # comment out `build-electrobun-e2e-app-linux` and its dependent
-  # `e2e-electrobun-linux`.
+  # macOS-ONLY in v1 (pre-1.0): Linux/Windows build + e2e are NOT run. They build
+  # fine, but their CEF can't recover from the chrome-runtime persist:default
+  # profile failure (the global-context fallback serves no /json), so the e2e can't
+  # attach — an upstream electrobun limitation (see the agent-os plan "Framework
+  # gaps"). Re-add the Linux/Windows build + e2e jobs once that lands upstream.
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
@@ -188,36 +187,6 @@ jobs:
     secrets: inherit
     with:
       os: 'macos-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
-
-  build-electrobun-e2e-app-linux:
-    name: Build Electrobun E2E App [Linux]
-    needs: [detect-changes, build]
-    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    # Allow-failure: the Linux CEF build/runtime is unverified. Kept non-blocking
-    # by exclusion from `ci-status.needs` (continue-on-error is not permitted on a
-    # reusable-workflow job), so a red here can't block the verified macOS pipeline.
-    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
-    secrets: inherit
-    with:
-      os: 'ubuntu-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
-
-  # Exploratory (allow-failure by exclusion from ci-status, like Linux): Windows CEF
-  # is unverified, but it's the most promising next platform (Chromium/WebView2 are
-  # CDP-capable). Just seeing what happens — not a merge gate.
-  build-electrobun-e2e-app-windows:
-    name: Build Electrobun E2E App [Windows]
-    needs: [detect-changes, build]
-    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
-    secrets: inherit
-    with:
-      os: 'windows-latest'
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -714,11 +683,10 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E tests (single CDP-attach provider — no provider matrix).
   #
-  # macOS-ARM is the verified/required platform. Linux is a separate job marked
-  # allow-failure: the Linux CDP path (CEF serving /json) is unverified and may
-  # not come up. To disable Linux entirely while it's unverified, comment out
-  # both `build-electrobun-e2e-app-linux` (above) and `e2e-electrobun-linux`
-  # (below) and remove them from the ci-status `needs:` list.
+  # macOS-ONLY in v1 (pre-1.0): only the macOS-ARM leg runs. Linux/Windows e2e are
+  # NOT run — their CEF can't recover from the persist:default profile failure (no
+  # /json), an upstream electrobun limitation (see the agent-os plan "Framework
+  # gaps"). Re-add a Linux/Windows leg (+ its build job above) once that lands.
   #
   # Test-type matrix: 'standard' (api/application/execute/logging/mock),
   # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
@@ -752,50 +720,6 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
-  e2e-electrobun-linux:
-    name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-electrobun-e2e-app-linux]
-    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    # Allow-failure: Linux CDP attach (CEF /json endpoint) is unverified. Kept
-    # non-blocking by exclusion from `ci-status.needs` (continue-on-error is not
-    # permitted on a reusable-workflow job); add it there once Linux is confirmed.
-    # Only `standard` runs — window (multi-window) is skipped on every OS per the
-    # upstream CEF gap (see the macOS job note); deeplink is macOS-only anyway.
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: ['standard']
-    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
-    secrets: inherit
-    with:
-      os: 'ubuntu-latest'
-      node-version: '24'
-      test-type: ${{ matrix.test-type }}
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
-
-  # Exploratory (allow-failure by exclusion from ci-status, like Linux): does the
-  # WebDriver/CDP attach work against Windows CEF? Only `standard` runs — window
-  # (multi-window) is skipped on every OS per the upstream CEF gap (see the macOS
-  # job note); deeplink is macOS-only anyway.
-  e2e-electrobun-windows:
-    name: E2E - Electrobun [Windows] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-electrobun-e2e-app-windows]
-    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: ['standard']
-    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
-    secrets: inherit
-    with:
-      os: 'windows-latest'
-      node-version: '24'
-      test-type: ${{ matrix.test-type }}
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   # Dioxus package tests - all platforms (mirrors E2E coverage)
   package-dioxus-linux:
@@ -972,11 +896,10 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
-      # e2e-electrobun-linux is intentionally NOT listed — kept non-blocking by
-      # exclusion (continue-on-error isn't allowed on reusable-workflow jobs) while
-      # the Linux CDP path is unverified; it still runs for signal. The required
-      # macOS gate is the `standard` single-window suite only — window (multi-window)
-      # and deeplink are not run anywhere (upstream CEF gap; see the macOS job note).
+      # Electrobun is macOS-only in v1: the required gate is the macOS `standard`
+      # single-window suite. Linux/Windows e2e (+ their build jobs) are not run at all
+      # (CEF can't serve /json there — upstream gap; see the macOS job note), and
+      # window/deeplink are not run anywhere (same gap).
       - e2e-electrobun-macos-arm
       - package-electron-matrix
       - package-tauri-linux
@@ -1002,8 +925,6 @@ jobs:
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
       - build-electrobun-e2e-app-macos-arm
-      # build-electrobun-e2e-app-linux is intentionally NOT listed (allow-failure
-      # by exclusion — see the e2e-electrobun-linux note above).
       - build-dioxus-package-app-linux
       - build-dioxus-package-app-windows
       - build-dioxus-package-app-macos-arm
