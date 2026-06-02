@@ -157,6 +157,15 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
+  // Residual upstream CEF race on the macOS `standard` suite: the 2-window fixture
+  // (needed because a single CEF window exposes no `/json` target) occasionally trips
+  // CEF's failed-profile → global-context fallback into spawning a separate top-level
+  // window instead of embedding, leaving the main view's `#app-title` unreadable for
+  // that app instance's whole lifetime (see the plan "Framework gaps"). mochaOpts.retries
+  // can't escape it — they re-run against the SAME instance — so retry the whole spec
+  // FILE, which tears down and re-spawns a fresh CEF instance (a new roll past the race).
+  specFileRetries: 2,
+  specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
