@@ -30,7 +30,7 @@ vi.mock('../src/electrobunConfig.js', () => ({
 }));
 
 import type { ResolvedElectrobunApp } from '../src/electrobunConfig.js';
-import { cloneAppBundle, spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
+import { cloneAppBundle, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from '../src/nativeMode.js';
 import type { ElectrobunServiceOptions } from '../src/types.js';
 
 interface FakeProc extends EventEmitter {
@@ -360,6 +360,33 @@ describe('nativeMode', () => {
       ).resolves.toBeUndefined();
 
       expect(rmSyncMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('waitForCdpReady', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('should resolve once /json reports a page target', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [{ type: 'page' }] });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(waitForCdpReady(9333, 1000)).resolves.toBeUndefined();
+      expect(fetchMock).toHaveBeenCalledWith('http://localhost:9333/json', expect.anything());
+    });
+
+    it('should resolve (not throw) on timeout when no page target ever appears', async () => {
+      // /json responds but never lists a page target — should warn-and-proceed, not hang/throw.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+
+      await expect(waitForCdpReady(9333, 50)).resolves.toBeUndefined();
+    });
+
+    it('should resolve (not throw) when the endpoint never responds', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+
+      await expect(waitForCdpReady(9333, 50)).resolves.toBeUndefined();
     });
   });
 });

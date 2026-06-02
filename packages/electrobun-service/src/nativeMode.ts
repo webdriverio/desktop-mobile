@@ -177,6 +177,46 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   return { proc, cleanupDirs: [userDataDir, cloneParentDir], port, logHandlers };
 }
 
+const CDP_READY_TIMEOUT_MS = 30_000;
+const CDP_READY_POLL_MS = 250;
+
+/**
+ * Wait until CEF is serving its CDP `/json` endpoint with at least one `page` target.
+ *
+ * The launcher spawns the app and sets `goog:chromeOptions.debuggerAddress`, but the
+ * worker's Chromedriver attaches to that port independently. If it connects before CEF
+ * has bound the port and registered a page (slow on Windows CI), session creation
+ * times out ("cannot connect to chrome at localhost:N") and WDIO burns its full
+ * connectionRetryTimeout per attempt. Polling `/json` here makes the attach reliable.
+ *
+ * Resolves (with a warning) on timeout rather than throwing: a failed attach is the
+ * real signal, and a hard throw would mask it as a launcher error.
+ */
+export async function waitForCdpReady(port: number, timeoutMs: number = CDP_READY_TIMEOUT_MS): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  const url = `http://localhost:${port}/json`;
+  let lastError = 'no response';
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      if (res.ok) {
+        const targets = (await res.json()) as Array<{ type?: string }>;
+        if (Array.isArray(targets) && targets.some((target) => target?.type === 'page')) {
+          return;
+        }
+        lastError = 'no page target yet';
+      }
+    } catch (error) {
+      lastError = (error as Error).message;
+    }
+    await sleep(CDP_READY_POLL_MS);
+  }
+  log.warn(
+    `CEF CDP endpoint localhost:${port} not ready after ${timeoutMs}ms (${lastError}); ` +
+      "proceeding — the worker's session attach may fail",
+  );
+}
+
 /**
  * Stop a spawned Electrobun app: close log handlers, SIGTERM (SIGKILL after a
  * grace period), then remove the per-run --user-data-dir temp dir and the

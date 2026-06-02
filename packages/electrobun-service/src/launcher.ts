@@ -5,7 +5,7 @@ import type { Options } from '@wdio/types';
 import { DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
 import { type ResolvedElectrobunApp, resolveElectrobunApp, verifyCefRenderer } from './electrobunConfig.js';
 import { SevereServiceError } from './errors.js';
-import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp } from './nativeMode.js';
+import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from './nativeMode.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
 
@@ -159,7 +159,14 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         ...existingChromeOptions,
         debuggerAddress: `localhost:${port}`,
       };
-      log.info(`Worker ${cid}: Electrobun app on CDP port ${port} (debuggerAddress set)`);
+
+      // Wait for CEF to actually serve /json with a page target before the worker's
+      // Chromedriver attaches to debuggerAddress — otherwise it races the (slow on
+      // Windows) port binding and the session times out. Track the app for teardown
+      // first so a wait failure still cleans up.
+      this.spawnedAppsByCid.set(cid, workerApps);
+      await waitForCdpReady(port);
+      log.info(`Worker ${cid}: Electrobun app on CDP port ${port} (debuggerAddress set, CDP ready)`);
     }
 
     this.spawnedAppsByCid.set(cid, workerApps);

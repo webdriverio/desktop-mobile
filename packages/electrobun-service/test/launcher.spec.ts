@@ -31,6 +31,7 @@ vi.mock('../src/nativeMode.js', () => ({
     logHandlers: [],
   })),
   stopElectrobunApp: vi.fn().mockResolvedValue(undefined),
+  waitForCdpReady: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } from '../src/electrobunConfig.js';
