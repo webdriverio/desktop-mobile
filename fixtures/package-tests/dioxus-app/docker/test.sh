@@ -95,7 +95,13 @@ run_tests_in_container() {
             pnpm run build
 
             echo '=== Running Dioxus package test ==='
+            # Capture the exit code instead of letting set -e abort here, so the
+            # wdio session logs (backend/frontend tracing) are still copied out on
+            # failure — that is exactly when they are needed.
+            set +e
             pnpm test
+            TEST_EXIT=\$?
+            set -e
 
             echo '=== Copying logs to mounted volume ==='
             # Absolute path: CWD is the app dir at this point, so a repo-relative
@@ -106,6 +112,8 @@ run_tests_in_container() {
             if [ ! -z \"\$XVFB_PID\" ]; then
                 kill \$XVFB_PID 2>/dev/null || true
             fi
+
+            exit \$TEST_EXIT
         " 2>&1 | tee "/tmp/docker-test-$distro.log"
 
     # Check the exit code of docker run (PIPESTATUS[0]), not tee (PIPESTATUS[1])
