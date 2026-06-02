@@ -82,6 +82,18 @@ describe('TargetRegistry', () => {
     expect(again.find((entry) => entry.id === 'B')?.label).toBe('window-1');
   });
 
+  it('should deterministically order same-URL windows via the id tie-break', () => {
+    // Two windows loading the identical URL (e.g. a tiled layout) — localeCompare on URL
+    // returns 0, so without the id tie-break main/window-1 could swap across refreshes.
+    const registry = new TargetRegistry();
+    const first = registry.reconcile([mk('B', 'views://same'), mk('A', 'views://same')]);
+    const second = registry.reconcile([mk('A', 'views://same'), mk('B', 'views://same')]);
+    // 'A' sorts before 'B' by id regardless of /json order, so it is consistently `main`.
+    expect(first.find((entry) => entry.id === 'A')?.label).toBe('main');
+    expect(second.find((entry) => entry.id === 'A')?.label).toBe('main');
+    expect(first.find((entry) => entry.id === 'B')?.label).toBe('window-1');
+  });
+
   it('should not reclaim a stale label after a window closes', () => {
     const registry = new TargetRegistry();
     registry.reconcile([mk('A', 'views://m'), mk('B', 'views://s')]);

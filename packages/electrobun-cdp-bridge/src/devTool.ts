@@ -38,14 +38,13 @@ export class DevTool {
   #isPortOpened = false;
 
   constructor(options?: DevToolOptions) {
-    this.#options = Object.assign(
-      {
-        host: DEFAULT_HOSTNAME,
-        port: DEFAULT_PORT,
-        timeout: REQUEST_TIMEOUT,
-      },
-      options,
-    );
+    // `??` (not Object.assign): an explicit `{ timeout: undefined }` from a caller must
+    // fall through to the default, not clobber it — same contract as CdpBridge.
+    this.#options = {
+      host: options?.host ?? DEFAULT_HOSTNAME,
+      port: options?.port ?? DEFAULT_PORT,
+      timeout: options?.timeout ?? REQUEST_TIMEOUT,
+    };
   }
 
   list() {

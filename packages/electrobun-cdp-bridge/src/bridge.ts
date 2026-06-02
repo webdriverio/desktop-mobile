@@ -80,12 +80,16 @@ export class CdpBridge {
     const list = await this.#devTool.list();
     this.#targets = this.#registry.reconcile(list);
     const live = new Set(this.#targets.map((target) => target.label));
+    // Await the closes so in-flight requests on pruned connections are rejected before
+    // refresh() returns — makes teardown deterministic rather than fire-and-forget.
+    const closePromises: Promise<void>[] = [];
     for (const [label, connection] of this.#connections) {
       if (!live.has(label)) {
-        void connection.close();
+        closePromises.push(connection.close());
         this.#connections.delete(label);
       }
     }
+    await Promise.allSettled(closePromises);
     // If the active target was pruned (its window closed), auto-advance to the
     // first surviving target so subsequent send()/on() don't throw an opaque
     // NOT_CONNECTED — callers can still switchTarget() explicitly.

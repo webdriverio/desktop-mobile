@@ -60,11 +60,12 @@ export class TargetRegistry {
     // first content target (which becomes `main`) would otherwise flip between
     // windows across runs. URL order is deterministic and puts the primary window
     // (`views://mainview/…`) ahead of secondary ones (`views://secondview/…`), so
-    // `main` is consistently the app's main window.
+    // `main` is consistently the app's main window. Tie-break on the stable CEF target
+    // `id` so same-URL windows (e.g. a tiled layout) still sort deterministically.
     const content = list
       .map(toPageTarget)
       .filter((target) => target.class === 'content')
-      .sort((a, b) => a.url.localeCompare(b.url));
+      .sort((a, b) => a.url.localeCompare(b.url) || a.id.localeCompare(b.id));
     const liveIds = new Set(content.map((target) => target.id));
 
     for (const target of content) {
