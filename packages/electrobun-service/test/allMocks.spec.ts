@@ -90,6 +90,21 @@ describe('allMocks helpers', () => {
       expect(get.mock.calls).toHaveLength(1);
     });
 
+    it('should not clear a sibling namespace that shares a prefix string', async () => {
+      const { bridge, window } = makeBridge({ api: { a: () => 1 }, api2: { b: () => 2 } });
+      const a = await createMock('api.a', bridge, store);
+      const b = await createMock('api2.b', bridge, store);
+      (window.api as { a: () => unknown }).a();
+      (window.api2 as { b: () => unknown }).b();
+      await a.update();
+      await b.update();
+
+      await clearAllMocks(store, 'api');
+
+      expect(a.mock.calls).toHaveLength(0);
+      expect(b.mock.calls).toHaveLength(1);
+    });
+
     it('should reset implementations across all mocks', async () => {
       const { bridge, window } = makeBridge({ api: { a: () => 1 } });
       const a = await createMock('api.a', bridge, store);

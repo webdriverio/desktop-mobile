@@ -11,7 +11,13 @@ function matchesPrefix(target: string, prefix?: string): boolean {
   if (!prefix) {
     return true;
   }
-  return target.startsWith(prefix);
+  // Namespace-aware: `prefix` matches the target only at a dot boundary, so 'api' (or
+  // 'api.') matches 'api' and 'api.fetchData' but NOT sibling namespaces like
+  // 'api2.fetchData' / 'apiAuth.x' — a bare startsWith would over-match, so
+  // clearAllMocks('api') would silently clear 'api2.*' too. Normalise a trailing dot so
+  // both the 'api' and 'api.' forms behave identically.
+  const base = prefix.endsWith('.') ? prefix.slice(0, -1) : prefix;
+  return target === base || target.startsWith(`${base}.`);
 }
 
 async function forEachMock(
