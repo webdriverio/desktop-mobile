@@ -85,6 +85,52 @@ New services build **on `@wdio/native-core`** (Tauri and Dioxus do; Electron pre
 
 → **Full inventory, the known divergences to converge (Electron's window model, Dioxus's missing `emitEvent`), and the pattern behind each:** [features.md](features.md).
 
+## When upstream blocks the standard surface (shipping pre-1.0)
+
+Some frameworks — especially a **beta/pre-1.0 upstream** — can't yet support the full convergent
+surface above: a platform may have no working automation path, or a standard feature (multiremote,
+multi-window, deeplink) may be blocked by a framework/runtime limitation you **cannot fix from the
+service layer**. Don't force-fit, and don't hold the whole package hostage to upstream — ship the
+working subset, clearly scoped, and recover the rest as upstream lands fixes.
+
+**Version: start at `0.1.0`, not `1.0.0-next.0`.** The `1.0.0-next.0` default is for a service that
+reaches the full convergent surface on its target platforms (just polishing toward 1.0). When
+upstream blocks a lot, `1.0.0-next.0` over-promises — use **`0.x`**, the semver signal for "early,
+partial, scope may change, gaps expected":
+- **`0.1.0`** initial release — the validated subset (e.g. one platform, the standard single-window surface).
+- **Minor bumps** (`0.2.0`, `0.3.0`…) as each upstream fix recovers a platform/feature. Breaking changes are allowed within `0.x` (bump minor).
+- **Graduate to `1.0.0`** only at full parity with the sibling services — the whole standard surface on all intended platforms. `1.0` is the promise that the convergent surface works.
+
+**Be honest in CI — skip, don't allow-failure.** For a platform/suite that's **blocked upstream**
+(not merely flaky), **remove its jobs entirely** rather than marking them allow-failure. Allow-failure
+legs that can *never* pass only burn CI minutes (slow runtime downloads, etc.) and add permanent red
+noise that trains everyone to ignore the column. Keep the validated platform/suite as the **required
+gate**; leave a comment on the removed jobs naming the upstream blocker and the condition to re-add
+them. (Reserve allow-failure for legs that are *unverified-but-plausible*, not *known-blocked*.)
+
+**Fail fast at runtime.** Add an explicit `SevereServiceError` in `launcher.onPrepare` for an
+unsupported platform/mode, with an actionable message ("`<service>` is macOS-only in v1 — `<platform>`
+is blocked by `<upstream issue>`"). A clear early throw beats letting users hit a cryptic
+attach/connection timeout. Gate it on a platform parameter (not bare `process.platform`) so the
+launcher tests can exercise both branches.
+
+**Keep the blocked specs, don't delete them.** Leave the blocked-feature e2e specs in the tree with a
+NOT-RUN-IN-CI header comment, runnable locally via `TEST_TYPE=…`, and excluded from the CI matrix.
+They are the re-enable checklist for when upstream lands.
+
+**Document + file upstream.** Record every gap as a known limitation in the service README/docs and
+`ROADMAP.md`; file one upstream issue per fix-area (cite exact source refs); link the issues into the
+docs + the CI re-add notes. As each lands: re-add the job, drop the runtime-guard branch, lift the
+docs limitation, and bump the minor version.
+
+> **Worked example — `@wdio/electrobun-service`.** Electrobun's CEF chrome-runtime can't create the
+> `persist:default` partition profile its `BrowserWindow` forces; macOS recovers via a global-context
+> fallback but Linux/Windows serve no `/json`, and multiremote/multi-window/deeplink all trace to the
+> same gap — none fixable from the service. So v1 ships **macOS-only, single-window, `0.1.0`**: the
+> Linux/Windows build+e2e jobs are removed (not allow-failure), the window/deeplink specs are
+> skipped-but-kept, a macOS-only runtime guard fails fast elsewhere, and upstream issues are filed
+> (highest-leverage: an ephemeral-per-webview profile fallback).
+
 ## Process
 
 ### Phase 0 — Pre-implementation spike
@@ -113,7 +159,7 @@ src/
 
 **Conventions:**
 
-- Initial npm version `1.0.0-next.0`. Build script: `tsx ../../scripts/build-package.ts`.
+- Initial npm version `1.0.0-next.0` for a service that reaches the full convergent surface on its target platforms — or **`0.1.0`** if upstream blocks a lot of the surface (see [When upstream blocks the standard surface](#when-upstream-blocks-the-standard-surface-shipping-pre-10)). Build script: `tsx ../../scripts/build-package.ts`.
 - Mirror the closest sibling's `package.json` exactly (exports, scripts, devDeps, peerDeps): CDP → clone `@wdio/electron-service`; Wry → clone `@wdio/tauri-service`. Always depend on `@wdio/native-core`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-utils` as workspace deps.
 - `vitest.integration.config.ts` MUST set `fileParallelism: false` + 30s timeout + `setupFiles: ['test/integration/setup.ts']`.
 - `tsconfig.json` extends `../../tsconfig.base.json`, out `./dist`, root `./src`.
