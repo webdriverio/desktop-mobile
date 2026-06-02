@@ -1,6 +1,6 @@
 {
   "name": "@wdio/electrobun-cdp-bridge",
-  "version": "1.0.0-next.0",
+  "version": "0.1.0-next.0",
   "description": "Multi-target CDP Bridge for WebdriverIO Electrobun Service",
   "author": "WebdriverIO Community",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/electrobun-cdp-bridge",
