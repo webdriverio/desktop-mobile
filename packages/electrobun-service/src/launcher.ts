@@ -175,8 +175,6 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       await waitForCdpReady(port);
       log.info(`Worker ${cid}: Electrobun app on CDP port ${port} (debuggerAddress set, CDP ready)`);
     }
-
-    this.spawnedAppsByCid.set(cid, workerApps);
   }
 
   /** Tear down this worker's app(s) when its spec finishes, so they don't accumulate. */
