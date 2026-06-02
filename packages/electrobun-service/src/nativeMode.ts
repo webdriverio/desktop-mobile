@@ -95,12 +95,13 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
 /**
  * Spawn a built Electrobun app for native-mode CDP attach.
  *
- * Clones the resolved bundle into a per-worker temp dir, pins `port` + a per-run
- * `--user-data-dir` into the clone's build.json (CEF reads chromiumFlags there, not
- * argv) so each worker has an isolated, creatable CEF profile, spawns the CLONED
- * binary, and (when log capture is enabled) wires stdout/stderr
- * through `createLogCapture`. Returns the process handle plus the temp dirs so the
- * launcher can tear them all down.
+ * Clones the resolved bundle into a per-worker temp dir and pins ONLY `port` into the
+ * clone's build.json (CEF reads chromiumFlags there, not argv) — deliberately NOT a
+ * `--user-data-dir`, so CEF's own root_cache_path stays the user-data-dir and the forced
+ * persist:default profile creates cleanly (see the inline note below; this is what makes
+ * the service single-instance / `maxInstances=1`). Spawns the CLONED binary, and (when log
+ * capture is enabled) wires stdout/stderr through `createLogCapture`. Returns the process
+ * handle plus the temp dirs so the launcher can tear them all down.
  */
 export function spawnElectrobunApp(params: SpawnElectrobunAppParams): ElectrobunAppProcess {
   const { app, appArgs, port, options, instanceId } = params;
