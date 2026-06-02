@@ -107,6 +107,17 @@ describe('ElectrobunLaunchService', () => {
 
       await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow(/Mixed browser-mode and native-mode/);
     });
+
+    it('should NOT apply the native-mode macOS guard in browser mode on Linux', async () => {
+      setPlatform('linux');
+      const launcher = makeLauncher({ mode: 'browser', devServerUrl: 'http://localhost:3000' });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare(baseConfig, caps);
+
+      expect(caps[0].browserName).toBe('chrome');
+      expect(vi.mocked(resolveElectrobunApp)).not.toHaveBeenCalled();
+    });
   });
 
   describe('onPrepare — native mode', () => {
@@ -168,17 +179,6 @@ describe('ElectrobunLaunchService', () => {
       expect((error as Error).message).toMatch(/macOS/);
       expect((error as Error).message).toContain('win32');
       expect((error as Error).message).toContain('issues/317');
-    });
-
-    it('should NOT apply the macOS-only guard in browser mode on Linux', async () => {
-      setPlatform('linux');
-      const launcher = makeLauncher({ mode: 'browser', devServerUrl: 'http://localhost:3000' });
-      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
-
-      await launcher.onPrepare(baseConfig, caps);
-
-      expect(caps[0].browserName).toBe('chrome');
-      expect(vi.mocked(resolveElectrobunApp)).not.toHaveBeenCalled();
     });
   });
 
