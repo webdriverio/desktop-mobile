@@ -4,13 +4,15 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build": "electrobun build"
+    "build": "electrobun build",
+    "test": "wdio run wdio.conf.ts"
   },
   "dependencies": {
     "electrobun": "1.18.1"
   },
   "devDependencies": {
     "@types/bun": "1.3.14",
+    "@types/mocha": "10.0.10",
     "@wdio/cli": "9.27.1",
     "@wdio/electrobun-service": "workspace:*",
     "@wdio/globals": "9.27.1",
