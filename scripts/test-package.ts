@@ -1066,8 +1066,14 @@ async function main() {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('dioxus-'));
     } else if (options.service === 'electrobun') {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('electrobun-'));
+    } else {
+      // 'all' = electron + tauri + dioxus (the services sharing the cross-OS matrix).
+      // Electrobun is NEVER part of 'all' — it's macOS-only with a bespoke CEF flow and
+      // buildAndPackService('all') doesn't pack its tarball, so its fixtures must be
+      // excluded or a bare `pnpm test:package` would try to test electrobun-app without a
+      // packed service and throw. Run it explicitly via `--service=electrobun`.
+      filteredDirs = packageTestDirs.filter((name) => !name.startsWith('electrobun-'));
     }
-    // If service is 'all', don't filter
 
     // Filter by module type for Electron packages
     if (options.service === 'electron' || options.service === 'all') {
