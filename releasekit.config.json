@@ -29,7 +29,9 @@
       "electron-script-app-example-esm",
       "electron-script-e2e-app",
       "tauri-app-example",
-      "tauri-e2e-app"
+      "tauri-e2e-app",
+      "electrobun-app-example",
+      "electrobun-e2e-app"
     ]
   },
   "ci": {
@@ -40,7 +42,8 @@
       "scope:types": "@wdio/native-types",
       "scope:spy": "@wdio/native-spy",
       "scope:tauri": "@wdio/tauri-*",
-      "scope:electron": "@wdio/electron-*"
+      "scope:electron": "@wdio/electron-*",
+      "scope:electrobun": "@wdio/electrobun-*"
     }
   },
   "notes": {
