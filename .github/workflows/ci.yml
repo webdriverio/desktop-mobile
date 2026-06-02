@@ -191,6 +191,20 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # macOS-only (CEF). The package-test fixture build mirrors the e2e build (Bun/CEF, tar
+  # artifact). Linux/Windows are not built — the service is macOS-only in 0.x.
+  build-electrobun-package-app-macos-arm:
+    name: Build Electrobun Package Test App [macOS-ARM]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-electrobun-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build Dioxus package test apps - only if Dioxus package tests will run
   build-dioxus-package-app-linux:
     name: Build Dioxus Package Test App [Linux]
@@ -792,6 +806,21 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       dioxus_cache_key: ${{ needs.build-dioxus-package-app-linux-arm.outputs.cache_key }}
 
+  # Electrobun package test — macOS-only (CEF). The fixture bundle is downloaded by
+  # artifact name within the run (tar/symlinks), so no cache_key is threaded.
+  package-electrobun-macos-arm:
+    name: Package - Electrobun [macOS-ARM]
+    needs: [detect-changes, build, build-electrobun-package-app-macos-arm]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      service: 'electrobun'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Universal binary verification - Electron only
   package-electron-mac-universal:
     name: Package - Electron [macOS-Universal-Verify]
@@ -913,6 +942,7 @@ jobs:
       - package-dioxus-macos-arm
       - package-dioxus-macos-intel
       - package-dioxus-linux-arm
+      - package-electrobun-macos-arm
       - build-matrix
       - build-dioxus-crates-linux
       - build-tauri-e2e-app-linux
@@ -925,6 +955,7 @@ jobs:
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
       - build-electrobun-e2e-app-macos-arm
+      - build-electrobun-package-app-macos-arm
       - build-dioxus-package-app-linux
       - build-dioxus-package-app-windows
       - build-dioxus-package-app-macos-arm

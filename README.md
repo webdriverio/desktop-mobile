@@ -61,6 +61,20 @@
 
 [`@wdio/dioxus-service`](./packages/dioxus-service) - Dioxus desktop applications (Windows / macOS / Linux)
 
+## Experimental Support
+
+> Early (`0.x`) support — scope is limited and the surface may change as upstream gaps are resolved. Not yet at parity with the frameworks above.
+
+<h4>
+  <div>
+    <a href="https://www.npmjs.com/package/@wdio/electrobun-service"><img src="https://img.shields.io/badge/@wdio-electrobun--service-E8590C?labelColor=1a1a1a&style=plastic" alt="npm package" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/electrobun-service"><img src="https://img.shields.io/npm/v/@wdio/electrobun-service" alt="npm version" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/electrobun-service"><img src="https://img.shields.io/npm/dw/@wdio/electrobun-service" alt="npm downloads" /></a>
+  </div>
+</h4>
+
+[`@wdio/electrobun-service`](./packages/electrobun-service) - Electrobun desktop applications — **experimental**, **macOS only** (`0.x`), requires the CEF renderer. Linux/Windows plus multiremote / multi-window / deeplink are upstream-blocked ([#317](https://github.com/webdriverio/desktop-mobile/issues/317)). See the [package README](./packages/electrobun-service).
+
 ## Planned Support
 
 - **React Native** - Popular mobile and desktop framework
@@ -73,7 +87,7 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 
 ## Features
 
-- 🎯 **Framework-specific automation** - Native integration with Electron, Tauri, Dioxus
+- 🎯 **Framework-specific automation** - Native integration with Electron, Tauri, Dioxus, Electrobun
 - 🔍 **Smart binary detection** - Automatic app discovery and configuration
 - 🎭 **API mocking & isolation** - Built-in mocking for deterministic tests
 - 🌍 **Browser-only test mode** - Run the renderer in Chrome against a dev server, no binary required. See the [Electron](./packages/electron-service/docs/browser-mode.md), [Tauri](./packages/tauri-service/docs/browser-mode.md), and [Dioxus](./packages/dioxus-service/docs/browser-mode.md) guides.
@@ -88,7 +102,9 @@ desktop-mobile/
 │   ├── electron-service/        # Electron service implementation
 │   ├── tauri-service/           # Tauri service implementation
 │   ├── dioxus-service/          # Dioxus service implementation
-│   ├── electron-cdp-bridge/     # Chrome DevTools Protocol bridge
+│   ├── electrobun-service/      # Electrobun service implementation (macOS-only, 0.x)
+│   ├── electron-cdp-bridge/     # Chrome DevTools Protocol bridge (Electron)
+│   ├── electrobun-cdp-bridge/   # Multi-target CDP bridge (Electrobun)
 │   ├── native-utils/            # Cross-platform utilities
 │   ├── native-types/            # TypeScript type definitions
 │   ├── native-spy/              # Spy utilities for mocking

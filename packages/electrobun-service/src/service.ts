@@ -149,6 +149,7 @@ async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBrid
     const targets = bridge.listTargets();
     const targetUrl = targets.find((t) => t.label === bridge.activeLabel)?.url ?? targets[0]?.url;
     const handles = await browser.getWindowHandles();
+    const originalHandle = await browser.getWindowHandle().catch(() => undefined);
     let fallback: string | undefined;
     for (const handle of handles) {
       await browser.switchToWindow(handle);
@@ -163,6 +164,11 @@ async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBrid
     if (fallback) {
       await browser.switchToWindow(fallback);
       return;
+    }
+    // No match: don't strand the session on the last handle we probed — restore the
+    // caller's original active window so element commands stay where they were.
+    if (originalHandle) {
+      await browser.switchToWindow(originalHandle).catch(() => {});
     }
     log.warn('No non-blank content window found; element commands may target a blank document.');
   } catch (error) {

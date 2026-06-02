@@ -51,6 +51,7 @@ This document describes the architecture of the WebdriverIO Desktop & Mobile mon
 | `@wdio/electron-service` | WebdriverIO service for Electron apps |
 | `@wdio/tauri-service` | WebdriverIO service for Tauri apps |
 | `@wdio/dioxus-service` | WebdriverIO service for Dioxus desktop apps |
+| `@wdio/electrobun-service` | WebdriverIO service for Electrobun desktop apps (CDP-attach; macOS-only in 0.x) |
 
 ### Bridge/Plugin Packages
 
@@ -89,7 +90,7 @@ Runs in the main process (no `browser` access). Responsible for:
 ### Service (`service.ts`)
 
 Runs in the worker process (receives `browser` via `before` hook). Responsible for:
-- API injection (`browser.tauri.*`, `browser.electron.*`, `browser.dioxus.*`)
+- API injection (`browser.tauri.*`, `browser.electron.*`, `browser.dioxus.*`, `browser.electrobun.*`)
 - Mock lifecycle management
 - Log forwarding setup
 - Plugin initialization

@@ -115,12 +115,12 @@ export class Connection extends EventEmitter {
       this.#promises.get(CONNECT_PROMISE_ID)?.resolve();
       this.#promises.delete(CONNECT_PROMISE_ID);
     });
-    ws.on('message', async (rawMessage) => {
+    ws.on('message', (rawMessage) => {
       try {
         this.#messageHandler(rawMessage.toString());
       } catch (error) {
         log.error('Message handling error');
-        return await this.#errorHandler(error);
+        void this.#errorHandler(error);
       }
     });
     ws.on('error', async (error) => {

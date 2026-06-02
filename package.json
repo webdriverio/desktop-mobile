@@ -65,6 +65,7 @@
     "test:package:tauri:browser": "pnpx cross-env DEBUG=@wdio/tauri-service tsx ./scripts/test-package.ts --service=tauri --mode=browser",
     "test:package:dioxus": "pnpx tsx ./scripts/test-package.ts --service=dioxus",
     "test:package:dioxus:browser": "pnpx tsx ./scripts/test-package.ts --service=dioxus --mode=browser",
+    "test:package:electrobun": "pnpx tsx ./scripts/test-package.ts --service=electrobun",
     "test:unit": "turbo run test:unit",
     "typecheck": "turbo run typecheck",
     "update:dependencies": "pnpm catalog:update --default && pnpm catalog:update --next && pnpm up -iLr",

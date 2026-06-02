@@ -99,7 +99,9 @@ All npm packages use the `@wdio/` scope:
 - `@wdio/electron-service` - Electron WDIO service
 - `@wdio/tauri-service` - Tauri WDIO service
 - `@wdio/dioxus-service` - Dioxus WDIO service
-- `@wdio/electron-cdp-bridge` - Chrome DevTools Protocol bridge
+- `@wdio/electrobun-service` - Electrobun WDIO service (CDP-attach; macOS-only in 0.x)
+- `@wdio/electron-cdp-bridge` - Chrome DevTools Protocol bridge (Electron)
+- `@wdio/electrobun-cdp-bridge` - Multi-target Chrome DevTools Protocol bridge (Electrobun)
 - `@wdio/native-utils` - Cross-platform utilities
 - `@wdio/native-types` - Shared TypeScript type definitions
 - `@wdio/native-spy` - Spy utilities for mocking

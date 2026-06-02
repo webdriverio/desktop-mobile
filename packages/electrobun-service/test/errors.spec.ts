@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { SevereServiceError } from 'webdriverio';
 
-import { cefRendererRequired, deeplinkUnsupportedOnPlatform } from '../src/errors.js';
+import { cefNativeModeMacOnly, cefRendererRequired, deeplinkUnsupportedOnPlatform } from '../src/errors.js';
 
 describe('cefRendererRequired', () => {
   it('should be a SevereServiceError so the runner aborts', () => {
@@ -18,6 +18,24 @@ describe('cefRendererRequired', () => {
   it('should name the current platform in the message', () => {
     expect(cefRendererRequired('linux').message).toContain('linux');
     expect(cefRendererRequired('win32').message).toContain('win32');
+  });
+});
+
+describe('cefNativeModeMacOnly', () => {
+  it('should be a SevereServiceError so the runner aborts', () => {
+    expect(cefNativeModeMacOnly('linux')).toBeInstanceOf(SevereServiceError);
+  });
+
+  it('should state macOS-only and name the unsupported platform', () => {
+    expect(cefNativeModeMacOnly('linux').message).toMatch(/macOS/);
+    expect(cefNativeModeMacOnly('linux').message).toContain('linux');
+    expect(cefNativeModeMacOnly('win32').message).toContain('win32');
+  });
+
+  it('should point to browser mode and the #317 native-renderer follow-up', () => {
+    const err = cefNativeModeMacOnly('win32');
+    expect(err.message).toContain("mode: 'browser'");
+    expect(err.message).toContain('issues/317');
   });
 });
 

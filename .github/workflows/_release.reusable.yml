@@ -27,7 +27,7 @@ on:
         type: boolean
         default: false
       scope:
-        description: 'Release scope (electron, tauri, dioxus, utils, types, spy, core, shared) — controls build and toolchain steps'
+        description: 'Release scope (electron, tauri, dioxus, electrobun, utils, types, spy, core, shared) — controls build and toolchain steps'
         required: true
         type: string
     secrets:
@@ -111,6 +111,9 @@ jobs:
             dioxus)
               echo "packages=@wdio/dioxus-service,@wdio/dioxus-bridge,wdio-dioxus-bridge,wdio-dioxus-embedded-driver,wdio-dioxus-driver" >> "$GITHUB_OUTPUT"
               ;;
+            electrobun)
+              echo "packages=@wdio/electrobun-service,@wdio/electrobun-cdp-bridge" >> "$GITHUB_OUTPUT"
+              ;;
             utils)
               echo "packages=@wdio/native-utils" >> "$GITHUB_OUTPUT"
               ;;
@@ -188,6 +191,13 @@ jobs:
                 --filter='@wdio/dioxus-service...' \
                 --filter='@wdio/dioxus-bridge...'
               pnpm turbo run build:rust --filter='@wdio/dioxus-bridge'
+              ;;
+            electrobun)
+              # CDP service like electron — no Rust/build:rust step.
+              pnpm turbo run build \
+                --filter='@wdio/electrobun-service...' \
+                --filter='@wdio/electrobun-cdp-bridge...' \
+                --filter='@wdio/bundler...'
               ;;
             utils)
               pnpm turbo run build --filter='@wdio/native-utils...'

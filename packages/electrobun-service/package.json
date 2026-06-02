@@ -1,6 +1,6 @@
 {
   "name": "@wdio/electrobun-service",
-  "version": "1.0.0-next.0",
+  "version": "0.1.0-next.0",
   "description": "WebdriverIO service for testing Electrobun desktop applications",
   "author": "WebdriverIO Community",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/electrobun-service",

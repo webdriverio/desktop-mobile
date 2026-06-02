@@ -46,6 +46,7 @@ function makeBrowser(
     isMultiremote: false,
     sessionId: 'abc',
     getWindowHandles: vi.fn().mockResolvedValue(windows.map((w) => w.handle)),
+    getWindowHandle: vi.fn(async () => current),
     switchToWindow: vi.fn(async (handle: string) => {
       current = handle;
     }),

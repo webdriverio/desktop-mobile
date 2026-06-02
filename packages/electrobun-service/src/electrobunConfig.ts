@@ -280,12 +280,15 @@ export function getRemoteDebuggingPort(buildJson: BuildJson | undefined): number
 }
 
 /**
- * Pin a CEF remote-debugging port (and optional `--user-data-dir`) into a bundle's
- * `build.json` under `chromiumFlags`, preserving every other key. CEF reads these
- * flags from build.json (not argv), so this is how the launcher both fixes the CDP
- * endpoint and isolates each worker's profile. A distinct `user-data-dir` per worker
- * gives CEF a flat, creatable profile root — unlike a redirected `$HOME`, where CEF
- * fails with "Cannot create profile at path .../Library/Application Support/...".
+ * Pin a CEF remote-debugging port into a bundle's `build.json` under `chromiumFlags`,
+ * preserving every other key. CEF reads these flags from build.json (not argv), so this is
+ * how the launcher fixes the CDP endpoint for each worker's cloned bundle.
+ *
+ * `userDataDir` is still supported (written as `--user-data-dir` when provided), but the
+ * launcher intentionally does NOT pass it: a separate `--user-data-dir` puts CEF's forced
+ * `persist:default` partition profile OUTSIDE `root_cache_path`, triggering "Cannot create
+ * profile" (the disproven multiremote approach — see nativeMode.ts for the full note). The
+ * parameter stays for completeness / future use if upstream relaxes the constraint.
  *
  * @throws SevereServiceError when build.json is missing/unwritable — without it
  *   the port can't be pinned and the worker's CDP attach has no fixed endpoint.

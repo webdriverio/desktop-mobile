@@ -98,7 +98,10 @@ function parseCallData(raw: unknown): CallData {
 /** Serialise a value/error to a JS literal for inlining into a setter script. */
 function valueLiteral(value: unknown, target: string): string {
   if (value instanceof Error) {
-    return JSON.stringify({ __wdioError: true, name: value.name, message: value.message });
+    // Include `stack` so an error pushed via mockRejectedValue arrives with the same shape
+    // the read-call-data path returns (which includes stack) — no asymmetry for users
+    // inspecting thrown mock errors.
+    return JSON.stringify({ __wdioError: true, name: value.name, message: value.message, stack: value.stack });
   }
   return jsonLiteral(value, `browser.electrobun.mock("${target}") value`);
 }

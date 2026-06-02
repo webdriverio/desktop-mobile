@@ -93,11 +93,15 @@ multi-window, deeplink) may be blocked by a framework/runtime limitation you **c
 service layer**. Don't force-fit, and don't hold the whole package hostage to upstream — ship the
 working subset, clearly scoped, and recover the rest as upstream lands fixes.
 
-**Version: start at `0.1.0`, not `1.0.0-next.0`.** The `1.0.0-next.0` default is for a service that
-reaches the full convergent surface on its target platforms (just polishing toward 1.0). When
-upstream blocks a lot, `1.0.0-next.0` over-promises — use **`0.x`**, the semver signal for "early,
-partial, scope may change, gaps expected":
-- **`0.1.0`** initial release — the validated subset (e.g. one platform, the standard single-window surface).
+**Version: base at `0.1.0`, not `1.0.0`.** The default convention here is a `X.Y.0-next.0` dev
+placeholder in `package.json` that releases as stable `X.Y.0` on `latest` (with `-next.N` prereleases
+on the `next` dist-tag in between — every service does this: electron `10.0.0-next.N`→`10.0.0`, tauri
+`1.0.0-next.N`→`1.0.0`). A full-convergent-surface service bases that at `1.0` (placeholder
+`1.0.0-next.0`, release `1.0.0`). When upstream blocks a lot, `1.0` over-promises — base it at **`0.x`**,
+the semver signal for "early, partial, scope may change, gaps expected". Keep the same release
+*machinery*, just lower the base:
+- **Dev placeholder `0.1.0-next.0`** (a prerelease *of* 0.1.0 — NOT `1.0.0-next.0`, which implies a 1.0 target).
+- **First stable release `0.1.0`** on `latest`; `0.1.0-next.N` prereleases on `next` during lead-up. (`0.x` = unstable API; `-next.N` = staging channel — orthogonal, you want both.)
 - **Minor bumps** (`0.2.0`, `0.3.0`…) as each upstream fix recovers a platform/feature. Breaking changes are allowed within `0.x` (bump minor).
 - **Graduate to `1.0.0`** only at full parity with the sibling services — the whole standard surface on all intended platforms. `1.0` is the promise that the convergent surface works.
 
@@ -196,7 +200,7 @@ src/
 
 **Conventions:**
 
-- Initial npm version `1.0.0-next.0` for a service that reaches the full convergent surface on its target platforms — or **`0.1.0`** if upstream blocks a lot of the surface (see [When upstream blocks the standard surface](#when-upstream-blocks-the-standard-surface-shipping-pre-10)). Build script: `tsx ../../scripts/build-package.ts`.
+- Initial `package.json` dev placeholder `1.0.0-next.0` for a service that reaches the full convergent surface on its target platforms (releases as stable `1.0.0`) — or **`0.1.0-next.0`** (releases as `0.1.0`) if upstream blocks a lot of the surface (see [When upstream blocks the standard surface](#when-upstream-blocks-the-standard-surface-shipping-pre-10)). Build script: `tsx ../../scripts/build-package.ts`.
 - Mirror the closest sibling's `package.json` exactly (exports, scripts, devDeps, peerDeps): CDP → clone `@wdio/electron-service`; Wry → clone `@wdio/tauri-service`. Always depend on `@wdio/native-core`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-utils` as workspace deps.
 - `vitest.integration.config.ts` MUST set `fileParallelism: false` + 30s timeout + `setupFiles: ['test/integration/setup.ts']`.
 - `tsconfig.json` extends `../../tsconfig.base.json`, out `./dist`, root `./src`.

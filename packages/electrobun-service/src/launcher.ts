@@ -4,7 +4,7 @@ import type { Options } from '@wdio/types';
 
 import { DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
 import { type ResolvedElectrobunApp, resolveElectrobunApp, verifyCefRenderer } from './electrobunConfig.js';
-import { SevereServiceError } from './errors.js';
+import { cefNativeModeMacOnly, SevereServiceError } from './errors.js';
 import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from './nativeMode.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
@@ -103,6 +103,15 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       this.browserMode = true;
       log.info('Browser mode enabled — skipping Electrobun binary/CDP setup');
       return;
+    }
+
+    // Native mode is macOS-only in the 0.x line: on Linux/Windows, CEF's failed-profile
+    // fallback serves no /json so Chromedriver can never attach (upstream-blocked, see the
+    // plan "Framework gaps" / #317). Fail fast here rather than let the user hit a cryptic
+    // CDP-attach timeout. Browser mode is unaffected — it already returned above. Lift this
+    // when the WebView2/WebKitGTK native-renderer transports land (#317).
+    if (process.platform !== 'darwin') {
+      throw cefNativeModeMacOnly(process.platform);
     }
 
     // Native mode: resolve + CEF-verify each bundle, force chrome capability. The
