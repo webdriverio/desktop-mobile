@@ -143,8 +143,17 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
     ...options.env,
   };
 
+  // Linux CI runners are headless and CEF is a GUI process that needs an X display
+  // ("Failed to open X11 display" otherwise → no browser → no /json). WDIO's autoXvfb
+  // covers the worker process, not this launcher-spawned app, so run the app under
+  // `xvfb-run -a` (a throwaway X server) on Linux. macOS/Windows runners have a real
+  // display, so spawn the binary directly there.
+  const useXvfb = process.platform === 'linux';
+  const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
+  const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;
+
   log.info(`Spawning Electrobun app: ${clonedBinaryPath} ${appArgs.join(' ')} (CDP port ${port})`);
-  const proc = spawn(clonedBinaryPath, appArgs, {
+  const proc = spawn(command, spawnArgs, {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,

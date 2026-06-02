@@ -210,6 +210,16 @@ describe('nativeMode', () => {
       expect(result.cleanupDirs).toEqual([USER_HOME, CLONE_PARENT]);
     });
 
+    it('should wrap the spawn in xvfb-run on Linux (headless CI needs an X display)', () => {
+      setPlatform('linux');
+
+      spawnElectrobunApp({ app: APP, appArgs: ['--flag'], port: 9333, options: {} as ElectrobunServiceOptions });
+
+      const [command, args] = spawnMock.mock.calls[0] as [string, string[]];
+      expect(command).toBe('xvfb-run');
+      expect(args).toEqual(['-a', '/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/MacOS/Demo', '--flag']);
+    });
+
     it('should take the cpSync fallback when the APFS clone fails', () => {
       execFileSyncMock.mockImplementationOnce(() => {
         throw new Error('clonefile unsupported');
@@ -251,8 +261,10 @@ describe('nativeMode', () => {
         9333,
         USER_HOME,
       );
-      const [binary] = spawnMock.mock.calls[0] as [string];
-      expect(binary).toBe('/tmp/wdio-electrobun-bundle-xyz/Demo/Demo');
+      // On Linux the cloned binary is spawned under xvfb-run (headless CI display).
+      const [command, args] = spawnMock.mock.calls[0] as [string, string[]];
+      expect(command).toBe('xvfb-run');
+      expect(args).toEqual(['-a', '/tmp/wdio-electrobun-bundle-xyz/Demo/Demo']);
     });
 
     it('should throw a SevereServiceError when the app has no build.json path', () => {
