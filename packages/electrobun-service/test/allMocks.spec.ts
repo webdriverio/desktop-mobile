@@ -105,6 +105,24 @@ describe('allMocks helpers', () => {
       expect(b.mock.calls).toHaveLength(1);
     });
 
+    it('should continue the bulk op when one mock throws', async () => {
+      const { bridge, window } = makeBridge({ api: { a: () => 1, b: () => 2 } });
+      const a = await createMock('api.a', bridge, store);
+      const b = await createMock('api.b', bridge, store);
+      (window.api as { a: () => unknown }).a();
+      (window.api as { b: () => unknown }).b();
+      await a.update();
+      await b.update();
+      expect(a.mock.calls).toHaveLength(1);
+      expect(b.mock.calls).toHaveLength(1);
+      vi.spyOn(a, 'mockClear').mockRejectedValueOnce(new Error('cdp connection dropped'));
+
+      await clearAllMocks(store);
+
+      // a threw and was skipped, but b must still be cleared.
+      expect(b.mock.calls).toHaveLength(0);
+    });
+
     it('should reset implementations across all mocks', async () => {
       const { bridge, window } = makeBridge({ api: { a: () => 1 } });
       const a = await createMock('api.a', bridge, store);

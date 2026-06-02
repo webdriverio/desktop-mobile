@@ -125,6 +125,15 @@ describe('nativeMode', () => {
       const result = cloneAppBundle('/apps/Demo.app');
 
       expect(execFileSyncMock).toHaveBeenCalledTimes(1);
+      // The failed cp -Rc may have left a partial tree — it must be cleared before the
+      // cpSync fallback so the copy never merges onto a half-written destination.
+      const rmOrder = rmSyncMock.mock.invocationCallOrder[0];
+      const cpOrder = cpSyncMock.mock.invocationCallOrder[0];
+      expect(rmSyncMock).toHaveBeenCalledWith('/tmp/wdio-electrobun-bundle-xyz/Demo.app', {
+        recursive: true,
+        force: true,
+      });
+      expect(rmOrder).toBeLessThan(cpOrder);
       expect(cpSyncMock).toHaveBeenCalledWith('/apps/Demo.app', '/tmp/wdio-electrobun-bundle-xyz/Demo.app', {
         recursive: true,
       });

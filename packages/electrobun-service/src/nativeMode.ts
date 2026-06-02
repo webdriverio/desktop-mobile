@@ -79,6 +79,9 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
       } catch (error) {
         // Non-APFS volume (clonefile unsupported) — fall back to a full recursive copy.
         log.debug(`APFS clone failed for ${bundlePath}, falling back to recursive copy: ${(error as Error).message}`);
+        // `cp -Rc` may have written a partial tree before failing; clear it so the cpSync
+        // fallback starts clean rather than merging onto a half-copied bundle.
+        rmSync(clonedBundlePath, { recursive: true, force: true });
       }
     }
 
