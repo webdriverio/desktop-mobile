@@ -107,6 +107,30 @@ describe('electrobunConfig', () => {
       expect(resolved.buildJsonPath).toBe(join(binDir, 'build.json'));
       expect(resolved.identifier).toBe('com.example.linux');
     });
+
+    it('should resolve the electrobun bin/launcher layout (build.json under Resources) on non-macOS', () => {
+      // Linux/Windows bundle: <App>/bin/launcher[.exe] + <App>/Resources/build.json.
+      const appRoot = join(root, 'WDIOElectrobunE2E-dev');
+      const binDir = join(appRoot, 'bin');
+      const resourcesDir = join(appRoot, 'Resources');
+      mkdirSync(binDir, { recursive: true });
+      mkdirSync(resourcesDir, { recursive: true });
+      const binaryPath = join(binDir, 'launcher');
+      writeFileSync(binaryPath, '#!/bin/sh\n', 'utf8');
+      writeFileSync(
+        join(resourcesDir, 'build.json'),
+        JSON.stringify({ identifier: 'com.wdio.electrobun.e2e' }),
+        'utf8',
+      );
+
+      const resolved = resolveElectrobunApp(binaryPath, 'linux');
+
+      expect(resolved.binaryPath).toBe(binaryPath);
+      expect(resolved.bundlePath).toBe(appRoot);
+      expect(resolved.resourcesDir).toBe(resourcesDir);
+      expect(resolved.buildJsonPath).toBe(join(resourcesDir, 'build.json'));
+      expect(resolved.identifier).toBe('com.wdio.electrobun.e2e');
+    });
   });
 
   describe('verifyCefRenderer', () => {
@@ -227,6 +251,19 @@ describe('electrobunConfig', () => {
       const after = readBuildJson(p);
       expect(after?.chromiumFlags?.['disable-gpu']).toBe('true');
       expect(after?.chromiumFlags?.['remote-debugging-port']).toBe('9351');
+    });
+
+    it('should also pin user-data-dir when provided (and omit it when not)', () => {
+      const p = join(root, 'build.json');
+      writeFileSync(p, JSON.stringify({ name: 'Demo' }), 'utf8');
+
+      writeRemoteDebuggingPort(p, 9352, '/tmp/wdio-electrobun-userdata-abc');
+      expect(readBuildJson(p)?.chromiumFlags?.['user-data-dir']).toBe('/tmp/wdio-electrobun-userdata-abc');
+
+      // Omitted → no user-data-dir key written.
+      writeFileSync(p, JSON.stringify({ name: 'Demo' }), 'utf8');
+      writeRemoteDebuggingPort(p, 9353);
+      expect(readBuildJson(p)?.chromiumFlags?.['user-data-dir']).toBeUndefined();
     });
 
     it('should throw a SevereServiceError when build.json does not exist', () => {

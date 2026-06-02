@@ -5,7 +5,7 @@ import type { Options } from '@wdio/types';
 import { DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
 import { type ResolvedElectrobunApp, resolveElectrobunApp, verifyCefRenderer } from './electrobunConfig.js';
 import { SevereServiceError } from './errors.js';
-import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp } from './nativeMode.js';
+import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from './nativeMode.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
 
@@ -18,18 +18,27 @@ const log = createLogger(SERVICE_NAME, 'launcher');
  * the worker attaches over CDP through Chromedriver (`debuggerAddress`). It
  * extends `BaseLauncher` to reuse `@wdio/native-core`'s port/process/log infra.
  *
- * Native-mode flow (parallel-safe):
+ * v1 is macOS-only + single-instance (`maxInstances=1`): CEF can't isolate the
+ * forced `persist:default` profile per worker, so we do NOT redirect the cache root
+ * (no `CFFIXED_USER_HOME`, no per-worker `--user-data-dir`) — CEF uses its own
+ * `root_cache_path`. See the implementation plan "Framework gaps". Native-mode flow:
  *  - `onPrepare`: resolve + CEF-verify each app bundle, force `browserName: 'chrome'`.
- *  - `onWorkerStart`: allocate a port, then spawn the app — the spawn path clones
- *    the bundle per worker, pins the port into the clone's build.json, and uses a
- *    per-run CFFIXED_USER_HOME — and set `goog:chromeOptions.debuggerAddress`.
+ *  - `onWorkerStart`: allocate a port; spawn the app (the spawn path clones the bundle
+ *    and pins the port into the clone's build.json); wait for CEF to serve `/json`;
+ *    set `goog:chromeOptions.debuggerAddress`.
  *  - `onComplete`: kill spawned apps + clean temp dirs.
  */
 export default class ElectrobunLaunchService extends BaseLauncher {
   private browserMode = false;
   /** Resolved app bundle per capability index, set in onPrepare for onWorkerStart. */
   private resolvedApps: ResolvedElectrobunApp[] = [];
-  private spawnedApps: ElectrobunAppProcess[] = [];
+  /**
+   * Spawned apps keyed by worker cid. Torn down per-spec in onWorkerEnd so apps
+   * don't accumulate across a run — multiple live CEF instances contend (profile
+   * creation / resources) even when specs run serially. onComplete sweeps any
+   * stragglers (e.g. a worker that never reported end).
+   */
+  private spawnedAppsByCid = new Map<string, ElectrobunAppProcess[]>();
 
   constructor(
     private options: ElectrobunServiceGlobalOptions,
@@ -124,6 +133,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     }
 
     const capsList = Array.isArray(capabilities) ? capabilities : [capabilities];
+    const workerApps: ElectrobunAppProcess[] = [];
 
     for (let i = 0; i < capsList.length; i++) {
       const cap = capsList[i];
@@ -145,14 +155,39 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       // spawnApp — the CEF port is fixed per bundle (a launch arg does NOT work,
       // see RESEARCH_FINDINGS), so the clone is what makes parallel workers safe.
       const spawned = this.spawnApp(app, port, instanceOptions, cid);
-      this.spawnedApps.push(spawned);
+      workerApps.push(spawned);
 
       const existingChromeOptions = (cap['goog:chromeOptions'] ?? {}) as Record<string, unknown>;
       cap['goog:chromeOptions'] = {
         ...existingChromeOptions,
-        debuggerAddress: `localhost:${port}`,
+        // 127.0.0.1, not 'localhost': CEF binds the debugger on IPv4, but Node/
+        // Chromedriver resolve 'localhost' to IPv6 ::1 first on Windows/Linux CI →
+        // the attach (and the /json poll below) fail. The bridge inherits this host
+        // via parseDebuggerAddress, so it connects on IPv4 too.
+        debuggerAddress: `127.0.0.1:${port}`,
       };
-      log.info(`Worker ${cid}: Electrobun app on CDP port ${port} (debuggerAddress set)`);
+
+      // Wait for CEF to actually serve /json with a page target before the worker's
+      // Chromedriver attaches to debuggerAddress — otherwise it races the (slow on
+      // Windows) port binding and the session times out. Track the app for teardown
+      // first so a wait failure still cleans up.
+      this.spawnedAppsByCid.set(cid, workerApps);
+      await waitForCdpReady(port);
+      log.info(`Worker ${cid}: Electrobun app on CDP port ${port} (debuggerAddress set, CDP ready)`);
+    }
+  }
+
+  /** Tear down this worker's app(s) when its spec finishes, so they don't accumulate. */
+  async onWorkerEnd(cid: string): Promise<void> {
+    const apps = this.spawnedAppsByCid.get(cid);
+    if (!apps) {
+      return;
+    }
+    this.spawnedAppsByCid.delete(cid);
+    for (const app of apps) {
+      await stopElectrobunApp(app).catch((error: Error) => {
+        log.warn(`Worker ${cid}: failed to stop Electrobun app: ${error.message}`);
+      });
     }
   }
 
@@ -173,12 +208,14 @@ export default class ElectrobunLaunchService extends BaseLauncher {
   }
 
   async onComplete(): Promise<void> {
-    for (const app of this.spawnedApps) {
-      await stopElectrobunApp(app).catch((error: Error) => {
-        log.warn(`Failed to stop Electrobun app: ${error.message}`);
-      });
+    for (const apps of this.spawnedAppsByCid.values()) {
+      for (const app of apps) {
+        await stopElectrobunApp(app).catch((error: Error) => {
+          log.warn(`Failed to stop Electrobun app: ${error.message}`);
+        });
+      }
     }
-    this.spawnedApps = [];
+    this.spawnedAppsByCid.clear();
 
     await this.stopAllDrivers();
     if (isLogWriterInitialized(SERVICE_NAME)) {

@@ -1,0 +1,137 @@
+name: Build Electrobun E2E App
+# Description: Builds the Electrobun E2E test application (CEF bundle) and creates shareable artifacts.
+#
+# Electrobun has NO Rust component (unlike Dioxus) — it builds with Bun and bundles
+# CEF. The CEF toolchain is a beta/unverified path: `electrobun build` downloads a
+# ~150MB CEF framework, so the build is slower and more network-dependent than the
+# other e2e-app builds. macOS is the only validated platform; Windows/Linux bundle
+# layout is unverified (see packages/electrobun-service RESEARCH_FINDINGS).
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'OS of runner'
+        required: true
+        type: string
+      build_id:
+        description: 'Build ID from the main build job'
+        type: string
+        required: false
+      artifact_size:
+        description: 'Size of the build artifact in bytes'
+        type: string
+        required: false
+      cache_key:
+        description: 'Cache key to use for downloading artifacts'
+        type: string
+        required: false
+    outputs:
+      build_id:
+        description: 'Unique identifier for this build'
+        value: ${{ jobs.build-electrobun-e2e-app.outputs.build_id }}
+      build_date:
+        description: 'Timestamp when the build completed'
+        value: ${{ jobs.build-electrobun-e2e-app.outputs.build_date }}
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  build-electrobun-e2e-app:
+    name: Build
+    runs-on: ${{ inputs.os }}
+    outputs:
+      build_id: ${{ steps.build-info.outputs.build_id }}
+      build_date: ${{ steps.build-info.outputs.build_date }}
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: '24'
+
+      - name: 🥟 Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          # Pinned for reproducibility — the beta CEF toolchain is fragile, so a
+          # silent Bun bump must not break `electrobun build`. Bump deliberately.
+          bun-version: '1.3.14'
+
+      - name: 📊 Generate Build Information
+        id: build-info
+        shell: bash
+        run: |
+          echo "build_id=$(date +%s)-${{ github.run_id }}-${{ runner.os }}" >> "$GITHUB_OUTPUT"
+          echo "build_date=$(date -u +"%Y-%m-%dT%H:%M:%SZ")" >> "$GITHUB_OUTPUT"
+
+      - name: 📦 Download Package Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      - name: 📊 Show Build Information
+        if: inputs.build_id != '' && inputs.artifact_size != ''
+        shell: bash
+        run: |
+          echo "::notice::Build artifact: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
+
+      - name: 📦 Install Dependencies
+        run: pnpm install --frozen-lockfile
+        shell: bash
+
+      # CEF download + bundle. The beta Bun/CEF toolchain is the biggest unknown in
+      # this pipeline (~150MB CEF download); a failure here is most likely a
+      # toolchain/network issue rather than a regression in the fixture itself.
+      - name: 🏗️ Build Electrobun E2E App
+        run: pnpm run build
+        shell: bash
+        working-directory: fixtures/e2e-apps/electrobun
+
+      - name: 🔎 Locate Built Bundle
+        id: locate
+        shell: bash
+        run: |
+          # shellcheck disable=SC2012
+          echo "Build output tree:"
+          ls -R fixtures/e2e-apps/electrobun/build || true
+          if [ ! -d "fixtures/e2e-apps/electrobun/build" ]; then
+            echo "::error::Electrobun build directory was not produced."
+            exit 1
+          fi
+
+      # NOT the shared zip-based upload-archive action: the macOS .app carries CEF
+      # framework symlinks that `zip -r` resolves/duplicates, and download-archive's
+      # extract heuristic only restores dist/target dirs (never build/). A
+      # symlink-preserving tarball shared via actions/upload-artifact round-trips the
+      # bundle intact.
+      - name: 🗜️ Archive bundle (tar preserves .app framework symlinks)
+        shell: bash
+        run: |
+          # On Windows, $RUNNER_TEMP is a drive path (D:\a\_temp) and GNU tar reads the
+          # `D:` as a remote host ("Cannot connect to D:") — --force-local treats it as
+          # a local path. macOS bsdtar lacks that flag, so only pass it on Windows.
+          flags=""
+          [ "$RUNNER_OS" = "Windows" ] && flags="--force-local"
+          tar $flags -czpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun build
+
+      - name: 📦 Upload Electrobun E2E App Bundle
+        uses: actions/upload-artifact@v4
+        with:
+          name: electrobun-e2e-bundle-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}/electrobun-e2e-bundle.tgz
+          retention-days: 1
+          if-no-files-found: error

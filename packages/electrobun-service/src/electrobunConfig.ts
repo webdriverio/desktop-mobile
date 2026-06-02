@@ -23,6 +23,7 @@ import { cefRendererRequired, SevereServiceError } from './errors.js';
 const log = createLogger(SERVICE_NAME, 'config');
 
 const REMOTE_DEBUGGING_FLAG = 'remote-debugging-port';
+const USER_DATA_DIR_FLAG = 'user-data-dir';
 
 /** Parsed shape of a bundle's `build.json` (only the keys this service reads). */
 export interface BuildJson {
@@ -97,12 +98,21 @@ export function resolveElectrobunApp(
     return resolveMacosApp(appBinaryPath);
   }
 
-  // Windows/Linux: layout unverified. Best-effort — treat the path as the binary
-  // with a sibling build.json. TODO(PR3/CI): verify the real on-disk layout on
-  // Windows and Linux and tighten this resolution.
+  // Windows/Linux: electrobun emits `<App>/bin/launcher[.exe]` with build.json under
+  // `<App>/Resources/` (verified from the CI build artifacts). When the binary sits in
+  // a `bin/` dir, the bundle root is its grandparent and Resources/build.json hang off
+  // that; otherwise (a flat/custom layout) fall back to a sibling build.json.
   const binaryPath = appBinaryPath;
-  const bundlePath = dirname(binaryPath);
-  const resourcesDir = bundlePath;
+  const binDir = dirname(binaryPath);
+  let bundlePath: string;
+  let resourcesDir: string;
+  if (basename(binDir) === 'bin') {
+    bundlePath = dirname(binDir);
+    resourcesDir = join(bundlePath, 'Resources');
+  } else {
+    bundlePath = binDir;
+    resourcesDir = binDir;
+  }
   const buildJsonPath = join(resourcesDir, 'build.json');
   const identifier = readBuildJson(buildJsonPath)?.identifier;
   return { binaryPath, bundlePath, resourcesDir, buildJsonPath, identifier };
@@ -145,14 +155,38 @@ function resolveMacosBinary(bundlePath: string, originalPath: string): string {
     return originalPath;
   }
   const macosDir = join(bundlePath, 'Contents', 'MacOS');
-  // Convention: the launcher exe is named after the bundle (`Foo.app` → `Foo`).
-  const guessedName = basename(bundlePath).replace(/\.app$/, '');
-  const guessed = join(macosDir, guessedName);
-  if (pathExists(guessed)) {
-    return guessed;
+  // Candidate exe names, most authoritative first:
+  //  - Info.plist CFBundleExecutable (the launch binary the OS would exec);
+  //  - `launcher` — Electrobun names its launch exe this, NOT after the bundle;
+  //  - `Foo.app` → `Foo` (the generic macOS convention).
+  // Spawning the `.app` directory itself is not executable (EACCES), so we must
+  // resolve a real file here.
+  const candidates = [
+    readCFBundleExecutable(join(bundlePath, 'Contents', 'Info.plist')),
+    'launcher',
+    basename(bundlePath).replace(/\.app$/, ''),
+  ];
+  for (const name of candidates) {
+    if (!name) {
+      continue;
+    }
+    const exe = join(macosDir, name);
+    if (pathExists(exe) && !isDirectory(exe)) {
+      return exe;
+    }
   }
   // Fall back to the original path (may be the binary itself or a non-standard layout).
   return originalPath;
+}
+
+/** Read CFBundleExecutable from an XML Info.plist; undefined for a binary plist / on error. */
+function readCFBundleExecutable(plistPath: string): string | undefined {
+  try {
+    const xml = readFileSync(plistPath, 'utf8');
+    return xml.match(/<key>CFBundleExecutable<\/key>\s*<string>([^<]+)<\/string>/)?.[1]?.trim();
+  } catch {
+    return undefined;
+  }
 }
 
 /**
@@ -246,14 +280,17 @@ export function getRemoteDebuggingPort(buildJson: BuildJson | undefined): number
 }
 
 /**
- * Pin a CEF remote-debugging port into a bundle's `build.json`, writing it as a
- * string under `chromiumFlags["remote-debugging-port"]` and preserving every
- * other key. The launcher calls this so CEF binds the allocated port at startup.
+ * Pin a CEF remote-debugging port (and optional `--user-data-dir`) into a bundle's
+ * `build.json` under `chromiumFlags`, preserving every other key. CEF reads these
+ * flags from build.json (not argv), so this is how the launcher both fixes the CDP
+ * endpoint and isolates each worker's profile. A distinct `user-data-dir` per worker
+ * gives CEF a flat, creatable profile root — unlike a redirected `$HOME`, where CEF
+ * fails with "Cannot create profile at path .../Library/Application Support/...".
  *
  * @throws SevereServiceError when build.json is missing/unwritable — without it
  *   the port can't be pinned and the worker's CDP attach has no fixed endpoint.
  */
-export function writeRemoteDebuggingPort(buildJsonPath: string, port: number): void {
+export function writeRemoteDebuggingPort(buildJsonPath: string, port: number, userDataDir?: string): void {
   const existing = readBuildJson(buildJsonPath);
   if (!existing) {
     if (!pathExists(buildJsonPath)) {
@@ -273,12 +310,15 @@ export function writeRemoteDebuggingPort(buildJsonPath: string, port: number): v
     chromiumFlags: {
       ...existing.chromiumFlags,
       [REMOTE_DEBUGGING_FLAG]: String(port),
+      ...(userDataDir ? { [USER_DATA_DIR_FLAG]: userDataDir } : {}),
     },
   };
 
   try {
     writeFileSync(buildJsonPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
-    log.debug(`Pinned remote-debugging-port=${port} into ${buildJsonPath}`);
+    log.debug(
+      `Pinned remote-debugging-port=${port}${userDataDir ? ` + user-data-dir=${userDataDir}` : ''} into ${buildJsonPath}`,
+    );
   } catch (error) {
     throw new SevereServiceError(
       `Failed to write the CEF remote-debugging port into ${buildJsonPath}: ${(error as Error).message}`,

@@ -52,6 +52,17 @@ describe('TargetRegistry', () => {
     expect(entries.map((entry) => entry.label)).toEqual(['main', 'window-1']);
   });
 
+  it('should make main the URL-first content target regardless of /json order', () => {
+    const registry = new TargetRegistry();
+    // CEF lists secondview first here, but URL order is deterministic, so mainview
+    // (sorts before secondview) is consistently `main` — not whatever came first.
+    const entries = registry.reconcile([
+      mk('B', 'views://secondview/index.html'),
+      mk('A', 'views://mainview/index.html'),
+    ]);
+    expect(entries.find((entry) => entry.label === 'main')?.url).toBe('views://mainview/index.html');
+  });
+
   it('should exclude non-content targets and still label the first content one main', () => {
     const registry = new TargetRegistry();
     const entries = registry.reconcile([

@@ -21,6 +21,9 @@ on:
       run_dioxus:
         description: 'Whether to run Dioxus-related tests and builds'
         value: ${{ jobs.detect.outputs.run_dioxus }}
+      run_electrobun:
+        description: 'Whether to run Electrobun-related tests and builds'
+        value: ${{ jobs.detect.outputs.run_electrobun }}
       has_shared_changes:
         description: 'Whether shared packages changed (affects both services)'
         value: ${{ jobs.detect.outputs.has_shared_changes }}
@@ -36,6 +39,7 @@ jobs:
       run_electron: ${{ steps.determine.outputs.run_electron || 'false' }}
       run_tauri: ${{ steps.determine.outputs.run_tauri || 'false' }}
       run_dioxus: ${{ steps.determine.outputs.run_dioxus || 'false' }}
+      run_electrobun: ${{ steps.determine.outputs.run_electrobun || 'false' }}
       has_shared_changes: ${{ steps.determine.outputs.has_shared_changes || 'false' }}
       run_lint_only: ${{ steps.determine.outputs.run_lint_only || 'false' }}
 
@@ -70,6 +74,11 @@ jobs:
               - 'packages/dioxus-bridge/**'
               - 'packages/dioxus-driver/**'
 
+            # Electrobun service packages (CDP-attach, no Rust)
+            electrobun_service:
+              - 'packages/electrobun-service/**'
+              - 'packages/electrobun-cdp-bridge/**'
+
             # Shared packages (affect all services)
             shared:
               - 'packages/native-types/**'
@@ -89,6 +98,9 @@ jobs:
               - 'e2e/test/dioxus/**'
               - 'e2e/wdio.dioxus.conf.ts'
               - 'e2e/wdio.dioxus-embedded.conf.ts'
+            e2e_electrobun:
+              - 'e2e/test/electrobun/**'
+              - 'e2e/wdio.electrobun.conf.ts'
 
             # Test fixtures and apps
             fixtures_electron:
@@ -100,6 +112,9 @@ jobs:
             fixtures_dioxus:
               - 'fixtures/e2e-apps/dioxus/**'
               - 'fixtures/package-tests/dioxus-app/**'
+            fixtures_electrobun:
+              - 'fixtures/e2e-apps/electrobun/**'
+              - 'fixtures/package-tests/electrobun-app/**'
 
             # Shared infrastructure — triggers all service pipelines.
             # Service-specific workflow files are split into infra_{electron,tauri,dioxus}
@@ -162,6 +177,11 @@ jobs:
               - '.github/workflows/_ci-build-dioxus-package-app.reusable.yml'
               - '.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml'
 
+            # Electrobun-only workflow files (no -crates: Electrobun has no Rust)
+            infra_electrobun:
+              - '.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml'
+              - '.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml'
+
       - name: Determine What to Run
         id: determine
         run: |
@@ -171,6 +191,7 @@ jobs:
             echo "run_electron=true" >> "$GITHUB_OUTPUT"
             echo "run_tauri=true" >> "$GITHUB_OUTPUT"
             echo "run_dioxus=true" >> "$GITHUB_OUTPUT"
+            echo "run_electrobun=true" >> "$GITHUB_OUTPUT"
             echo "has_shared_changes=true" >> "$GITHUB_OUTPUT"
             echo "::notice::Force all mode enabled - running all tests"
             exit 0
@@ -181,33 +202,41 @@ jobs:
           echo "electron_service=${{ steps.changes.outputs.electron_service }}"
           echo "tauri_service=${{ steps.changes.outputs.tauri_service }}"
           echo "dioxus_service=${{ steps.changes.outputs.dioxus_service }}"
+          echo "electrobun_service=${{ steps.changes.outputs.electrobun_service }}"
           echo "shared=${{ steps.changes.outputs.shared }}"
           echo "e2e_electron=${{ steps.changes.outputs.e2e_electron }}"
           echo "e2e_tauri=${{ steps.changes.outputs.e2e_tauri }}"
           echo "e2e_dioxus=${{ steps.changes.outputs.e2e_dioxus }}"
+          echo "e2e_electrobun=${{ steps.changes.outputs.e2e_electrobun }}"
           echo "fixtures_electron=${{ steps.changes.outputs.fixtures_electron }}"
           echo "fixtures_tauri=${{ steps.changes.outputs.fixtures_tauri }}"
           echo "fixtures_dioxus=${{ steps.changes.outputs.fixtures_dioxus }}"
+          echo "fixtures_electrobun=${{ steps.changes.outputs.fixtures_electrobun }}"
           echo "infra=${{ steps.changes.outputs.infra }}"
           echo "infra_electron=${{ steps.changes.outputs.infra_electron }}"
           echo "infra_tauri=${{ steps.changes.outputs.infra_tauri }}"
           echo "infra_dioxus=${{ steps.changes.outputs.infra_dioxus }}"
+          echo "infra_electrobun=${{ steps.changes.outputs.infra_electrobun }}"
 
           DOCS=${{ steps.changes.outputs.docs }}
           ELECTRON=${{ steps.changes.outputs.electron_service }}
           TAURI=${{ steps.changes.outputs.tauri_service }}
           DIOXUS=${{ steps.changes.outputs.dioxus_service }}
+          ELECTROBUN=${{ steps.changes.outputs.electrobun_service }}
           SHARED=${{ steps.changes.outputs.shared }}
           E2E_ELECTRON=${{ steps.changes.outputs.e2e_electron }}
           E2E_TAURI=${{ steps.changes.outputs.e2e_tauri }}
           E2E_DIOXUS=${{ steps.changes.outputs.e2e_dioxus }}
+          E2E_ELECTROBUN=${{ steps.changes.outputs.e2e_electrobun }}
           FIXTURES_ELECTRON=${{ steps.changes.outputs.fixtures_electron }}
           FIXTURES_TAURI=${{ steps.changes.outputs.fixtures_tauri }}
           FIXTURES_DIOXUS=${{ steps.changes.outputs.fixtures_dioxus }}
+          FIXTURES_ELECTROBUN=${{ steps.changes.outputs.fixtures_electrobun }}
           INFRA=${{ steps.changes.outputs.infra }}
           INFRA_ELECTRON=${{ steps.changes.outputs.infra_electron }}
           INFRA_TAURI=${{ steps.changes.outputs.infra_tauri }}
           INFRA_DIOXUS=${{ steps.changes.outputs.infra_dioxus }}
+          INFRA_ELECTROBUN=${{ steps.changes.outputs.infra_electrobun }}
 
           # Electron: electron_service || e2e_electron || fixtures_electron || shared || infra || infra_electron
           RUN_ELECTRON=$(echo "$ELECTRON $E2E_ELECTRON $FIXTURES_ELECTRON $SHARED $INFRA $INFRA_ELECTRON" | grep -o 'true' | head -1 || echo "")
@@ -227,10 +256,16 @@ jobs:
             RUN_DIOXUS="false"
           fi
 
+          # Electrobun: electrobun_service || e2e_electrobun || fixtures_electrobun || shared || infra || infra_electrobun
+          RUN_ELECTROBUN=$(echo "$ELECTROBUN $E2E_ELECTROBUN $FIXTURES_ELECTROBUN $SHARED $INFRA $INFRA_ELECTROBUN" | grep -o 'true' | head -1 || echo "")
+          if [ -z "$RUN_ELECTROBUN" ]; then
+            RUN_ELECTROBUN="false"
+          fi
+
           # Lint-only mode when no service-impacting changes detected
           # Covers docs-only PRs, config-only edits outside infra, etc.
           RUN_LINT_ONLY="false"
-          if [ "$RUN_ELECTRON" = "false" ] && [ "$RUN_TAURI" = "false" ] && [ "$RUN_DIOXUS" = "false" ]; then
+          if [ "$RUN_ELECTRON" = "false" ] && [ "$RUN_TAURI" = "false" ] && [ "$RUN_DIOXUS" = "false" ] && [ "$RUN_ELECTROBUN" = "false" ]; then
             RUN_LINT_ONLY="true"
           fi
 
@@ -238,6 +273,7 @@ jobs:
           echo "run_electron=$RUN_ELECTRON" >> "$GITHUB_OUTPUT"
           echo "run_tauri=$RUN_TAURI" >> "$GITHUB_OUTPUT"
           echo "run_dioxus=$RUN_DIOXUS" >> "$GITHUB_OUTPUT"
+          echo "run_electrobun=$RUN_ELECTROBUN" >> "$GITHUB_OUTPUT"
           echo "has_shared_changes=$SHARED" >> "$GITHUB_OUTPUT"
           echo "run_lint_only=$RUN_LINT_ONLY" >> "$GITHUB_OUTPUT"
 
@@ -251,28 +287,34 @@ jobs:
           echo "| Electron service | $ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Tauri service | $TAURI |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Dioxus service | $DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Electrobun service | $ELECTROBUN |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Shared packages | $SHARED |" >> "$GITHUB_STEP_SUMMARY"
           echo "| E2E Electron | $E2E_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
           echo "| E2E Tauri | $E2E_TAURI |" >> "$GITHUB_STEP_SUMMARY"
           echo "| E2E Dioxus | $E2E_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| E2E Electrobun | $E2E_ELECTROBUN |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Fixtures Electron | $FIXTURES_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Fixtures Tauri | $FIXTURES_TAURI |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Fixtures Dioxus | $FIXTURES_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Fixtures Electrobun | $FIXTURES_ELECTROBUN |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Infrastructure (shared) | $INFRA |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Infrastructure (Electron) | $INFRA_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Infrastructure (Tauri) | $INFRA_TAURI |" >> "$GITHUB_STEP_SUMMARY"
           echo "| Infrastructure (Dioxus) | $INFRA_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Infrastructure (Electrobun) | $INFRA_ELECTROBUN |" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Decisions" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Run Electron**: $RUN_ELECTRON" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Run Tauri**: $RUN_TAURI" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Run Dioxus**: $RUN_DIOXUS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Run Electrobun**: $RUN_ELECTROBUN" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Lint only (no service changes)**: $RUN_LINT_ONLY" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "### Outputs" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`run_electron\`: $RUN_ELECTRON" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`run_tauri\`: $RUN_TAURI" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`run_dioxus\`: $RUN_DIOXUS" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`run_electrobun\`: $RUN_ELECTROBUN" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`has_shared_changes\`: $SHARED" >> "$GITHUB_STEP_SUMMARY"
           echo "- \`run_lint_only\`: $RUN_LINT_ONLY" >> "$GITHUB_STEP_SUMMARY"
 
@@ -282,19 +324,24 @@ jobs:
           echo "  Electron service: $ELECTRON"
           echo "  Tauri service: $TAURI"
           echo "  Dioxus service: $DIOXUS"
+          echo "  Electrobun service: $ELECTROBUN"
           echo "  Shared packages: $SHARED"
           echo "  E2E Electron: $E2E_ELECTRON"
           echo "  E2E Tauri: $E2E_TAURI"
           echo "  E2E Dioxus: $E2E_DIOXUS"
+          echo "  E2E Electrobun: $E2E_ELECTROBUN"
           echo "  Fixtures Electron: $FIXTURES_ELECTRON"
           echo "  Fixtures Tauri: $FIXTURES_TAURI"
           echo "  Fixtures Dioxus: $FIXTURES_DIOXUS"
+          echo "  Fixtures Electrobun: $FIXTURES_ELECTROBUN"
           echo "  Infrastructure (shared): $INFRA"
           echo "  Infrastructure (Electron): $INFRA_ELECTRON"
           echo "  Infrastructure (Tauri): $INFRA_TAURI"
           echo "  Infrastructure (Dioxus): $INFRA_DIOXUS"
+          echo "  Infrastructure (Electrobun): $INFRA_ELECTROBUN"
           echo ""
           echo "  Run Electron: $RUN_ELECTRON"
           echo "  Run Tauri: $RUN_TAURI"
           echo "  Run Dioxus: $RUN_DIOXUS"
+          echo "  Run Electrobun: $RUN_ELECTROBUN"
           echo "  Run lint only: $RUN_LINT_ONLY"

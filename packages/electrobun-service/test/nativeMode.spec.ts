@@ -30,7 +30,7 @@ vi.mock('../src/electrobunConfig.js', () => ({
 }));
 
 import type { ResolvedElectrobunApp } from '../src/electrobunConfig.js';
-import { cloneAppBundle, spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
+import { cloneAppBundle, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from '../src/nativeMode.js';
 import type { ElectrobunServiceOptions } from '../src/types.js';
 
 interface FakeProc extends EventEmitter {
@@ -70,6 +70,15 @@ function setPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { value: platform, configurable: true });
 }
 
+// These suites mock setPlatform('darwin') to exercise the macOS clone/spawn paths, but
+// node:path uses the RUNNER's separator regardless — so their hardcoded POSIX path
+// assertions can't match on a Windows runner (the logic is OS-identical since the
+// platform is mocked, and is covered on Linux/macOS; real Windows behaviour is exercised
+// by the e2e suite). Skip on win32 rather than re-assert every path per separator.
+// Aliased to describe.skip (not describe.skipIf) so vitest/valid-describe-callback
+// doesn't trip on a curried describe modifier with no name/callback.
+const describePosixPaths = process.platform === 'win32' ? describe.skip : describe;
+
 describe('nativeMode', () => {
   let proc: FakeProc;
 
@@ -78,7 +87,7 @@ describe('nativeMode', () => {
     proc = makeFakeProc();
     spawnMock.mockReturnValue(proc);
     // mkdtempSync is called with distinct prefixes for the bundle clone vs the
-    // CFFIXED_USER_HOME; key the stub off the prefix so call order doesn't matter.
+    // the per-run --user-data-dir; key the stub off the prefix so call order doesn't matter.
     mkdtempSyncMock.mockImplementation((prefix: string) => (prefix.includes('bundle') ? CLONE_PARENT : USER_HOME));
     createLogCaptureMock.mockReturnValue({ close: vi.fn() });
     setPlatform('darwin');
@@ -89,7 +98,7 @@ describe('nativeMode', () => {
     vi.useRealTimers();
   });
 
-  describe('cloneAppBundle', () => {
+  describePosixPaths('cloneAppBundle', () => {
     it('should use the APFS clonefile (cp -Rc) on darwin', () => {
       setPlatform('darwin');
 
@@ -144,7 +153,7 @@ describe('nativeMode', () => {
     });
   });
 
-  describe('spawnElectrobunApp', () => {
+  describePosixPaths('spawnElectrobunApp', () => {
     it('should clone the bundle and pin the port into the CLONE build.json (not the original)', () => {
       spawnElectrobunApp({
         app: APP,
@@ -165,7 +174,7 @@ describe('nativeMode', () => {
       expect(port).toBe(9333);
     });
 
-    it('should remove the cloned bundle dir if pinning the port throws (no temp-dir leak)', () => {
+    it('should remove the clone if pinning the port throws (no temp-dir leak)', () => {
       writeRemoteDebuggingPortMock.mockImplementationOnce(() => {
         throw new Error('EACCES: build.json not writable');
       });
@@ -177,7 +186,7 @@ describe('nativeMode', () => {
       expect(rmSyncMock).toHaveBeenCalledWith(CLONE_PARENT, { recursive: true, force: true });
     });
 
-    it('should spawn the CLONED binary with a per-run CFFIXED_USER_HOME', () => {
+    it('should spawn the CLONED binary and pin the port WITHOUT a separate --user-data-dir', () => {
       const result = spawnElectrobunApp({
         app: APP,
         appArgs: ['--flag'],
@@ -185,11 +194,26 @@ describe('nativeMode', () => {
         options: {} as ElectrobunServiceOptions,
       });
 
-      const [binary, args, opts] = spawnMock.mock.calls[0] as [string, string[], { env: NodeJS.ProcessEnv }];
+      const [binary, args] = spawnMock.mock.calls[0] as [string, string[]];
       expect(binary).toBe('/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/MacOS/Demo');
       expect(args).toEqual(['--flag']);
-      expect(opts.env.CFFIXED_USER_HOME).toBe(USER_HOME);
-      expect(result.cleanupDirs).toEqual([USER_HOME, CLONE_PARENT]);
+      // No --user-data-dir: CEF uses its own root_cache_path so the persist:default
+      // partition profile is created inside the profile dir (avoids the catch-22).
+      expect(writeRemoteDebuggingPortMock).toHaveBeenCalledWith(
+        '/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/Resources/build.json',
+        9333,
+      );
+      expect(result.cleanupDirs).toEqual([CLONE_PARENT]);
+    });
+
+    it('should wrap the spawn in xvfb-run on Linux (headless CI needs an X display)', () => {
+      setPlatform('linux');
+
+      spawnElectrobunApp({ app: APP, appArgs: ['--flag'], port: 9333, options: {} as ElectrobunServiceOptions });
+
+      const [command, args] = spawnMock.mock.calls[0] as [string, string[]];
+      expect(command).toBe('xvfb-run');
+      expect(args).toEqual(['-a', '/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/MacOS/Demo', '--flag']);
     });
 
     it('should take the cpSync fallback when the APFS clone fails', () => {
@@ -232,8 +256,10 @@ describe('nativeMode', () => {
         '/tmp/wdio-electrobun-bundle-xyz/Demo/build.json',
         9333,
       );
-      const [binary] = spawnMock.mock.calls[0] as [string];
-      expect(binary).toBe('/tmp/wdio-electrobun-bundle-xyz/Demo/Demo');
+      // On Linux the cloned binary is spawned under xvfb-run (headless CI display).
+      const [command, args] = spawnMock.mock.calls[0] as [string, string[]];
+      expect(command).toBe('xvfb-run');
+      expect(args).toEqual(['-a', '/tmp/wdio-electrobun-bundle-xyz/Demo/Demo']);
     });
 
     it('should throw a SevereServiceError when the app has no build.json path', () => {
@@ -298,7 +324,7 @@ describe('nativeMode', () => {
     });
   });
 
-  describe('stopElectrobunApp', () => {
+  describePosixPaths('stopElectrobunApp', () => {
     it('should close log handlers, SIGTERM the live process, and remove every cleanup dir', async () => {
       const handler = { close: vi.fn() };
       // Process exits promptly after SIGTERM.
@@ -350,6 +376,33 @@ describe('nativeMode', () => {
       ).resolves.toBeUndefined();
 
       expect(rmSyncMock).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  describe('waitForCdpReady', () => {
+    afterEach(() => {
+      vi.unstubAllGlobals();
+    });
+
+    it('should resolve once /json reports a page target', async () => {
+      const fetchMock = vi.fn().mockResolvedValue({ ok: true, json: async () => [{ type: 'page' }] });
+      vi.stubGlobal('fetch', fetchMock);
+
+      await expect(waitForCdpReady(9333, 1000)).resolves.toBeUndefined();
+      expect(fetchMock).toHaveBeenCalledWith('http://127.0.0.1:9333/json', expect.anything());
+    });
+
+    it('should resolve (not throw) on timeout when no page target ever appears', async () => {
+      // /json responds but never lists a page target — should warn-and-proceed, not hang/throw.
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => [] }));
+
+      await expect(waitForCdpReady(9333, 50)).resolves.toBeUndefined();
+    });
+
+    it('should resolve (not throw) when the endpoint never responds', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+
+      await expect(waitForCdpReady(9333, 50)).resolves.toBeUndefined();
     });
   });
 });

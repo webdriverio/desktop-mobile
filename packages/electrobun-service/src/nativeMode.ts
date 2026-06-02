@@ -2,17 +2,18 @@
 //
 // Electrobun is CDP-attach: the launcher spawns the built app binary, CEF binds
 // the port pinned in build.json, and the worker's CdpBridge attaches over CDP.
-// This module owns the per-worker bundle clone, the spawn + per-run
-// CFFIXED_USER_HOME temp dir + backend log capture, and the teardown that kills
-// the process and removes both temp dirs.
+// This module owns the per-worker bundle clone, the spawn + backend log capture,
+// and the teardown that kills the process and removes the clone.
 //
-// Multi-worker parallelism needs two isolations per worker (RESEARCH_FINDINGS):
-//  - a distinct CFFIXED_USER_HOME → CEF's single-instance-per-cache-root folding
-//    keys on the cache root, so a per-run home gives each launch its own session;
-//  - a private bundle clone → CEF reads the remote-debugging port ONLY from the
-//    bundle's build.json (not a launch arg), so each worker needs its own bundle
-//    copy to pin its own port. We clone here and write the port into the clone,
-//    never mutating the user's shared bundle.
+// Each worker gets a private bundle clone because CEF reads chromiumFlags
+// (remote-debugging-port) ONLY from the bundle's build.json, not a launch arg — so a
+// worker needs its own bundle copy to pin its own port. We clone here and write the
+// port into the clone, never mutating the user's shared bundle. We deliberately do
+// NOT pin a separate --user-data-dir (see spawnElectrobunApp): CEF's own
+// root_cache_path is the user-data-dir, which keeps the forced persist:default
+// partition profile creatable. That makes instances share root_cache_path, so this is
+// single-instance only (maxInstances=1); multiremote stays blocked pending an upstream
+// CEF fix (see the agent-os plan "Framework gaps").
 //
 // E2E-validation gap: clone/spawn/teardown can only be exercised against a real
 // built CEF bundle (none in unit tests). Unit tests mock node:child_process /
@@ -38,7 +39,7 @@ const SIGKILL_GRACE_MS = 5_000;
 
 export interface ElectrobunAppProcess {
   proc: ChildProcess;
-  /** Temp dirs to remove on teardown: the per-run CFFIXED_USER_HOME + the bundle-clone parent. */
+  /** Temp dirs to remove on teardown (the bundle-clone parent). */
   cleanupDirs: string[];
   /** Allocated CEF remote-debugging port (pinned into the cloned bundle's build.json). */
   port: number;
@@ -94,12 +95,13 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
 /**
  * Spawn a built Electrobun app for native-mode CDP attach.
  *
- * Clones the resolved bundle into a per-worker temp dir, pins `port` into the
- * clone's build.json (CEF reads the port from build.json, never a launch arg),
- * creates a per-run `CFFIXED_USER_HOME` temp dir for an isolated CEF cache root,
- * spawns the CLONED binary, and (when log capture is enabled) wires stdout/stderr
- * through `createLogCapture`. Returns the process handle plus the temp dirs so the
- * launcher can tear them all down.
+ * Clones the resolved bundle into a per-worker temp dir and pins ONLY `port` into the
+ * clone's build.json (CEF reads chromiumFlags there, not argv) — deliberately NOT a
+ * `--user-data-dir`, so CEF's own root_cache_path stays the user-data-dir and the forced
+ * persist:default profile creates cleanly (see the inline note below; this is what makes
+ * the service single-instance / `maxInstances=1`). Spawns the CLONED binary, and (when log
+ * capture is enabled) wires stdout/stderr through `createLogCapture`. Returns the process
+ * handle plus the temp dirs so the launcher can tear them all down.
  */
 export function spawnElectrobunApp(params: SpawnElectrobunAppParams): ElectrobunAppProcess {
   const { app, appArgs, port, options, instanceId } = params;
@@ -117,13 +119,20 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   const clonedBinaryPath = app.binaryPath.replace(app.bundlePath, clonedBundlePath);
   const clonedBuildJsonPath = app.buildJsonPath.replace(app.bundlePath, clonedBundlePath);
 
-  // The clone isn't tracked for teardown until we return the process handle, so
-  // if pinning the port or creating the home dir throws, remove it here to avoid
-  // leaking the (large, CEF-bearing) temp dir.
-  let userHomeDir: string;
+  // The clone isn't tracked for teardown until we return the handle, so remove it
+  // here if pinning the port throws (it's the large, CEF-bearing temp dir).
+  //
+  // Pin ONLY the port — do NOT inject a separate --user-data-dir. CEF then uses its
+  // own root_cache_path (~/Library/Application Support | ~/.cache | %LOCALAPPDATA%
+  // per OS) as the Chrome user-data-dir, so the persist:default partition profile
+  // (at <root_cache_path>/partitions/default, forced by BrowserWindow) lands INSIDE
+  // the user-data-dir and creates cleanly. A /tmp --user-data-dir left that partition
+  // OUTSIDE the profile dir → "Cannot create profile" → a racy global-context fallback
+  // that was the cross-OS e2e blocker (recoverable on macOS, fatal on Linux/Windows).
+  // Trade-off: instances now share root_cache_path, so this is single-instance only
+  // (maxInstances=1) — multiremote stays blocked pending an upstream CEF fix.
   try {
     writeRemoteDebuggingPort(clonedBuildJsonPath, port);
-    userHomeDir = mkdtempSync(join(tmpdir(), 'wdio-electrobun-home-'));
   } catch (error) {
     rmSync(cloneParentDir, { recursive: true, force: true });
     throw error;
@@ -132,13 +141,19 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     ...options.env,
-    // Redirect CEF's cache root to a per-run dir so a stale cache can't fold this
-    // launch into an existing browser session (RESEARCH_FINDINGS §CFFIXED_USER_HOME).
-    CFFIXED_USER_HOME: userHomeDir,
   };
 
+  // Linux CI runners are headless and CEF is a GUI process that needs an X display
+  // ("Failed to open X11 display" otherwise → no browser → no /json). WDIO's autoXvfb
+  // covers the worker process, not this launcher-spawned app, so run the app under
+  // `xvfb-run -a` (a throwaway X server) on Linux. macOS/Windows runners have a real
+  // display, so spawn the binary directly there.
+  const useXvfb = process.platform === 'linux';
+  const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
+  const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;
+
   log.info(`Spawning Electrobun app: ${clonedBinaryPath} ${appArgs.join(' ')} (CDP port ${port})`);
-  const proc = spawn(clonedBinaryPath, appArgs, {
+  const proc = spawn(command, spawnArgs, {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: false,
@@ -168,13 +183,55 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
     log.error(`Electrobun app process error: ${err.message}`);
   });
 
-  return { proc, cleanupDirs: [userHomeDir, cloneParentDir], port, logHandlers };
+  return { proc, cleanupDirs: [cloneParentDir], port, logHandlers };
+}
+
+const CDP_READY_TIMEOUT_MS = 30_000;
+const CDP_READY_POLL_MS = 250;
+
+/**
+ * Wait until CEF is serving its CDP `/json` endpoint with at least one `page` target.
+ *
+ * The launcher spawns the app and sets `goog:chromeOptions.debuggerAddress`, but the
+ * worker's Chromedriver attaches to that port independently. If it connects before CEF
+ * has bound the port and registered a page (slow on Windows CI), session creation
+ * times out ("cannot connect to chrome at localhost:N") and WDIO burns its full
+ * connectionRetryTimeout per attempt. Polling `/json` here makes the attach reliable.
+ *
+ * Resolves (with a warning) on timeout rather than throwing: a failed attach is the
+ * real signal, and a hard throw would mask it as a launcher error.
+ */
+export async function waitForCdpReady(port: number, timeoutMs: number = CDP_READY_TIMEOUT_MS): Promise<void> {
+  const deadline = Date.now() + timeoutMs;
+  // 127.0.0.1, not 'localhost': CEF binds the debugger on IPv4, but Node resolves
+  // 'localhost' to IPv6 ::1 first on Windows/Linux CI, so the fetch would always fail.
+  const url = `http://127.0.0.1:${port}/json`;
+  let lastError = 'no response';
+  while (Date.now() < deadline) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(2_000) });
+      if (res.ok) {
+        const targets = (await res.json()) as Array<{ type?: string }>;
+        if (Array.isArray(targets) && targets.some((target) => target?.type === 'page')) {
+          return;
+        }
+        lastError = 'no page target yet';
+      }
+    } catch (error) {
+      lastError = (error as Error).message;
+    }
+    await sleep(CDP_READY_POLL_MS);
+  }
+  log.warn(
+    `CEF CDP endpoint 127.0.0.1:${port} not ready after ${timeoutMs}ms (${lastError}); ` +
+      "proceeding — the worker's session attach may fail",
+  );
 }
 
 /**
  * Stop a spawned Electrobun app: close log handlers, SIGTERM (SIGKILL after a
- * grace period), then remove the per-run CFFIXED_USER_HOME temp dir and the
- * bundle-clone parent. Tolerant of an already-dead process and missing temp dirs.
+ * grace period), then remove its temp dirs (the bundle-clone parent). Tolerant of an
+ * already-dead process and missing temp dirs.
  */
 export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void> {
   for (const handler of app.logHandlers) {

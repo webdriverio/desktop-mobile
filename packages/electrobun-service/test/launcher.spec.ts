@@ -31,6 +31,7 @@ vi.mock('../src/nativeMode.js', () => ({
     logHandlers: [],
   })),
   stopElectrobunApp: vi.fn().mockResolvedValue(undefined),
+  waitForCdpReady: vi.fn().mockResolvedValue(undefined),
 }));
 
 import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } from '../src/electrobunConfig.js';
@@ -155,7 +156,7 @@ describe('ElectrobunLaunchService', () => {
       expect(spawnArg.app.buildJsonPath).toBe('/apps/Demo.app/Contents/Resources/build.json');
       expect(typeof spawnArg.port).toBe('number');
 
-      expect(cap['goog:chromeOptions']).toEqual({ debuggerAddress: `localhost:${spawnArg.port}` });
+      expect(cap['goog:chromeOptions']).toEqual({ debuggerAddress: `127.0.0.1:${spawnArg.port}` });
     });
 
     it('should NOT pin the port directly — clone + port-write happen inside the spawn path', async () => {
@@ -178,8 +179,8 @@ describe('ElectrobunLaunchService', () => {
       const portA = vi.mocked(spawnElectrobunApp).mock.calls[0][0].port;
       const portB = vi.mocked(spawnElectrobunApp).mock.calls[1][0].port;
       expect(portA).not.toBe(portB);
-      expect((caps[0]['goog:chromeOptions'] as Record<string, unknown>).debuggerAddress).toBe(`localhost:${portA}`);
-      expect((caps[1]['goog:chromeOptions'] as Record<string, unknown>).debuggerAddress).toBe(`localhost:${portB}`);
+      expect((caps[0]['goog:chromeOptions'] as Record<string, unknown>).debuggerAddress).toBe(`127.0.0.1:${portA}`);
+      expect((caps[1]['goog:chromeOptions'] as Record<string, unknown>).debuggerAddress).toBe(`127.0.0.1:${portB}`);
     });
 
     it('should preserve existing goog:chromeOptions when setting debuggerAddress', async () => {
@@ -191,7 +192,7 @@ describe('ElectrobunLaunchService', () => {
 
       const chromeOptions = cap['goog:chromeOptions'] as Record<string, unknown>;
       expect(chromeOptions.args).toEqual(['--headless']);
-      expect(chromeOptions.debuggerAddress).toMatch(/^localhost:\d+$/);
+      expect(chromeOptions.debuggerAddress).toMatch(/^127\.0\.0\.1:\d+$/);
     });
 
     it('should accept a single (non-array) capability', async () => {
@@ -245,6 +246,29 @@ describe('ElectrobunLaunchService', () => {
       await launcher.onWorkerStart('0-0', [{}]);
 
       await expect(launcher.onComplete()).resolves.toBeUndefined();
+    });
+  });
+
+  describe('onWorkerEnd', () => {
+    it('should stop the worker app per-spec so apps do not accumulate', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      await launcher.onPrepare(baseConfig, [{}]);
+      await launcher.onWorkerStart('0-0', [{}]);
+
+      await expect(launcher.onWorkerEnd('0-0')).resolves.toBeUndefined();
+      expect(vi.mocked(stopElectrobunApp)).toHaveBeenCalledTimes(1);
+
+      // Already torn down — onComplete must not stop it again.
+      await launcher.onComplete();
+      expect(vi.mocked(stopElectrobunApp)).toHaveBeenCalledTimes(1);
+    });
+
+    it('should resolve when the worker never spawned an app', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      await launcher.onPrepare(baseConfig, [{}]);
+
+      await expect(launcher.onWorkerEnd('0-9')).resolves.toBeUndefined();
+      expect(vi.mocked(stopElectrobunApp)).not.toHaveBeenCalled();
     });
   });
 });

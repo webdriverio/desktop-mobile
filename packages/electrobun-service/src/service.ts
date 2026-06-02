@@ -99,6 +99,8 @@ export default class ElectrobunWorkerService {
     const mockStore = new ElectrobunMockStore();
     this.mockStores.push(mockStore);
     installApi(browser, bridge, mockStore);
+
+    await syncWebDriverWindow(browser, bridge);
   }
 
   async after(): Promise<void> {
@@ -133,6 +135,42 @@ function capabilityFor(capabilities: unknown, instanceName: string): unknown {
 }
 
 /**
+ * Align the WebDriver session window with the CdpBridge's active target. Chromedriver,
+ * attaching to the CEF debug port, makes its session window whatever page CEF lists
+ * first — often a blank shell (`about:blank`) or the wrong content window when several
+ * are open (the fixture opens main + second). The bridge (execute/mock) tracks its own
+ * active target, so without this `$()`/`click`/`getText` would drift onto a different
+ * window. Call after attach and after every `switchWindow` so element commands and
+ * `execute` stay on the same window. Matches the active target by URL, falling back to
+ * the first non-blank window. Best-effort: failures are logged, not fatal.
+ */
+async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBridge): Promise<void> {
+  try {
+    const targets = bridge.listTargets();
+    const targetUrl = targets.find((t) => t.label === bridge.activeLabel)?.url ?? targets[0]?.url;
+    const handles = await browser.getWindowHandles();
+    let fallback: string | undefined;
+    for (const handle of handles) {
+      await browser.switchToWindow(handle);
+      const url = await browser.getUrl().catch(() => '');
+      if (targetUrl && url === targetUrl) {
+        return;
+      }
+      if (!fallback && url && !url.startsWith('about:') && !url.startsWith('chrome')) {
+        fallback = handle;
+      }
+    }
+    if (fallback) {
+      await browser.switchToWindow(fallback);
+      return;
+    }
+    log.warn('No non-blank content window found; element commands may target a blank document.');
+  } catch (error) {
+    log.warn(`Could not sync the WebDriver window to the active target: ${(error as Error).message}`);
+  }
+}
+
+/**
  * Build and install the `browser.electrobun.*` surface backed by `bridge`. The
  * `mockStore` is per-installed-instance so multiremote instances keep separate
  * mock registries.
@@ -141,7 +179,12 @@ function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: 
   const electrobun: ElectrobunServiceAPI = {
     execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
       execute<R, A>(bridge, script, ...args),
-    switchWindow: (label: string) => bridge.switchTarget(label),
+    switchWindow: async (label: string) => {
+      await bridge.switchTarget(label);
+      // Move the WebDriver session window too — $/click must follow the switch, not
+      // just execute/mock (which use the bridge's active target).
+      await syncWebDriverWindow(browser, bridge);
+    },
     listWindows: async () => bridge.listWindows(),
     mock: (target: string) => mock(target, bridge, mockStore),
     isMockFunction: (targetOrFn: unknown) => isMockFunction(targetOrFn, mockStore),

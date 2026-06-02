@@ -12,6 +12,7 @@
 
 import type { CdpBridge } from '@wdio/electrobun-cdp-bridge';
 import type { ElectrobunAPIs } from '@wdio/native-types';
+import { hasSemicolonOutsideQuotes } from '@wdio/native-utils';
 
 interface RemoteObject {
   type?: string;
@@ -60,6 +61,24 @@ function inlineArgs(args: unknown[]): string {
   return args.map((arg, index) => jsonLiteral(arg, 'browser.electrobun.execute argument', index)).join(', ');
 }
 
+const STATEMENT_KEYWORD = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/;
+
+/**
+ * Wrap a string script for `Runtime.evaluate`, mirroring `@wdio/electron-service`:
+ * a statement-style script (leading keyword like `return`/`const`, or multiple
+ * statements separated by a real `;`) becomes a function body; anything else is
+ * treated as an expression and `return`ed. This lets callers write `return 42`,
+ * `const x = …; return x`, or a bare `1 + 2` and get the value back either way —
+ * matching the convergent execute surface across services.
+ */
+function wrapStringScript(script: string): string {
+  const trimmed = script.trim();
+  if (STATEMENT_KEYWORD.test(trimmed) || hasSemicolonOutsideQuotes(trimmed)) {
+    return `(async function () { ${script} })()`;
+  }
+  return `(async function () { return (${script}); })()`;
+}
+
 /**
  * Evaluate a raw JS expression in the active CEF content target and return its
  * (returned-by-value) result. Centralises `Runtime.evaluate` + exception
@@ -87,7 +106,9 @@ export async function evaluateInActiveTarget<ReturnValue>(bridge: CdpBridge, exp
  *
  * Function form: the source is wrapped in an async IIFE that passes
  * `window.__WDIO_ELECTROBUN__` (defaulting to `{}`) as the first arg, then the
- * inlined user args. String form: evaluated as-is (standard expression).
+ * inlined user args. String form: wrapped via `wrapStringScript` so both a bare
+ * expression (`1 + 2`) and a statement body (`return 42`, `const x = …; return x`)
+ * return their value — matching the convergent execute surface.
  */
 export async function execute<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   bridge: CdpBridge,
@@ -101,7 +122,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
           const eb = window.__WDIO_ELECTROBUN__ || {};
           return await userFn(eb, ${inlineArgs(args)});
         })()`
-      : script;
+      : wrapStringScript(script);
 
   return evaluateInActiveTarget<ReturnValue>(bridge, expression);
 }

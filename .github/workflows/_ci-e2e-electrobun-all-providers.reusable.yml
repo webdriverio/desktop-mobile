@@ -1,0 +1,244 @@
+name: Electrobun E2E Tests
+
+# Description: Runs Electrobun E2E tests. Electrobun is a single-provider, CDP-attach
+# framework (like Electron) — there is no driver-provider matrix. The reusable name
+# keeps the `*-all-providers` suffix for consistency with the tauri/dioxus workflows.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Operating system to run tests on'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version to use for testing'
+        required: true
+        type: string
+      test-type:
+        description: 'Test type (standard, window, deeplink)'
+        type: string
+        default: 'standard'
+      build_id:
+        description: 'Build ID from the build job'
+        type: string
+        required: false
+      artifact_size:
+        description: 'Size of the build artifact in bytes'
+        type: string
+        required: false
+      cache_key:
+        description: 'Cache key to use for downloading package artifacts'
+        type: string
+        required: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  e2e-electrobun:
+    name: Run
+    runs-on: ${{ inputs.os }}
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # CEF + native-wrapper runtime dependencies on Linux. libwebkit2gtk-4.1-0 is
+      # required even though we use the CEF renderer: electrobun's libNativeWrapper.so
+      # links webkit2gtk (it supports both renderers), so it won't dlopen without it
+      # ("libwebkit2gtk-4.1.so.0: cannot open shared object file"). The rest are CEF's
+      # Chromium runtime libs.
+      - name: 🐧 Install CEF Runtime Dependencies (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            xvfb \
+            libwebkit2gtk-4.1-0 \
+            libayatana-appindicator3-1 \
+            libnss3 \
+            libatk1.0-0 \
+            libatk-bridge2.0-0 \
+            libcups2 \
+            libdrm2 \
+            libgbm1 \
+            libgtk-3-0 \
+            libasound2t64 \
+            libxkbcommon0 \
+            libxdamage1 \
+            libxrandr2 \
+            libxcomposite1 \
+            libxfixes3 || true
+
+      - name: 📦 Download Package Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      # Symlink-preserving tarball (see the build workflow) — NOT the shared
+      # zip/dist-target download-archive, which can't round-trip the CEF .app.
+      - name: 📦 Download Electrobun E2E App Bundle
+        uses: actions/download-artifact@v4
+        with:
+          name: electrobun-e2e-bundle-${{ runner.os }}-${{ runner.arch }}
+          path: ${{ runner.temp }}
+
+      - name: 🗜️ Extract Electrobun Bundle
+        shell: bash
+        run: |
+          mkdir -p fixtures/e2e-apps/electrobun
+          # Windows: --force-local so GNU tar reads D:\… as a path, not a remote host
+          # (see the build workflow). macOS bsdtar lacks the flag, so Windows-only.
+          flags=""
+          [ "$RUNNER_OS" = "Windows" ] && flags="--force-local"
+          tar $flags -xzpf "${RUNNER_TEMP}/electrobun-e2e-bundle.tgz" -C fixtures/e2e-apps/electrobun
+
+      - name: ✅ Verify Electrobun Bundle
+        shell: bash
+        run: |
+          if [ ! -d "fixtures/e2e-apps/electrobun/build" ]; then
+            echo "::error::Electrobun build dir not found — bundle was not extracted correctly."
+            find fixtures/e2e-apps/electrobun/ -maxdepth 1 || true
+            exit 1
+          fi
+          echo "Electrobun build tree (truncated):"
+          # `… | head` closes the pipe early; under `set -o pipefail -e` the upstream
+          # `find` then dies with SIGPIPE (141) and fails the step — so tolerate it.
+          find fixtures/e2e-apps/electrobun/build -maxdepth 3 2>/dev/null | head -50 || true
+
+      - name: 📊 Show Build Information
+        if: inputs.build_id != '' && inputs.artifact_size != ''
+        shell: bash
+        run: |
+          echo "::notice::Package build: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
+          echo "::notice::Electrobun bundle: Using pre-built bundle for ${{ runner.os }}"
+
+      - name: 🪄 Generate Test Command
+        id: gen-test
+        uses: actions/github-script@v9
+        env:
+          TEST_TYPE: ${{ inputs.test-type }}
+        with:
+          script: |
+            const ALLOWED = ['standard', 'window', 'deeplink'];
+            const testType = process.env.TEST_TYPE.trim();
+            if (!ALLOWED.includes(testType)) {
+              core.setFailed(`Invalid test-type: "${testType}". Allowed: ${ALLOWED.join(', ')}`);
+              return;
+            }
+            const suffix = testType !== 'standard' ? `:${testType}` : '';
+            core.setOutput('script', `test:e2e:electrobun${suffix}`);
+
+      - name: 🧹 Cleanup
+        if: always()
+        shell: bash
+        run: |
+          # Match the per-worker clone temp-dir prefix (wdio-electrobun-bundle-*),
+          # which appears in every spawned process's argv — the launcher binary, the
+          # bun child, and CEF helper subprocesses — rather than the .app display
+          # name. The macOS bundle keeps spaces ("WDIO Electrobun E2E-dev.app") while
+          # the Windows exe name does not, so a name-based match misses the CEF
+          # helpers; the temp-dir prefix is stable across both.
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            powershell -Command "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*wdio-electrobun-bundle*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" || true
+          else
+            pkill -9 -f 'wdio-electrobun-bundle' || true
+          fi
+
+      - name: 🧪 E2E Tests
+        id: test
+        continue-on-error: true
+        shell: pwsh
+        working-directory: e2e
+        env:
+          TEST_TYPE: ${{ inputs.test-type }}
+        run: |
+          # autoXvfb in wdio.electrobun.conf.ts manages Xvfb on Linux (CDP-attach,
+          # like Electron — no xvfb-run wrap needed).
+          pnpm run ${{ steps.gen-test.outputs.script }}
+
+      - name: 🧹 Post-cleanup
+        if: always()
+        shell: bash
+        run: |
+          # Match the per-worker clone temp-dir prefix (wdio-electrobun-bundle-*),
+          # which appears in every spawned process's argv — the launcher binary, the
+          # bun child, and CEF helper subprocesses — rather than the .app display
+          # name. The macOS bundle keeps spaces ("WDIO Electrobun E2E-dev.app") while
+          # the Windows exe name does not, so a name-based match misses the CEF
+          # helpers; the temp-dir prefix is stable across both.
+          if [ "${{ runner.os }}" == "Windows" ]; then
+            powershell -Command "Get-CimInstance Win32_Process | Where-Object { \$_.CommandLine -like '*wdio-electrobun-bundle*' } | ForEach-Object { Stop-Process -Id \$_.ProcessId -Force -ErrorAction SilentlyContinue }" || true
+          else
+            pkill -9 -f 'wdio-electrobun-bundle' || true
+          fi
+
+      - name: 🐛 Debug Information
+        if: always()
+        shell: bash
+        run: pnpm exec tsx e2e/scripts/show-logs.ts || true
+
+      - name: 📊 E2E Summary
+        if: always()
+        shell: bash
+        run: |
+          # shellcheck disable=SC2129
+          echo "## Electrobun E2E Results — ${{ inputs.os }} / ${{ inputs.test-type }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "| Result |" >> "$GITHUB_STEP_SUMMARY"
+          echo "|--------|" >> "$GITHUB_STEP_SUMMARY"
+          case "${{ steps.test.outcome }}" in
+            success)   echo "| ✅ Passed |" >> "$GITHUB_STEP_SUMMARY" ;;
+            failure)   echo "| ❌ Failed |" >> "$GITHUB_STEP_SUMMARY" ;;
+            cancelled) echo "| ⚠️ Cancelled |" >> "$GITHUB_STEP_SUMMARY" ;;
+            *)         echo "| ⏭️ ${{ steps.test.outcome }} |" >> "$GITHUB_STEP_SUMMARY" ;;
+          esac
+
+      - name: 📦 Upload Test Logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-electrobun-logs-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
+          path: e2e/logs/**/*.log
+          retention-days: 90
+          if-no-files-found: warn
+
+      - name: ❌ Check Result
+        if: always()
+        shell: bash
+        run: |
+          case "${{ steps.test.outcome }}" in
+            success|skipped|"")
+              echo "Electrobun E2E passed"
+              ;;
+            failure)
+              echo "::error::Electrobun E2E tests failed"
+              exit 1
+              ;;
+            cancelled)
+              echo "::error::Electrobun E2E tests were cancelled"
+              exit 1
+              ;;
+            *)
+              echo "::error::Electrobun E2E had unexpected outcome: ${{ steps.test.outcome }}"
+              exit 1
+              ;;
+          esac

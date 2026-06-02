@@ -4,6 +4,10 @@ const connectMock = vi.fn().mockResolvedValue(undefined);
 const sendMock = vi.fn();
 const switchTargetMock = vi.fn().mockResolvedValue(undefined);
 const listWindowsMock = vi.fn().mockReturnValue(['main', 'second']);
+const targetsMock = vi.fn().mockReturnValue([
+  { id: 't-main', label: 'main', url: 'views://mainview/index.html', webSocketDebuggerUrl: 'ws://x/main' },
+  { id: 't-2', label: 'window-1', url: 'views://secondview/index.html', webSocketDebuggerUrl: 'ws://x/2' },
+]);
 const closeMock = vi.fn().mockResolvedValue(undefined);
 const cdpBridgeCtor = vi.fn();
 
@@ -16,6 +20,8 @@ vi.mock('@wdio/electrobun-cdp-bridge', () => ({
     send = sendMock;
     switchTarget = switchTargetMock;
     listWindows = listWindowsMock;
+    listTargets = targetsMock;
+    activeLabel = 'main';
     close = closeMock;
   },
 }));
@@ -29,8 +35,22 @@ function nativeCap(port = 9333): Record<string, unknown> {
   return { 'goog:chromeOptions': { debuggerAddress: `localhost:${port}` } };
 }
 
-function makeBrowser(): WebdriverIO.Browser {
-  return { isMultiremote: false, sessionId: 'abc' } as unknown as WebdriverIO.Browser;
+function makeBrowser(
+  windows: { handle: string; url: string }[] = [
+    { handle: 'win-blank', url: 'about:blank' },
+    { handle: 'win-main', url: 'views://mainview/index.html' },
+  ],
+): WebdriverIO.Browser {
+  let current = windows[0]?.handle;
+  return {
+    isMultiremote: false,
+    sessionId: 'abc',
+    getWindowHandles: vi.fn().mockResolvedValue(windows.map((w) => w.handle)),
+    switchToWindow: vi.fn(async (handle: string) => {
+      current = handle;
+    }),
+    getUrl: vi.fn(async () => windows.find((w) => w.handle === current)?.url ?? ''),
+  } as unknown as WebdriverIO.Browser;
 }
 
 describe('ElectrobunWorkerService', () => {
@@ -39,6 +59,10 @@ describe('ElectrobunWorkerService', () => {
     connectMock.mockResolvedValue(undefined);
     sendMock.mockResolvedValue({ result: { value: undefined } });
     listWindowsMock.mockReturnValue(['main', 'second']);
+    targetsMock.mockReturnValue([
+      { id: 't-main', label: 'main', url: 'views://mainview/index.html', webSocketDebuggerUrl: 'ws://x/main' },
+      { id: 't-2', label: 'window-1', url: 'views://secondview/index.html', webSocketDebuggerUrl: 'ws://x/2' },
+    ]);
     closeMock.mockResolvedValue(undefined);
   });
 
@@ -56,6 +80,19 @@ describe('ElectrobunWorkerService', () => {
       expect(cdpBridgeCtor).toHaveBeenCalledTimes(1);
       expect(cdpBridgeCtor.mock.calls[0][0]).toMatchObject({ host: 'localhost', port: 9350 });
       expect(connectMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should focus the WebDriver session on the content window, not a blank shell', async () => {
+      const browser = makeBrowser([
+        { handle: 'win-blank', url: 'about:blank' },
+        { handle: 'win-main', url: 'views://mainview/index.html' },
+      ]);
+      const service = new ElectrobunWorkerService({}, {});
+
+      await service.before(nativeCap(), [], browser);
+
+      // Ends on the content window so $/click target the app, not about:blank.
+      expect(vi.mocked(browser.switchToWindow).mock.calls.at(-1)?.[0]).toBe('win-main');
     });
 
     it('should install browser.electrobun with the full API surface', async () => {
@@ -132,7 +169,7 @@ describe('ElectrobunWorkerService', () => {
       expect(params.expression).toContain('__WDIO_ELECTROBUN__');
     });
 
-    it('should pass a raw string expression through unchanged', async () => {
+    it('should wrap a raw string expression so its value is returned', async () => {
       sendMock.mockResolvedValueOnce({ result: { value: 'ok' } });
       const browser = makeBrowser();
       const service = new ElectrobunWorkerService({}, {});
@@ -141,7 +178,7 @@ describe('ElectrobunWorkerService', () => {
       const result = await (browser as unknown as Installed).electrobun.execute('1 + 1');
 
       expect(result).toBe('ok');
-      expect(sendMock.mock.calls[0][1].expression).toBe('1 + 1');
+      expect(sendMock.mock.calls[0][1].expression).toBe('(async function () { return (1 + 1); })()');
     });
 
     it('should throw when Runtime.evaluate reports exceptionDetails', async () => {
@@ -163,6 +200,21 @@ describe('ElectrobunWorkerService', () => {
       await (browser as unknown as Installed).electrobun.switchWindow('second');
 
       expect(switchTargetMock).toHaveBeenCalledWith('second');
+    });
+
+    it('should also sync the WebDriver session window on switchWindow', async () => {
+      const browser = makeBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(nativeCap(), [], browser);
+      vi.mocked(browser.getWindowHandles).mockClear();
+      vi.mocked(browser.switchToWindow).mockClear();
+
+      await (browser as unknown as Installed).electrobun.switchWindow('window-1');
+
+      // Not just the bridge target — $/click must follow, so the session re-syncs.
+      expect(switchTargetMock).toHaveBeenCalledWith('window-1');
+      expect(browser.getWindowHandles).toHaveBeenCalled();
+      expect(browser.switchToWindow).toHaveBeenCalled();
     });
 
     it('should delegate listWindows to bridge.listWindows', async () => {

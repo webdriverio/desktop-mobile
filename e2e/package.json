@@ -45,6 +45,9 @@
     "test:e2e:dioxus:standalone": "tsx test/dioxus/standalone/api.spec.ts",
     "test:e2e:dioxus:deeplink": "cross-env TEST_TYPE=deeplink wdio run wdio.dioxus-embedded.conf.ts",
     "test:e2e:dioxus-external": "wdio run wdio.dioxus.conf.ts",
+    "test:e2e:electrobun": "wdio run wdio.electrobun.conf.ts",
+    "test:e2e:electrobun:window": "cross-env TEST_TYPE=window wdio run wdio.electrobun.conf.ts",
+    "test:e2e:electrobun:deeplink": "cross-env TEST_TYPE=deeplink wdio run wdio.electrobun.conf.ts",
     "protocol-install:tauri": "../fixtures/e2e-apps/tauri/scripts/protocol-install.sh",
     "protocol-install:electron-builder": "../fixtures/e2e-apps/electron-builder/scripts/protocol-install.sh",
     "protocol-install:electron-forge": "../fixtures/e2e-apps/electron-forge/scripts/protocol-install.sh"
@@ -52,6 +55,7 @@
   "dependencies": {
     "@wdio/cli": "catalog:default",
     "@wdio/dioxus-service": "link:../packages/dioxus-service",
+    "@wdio/electrobun-service": "link:../packages/electrobun-service",
     "@wdio/electron-service": "link:../packages/electron-service",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",

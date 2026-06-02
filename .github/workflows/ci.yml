@@ -168,6 +168,29 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # ────────────────────────────────────────────────────────────────────────
+  # Electrobun E2E app (CEF bundle, no Rust crates). The CEF fixture build is
+  # the biggest unknown in this pipeline: a beta Bun/CEF toolchain that pulls a
+  # ~150MB CEF download. macOS is the validated platform.
+  #
+  # macOS-ONLY in v1 (pre-1.0): Linux/Windows build + e2e are NOT run. They build
+  # fine, but their CEF can't recover from the chrome-runtime persist:default
+  # profile failure (the global-context fallback serves no /json), so the e2e can't
+  # attach — an upstream electrobun limitation (see the agent-os plan "Framework
+  # gaps"). Re-add the Linux/Windows build + e2e jobs once that lands upstream.
+  # ────────────────────────────────────────────────────────────────────────
+  build-electrobun-e2e-app-macos-arm:
+    name: Build Electrobun E2E App [macOS-ARM]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build Dioxus package test apps - only if Dioxus package tests will run
   build-dioxus-package-app-linux:
     name: Build Dioxus Package Test App [Linux]
@@ -657,6 +680,47 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-macos-arm.outputs.cache_key }}
 
+  # ────────────────────────────────────────────────────────────────────────
+  # Electrobun E2E tests (single CDP-attach provider — no provider matrix).
+  #
+  # macOS-ONLY in v1 (pre-1.0): only the macOS-ARM leg runs. Linux/Windows e2e are
+  # NOT run — their CEF can't recover from the persist:default profile failure (no
+  # /json), an upstream electrobun limitation (see the agent-os plan "Framework
+  # gaps"). Re-add a Linux/Windows leg (+ its build job above) once that lands.
+  #
+  # Test-type matrix: 'standard' (api/application/execute/logging/mock),
+  # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
+  # ────────────────────────────────────────────────────────────────────────
+  # REQUIRED gate (listed in ci-status.needs): the `standard` SINGLE-WINDOW suite
+  # (api/application/execute/logging/mock). The window (multi-window) and deeplink
+  # suites are intentionally NOT run on CI: they hit an upstream CEF per-instance
+  # profile-isolation limitation — BrowserWindow forces a `persist:default` partition
+  # the chrome-runtime can't create as a non-global profile, so multi-window/relaunch
+  # fall back to a racy global context, and a shared user-data-dir folds instances →
+  # no CDP targets. Not fixable from the fixture/service, and multiremote is blocked
+  # for the same reason. See the agent-os plan "Framework gaps" + the skip notes in
+  # window.spec.ts / deeplink.spec.ts. Re-add these (and a multiremote leg) once
+  # electrobun ships per-window partitions / per-instance root_cache_path / open-url
+  # routing. The specs stay runnable locally via TEST_TYPE=window|deeplink.
+  e2e-electrobun-macos-arm:
+    name: E2E - Electrobun [macOS-ARM] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-electrobun-e2e-app-macos-arm]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+
   # Dioxus package tests - all platforms (mirrors E2E coverage)
   package-dioxus-linux:
     name: Package - Dioxus [Linux]
@@ -832,6 +896,11 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
+      # Electrobun is macOS-only in v1: the required gate is the macOS `standard`
+      # single-window suite. Linux/Windows e2e (+ their build jobs) are not run at all
+      # (CEF can't serve /json there — upstream gap; see the macOS job note), and
+      # window/deeplink are not run anywhere (same gap).
+      - e2e-electrobun-macos-arm
       - package-electron-matrix
       - package-tauri-linux
       - package-tauri-windows
@@ -855,6 +924,7 @@ jobs:
       - build-dioxus-e2e-app-linux
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
+      - build-electrobun-e2e-app-macos-arm
       - build-dioxus-package-app-linux
       - build-dioxus-package-app-windows
       - build-dioxus-package-app-macos-arm

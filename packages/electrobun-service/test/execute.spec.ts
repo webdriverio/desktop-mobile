@@ -28,12 +28,20 @@ describe('execute', () => {
     expect(result).toEqual({ ok: true });
   });
 
-  it('should pass a string expression through unchanged', async () => {
+  it('should wrap a bare string expression so its value is returned', async () => {
     const { bridge, send } = makeBridge({ result: { value: 2 } });
 
     await execute(bridge, 'document.title');
 
-    expect(send.mock.calls[0][1].expression).toBe('document.title');
+    expect(send.mock.calls[0][1].expression).toBe('(async function () { return (document.title); })()');
+  });
+
+  it('should wrap a statement-style string (leading return) as a function body', async () => {
+    const { bridge, send } = makeBridge({ result: { value: 42 } });
+
+    await execute(bridge, 'return 42');
+
+    expect(send.mock.calls[0][1].expression).toBe('(async function () { return 42 })()');
   });
 
   it('should throw a descriptive error for non-JSON-serialisable args', async () => {

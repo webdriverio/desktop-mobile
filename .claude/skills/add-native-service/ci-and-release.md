@@ -53,4 +53,9 @@ To add a framework:
 
 ### Per-package release notes
 
-Each shipped service keeps `docs/release-notes/v1.0.0.md`; Wry crates keep `docs/release-notes/` too (e.g. `dioxus-bridge/docs/release-notes/v1.0.0.md`). Add the v1 note before the Ship PR.
+Each shipped service keeps `docs/release-notes/<version>.md` matching its initial package version —
+`v1.0.0.md` for a full-convergent-surface service, or `v0.1.0.md` for one shipping pre-1.0 because
+upstream blocks a lot of the surface (see SKILL "When upstream blocks the standard surface"). Wry
+crates keep `docs/release-notes/` too (e.g. `dioxus-bridge/docs/release-notes/v1.0.0.md`). The v0.1.0
+note should state the supported platform/feature subset and link the upstream issues for the gaps.
+Add the note before the Ship PR.
