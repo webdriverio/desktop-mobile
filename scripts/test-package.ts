@@ -1,7 +1,7 @@
 #!/usr/bin/env tsx
 /**
  * Script to test the wdio-electron-service, wdio-tauri-service, and wdio-dioxus-service packages in the package test apps
- * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|dioxus|both>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]
+ * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|dioxus|electrobun|all>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]
  *
  * Examples:
  * pnpx tsx scripts/test-package.ts
@@ -11,6 +11,7 @@
  * pnpx tsx scripts/test-package.ts --service=electron --mode=browser
  * pnpx tsx scripts/test-package.ts --service=tauri
  * pnpx tsx scripts/test-package.ts --service=dioxus
+ * pnpx tsx scripts/test-package.ts --service=electrobun  (macOS only)
  * pnpx tsx scripts/test-package.ts --package=electron-builder-app-cjs
  * pnpx tsx scripts/test-package.ts --package=electron-builder-app-esm
  * pnpx tsx scripts/test-package.ts --package=tauri-app --skip-build
@@ -78,7 +79,7 @@ function readWorkspaceOverrides(): Record<string, string> {
 interface TestOptions {
   package?: string;
   skipBuild?: boolean;
-  service?: 'electron' | 'tauri' | 'dioxus' | 'both';
+  service?: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'all';
   moduleType?: 'cjs' | 'esm' | 'both';
   /** 'native' runs the existing app-launch tests. 'browser' starts a static
    * HTTP server against the fixture's `browser/` directory and runs the
@@ -134,14 +135,18 @@ function execCommand(command: string, cwd: string, description: string) {
   }
 }
 
-async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'both' = 'both'): Promise<{
+async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'all' = 'all'): Promise<{
   electronServicePath?: string;
   tauriServicePath?: string;
   dioxusServicePath?: string;
+  electrobunServicePath?: string;
   utilsPath: string;
   spyPath: string;
   corePath: string;
   typesPath?: string;
+  // Holds the electron-cdp-bridge tarball for `electron`, or the electrobun-cdp-bridge
+  // tarball for `electrobun` — the two services never pack together (electrobun is not
+  // part of `all`), so one field is unambiguous per run.
   cdpBridgePath?: string;
 }> {
   log(`Building and packing services and dependencies (service: ${service})...`);
@@ -150,11 +155,14 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
     // Build only the packages required for the requested service. Each
     // service depends on @wdio/native-core (extracted in the Dioxus
     // foundation work), so include it in every filter set.
-    const buildFilters: Record<'electron' | 'tauri' | 'dioxus' | 'both', string> = {
+    const buildFilters: Record<'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'all', string> = {
       electron: '--filter=@wdio/electron-service --filter=@wdio/native-spy --filter=@wdio/native-core',
       tauri: '--filter=@wdio/tauri-service --filter=@wdio/native-core',
       dioxus: '--filter=@wdio/dioxus-service --filter=@wdio/native-core',
-      both: '--filter=./packages/*',
+      electrobun: '--filter=@wdio/electrobun-service --filter=@wdio/native-spy --filter=@wdio/native-core',
+      // `all` builds every package; it does NOT include electrobun's fixtures — electrobun
+      // is macOS-only and always run via its own `--service=electrobun` job.
+      all: '--filter=./packages/*',
     };
     execCommand(`pnpm turbo run build ${buildFilters[service]}`, rootDir, `Building packages for ${service}`);
 
@@ -197,6 +205,7 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
       electronServicePath?: string;
       tauriServicePath?: string;
       dioxusServicePath?: string;
+      electrobunServicePath?: string;
       utilsPath: string;
       spyPath: string;
       corePath: string;
@@ -205,7 +214,7 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
     } = { utilsPath, spyPath, corePath };
 
     // Pack Electron service and dependencies if needed
-    if (service === 'electron' || service === 'both') {
+    if (service === 'electron' || service === 'all') {
       const electronServiceDir = normalize(join(rootDir, 'packages', 'electron-service'));
       const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
       const cdpBridgeDir = normalize(join(rootDir, 'packages', 'electron-cdp-bridge'));
@@ -227,7 +236,7 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
     }
 
     // Pack Tauri service if needed
-    if (service === 'tauri' || service === 'both') {
+    if (service === 'tauri' || service === 'all') {
       const tauriServiceDir = normalize(join(rootDir, 'packages', 'tauri-service'));
       const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
       if (!existsSync(tauriServiceDir)) {
@@ -243,7 +252,7 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
     }
 
     // Pack Dioxus service if needed
-    if (service === 'dioxus' || service === 'both') {
+    if (service === 'dioxus' || service === 'all') {
       const dioxusServiceDir = normalize(join(rootDir, 'packages', 'dioxus-service'));
       if (!existsSync(dioxusServiceDir)) {
         throw new Error(`Dioxus service directory does not exist: ${dioxusServiceDir}`);
@@ -258,6 +267,26 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
       }
       execCommand('pnpm pack', dioxusServiceDir, 'Packing @wdio/dioxus-service');
       result.dioxusServicePath = findTgzFile(dioxusServiceDir, 'wdio-dioxus-service-');
+    }
+
+    // Pack Electrobun service if needed (CDP archetype like Electron: service +
+    // native-types + its own electrobun-cdp-bridge). Never part of `all`.
+    if (service === 'electrobun') {
+      const electrobunServiceDir = normalize(join(rootDir, 'packages', 'electrobun-service'));
+      const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+      const cdpBridgeDir = normalize(join(rootDir, 'packages', 'electrobun-cdp-bridge'));
+      if (!existsSync(electrobunServiceDir)) {
+        throw new Error(`Electrobun service directory does not exist: ${electrobunServiceDir}`);
+      }
+      if (!existsSync(cdpBridgeDir)) {
+        throw new Error(`Electrobun CDP Bridge directory does not exist: ${cdpBridgeDir}`);
+      }
+      execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
+      execCommand('pnpm pack', cdpBridgeDir, 'Packing @wdio/electrobun-cdp-bridge');
+      execCommand('pnpm pack', electrobunServiceDir, 'Packing @wdio/electrobun-service');
+      result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+      result.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-electrobun-cdp-bridge-');
+      result.electrobunServicePath = findTgzFile(electrobunServiceDir, 'wdio-electrobun-service-');
     }
 
     log(`📦 Packages packed:`);
@@ -280,6 +309,11 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'b
       if (result.typesPath) {
         log(`   Types: ${result.typesPath}`);
       }
+    }
+    if (result.electrobunServicePath) {
+      log(`   Electrobun Service: ${result.electrobunServicePath}`);
+      log(`   Types: ${result.typesPath}`);
+      log(`   CDP Bridge: ${result.cdpBridgePath}`);
     }
 
     return result;
@@ -351,13 +385,14 @@ async function testExample(
     electronServicePath?: string;
     tauriServicePath?: string;
     dioxusServicePath?: string;
+    electrobunServicePath?: string;
     utilsPath: string;
     spyPath: string;
     corePath: string;
     typesPath?: string;
     cdpBridgePath?: string;
   },
-  service: 'electron' | 'tauri' | 'dioxus',
+  service: 'electron' | 'tauri' | 'dioxus' | 'electrobun',
   skipBuild: boolean,
   mode: 'native' | 'browser' = 'native',
 ) {
@@ -457,6 +492,14 @@ async function testExample(
       overrides['@wdio/dioxus-service'] = `file:${packages.dioxusServicePath}`;
       overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
       packagesToInstall.push(packages.typesPath, packages.dioxusServicePath);
+    } else if (service === 'electrobun') {
+      if (!packages.electrobunServicePath || !packages.typesPath || !packages.cdpBridgePath) {
+        throw new Error('Electrobun service packages not available');
+      }
+      overrides['@wdio/electrobun-service'] = `file:${packages.electrobunServicePath}`;
+      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
+      overrides['@wdio/electrobun-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
+      packagesToInstall.push(packages.typesPath, packages.cdpBridgePath, packages.electrobunServicePath);
     }
 
     packageJson.pnpm = {
@@ -726,6 +769,26 @@ async function testExample(
       } else if (packageJson.scripts?.build) {
         execCommand('pnpm build', packageDir, `Building ${packageName} app`);
       }
+    } else if (service === 'electrobun' && mode === 'native') {
+      // CDP-attach CEF bundle. CI builds it as a separate macOS artifact (the ~150MB
+      // CEF download is slow), so in skipBuild mode copy the pre-built bundle rather
+      // than re-running `electrobun build` in the isolated environment.
+      const sourceBuildDir = join(rootDir, 'fixtures', 'package-tests', 'electrobun-app', 'build');
+      const destBuildDir = join(packageDir, 'build');
+      if (skipBuild) {
+        if (!existsSync(sourceBuildDir)) {
+          throw new Error(
+            `Pre-built Electrobun bundle not found at ${sourceBuildDir}. ` +
+              'Was the build artifact downloaded and extracted correctly?',
+          );
+        }
+        log(`Copying pre-built Electrobun bundle from ${sourceBuildDir}...`);
+        mkdirSync(destBuildDir, { recursive: true });
+        cpSync(sourceBuildDir, destBuildDir, { recursive: true });
+        log(`✅ Pre-built Electrobun bundle copied successfully`);
+      } else if (packageJson.scripts?.build) {
+        execCommand('pnpm build', packageDir, `Building ${packageName} app`);
+      }
     } else if (packageJson.scripts?.build && mode === 'native') {
       // Build other apps (e.g. Electron) in isolated environment
       execCommand('pnpm build', packageDir, `Building ${packageName} app`);
@@ -849,13 +912,21 @@ async function main() {
     const args = process.argv.slice(2);
     const serviceArg = args.find((arg) => arg.startsWith('--service='))?.split('=')[1];
 
-    // Validate service argument if provided, default to 'both' if not provided
-    let service: 'electron' | 'tauri' | 'dioxus' | 'both' = 'both';
+    // Validate service argument if provided, default to 'all' if not provided
+    let service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'all' = 'all';
     if (serviceArg) {
-      if (serviceArg === 'electron' || serviceArg === 'tauri' || serviceArg === 'dioxus' || serviceArg === 'both') {
+      if (
+        serviceArg === 'electron' ||
+        serviceArg === 'tauri' ||
+        serviceArg === 'dioxus' ||
+        serviceArg === 'electrobun' ||
+        serviceArg === 'all'
+      ) {
         service = serviceArg;
       } else {
-        throw new Error(`Invalid service value: ${serviceArg}. Must be 'electron', 'tauri', 'dioxus', or 'both'`);
+        throw new Error(
+          `Invalid service value: ${serviceArg}. Must be 'electron', 'tauri', 'dioxus', 'electrobun', or 'all'`,
+        );
       }
     }
 
@@ -892,6 +963,7 @@ async function main() {
       electronServicePath?: string;
       tauriServicePath?: string;
       dioxusServicePath?: string;
+      electrobunServicePath?: string;
       utilsPath: string;
       spyPath: string;
       corePath: string;
@@ -918,7 +990,7 @@ async function main() {
         corePath: findTgzFile(coreDir, 'wdio-native-core-'),
       };
 
-      if (options.service === 'electron' || options.service === 'both') {
+      if (options.service === 'electron' || options.service === 'all') {
         const electronServiceDir = normalize(join(rootDir, 'packages', 'electron-service'));
         const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
         const cdpBridgeDir = normalize(join(rootDir, 'packages', 'electron-cdp-bridge'));
@@ -927,18 +999,27 @@ async function main() {
         packages.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-electron-cdp-bridge-');
       }
 
-      if (options.service === 'tauri' || options.service === 'both') {
+      if (options.service === 'tauri' || options.service === 'all') {
         const tauriServiceDir = normalize(join(rootDir, 'packages', 'tauri-service'));
         const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
         packages.tauriServicePath = findTgzFile(tauriServiceDir, 'wdio-tauri-service-');
         packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
       }
 
-      if (options.service === 'dioxus' || options.service === 'both') {
+      if (options.service === 'dioxus' || options.service === 'all') {
         const dioxusServiceDir = normalize(join(rootDir, 'packages', 'dioxus-service'));
         const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
         packages.dioxusServicePath = findTgzFile(dioxusServiceDir, 'wdio-dioxus-service-');
         packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+      }
+
+      if (options.service === 'electrobun') {
+        const electrobunServiceDir = normalize(join(rootDir, 'packages', 'electrobun-service'));
+        const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+        const cdpBridgeDir = normalize(join(rootDir, 'packages', 'electrobun-cdp-bridge'));
+        packages.electrobunServicePath = findTgzFile(electrobunServiceDir, 'wdio-electrobun-service-');
+        packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+        packages.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-electrobun-cdp-bridge-');
       }
 
       log(`📦 Using existing packages:`);
@@ -955,6 +1036,10 @@ async function main() {
       }
       if (packages.dioxusServicePath) {
         log(`   Dioxus Service: ${packages.dioxusServicePath}`);
+      }
+      if (packages.electrobunServicePath) {
+        log(`   Electrobun Service: ${packages.electrobunServicePath}`);
+        log(`   CDP Bridge: ${packages.cdpBridgePath}`);
       }
     } else {
       packages = await buildAndPackService(options.service);
@@ -979,11 +1064,13 @@ async function main() {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('tauri-'));
     } else if (options.service === 'dioxus') {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('dioxus-'));
+    } else if (options.service === 'electrobun') {
+      filteredDirs = packageTestDirs.filter((name) => name.startsWith('electrobun-'));
     }
-    // If service is 'both', don't filter
+    // If service is 'all', don't filter
 
     // Filter by module type for Electron packages
-    if (options.service === 'electron' || options.service === 'both') {
+    if (options.service === 'electron' || options.service === 'all') {
       if (options.moduleType === 'cjs') {
         filteredDirs = filteredDirs.filter((name) => name.endsWith('-cjs') || !name.match(/-cjs$|-esm$/));
       } else if (options.moduleType === 'esm') {
@@ -1006,7 +1093,7 @@ async function main() {
     if (
       options.moduleType === 'both' &&
       !options.package &&
-      (options.service === 'electron' || options.service === 'both')
+      (options.service === 'electron' || options.service === 'all')
     ) {
       const expandedPackages: string[] = [];
       const seenBaseNames = new Set<string>();
@@ -1052,12 +1139,15 @@ async function main() {
         continue;
       }
 
-      // Detect service type from package name (already filtered by prefix, but needed for testExample)
-      const detectedService: 'electron' | 'tauri' | 'dioxus' = packageName.startsWith('tauri-')
-        ? 'tauri'
-        : packageName.startsWith('dioxus-')
-          ? 'dioxus'
-          : 'electron';
+      // Detect service type from the package-name prefix (already filtered, but
+      // testExample needs it). Electron is the default — its fixtures carry no prefix.
+      const servicePrefixes = [
+        ['tauri-', 'tauri'],
+        ['dioxus-', 'dioxus'],
+        ['electrobun-', 'electrobun'],
+      ] as const;
+      const detectedService: 'electron' | 'tauri' | 'dioxus' | 'electrobun' =
+        servicePrefixes.find(([prefix]) => packageName.startsWith(prefix))?.[1] ?? 'electron';
 
       // Log module type for Electron packages
       if (detectedService === 'electron') {
