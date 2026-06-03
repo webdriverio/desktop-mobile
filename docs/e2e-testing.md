@@ -32,7 +32,7 @@ e2e/
 ├── wdio.tauri.conf.ts      # Tauri WDIO config
 ├── wdio.tauri-embedded.conf.ts  # Tauri embedded WDIO config
 ├── wdio.dioxus-embedded.conf.ts # Dioxus embedded WDIO config
-└── wdio.electrobun.conf.ts # Electrobun WDIO config (CDP-attach, macOS-only)
+└── wdio.electrobun.conf.ts # Electrobun WDIO config
 
 fixtures/e2e-apps/
 ├── electron-builder/       # Electron app (builder packaging)
@@ -40,7 +40,8 @@ fixtures/e2e-apps/
 ├── electron-no-binary/     # Electron app (no binary mode)
 ├── electron-script/        # Electron app (script mode)
 ├── tauri/                  # Tauri app
-└── dioxus/                 # Dioxus app
+├── dioxus/                 # Dioxus app
+└── electrobun/             # Electrobun app (CEF renderer)
 ```
 
 ## Running E2E Tests

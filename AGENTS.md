@@ -33,13 +33,13 @@ packages/
 ├── electron-service/       # Electron WDIO service
 ├── tauri-service/          # Tauri WDIO service
 ├── dioxus-service/         # Dioxus WDIO service
-├── electrobun-service/     # Electrobun WDIO service (CDP-attach, macOS-only in 0.x)
+├── electrobun-service/     # Electrobun WDIO service
 ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
 ├── dioxus-bridge/          # Dioxus bridge crate (Rust) — IPC, mocking, log forwarding
 ├── dioxus-embedded-driver/ # Dioxus in-process WebDriver server (Rust)
 ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows 'external' provider)
-├── electron-cdp-bridge/    # Chrome DevTools Protocol bridge (Electron)
-├── electrobun-cdp-bridge/  # Multi-target CDP bridge (Electrobun)
+├── electron-cdp-bridge/    # CDP client — Electron main-process debugger (single target)
+├── electrobun-cdp-bridge/  # CDP client — Electrobun CEF webviews (multi-target)
 ├── native-utils/           # Cross-platform utilities
 ├── native-types/           # TypeScript type definitions
 ├── native-spy/             # Spy utilities for mocking

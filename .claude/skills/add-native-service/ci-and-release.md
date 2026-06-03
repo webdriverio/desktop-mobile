@@ -58,8 +58,5 @@ ReleaseKit generates the release notes + `CHANGELOG.md` as part of the release (
 `docs/release-notes/<version>.md` files in the repo (e.g. `dioxus-service/docs/release-notes/v1.0.0.md`)
 are **generated artifacts committed by a release**, not pre-Ship inputs — so do **not** hand-author a
 `docs/release-notes/<version>.md` for a new service; it appears when the release runs. Listing the
-package in the `_release.reusable.yml` target set is enough.
-
-Where you *do* need the prose is the **service README + `docs/`** (hand-authored): the supported
-platform/feature subset and the known-limitation links (upstream issues) belong there, since that's
-what users read and what the generated notes can draw from.
+package in the `_release.reusable.yml` target set is enough. Supported-subset/limitations prose is
+hand-authored in the service README + `docs/` instead.

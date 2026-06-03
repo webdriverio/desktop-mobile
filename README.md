@@ -102,7 +102,7 @@ desktop-mobile/
 │   ├── electron-service/        # Electron service implementation
 │   ├── tauri-service/           # Tauri service implementation
 │   ├── dioxus-service/          # Dioxus service implementation
-│   ├── electrobun-service/      # Electrobun service implementation (macOS-only, 0.x)
+│   ├── electrobun-service/      # Electrobun service implementation
 │   ├── electron-cdp-bridge/     # Chrome DevTools Protocol bridge (Electron)
 │   ├── electrobun-cdp-bridge/   # Multi-target CDP bridge (Electrobun)
 │   ├── native-utils/            # Cross-platform utilities

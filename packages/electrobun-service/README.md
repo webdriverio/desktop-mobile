@@ -91,7 +91,10 @@ These are **upstream Electrobun/CEF limitations**, not service bugs — the serv
 code implements the full surface and is unit-tested. CEF's chrome-runtime can't
 create the `persist:default` profile its `BrowserWindow` forces and falls back to
 a global browser context; macOS recovers (serves `/json`), but Linux/Windows do
-not. Tracked in [#317](https://github.com/webdriverio/desktop-mobile/issues/317).
+not. The upstream CEF fixes and what each unblocks are tracked in
+[#320](https://github.com/webdriverio/desktop-mobile/issues/320); the non-CEF
+(native-renderer) track that fills Linux/Windows a different way is
+[#317](https://github.com/webdriverio/desktop-mobile/issues/317).
 
 | Area | Status |
 |---|---|
@@ -99,6 +102,7 @@ not. Tracked in [#317](https://github.com/webdriverio/desktop-mobile/issues/317)
 | multiremote / parallel workers | ❌ blocked — CEF can't isolate ≥2 instances (single-instance only). |
 | `switchWindow` / `listWindows` (multi-window) | ⚠️ implemented but unreliable, even on macOS (2-window global-context race). |
 | `triggerDeeplink` (macOS) | ⚠️ unreliable — no open-url routing to the spawned instance. |
+| single-window apps | ⚠️ a lone CEF window doesn't reliably appear in `/json`, so the bridge can intermittently find no target to attach to. Opening a second window stabilises target exposure (the test fixtures do this, staggered behind the first window's `dom-ready`). |
 | `emitEvent` | deferred — the Bun event bus isn't CDP-reachable. |
 
 As each upstream fix lands, the corresponding platform/feature is re-enabled and
