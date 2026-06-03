@@ -39,16 +39,19 @@ RUN xbps-install -yf util-linux util-linux-common libblkid libuuid libmount libf
 # The 'embedded' driver needs NO system WebKitWebDriver binary, so no
 # /usr/sbin/WebKitWebDriver symlink dance is required.
 #
-# Unlike the other four images, no separate libappindicator / xdotool packages
-# are installed. dioxus-desktop pulls muda/tray-icon/libxdo into the graph, but
-# on Void those FFI deps resolve from the webkit2gtk41 + gtk+3 stack — the
-# sibling Tauri Void image builds the identical crate graph green with exactly
-# these packages, so adding more would only diverge from that proven reference.
+# xdotool-devel provides the unversioned libxdo.so: muda (dioxus-desktop's
+# menu crate) hard-links `-lxdo`, and without it the app's final link fails
+# ("unable to find library -lxdo"). The other images get it from their
+# distro's xdotool/libxdo devel packages. libayatana-appindicator is the
+# runtime tray library tray-icon dlopens (it probes the ayatana name first);
+# not needed at link time, installed for runtime parity with the other images.
 RUN xbps-install -y \
         libwebkit2gtk41 \
         libwebkit2gtk41-devel \
         gtk+3-devel \
         librsvg-devel \
+        xdotool-devel \
+        libayatana-appindicator \
         mesa-dri \
         wget \
         file && \
