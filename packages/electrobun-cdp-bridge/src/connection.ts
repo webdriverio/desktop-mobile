@@ -33,6 +33,8 @@ type MethodReturnValue = {
   error?: { message: string };
 };
 
+// Reserved for the connect() promise: command IDs are pre-incremented from 0,
+// so send() emits 1, 2, … and a response can never carry id 0.
 const CONNECT_PROMISE_ID = 0;
 
 /**

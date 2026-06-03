@@ -131,9 +131,9 @@ describe('ElectrobunWorkerService', () => {
   });
 
   describe('before() — browser mode', () => {
-    it('should skip CDP attach when devServerUrl is set', async () => {
+    it('should skip CDP attach in browser mode', async () => {
       const browser = makeBrowser();
-      const service = new ElectrobunWorkerService({ devServerUrl: 'http://localhost:3000' }, {});
+      const service = new ElectrobunWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:3000' }, {});
 
       await service.before(nativeCap(), [], browser);
 
@@ -141,16 +141,27 @@ describe('ElectrobunWorkerService', () => {
       expect((browser as unknown as Partial<Installed>).electrobun).toBeUndefined();
     });
 
-    it('should read devServerUrl from capability-level options', async () => {
+    it('should read browser mode from capability-level options', async () => {
       const browser = makeBrowser();
       const service = new ElectrobunWorkerService(
         {},
-        { 'wdio:electrobunServiceOptions': { devServerUrl: 'http://localhost:4000' } },
+        { 'wdio:electrobunServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:4000' } },
       );
 
       await service.before(nativeCap(), [], browser);
 
       expect(cdpBridgeCtor).not.toHaveBeenCalled();
+    });
+
+    it('should NOT skip the attach for a stray devServerUrl without mode: browser', async () => {
+      const browser = makeBrowser();
+      const service = new ElectrobunWorkerService({ devServerUrl: 'http://localhost:3000' }, {});
+
+      await service.before(nativeCap(), [], browser);
+
+      // The launcher would have spawned natively (its criterion is mode only) —
+      // the worker must attach rather than silently leave the surface uninstalled.
+      expect(cdpBridgeCtor).toHaveBeenCalled();
     });
   });
 

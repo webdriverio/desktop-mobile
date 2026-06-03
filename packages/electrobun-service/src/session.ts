@@ -81,7 +81,11 @@ export async function init(
   return browser;
 }
 
-/** Clean up a standalone Electrobun session created by {@link init}. */
+/**
+ * Clean up a standalone Electrobun session created by {@link init}. A browser
+ * not created by init() is left untouched (warn + no-op) — its WebDriver
+ * session belongs to whoever opened it.
+ */
 export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   log.debug('Cleaning up Electrobun standalone session…');
 

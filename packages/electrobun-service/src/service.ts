@@ -30,7 +30,6 @@ function parseDebuggerAddress(address: string): { host: string; port: number } {
  * switching, mocking, and triggerDeeplink — all over the bridge).
  */
 export default class ElectrobunWorkerService {
-  private devServerUrl?: string;
   private options: ElectrobunServiceOptions;
   private bridges: CdpBridge[] = [];
   private mockStores: ElectrobunMockStore[] = [];
@@ -39,7 +38,6 @@ export default class ElectrobunWorkerService {
     const capOptions = (capabilities as { 'wdio:electrobunServiceOptions'?: ElectrobunServiceOptions })[
       'wdio:electrobunServiceOptions'
     ];
-    this.devServerUrl = capOptions?.devServerUrl ?? options.devServerUrl;
     this.options = { ...options, ...capOptions };
     log.debug('ElectrobunWorkerService initialised');
   }
@@ -51,8 +49,10 @@ export default class ElectrobunWorkerService {
   ): Promise<void> {
     // Browser mode: the frontend runs in a plain Chrome session against a dev
     // server — no CEF, no CDP side-channel. The electrobun surface is not
-    // installed (execute/mock have no in-app target to drive).
-    if (this.devServerUrl) {
+    // installed (execute/mock have no in-app target to drive). Keyed on `mode`,
+    // the same criterion the launcher uses — a stray devServerUrl without
+    // mode: 'browser' must not skip the attach while the launcher spawns natively.
+    if (this.options.mode === 'browser') {
       log.info('Browser mode — skipping CDP bridge attach');
       return;
     }
