@@ -109,15 +109,10 @@ export class DevTool {
             });
           });
 
+          // req.setTimeout alone covers the socket for the request's lifetime — a
+          // socket-level 'timeout' listener would just double-fire #timeoutHandler.
           req.setTimeout(this.#options.timeout, () => {
             this.#timeoutHandler(reject, req);
-          });
-
-          req.on('socket', (socket) => {
-            socket.setTimeout(this.#options.timeout);
-            socket.on('timeout', () => {
-              this.#timeoutHandler(reject, req);
-            });
           });
 
           req.on('error', (error) => {
