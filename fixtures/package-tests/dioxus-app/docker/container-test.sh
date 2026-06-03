@@ -11,18 +11,9 @@ set -e
 
 export TURBO_TELEMETRY_DISABLED=1
 export DISPLAY=:99
-# The Dioxus embedded app uses a plain Wry WebKitGTK webview (not the
-# WebKitWebDriver automation webview the sibling Tauri image drives).
-# Xvfb in a bare container has no DRI3/GPU, so the WebKitGTK renderer
-# fails GL init ("libEGL DRI3 error") and never executes page JS — every
-# bridge round-trip then times out. Point GL at Mesa's software
-# rasteriser (the images install the swrast/llvmpipe driver) and take
-# the WebKit software paths. Tauri needs none of this because its
-# automation webview renders differently.
-export LIBGL_ALWAYS_SOFTWARE=1
-export GALLIUM_DRIVER=llvmpipe
-export WEBKIT_DISABLE_COMPOSITING_MODE=1
-export WEBKIT_DISABLE_DMABUF_RENDERER=1
+# No GL/WebKit env tweaks needed: the "libEGL DRI3 error" warnings under
+# Xvfb are benign (the bare-runner package test prints the same ones and
+# passes), and Mesa falls back to its software rasteriser on its own.
 
 echo '=== Starting Xvfb ==='
 # Start Xvfb in background (some distros use different paths)
@@ -40,6 +31,18 @@ pnpm install --frozen-lockfile
 
 echo '=== Building dioxus-service and dependencies ==='
 pnpm --filter @wdio/dioxus-service... build
+
+echo '=== Building bridge guest-js (baked into the app binary) ==='
+# Not a workspace dependency of the service, so the filtered build above
+# skips it. The bridge crate's build.rs embeds dist-js/index.js into the
+# binary and silently degrades to a no-op bundle when it is missing — the
+# app then renders fine but every bridge round-trip times out. The main CI
+# build job avoids this by building all packages; this harness must build
+# it explicitly.
+pnpm --filter "@wdio/dioxus-bridge..." build
+test -s /workspace/packages/dioxus-bridge/dist-js/index.js || {
+    echo 'ERROR: bridge guest-js bundle missing after build'; exit 1;
+}
 
 echo '=== Building Dioxus app (compiles embedded driver + bridge) ==='
 cd fixtures/package-tests/dioxus-app

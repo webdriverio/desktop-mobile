@@ -27,6 +27,13 @@ fn main() {
     .find(|p| p.exists())
     .map(|p| fs::read_to_string(p).expect("read guest-js bundle"))
     .unwrap_or_else(|| {
+      // Loud, because the degraded binary looks healthy: the app renders,
+      // but every bridge round-trip times out with no error anywhere.
+      println!(
+        "cargo:warning=@wdio/dioxus-bridge guest-js bundle not found — embedding a no-op placeholder. \
+         Bridge invoke/mock/log-capture will silently time out at runtime. \
+         Run `pnpm --filter @wdio/dioxus-bridge build` before `cargo build`."
+      );
       String::from("/* @wdio/dioxus-bridge guest-js not built yet; run `pnpm --filter @wdio/dioxus-bridge build` */")
     });
 

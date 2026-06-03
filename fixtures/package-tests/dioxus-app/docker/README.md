@@ -68,8 +68,11 @@ for the detailed rationale.
 2. Mount the workspace into the container and start Xvfb.
 3. `pnpm install --frozen-lockfile`.
 4. `pnpm --filter @wdio/dioxus-service... build` (service + its workspace dependencies).
-5. `cargo build` the Dioxus app — this also compiles the embedded driver and the bridge crate into the binary.
-6. `pnpm test` (WebdriverIO against the embedded driver, headless under Xvfb).
+5. `pnpm --filter @wdio/dioxus-bridge... build` — the guest-js bundle the bridge crate's
+   `build.rs` bakes into the app binary. Not a service dependency, so step 4 skips it;
+   without it the bundle silently degrades to a no-op and every bridge call times out.
+6. `cargo build` the Dioxus app — this also compiles the embedded driver and the bridge crate into the binary.
+7. `pnpm test` (WebdriverIO against the embedded driver, headless under Xvfb).
 
 There is no separate plugin-build step: unlike Tauri's JS plugin, the Dioxus bridge
 and embedded driver are Rust crates pulled in by the app's `Cargo.toml` and built by `cargo`.
