@@ -4,7 +4,7 @@ import type { Debugger } from '../src/types.js';
 
 // Shared mutable state for the mocked DevTool/Connection (hoisted so the
 // vi.mock factories can reference it).
-const h = vi.hoisted(() => ({ targets: [] as Debugger[], sent: [] as string[] }));
+const h = vi.hoisted(() => ({ targets: [] as Debugger[], sent: [] as string[], failEnable: false, closed: 0 }));
 
 vi.mock('../src/devTool.js', () => ({
   DevTool: class {
@@ -22,10 +22,15 @@ vi.mock('../src/connection.js', () => ({
     connect = async () => {};
     send = async (method: string) => {
       h.sent.push(method);
+      if (h.failEnable && method === 'Runtime.enable') {
+        throw new Error('Runtime.enable failed');
+      }
       return {};
     };
     on = () => this;
-    close = async () => {};
+    close = async () => {
+      h.closed++;
+    };
   },
 }));
 
@@ -46,6 +51,8 @@ const target = (id: string, url: string): Debugger => ({
 beforeEach(() => {
   h.targets = [];
   h.sent.length = 0;
+  h.failEnable = false;
+  h.closed = 0;
 });
 
 describe('CdpBridge multi-target routing', () => {
@@ -58,6 +65,18 @@ describe('CdpBridge multi-target routing', () => {
     expect(bridge.listWindows()).toEqual(['main', 'window-1']);
     expect(h.sent).toContain('Runtime.enable');
     expect(h.sent).not.toContain('Page.navigate');
+  });
+
+  it('should close the freshly opened connection when Runtime.enable fails', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    h.failEnable = true;
+    const bridge = new CdpBridge({ connectionRetryCount: 0, waitInterval: 1 });
+
+    await expect(bridge.connect()).rejects.toThrow('Runtime.enable failed');
+
+    // The connection was never tracked in the bridge, so it must be closed at the
+    // failure site — otherwise the live socket would leak past bridge.close().
+    expect(h.closed).toBe(1);
   });
 
   it('should switch the active target without navigating', async () => {

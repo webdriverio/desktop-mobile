@@ -181,8 +181,15 @@ export class CdpBridge {
     }
     const connection = new Connection(target.webSocketDebuggerUrl, { timeout: this.#options.timeout });
     await connection.connect();
-    // Attach is observation-only — enable Runtime, never Page.navigate.
-    await connection.send('Runtime.enable');
+    try {
+      // Attach is observation-only — enable Runtime, never Page.navigate.
+      await connection.send('Runtime.enable');
+    } catch (error) {
+      // Not yet tracked in #connections, so close() would never reach it — shut the
+      // live socket here or it leaks past bridge.close().
+      await connection.close().catch(() => {});
+      throw error;
+    }
     this.#connections.set(label, connection);
     return connection;
   }

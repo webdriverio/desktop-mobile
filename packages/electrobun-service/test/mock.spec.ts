@@ -205,6 +205,15 @@ describe('createMock (Electrobun mocking)', () => {
       expect(spy(2, 3)).toBe(5);
     });
 
+    it('should reject a native function passed as a mockImplementation', async () => {
+      const { bridge } = makeBridge({ api: { fetchData: () => 1 } });
+      const mock = await createMock('api.fetchData', bridge, store);
+
+      await expect(mock.mockImplementation(Array.prototype.push as (...args: unknown[]) => unknown)).rejects.toThrow(
+        /native or bound functions/,
+      );
+    });
+
     it('should reject a function passed as a mockReturnValue (not JSON-serialisable)', async () => {
       const { bridge } = makeBridge({ api: { fetchData: () => 1 } });
       const mock = await createMock('api.fetchData', bridge, store);

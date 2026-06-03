@@ -95,6 +95,22 @@ function parseCallData(raw: unknown): CallData {
   };
 }
 
+/**
+ * Source text of a user implementation function, for evaluation in the page.
+ * Native and bound functions stringify to `{ [native code] }`, which would land
+ * in the page as a SyntaxError — reject them up front with an actionable message.
+ */
+function implSource(implFn: AbstractFn, target: string): string {
+  const source = implFn.toString();
+  if (/\{\s*\[native code\]\s*\}/.test(source)) {
+    throw new Error(
+      `browser.electrobun.mock("${target}"): mockImplementation requires a function with serialisable source — ` +
+        'native or bound functions stringify to "[native code]" and cannot be evaluated in the webview',
+    );
+  }
+  return source;
+}
+
 /** Serialise a value/error to a JS literal for inlining into a setter script. */
 function valueLiteral(value: unknown, target: string): string {
   if (value instanceof Error) {
@@ -120,8 +136,10 @@ export async function createMock(
 
   const existing = store.getMock(target);
   if (existing) {
-    // Re-mocking the same target returns the existing handle; the install script
-    // is idempotent in-page so we don't double-wrap.
+    // Re-mocking the same target returns the existing handle, but still evaluates
+    // the install script: if the app reloaded the page, the in-page registry was
+    // wiped and this re-install heals the recorder. The script's idempotence makes
+    // the call safe (no double-wrap), not redundant.
     await evaluateInActiveTarget<void>(bridge, buildInstallScript(target));
     return existing;
   }
@@ -163,12 +181,12 @@ export async function createMock(
   };
 
   mock.mockImplementation = async (implFn: AbstractFn) => {
-    await evaluateInActiveTarget<void>(bridge, buildSetImplementationScript(target, implFn.toString()));
+    await evaluateInActiveTarget<void>(bridge, buildSetImplementationScript(target, implSource(implFn, target)));
     return mock;
   };
 
   mock.mockImplementationOnce = async (implFn: AbstractFn) => {
-    await evaluateInActiveTarget<void>(bridge, buildSetImplementationScript(target, implFn.toString(), true));
+    await evaluateInActiveTarget<void>(bridge, buildSetImplementationScript(target, implSource(implFn, target), true));
     return mock;
   };
 
