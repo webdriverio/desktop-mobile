@@ -18,8 +18,5 @@ export const DEFAULT_REMOTE_DEBUGGING_PORT = 9222;
  */
 export const DEFAULT_DEBUG_PORT_BASE = 9333;
 
-/** Explicit-port override env var (escape hatch; normally the port is discovered). */
-export const REMOTE_DEBUGGING_PORT_ENV = 'ELECTROBUN_REMOTE_DEBUGGING_PORT';
-
 /** Default label for the first/primary content webview target. */
 export const DEFAULT_WINDOW_LABEL = 'main';

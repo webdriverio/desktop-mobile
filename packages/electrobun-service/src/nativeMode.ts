@@ -150,7 +150,8 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   // ("Failed to open X11 display" otherwise → no browser → no /json). WDIO's autoXvfb
   // covers the worker process, not this launcher-spawned app, so run the app under
   // `xvfb-run -a` (a throwaway X server) on Linux. macOS/Windows runners have a real
-  // display, so spawn the binary directly there.
+  // display, so spawn the binary directly there. Unreachable in 0.x (the launcher's
+  // macOS guard throws first) — kept for the Linux re-fold (#320).
   const useXvfb = process.platform === 'linux';
   const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
   const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;
