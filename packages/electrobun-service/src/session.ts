@@ -21,7 +21,7 @@ import ElectrobunWorkerService from './service.js';
 
 const log = createLogger('electrobun-service', 'session');
 
-const activeLaunchers = new Map<WebdriverIO.Browser, ElectrobunLaunchService>();
+const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectrobunLaunchService>();
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectrobunWorkerService>();
 
 /**
@@ -89,14 +89,12 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const service = activeServices.get(browser);
   try {
+    // One call is the whole worker teardown: after() and afterSession() both
+    // delegate to the same closeBridges() (the testrunner calls whichever hook
+    // fires) — unlike the dioxus cleanup, where the two hooks do different work.
     await service?.after();
   } catch (e) {
     log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
-  }
-  try {
-    await service?.afterSession();
-  } catch (e) {
-    log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
   } finally {
     activeServices.delete(browser);
   }

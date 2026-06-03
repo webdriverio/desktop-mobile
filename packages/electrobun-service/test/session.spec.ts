@@ -108,7 +108,9 @@ describe('session', () => {
       await cleanup(browser);
 
       expect(serviceAfterMock).toHaveBeenCalledTimes(1);
-      expect(serviceAfterSessionMock).toHaveBeenCalledTimes(1);
+      // after() is the whole teardown — afterSession() would only re-run the
+      // same closeBridges() against already-cleared state.
+      expect(serviceAfterSessionMock).not.toHaveBeenCalled();
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
