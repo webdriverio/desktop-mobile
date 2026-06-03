@@ -49,6 +49,7 @@ RUN xbps-install -y \
         libwebkit2gtk41-devel \
         gtk+3-devel \
         librsvg-devel \
+        mesa-dri \
         wget && \
     xbps-remove -O
 

@@ -64,12 +64,15 @@ run_tests_in_container() {
             export TURBO_TELEMETRY_DISABLED=1
             export DISPLAY=:99
             # The Dioxus embedded app uses a plain Wry WebKitGTK webview (not the
-            # WebKitWebDriver automation webview the sibling Tauri image drives), and
-            # in a bare container with no GPU stack that webview hangs initialising
-            # its accelerated compositor / DMABUF renderer — the page's JS never
-            # progresses, so every bridge round-trip times out. Force the software
-            # path. Tauri's image needs neither because its automation webview takes
-            # a different rendering path.
+            # WebKitWebDriver automation webview the sibling Tauri image drives).
+            # Xvfb in a bare container has no DRI3/GPU, so the WebKitGTK renderer
+            # fails GL init ("libEGL DRI3 error") and never executes page JS — every
+            # bridge round-trip then times out. Point GL at Mesa's software
+            # rasteriser (the images install the swrast/llvmpipe driver) and take
+            # the WebKit software paths. Tauri needs none of this because its
+            # automation webview renders differently.
+            export LIBGL_ALWAYS_SOFTWARE=1
+            export GALLIUM_DRIVER=llvmpipe
             export WEBKIT_DISABLE_COMPOSITING_MODE=1
             export WEBKIT_DISABLE_DMABUF_RENDERER=1
 

@@ -41,6 +41,7 @@ RUN apt-get update -qq && \
         libayatana-appindicator3-dev \
         librsvg2-dev \
         libxdo-dev \
+        libgl1-mesa-dri \
         wget \
         file && \
     apt-get clean && \

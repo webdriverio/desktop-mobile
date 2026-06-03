@@ -35,6 +35,7 @@ RUN dnf install -y \
         libappindicator-gtk3-devel \
         librsvg2-devel \
         libxdo-devel \
+        mesa-dri-drivers \
         wget \
         file && \
     dnf clean all

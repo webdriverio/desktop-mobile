@@ -41,6 +41,7 @@ RUN apt-get update && \
         libayatana-appindicator3-dev \
         librsvg2-dev \
         libxdo-dev \
+        libgl1-mesa-dri \
         wget \
         file \
         xvfb && \

@@ -44,6 +44,7 @@ RUN pacman -S --noconfirm \
         libappindicator-gtk3 \
         librsvg \
         xdotool \
+        mesa \
         wget \
         file && \
     pacman -Scc --noconfirm
