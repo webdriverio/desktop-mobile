@@ -50,7 +50,8 @@ RUN xbps-install -y \
         gtk+3-devel \
         librsvg-devel \
         mesa-dri \
-        wget && \
+        wget \
+        file && \
     xbps-remove -O
 
 # Create test user with sudo access
