@@ -123,9 +123,9 @@ export class Connection extends EventEmitter {
         void this.#errorHandler(error);
       }
     });
-    ws.on('error', async (error) => {
+    ws.on('error', (error) => {
       log.error('WebSocket error');
-      return await this.#errorHandler(error);
+      void this.#errorHandler(error);
     });
     ws.on('close', () => {
       log.trace(ERROR_MESSAGE.CONNECTION_CLOSED);
