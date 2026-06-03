@@ -8,6 +8,9 @@ RUN mkdir -p /etc/xbps.d && \
     sed -i 's|https://[^/]*/|https://repo-default.voidlinux.org/|g' /etc/xbps.d/*-repository-*.conf
 
 # Install basic requirements (upgrade system deps to avoid conflicts, ignore failures in base-files)
+# Void's nodejs tracks the current LTS line, which WDIO supports — sessions
+# create fine on it (unlike Arch, which tracks the absolute newest Node whose
+# stricter undici broke WDIO's session POST and therefore pins an LTS tarball).
 RUN xbps-install -Syu xbps && \
     ( xbps-install -Su || true ) && \
     xbps-install -y \
