@@ -84,7 +84,11 @@ function wrapStringScript(script: string): string {
  * (returned-by-value) result. Centralises `Runtime.evaluate` + exception
  * handling for both `execute` and the mock layer. Never issues Page.navigate.
  */
-export async function evaluateInActiveTarget<ReturnValue>(bridge: CdpBridge, expression: string): Promise<ReturnValue> {
+export async function evaluateInActiveTarget<ReturnValue>(
+  bridge: CdpBridge,
+  expression: string,
+  context = 'browser.electrobun.execute',
+): Promise<ReturnValue> {
   const response = (await bridge.send('Runtime.evaluate', {
     expression,
     returnByValue: true,
@@ -94,7 +98,7 @@ export async function evaluateInActiveTarget<ReturnValue>(bridge: CdpBridge, exp
   if (response.exceptionDetails) {
     const detail =
       response.exceptionDetails.exception?.description ?? response.exceptionDetails.text ?? 'Unknown evaluation error';
-    throw new Error(`browser.electrobun.execute failed: ${detail}`);
+    throw new Error(`${context} failed: ${detail}`);
   }
 
   return response.result?.value as ReturnValue;

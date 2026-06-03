@@ -205,6 +205,16 @@ describe('createMock (Electrobun mocking)', () => {
       expect(spy(2, 3)).toBe(5);
     });
 
+    it('should label in-page failures with the mock context, not execute', async () => {
+      const failing = {
+        send: vi.fn(async () => ({ exceptionDetails: { text: 'boom' } })),
+      } as unknown as CdpBridge;
+
+      await expect(createMock('api.fetchData', failing, store)).rejects.toThrow(
+        'browser.electrobun.mock("api.fetchData") failed: boom',
+      );
+    });
+
     it('should reject a native function passed as a mockImplementation', async () => {
       const { bridge } = makeBridge({ api: { fetchData: () => 1 } });
       const mock = await createMock('api.fetchData', bridge, store);

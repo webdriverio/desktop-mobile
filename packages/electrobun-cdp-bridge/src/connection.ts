@@ -88,7 +88,7 @@ export class Connection extends EventEmitter {
   send<T extends Methods>(method: T, ...params: SendParams<T>): Promise<MethodReturn<T>> {
     this.#commandId = this.#commandId + 1;
     const messageId = this.#commandId;
-    const message = { id: messageId, method, params: params[0] || {} };
+    const message = { id: messageId, method, params: params[0] ?? {} };
     return new Promise((resolve, reject) => {
       if (!this.#ws || this.#ws.readyState !== WebSocket.OPEN) {
         reject(new Error(ERROR_MESSAGE.NOT_CONNECTED));

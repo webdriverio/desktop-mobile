@@ -133,6 +133,9 @@ export async function createMock(
   store: ElectrobunMockStore,
 ): Promise<ElectrobunMock> {
   log.debug(`[${target}] createMock — installing inner recorder`);
+  // Threaded into every evaluation so in-page failures read as mock errors,
+  // not "browser.electrobun.execute failed".
+  const mockContext = `browser.electrobun.mock("${target}")`;
 
   const existing = store.getMock(target);
   if (existing) {
@@ -140,11 +143,11 @@ export async function createMock(
     // the install script: if the app reloaded the page, the in-page registry was
     // wiped and this re-install heals the recorder. The script's idempotence makes
     // the call safe (no double-wrap), not redundant.
-    await evaluateInActiveTarget<void>(bridge, buildInstallScript(target));
+    await evaluateInActiveTarget<void>(bridge, buildInstallScript(target), mockContext);
     return existing;
   }
 
-  await evaluateInActiveTarget<void>(bridge, buildInstallScript(target));
+  await evaluateInActiveTarget<void>(bridge, buildInstallScript(target), mockContext);
 
   const outerMock = vitestFn();
   outerMock.mockName(`electrobun.${target}`);
@@ -157,12 +160,16 @@ export async function createMock(
   const originalMock = outerMock.mock;
 
   const setValue = async (method: InnerMockSetterMethod, value: unknown): Promise<ElectrobunMock> => {
-    await evaluateInActiveTarget<void>(bridge, buildSetValueScript(target, method, valueLiteral(value, target)));
+    await evaluateInActiveTarget<void>(
+      bridge,
+      buildSetValueScript(target, method, valueLiteral(value, target)),
+      mockContext,
+    );
     return mock;
   };
 
   mock.update = async () => {
-    const raw = await evaluateInActiveTarget<unknown>(bridge, buildReadCallDataScript(target));
+    const raw = await evaluateInActiveTarget<unknown>(bridge, buildReadCallDataScript(target), mockContext);
     const sync = parseCallData(raw);
 
     (originalMock.calls as unknown[][]).length = 0;
@@ -181,12 +188,20 @@ export async function createMock(
   };
 
   mock.mockImplementation = async (implFn: AbstractFn) => {
-    await evaluateInActiveTarget<void>(bridge, buildSetImplementationScript(target, implSource(implFn, target)));
+    await evaluateInActiveTarget<void>(
+      bridge,
+      buildSetImplementationScript(target, implSource(implFn, target)),
+      mockContext,
+    );
     return mock;
   };
 
   mock.mockImplementationOnce = async (implFn: AbstractFn) => {
-    await evaluateInActiveTarget<void>(bridge, buildSetImplementationScript(target, implSource(implFn, target), true));
+    await evaluateInActiveTarget<void>(
+      bridge,
+      buildSetImplementationScript(target, implSource(implFn, target), true),
+      mockContext,
+    );
     return mock;
   };
 
@@ -198,26 +213,26 @@ export async function createMock(
   mock.mockRejectedValueOnce = (value: unknown) => setValue('mockRejectedValueOnce', value);
 
   mock.mockReturnThis = async () => {
-    await evaluateInActiveTarget<void>(bridge, buildReturnThisScript(target));
+    await evaluateInActiveTarget<void>(bridge, buildReturnThisScript(target), mockContext);
     return mock;
   };
 
   mock.mockClear = async () => {
-    await evaluateInActiveTarget<void>(bridge, buildClearScript(target));
+    await evaluateInActiveTarget<void>(bridge, buildClearScript(target), mockContext);
     outerMockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
-    await evaluateInActiveTarget<void>(bridge, buildResetScript(target));
+    await evaluateInActiveTarget<void>(bridge, buildResetScript(target), mockContext);
     outerMockReset();
     outerMock.mockName(currentName);
     return mock;
   };
 
   mock.mockRestore = async () => {
-    await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target));
+    await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target), mockContext);
     // Match vitest semantics: restore fully resets the outer spy (history +
     // implementation), not just clears its call history.
     outerMockReset();
