@@ -108,6 +108,18 @@ function implSource(implFn: AbstractFn, target: string): string {
         'native or bound functions stringify to "[native code]" and cannot be evaluated in the webview',
     );
   }
+  // Parse-check with the page-side wrapping `(${source})` (see
+  // buildSetImplementationScript): method shorthands (`{ fetch(x) { … } }.fetch`)
+  // stringify without the `function` keyword and would otherwise only fail in the
+  // webview as an opaque SyntaxError. new Function compiles without executing.
+  try {
+    new Function(`return (${source});`);
+  } catch {
+    throw new Error(
+      `browser.electrobun.mock("${target}"): mockImplementation source is not a valid expression — ` +
+        'method shorthands lose the `function` keyword when stringified; pass a function expression or arrow function',
+    );
+  }
   return source;
 }
 

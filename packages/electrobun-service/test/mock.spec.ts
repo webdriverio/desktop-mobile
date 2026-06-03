@@ -224,6 +224,20 @@ describe('createMock (Electrobun mocking)', () => {
       );
     });
 
+    it('should reject a method shorthand passed as a mockImplementation', async () => {
+      const { bridge } = makeBridge({ api: { fetchData: () => 1 } });
+      const mock = await createMock('api.fetchData', bridge, store);
+      const shorthand = {
+        fetch(x: unknown) {
+          return x;
+        },
+      }.fetch;
+
+      await expect(mock.mockImplementation(shorthand as (...args: unknown[]) => unknown)).rejects.toThrow(
+        /method shorthands/,
+      );
+    });
+
     it('should reject a function passed as a mockReturnValue (not JSON-serialisable)', async () => {
       const { bridge } = makeBridge({ api: { fetchData: () => 1 } });
       const mock = await createMock('api.fetchData', bridge, store);
