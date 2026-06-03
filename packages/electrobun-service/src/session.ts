@@ -18,6 +18,7 @@ import { remote } from 'webdriverio';
 import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 import ElectrobunLaunchService from './launcher.js';
 import ElectrobunWorkerService from './service.js';
+import { mergeServiceOptions } from './serviceConfig.js';
 
 const log = createLogger('electrobun-service', 'session');
 
@@ -57,7 +58,10 @@ export async function init(
 
   activeLaunchers.set(browser, launcher);
 
-  const serviceOptions = capability[CUSTOM_CAPABILITY_NAME] ?? {};
+  // Same global<capability precedence the testrunner path uses — otherwise
+  // service-level options passed to init() (e.g. cdpConnectionTimeout) are
+  // silently dropped on the worker side.
+  const serviceOptions = mergeServiceOptions(globalOptions, capability[CUSTOM_CAPABILITY_NAME]);
   const service = new ElectrobunWorkerService(serviceOptions, capability);
   try {
     await service.before(capability, [], browser);

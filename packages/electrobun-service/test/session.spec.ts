@@ -8,6 +8,7 @@ const serviceAfterMock = vi.fn().mockResolvedValue(undefined);
 const serviceAfterSessionMock = vi.fn().mockResolvedValue(undefined);
 const remoteMock = vi.fn();
 const deleteSessionMock = vi.fn().mockResolvedValue(undefined);
+const serviceCtorArgs: unknown[][] = [];
 
 vi.mock('../src/launcher.js', () => ({
   default: class {
@@ -22,6 +23,9 @@ vi.mock('../src/service.js', () => ({
     before = serviceBeforeMock;
     after = serviceAfterMock;
     afterSession = serviceAfterSessionMock;
+    constructor(...args: unknown[]) {
+      serviceCtorArgs.push(args);
+    }
   },
 }));
 
@@ -38,6 +42,7 @@ function makeBrowser(): WebdriverIO.Browser {
 describe('session', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    serviceCtorArgs.length = 0;
     onPrepareMock.mockResolvedValue(undefined);
     onWorkerStartMock.mockResolvedValue(undefined);
     onCompleteMock.mockResolvedValue(undefined);
@@ -97,6 +102,19 @@ describe('session', () => {
       await expect(init(cap)).rejects.toThrow(/attach failed/);
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  describe('init option merging', () => {
+    it('should merge globalOptions into the worker service options (capability wins)', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+      await init(cap, { cdpConnectionTimeout: 5000 });
+
+      expect(serviceCtorArgs[0]?.[0]).toMatchObject({
+        cdpConnectionTimeout: 5000,
+        appBinaryPath: '/apps/Demo.app',
+      });
     });
   });
 
