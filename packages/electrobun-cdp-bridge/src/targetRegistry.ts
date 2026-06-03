@@ -39,6 +39,13 @@ function toPageTarget(target: Debugger): PageTarget {
   };
 }
 
+function byCodepoint(x: string, y: string): number {
+  if (x < y) {
+    return -1;
+  }
+  return x > y ? 1 : 0;
+}
+
 function labelOrder(label: string): number {
   return label === 'main' ? -1 : Number.parseInt(label.replace('window-', ''), 10);
 }
@@ -62,10 +69,12 @@ export class TargetRegistry {
     // (`views://mainview/…`) ahead of secondary ones (`views://secondview/…`), so
     // `main` is consistently the app's main window. Tie-break on the stable CEF target
     // `id` so same-URL windows (e.g. a tiled layout) still sort deterministically.
+    // Codepoint comparison, not localeCompare — the latter follows the runtime's
+    // locale, so the order could differ across environments.
     const content = list
       .map(toPageTarget)
       .filter((target) => target.class === 'content')
-      .sort((a, b) => a.url.localeCompare(b.url) || a.id.localeCompare(b.id));
+      .sort((a, b) => byCodepoint(a.url, b.url) || byCodepoint(a.id, b.id));
     const liveIds = new Set(content.map((target) => target.id));
 
     for (const target of content) {
