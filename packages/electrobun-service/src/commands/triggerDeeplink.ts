@@ -4,7 +4,7 @@
 // `open-url` handler receives the URL — the same path production sees, and the
 // most realistic test of a registered URI scheme (no IPC mocking).
 //
-// macOS-only in v1: Electrobun registers `app.urlSchemes` via the generated
+// macOS-only in 0.x: Electrobun registers `app.urlSchemes` via the generated
 // Info.plist `CFBundleURLTypes`, and `open <url>` reaches the running app's
 // open-url handler. Windows/Linux deeplink support isn't available upstream yet
 // (RESEARCH_FINDINGS §6), so this rejects there with a documented-gap error.

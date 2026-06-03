@@ -158,7 +158,7 @@ export const config = {
   logLevel: 'info',
   bail: 0,
   // Residual upstream CEF race on the macOS `standard` suite: the 2-window fixture
-  // (needed because a single CEF window exposes no `/json` target) trips CEF's
+  // (needed because a single CEF window doesn't reliably expose a `/json` target) trips CEF's
   // failed-profile → global-context fallback, which surfaces as either an unpainted
   // `#app-title` or a "Timeout of new browser info response" on the second frame — for
   // that app instance's whole lifetime (see the plan "Framework gaps"). mochaOpts.retries

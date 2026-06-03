@@ -48,7 +48,7 @@ export function cefNativeModeMacOnly(platform: NodeJS.Platform = process.platfor
 
 /**
  * Returned (rejected) by `triggerDeeplink` on platforms where Electrobun does
- * not yet support custom URL schemes. v1 supports macOS only (schemes are
+ * not yet support custom URL schemes. 0.x supports macOS only (schemes are
  * registered via the generated `Info.plist`); Windows/Linux are a documented
  * gap pending upstream support.
  */

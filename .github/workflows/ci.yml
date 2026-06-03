@@ -173,11 +173,11 @@ jobs:
   # the biggest unknown in this pipeline: a beta Bun/CEF toolchain that pulls a
   # ~150MB CEF download. macOS is the validated platform.
   #
-  # macOS-ONLY in v1 (pre-1.0): Linux/Windows build + e2e are NOT run. They build
+  # macOS-ONLY in 0.x (pre-1.0): Linux/Windows build + e2e are NOT run. They build
   # fine, but their CEF can't recover from the chrome-runtime persist:default
   # profile failure (the global-context fallback serves no /json), so the e2e can't
   # attach — an upstream electrobun limitation (see the agent-os plan "Framework
-  # gaps"). Re-add the Linux/Windows build + e2e jobs once that lands upstream.
+  # gaps"). Re-add the Linux/Windows build + e2e jobs once that lands upstream (#320).
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
@@ -697,10 +697,10 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E tests (single CDP-attach provider — no provider matrix).
   #
-  # macOS-ONLY in v1 (pre-1.0): only the macOS-ARM leg runs. Linux/Windows e2e are
+  # macOS-ONLY in 0.x (pre-1.0): only the macOS-ARM leg runs. Linux/Windows e2e are
   # NOT run — their CEF can't recover from the persist:default profile failure (no
   # /json), an upstream electrobun limitation (see the agent-os plan "Framework
-  # gaps"). Re-add a Linux/Windows leg (+ its build job above) once that lands.
+  # gaps"). Re-add a Linux/Windows leg (+ its build job above) once that lands (#320).
   #
   # Test-type matrix: 'standard' (api/application/execute/logging/mock),
   # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
@@ -715,7 +715,7 @@ jobs:
   # for the same reason. See the agent-os plan "Framework gaps" + the skip notes in
   # window.spec.ts / deeplink.spec.ts. Re-add these (and a multiremote leg) once
   # electrobun ships per-window partitions / per-instance root_cache_path / open-url
-  # routing. The specs stay runnable locally via TEST_TYPE=window|deeplink.
+  # routing (#320). The specs stay runnable locally via TEST_TYPE=window|deeplink.
   e2e-electrobun-macos-arm:
     name: E2E - Electrobun [macOS-ARM] - ${{ matrix.test-type }}
     needs: [detect-changes, build, build-electrobun-e2e-app-macos-arm]
@@ -925,7 +925,7 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
-      # Electrobun is macOS-only in v1: the required gate is the macOS `standard`
+      # Electrobun is macOS-only in 0.x: the required gate is the macOS `standard`
       # single-window suite. Linux/Windows e2e (+ their build jobs) are not run at all
       # (CEF can't serve /json there — upstream gap; see the macOS job note), and
       # window/deeplink are not run anywhere (same gap).

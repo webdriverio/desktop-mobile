@@ -30,7 +30,7 @@ export type DebuggerList = Array<Debugger>;
  * - `shell` — a host/chrome target (e.g. `about:blank`) not surfaced to users.
  * - `other` — devtools, service workers, and anything else ignored for routing.
  *
- * The exact discriminator (URL scheme / path) is finalised by the Phase 0 spike.
+ * The discriminator (URL scheme / path) lives in `classifyTarget` (targetRegistry.ts).
  */
 export type TargetClass = 'content' | 'shell' | 'other';
 

@@ -15,7 +15,7 @@ type MethodReturn<T extends Methods> = ProtocolMapping.Commands[T]['returnType']
 type SendParams<T extends Methods> = MethodParams<T> extends [] ? [] : [MethodParams<T>[number]];
 
 type PromiseHandlers = {
-  // biome-ignore lint/suspicious/noExplicitAny: resolve callback needs flexible type
+  // biome-ignore lint/suspicious/noExplicitAny: holds Promise executors of differing T; `unknown` fails strictFunctionTypes contravariance
   resolve: (value?: any) => void;
   reject: (reason?: unknown) => void;
   timer?: ReturnType<typeof setTimeout>;

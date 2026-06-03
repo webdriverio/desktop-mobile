@@ -14,6 +14,5 @@ export default defineConfig({
     hookTimeout: 15000,
     teardownTimeout: 10000,
     fileParallelism: false,
-    setupFiles: ['test/integration/setup.ts'],
   },
 });

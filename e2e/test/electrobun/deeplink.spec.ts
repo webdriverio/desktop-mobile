@@ -1,7 +1,7 @@
 import { browser, expect } from '@wdio/globals';
 import '@wdio/native-types';
 
-// Electrobun deeplinks are macOS-only in v1: triggerDeeplink rejects on other
+// Electrobun deeplinks are macOS-only in 0.x: triggerDeeplink rejects on other
 // platforms (Windows/Linux URL-scheme registration is not yet available upstream).
 // The fixture's Bun backend (src/bun/index.ts) handles `open-url` and pushes the
 // URL into the main view's window.__wdioDeeplinks array + the #status element.

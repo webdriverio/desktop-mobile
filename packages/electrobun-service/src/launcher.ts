@@ -18,7 +18,7 @@ const log = createLogger(SERVICE_NAME, 'launcher');
  * the worker attaches over CDP through Chromedriver (`debuggerAddress`). It
  * extends `BaseLauncher` to reuse `@wdio/native-core`'s port/process/log infra.
  *
- * v1 is macOS-only + single-instance (`maxInstances=1`): CEF can't isolate the
+ * 0.x is macOS-only + single-instance (`maxInstances=1`): CEF can't isolate the
  * forced `persist:default` profile per worker, so we do NOT redirect the cache root
  * (no `CFFIXED_USER_HOME`, no per-worker `--user-data-dir`) — CEF uses its own
  * `root_cache_path`. See the implementation plan "Framework gaps". Native-mode flow:

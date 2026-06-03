@@ -21,8 +21,8 @@ import type {
  * `Runtime.callFunctionOn`; this is the in-page handle exposed on
  * `window.__WDIO_ELECTROBUN__`.
  *
- * The concrete shape (which Electrobun RPC/bridge calls are exposed) is being
- * finalised in the Phase 0 spike — kept intentionally open until then.
+ * Kept intentionally open: the service currently injects an empty surface
+ * (`{}`); in-page handles are added here as they are exposed.
  */
 export interface ElectrobunAPIs {
   /** Optional log helpers, present when frontend log forwarding is wired. */
@@ -71,10 +71,10 @@ export interface ElectrobunMock<TArgs extends unknown[] = unknown[], TReturns = 
  * Public `browser.electrobun.*` surface installed by `@wdio/electrobun-service`.
  *
  * Matches the shared cross-service surface (see the convergence standard in
- * AGENTS.md / the add-native-service skill). `emitEvent` is omitted in v1 —
+ * AGENTS.md / the add-native-service skill). `emitEvent` is omitted in 0.x —
  * Electrobun's event bus lives in the Bun backend, which is not reachable over
- * CDP; it ships only if the spike confirms it can be routed via the in-webview
- * RPC. `mockAll`/class-mock are Electron-only (no enumerable main-process API).
+ * CDP (routable in principle via the in-webview RPC socket; deferred).
+ * `mockAll`/class-mock are Electron-only (no enumerable main-process API).
  */
 export interface ElectrobunServiceAPI {
   execute<R, A extends unknown[]>(script: string | ((eb: ElectrobunAPIs, ...a: A) => R), ...args: A): Promise<R>;
@@ -94,7 +94,7 @@ export interface ElectrobunServiceAPI {
    * app's registered `open-url` handler receives it. Use for testing the
    * production protocol-handler code path; rejects http/https/file URLs.
    *
-   * macOS-only in v1 — Electrobun registers URL schemes via `Info.plist`; the
+   * macOS-only in 0.x — Electrobun registers URL schemes via `Info.plist`; the
    * Windows/Linux deeplink path is not yet supported upstream and rejects with
    * a documented-gap error.
    */

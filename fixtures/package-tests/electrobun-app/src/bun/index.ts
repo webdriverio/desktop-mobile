@@ -1,7 +1,7 @@
 import { BrowserWindow } from 'electrobun/bun';
 
 // Package-install smoke fixture. Opens TWO CEF windows, STAGGERED — the same workaround
-// the e2e fixture uses: a single CEF window exposes no `/json` page target once CEF's
+// the e2e fixture uses: a single CEF window doesn't reliably expose a `/json` page target once CEF's
 // forced `persist:default` partition falls back to the shared global context (an upstream
 // gap; see @wdio/electrobun-service "Framework gaps"), so the bridge/Chromedriver would
 // have nothing to attach to. Opening a second window makes a content target appear; doing

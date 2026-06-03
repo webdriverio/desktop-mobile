@@ -3,10 +3,10 @@ import { app, BrowserWindow } from 'electrobun/bun';
 // Bun (main-process) backend for the Electrobun E2E fixture. Opens TWO CEF windows,
 // but STAGGERED: the second only after the main view's DOM is ready.
 //
-// Two windows are needed so the CDP bridge can enumerate a 'window-1' target — with a
-// single CEF window the chrome-runtime (after the forced `persist:default` partition
+// Two windows are needed so the CDP bridge can enumerate a 'window-1' target — and with
+// a single CEF window the chrome-runtime (after the forced `persist:default` partition
 // falls back to the shared global context — an upstream gap, see the agent-os plan
-// "Framework gaps") exposes no `/json` page target. But opening both CONCURRENTLY makes
+// "Framework gaps") doesn't reliably expose a `/json` page target. But opening both CONCURRENTLY makes
 // that global-context fallback race: a browser can spawn a separate top-level window
 // instead of embedding via SetAsChild, leaving mainview's DOM unpainted
 // ("#app-title never rendered" → flaky 4–6/6). Staggering lets mainview embed + paint
