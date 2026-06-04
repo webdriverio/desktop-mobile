@@ -1,5 +1,15 @@
 name: Detect Affected Services (Reusable)
 
+# Convention-driven change detection (issue #331): dorny/paths-filter is used ONLY
+# to resolve the changed-file list (its base-ref handling across pull_request and
+# push events is battle-tested); all classification lives in
+# scripts/detect-changes.mjs, which derives the service list from packages/*-service
+# and classifies by the repo's naming conventions. Adding a service needs NO edits
+# here — only ci.yml jobs and the per-service reusable workflows.
+#
+# The classifier is plain node (no install step) and unit-tested via
+# `pnpm test:scripts` (wired into the unconditional lint job).
+
 permissions:
   contents: read
 
@@ -24,8 +34,11 @@ on:
       run_electrobun:
         description: 'Whether to run Electrobun-related tests and builds'
         value: ${{ jobs.detect.outputs.run_electrobun }}
+      runs:
+        description: 'JSON map of service → boolean. New services appear here automatically; consume via fromJSON without adding static outputs.'
+        value: ${{ jobs.detect.outputs.runs }}
       has_shared_changes:
-        description: 'Whether shared packages changed (affects both services)'
+        description: 'Whether shared packages changed (affects all services)'
         value: ${{ jobs.detect.outputs.has_shared_changes }}
       run_lint_only:
         description: 'Whether to run only lint (no service-affecting changes detected)'
@@ -36,12 +49,13 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      run_electron: ${{ steps.determine.outputs.run_electron || 'false' }}
-      run_tauri: ${{ steps.determine.outputs.run_tauri || 'false' }}
-      run_dioxus: ${{ steps.determine.outputs.run_dioxus || 'false' }}
-      run_electrobun: ${{ steps.determine.outputs.run_electrobun || 'false' }}
-      has_shared_changes: ${{ steps.determine.outputs.has_shared_changes || 'false' }}
-      run_lint_only: ${{ steps.determine.outputs.run_lint_only || 'false' }}
+      run_electron: ${{ steps.classify.outputs.run_electron || 'false' }}
+      run_tauri: ${{ steps.classify.outputs.run_tauri || 'false' }}
+      run_dioxus: ${{ steps.classify.outputs.run_dioxus || 'false' }}
+      run_electrobun: ${{ steps.classify.outputs.run_electrobun || 'false' }}
+      runs: ${{ steps.classify.outputs.runs || '{}' }}
+      has_shared_changes: ${{ steps.classify.outputs.has_shared_changes || 'false' }}
+      run_lint_only: ${{ steps.classify.outputs.run_lint_only || 'false' }}
 
     steps:
       - name: Checkout Repository
@@ -49,275 +63,18 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Detect Changed Files
+      - name: List Changed Files
         id: changes
         uses: dorny/paths-filter@v4
         with:
-          # 'every': a file matches a filter only when it satisfies ALL of the filter's
-          # patterns — required for the '!' exclusions below to work. Under the default
-          # 'some', a negated pattern matches every file EXCEPT its target, so any filter
-          # containing one matched the whole repo (this made `infra` always-true and
-          # force-ran every service pipeline on every PR). The flip side: each filter's
-          # positive patterns have to collapse into a single brace alternation, because
-          # one file can never match two disjoint path patterns.
-          predicate-quantifier: 'every'
+          list-files: json
           filters: |
-            # Documentation (markdown is excluded from every filter below, so doc-only
-            # changes anywhere — including package READMEs — fall through to lint-only)
-            docs:
-              - '**/*.md'
+            any:
+              - '**'
 
-            # Electron service packages
-            electron_service:
-              - 'packages/{electron-service,electron-cdp-bridge}/**'
-              - '!**/*.md'
-
-            # Tauri service packages
-            tauri_service:
-              - 'packages/{tauri-service,tauri-plugin}/**'
-              - '!**/*.md'
-
-            # Dioxus service packages
-            dioxus_service:
-              - 'packages/{dioxus-service,dioxus-bridge,dioxus-driver,dioxus-embedded-driver}/**'
-              - '!**/*.md'
-
-            # Electrobun service packages (CDP-attach, no Rust)
-            electrobun_service:
-              - 'packages/{electrobun-service,electrobun-cdp-bridge}/**'
-              - '!**/*.md'
-
-            # Shared packages (affect all services)
-            shared:
-              - 'packages/{native-types,native-utils,native-core,native-spy,bundler}/**'
-              - '!**/*.md'
-
-            # E2E tests
-            e2e_electron:
-              - '{e2e/test/electron/**,e2e/wdio.electron.conf.ts}'
-              - '!**/*.md'
-            e2e_tauri:
-              - '{e2e/test/tauri/**,e2e/wdio.tauri.conf.ts}'
-              - '!**/*.md'
-            e2e_dioxus:
-              - '{e2e/test/dioxus/**,e2e/wdio.dioxus.conf.ts,e2e/wdio.dioxus-embedded.conf.ts}'
-              - '!**/*.md'
-            e2e_electrobun:
-              - '{e2e/test/electrobun/**,e2e/wdio.electrobun.conf.ts}'
-              - '!**/*.md'
-
-            # Test fixtures and apps
-            fixtures_electron:
-              - 'fixtures/e2e-apps/{electron-builder,electron-forge,electron-script}/**'
-              - '!**/*.md'
-            fixtures_tauri:
-              - 'fixtures/e2e-apps/tauri/**'
-              - '!**/*.md'
-            fixtures_dioxus:
-              - '{fixtures/e2e-apps/dioxus/**,fixtures/package-tests/dioxus-app/**}'
-              - '!**/*.md'
-            fixtures_electrobun:
-              - '{fixtures/e2e-apps/electrobun/**,fixtures/package-tests/electrobun-app/**}'
-              - '!**/*.md'
-
-            # Shared infrastructure — triggers all service pipelines.
-            # Service-specific workflow files are split into infra_{electron,tauri,dioxus}
-            # below so that editing (e.g.) a Dioxus build workflow does not trigger Electron
-            # or Tauri tests unnecessarily.
-            #
-            # The brace alternation covers: core CI orchestration workflows, release
-            # workflows (publish shape for all services), composite actions, build/test/
-            # release scripts (minus the tauri-only one, excluded below), workspace and
-            # dependency configuration, and TypeScript/build/test configuration.
-            #
-            # biome.jsonc and eslint.config.js are intentionally excluded: the lint job
-            # runs unconditionally (no `if:` gate in ci.yml), so changes there do not need
-            # to trigger service test pipelines.
-            #
-            # Non-CI meta-workflows (codeql.yml, pr-title.yml, auto-label-issues.yml,
-            # expense.yml, release-preview.yml) are also excluded — changes to those never
-            # require running service tests.
-            infra:
-              - '{.github/workflows/ci.yml,.github/workflows/_ci-detect-changes.reusable.yml,.github/workflows/_ci-build.reusable.yml,.github/workflows/_ci-lint.reusable.yml,.github/workflows/_ci-unit.reusable.yml,.github/workflows/_ci-package.reusable.yml,.github/workflows/release.yml,.github/workflows/_release.reusable.yml,.github/workflows/actions/**,scripts/**,package.json,pnpm-workspace.yaml,pnpm-lock.yaml,.nvmrc,tsconfig*.json,turbo.json,version.config.json,vitest.config.ts,wdio.conf.ts}'
-              - '!scripts/update-tauri-version.ts'
-              - '!**/*.md'
-
-            # Electron-only workflow files
-            infra_electron:
-              - '{.github/workflows/_ci-e2e.reusable.yml,.github/workflows/_ci-build-electron-package-apps.reusable.yml}'
-
-            # Tauri-only workflow files and scripts
-            infra_tauri:
-              - '{scripts/update-tauri-version.ts,.github/workflows/_ci-build-tauri-apps.reusable.yml,.github/workflows/_ci-build-tauri-e2e-app.reusable.yml,.github/workflows/_ci-build-tauri-package-app.reusable.yml,.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml,.github/workflows/_ci-package-docker.reusable.yml}'
-
-            # Dioxus-only workflow files
-            infra_dioxus:
-              - '{.github/workflows/_ci-build-dioxus-crates.reusable.yml,.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml,.github/workflows/_ci-build-dioxus-package-app.reusable.yml,.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml,.github/workflows/_ci-package-docker-dioxus.reusable.yml}'
-
-            # Electrobun-only workflow files (no -crates: Electrobun has no Rust)
-            infra_electrobun:
-              - '{.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml,.github/workflows/_ci-build-electrobun-package-app.reusable.yml,.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml}'
-
-      - name: Determine What to Run
-        id: determine
-        run: |
-          # shellcheck disable=SC2129
-          # If force_all is true, always run everything
-          if [ "${{ inputs.force_all }}" = "true" ]; then
-            echo "run_electron=true" >> "$GITHUB_OUTPUT"
-            echo "run_tauri=true" >> "$GITHUB_OUTPUT"
-            echo "run_dioxus=true" >> "$GITHUB_OUTPUT"
-            echo "run_electrobun=true" >> "$GITHUB_OUTPUT"
-            echo "has_shared_changes=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::Force all mode enabled - running all tests"
-            exit 0
-          fi
-
-          echo "::notice::Checking paths-filter outputs..."
-          echo "docs=${{ steps.changes.outputs.docs }}"
-          echo "electron_service=${{ steps.changes.outputs.electron_service }}"
-          echo "tauri_service=${{ steps.changes.outputs.tauri_service }}"
-          echo "dioxus_service=${{ steps.changes.outputs.dioxus_service }}"
-          echo "electrobun_service=${{ steps.changes.outputs.electrobun_service }}"
-          echo "shared=${{ steps.changes.outputs.shared }}"
-          echo "e2e_electron=${{ steps.changes.outputs.e2e_electron }}"
-          echo "e2e_tauri=${{ steps.changes.outputs.e2e_tauri }}"
-          echo "e2e_dioxus=${{ steps.changes.outputs.e2e_dioxus }}"
-          echo "e2e_electrobun=${{ steps.changes.outputs.e2e_electrobun }}"
-          echo "fixtures_electron=${{ steps.changes.outputs.fixtures_electron }}"
-          echo "fixtures_tauri=${{ steps.changes.outputs.fixtures_tauri }}"
-          echo "fixtures_dioxus=${{ steps.changes.outputs.fixtures_dioxus }}"
-          echo "fixtures_electrobun=${{ steps.changes.outputs.fixtures_electrobun }}"
-          echo "infra=${{ steps.changes.outputs.infra }}"
-          echo "infra_electron=${{ steps.changes.outputs.infra_electron }}"
-          echo "infra_tauri=${{ steps.changes.outputs.infra_tauri }}"
-          echo "infra_dioxus=${{ steps.changes.outputs.infra_dioxus }}"
-          echo "infra_electrobun=${{ steps.changes.outputs.infra_electrobun }}"
-
-          DOCS=${{ steps.changes.outputs.docs }}
-          ELECTRON=${{ steps.changes.outputs.electron_service }}
-          TAURI=${{ steps.changes.outputs.tauri_service }}
-          DIOXUS=${{ steps.changes.outputs.dioxus_service }}
-          ELECTROBUN=${{ steps.changes.outputs.electrobun_service }}
-          SHARED=${{ steps.changes.outputs.shared }}
-          E2E_ELECTRON=${{ steps.changes.outputs.e2e_electron }}
-          E2E_TAURI=${{ steps.changes.outputs.e2e_tauri }}
-          E2E_DIOXUS=${{ steps.changes.outputs.e2e_dioxus }}
-          E2E_ELECTROBUN=${{ steps.changes.outputs.e2e_electrobun }}
-          FIXTURES_ELECTRON=${{ steps.changes.outputs.fixtures_electron }}
-          FIXTURES_TAURI=${{ steps.changes.outputs.fixtures_tauri }}
-          FIXTURES_DIOXUS=${{ steps.changes.outputs.fixtures_dioxus }}
-          FIXTURES_ELECTROBUN=${{ steps.changes.outputs.fixtures_electrobun }}
-          INFRA=${{ steps.changes.outputs.infra }}
-          INFRA_ELECTRON=${{ steps.changes.outputs.infra_electron }}
-          INFRA_TAURI=${{ steps.changes.outputs.infra_tauri }}
-          INFRA_DIOXUS=${{ steps.changes.outputs.infra_dioxus }}
-          INFRA_ELECTROBUN=${{ steps.changes.outputs.infra_electrobun }}
-
-          # Electron: electron_service || e2e_electron || fixtures_electron || shared || infra || infra_electron
-          RUN_ELECTRON=$(echo "$ELECTRON $E2E_ELECTRON $FIXTURES_ELECTRON $SHARED $INFRA $INFRA_ELECTRON" | grep -o 'true' | head -1 || echo "")
-          if [ -z "$RUN_ELECTRON" ]; then
-            RUN_ELECTRON="false"
-          fi
-
-          # Tauri: tauri_service || e2e_tauri || fixtures_tauri || shared || infra || infra_tauri
-          RUN_TAURI=$(echo "$TAURI $E2E_TAURI $FIXTURES_TAURI $SHARED $INFRA $INFRA_TAURI" | grep -o 'true' | head -1 || echo "")
-          if [ -z "$RUN_TAURI" ]; then
-            RUN_TAURI="false"
-          fi
-
-          # Dioxus: dioxus_service || e2e_dioxus || fixtures_dioxus || shared || infra || infra_dioxus
-          RUN_DIOXUS=$(echo "$DIOXUS $E2E_DIOXUS $FIXTURES_DIOXUS $SHARED $INFRA $INFRA_DIOXUS" | grep -o 'true' | head -1 || echo "")
-          if [ -z "$RUN_DIOXUS" ]; then
-            RUN_DIOXUS="false"
-          fi
-
-          # Electrobun: electrobun_service || e2e_electrobun || fixtures_electrobun || shared || infra || infra_electrobun
-          RUN_ELECTROBUN=$(echo "$ELECTROBUN $E2E_ELECTROBUN $FIXTURES_ELECTROBUN $SHARED $INFRA $INFRA_ELECTROBUN" | grep -o 'true' | head -1 || echo "")
-          if [ -z "$RUN_ELECTROBUN" ]; then
-            RUN_ELECTROBUN="false"
-          fi
-
-          # Lint-only mode when no service-impacting changes detected
-          # Covers docs-only PRs, config-only edits outside infra, etc.
-          RUN_LINT_ONLY="false"
-          if [ "$RUN_ELECTRON" = "false" ] && [ "$RUN_TAURI" = "false" ] && [ "$RUN_DIOXUS" = "false" ] && [ "$RUN_ELECTROBUN" = "false" ]; then
-            RUN_LINT_ONLY="true"
-          fi
-
-          # shellcheck disable=SC2129
-          echo "run_electron=$RUN_ELECTRON" >> "$GITHUB_OUTPUT"
-          echo "run_tauri=$RUN_TAURI" >> "$GITHUB_OUTPUT"
-          echo "run_dioxus=$RUN_DIOXUS" >> "$GITHUB_OUTPUT"
-          echo "run_electrobun=$RUN_ELECTROBUN" >> "$GITHUB_OUTPUT"
-          echo "has_shared_changes=$SHARED" >> "$GITHUB_OUTPUT"
-          echo "run_lint_only=$RUN_LINT_ONLY" >> "$GITHUB_OUTPUT"
-
-          # Create summary for GitHub Step Summary (appears in Actions Summary page)
-          # shellcheck disable=SC2129
-          echo "## Change Detection Summary" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Category | Changed |" >> "$GITHUB_STEP_SUMMARY"
-          echo "|----------|---------|" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Documentation | $DOCS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Electron service | $ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Tauri service | $TAURI |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Dioxus service | $DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Electrobun service | $ELECTROBUN |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Shared packages | $SHARED |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| E2E Electron | $E2E_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| E2E Tauri | $E2E_TAURI |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| E2E Dioxus | $E2E_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| E2E Electrobun | $E2E_ELECTROBUN |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Fixtures Electron | $FIXTURES_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Fixtures Tauri | $FIXTURES_TAURI |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Fixtures Dioxus | $FIXTURES_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Fixtures Electrobun | $FIXTURES_ELECTROBUN |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Infrastructure (shared) | $INFRA |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Infrastructure (Electron) | $INFRA_ELECTRON |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Infrastructure (Tauri) | $INFRA_TAURI |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Infrastructure (Dioxus) | $INFRA_DIOXUS |" >> "$GITHUB_STEP_SUMMARY"
-          echo "| Infrastructure (Electrobun) | $INFRA_ELECTROBUN |" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Decisions" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Run Electron**: $RUN_ELECTRON" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Run Tauri**: $RUN_TAURI" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Run Dioxus**: $RUN_DIOXUS" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Run Electrobun**: $RUN_ELECTROBUN" >> "$GITHUB_STEP_SUMMARY"
-          echo "- **Lint only (no service changes)**: $RUN_LINT_ONLY" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "### Outputs" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`run_electron\`: $RUN_ELECTRON" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`run_tauri\`: $RUN_TAURI" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`run_dioxus\`: $RUN_DIOXUS" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`run_electrobun\`: $RUN_ELECTROBUN" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`has_shared_changes\`: $SHARED" >> "$GITHUB_STEP_SUMMARY"
-          echo "- \`run_lint_only\`: $RUN_LINT_ONLY" >> "$GITHUB_STEP_SUMMARY"
-
-          # Also print to logs for debugging
-          echo "Change Detection Summary:"
-          echo "  Documentation: $DOCS"
-          echo "  Electron service: $ELECTRON"
-          echo "  Tauri service: $TAURI"
-          echo "  Dioxus service: $DIOXUS"
-          echo "  Electrobun service: $ELECTROBUN"
-          echo "  Shared packages: $SHARED"
-          echo "  E2E Electron: $E2E_ELECTRON"
-          echo "  E2E Tauri: $E2E_TAURI"
-          echo "  E2E Dioxus: $E2E_DIOXUS"
-          echo "  E2E Electrobun: $E2E_ELECTROBUN"
-          echo "  Fixtures Electron: $FIXTURES_ELECTRON"
-          echo "  Fixtures Tauri: $FIXTURES_TAURI"
-          echo "  Fixtures Dioxus: $FIXTURES_DIOXUS"
-          echo "  Fixtures Electrobun: $FIXTURES_ELECTROBUN"
-          echo "  Infrastructure (shared): $INFRA"
-          echo "  Infrastructure (Electron): $INFRA_ELECTRON"
-          echo "  Infrastructure (Tauri): $INFRA_TAURI"
-          echo "  Infrastructure (Dioxus): $INFRA_DIOXUS"
-          echo "  Infrastructure (Electrobun): $INFRA_ELECTROBUN"
-          echo ""
-          echo "  Run Electron: $RUN_ELECTRON"
-          echo "  Run Tauri: $RUN_TAURI"
-          echo "  Run Dioxus: $RUN_DIOXUS"
-          echo "  Run Electrobun: $RUN_ELECTROBUN"
-          echo "  Run lint only: $RUN_LINT_ONLY"
+      - name: Classify Changes
+        id: classify
+        env:
+          CHANGED_FILES: ${{ steps.changes.outputs.any_files }}
+          FORCE_ALL: ${{ inputs.force_all }}
+        run: node scripts/detect-changes.mjs

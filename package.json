@@ -70,7 +70,8 @@
     "typecheck": "turbo run typecheck",
     "update:dependencies": "pnpm catalog:update --default && pnpm catalog:update --next && pnpm up -iLr",
     "update:releasekit": "tsx ./scripts/update-releasekit.ts",
-    "update:tauri": "tsx ./scripts/update-tauri-version.ts"
+    "update:tauri": "tsx ./scripts/update-tauri-version.ts",
+    "test:scripts": "vitest run --config vitest.scripts.config.ts"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
@@ -91,7 +92,8 @@
     "tsx": "^4.22.3",
     "turbo": "2.9.14",
     "typescript": "^5.9.3",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.0",
+    "vitest": "^4.1.7"
   },
   "lint-staged": {
     "**/*.{j,t}s": [

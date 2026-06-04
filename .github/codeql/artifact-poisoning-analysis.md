@@ -23,7 +23,7 @@ CodeQL raised `actions/artifact-poisoning` alerts against debug log steps and ar
 
 | File | Step Name | Alert Type | Detailed Section |
 |------|-----------|------------|------------------|
-| `.github/workflows/_ci-e2e.reusable.yml` | 🐛 Show Logs on Failure | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
+| `.github/workflows/_ci-e2e-electron.reusable.yml` | 🐛 Show Logs on Failure | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
 | `.github/workflows/_ci-e2e-tauri.reusable.yml` | 🐛 Debug Information | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
 | `.github/workflows/_ci-e2e-tauri-embedded.reusable.yml` | 🐛 Debug Information | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
 | `.github/workflows/_ci-e2e-tauri-crabnebula.reusable.yml` | 🐛 Debug Information | Script execution | [Script Execution](#alert-script-execution-after-artifact-download) |
