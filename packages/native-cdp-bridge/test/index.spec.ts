@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-describe('@wdio/cdp-bridge public exports', () => {
+describe('@wdio/native-cdp-bridge public exports', () => {
   it('should default the debugger port to the CDP convention (9222)', async () => {
     const { DEFAULT_PORT } = await import('../src/index.js');
     expect(DEFAULT_PORT).toBe(9222);

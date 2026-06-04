@@ -1,4 +1,4 @@
-import { MultiTargetCdpBridge as CdpBridge } from '@wdio/cdp-bridge';
+import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 

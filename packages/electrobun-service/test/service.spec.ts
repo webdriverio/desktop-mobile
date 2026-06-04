@@ -11,7 +11,7 @@ const targetsMock = vi.fn().mockReturnValue([
 const closeMock = vi.fn().mockResolvedValue(undefined);
 const cdpBridgeCtor = vi.fn();
 
-vi.mock('@wdio/cdp-bridge', () => ({
+vi.mock('@wdio/native-cdp-bridge', () => ({
   MultiTargetCdpBridge: class {
     constructor(opts: unknown) {
       cdpBridgeCtor(opts);

@@ -112,7 +112,7 @@ jobs:
               echo "packages=@wdio/dioxus-service,@wdio/dioxus-bridge,wdio-dioxus-bridge,wdio-dioxus-embedded-driver,wdio-dioxus-driver" >> "$GITHUB_OUTPUT"
               ;;
             electrobun)
-              echo "packages=@wdio/electrobun-service,@wdio/cdp-bridge" >> "$GITHUB_OUTPUT"
+              echo "packages=@wdio/electrobun-service" >> "$GITHUB_OUTPUT"
               ;;
             utils)
               echo "packages=@wdio/native-utils" >> "$GITHUB_OUTPUT"
@@ -127,7 +127,7 @@ jobs:
               echo "packages=@wdio/native-core" >> "$GITHUB_OUTPUT"
               ;;
             shared)
-              echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy,@wdio/native-core" >> "$GITHUB_OUTPUT"
+              echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy,@wdio/native-core,@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "::error::Unknown scope: $scope"
@@ -196,7 +196,6 @@ jobs:
               # CDP service like electron — no Rust/build:rust step.
               pnpm turbo run build \
                 --filter='@wdio/electrobun-service...' \
-                --filter='@wdio/cdp-bridge...' \
                 --filter='@wdio/bundler...'
               ;;
             utils)
@@ -216,7 +215,8 @@ jobs:
                 --filter='@wdio/native-types...' \
                 --filter='@wdio/native-utils...' \
                 --filter='@wdio/native-spy...' \
-                --filter='@wdio/native-core...'
+                --filter='@wdio/native-core...' \
+                --filter='@wdio/native-cdp-bridge...'
               ;;
             *)
               echo "::error::Unknown scope: $scope"

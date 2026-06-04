@@ -1,4 +1,4 @@
-# @wdio/cdp-bridge
+# @wdio/native-cdp-bridge
 
 Shared Chrome DevTools Protocol (CDP) bridge for WebdriverIO native-app services. Provides the low-level pieces every CDP-attach service needs, so each service composes rather than re-implements:
 

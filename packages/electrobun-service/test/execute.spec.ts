@@ -1,4 +1,4 @@
-import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/cdp-bridge';
+import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import { describe, expect, it, vi } from 'vitest';
 
 import { execute } from '../src/commands/execute.js';

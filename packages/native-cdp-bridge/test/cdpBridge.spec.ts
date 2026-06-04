@@ -92,4 +92,12 @@ describe('CdpBridge (single-target)', () => {
     await expect(bridge.send('Runtime.evaluate')).resolves.toBeDefined();
     expect(h.sent).toContain('Runtime.evaluate');
   });
+
+  it('should refuse connect() after close() (no orphaned socket)', async () => {
+    h.targets = [target('A', 'http://app/a')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+    await bridge.close();
+    await expect(bridge.connect()).rejects.toThrow(/closed/i);
+  });
 });

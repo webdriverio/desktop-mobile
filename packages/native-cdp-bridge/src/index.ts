@@ -1,4 +1,4 @@
-// @wdio/cdp-bridge — shared CDP transport + discovery for WebdriverIO native services.
+// @wdio/native-cdp-bridge — shared CDP transport + discovery for WebdriverIO native services.
 // Single-target (CdpBridge) and multi-target (MultiTargetCdpBridge) clients over a
 // common Connection + DevTool, with renderer-specific target classification injected.
 

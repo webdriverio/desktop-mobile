@@ -59,6 +59,7 @@ export class CdpBridge {
   #selectTarget: SelectTarget;
   #devTool: DevTool;
   #connection: Connection | null = null;
+  #closed = false;
 
   constructor(options?: CdpBridgeOptions) {
     // Per-field `??` (not Object.assign): an explicit `undefined` must fall back to
@@ -88,25 +89,45 @@ export class CdpBridge {
 
   /** Discover targets, pick one via `selectTarget`, and connect. Retries discovery. */
   async connect(): Promise<void> {
+    if (this.#connection) {
+      return; // already connected — idempotent
+    }
     let retries = 0;
     while (true) {
+      // A close() can land on any await below. A closed bridge must stay closed
+      // rather than keep retrying or commit a freshly opened socket nobody will close.
+      if (this.#closed) {
+        throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+      }
       try {
         const list = await this.#devTool.list();
         const target = this.#selectTarget(list);
         if (target?.webSocketDebuggerUrl) {
-          this.#connection = new Connection(target.webSocketDebuggerUrl, {
+          const connection = new Connection(target.webSocketDebuggerUrl, {
             timeout: this.#options.timeout,
             origin: this.#origin,
             headers: this.#headers,
           });
-          await this.#connection.connect();
+          await connection.connect();
+          // close() (or a racing connect()) may have completed during the connect
+          // above — don't leak this socket or clobber the winner.
+          if (this.#closed) {
+            await connection.close().catch(() => {});
+            throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+          }
+          if (this.#connection) {
+            await connection.close().catch(() => {});
+            return;
+          }
+          this.#connection = connection;
           return;
         }
         if (retries >= this.#options.connectionRetryCount) {
           throw new Error(ERROR_MESSAGE.DEBUGGER_NOT_FOUND);
         }
       } catch (error) {
-        if (retries >= this.#options.connectionRetryCount) {
+        // BRIDGE_CLOSED is terminal — never swallow it back into a retry.
+        if (this.#closed || retries >= this.#options.connectionRetryCount) {
           throw error;
         }
         log.warn(`Connection attempt ${retries + 1} failed: ${(error as Error).message}`);
@@ -132,6 +153,7 @@ export class CdpBridge {
   }
 
   async close(): Promise<void> {
+    this.#closed = true;
     await this.#connection?.close();
     this.#connection = null;
   }

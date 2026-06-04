@@ -1,11 +1,11 @@
-import type { ClassifyTarget } from '@wdio/cdp-bridge';
+import type { ClassifyTarget } from '@wdio/native-cdp-bridge';
 
 const CONTENT_SCHEME_PREFIXES = ['views://', 'http://', 'https://', 'file://'];
 const NON_CONTENT_PREFIXES = ['devtools://', 'chrome://', 'chrome-extension://', 'chrome-untrusted://'];
 
 /**
  * Classify a discovered CDP target for Electrobun's CEF renderer — the
- * renderer-specific bit injected into `@wdio/cdp-bridge`'s `MultiTargetCdpBridge`.
+ * renderer-specific bit injected into `@wdio/native-cdp-bridge`'s `MultiTargetCdpBridge`.
  * Pure + unit-tested in isolation because the discriminator is the part most
  * likely to drift across Electrobun versions.
  *

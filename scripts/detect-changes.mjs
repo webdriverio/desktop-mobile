@@ -71,7 +71,7 @@ const ROOT_INFRA_FILES = new Set([
 const LINT_ONLY_FILES = new Set(['biome.jsonc', 'eslint.config.js']);
 
 const SHARED_PACKAGE_PREFIXES = ['native-'];
-const SHARED_PACKAGES = new Set(['bundler', 'cdp-bridge']);
+const SHARED_PACKAGES = new Set(['bundler']);
 
 export function discoverServices(repoRoot) {
   const packagesDir = path.join(repoRoot, 'packages');

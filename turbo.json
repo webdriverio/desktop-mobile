@@ -257,7 +257,7 @@
         "dist/**"
       ]
     },
-    "@wdio/cdp-bridge#build": {
+    "@wdio/native-cdp-bridge#build": {
       "dependsOn": [
         "@wdio/native-utils#build",
         "typecheck"
@@ -268,7 +268,7 @@
     },
     "@wdio/electrobun-service#build": {
       "dependsOn": [
-        "@wdio/cdp-bridge#build"
+        "@wdio/native-cdp-bridge#build"
       ],
       "outputs": [
         "dist/**"

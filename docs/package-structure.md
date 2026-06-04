@@ -101,7 +101,7 @@ All npm packages use the `@wdio/` scope:
 - `@wdio/dioxus-service` - Dioxus WDIO service
 - `@wdio/electrobun-service` - Electrobun WDIO service
 - `@wdio/electron-cdp-bridge` - CDP client for the Electron main-process debugger (single target)
-- `@wdio/cdp-bridge` - Shared CDP bridge: single-target (`CdpBridge`) + multi-target (`MultiTargetCdpBridge`); renderer-specific target classification injected per service
+- `@wdio/native-cdp-bridge` - Shared CDP bridge: single-target (`CdpBridge`) + multi-target (`MultiTargetCdpBridge`); renderer-specific target classification injected per service
 - `@wdio/native-utils` - Cross-platform utilities
 - `@wdio/native-types` - Shared TypeScript type definitions
 - `@wdio/native-spy` - Spy utilities for mocking

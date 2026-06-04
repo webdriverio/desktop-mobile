@@ -282,10 +282,10 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'e
         throw new Error(`Electrobun CDP Bridge directory does not exist: ${cdpBridgeDir}`);
       }
       execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
-      execCommand('pnpm pack', cdpBridgeDir, 'Packing @wdio/cdp-bridge');
+      execCommand('pnpm pack', cdpBridgeDir, 'Packing @wdio/native-cdp-bridge');
       execCommand('pnpm pack', electrobunServiceDir, 'Packing @wdio/electrobun-service');
       result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
-      result.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-cdp-bridge-');
+      result.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-native-cdp-bridge-');
       result.electrobunServicePath = findTgzFile(electrobunServiceDir, 'wdio-electrobun-service-');
     }
 
@@ -498,7 +498,7 @@ async function testExample(
       }
       overrides['@wdio/electrobun-service'] = `file:${packages.electrobunServicePath}`;
       overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
-      overrides['@wdio/cdp-bridge'] = `file:${packages.cdpBridgePath}`;
+      overrides['@wdio/native-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
       packagesToInstall.push(packages.typesPath, packages.cdpBridgePath, packages.electrobunServicePath);
     }
 
@@ -1019,7 +1019,7 @@ async function main() {
         const cdpBridgeDir = normalize(join(rootDir, 'packages', 'cdp-bridge'));
         packages.electrobunServicePath = findTgzFile(electrobunServiceDir, 'wdio-electrobun-service-');
         packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
-        packages.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-cdp-bridge-');
+        packages.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-native-cdp-bridge-');
       }
 
       log(`📦 Using existing packages:`);
