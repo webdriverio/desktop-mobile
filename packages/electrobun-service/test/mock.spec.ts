@@ -224,6 +224,30 @@ describe('createMock (Electrobun mocking)', () => {
       );
     });
 
+    it('should round-trip a mockReturnValue containing U+2028/U+2029', async () => {
+      const { bridge, window } = makeBridge({ api: { fetchData: () => 1 } });
+      const mock = await createMock('api.fetchData', bridge, store);
+
+      await mock.mockReturnValue('a\u2028b\u2029c');
+
+      const spy = (window.api as { fetchData: () => unknown }).fetchData;
+      expect(spy()).toBe('a\u2028b\u2029c');
+    });
+
+    it('should round-trip a mockRejectedValue whose message contains U+2028', async () => {
+      const { bridge, window } = makeBridge({ api: { fetchData: () => 1 } });
+      const mock = await createMock('api.fetchData', bridge, store);
+
+      await mock.mockRejectedValue(new Error('line\u2028break'));
+
+      const spy = (window.api as { fetchData: () => Promise<unknown> }).fetchData;
+      const rejected = await spy().then(
+        () => undefined,
+        (e: Error) => e,
+      );
+      expect(rejected?.message).toBe('line\u2028break');
+    });
+
     it('should reject a method shorthand passed as a mockImplementation', async () => {
       const { bridge } = makeBridge({ api: { fetchData: () => 1 } });
       const mock = await createMock('api.fetchData', bridge, store);

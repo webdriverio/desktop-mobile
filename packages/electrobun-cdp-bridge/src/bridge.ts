@@ -186,6 +186,11 @@ export class CdpBridge {
   }
 
   async #ensureConnection(label: string): Promise<Connection> {
+    // Every lazy-connect path funnels through here — after close() a late
+    // switchTarget()/sendTo() must not re-open a socket nobody will close.
+    if (this.#closed) {
+      throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+    }
     const existing = this.#connections.get(label);
     if (existing) {
       return existing;

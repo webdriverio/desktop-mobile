@@ -47,7 +47,9 @@ export function jsonLiteral(value: unknown, context: string, index?: number): st
     );
   }
   try {
-    return JSON.stringify(value) ?? 'undefined';
+    // JSON.stringify leaves U+2028/U+2029 raw (legal JSON since ES2019); escape
+    // them for the JS-source inlining context — same treatment as pathLiteral.
+    return (JSON.stringify(value) ?? 'undefined').replace(/\u2028/g, '\\u2028').replace(/\u2029/g, '\\u2029');
   } catch (err) {
     throw new Error(
       `${context}${at} is not JSON-serialisable ` +

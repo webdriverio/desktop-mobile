@@ -129,7 +129,9 @@ function valueLiteral(value: unknown, target: string): string {
     // Include `stack` so an error pushed via mockRejectedValue arrives with the same shape
     // the read-call-data path returns (which includes stack) — no asymmetry for users
     // inspecting thrown mock errors.
-    return JSON.stringify({ __wdioError: true, name: value.name, message: value.message, stack: value.stack });
+    return JSON.stringify({ __wdioError: true, name: value.name, message: value.message, stack: value.stack })
+      .replace(/\u2028/g, '\\u2028')
+      .replace(/\u2029/g, '\\u2029');
   }
   return jsonLiteral(value, `browser.electrobun.mock("${target}") value`);
 }
