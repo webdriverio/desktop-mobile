@@ -56,6 +56,13 @@ jobs:
         run: pnpm run format:check
         shell: bash
 
+      # Unit tests for repo tooling (scripts/), notably the CI change classifier
+      # that gates every other job — run here because lint is the one job with
+      # no `if:` gate.
+      - name: 🔍 Run Scripts Tests
+        run: pnpm run test:scripts
+        shell: bash
+
       # Static analysis of GitHub Actions workflows. Catches schema errors,
       # bad expressions, and shellcheck issues in `run:` scripts. Installs
       # the binary via the upstream download script — the third-party

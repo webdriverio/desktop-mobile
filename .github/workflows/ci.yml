@@ -469,7 +469,7 @@ jobs:
             display-name: Arch
           - distro: void
             display-name: Void
-    uses: ./.github/workflows/_ci-package-docker.reusable.yml
+    uses: ./.github/workflows/_ci-package-docker-tauri.reusable.yml
     secrets: inherit
     with:
       distro: ${{ matrix.distro }}
@@ -536,7 +536,7 @@ jobs:
           - os: macos-latest
             display-name: macOS-ARM
             scenario: script
-    uses: ./.github/workflows/_ci-e2e.reusable.yml
+    uses: ./.github/workflows/_ci-e2e-electron.reusable.yml
     secrets: inherit
     with:
       os: ${{ matrix.os }}
@@ -564,7 +564,7 @@ jobs:
           - os: ubuntu-latest
             display-name: Linux
             scenario: script
-    uses: ./.github/workflows/_ci-e2e.reusable.yml
+    uses: ./.github/workflows/_ci-e2e-electron.reusable.yml
     secrets: inherit
     with:
       os: ${{ matrix.os }}

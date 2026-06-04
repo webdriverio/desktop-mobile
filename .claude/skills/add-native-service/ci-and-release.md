@@ -4,30 +4,35 @@ Concrete wiring for getting a new service gated in CI and published. Grounded in
 
 ## CI gates
 
-### `_ci-detect-changes.reusable.yml`
+### Change detection — convention-driven, no per-framework edits
 
-This computes per-framework `run_*` flags from path filters so CI only runs affected jobs.
+`_ci-detect-changes.reusable.yml` delegates classification to `scripts/detect-changes.mjs`,
+which **discovers services from `packages/*-service` and classifies changed files by naming
+convention**. A new framework is detected automatically — there is nothing to add to the
+detect workflow — PROVIDED the framework follows the conventions:
 
-**Filter shape is load-bearing.** The paths-filter step runs with `predicate-quantifier: 'every'`
-(a file matches a filter only when it satisfies ALL of the filter's patterns — required for the
-`'!**/*.md'` exclusions). Two consequences when adding a framework:
+- Packages: `packages/<framework>-service`, `packages/<framework>-cdp-bridge`, crate dirs
+  `packages/<framework>-{bridge,driver,embedded-driver}` (any `<framework>-*` prefix works).
+- E2E: `e2e/test/<framework>/**`, `e2e/wdio.<framework>*.conf.ts`.
+- Fixtures: `fixtures/e2e-apps/<framework>*/**`, `fixtures/package-tests/<framework>*/**`.
+- Per-framework workflow files carry the framework name as a hyphen-delimited token
+  (`_ci-build-<framework>-e2e-app.reusable.yml`) — an unnamed workflow classifies as
+  shared infra and force-runs everything.
 
-- A filter's positive paths must be **one single brace alternation**, never a list of path
-  patterns — under AND semantics a file can never match two disjoint paths, so a multi-pattern
-  filter silently never fires. `packages/{<framework>-service,<framework>-cdp-bridge}/**` ✓;
-  two separate `packages/...` lines ✗.
-- Every content filter carries `- '!**/*.md'` as its second pattern, so doc-only changes
-  (including package READMEs) fall through to lint-only. Don't omit it on the new filters.
+Three things still need doing per framework:
 
-1. Add output `run_<framework>` to the `workflow_call.outputs` block **and** the job `outputs` block (`run_<framework>: ${{ steps.determine.outputs.run_<framework> || 'false' }}`).
-2. Add `paths-filter` entries (each: one brace alternation + the md exclusion):
-   - `<framework>_service`: `packages/{<framework>-service,<framework>-cdp-bridge}/**` — include every crate dir for Wry frameworks (`<framework>-bridge`, `-driver`, `-embedded-driver`) in the same braces.
-   - `e2e_<framework>`: `{e2e/test/<framework>/**,e2e/wdio.<framework>.conf.ts}` (+ `e2e/wdio.<framework>-embedded.conf.ts` in the braces).
-   - `fixtures_<framework>`: `{fixtures/e2e-apps/<framework>/**,fixtures/package-tests/<framework>-app/**}`.
-   - `infra_<framework>`: the per-framework reusable workflow files (see below), as one brace alternation.
-3. **Extend the `shared` filter's braces** to include every `packages/native-*` (`native-types`, `native-utils`, `native-core`, `native-spy`). Missing one is a latent CI gap (see the `shared` paths-filter gotcha in SKILL.md → Common gotchas).
-4. In the `determine` step compute `run_<framework> = <framework>_service || e2e_<framework> || fixtures_<framework> || shared || infra || infra_<framework>`, and set it under the "run everything" branch (e.g. when CI infra itself changes).
-5. **Verify the filters before pushing**: simulate dorny's matching locally (picomatch with `dot: true`, `every` = `patterns.every`) against representative changed-file sets — a service src file, the service's README alone (must stay lint-only), and an unrelated service's file (must stay false).
+1. **ci.yml consumption**: gate the new jobs on `fromJSON(needs.detect-changes.outputs.runs).<framework>`
+   (the JSON `runs` output picks up new services automatically). Adding a static
+   `run_<framework>` output to the reusable is optional sugar for readability.
+2. **Add classifier test cases**: extend `scripts/detect-changes.spec.ts` with the new
+   framework's paths (service src → framework; its README alone → lint-only; an unrelated
+   service's file → false). Run with `pnpm test:scripts` (CI runs this in the lint job).
+3. **If the framework adds shared packages** (`packages/native-*`), nothing to do — the
+   `native-*`/`bundler` prefixes classify as shared automatically.
+
+Files the classifier can't place inside `packages/`, `e2e/`, `fixtures/`, `.github/workflows/`,
+or `scripts/` deliberately **run everything** — convention drift fails loud (the step summary
+lists them), never silent.
 
 ### `ci.yml`
 
