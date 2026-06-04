@@ -117,6 +117,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   try {
     await launcher.onComplete();
+  } catch (e) {
+    log.warn(`launcher.onComplete() failed during cleanup: ${(e as Error).message}`);
   } finally {
     activeLaunchers.delete(browser);
   }

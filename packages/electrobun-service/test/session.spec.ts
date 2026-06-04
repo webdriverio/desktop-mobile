@@ -133,6 +133,14 @@ describe('session', () => {
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
+    it('should resolve when launcher.onComplete rejects (best-effort teardown)', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+      const browser = await init(cap);
+      onCompleteMock.mockRejectedValueOnce(new Error('teardown boom'));
+
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+    });
+
     it('should warn and no-op when the browser was not created by init()', async () => {
       const stray = makeBrowser();
 

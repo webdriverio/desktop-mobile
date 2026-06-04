@@ -355,6 +355,39 @@ describe('nativeMode', () => {
       expect(rmSyncMock).toHaveBeenCalledWith(CLONE_PARENT, { recursive: true, force: true });
     });
 
+    it('should SIGKILL after the grace window and wait for the reap before removing dirs', async () => {
+      vi.useFakeTimers();
+      try {
+        proc.kill.mockImplementation((signal: string) => {
+          if (signal === 'SIGKILL') {
+            // OS reaps the process shortly after the kill.
+            setTimeout(() => {
+              proc.signalCode = 'SIGKILL';
+            }, 300);
+          }
+          return true;
+        });
+
+        const stopPromise = stopElectrobunApp({
+          proc: proc as unknown as import('node:child_process').ChildProcess,
+          cleanupDirs: [USER_HOME, CLONE_PARENT],
+          port: 9333,
+          logHandlers: [],
+        });
+
+        await vi.advanceTimersByTimeAsync(5_000); // SIGTERM grace expires
+        expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
+        // The reap-wait must hold rmSync until the process is gone.
+        expect(rmSyncMock).not.toHaveBeenCalled();
+
+        await vi.advanceTimersByTimeAsync(400); // reap fires at +300
+        await stopPromise;
+        expect(rmSyncMock).toHaveBeenCalledTimes(2);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should skip killing an already-exited process but still remove the cleanup dirs', async () => {
       proc.exitCode = 0;
 

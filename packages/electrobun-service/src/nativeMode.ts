@@ -36,6 +36,7 @@ import type { ElectrobunServiceOptions } from './types.js';
 const log = createLogger(SERVICE_NAME, 'launcher');
 
 const SIGKILL_GRACE_MS = 5_000;
+const SIGKILL_REAP_MS = 2_000;
 
 export interface ElectrobunAppProcess {
   proc: ChildProcess;
@@ -263,6 +264,15 @@ export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void
     if (proc.exitCode === null && proc.signalCode === null) {
       log.warn('Electrobun app did not exit gracefully, sending SIGKILL');
       proc.kill('SIGKILL');
+      // Brief reap-wait before rmSync removes the bundle clone — un-reaped CEF
+      // helper subprocesses can still hold handles inside the temp dir (EBUSY).
+      const killDeadline = Date.now() + SIGKILL_REAP_MS;
+      while (Date.now() < killDeadline) {
+        if (proc.exitCode !== null || proc.signalCode !== null) {
+          break;
+        }
+        await sleep(100);
+      }
     }
   }
 
