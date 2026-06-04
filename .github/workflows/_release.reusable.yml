@@ -46,9 +46,13 @@ on:
         description: 'Ollama API key for LLM-enhanced release notes'
         required: false
 
+# pull-requests: write is needed by the standing-pr publish path (manifest comment read +
+# completion comment). Called workflows can only downgrade caller permissions, so it must
+# be declared here too — callers that don't grant it (release-auto/manual) cap it to none.
 permissions:
   id-token: write
   contents: write
+  pull-requests: write
 
 env:
   NPM_CONFIG_PROVENANCE: true
@@ -60,6 +64,7 @@ jobs:
     permissions:
       id-token: write
       contents: write
+      pull-requests: write
 
     steps:
       - name: Checkout

@@ -121,10 +121,15 @@ jobs:
   # triggered from this workflow would be rejected with ENEEDAUTH. Routing through
   # `gh workflow run release.yml` makes the dispatched run's `workflow_ref` resolve to
   # `release.yml`, which matches the trusted-publisher config.
+  # Push events only: a manual workflow_dispatch fired while HEAD is still the standing-PR
+  # merge commit would re-detect it and dispatch a second publish against an already-released
+  # manifest. The push event has already handled the publish; a dispatch in that window
+  # deliberately does nothing (update-release-pr is also gated off by pr_number, since
+  # rebuilding the release branch would race the in-flight publish's tagging).
   trigger-publish:
     name: Trigger publish via release.yml
     needs: detect-release-merge
-    if: needs.detect-release-merge.outputs.pr_number != ''
+    if: github.event_name == 'push' && needs.detect-release-merge.outputs.pr_number != ''
     runs-on: ubuntu-latest
     permissions:
       actions: write

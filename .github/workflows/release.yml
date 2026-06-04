@@ -200,6 +200,9 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      # standing-pr-publish reads the manifest comment from the merged PR and posts a
+      # completion comment back — without this every PR API call 403s.
+      pull-requests: write
     with:
       target_branch: main
       # bump/release_type are required inputs of the reusable but unused on the
