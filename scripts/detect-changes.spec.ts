@@ -32,7 +32,7 @@ describe('classifyFile', () => {
     ['packages/native-utils/src/teardown.ts', 'shared'],
     ['packages/native-core/src/index.ts', 'shared'],
     ['packages/bundler/src/index.ts', 'shared'],
-    ['packages/some-new-thing/src/index.ts', 'all'],
+    ['packages/some-new-thing/src/index.ts', 'unknown'],
     // e2e
     ['e2e/test/electron/api.spec.ts', 'electron'],
     ['e2e/wdio.electron.conf.ts', 'electron'],
@@ -44,7 +44,7 @@ describe('classifyFile', () => {
     ['fixtures/e2e-apps/tauri/src-tauri/Cargo.toml', 'tauri'],
     ['fixtures/package-tests/dioxus-app/docker/test.sh', 'dioxus'],
     ['fixtures/package-tests/electrobun-app/wdio.conf.ts', 'electrobun'],
-    ['fixtures/e2e-apps/mystery/app.ts', 'all'],
+    ['fixtures/e2e-apps/mystery/app.ts', 'unknown'],
     // workflows
     ['.github/workflows/ci.yml', 'all'],
     ['.github/workflows/_ci-detect-changes.reusable.yml', 'all'],
@@ -57,7 +57,7 @@ describe('classifyFile', () => {
     ['.github/workflows/_ci-build-electron-package-apps.reusable.yml', 'electron'],
     ['.github/workflows/codeql.yml', 'none'],
     ['.github/workflows/release-preview.yml', 'none'],
-    ['.github/workflows/some-future-workflow.yml', 'all'],
+    ['.github/workflows/some-future-workflow.yml', 'unknown'],
     ['.github/codeql/artifact-poisoning-analysis.json', 'none'],
     // scripts
     ['scripts/update-tauri-version.ts', 'tauri'],
@@ -133,5 +133,12 @@ describe('classifyChanges decisions', () => {
     const d = classifyChanges(['packages/neutralino-service/src/launcher.ts'], services);
     expect(d.runs.neutralino).toBe(true);
     expect(d.runs.electron).toBe(false);
+  });
+
+  it('separates deliberate run-alls from unclassified drift', () => {
+    const d = decide(['scripts/test-package.ts', 'packages/some-new-thing/src/index.ts']);
+    expect(Object.values(d.runs).every(Boolean)).toBe(true);
+    expect(d.triggersAll).toEqual(['scripts/test-package.ts']);
+    expect(d.unknownFiles).toEqual(['packages/some-new-thing/src/index.ts']);
   });
 });

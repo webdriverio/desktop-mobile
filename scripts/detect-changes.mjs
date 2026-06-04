@@ -15,19 +15,20 @@
  *   - *.md anywhere            → docs (never triggers pipelines; lint runs unconditionally)
  *   - packages/native-*, packages/bundler        → shared (all services)
  *   - packages/<svc>[-...]/**                    → that service
- *   - packages/<unknown>/**                      → all (convention drift — fail loud)
- *   - e2e/test/<svc>/**, e2e/wdio.<svc>*.conf.ts → that service; other e2e/** → all
- *   - fixtures/{e2e-apps,package-tests}/<svc>[-...]/** → that service; unknown dir → all
+ *   - packages/<unrecognised>/**                 → unknown (runs all — convention drift, fail loud)
+ *   - e2e/test/<svc>/**, e2e/wdio.<svc>*.conf.ts → that service; other e2e/** → all (shared test infra)
+ *   - fixtures/{e2e-apps,package-tests}/<svc>[-...]/** → that service; unrecognised dir → unknown
  *   - .github/workflows/: core-infra list → all; meta list → none;
- *     actions/** → all; service token in filename → that service; else → all
- *   - scripts/: service token in filename → that service; else → all
+ *     actions/** → all; service token in filename → that service; else → unknown
+ *   - scripts/: service token in filename → that service; else → all (cross-service tooling)
  *   - root infra files (package.json, lockfile, turbo.json, tsconfig*…) → all
  *   - biome.jsonc, eslint.config.js → none (the lint job has no `if:` gate)
  *   - everything else (docs/, agent-os/, .claude/, dotfiles…) → none
  *
- * Unknown files inside the load-bearing trees (packages/, e2e/, fixtures/,
- * workflows/, scripts/) deliberately fall back to "all": silent under-running
- * is the failure mode that hid real gaps before (#330).
+ * 'all' and 'unknown' both run every pipeline; they differ only in reporting —
+ * 'unknown' marks files no convention rule could place (likely naming drift) and is
+ * called out separately in the step summary. Silent under-running is the failure
+ * mode that hid real gaps before (#330), so drift over-runs, never under-runs.
  */
 
 import * as fs from 'node:fs';
@@ -101,7 +102,7 @@ export function classifyFile(file, services) {
   if (pkg) {
     const dir = pkg[1];
     if (SHARED_PACKAGES.has(dir) || SHARED_PACKAGE_PREFIXES.some((p) => dir.startsWith(p))) return 'shared';
-    return serviceForDir(dir, services) ?? 'all';
+    return serviceForDir(dir, services) ?? 'unknown';
   }
 
   if (file.startsWith('e2e/')) {
@@ -113,15 +114,15 @@ export function classifyFile(file, services) {
   }
 
   const fixture = file.match(/^fixtures\/(?:e2e-apps|package-tests)\/([^/]+)\//);
-  if (fixture) return serviceForDir(fixture[1], services) ?? 'all';
-  if (file.startsWith('fixtures/')) return 'all';
+  if (fixture) return serviceForDir(fixture[1], services) ?? 'unknown';
+  if (file.startsWith('fixtures/')) return 'unknown';
 
   if (file.startsWith('.github/workflows/actions/')) return 'all';
   if (file.startsWith('.github/workflows/')) {
     const name = path.basename(file);
     if (CORE_INFRA_WORKFLOWS.has(name)) return 'all';
     if (META_WORKFLOWS.has(name)) return 'none';
-    return serviceForToken(name, services) ?? 'all';
+    return serviceForToken(name, services) ?? 'unknown';
   }
   if (file.startsWith('.github/')) return 'none';
 
@@ -141,11 +142,15 @@ export function classifyFile(file, services) {
 export function classifyChanges(files, services, { forceAll = false } = {}) {
   const runs = Object.fromEntries(services.map((svc) => [svc, false]));
   let sharedChanges = false;
+  // Deliberate run-everything verdicts (core infra, cross-service scripts, shared e2e)
+  // vs files no convention rule could place — both run all pipelines, but only the
+  // latter signal naming-convention drift.
   const triggersAll = [];
+  const unknownFiles = [];
 
   if (forceAll) {
     for (const svc of services) runs[svc] = true;
-    return { runs, sharedChanges: true, lintOnly: false, triggersAll, perFile: [] };
+    return { runs, sharedChanges: true, lintOnly: false, triggersAll, unknownFiles, perFile: [] };
   }
 
   const perFile = [];
@@ -153,9 +158,10 @@ export function classifyChanges(files, services, { forceAll = false } = {}) {
     const verdict = classifyFile(file, services);
     perFile.push({ file, verdict });
     if (verdict === 'none') continue;
-    if (verdict === 'shared' || verdict === 'all') {
+    if (verdict === 'shared' || verdict === 'all' || verdict === 'unknown') {
       if (verdict === 'shared') sharedChanges = true;
-      else triggersAll.push(file);
+      else if (verdict === 'all') triggersAll.push(file);
+      else unknownFiles.push(file);
       for (const svc of services) runs[svc] = true;
     } else {
       runs[verdict] = true;
@@ -163,7 +169,7 @@ export function classifyChanges(files, services, { forceAll = false } = {}) {
   }
 
   const lintOnly = services.every((svc) => !runs[svc]);
-  return { runs, sharedChanges, lintOnly, triggersAll, perFile };
+  return { runs, sharedChanges, lintOnly, triggersAll, unknownFiles, perFile };
 }
 
 function appendFile(envVar, content) {
@@ -172,11 +178,13 @@ function appendFile(envVar, content) {
 }
 
 function main() {
-  const files = JSON.parse(process.env.CHANGED_FILES ?? '[]');
+  const files = JSON.parse(process.env.CHANGED_FILES || '[]');
   const forceAll = process.env.FORCE_ALL === 'true';
   const services = discoverServices(process.cwd());
 
-  const { runs, sharedChanges, lintOnly, triggersAll, perFile } = classifyChanges(files, services, { forceAll });
+  const { runs, sharedChanges, lintOnly, triggersAll, unknownFiles, perFile } = classifyChanges(files, services, {
+    forceAll,
+  });
 
   let output = '';
   for (const [svc, run] of Object.entries(runs)) output += `run_${svc}=${run}\n`;
@@ -191,9 +199,14 @@ function main() {
   for (const [svc, run] of Object.entries(runs)) summary += `| ${svc} | ${run} |\n`;
   summary += `\n- Shared package changes: ${sharedChanges}\n- Lint only: ${lintOnly}\n`;
   if (triggersAll.length > 0) {
-    summary += '\n### Files triggering ALL pipelines (unclassified or core infra)\n\n';
-    summary += 'Unclassified files in load-bearing trees may indicate naming-convention drift:\n\n';
+    summary += '\n### Core infra / cross-service changes (run all pipelines)\n\n';
     for (const file of triggersAll) summary += `- \`${file}\`\n`;
+  }
+  if (unknownFiles.length > 0) {
+    summary += '\n### ⚠️ Unclassified files (running all pipelines defensively)\n\n';
+    summary += 'No naming-convention rule places these — possible convention drift. ';
+    summary += 'Either rename to match the conventions or teach `scripts/detect-changes.mjs` about them:\n\n';
+    for (const file of unknownFiles) summary += `- \`${file}\`\n`;
   }
   appendFile('GITHUB_STEP_SUMMARY', summary);
 
