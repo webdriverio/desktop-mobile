@@ -806,6 +806,36 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       dioxus_cache_key: ${{ needs.build-dioxus-package-app-linux-arm.outputs.cache_key }}
 
+  # Run Dioxus package tests across different Linux distributions using Docker.
+  # Dioxus desktop renders through Wry → WebKitGTK (the same system WebView as
+  # Tauri), so each distro's WebKitGTK version is exercised against the app build
+  # and the in-process 'embedded' driver. Unlike Tauri there is NO system
+  # WebKitWebDriver to detect — the driver is compiled into the app — so this
+  # matrix validates build + headless launch + bridge protocol, not driver
+  # discovery. Same distro exclusions as package-tauri-distros apply.
+  package-dioxus-distros:
+    name: Package - Dioxus (Docker) [${{ matrix.display-name }}]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - distro: ubuntu
+            display-name: Ubuntu
+          - distro: fedora
+            display-name: Fedora
+          - distro: debian
+            display-name: Debian
+          - distro: arch
+            display-name: Arch
+          - distro: void
+            display-name: Void
+    uses: ./.github/workflows/_ci-package-docker-dioxus.reusable.yml
+    secrets: inherit
+    with:
+      distro: ${{ matrix.distro }}
+
   # Electrobun package test — macOS-only (CEF). The fixture bundle is downloaded by
   # artifact name within the run (tar/symlinks), so no cache_key is threaded.
   package-electrobun-macos-arm:
@@ -942,6 +972,7 @@ jobs:
       - package-dioxus-macos-arm
       - package-dioxus-macos-intel
       - package-dioxus-linux-arm
+      - package-dioxus-distros
       - package-electrobun-macos-arm
       - build-matrix
       - build-dioxus-crates-linux

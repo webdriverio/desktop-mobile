@@ -176,6 +176,7 @@ jobs:
               - '.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml'
               - '.github/workflows/_ci-build-dioxus-package-app.reusable.yml'
               - '.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml'
+              - '.github/workflows/_ci-package-docker-dioxus.reusable.yml'
 
             # Electrobun-only workflow files (no -crates: Electrobun has no Rust)
             infra_electrobun:
