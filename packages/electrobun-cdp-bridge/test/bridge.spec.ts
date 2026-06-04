@@ -79,6 +79,24 @@ describe('CdpBridge multi-target routing', () => {
     expect(h.closed).toBe(1);
   });
 
+  it('should connect the auto-advanced target when the active window closes', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+
+    // A later refresh discovers window-1 but nothing ever switches to it…
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    await bridge.refresh();
+
+    // …then main closes: the auto-advance must also open the survivor's
+    // connection, or send()/on() would throw NOT_CONNECTED.
+    h.targets = [target('B', 'views://secondview/index.html')];
+    await bridge.refresh();
+
+    expect(bridge.activeLabel).toBe('window-1');
+    await expect(bridge.send('Runtime.enable')).resolves.toBeDefined();
+  });
+
   it('should switch the active target without navigating', async () => {
     h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
     const bridge = new CdpBridge();

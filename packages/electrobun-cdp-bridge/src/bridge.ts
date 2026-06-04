@@ -92,9 +92,17 @@ export class CdpBridge {
     await Promise.allSettled(closePromises);
     // If the active target was pruned (its window closed), auto-advance to the
     // first surviving target so subsequent send()/on() don't throw an opaque
-    // NOT_CONNECTED — callers can still switchTarget() explicitly.
+    // NOT_CONNECTED — callers can still switchTarget() explicitly. The survivor
+    // may never have been connected (discovered by an earlier refresh, never
+    // switched to), so open its connection too; best-effort — a transient
+    // connect failure surfaces on the next send(), not here.
     if (this.#activeLabel && !live.has(this.#activeLabel)) {
       this.#activeLabel = this.#targets[0]?.label;
+      if (this.#activeLabel) {
+        await this.#ensureConnection(this.#activeLabel).catch((error: Error) => {
+          log.warn(`Failed to connect auto-advanced target '${this.#activeLabel}': ${error.message}`);
+        });
+      }
     }
     return [...this.#targets];
   }
