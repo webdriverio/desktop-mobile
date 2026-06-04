@@ -79,6 +79,15 @@ describe('CdpBridge multi-target routing', () => {
     expect(h.closed).toBe(1);
   });
 
+  it('should refuse connect() after close()', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+    await bridge.close();
+
+    await expect(bridge.connect()).rejects.toThrow(/closed/);
+  });
+
   it('should connect the auto-advanced target when the active window closes', async () => {
     h.targets = [target('A', 'views://mainview/index.html')];
     const bridge = new CdpBridge();

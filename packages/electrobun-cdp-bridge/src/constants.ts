@@ -21,6 +21,7 @@ export const ERROR_MESSAGE = {
   TIMEOUT_WAIT_PORT: 'Timeout exceeded while waiting for debugger port to open',
   DEBUGGER_NOT_FOUND: 'No debugger instance was detected',
   NO_PAGE_TARGETS: 'No CDP page targets were detected at the debugger endpoint',
+  BRIDGE_CLOSED: 'CdpBridge is closed — create a new bridge to reconnect',
   TARGET_NOT_FOUND: 'No CDP target is registered for label:',
   NOT_CONNECTED: "WebSocket is not connected. Call 'CdpBridge.connect()' before using this method",
   CONNECTION_CLOSED: 'WebSocket connection has been closed',

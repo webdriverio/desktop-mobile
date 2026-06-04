@@ -3,6 +3,15 @@ import { SevereServiceError } from 'webdriverio';
 
 import { cefRendererRequired } from '../src/errors.js';
 
+const logMocks = vi.hoisted(() => ({ warn: vi.fn() }));
+vi.mock('@wdio/native-utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wdio/native-utils')>();
+  return {
+    ...actual,
+    createLogger: () => ({ trace: vi.fn(), debug: vi.fn(), info: vi.fn(), warn: logMocks.warn, error: vi.fn() }),
+  };
+});
+
 // Mock the IO-bound config helpers so the launcher matrix can be driven without
 // a real bundle on disk. resolveElectrobunApp returns a fixed resolved app;
 // verifyCefRenderer is spied so throws can be asserted. The launcher no longer
@@ -130,6 +139,24 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(resolveElectrobunApp)).toHaveBeenCalledWith('/apps/Demo.app');
       expect(vi.mocked(verifyCefRenderer)).toHaveBeenCalledTimes(1);
       expect(caps[0].browserName).toBe('chrome');
+    });
+
+    it('should warn (not throw) when maxInstances > 1 — CEF is single-instance', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare({ maxInstances: 2 } as Parameters<typeof launcher.onPrepare>[0], caps);
+
+      expect(logMocks.warn).toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
+    });
+
+    it('should not warn about maxInstances when it is 1', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare({ maxInstances: 1 } as Parameters<typeof launcher.onPrepare>[0], caps);
+
+      expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
     });
 
     it('should propagate a missing-appBinaryPath SevereServiceError from resolution', async () => {

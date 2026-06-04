@@ -60,7 +60,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
   }
 
   async onPrepare(
-    _config: Options.Testrunner,
+    config: Options.Testrunner,
     capabilities: ElectrobunCapabilities[] | Record<string, { capabilities: ElectrobunCapabilities }>,
   ): Promise<void> {
     const capsList = normaliseCaps(capabilities);
@@ -112,6 +112,16 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     // when the WebView2/WebKitGTK native-renderer transports land (#317).
     if (process.platform !== 'darwin') {
       throw cefNativeModeMacOnly(process.platform);
+    }
+
+    // CEF can't isolate ≥2 app instances (shared root_cache_path → instance folding;
+    // upstream-blocked, #320). WDIO's default maxInstances is 100, so this can't be a
+    // hard error — warn so a run that does schedule parallel workers fails recognisably.
+    if ((config.maxInstances ?? 1) > 1) {
+      log.warn(
+        `maxInstances is ${config.maxInstances}, but Electrobun CEF is single-instance: parallel workers ` +
+          'share one CEF cache root and race ("Cannot create profile" / CDP timeouts). Pin maxInstances: 1.',
+      );
     }
 
     // Native mode: resolve + CEF-verify each bundle, force chrome capability. The

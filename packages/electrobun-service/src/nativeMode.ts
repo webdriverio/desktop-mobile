@@ -22,7 +22,7 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, join } from 'node:path';
+import { basename, join, relative } from 'node:path';
 import type { Interface as ReadlineInterface } from 'node:readline';
 
 import { createLogCapture } from '@wdio/native-core';
@@ -121,9 +121,11 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   }
 
   const { cloneParentDir, clonedBundlePath } = cloneAppBundle(app.bundlePath);
-  // Rebase the binary + build.json onto the clone by swapping the bundle prefix.
-  const clonedBinaryPath = app.binaryPath.replace(app.bundlePath, clonedBundlePath);
-  const clonedBuildJsonPath = app.buildJsonPath.replace(app.bundlePath, clonedBundlePath);
+  // Rebase the binary + build.json onto the clone. join+relative, not a substring
+  // replace — a stray trailing separator would make replace() a silent no-op and
+  // spawn the user's UNCLONED bundle (whose build.json has the wrong port).
+  const clonedBinaryPath = join(clonedBundlePath, relative(app.bundlePath, app.binaryPath));
+  const clonedBuildJsonPath = join(clonedBundlePath, relative(app.bundlePath, app.buildJsonPath));
 
   // The clone isn't tracked for teardown until we return the handle, so remove it
   // here if pinning the port throws (it's the large, CEF-bearing temp dir).

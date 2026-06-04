@@ -47,6 +47,7 @@ export class CdpBridge {
   #connections = new Map<string, Connection>();
   #targets: TargetRegistryEntry[] = [];
   #activeLabel: string | undefined;
+  #closed = false;
 
   constructor(options?: CdpBridgeOptions) {
     // Per-field `??` rather than Object.assign: a caller passing an explicit
@@ -67,6 +68,11 @@ export class CdpBridge {
 
   /** Discover content targets, then attach to the primary (`main`) target. */
   async connect(): Promise<void> {
+    // A closed bridge must stay closed: a late connect() (e.g. a retry hook
+    // overlapping teardown) would open sockets nobody will ever close again.
+    if (this.#closed) {
+      throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+    }
     await this.#discover();
     if (this.#targets.length === 0) {
       throw new Error(ERROR_MESSAGE.NO_PAGE_TARGETS);
@@ -153,6 +159,7 @@ export class CdpBridge {
   }
 
   async close(): Promise<void> {
+    this.#closed = true;
     await Promise.all([...this.#connections.values()].map((connection) => connection.close()));
     this.#connections.clear();
     this.#activeLabel = undefined;
