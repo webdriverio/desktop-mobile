@@ -13,9 +13,9 @@ import {
 } from './constants.js';
 import { DevTool, type DevToolOptions } from './devTool.js';
 import { TargetRegistry } from './targetRegistry.js';
-import type { TargetRegistryEntry } from './types.js';
+import type { ClassifyTarget, TargetRegistryEntry } from './types.js';
 
-const log = createLogger('electrobun-cdp-bridge', 'bridge');
+const log = createLogger('cdp-bridge', 'bridge');
 
 type Methods = keyof ProtocolMapping.Commands;
 type Events = keyof ProtocolMapping.Events;
@@ -23,33 +23,42 @@ type MethodParams<T extends Methods> = ProtocolMapping.Commands[T]['paramsType']
 type MethodReturn<T extends Methods> = ProtocolMapping.Commands[T]['returnType'];
 type SendParams<T extends Methods> = MethodParams<T> extends [] ? [] : [MethodParams<T>[number]];
 
-export type CdpBridgeOptions = DevToolOptions & {
+export type MultiTargetCdpBridgeOptions = DevToolOptions & {
   waitInterval?: number;
   connectionRetryCount?: number;
+  /** WebSocket `Origin` header / extra headers passed to each per-target Connection. */
+  origin?: string;
+  headers?: Record<string, string>;
+  /**
+   * Decides which discovered targets are user-facing `content` windows. Injected by
+   * the consuming service (renderer-specific — e.g. CEF keys off the `views://` scheme).
+   */
+  classifyTarget: ClassifyTarget;
 };
 
 const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 /**
- * Multi-target CDP client for an Electrobun CEF instance. Discovers every
- * content webview target from `/json`, labels them via {@link TargetRegistry},
- * and routes commands to the active target — backing the service's
- * `switchWindow`/`listWindows`. Unlike a single-target client it holds one
- * {@link Connection} per attached target.
+ * Multi-target CDP client. Discovers every content target from `/json`, labels
+ * them via {@link TargetRegistry}, and routes commands to the active target —
+ * backing a service's `switchWindow`/`listWindows`. Holds one {@link Connection}
+ * per attached target.
  *
  * **Invariant: never issues `Page.navigate`.** Attaching/switching only enables
  * the Runtime domain on the live target; reloading would destroy app state.
  */
-export class CdpBridge {
-  #options: Required<CdpBridgeOptions>;
+export class MultiTargetCdpBridge {
+  #options: Required<Omit<MultiTargetCdpBridgeOptions, 'origin' | 'headers' | 'classifyTarget'>>;
+  #origin: string | undefined;
+  #headers: Record<string, string> | undefined;
   #devTool: DevTool;
-  #registry = new TargetRegistry();
+  #registry: TargetRegistry;
   #connections = new Map<string, Connection>();
   #targets: TargetRegistryEntry[] = [];
   #activeLabel: string | undefined;
   #closed = false;
 
-  constructor(options?: CdpBridgeOptions) {
+  constructor(options: MultiTargetCdpBridgeOptions) {
     // Per-field `??` rather than Object.assign: a caller passing an explicit
     // `undefined` (e.g. an unset service option) must fall back to the default, not
     // overwrite it. Object.assign copies undefined values, which left `timeout`
@@ -57,13 +66,16 @@ export class CdpBridge {
     // `connectionRetryCount` undefined (so `retries >= undefined` never capped →
     // effectively unbounded retries).
     this.#options = {
-      host: options?.host ?? DEFAULT_HOSTNAME,
-      port: options?.port ?? DEFAULT_PORT,
-      timeout: options?.timeout ?? REQUEST_TIMEOUT,
-      waitInterval: options?.waitInterval ?? DEFAULT_RETRY_INTERVAL,
-      connectionRetryCount: options?.connectionRetryCount ?? DEFAULT_MAX_RETRY_COUNT,
+      host: options.host ?? DEFAULT_HOSTNAME,
+      port: options.port ?? DEFAULT_PORT,
+      timeout: options.timeout ?? REQUEST_TIMEOUT,
+      waitInterval: options.waitInterval ?? DEFAULT_RETRY_INTERVAL,
+      connectionRetryCount: options.connectionRetryCount ?? DEFAULT_MAX_RETRY_COUNT,
     };
+    this.#origin = options.origin;
+    this.#headers = options.headers;
     this.#devTool = new DevTool(this.#options);
+    this.#registry = new TargetRegistry(options.classifyTarget);
   }
 
   /** Discover content targets, then attach to the primary (`main`) target. */
@@ -118,7 +130,7 @@ export class CdpBridge {
     return [...this.#targets];
   }
 
-  /** Live content target labels — backs `browser.electrobun.listWindows()`. */
+  /** Live content target labels — backs a service's `listWindows()`. */
   listWindows(): string[] {
     return this.#targets.map((target) => target.label);
   }
@@ -127,12 +139,12 @@ export class CdpBridge {
     return this.#activeLabel;
   }
 
-  /** CDP `/json/version` for the instance (CEF/Chromium version, for driver matching). */
+  /** CDP `/json/version` for the instance (browser/Chromium version, for driver matching). */
   version() {
     return this.#devTool.version();
   }
 
-  /** Make `label` the active target — backs `browser.electrobun.switchWindow()`. */
+  /** Make `label` the active target — backs a service's `switchWindow()`. */
   async switchTarget(label: string): Promise<void> {
     if (!this.#targets.some((target) => target.label === label)) {
       throw new Error(`${ERROR_MESSAGE.TARGET_NOT_FOUND} ${label}`);
@@ -199,7 +211,11 @@ export class CdpBridge {
     if (!target) {
       throw new Error(`${ERROR_MESSAGE.TARGET_NOT_FOUND} ${label}`);
     }
-    const connection = new Connection(target.webSocketDebuggerUrl, { timeout: this.#options.timeout });
+    const connection = new Connection(target.webSocketDebuggerUrl, {
+      timeout: this.#options.timeout,
+      origin: this.#origin,
+      headers: this.#headers,
+    });
     await connection.connect();
     try {
       // Attach is observation-only — enable Runtime, never Page.navigate.

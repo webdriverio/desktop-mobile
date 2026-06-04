@@ -18,7 +18,7 @@
 // into the inner recorder. update() reads the recorder's call history back and
 // syncs it ONE-WAY into the outer mock. clear/reset/restore apply to both sides.
 
-import type { CdpBridge } from '@wdio/electrobun-cdp-bridge';
+import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/cdp-bridge';
 import { fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, ElectrobunMock, MockResult } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';

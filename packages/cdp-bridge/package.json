@@ -1,9 +1,9 @@
 {
-  "name": "@wdio/electrobun-cdp-bridge",
+  "name": "@wdio/cdp-bridge",
   "version": "0.1.0-next.0",
-  "description": "Multi-target CDP Bridge for WebdriverIO Electrobun Service",
+  "description": "Shared single- and multi-target CDP bridge for WebdriverIO native-app services",
   "author": "WebdriverIO Community",
-  "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/electrobun-cdp-bridge",
+  "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/cdp-bridge",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cjs/index.js",
@@ -67,6 +67,6 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/webdriverio/desktop-mobile.git",
-    "directory": "packages/electrobun-cdp-bridge"
+    "directory": "packages/cdp-bridge"
   }
 }

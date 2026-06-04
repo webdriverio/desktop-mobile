@@ -1,6 +1,6 @@
 import vm from 'node:vm';
 
-import type { CdpBridge } from '@wdio/electrobun-cdp-bridge';
+import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/cdp-bridge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // Mock at the boundary — the CdpBridge — not the local modules. send() runs the
@@ -9,7 +9,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 // end-to-end: install → record real calls → read-back → impl/return/clear/etc.
 // (No CEF in unit tests; the in-webview round-trip itself is only fully proven
 // against a real app — see the E2E-validation gap note in the PR.)
-vi.mock('@wdio/electrobun-cdp-bridge', () => ({ CdpBridge: class {} }));
+vi.mock('@wdio/cdp-bridge', () => ({ MultiTargetCdpBridge: class {} }));
 
 import { createMock } from '../src/mock.js';
 import { ElectrobunMockStore } from '../src/mockStore.js';

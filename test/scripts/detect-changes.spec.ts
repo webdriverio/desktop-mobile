@@ -24,7 +24,7 @@ describe('classifyFile', () => {
     // packages → service / shared / unknown→all
     ['packages/electron-service/src/session.ts', 'electron'],
     ['packages/electron-cdp-bridge/src/bridge.ts', 'electron'],
-    ['packages/electrobun-cdp-bridge/src/connection.ts', 'electrobun'],
+    ['packages/cdp-bridge/src/connection.ts', 'shared'],
     ['packages/tauri-plugin/src/index.ts', 'tauri'],
     ['packages/tauri-plugin-webdriver/Cargo.toml', 'tauri'],
     ['packages/dioxus-bridge/src/lib.rs', 'dioxus'],

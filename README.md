@@ -104,7 +104,7 @@ desktop-mobile/
 │   ├── dioxus-service/          # Dioxus service implementation
 │   ├── electrobun-service/      # Electrobun service implementation
 │   ├── electron-cdp-bridge/     # Chrome DevTools Protocol bridge (Electron)
-│   ├── electrobun-cdp-bridge/   # Multi-target CDP bridge (Electrobun)
+│   ├── cdp-bridge/              # Shared CDP bridge (single + multi-target)
 │   ├── native-utils/            # Cross-platform utilities
 │   ├── native-types/            # TypeScript type definitions
 │   ├── native-spy/              # Spy utilities for mocking

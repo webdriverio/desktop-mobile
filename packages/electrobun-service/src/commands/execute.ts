@@ -8,9 +8,9 @@
 // in-webview surface `window.__WDIO_ELECTROBUN__` (may be `{}` for MVP).
 //
 // Invariant: this never issues Page.navigate — the bridge only enables Runtime
-// on the live target (see @wdio/electrobun-cdp-bridge).
+// on the live target (see @wdio/cdp-bridge).
 
-import type { CdpBridge } from '@wdio/electrobun-cdp-bridge';
+import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/cdp-bridge';
 import type { ElectrobunAPIs } from '@wdio/native-types';
 import { hasSemicolonOutsideQuotes } from '@wdio/native-utils';
 

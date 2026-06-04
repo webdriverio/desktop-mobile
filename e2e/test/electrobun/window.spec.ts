@@ -4,7 +4,7 @@ import '@wdio/native-types';
 // The fixture opens two CEF windows (src/bun/index.ts): the main counter view
 // (mainview) and a second view (secondview). The CDP bridge labels content
 // targets in registration order — the first becomes 'main', the next 'window-1'
-// (see @wdio/electrobun-cdp-bridge TargetRegistry).
+// (see @wdio/cdp-bridge TargetRegistry).
 //
 // ⚠️ NOT RUN IN CI (skipped). Multi-window exercises an upstream CEF per-instance
 // profile-isolation gap: BrowserWindow forces a `persist:default` partition the

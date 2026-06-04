@@ -229,8 +229,8 @@ jobs:
 
            # Pack Electrobun service + its CDP bridge if needed
            if [ "$SERVICE" == "electrobun" ]; then
-             if [ -d "packages/electrobun-cdp-bridge/dist" ]; then
-               (cd packages/electrobun-cdp-bridge && pnpm pack)
+             if [ -d "packages/cdp-bridge/dist" ]; then
+               (cd packages/cdp-bridge && pnpm pack)
              fi
              if [ -d "packages/electrobun-service/dist" ]; then
                (cd packages/electrobun-service && pnpm pack)
