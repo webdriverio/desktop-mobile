@@ -39,7 +39,7 @@ packages/
 ├── dioxus-embedded-driver/ # Dioxus in-process WebDriver server (Rust)
 ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows 'external' provider)
 ├── electron-cdp-bridge/    # CDP client — Electron main-process debugger (single target)
-├── cdp-bridge/             # Shared CDP bridge — single + multi-target (electrobun; RN/electron next)
+├── native-cdp-bridge/      # Shared CDP bridge — single + multi-target (electrobun; RN/electron next)
 ├── native-utils/           # Cross-platform utilities
 ├── native-types/           # TypeScript type definitions
 ├── native-spy/             # Spy utilities for mocking

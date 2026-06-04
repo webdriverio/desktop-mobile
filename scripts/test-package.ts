@@ -270,11 +270,11 @@ async function buildAndPackService(service: 'electron' | 'tauri' | 'dioxus' | 'e
     }
 
     // Pack Electrobun service if needed (CDP archetype like Electron: service +
-    // native-types + the shared cdp-bridge). Never part of `all`.
+    // native-types + the shared native-cdp-bridge). Never part of `all`.
     if (service === 'electrobun') {
       const electrobunServiceDir = normalize(join(rootDir, 'packages', 'electrobun-service'));
       const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
-      const cdpBridgeDir = normalize(join(rootDir, 'packages', 'cdp-bridge'));
+      const cdpBridgeDir = normalize(join(rootDir, 'packages', 'native-cdp-bridge'));
       if (!existsSync(electrobunServiceDir)) {
         throw new Error(`Electrobun service directory does not exist: ${electrobunServiceDir}`);
       }
@@ -1016,7 +1016,7 @@ async function main() {
       if (options.service === 'electrobun') {
         const electrobunServiceDir = normalize(join(rootDir, 'packages', 'electrobun-service'));
         const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
-        const cdpBridgeDir = normalize(join(rootDir, 'packages', 'cdp-bridge'));
+        const cdpBridgeDir = normalize(join(rootDir, 'packages', 'native-cdp-bridge'));
         packages.electrobunServicePath = findTgzFile(electrobunServiceDir, 'wdio-electrobun-service-');
         packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
         packages.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-native-cdp-bridge-');
