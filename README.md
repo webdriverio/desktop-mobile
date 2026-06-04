@@ -36,6 +36,7 @@
         <a href="https://www.npmjs.com/package/@wdio/electron-service"><img src="https://img.shields.io/badge/@wdio-electron--service-9feaf9?labelColor=1a1a1a&style=plastic" alt="npm package" /></a>
         <a href="https://www.npmjs.com/package/@wdio/electron-service"><img src="https://img.shields.io/npm/v/@wdio/electron-service" alt="npm version" /></a>
         <a href="https://www.npmjs.com/package/@wdio/electron-service"><img src="https://img.shields.io/npm/dw/@wdio/electron-service" alt="npm downloads" /></a>
+        <a href="https://www.npmjs.com/package/wdio-electron-service"><img src="https://img.shields.io/npm/dw/wdio-electron-service?label=downloads%20(%E2%89%A4%20v9)" alt="npm downloads (legacy wdio-electron-service, ≤ v9)" /></a>
     </div>
 </h4>
 
