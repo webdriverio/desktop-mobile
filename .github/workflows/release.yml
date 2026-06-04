@@ -107,7 +107,7 @@ jobs:
 
       - name: Run ReleaseKit Gate
         id: gate
-        uses: goosewobbler/releasekit@v0.24.0
+        uses: goosewobbler/releasekit@v0.25.0
         with:
           mode: gate
           node-version: '24'
@@ -141,6 +141,8 @@ jobs:
   # An immediate release leaves the standing PR holding changes that overlap with what
   # was just published. Re-running standing-pr update reconciles: closes the standing PR
   # if nothing's left, otherwise rebuilds the release branch against the new HEAD.
+  # reconcile=true bypasses the skip-pattern guard, which would otherwise noop on the
+  # release commit at HEAD.
   reconcile-after-auto:
     name: Reconcile standing PR
     needs: [release-auto]
@@ -149,6 +151,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    with:
+      reconcile: true
     secrets:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
       ollama_api_key: ${{ secrets.OLLAMA_API_KEY }}
@@ -179,6 +183,8 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    with:
+      reconcile: true
     secrets:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
       ollama_api_key: ${{ secrets.OLLAMA_API_KEY }}
