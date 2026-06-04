@@ -30,6 +30,11 @@ on:
         description: 'Release scope (electron, tauri, dioxus, electrobun, react-native, flutter, native-mobile-core, utils, types, spy, core, cdp-bridge, shared) — controls build and toolchain steps'
         required: true
         type: string
+      standing_pr_number:
+        description: 'When set, run the manifest-driven standing-pr publish for this PR number instead of the scoped release flow'
+        required: false
+        type: string
+        default: ''
     secrets:
       ssh_key:
         description: 'SSH deploy key for pushing to the repository'
@@ -77,12 +82,12 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Setup Rust
-        if: ${{ contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus') }}
+        if: ${{ contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus') || inputs.scope == 'all' }}
         shell: bash
         run: rustup update stable && rustup default stable
 
       - name: Install GTK development libraries
-        if: ${{ contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus') }}
+        if: ${{ contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus') || inputs.scope == 'all' }}
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -140,6 +145,10 @@ jobs:
               ;;
             shared)
               echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy,@wdio/native-core,@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
+              ;;
+            all)
+              # standing-pr publish resolves its package set from the merged PR's manifest
+              echo "packages=" >> "$GITHUB_OUTPUT"
               ;;
             *)
               echo "::error::Unknown scope: $scope"
@@ -245,6 +254,11 @@ jobs:
                 --filter='@wdio/native-core...' \
                 --filter='@wdio/native-cdp-bridge...'
               ;;
+            all)
+              # standing-pr publish path — the manifest can span every scope
+              pnpm build
+              pnpm turbo run build:rust --filter='@wdio/tauri-plugin' --filter='@wdio/dioxus-bridge'
+              ;;
             *)
               echo "::error::Unknown scope: $scope"
               exit 1
@@ -282,7 +296,8 @@ jobs:
 
       - name: Run ReleaseKit
         id: releasekit
-        uses: goosewobbler/releasekit@v0.23.0
+        if: ${{ inputs.standing_pr_number == '' }}
+        uses: goosewobbler/releasekit@v0.24.0
         with:
           mode: release
           node-version: '24'
@@ -305,3 +320,24 @@ jobs:
       # as part of the `flutter` scope. This is handled inside ReleaseKit — peer to its npm +
       # crates.io publishing — rather than a bespoke step here, so the pubspec.yaml version bumps in
       # lockstep with the @wdio/flutter-service npm line. Tracked: goosewobbler/releasekit#285.
+
+      # Manifest-driven publish from a merged standing release PR. Versions and notes come
+      # from the manifest comment on the PR, so bump/target/stable don't apply. The mode
+      # has no dry-run support — the dispatch in standing-pr.yml always sends dry_run=false.
+      - name: Run ReleaseKit (standing PR publish)
+        id: releasekit-standing
+        if: ${{ inputs.standing_pr_number != '' }}
+        uses: goosewobbler/releasekit@v0.24.0
+        with:
+          mode: standing-pr-publish
+          node-version: '24'
+          pr: ${{ inputs.standing_pr_number }}
+          json: 'true'
+          project-dir: .
+          verbose: 'true'
+          summary: 'true'
+          skip-checkout: 'true'
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
+          OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}

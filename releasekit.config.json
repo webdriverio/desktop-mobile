@@ -39,7 +39,16 @@
     ]
   },
   "ci": {
+    "releaseStrategy": "standing-pr",
     "releaseTrigger": "label",
+    "labels": {
+      "stable": "release:stable",
+      "prerelease": "release:prerelease"
+    },
+    "standingPr": {
+      "branch": "release/next",
+      "mergeMethod": "squash"
+    },
     "scopeLabels": {
       "scope:shared": "@wdio/native-*",
       "scope:utils": "@wdio/native-utils",
@@ -142,7 +151,11 @@
         "@wdio/native-cdp-bridge",
         "@wdio/native-utils",
         "@wdio/native-spy",
-        "@wdio/native-types"
+        "@wdio/native-types",
+        "@wdio/native-core",
+        "wdio-dioxus-bridge",
+        "wdio-dioxus-embedded-driver",
+        "wdio-dioxus-driver"
       ]
     }
   }

@@ -332,53 +332,49 @@ This repository does not maintain LTS or backport branches. Only the latest vers
 
 ## Release Process
 
-Releases are automated via GitHub Actions and triggered by PR labels.
+Releases are automated via GitHub Actions using a **standing release PR** (ReleaseKit's `standing-pr` strategy): changes merged to `main` accumulate in an always-open PR from `release/next`, and merging that PR publishes everything queued in it.
 
-### Autorelease (Recommended)
+### Standing Release PR (default)
 
-When your PR is merged to `main`, the release workflow checks for release labels:
+1. Merge your PR to `main` normally — no release labels needed
+2. The `standing-pr.yml` workflow rebuilds the standing release PR with the queued version bumps (derived from conventional commits) and changelogs
+3. When ready to release, merge the standing PR — the publish runs automatically with the versions from its manifest
 
-1. Add a scope label to your PR: `scope:electron`, `scope:tauri`, `scope:dioxus`, or `scope:shared`
-2. Add a version label: `bump:patch`, `bump:minor`, `bump:major`, or prerelease variants
-3. After CI passes and the PR is merged, the release workflow automatically publishes packages
+**Adjusting the queued release:** labels on the **standing PR itself** override its contents — `bump:patch`/`bump:minor`/`bump:major` force a bump magnitude, `scope:*` limits which packages release, `release:stable`/`release:prerelease` set the channel. Labels on feeder PRs are advisory only.
 
-**Preview:** The `release-preview.yml` workflow runs on PRs with release labels to show what will be released.
+**Preview:** The `release-preview.yml` workflow comments on PRs showing what their merge would queue.
+
+### Immediate Release (bypass the standing PR)
+
+For changes that must publish on merge without waiting for the standing PR:
+
+1. Add `release:immediate` to your PR, plus a scope label (`scope:tauri`, `scope:shared`, …) and a bump label (`bump:patch`, `bump:minor`, `bump:major`)
+2. After CI passes on the merge, the gate dispatches a direct scoped release
+3. The standing PR is reconciled afterwards so it no longer contains the just-released changes
 
 **Examples:**
-- `scope:electron` + `bump:major` → Electron packages at major bump
-- `scope:tauri` + `bump:minor` → Tauri packages at minor bump
-- `scope:dioxus` + `bump:patch` → Dioxus packages at patch bump
-- `scope:shared` + `bump:patch` → Shared packages at patch bump
+- `release:immediate` + `scope:electron` + `bump:major` → Electron packages at major bump
+- `release:immediate` + `scope:shared` + `bump:patch` → Shared packages at patch bump
+- Add `release:prerelease` to publish the immediate release as a prerelease (e.g., 11.0.0-next.0)
 
 ### Manual Release
 
-For releases without PR labels or for dry runs:
+For scoped releases without labels or for dry runs:
 
 1. Go to Actions → Release in GitHub
 2. Click "Run workflow"
-3. Select scope, version type, and dry run option
+3. Select scope, version type, and dry run option (leave `standing_pr_number` blank; enable `reconcile_after` to rebuild the standing PR afterwards)
 4. Monitor the workflow execution
 
-### Required Labels
+### Labels
 
 | Label | Effect |
 |-------|--------|
-| `scope:electron` | Release Electron packages |
-| `scope:tauri` | Release Tauri packages |
-| `scope:dioxus` | Release Dioxus packages |
-| `scope:shared` | Release shared packages |
-| `bump:patch` | Patch bump |
-| `bump:minor` | Minor bump |
-| `bump:major` | Major bump |
+| `scope:electron` / `scope:tauri` / `scope:dioxus` / `scope:electrobun` / `scope:shared` | Package set (immediate release, or scope override on the standing PR) |
+| `bump:patch` / `bump:minor` / `bump:major` | Version bump (immediate release, or bump override on the standing PR) |
+| `release:immediate` | Bypass the standing PR — direct release on merge (requires scope + bump labels) |
 | `release:prerelease` | Prerelease modifier (use with bump labels) |
-| `release:stable` | Stable release modifier (use with bump labels to clean prerelease) |
-
-### Pre-releases
-
-For testing changes before a stable release, use the `release:prerelease` label combined with a bump label:
-- `scope:electron` + `bump:major` + `release:prerelease` → Electron packages as major prerelease (e.g., 11.0.0-next.0)
-- `scope:dioxus` + `bump:minor` + `release:prerelease` → Dioxus packages as minor prerelease (e.g., 1.1.0-next.0)
-- `scope:shared` + `bump:patch` + `release:prerelease` → Shared packages as patch prerelease (e.g., 2.0.0-next.0)
+| `release:stable` | Stable release modifier (graduates a prerelease) |
 
 ### Release Notes Policy
 
@@ -386,7 +382,7 @@ GitHub release notes are published per **user-installed** package — not per in
 
 | Framework | Packages with release notes | Skipped (internal only) |
 |-----------|-----------------------------|-------------------------|
-| Electron  | `@wdio/electron-service` | `@wdio/electron-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types` |
+| Electron  | `@wdio/electron-service` | `@wdio/electron-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-core` |
 | Tauri     | `@wdio/tauri-service`, `tauri-plugin`, `tauri-plugin-webdriver` | — |
 | Dioxus    | `@wdio/dioxus-service` | `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver` |
 | Electrobun | `@wdio/electrobun-service` | `@wdio/native-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types` |
