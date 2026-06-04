@@ -15,7 +15,7 @@ import { getStandaloneLogWriter } from './logWriter.js';
 import ElectronWorkerService from './service.js';
 
 // Store launcher instances for cleanup
-const activeLaunchers = new Map<WebdriverIO.Browser, ElectronLaunchService>();
+const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectronLaunchService>();
 // Paired with activeLaunchers so cleanup() can drive the worker-service teardown
 // (mock store + puppeteer session cache) that WDIO's standalone path never
 // invokes itself. Without this, mock state leaks between sequential sessions
@@ -139,10 +139,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     }
 
     // Close standalone log writer. The map delete is in a finally so a
-    // writer.close() throw can't strand the launcher entry in this regular
-    // Map (not a WeakMap, unlike tauri/dioxus) — that would pin the browser
-    // object indefinitely and leave subsequent cleanup() calls in an
-    // inconsistent state.
+    // writer.close() throw can't strand the launcher entry — a cleanup()
+    // retry would then re-drive teardown against an already-cleaned session.
     const writer = getStandaloneLogWriter();
     try {
       await writer.close();
