@@ -1,6 +1,5 @@
 import type { ClassifyTarget } from '@wdio/native-cdp-bridge';
 
-const CONTENT_SCHEME_PREFIXES = ['views://', 'http://', 'https://', 'file://'];
 const NON_CONTENT_PREFIXES = ['devtools://', 'chrome://', 'chrome-extension://', 'chrome-untrusted://'];
 
 /**
@@ -25,8 +24,7 @@ export const classifyTarget: ClassifyTarget = (target) => {
   if (url === '' || url === 'about:blank') {
     return 'shell';
   }
-  if (CONTENT_SCHEME_PREFIXES.some((prefix) => url.startsWith(prefix))) {
-    return 'content';
-  }
+  // Any other page scheme (views://, http(s)://, file://, or an unknown one) is a
+  // real app webview — fail open to `content` so it's never hidden from the user.
   return 'content';
 };
