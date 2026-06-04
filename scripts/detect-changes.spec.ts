@@ -8,7 +8,7 @@ function decide(files: string[], forceAll = false) {
 }
 
 describe('discoverServices', () => {
-  it('derives the service list from packages/*-service', () => {
+  it('should derive the service list from packages/*-service', () => {
     expect(discoverServices(new URL('..', import.meta.url).pathname)).toEqual(SERVICES);
   });
 });
@@ -74,68 +74,68 @@ describe('classifyFile', () => {
     ['LICENSE', 'none'],
     // electron vs electrobun token boundaries
     ['.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml', 'electrobun'],
-  ])('%s → %s', (file, expected) => {
+  ])('should classify %s as %s', (file, expected) => {
     expect(classifyFile(file, SERVICES)).toBe(expected);
   });
 });
 
 describe('classifyChanges decisions', () => {
-  it('docs-only PR (root + package README) → lint-only', () => {
+  it('should run lint-only for a docs-only PR (root + package README)', () => {
     const d = decide(['README.md', 'packages/electron-service/README.md']);
     expect(d.lintOnly).toBe(true);
     expect(Object.values(d.runs).every((v) => v === false)).toBe(true);
   });
 
-  it('electron src change runs only electron', () => {
+  it('should run only electron for an electron src change', () => {
     const d = decide(['packages/electron-service/src/session.ts']);
     expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: true, tauri: false });
     expect(d.lintOnly).toBe(false);
   });
 
-  it('tauri-only script runs only tauri', () => {
+  it('should run only tauri for the tauri-only script', () => {
     const d = decide(['scripts/update-tauri-version.ts']);
     expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: false, tauri: true });
   });
 
-  it('cross-service script runs everything', () => {
+  it('should run everything for a cross-service script', () => {
     const d = decide(['scripts/test-package.ts']);
     expect(Object.values(d.runs).every(Boolean)).toBe(true);
     expect(d.triggersAll).toEqual(['scripts/test-package.ts']);
   });
 
-  it('shared package change runs everything and flags shared', () => {
+  it('should run everything and flag shared for a shared package change', () => {
     const d = decide(['packages/native-utils/src/teardown.ts']);
     expect(Object.values(d.runs).every(Boolean)).toBe(true);
     expect(d.sharedChanges).toBe(true);
     expect(d.triggersAll).toEqual([]);
   });
 
-  it('mixed md + electron src runs electron only, not lint-only', () => {
+  it('should run only electron for mixed md + electron src, not lint-only', () => {
     const d = decide(['README.md', 'packages/electron-service/src/x.ts']);
     expect(d.runs.electron).toBe(true);
     expect(d.runs.tauri).toBe(false);
     expect(d.lintOnly).toBe(false);
   });
 
-  it('force-all overrides everything', () => {
+  it('should run everything when force-all is set', () => {
     const d = decide(['README.md'], true);
     expect(Object.values(d.runs).every(Boolean)).toBe(true);
     expect(d.lintOnly).toBe(false);
   });
 
-  it('no changed files → lint-only', () => {
+  it('should run lint-only when no files changed', () => {
     const d = decide([]);
     expect(d.lintOnly).toBe(true);
   });
 
-  it('a hypothetical new service is classified once its package exists', () => {
+  it('should classify a hypothetical new service once its package exists', () => {
     const services = [...SERVICES, 'neutralino'];
     const d = classifyChanges(['packages/neutralino-service/src/launcher.ts'], services);
     expect(d.runs.neutralino).toBe(true);
     expect(d.runs.electron).toBe(false);
   });
 
-  it('separates deliberate run-alls from unclassified drift', () => {
+  it('should separate deliberate run-alls from unclassified drift', () => {
     const d = decide(['scripts/test-package.ts', 'packages/some-new-thing/src/index.ts']);
     expect(Object.values(d.runs).every(Boolean)).toBe(true);
     expect(d.triggersAll).toEqual(['scripts/test-package.ts']);
