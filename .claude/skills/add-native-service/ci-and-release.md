@@ -8,14 +8,26 @@ Concrete wiring for getting a new service gated in CI and published. Grounded in
 
 This computes per-framework `run_*` flags from path filters so CI only runs affected jobs.
 
+**Filter shape is load-bearing.** The paths-filter step runs with `predicate-quantifier: 'every'`
+(a file matches a filter only when it satisfies ALL of the filter's patterns — required for the
+`'!**/*.md'` exclusions). Two consequences when adding a framework:
+
+- A filter's positive paths must be **one single brace alternation**, never a list of path
+  patterns — under AND semantics a file can never match two disjoint paths, so a multi-pattern
+  filter silently never fires. `packages/{<framework>-service,<framework>-cdp-bridge}/**` ✓;
+  two separate `packages/...` lines ✗.
+- Every content filter carries `- '!**/*.md'` as its second pattern, so doc-only changes
+  (including package READMEs) fall through to lint-only. Don't omit it on the new filters.
+
 1. Add output `run_<framework>` to the `workflow_call.outputs` block **and** the job `outputs` block (`run_<framework>: ${{ steps.determine.outputs.run_<framework> || 'false' }}`).
-2. Add `paths-filter` entries:
-   - `<framework>_service`: `packages/<framework>-service/**` + any Rust crate paths (`packages/<framework>-bridge/**`, `-driver/**`, `-embedded-driver/**`).
-   - `e2e_<framework>`: `e2e/test/<framework>/**`, `e2e/wdio.<framework>.conf.ts` (+ `wdio.<framework>-embedded.conf.ts`).
-   - `fixtures_<framework>`: `fixtures/e2e-apps/<framework>/**`, `fixtures/package-tests/<framework>-app/**`.
-   - `infra_<framework>`: the per-framework reusable workflow files (see below).
-3. **Extend the `shared` filter** to include every `packages/native-*` (`native-types`, `native-utils`, `native-core`, `native-spy`). Missing one is a latent CI gap (see the `shared` paths-filter gotcha in SKILL.md → Common gotchas).
+2. Add `paths-filter` entries (each: one brace alternation + the md exclusion):
+   - `<framework>_service`: `packages/{<framework>-service,<framework>-cdp-bridge}/**` — include every crate dir for Wry frameworks (`<framework>-bridge`, `-driver`, `-embedded-driver`) in the same braces.
+   - `e2e_<framework>`: `{e2e/test/<framework>/**,e2e/wdio.<framework>.conf.ts}` (+ `e2e/wdio.<framework>-embedded.conf.ts` in the braces).
+   - `fixtures_<framework>`: `{fixtures/e2e-apps/<framework>/**,fixtures/package-tests/<framework>-app/**}`.
+   - `infra_<framework>`: the per-framework reusable workflow files (see below), as one brace alternation.
+3. **Extend the `shared` filter's braces** to include every `packages/native-*` (`native-types`, `native-utils`, `native-core`, `native-spy`). Missing one is a latent CI gap (see the `shared` paths-filter gotcha in SKILL.md → Common gotchas).
 4. In the `determine` step compute `run_<framework> = <framework>_service || e2e_<framework> || fixtures_<framework> || shared || infra || infra_<framework>`, and set it under the "run everything" branch (e.g. when CI infra itself changes).
+5. **Verify the filters before pushing**: simulate dorny's matching locally (picomatch with `dot: true`, `every` = `patterns.every`) against representative changed-file sets — a service src file, the service's README alone (must stay lint-only), and an unrelated service's file (must stay false).
 
 ### `ci.yml`
 
