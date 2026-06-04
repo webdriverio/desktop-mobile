@@ -53,73 +53,82 @@ jobs:
         id: changes
         uses: dorny/paths-filter@v4
         with:
+          # 'every': a file matches a filter only when it satisfies ALL of the filter's
+          # patterns — required for the '!' exclusions below to work. Under the default
+          # 'some', a negated pattern matches every file EXCEPT its target, so any filter
+          # containing one matched the whole repo (this made `infra` always-true and
+          # force-ran every service pipeline on every PR). The flip side: each filter's
+          # positive patterns have to collapse into a single brace alternation, because
+          # one file can never match two disjoint path patterns.
+          predicate-quantifier: 'every'
           filters: |
-            # Documentation only (triggers lint only)
+            # Documentation (markdown is excluded from every filter below, so doc-only
+            # changes anywhere — including package READMEs — fall through to lint-only)
             docs:
               - '**/*.md'
 
             # Electron service packages
             electron_service:
-              - 'packages/electron-service/**'
-              - 'packages/electron-cdp-bridge/**'
+              - 'packages/{electron-service,electron-cdp-bridge}/**'
+              - '!**/*.md'
 
             # Tauri service packages
             tauri_service:
-              - 'packages/tauri-service/**'
-              - 'packages/tauri-plugin/**'
+              - 'packages/{tauri-service,tauri-plugin}/**'
+              - '!**/*.md'
 
             # Dioxus service packages
             dioxus_service:
-              - 'packages/dioxus-service/**'
-              - 'packages/dioxus-bridge/**'
-              - 'packages/dioxus-driver/**'
+              - 'packages/{dioxus-service,dioxus-bridge,dioxus-driver,dioxus-embedded-driver}/**'
+              - '!**/*.md'
 
             # Electrobun service packages (CDP-attach, no Rust)
             electrobun_service:
-              - 'packages/electrobun-service/**'
-              - 'packages/electrobun-cdp-bridge/**'
+              - 'packages/{electrobun-service,electrobun-cdp-bridge}/**'
+              - '!**/*.md'
 
             # Shared packages (affect all services)
             shared:
-              - 'packages/native-types/**'
-              - 'packages/native-utils/**'
-              - 'packages/native-core/**'
-              - 'packages/native-spy/**'
-              - 'packages/bundler/**'
+              - 'packages/{native-types,native-utils,native-core,native-spy,bundler}/**'
+              - '!**/*.md'
 
             # E2E tests
             e2e_electron:
-              - 'e2e/test/electron/**'
-              - 'e2e/wdio.electron.conf.ts'
+              - '{e2e/test/electron/**,e2e/wdio.electron.conf.ts}'
+              - '!**/*.md'
             e2e_tauri:
-              - 'e2e/test/tauri/**'
-              - 'e2e/wdio.tauri.conf.ts'
+              - '{e2e/test/tauri/**,e2e/wdio.tauri.conf.ts}'
+              - '!**/*.md'
             e2e_dioxus:
-              - 'e2e/test/dioxus/**'
-              - 'e2e/wdio.dioxus.conf.ts'
-              - 'e2e/wdio.dioxus-embedded.conf.ts'
+              - '{e2e/test/dioxus/**,e2e/wdio.dioxus.conf.ts,e2e/wdio.dioxus-embedded.conf.ts}'
+              - '!**/*.md'
             e2e_electrobun:
-              - 'e2e/test/electrobun/**'
-              - 'e2e/wdio.electrobun.conf.ts'
+              - '{e2e/test/electrobun/**,e2e/wdio.electrobun.conf.ts}'
+              - '!**/*.md'
 
             # Test fixtures and apps
             fixtures_electron:
-              - 'fixtures/e2e-apps/electron-builder/**'
-              - 'fixtures/e2e-apps/electron-forge/**'
-              - 'fixtures/e2e-apps/electron-script/**'
+              - 'fixtures/e2e-apps/{electron-builder,electron-forge,electron-script}/**'
+              - '!**/*.md'
             fixtures_tauri:
               - 'fixtures/e2e-apps/tauri/**'
+              - '!**/*.md'
             fixtures_dioxus:
-              - 'fixtures/e2e-apps/dioxus/**'
-              - 'fixtures/package-tests/dioxus-app/**'
+              - '{fixtures/e2e-apps/dioxus/**,fixtures/package-tests/dioxus-app/**}'
+              - '!**/*.md'
             fixtures_electrobun:
-              - 'fixtures/e2e-apps/electrobun/**'
-              - 'fixtures/package-tests/electrobun-app/**'
+              - '{fixtures/e2e-apps/electrobun/**,fixtures/package-tests/electrobun-app/**}'
+              - '!**/*.md'
 
             # Shared infrastructure — triggers all service pipelines.
             # Service-specific workflow files are split into infra_{electron,tauri,dioxus}
             # below so that editing (e.g.) a Dioxus build workflow does not trigger Electron
             # or Tauri tests unnecessarily.
+            #
+            # The brace alternation covers: core CI orchestration workflows, release
+            # workflows (publish shape for all services), composite actions, build/test/
+            # release scripts (minus the tauri-only one, excluded below), workspace and
+            # dependency configuration, and TypeScript/build/test configuration.
             #
             # biome.jsonc and eslint.config.js are intentionally excluded: the lint job
             # runs unconditionally (no `if:` gate in ci.yml), so changes there do not need
@@ -129,60 +138,25 @@ jobs:
             # expense.yml, release-preview.yml) are also excluded — changes to those never
             # require running service tests.
             infra:
-              # Core CI orchestration (affect all service pipelines)
-              - '.github/workflows/ci.yml'
-              - '.github/workflows/_ci-detect-changes.reusable.yml'
-              - '.github/workflows/_ci-build.reusable.yml'
-              - '.github/workflows/_ci-lint.reusable.yml'
-              - '.github/workflows/_ci-unit.reusable.yml'
-              - '.github/workflows/_ci-package.reusable.yml'
-              # Release workflows affect publish shape for all services
-              - '.github/workflows/release.yml'
-              - '.github/workflows/_release.reusable.yml'
-              # Composite actions (all shared across every service)
-              - '.github/workflows/actions/**'
-              # Build / test / release scripts (mostly cross-service)
-              - 'scripts/**'
+              - '{.github/workflows/ci.yml,.github/workflows/_ci-detect-changes.reusable.yml,.github/workflows/_ci-build.reusable.yml,.github/workflows/_ci-lint.reusable.yml,.github/workflows/_ci-unit.reusable.yml,.github/workflows/_ci-package.reusable.yml,.github/workflows/release.yml,.github/workflows/_release.reusable.yml,.github/workflows/actions/**,scripts/**,package.json,pnpm-workspace.yaml,pnpm-lock.yaml,.nvmrc,tsconfig*.json,turbo.json,version.config.json,vitest.config.ts,wdio.conf.ts}'
               - '!scripts/update-tauri-version.ts'
-              # Workspace and dependency configuration
-              - 'package.json'
-              - 'pnpm-workspace.yaml'
-              - 'pnpm-lock.yaml'
-              - '.nvmrc'
-              # TypeScript, build, and test configuration
-              - 'tsconfig*.json'
-              - 'turbo.json'
-              - 'version.config.json'
-              - 'vitest.config.ts'
-              - 'wdio.conf.ts'
+              - '!**/*.md'
 
             # Electron-only workflow files
             infra_electron:
-              - '.github/workflows/_ci-e2e.reusable.yml'
-              - '.github/workflows/_ci-build-electron-package-apps.reusable.yml'
+              - '{.github/workflows/_ci-e2e.reusable.yml,.github/workflows/_ci-build-electron-package-apps.reusable.yml}'
 
             # Tauri-only workflow files and scripts
             infra_tauri:
-              - 'scripts/update-tauri-version.ts'
-              - '.github/workflows/_ci-build-tauri-apps.reusable.yml'
-              - '.github/workflows/_ci-build-tauri-e2e-app.reusable.yml'
-              - '.github/workflows/_ci-build-tauri-package-app.reusable.yml'
-              - '.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml'
-              - '.github/workflows/_ci-package-docker.reusable.yml'
+              - '{scripts/update-tauri-version.ts,.github/workflows/_ci-build-tauri-apps.reusable.yml,.github/workflows/_ci-build-tauri-e2e-app.reusable.yml,.github/workflows/_ci-build-tauri-package-app.reusable.yml,.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml,.github/workflows/_ci-package-docker.reusable.yml}'
 
             # Dioxus-only workflow files
             infra_dioxus:
-              - '.github/workflows/_ci-build-dioxus-crates.reusable.yml'
-              - '.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml'
-              - '.github/workflows/_ci-build-dioxus-package-app.reusable.yml'
-              - '.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml'
-              - '.github/workflows/_ci-package-docker-dioxus.reusable.yml'
+              - '{.github/workflows/_ci-build-dioxus-crates.reusable.yml,.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml,.github/workflows/_ci-build-dioxus-package-app.reusable.yml,.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml,.github/workflows/_ci-package-docker-dioxus.reusable.yml}'
 
             # Electrobun-only workflow files (no -crates: Electrobun has no Rust)
             infra_electrobun:
-              - '.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml'
-              - '.github/workflows/_ci-build-electrobun-package-app.reusable.yml'
-              - '.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml'
+              - '{.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml,.github/workflows/_ci-build-electrobun-package-app.reusable.yml,.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml}'
 
       - name: Determine What to Run
         id: determine
