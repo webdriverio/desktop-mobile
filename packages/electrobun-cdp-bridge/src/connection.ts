@@ -177,8 +177,9 @@ export class Connection extends EventEmitter {
       if (this.#ws && this.#ws.readyState !== WebSocket.CLOSED) {
         // Reject pending promises via the single 'close' handler (it fires on
         // ws.close() below), passing the error reason through #closeReason —
-        // avoids rejecting them here AND again in the handler.
-        this.#closeReason = error as Error | undefined;
+        // avoids rejecting them here AND again in the handler. First reason
+        // wins: a racing plain close() must not blank an error-path reason.
+        this.#closeReason ??= error as Error | undefined;
         this.#ws.once('close', () => {
           this.#ws = null;
           resolve();
