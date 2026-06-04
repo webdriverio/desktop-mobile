@@ -10,6 +10,7 @@ This is a monorepo providing WebdriverIO services for automated testing of nativ
 - **Electron** - `@wdio/electron-service` (v10.x)
 - **Tauri** - `@wdio/tauri-service` (v1.x)
 - **Dioxus** - `@wdio/dioxus-service` (v1.x)
+- **Electrobun** - `@wdio/electrobun-service` (v0.1.x — **macOS-only**, requires the CEF renderer; Linux/Windows + multiremote/multi-window/deeplink are upstream-blocked, see the package README)
 
 **Planned:** React Native, Flutter, Capacitor, Neutralino. See [ROADMAP.md](./ROADMAP.md) for details.
 
@@ -32,11 +33,13 @@ packages/
 ├── electron-service/       # Electron WDIO service
 ├── tauri-service/          # Tauri WDIO service
 ├── dioxus-service/         # Dioxus WDIO service
+├── electrobun-service/     # Electrobun WDIO service
 ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
 ├── dioxus-bridge/          # Dioxus bridge crate (Rust) — IPC, mocking, log forwarding
 ├── dioxus-embedded-driver/ # Dioxus in-process WebDriver server (Rust)
 ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows 'external' provider)
-├── electron-cdp-bridge/    # Chrome DevTools Protocol bridge
+├── electron-cdp-bridge/    # CDP client — Electron main-process debugger (single target)
+├── electrobun-cdp-bridge/  # CDP client — Electrobun CEF webviews (multi-target)
 ├── native-utils/           # Cross-platform utilities
 ├── native-types/           # TypeScript type definitions
 ├── native-spy/             # Spy utilities for mocking

@@ -85,17 +85,104 @@ New services build **on `@wdio/native-core`** (Tauri and Dioxus do; Electron pre
 
 → **Full inventory, the known divergences to converge (Electron's window model, Dioxus's missing `emitEvent`), and the pattern behind each:** [features.md](features.md).
 
+## When upstream blocks the standard surface (shipping pre-1.0)
+
+Some frameworks — especially a **beta/pre-1.0 upstream** — can't yet support the full convergent
+surface above: a platform may have no working automation path, or a standard feature (multiremote,
+multi-window, deeplink) may be blocked by a framework/runtime limitation you **cannot fix from the
+service layer**. Don't force-fit, and don't hold the whole package hostage to upstream — ship the
+working subset, clearly scoped, and recover the rest as upstream lands fixes.
+
+**Version: base at `0.1.0`, not `1.0.0`.** The default convention here is a `X.Y.0-next.0` dev
+placeholder in `package.json` that releases as stable `X.Y.0` on `latest` (with `-next.N` prereleases
+on the `next` dist-tag in between — every service does this: electron `10.0.0-next.N`→`10.0.0`, tauri
+`1.0.0-next.N`→`1.0.0`). A full-convergent-surface service bases that at `1.0` (placeholder
+`1.0.0-next.0`, release `1.0.0`). When upstream blocks a lot, `1.0` over-promises — base it at **`0.x`**,
+the semver signal for "early, partial, scope may change, gaps expected". Keep the same release
+*machinery*, just lower the base:
+- **Dev placeholder `0.1.0-next.0`** (a prerelease *of* 0.1.0 — NOT `1.0.0-next.0`, which implies a 1.0 target).
+- **First stable release `0.1.0`** on `latest`; `0.1.0-next.N` prereleases on `next` during lead-up. (`0.x` = unstable API; `-next.N` = staging channel — orthogonal, you want both.)
+- **Minor bumps** (`0.2.0`, `0.3.0`…) as each upstream fix recovers a platform/feature. Breaking changes are allowed within `0.x` (bump minor).
+- **Graduate to `1.0.0`** only at full parity with the sibling services — the whole standard surface on all intended platforms. `1.0` is the promise that the convergent surface works.
+
+**Be honest in CI — skip, don't allow-failure.** For a platform/suite that's **blocked upstream**
+(not merely flaky), **remove its jobs entirely** rather than marking them allow-failure. Allow-failure
+legs that can *never* pass only burn CI minutes (slow runtime downloads, etc.) and add permanent red
+noise that trains everyone to ignore the column. Keep the validated platform/suite as the **required
+gate**; leave a comment on the removed jobs naming the upstream blocker and the condition to re-add
+them. (Reserve allow-failure for legs that are *unverified-but-plausible*, not *known-blocked*.)
+
+**Fail fast at runtime.** Add an explicit `SevereServiceError` in `launcher.onPrepare` for an
+unsupported platform/mode, with an actionable message ("`<service>` is macOS-only in v1 — `<platform>`
+is blocked by `<upstream issue>`"). A clear early throw beats letting users hit a cryptic
+attach/connection timeout. Gate it on a platform parameter (not bare `process.platform`) so the
+launcher tests can exercise both branches.
+
+**Keep the blocked specs, don't delete them.** Leave the blocked-feature e2e specs in the tree with a
+NOT-RUN-IN-CI header comment, runnable locally via `TEST_TYPE=…`, and excluded from the CI matrix.
+They are the re-enable checklist for when upstream lands.
+
+**Document + file upstream — aggregate in the plan first, then ONE issue.** As you discover gaps,
+collect them into a dedicated **"Upstream fixes needed"** section of the implementation plan — each
+with its impact on the surface, the feature/platform it unblocks, and **exact source refs**
+(`file:line`). Gaps surface across many debugging sessions; without one home in the plan they get lost,
+and that section becomes the turnkey brief for the post-ship filing step. Before filing anything,
+**search the upstream repo's issues (open *and* closed)** for every gap: a young/beta upstream usually
+already tracks several, and a **closed** issue often explains current behaviour — e.g. a "completed"
+fix that was really a band-aid fallback is frequently *why* one platform works while others don't.
+Then choose the filing shape by **whether aggregation actually helps triage** — the gap *count* is
+only a heuristic, so don't reflexively build (or skip) an umbrella on a number alone:
+- **One gap → never an umbrella.** Nothing to aggregate. If it's already tracked upstream, comment
+  on / +1 the existing issue; if it's net-new, file one focused issue.
+- **Two gaps → usually still no umbrella, but combine if related.** If the two share a root cause or
+  the same consumer goal, file **one issue covering both** — a lightweight combined issue, *not* the
+  full see-also structure. If they're unrelated, handle each on its own (comment on the existing
+  issue, or file a focused one). The deciding question is "does framing them together help the
+  maintainer?", not "are there two of them?".
+- **Three or more related gaps → ONE umbrella issue**, framed around the consumer goal ("drive `<framework>`
+  apps with external WebDriver/CDP automation"). For each gap that **already has an issue**, link it
+  (`see also #N`) — don't duplicate. Each **net-new** gap (no existing issue) is captured *by the
+  umbrella itself*, since the umbrella is a new issue: describe it inline as its own section with
+  source refs. Only **split a net-new gap into its own dedicated issue** (then link it from the
+  umbrella, `see also #N`) when it's large and cleanly separable enough that the maintainer would want
+  to triage/close it independently — otherwise inline is enough. A single well-researched issue
+  connecting the maintainer's own scattered issues to a concrete use case triages far better — and
+  gives you **one canonical URL** to link everywhere — than several parallel issues that duplicate
+  what's already filed. Drop a one-line cross-link comment on the most directly related existing issues.
+
+Record every gap as a known limitation in the service README/docs +
+`ROADMAP.md`, and link the umbrella issue into the docs + the CI re-add notes. As each underlying fix
+lands: re-add the job, drop the runtime-guard branch, lift the docs limitation, and bump the minor
+version.
+
+> **Worked example — `@wdio/electrobun-service`.** Electrobun's CEF chrome-runtime can't create the
+> `persist:default` partition profile its `BrowserWindow` forces; macOS recovers via a global-context
+> fallback but Linux/Windows serve no `/json`, and multiremote/multi-window/deeplink all trace to the
+> same gap — none fixable from the service. So v1 ships **macOS-only, single-window, `0.1.0`**: the
+> Linux/Windows build+e2e jobs are removed (not allow-failure), the window/deeplink specs are
+> skipped-but-kept, and a macOS-only runtime guard fails fast elsewhere. The plan's "Framework gaps"
+> aggregates every gap with source refs; the **search-first** pass found the upstream already tracking
+> most of them — `#380` (the proper profile-isolation fix), `#445` (remote-debugging opt-in, but only
+> noting macOS — Linux's `remote_debugging_port` is *commented out*), `#448` (a user hitting the same
+> Linux profile error), plus `#278`/`#122` **closed** (the global-context band-aid that explains macOS
+> recovery, and a prior e2e request). So rather than file four duplicates, the post-ship step is **one
+> umbrella issue** ("enable external WebDriver/CDP automation for CEF apps") that links those, adds the
+> net-new findings (the Linux commented-out port; the macOS-recovers/others-don't `/json` asymmetry;
+> single-instance lock + `open-url` routing for deeplink — which has *no* existing issue), and is the
+> one URL linked from the docs.
+
 ## Process
 
 ### Phase 0 — Pre-implementation spike
 
 Validate platform constraints before any production code. Spikes are throwaway — they live in `/spike/<service>-spike/` (gitignored); the output is the **findings doc**, not the source.
 
-1. Create a minimal app exercising the framework's public API.
-2. **Confirm the Step 0 archetype** (does it expose CDP? which driver model? plugin or bridge?).
-3. Identify the single most consequential unknown and write code that exercises it. Examples: "can a third-party crate flip Wry's `set_allows_automation`?" (Dioxus); "what's the CDP debugger-port discovery convention for this runtime?" (a CDP framework); "does the framework expose multiple addressable webview targets?".
-4. Write `spike/FINDINGS.md`: the question, the answer with citations, the decision tree, and any **platform-by-platform variance** (often the most important section — e.g. the Dioxus Wry API is a no-op on Win/Mac but blocking on Linux).
-5. Fold findings into the implementation plan: Risks, Platform Matrix, Phasing.
+1. **Check out the target framework's source locally — a hard precursor, not optional.** Clone the upstream repo at a known-good *released* tag (don't `file:`-link it into the build; pin the published release — see Risks). You will read it constantly throughout the whole project: to confirm the Step 0 archetype, to find the runtime's debug-port / automation conventions, and — every time you later hit an upstream gap — to trace it to an exact `file:line` you can cite. A service built without the framework source open beside you is guesswork; note its path in the plan (e.g. `~/Workspace/<framework>`) so later sessions reuse it.
+2. Create a minimal app exercising the framework's public API.
+3. **Confirm the Step 0 archetype** (does it expose CDP? which driver model? plugin or bridge?) — by reading the source from step 1, not by assuming.
+4. Identify the single most consequential unknown and write code that exercises it. Examples: "can a third-party crate flip Wry's `set_allows_automation`?" (Dioxus); "what's the CDP debugger-port discovery convention for this runtime?" (a CDP framework); "does the framework expose multiple addressable webview targets?".
+5. Write `spike/FINDINGS.md`: the question, the answer with citations (`file:line` into the local checkout), the decision tree, and any **platform-by-platform variance** (often the most important section — e.g. the Dioxus Wry API is a no-op on Win/Mac but blocking on Linux).
+6. Fold findings into the implementation plan: Risks, Platform Matrix, Phasing.
 
 ### Phase 1 — TypeScript service skeleton (shared, all archetypes)
 
@@ -113,7 +200,7 @@ src/
 
 **Conventions:**
 
-- Initial npm version `1.0.0-next.0`. Build script: `tsx ../../scripts/build-package.ts`.
+- Initial `package.json` dev placeholder `1.0.0-next.0` for a service that reaches the full convergent surface on its target platforms (releases as stable `1.0.0`) — or **`0.1.0-next.0`** (releases as `0.1.0`) if upstream blocks a lot of the surface (see [When upstream blocks the standard surface](#when-upstream-blocks-the-standard-surface-shipping-pre-10)). Build script: `tsx ../../scripts/build-package.ts`.
 - Mirror the closest sibling's `package.json` exactly (exports, scripts, devDeps, peerDeps): CDP → clone `@wdio/electron-service`; Wry → clone `@wdio/tauri-service`. Always depend on `@wdio/native-core`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-utils` as workspace deps.
 - `vitest.integration.config.ts` MUST set `fileParallelism: false` + 30s timeout + `setupFiles: ['test/integration/setup.ts']`.
 - `tsconfig.json` extends `../../tsconfig.base.json`, out `./dist`, root `./src`.

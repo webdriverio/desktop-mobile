@@ -20,15 +20,19 @@ e2e/
 │   │   ├── api.spec.ts
 │   │   ├── logging.spec.ts
 │   │   └── ...
-│   └── dioxus/             # Dioxus E2E tests
+│   ├── dioxus/             # Dioxus E2E tests
+│   │   ├── api.spec.ts
+│   │   ├── mock.spec.ts
+│   │   └── ...
+│   └── electrobun/         # Electrobun E2E tests (macOS-only; CI runs the `standard` suite)
 │       ├── api.spec.ts
-│       ├── mock.spec.ts
 │       └── ...
 ├── lib/                    # Shared test utilities
 ├── wdio.electron.conf.ts   # Electron WDIO config
 ├── wdio.tauri.conf.ts      # Tauri WDIO config
 ├── wdio.tauri-embedded.conf.ts  # Tauri embedded WDIO config
-└── wdio.dioxus-embedded.conf.ts # Dioxus embedded WDIO config
+├── wdio.dioxus-embedded.conf.ts # Dioxus embedded WDIO config
+└── wdio.electrobun.conf.ts # Electrobun WDIO config
 
 fixtures/e2e-apps/
 ├── electron-builder/       # Electron app (builder packaging)
@@ -36,7 +40,8 @@ fixtures/e2e-apps/
 ├── electron-no-binary/     # Electron app (no binary mode)
 ├── electron-script/        # Electron app (script mode)
 ├── tauri/                  # Tauri app
-└── dioxus/                 # Dioxus app
+├── dioxus/                 # Dioxus app
+└── electrobun/             # Electrobun app (CEF renderer)
 ```
 
 ## Running E2E Tests

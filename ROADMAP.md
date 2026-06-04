@@ -101,10 +101,18 @@ The table below quantifies the key factors used to prioritise and sequence plann
 - Standard Appium WebView context switching
 - appPackage/appActivity capabilities
 
-### Phase 5: Electrobun Desktop (Q2 2027)
+### Phase 5: Electrobun Desktop — ✅ Shipped `0.1.0` (macOS-only)
 **Priority:** Medium - Emerging TypeScript-first desktop framework
 
-**Target Platforms:** macOS 14+, Windows 11+, Linux (Ubuntu 22.04+)
+> **Status:** `@wdio/electrobun-service` ships at **`0.1.0`, macOS-only**. CDP-attach via the
+> CEF renderer works on macOS; **Linux/Windows** plus **multiremote / multi-window / deeplink**
+> are blocked by an upstream CEF profile-isolation limitation (CEF can't create the forced
+> `persist:default` profile and the global-context fallback serves no `/json` off macOS).
+> Pre-1.0 by design — each upstream fix re-enables a platform/feature, graduating to `1.0` at
+> full parity. Tracked in [#317](https://github.com/webdriverio/desktop-mobile/issues/317).
+> The original plan follows.
+
+**Target Platforms:** macOS 14+ (shipped); Windows 11+ / Linux (Ubuntu 22.04+) blocked upstream
 
 **Why Electrobun:**
 - Growing momentum in the lightweight desktop space (~12MB bundles, sub-50ms startup)

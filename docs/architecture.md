@@ -51,12 +51,14 @@ This document describes the architecture of the WebdriverIO Desktop & Mobile mon
 | `@wdio/electron-service` | WebdriverIO service for Electron apps |
 | `@wdio/tauri-service` | WebdriverIO service for Tauri apps |
 | `@wdio/dioxus-service` | WebdriverIO service for Dioxus desktop apps |
+| `@wdio/electrobun-service` | WebdriverIO service for Electrobun desktop apps |
 
 ### Bridge/Plugin Packages
 
 | Package | Responsibility |
 |---------|---------------|
-| `@wdio/electron-cdp-bridge` | Chrome DevTools Protocol bridge for main process access |
+| `@wdio/electron-cdp-bridge` | CDP client for the Electron main-process debugger (single target) |
+| `@wdio/electrobun-cdp-bridge` | Multi-target CDP client for Electrobun's CEF webviews (one connection per window) |
 | `@wdio/tauri-plugin` | Tauri v2 plugin for backend command invocation |
 | `wdio-dioxus-bridge` | Dioxus bridge crate — IPC channel, mock dispatch, log forwarding, embedded driver wiring |
 | `wdio-dioxus-embedded-driver` | In-process WebDriver HTTP server for Dioxus |
@@ -89,7 +91,7 @@ Runs in the main process (no `browser` access). Responsible for:
 ### Service (`service.ts`)
 
 Runs in the worker process (receives `browser` via `before` hook). Responsible for:
-- API injection (`browser.tauri.*`, `browser.electron.*`, `browser.dioxus.*`)
+- API injection (`browser.tauri.*`, `browser.electron.*`, `browser.dioxus.*`, `browser.electrobun.*`)
 - Mock lifecycle management
 - Log forwarding setup
 - Plugin initialization

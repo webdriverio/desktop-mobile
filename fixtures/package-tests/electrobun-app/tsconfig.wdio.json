@@ -1,0 +1,25 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "forceConsistentCasingInFileNames": true,
+    "types": [
+      "node",
+      "@wdio/globals/types",
+      "mocha"
+    ]
+  },
+  "include": [
+    "test/**/*.ts",
+    "wdio.conf.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "build",
+    "src"
+  ]
+}
