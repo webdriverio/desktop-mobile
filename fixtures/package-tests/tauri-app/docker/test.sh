@@ -53,52 +53,18 @@ run_tests_in_container() {
 
     echo -e "${YELLOW}=== Running tests for $distro ===${NC}"
 
+    # The in-container logic lives in container-test.sh (reached through the
+    # workspace bind mount) instead of an inline `bash -c` string — an
+    # unescaped double quote in an inline script truncates it silently and
+    # the run reports a green no-op. See the header of container-test.sh.
     docker run --rm \
         -u root \
         -v "$REPO_ROOT:/workspace" \
         -v "$log_dir:/workspace/logs-output" \
         -w /workspace \
         "tauri-distro-test:$distro" \
-        bash -c "
-            set -e
-            export TURBO_TELEMETRY_DISABLED=1
-            export DISPLAY=:99
-
-            echo '=== Starting Xvfb ==='
-            # Start Xvfb in background (some distros use different paths)
-            if command -v Xvfb > /dev/null; then
-                Xvfb :99 -screen 0 1024x768x24 > /dev/null 2>&1 &
-                XVFB_PID=\$!
-                sleep 2
-                echo \"Xvfb started with PID: \$XVFB_PID\"
-            else
-                echo '⚠️  Xvfb not found, tests may fail'
-            fi
-
-            echo '=== Installing workspace dependencies ==='
-            pnpm install --frozen-lockfile
-
-            echo '=== Building tauri-service and dependencies ==='
-            pnpm --filter @wdio/tauri-service... build
-
-            echo '=== Building tauri-plugin (required for app build) ==='
-            pnpm --filter @wdio/tauri-plugin build
-
-            echo '=== Building Tauri app ==='
-            cd fixtures/package-tests/tauri-app
-            pnpm run build
-
-            echo '=== Running Tauri package test ==='
-            pnpm test
-
-            echo '=== Copying logs to mounted volume ==='
-            cp -r fixtures/package-tests/tauri-app/logs-* /workspace/logs-output/ 2>/dev/null || echo 'No logs to copy'
-
-            # Clean up Xvfb if it was started
-            if [ ! -z \"\$XVFB_PID\" ]; then
-                kill \$XVFB_PID 2>/dev/null || true
-            fi
-        " 2>&1 | tee "/tmp/docker-test-$distro.log"
+        bash /workspace/fixtures/package-tests/tauri-app/docker/container-test.sh \
+        2>&1 | tee "/tmp/docker-test-$distro.log"
 
     # Check the exit code of docker run (PIPESTATUS[0]), not tee (PIPESTATUS[1])
     local docker_exit_code=${PIPESTATUS[0]}
