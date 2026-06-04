@@ -86,6 +86,12 @@ export class MultiTargetCdpBridge {
       throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
     }
     await this.#discover();
+    // A close() may have landed on discovery's final await; bail before committing
+    // #activeLabel so a stale active target can't outlive close() (it would otherwise
+    // surface NOT_CONNECTED instead of BRIDGE_CLOSED on the next send()).
+    if (this.#closed) {
+      throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+    }
     if (this.#targets.length === 0) {
       throw new Error(ERROR_MESSAGE.NO_PAGE_TARGETS);
     }
@@ -180,6 +186,9 @@ export class MultiTargetCdpBridge {
   async #discover(): Promise<void> {
     let retries = 0;
     while (true) {
+      if (this.#closed) {
+        throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+      }
       try {
         const list = await this.#devTool.list();
         this.#targets = this.#registry.reconcile(list);

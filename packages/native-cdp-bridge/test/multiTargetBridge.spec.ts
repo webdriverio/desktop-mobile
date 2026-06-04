@@ -10,11 +10,17 @@ const h = vi.hoisted(() => ({
   failEnable: false,
   closed: 0,
   connectGate: undefined as Promise<void> | undefined,
+  listGate: undefined as Promise<void> | undefined,
 }));
 
 vi.mock('../src/devTool.js', () => ({
   DevTool: class {
-    list = async () => h.targets;
+    list = async () => {
+      if (h.listGate) {
+        await h.listGate;
+      }
+      return h.targets;
+    };
     version = async () => ({ browser: 'CEF', protocolVersion: '1.3' });
   },
 }));
@@ -78,6 +84,7 @@ beforeEach(() => {
   h.failEnable = false;
   h.closed = 0;
   h.connectGate = undefined;
+  h.listGate = undefined;
 });
 
 describe('MultiTargetCdpBridge multi-target routing', () => {
@@ -117,6 +124,25 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     await bridge.close();
 
     await expect(bridge.switchTarget('window-1')).rejects.toThrow(/closed/);
+  });
+
+  it('should refuse connect() and leave no stale active target when close() races discovery', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    let release: () => void = () => {};
+    h.listGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const bridge = makeBridge();
+    const connecting = bridge.connect();
+    connecting.catch(() => {});
+
+    await bridge.close();
+    release();
+
+    // Without the post-discovery guard, connect() would commit #activeLabel from
+    // the discovered targets, so a later send() throws NOT_CONNECTED, not BRIDGE_CLOSED.
+    await expect(connecting).rejects.toThrow(/closed/);
+    expect(bridge.activeLabel).toBeUndefined();
   });
 
   it('should not store a socket opened while close() raced #ensureConnection', async () => {
