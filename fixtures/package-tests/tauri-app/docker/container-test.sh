@@ -51,7 +51,7 @@ echo '=== Copying logs to mounted volume ==='
 cp -r /workspace/fixtures/package-tests/tauri-app/logs-* /workspace/logs-output/ 2>/dev/null || echo 'No logs to copy'
 
 # Clean up Xvfb if it was started
-if [ ! -z "$XVFB_PID" ]; then
+if [ -n "$XVFB_PID" ]; then
     kill $XVFB_PID 2>/dev/null || true
 fi
 
