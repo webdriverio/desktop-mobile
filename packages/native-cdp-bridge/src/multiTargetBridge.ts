@@ -226,6 +226,13 @@ export class MultiTargetCdpBridge {
       await connection.close().catch(() => {});
       throw error;
     }
+    // A close() may have landed on either await above; the socket isn't tracked yet,
+    // so close() skipped it. Don't store it into an already-cleared map — mirrors the
+    // post-await guard in CdpBridge.connect().
+    if (this.#closed) {
+      await connection.close().catch(() => {});
+      throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+    }
     this.#connections.set(label, connection);
     return connection;
   }

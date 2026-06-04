@@ -4,7 +4,13 @@ import type { ClassifyTarget, Debugger } from '../src/types.js';
 
 // Shared mutable state for the mocked DevTool/Connection (hoisted so the
 // vi.mock factories can reference it).
-const h = vi.hoisted(() => ({ targets: [] as Debugger[], sent: [] as string[], failEnable: false, closed: 0 }));
+const h = vi.hoisted(() => ({
+  targets: [] as Debugger[],
+  sent: [] as string[],
+  failEnable: false,
+  closed: 0,
+  connectGate: undefined as Promise<void> | undefined,
+}));
 
 vi.mock('../src/devTool.js', () => ({
   DevTool: class {
@@ -19,7 +25,11 @@ vi.mock('../src/connection.js', () => ({
     constructor(url: string) {
       this.webSocketDebuggerUrl = url;
     }
-    connect = async () => {};
+    connect = async () => {
+      if (h.connectGate) {
+        await h.connectGate;
+      }
+    };
     send = async (method: string) => {
       h.sent.push(method);
       if (h.failEnable && method === 'Runtime.enable') {
@@ -67,6 +77,7 @@ beforeEach(() => {
   h.sent.length = 0;
   h.failEnable = false;
   h.closed = 0;
+  h.connectGate = undefined;
 });
 
 describe('MultiTargetCdpBridge multi-target routing', () => {
@@ -106,6 +117,28 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     await bridge.close();
 
     await expect(bridge.switchTarget('window-1')).rejects.toThrow(/closed/);
+  });
+
+  it('should not store a socket opened while close() raced #ensureConnection', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    let release: () => void = () => {};
+    h.connectGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const switching = bridge.switchTarget('window-1');
+    switching.catch(() => {});
+
+    await bridge.close();
+    release();
+
+    // Without the post-await guard, switchTarget would resolve and store the
+    // window-1 socket into the already-cleared #connections map (orphaned).
+    await expect(switching).rejects.toThrow(/closed/);
+    // main closed by close(), window-1 closed by the guard — neither leaks.
+    expect(h.closed).toBe(2);
   });
 
   it('should connect the auto-advanced target when the active window closes', async () => {
