@@ -24,7 +24,7 @@ Three things still need doing per framework:
 1. **ci.yml consumption**: gate the new jobs on `fromJSON(needs.detect-changes.outputs.runs).<framework>`
    (the JSON `runs` output picks up new services automatically). Adding a static
    `run_<framework>` output to the reusable is optional sugar for readability.
-2. **Add classifier test cases**: extend `scripts/detect-changes.spec.ts` with the new
+2. **Add classifier test cases**: extend `test/scripts/detect-changes.spec.ts` with the new
    framework's paths (service src → framework; its README alone → lint-only; an unrelated
    service's file → false). Run with `pnpm test:scripts` (CI runs this in the lint job).
 3. **If the framework adds shared packages** (`packages/native-*`), nothing to do — the

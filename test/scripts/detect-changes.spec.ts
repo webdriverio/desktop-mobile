@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyChanges, classifyFile, discoverServices } from './detect-changes.mjs';
+import { classifyChanges, classifyFile, discoverServices } from '../../scripts/detect-changes.mjs';
 
 const SERVICES = ['dioxus', 'electrobun', 'electron', 'tauri'];
 
@@ -9,7 +9,7 @@ function decide(files: string[], forceAll = false) {
 
 describe('discoverServices', () => {
   it('should derive the service list from packages/*-service', () => {
-    expect(discoverServices(new URL('..', import.meta.url).pathname)).toEqual(SERVICES);
+    expect(discoverServices(new URL('../..', import.meta.url).pathname)).toEqual(SERVICES);
   });
 });
 
