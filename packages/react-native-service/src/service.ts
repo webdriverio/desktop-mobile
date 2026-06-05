@@ -29,17 +29,14 @@ export default class ReactNativeWorkerService {
   }
 
   async before(capabilities: ReactNativeCapabilities, _specs: string[], browser: WebdriverIO.Browser): Promise<void> {
-    const capOptions = getServiceOptionsFromCapability(
-      capabilities as { [CUSTOM_CAPABILITY_NAME]?: ReactNativeCapabilities[typeof CUSTOM_CAPABILITY_NAME] },
-    );
-    const options = mergeServiceOptions(this.options, capOptions);
-
+    // this.options already has cap options merged from the constructor; read platform
+    // directly from the capability so it's always fresh (not re-merged from this.options).
     const platform =
-      options.platform ??
+      this.options.platform ??
       ((capabilities as { platformName?: string }).platformName?.toLowerCase() as 'android' | 'ios' | undefined);
 
-    const host = options.metroHost ?? DEFAULT_METRO_HOST;
-    const port = options.metroPort ?? DEFAULT_METRO_PORT;
+    const host = this.options.metroHost ?? DEFAULT_METRO_HOST;
+    const port = this.options.metroPort ?? DEFAULT_METRO_PORT;
 
     const bridge = new MetroBridge({ platform, host, port });
     const store = new ReactNativeMockStore();

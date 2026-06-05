@@ -101,7 +101,8 @@ function valueLiteral(value: unknown, target: string): string {
   if (value instanceof Error) {
     return JSON.stringify({ __wdioError: true, name: value.name, message: value.message, stack: value.stack })
       .replace(/\u2028/g, '\\u2028')
-      .replace(/\u2029/g, '\\u2029');
+      .replace(/\u2029/g, '\\u2029')
+      .replace(/</g, '\\u003C');
   }
   return jsonLiteral(value, `browser.reactNative.mock("${target}") value`);
 }
@@ -114,21 +115,33 @@ export async function createMock(
   log.debug(`[${target}] createMock — installing inner recorder`);
   const mockContext = `browser.reactNative.mock("${target}")`;
 
-  const existing = store.getMock(target);
-  if (existing) {
-    await evaluateInRealm<void>(bridge, buildInstallScript(target), mockContext);
-    return existing;
-  }
-
+  // Reinstall the inner spy on the current bridge, then rewire all closures.
+  // Called at first creation AND when re-using an existing mock after MetroBridge.reconnect():
+  // the existing mock's closures pointed at the old (now-closed) CdpBridge and would throw
+  // on any subsequent call — rewiring them here keeps the outer mock's call history intact
+  // while routing all CDP operations to the new connection.
   await evaluateInRealm<void>(bridge, buildInstallScript(target), mockContext);
 
-  const outerMock = vitestFn();
-  outerMock.mockName(`reactNative.${target}`);
+  const existing = store.getMock(target);
+
+  const outerMock = existing
+    ? // Preserve the existing vitest fn() (call history, mock name).
+      (existing as unknown as { _vitestFn: ReturnType<typeof vitestFn> })._vitestFn
+    : vitestFn();
+
+  if (!existing) {
+    outerMock.mockName(`reactNative.${target}`);
+  }
+
   const outerMockClear = outerMock.mockClear.bind(outerMock);
   const outerMockReset = outerMock.mockReset.bind(outerMock);
 
-  const mock = outerMock as unknown as ReactNativeMock;
-  mock.__isReactNativeMock = true;
+  const mock = (existing ?? (outerMock as unknown as ReactNativeMock)) as ReactNativeMock;
+  if (!existing) {
+    mock.__isReactNativeMock = true;
+    // Stash the vitest fn so reconnect paths can retrieve it.
+    (mock as unknown as { _vitestFn: ReturnType<typeof vitestFn> })._vitestFn = outerMock;
+  }
 
   const originalMock = outerMock.mock;
 
@@ -177,7 +190,6 @@ export async function createMock(
   mock.mockRejectedValueOnce = (value: unknown) => setValue('mockRejectedValueOnce', value);
 
   mock.mockReturnThis = async () => {
-    // mockReturnThis not relevant for Hermes-realm targets; delegate to inner spy.
     return mock;
   };
 
