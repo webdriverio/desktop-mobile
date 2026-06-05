@@ -334,10 +334,14 @@ export interface ReactNativeBrowserExtension extends BrowserBase {
    *
    * - {@link ReactNativeServiceAPI.execute `browser.reactNative.execute`} - Execute code in the app's Hermes JS realm
    * - {@link ReactNativeServiceAPI.mock `browser.reactNative.mock`} - Mock a function in the React Native JS realm
+   * - {@link ReactNativeServiceAPI.isMockFunction `browser.reactNative.isMockFunction`} - Check whether a target/value is mocked
    * - {@link ReactNativeServiceAPI.clearAllMocks `browser.reactNative.clearAllMocks`} - Clear the React Native mock functions
    * - {@link ReactNativeServiceAPI.resetAllMocks `browser.reactNative.resetAllMocks`} - Reset the React Native mock functions
    * - {@link ReactNativeServiceAPI.restoreAllMocks `browser.reactNative.restoreAllMocks`} - Restore the original implementations
    * - {@link ReactNativeServiceAPI.triggerDeeplink `browser.reactNative.triggerDeeplink`} - Trigger a deeplink for testing `Linking`
+   * - {@link ReactNativeServiceAPI.switchWindow `browser.reactNative.switchWindow`} - Switch the active Appium context
+   * - {@link ReactNativeServiceAPI.listWindows `browser.reactNative.listWindows`} - List the available Appium contexts
+   * - {@link ReactNativeServiceAPI.emitEvent `browser.reactNative.emitEvent`} - Emit an event to RN's DeviceEventEmitter
    */
   reactNative: ReactNativeServiceAPI;
 }
