@@ -74,7 +74,7 @@
     "@electron-forge/cli": "catalog:default",
     "@types/mocha": "^10.0.10",
     "@types/node": "^25.9.1",
-    "@vitest/spy": "^4.1.7",
+    "@vitest/spy": "^4.1.8",
     "@wdio/native-types": "workspace:*",
     "@wdio/types": "catalog:default",
     "cross-env": "^10.1.0",

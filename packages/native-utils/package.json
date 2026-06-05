@@ -67,12 +67,12 @@
   "devDependencies": {
     "@types/debug": "^4.1.12",
     "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.8",
     "@wdio/native-types": "workspace:*",
     "shx": "^0.4.0",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   },
   "files": [
     "dist",

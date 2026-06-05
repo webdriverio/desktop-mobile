@@ -50,11 +50,11 @@
   "devDependencies": {
     "@types/debug": "^4.1.12",
     "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.8",
     "shx": "^0.4.0",
     "terser": "^5.48.0",
     "tsx": "^4.22.4",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.8"
   },
   "files": [
     "dist",
