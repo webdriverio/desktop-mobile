@@ -1,0 +1,17 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "module": "nodenext",
+    "moduleResolution": "nodenext",
+    "allowImportingTsExtensions": true,
+    "erasableSyntaxOnly": true,
+    "types": [
+      "node"
+    ]
+  },
+  "include": [
+    "scripts/detect-changes.ts",
+    "test/scripts/**/*.ts"
+  ]
+}

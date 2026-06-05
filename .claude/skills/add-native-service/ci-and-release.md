@@ -6,7 +6,7 @@ Concrete wiring for getting a new service gated in CI and published. Grounded in
 
 ### Change detection — convention-driven, no per-framework edits
 
-`_ci-detect-changes.reusable.yml` delegates classification to `scripts/detect-changes.mjs`,
+`_ci-detect-changes.reusable.yml` delegates classification to `scripts/detect-changes.ts`,
 which **discovers services from `packages/*-service` and classifies changed files by naming
 convention**. A new framework is detected automatically — there is nothing to add to the
 detect workflow — PROVIDED the framework follows the conventions:

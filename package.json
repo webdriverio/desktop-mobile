@@ -71,7 +71,8 @@
     "update:dependencies": "pnpm catalog:update --default && pnpm catalog:update --next && pnpm up -iLr",
     "update:releasekit": "tsx ./scripts/update-releasekit.ts",
     "update:tauri": "tsx ./scripts/update-tauri-version.ts",
-    "test:scripts": "vitest run --config vitest.scripts.config.ts"
+    "test:scripts": "vitest run --config vitest.scripts.config.ts",
+    "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json"
   },
   "devDependencies": {
     "@biomejs/biome": "2.4.15",
