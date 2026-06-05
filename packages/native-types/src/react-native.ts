@@ -47,9 +47,9 @@ export interface ReactNativeMockInstance extends Omit<Mock, MockOverride> {
   mockReset(): Promise<ReactNativeMock>;
   mockRestore(): Promise<ReactNativeMock>;
   mockReturnThis(): Promise<ReactNativeMock>;
-  withImplementation<ReturnValue, InnerArguments extends unknown[]>(
+  withImplementation<ReturnValue>(
     implFn: AbstractFn,
-    callbackFn: (rn: ReactNativeAPIs, ...innerArgs: InnerArguments) => ReturnValue,
+    callbackFn: (rn: ReactNativeAPIs) => ReturnValue,
   ): Promise<ReturnValue>;
   mockName(name: string): ReactNativeMock;
   getMockName(): string;
@@ -315,7 +315,7 @@ export type ReactNativeServiceCapabilitiesType =
   | ReactNativeServiceRequestedMultiremoteCapabilities[];
 
 export type WdioReactNativeConfig = Options.Testrunner & {
-  capabilities: ReactNativeServiceCapabilitiesType | ReactNativeServiceCapabilitiesType[];
+  capabilities: ReactNativeServiceCapabilitiesType;
 };
 
 type ReactNativeServiceCustomCapability = {

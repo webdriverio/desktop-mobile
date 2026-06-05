@@ -27,6 +27,10 @@ describe('metroOrigin', () => {
     expect(metroOrigin('::1', 8081)).toBe('http://[::1]:8081');
     expect(metroOrigin('fe80::1', 8081)).toBe('http://[fe80::1]:8081');
   });
+
+  it('should not double-bracket an already-bracketed IPv6 host', () => {
+    expect(metroOrigin('[::1]', 8081)).toBe('http://[::1]:8081');
+  });
 });
 
 describe('createHermesBridge', () => {

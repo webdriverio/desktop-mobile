@@ -16,7 +16,7 @@ export type HermesBridgeOptions = Omit<CdpBridgeOptions, 'selectTarget'>;
  * bracketed so its colons aren't confused with the port separator.
  */
 export const metroOrigin = (host: string, port: number): string => {
-  const bracketedHost = host.includes(':') ? `[${host}]` : host;
+  const bracketedHost = host.includes(':') && !host.startsWith('[') ? `[${host}]` : host;
   return `http://${bracketedHost}:${port}`;
 };
 
