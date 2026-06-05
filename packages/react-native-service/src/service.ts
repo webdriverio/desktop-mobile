@@ -101,6 +101,32 @@ export default class ReactNativeWorkerService {
     log.debug('browser.reactNative API installed');
   }
 
+  async beforeTest(): Promise<void> {
+    if (!this.mockStore || !this.metroBridge?.connected) {
+      return;
+    }
+    const store = this.mockStore;
+    if (this.options.clearMocks) {
+      for (const [target, mock] of store.getMocks()) {
+        await mock.mockClear();
+        log.debug(`[${target}] cleared`);
+      }
+    }
+    if (this.options.resetMocks) {
+      for (const [target, mock] of store.getMocks()) {
+        await mock.mockReset();
+        log.debug(`[${target}] reset`);
+      }
+    }
+    if (this.options.restoreMocks) {
+      const entries = [...store.getMocks()];
+      for (const [target, mock] of entries) {
+        await mock.mockRestore();
+        log.debug(`[${target}] restored`);
+      }
+    }
+  }
+
   async after(): Promise<void> {
     this.mockStore?.clear();
     await this.metroBridge?.close();
