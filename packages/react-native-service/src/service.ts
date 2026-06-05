@@ -31,9 +31,11 @@ export default class ReactNativeWorkerService {
   async before(capabilities: ReactNativeCapabilities, _specs: string[], browser: WebdriverIO.Browser): Promise<void> {
     // this.options already has cap options merged from the constructor; read platform
     // directly from the capability so it's always fresh (not re-merged from this.options).
-    const platform =
-      this.options.platform ??
-      ((capabilities as { platformName?: string }).platformName?.toLowerCase() as 'android' | 'ios' | undefined);
+    // Normalise to lowercase for internal routing — the option and platformName both accept
+    // title-case per the Appium/W3C convention; MetroBridge expects lowercase.
+    const platform = (
+      this.options.platform ?? (capabilities as { platformName?: string }).platformName
+    )?.toLowerCase() as 'android' | 'ios' | undefined;
 
     const host = this.options.metroHost ?? DEFAULT_METRO_HOST;
     const port = this.options.metroPort ?? DEFAULT_METRO_PORT;
