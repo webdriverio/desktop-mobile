@@ -248,7 +248,7 @@ export interface ReactNativeServiceOptions extends LogCaptureConfig, MockLifecyc
    * Target mobile platform. Normally derived from the capability
    * (`platformName`); set explicitly to override.
    */
-  platform?: 'android' | 'ios';
+  platform?: 'Android' | 'iOS';
   /**
    * Host of the Metro inspector-proxy used for the Hermes CDP attach
    * (`execute`/`mock`).
