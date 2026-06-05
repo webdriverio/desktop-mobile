@@ -242,6 +242,15 @@ export class MultiTargetCdpBridge {
       await connection.close().catch(() => {});
       throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
     }
+    // A concurrent #ensureConnection(label) may have stored a socket while we awaited
+    // connect()/Runtime.enable — both passed the early `existing` check seeing nothing.
+    // Discard ours and use the winner so the loser isn't orphaned (mirrors the
+    // post-await double-connect guard in CdpBridge.connect()).
+    const winner = this.#connections.get(label);
+    if (winner) {
+      await connection.close().catch(() => {});
+      return winner;
+    }
     this.#connections.set(label, connection);
     return connection;
   }

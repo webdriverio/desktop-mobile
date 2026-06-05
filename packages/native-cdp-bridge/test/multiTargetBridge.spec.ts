@@ -145,6 +145,29 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     expect(bridge.activeLabel).toBeUndefined();
   });
 
+  it('should not orphan a socket when two #ensureConnection calls race the same label', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    // Gate the next connection.connect() so both switches reach the lazy-connect
+    // path before either has stored — the concurrent same-label race.
+    let release: () => void = () => {};
+    h.connectGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const a = bridge.switchTarget('window-1');
+    const b = bridge.switchTarget('window-1');
+    release();
+    await Promise.all([a, b]);
+
+    // Both opened a socket; exactly one is stored and the loser is closed (not
+    // orphaned). Without the winner check, h.closed would be 0 and a socket leaks.
+    expect(bridge.activeLabel).toBe('window-1');
+    expect(h.closed).toBe(1);
+    await expect(bridge.send('Runtime.enable')).resolves.toBeDefined();
+  });
+
   it('should not store a socket opened while close() raced #ensureConnection', async () => {
     h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
     const bridge = makeBridge();
