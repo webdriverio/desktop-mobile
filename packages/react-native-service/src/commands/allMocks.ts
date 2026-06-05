@@ -8,7 +8,7 @@ import { createLogger } from '@wdio/native-utils';
 import { SERVICE_NAME } from '../constants.js';
 import type { ReactNativeMockStore } from '../mockStore.js';
 
-const log = createLogger(SERVICE_NAME, 'bridge');
+const log = createLogger(SERVICE_NAME, 'service');
 
 function matchesPrefix(target: string, prefix?: string): boolean {
   if (!prefix) {
