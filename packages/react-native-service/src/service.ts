@@ -11,6 +11,7 @@ import { executeScript } from './commands/execute.js';
 import { listWindows, switchWindow } from './commands/switchContext.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_METRO_HOST, DEFAULT_METRO_PORT, SERVICE_NAME } from './constants.js';
+import { collectDeviceLogs, forwardDeviceLogs, startJsLogForwarding } from './logCapture.js';
 import { MetroBridge } from './metroBridge.js';
 import { createMock } from './mock.js';
 import { ReactNativeMockStore } from './mockStore.js';
@@ -23,6 +24,9 @@ export default class ReactNativeWorkerService {
   private options: ReactNativeServiceGlobalOptions;
   private metroBridge: MetroBridge | undefined;
   private mockStore: ReactNativeMockStore | undefined;
+  private stopJsLogs: (() => void) | undefined;
+  private platform: 'android' | 'ios' | undefined;
+  private browser: WebdriverIO.Browser | undefined;
 
   constructor(options: ReactNativeServiceGlobalOptions, capabilities: ReactNativeCapabilities) {
     const capOptions = getServiceOptionsFromCapability(
@@ -49,9 +53,14 @@ export default class ReactNativeWorkerService {
     this.metroBridge = bridge;
     this.mockStore = store;
 
+    this.platform = platform;
+    this.browser = browser;
+
     try {
       await bridge.connect();
       log.info(`Connected to Hermes inspector at ${host}:${port}`);
+      // Forward JS console.* calls via Runtime.consoleAPICalled CDP events.
+      this.stopJsLogs = startJsLogForwarding(bridge.bridge);
     } catch (error) {
       log.warn(
         `Could not connect to Hermes inspector (${(error as Error).message}). ` +
@@ -123,10 +132,20 @@ export default class ReactNativeWorkerService {
   }
 
   async after(): Promise<void> {
+    // Collect and forward device logs for the test that just finished.
+    if (this.browser && this.platform) {
+      const logType = this.platform === 'android' ? 'logcat' : 'syslog';
+      const entries = await collectDeviceLogs(this.browser, logType);
+      forwardDeviceLogs(entries);
+    }
+    this.stopJsLogs?.();
+    this.stopJsLogs = undefined;
     this.mockStore?.clear();
     await this.metroBridge?.close();
     this.metroBridge = undefined;
     this.mockStore = undefined;
+    this.browser = undefined;
+    this.platform = undefined;
   }
 
   async afterSession(): Promise<void> {
