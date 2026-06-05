@@ -3,14 +3,14 @@ import { describe, expect, it } from 'vitest';
 import * as rn from '../src/index.js';
 
 describe('@wdio/react-native-service exports', () => {
-  it('should expose the Metro constants', () => {
-    expect(rn.DEFAULT_METRO_HOST).toBe('localhost');
-    expect(rn.DEFAULT_METRO_PORT).toBe(8081);
+  it('should export the launcher and default worker service', () => {
+    expect(typeof rn.launcher).toBe('function');
+    expect(typeof rn.default).toBe('function');
   });
 
-  it('should expose the Hermes bridge foundation', () => {
-    expect(typeof rn.createHermesBridge).toBe('function');
-    expect(typeof rn.selectHermesTarget).toBe('function');
-    expect(typeof rn.metroOrigin).toBe('function');
+  it('should export standalone session helpers', () => {
+    expect(typeof rn.startWdioSession).toBe('function');
+    expect(typeof rn.cleanupWdioSession).toBe('function');
+    expect(typeof rn.createReactNativeCapabilities).toBe('function');
   });
 });
