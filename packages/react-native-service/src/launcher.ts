@@ -4,6 +4,7 @@ import type { Options } from '@wdio/types';
 
 import { prepareReactNativeCapability } from './capabilities.js';
 import { SERVICE_NAME } from './constants.js';
+import { DeviceManager } from './deviceManager.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from './types.js';
 
@@ -13,22 +14,22 @@ const log = createLogger(SERVICE_NAME, 'launcher');
  * Main-process launcher for `@wdio/react-native-service`.
  *
  * React Native is an Appium-driven service: WDIO creates the Appium session, so
- * the launcher does **not** spawn a driver or the app. Its `onPrepare` job is
- * capability mutation — resolve each capability's platform to its Appium
- * `automationName` (UiAutomator2 / XCUITest), map a service `appBinaryPath` onto
- * `appium:app`, and reject an unsupported platform with a `SevereServiceError`.
- *
- * It extends `BaseLauncher` to share `@wdio/native-core`'s infra and to host the
- * per-worker device allocation (`onWorkerStart`) that lands with the device manager.
+ * the launcher does **not** spawn a driver or the app. Its jobs:
+ * - `onPrepare`: mutate capabilities (automationName, appBinaryPath→appium:app).
+ * - `onWorkerStart`: claim a device from the pool and set appium:udid/avd on the cap.
+ * - `onWorkerEnd`: release the claimed device back to the pool.
  */
 export default class ReactNativeLaunchService extends BaseLauncher {
+  #deviceManager: DeviceManager;
+
   constructor(
     private options: ReactNativeServiceGlobalOptions,
     _capabilities: ReactNativeCapabilities,
     _config: Options.Testrunner,
   ) {
     super();
-    log.debug('ReactNativeLaunchService initialised');
+    this.#deviceManager = new DeviceManager(options.devices ?? []);
+    log.debug(`ReactNativeLaunchService initialised (device pool: ${this.#deviceManager.size})`);
   }
 
   async onPrepare(
@@ -41,6 +42,36 @@ export default class ReactNativeLaunchService extends BaseLauncher {
       const platform = prepareReactNativeCapability(cap, options);
       log.info(`Prepared ${platform} capability (automationName: ${cap['appium:automationName']})`);
     }
+  }
+
+  async onWorkerStart(
+    cid: string,
+    capabilities: ReactNativeCapabilities | ReactNativeCapabilities[] | undefined,
+  ): Promise<void> {
+    if (!capabilities) {
+      return;
+    }
+    const cap = Array.isArray(capabilities) ? capabilities[0] : capabilities;
+    if (!cap) {
+      return;
+    }
+
+    const device = this.#deviceManager.claim(cid);
+    if (!device) {
+      return;
+    }
+
+    const options = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
+    const platform = options.platform?.toLowerCase() ?? (cap as { platformName?: string }).platformName?.toLowerCase();
+
+    if (platform === 'android' || platform === 'ios') {
+      DeviceManager.applyToCapability(cap as unknown as Record<string, unknown>, device, platform);
+      log.info(`Worker ${cid}: applied device ${JSON.stringify(device)} for ${platform}`);
+    }
+  }
+
+  async onWorkerEnd(cid: string): Promise<void> {
+    this.#deviceManager.release(cid);
   }
 }
 

@@ -266,6 +266,12 @@ export interface ReactNativeServiceOptions extends LogCaptureConfig, MockLifecyc
    * prefer setting the `appium:*` launch capability directly.
    */
   appBinaryPath?: string;
+  /**
+   * Device pool for parallel workers / multiremote. Each entry is a
+   * `{ udid?, avd?, iOSUdid? }` descriptor; workers claim devices round-robin.
+   * Omit (or leave empty) for single-device runs — Appium picks the device.
+   */
+  devices?: Array<{ udid?: string; avd?: string; iOSUdid?: string }>;
 }
 
 /**
