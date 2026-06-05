@@ -186,7 +186,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   };
 
   mock.withImplementation = async (implFn, callbackFn) => {
-    return await tauriExecute<unknown>(
+    const result = await tauriExecute<unknown>(
       browserToUse,
       interceptor.buildWithImplementationScript(
         command,
@@ -194,6 +194,9 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
         callbackFn as (...a: unknown[]) => unknown,
       ),
     );
+    // The wire result is the callback's (serialized) return value; TS can't connect an
+    // assigned arrow's body to the contextual generic, so assert it back.
+    return result as ReturnType<typeof callbackFn>;
   };
 
   wrapperMock.mockImplementation = mock.mockImplementation.bind(mock);
@@ -369,7 +372,8 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     if (result && typeof result === 'object' && '__wdioAsyncErr__' in result) {
       throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
     }
-    return result;
+    // See the withImplementation note above — the wire result is the callback's return.
+    return result as ReturnType<typeof callbackFn>;
   };
 
   return mock;
