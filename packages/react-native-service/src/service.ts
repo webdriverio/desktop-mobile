@@ -129,13 +129,18 @@ export default class ReactNativeWorkerService {
     }
   }
 
-  async after(): Promise<void> {
-    // Collect and forward device logs for the test that just finished.
-    if (this.browser && this.platform) {
-      const logType = this.platform === 'android' ? 'logcat' : 'syslog';
-      const entries = await collectDeviceLogs(this.browser, logType);
-      forwardDeviceLogs(entries);
+  async afterTest(): Promise<void> {
+    // Per-test native log forwarding: browser.getLogs drains everything since the last
+    // call, so collecting here (not in after(), which fires once per spec file) keeps
+    // each test's logcat/syslog lines attributed to that test.
+    if (!this.browser || !this.platform) {
+      return;
     }
+    const logType = this.platform === 'android' ? 'logcat' : 'syslog';
+    forwardDeviceLogs(await collectDeviceLogs(this.browser, logType));
+  }
+
+  async after(): Promise<void> {
     this.stopJsLogs?.();
     this.stopJsLogs = undefined;
     this.mockStore?.clear();

@@ -88,8 +88,8 @@ export async function collectDeviceLogs(
 }
 
 /**
- * Log all device entries via the WDIO logger. Used in afterTest to forward
- * native device logs collected since the last call.
+ * Log all device entries via the WDIO logger. Called from the worker's afterTest
+ * hook to forward the native device logs collected since the previous test.
  */
 export function forwardDeviceLogs(entries: LogEntry[]): void {
   for (const entry of entries) {
