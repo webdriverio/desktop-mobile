@@ -134,14 +134,25 @@ export async function createMock(
     outerMock.mockName(`reactNative.${target}`);
   }
 
-  const outerMockClear = outerMock.mockClear.bind(outerMock);
-  const outerMockReset = outerMock.mockReset.bind(outerMock);
+  // Capture the NATIVE vitest clear/reset. On first creation outerMock.mockClear is
+  // still native; on the reconnect path it was already overwritten with the async CDP
+  // wrapper below (mock === outerMock), so re-binding it would route mockClear/mockReset
+  // at the closed bridge and leak an unhandled rejection. Retrieve the stashed native
+  // bindings instead.
+  const outerMockClear = existing
+    ? (existing as unknown as { _nativeClear: () => void })._nativeClear
+    : outerMock.mockClear.bind(outerMock);
+  const outerMockReset = existing
+    ? (existing as unknown as { _nativeReset: () => void })._nativeReset
+    : outerMock.mockReset.bind(outerMock);
 
   const mock = (existing ?? (outerMock as unknown as ReactNativeMock)) as ReactNativeMock;
   if (!existing) {
     mock.__isReactNativeMock = true;
-    // Stash the vitest fn so reconnect paths can retrieve it.
+    // Stash the vitest fn + native clear/reset so reconnect paths can retrieve them.
     (mock as unknown as { _vitestFn: ReturnType<typeof vitestFn> })._vitestFn = outerMock;
+    (mock as unknown as { _nativeClear: () => void })._nativeClear = outerMockClear;
+    (mock as unknown as { _nativeReset: () => void })._nativeReset = outerMockReset;
   }
 
   const originalMock = outerMock.mock;
