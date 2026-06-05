@@ -422,10 +422,14 @@ export interface TauriBrowserExtension extends BrowserBase {
    * Access the WebdriverIO Tauri Service API.
    *
    * - {@link TauriServiceAPI.clearAllMocks `browser.tauri.clearAllMocks`} - Clear the Tauri API mock functions
+   * - {@link TauriServiceAPI.emitEvent `browser.tauri.emitEvent`} - Emit a Tauri event to frontend listeners
    * - {@link TauriServiceAPI.execute `browser.tauri.execute`} - Execute code in the Tauri frontend context
+   * - {@link TauriServiceAPI.isMockFunction `browser.tauri.isMockFunction`} - Check if a value is a Tauri mock or a command is mocked
+   * - {@link TauriServiceAPI.listWindows `browser.tauri.listWindows`} - List the labels of all open windows
    * - {@link TauriServiceAPI.mock `browser.tauri.mock`} - Mock a function from the Tauri API
    * - {@link TauriServiceAPI.resetAllMocks `browser.tauri.resetAllMocks`} - Reset the Tauri API mock functions
    * - {@link TauriServiceAPI.restoreAllMocks `browser.tauri.restoreAllMocks`} - Restore the original Tauri API functionality
+   * - {@link TauriServiceAPI.switchWindow `browser.tauri.switchWindow`} - Switch WebDriver focus to another window
    * - {@link TauriServiceAPI.triggerDeeplink `browser.tauri.triggerDeeplink`} - Trigger a deeplink for testing protocol handlers
    */
   tauri: TauriServiceAPI;
