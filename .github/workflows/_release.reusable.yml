@@ -27,7 +27,7 @@ on:
         type: boolean
         default: false
       scope:
-        description: 'Release scope (electron, tauri, dioxus, electrobun, utils, types, spy, core, shared) — controls build and toolchain steps'
+        description: 'Release scope (electron, tauri, dioxus, electrobun, utils, types, spy, core, cdp-bridge, shared) — controls build and toolchain steps'
         required: true
         type: string
     secrets:
@@ -126,6 +126,9 @@ jobs:
             core)
               echo "packages=@wdio/native-core" >> "$GITHUB_OUTPUT"
               ;;
+            cdp-bridge)
+              echo "packages=@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
+              ;;
             shared)
               echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy,@wdio/native-core,@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
               ;;
@@ -209,6 +212,9 @@ jobs:
               ;;
             core)
               pnpm turbo run build --filter='@wdio/native-core...'
+              ;;
+            cdp-bridge)
+              pnpm turbo run build --filter='@wdio/native-cdp-bridge...'
               ;;
             shared)
               pnpm turbo run build \

@@ -43,6 +43,8 @@
       "scope:utils": "@wdio/native-utils",
       "scope:types": "@wdio/native-types",
       "scope:spy": "@wdio/native-spy",
+      "scope:core": "@wdio/native-core",
+      "scope:cdp-bridge": "@wdio/native-cdp-bridge",
       "scope:tauri": "@wdio/tauri-*",
       "scope:dioxus": "@wdio/dioxus-*",
       "scope:electron": "@wdio/electron-*",
