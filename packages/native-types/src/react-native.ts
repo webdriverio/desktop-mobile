@@ -48,7 +48,7 @@ export interface ReactNativeMockInstance extends Omit<Mock, MockOverride> {
   mockRestore(): Promise<ReactNativeMock>;
   mockReturnThis(): Promise<ReactNativeMock>;
   withImplementation<ReturnValue>(implFn: AbstractFn, callbackFn: () => Promise<ReturnValue>): Promise<ReturnValue>;
-  withImplementation<ReturnValue>(implFn: AbstractFn, callbackFn: () => ReturnValue): ReturnValue;
+  withImplementation<ReturnValue>(implFn: AbstractFn, callbackFn: () => ReturnValue): Promise<ReturnValue>;
   mockName(name: string): ReactNativeMock;
   getMockName(): string;
   getMockImplementation(): AbstractFn | undefined;
