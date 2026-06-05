@@ -26,6 +26,9 @@ export interface DeviceDescriptor {
 export class DeviceManager {
   #devices: DeviceDescriptor[];
   #claimed = new Map<string, number>(); // cid → index
+  // Monotonic cursor — NOT derived from #claimed.size, which shrinks on release() and
+  // would hand a freed index to a new worker while an earlier one still holds it.
+  #nextIndex = 0;
 
   constructor(devices: DeviceDescriptor[] = []) {
     this.#devices = devices;
@@ -43,7 +46,8 @@ export class DeviceManager {
     if (this.#devices.length === 0) {
       return undefined;
     }
-    const index = this.#claimed.size % this.#devices.length;
+    const index = this.#nextIndex % this.#devices.length;
+    this.#nextIndex += 1;
     this.#claimed.set(cid, index);
     const device = this.#devices[index];
     log.debug(`Worker ${cid}: claimed device[${index}] ${JSON.stringify(device)}`);

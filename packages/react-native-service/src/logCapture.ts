@@ -55,11 +55,7 @@ export function startJsLogForwarding(bridge: CdpBridge): () => void {
 
   bridge.on('Runtime.consoleAPICalled', handler);
   return () => {
-    // CdpBridge extends EventEmitter; remove the specific listener.
-    (bridge as unknown as { removeListener?: (e: string, h: unknown) => void }).removeListener?.(
-      'Runtime.consoleAPICalled',
-      handler,
-    );
+    bridge.off('Runtime.consoleAPICalled', handler);
   };
 }
 

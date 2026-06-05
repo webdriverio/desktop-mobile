@@ -1,7 +1,8 @@
 // browser.reactNative.triggerDeeplink — invokes Appium's `mobile: deepLink`
-// command (the idiomatic cross-platform path since Appium 2). Falls back to
-// `adb shell am start` (Android) or `xcrun simctl openurl` (iOS) if the mobile
-// command isn't supported by the driver in use.
+// command (the idiomatic cross-platform path since Appium 2; both UiAutomator2 and
+// XCUITest implement it). On Android, falls back to `mobile: shell` `am start` for
+// drivers that don't expose `mobile: deepLink` (requires Appium relaxed security).
+// iOS has no in-session shell, so an unsupported driver rethrows the original error.
 
 import { createLogger } from '@wdio/native-utils';
 
@@ -11,30 +12,29 @@ const log = createLogger(SERVICE_NAME, 'service');
 
 export async function triggerDeeplink(browser: WebdriverIO.Browser, url: string): Promise<void> {
   log.debug(`triggerDeeplink: ${url}`);
+
+  const caps = browser.capabilities as {
+    platformName?: string;
+    'appium:appPackage'?: string;
+    'appium:bundleId'?: string;
+  };
+  const platform = caps.platformName?.toLowerCase();
+  // mobile: deepLink reads `package` on Android and `bundleId` on iOS; the extra key is ignored.
+  const appId = platform === 'android' ? caps['appium:appPackage'] : caps['appium:bundleId'];
+
   try {
-    // Appium 2: UiAutomator2 + XCUITest both support mobile:deepLink.
-    await (browser as WebdriverIO.Browser).execute('mobile: deepLink', { url, package: undefined });
+    await browser.execute('mobile: deepLink', appId ? { url, package: appId, bundleId: appId } : { url });
     return;
   } catch (mobileErr) {
-    log.debug(`mobile: deepLink failed (${(mobileErr as Error).message}), trying platform fallback`);
+    if (platform !== 'android') {
+      throw mobileErr;
+    }
+    log.debug(`mobile: deepLink failed (${(mobileErr as Error).message}), falling back to am start`);
   }
 
-  // Fallback: derive the platform from the session's capabilities.
-  const caps = browser.capabilities as { platformName?: string };
-  const platform = caps.platformName?.toLowerCase();
-
-  if (platform === 'android') {
-    await browser.execute('adb', ['shell', 'am', 'start', '-a', 'android.intent.action.VIEW', '-d', url]);
-  } else if (platform === 'ios') {
-    // For iOS simulators — xcrun simctl openurl is the standard path.
-    await browser.execute('mobile: shell', {
-      command: 'xcrun',
-      args: ['simctl', 'openurl', 'booted', url],
-    });
-  } else {
-    throw new Error(
-      `browser.reactNative.triggerDeeplink: unsupported platform '${caps.platformName}'. ` +
-        "Use Appium's 'mobile: deepLink' directly for custom driver configurations.",
-    );
-  }
+  // Android best-effort fallback: am start the VIEW intent via the device shell.
+  await browser.execute('mobile: shell', {
+    command: 'am',
+    args: ['start', '-a', 'android.intent.action.VIEW', '-d', url],
+  });
 }

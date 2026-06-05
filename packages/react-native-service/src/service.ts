@@ -7,6 +7,7 @@ import {
   resetAllMocks,
   restoreAllMocks,
 } from './commands/allMocks.js';
+import { emitEvent } from './commands/emitEvent.js';
 import { executeScript } from './commands/execute.js';
 import { listWindows, switchWindow } from './commands/switchContext.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
@@ -104,10 +105,7 @@ export default class ReactNativeWorkerService {
         if (!bridge.connected) {
           throw new Error('browser.reactNative.emitEvent: Hermes inspector is not connected.');
         }
-        await executeScript(
-          bridge.bridge,
-          `DeviceEventEmitter.emit(${JSON.stringify(event)}, ${JSON.stringify(payload ?? null)})`,
-        );
+        await emitEvent(bridge.bridge, event, payload);
       },
     };
 
