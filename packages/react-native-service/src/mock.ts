@@ -25,6 +25,7 @@ import {
   buildReadCallDataScript,
   buildResetScript,
   buildRestoreScript,
+  buildReturnThisScript,
   buildSetImplementationScript,
   buildSetValueScript,
 } from './innerRecorder.js';
@@ -190,6 +191,7 @@ export async function createMock(
   mock.mockRejectedValueOnce = (value: unknown) => setValue('mockRejectedValueOnce', value);
 
   mock.mockReturnThis = async () => {
+    await evaluateInRealm<void>(bridge, buildReturnThisScript(target), mockContext);
     return mock;
   };
 

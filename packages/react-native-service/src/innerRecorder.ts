@@ -236,6 +236,15 @@ export function buildResetScript(target: string): string {
   })()`;
 }
 
+export function buildReturnThisScript(target: string): string {
+  const key = pathLiteral(target);
+  return `(function() {
+    var reg = ${REGISTRY};
+    var entry = reg && reg[${key}];
+    if (entry && entry.spy) { entry.spy.mockReturnThis(); }
+  })()`;
+}
+
 export function buildRestoreScript(target: string): string {
   const key = pathLiteral(target);
   return `(function() {
