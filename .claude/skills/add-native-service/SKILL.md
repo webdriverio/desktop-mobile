@@ -241,6 +241,18 @@ See [ci-and-release.md](ci-and-release.md) → "CI gates". Add `run_<framework>`
 - Root `README.md`, `ROADMAP.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/*.md` updates.
 - Release pipeline — see [ci-and-release.md](ci-and-release.md) → "Release pipeline".
 
+### Follow-up register (cross-cutting)
+
+Building a service surfaces deferred work that doesn't belong in the current PR: a bug **inherited
+from the cloned-from template** (so the *source* service still has it), a migration the new package
+enables, a feature pushed to a later release, an internal cleanup. Don't bury these in commit
+messages — append them to **[`agent-os/FOLLOWUPS.md`](../../../agent-os/FOLLOWUPS.md)** with the
+context and the triggering PR as you go, and triage the register into GitHub issues at ship (Phase 5).
+This is distinct from the upstream-gap umbrella issue above: that tracks what blocks the *current*
+service; the register tracks what the current work leaves for *later*. Cloning a sibling's
+`*.ts`/`package.json` is the highest-yield source — a defect you fix in the new copy almost always
+still lives in the original.
+
 #### Fixture app conventions
 
 The same convergence principle that applies to the API surface ([features.md](features.md)) applies to fixtures. Every fixture — both `fixtures/e2e-apps/<framework>/` and `fixtures/package-tests/<framework>-app/` — uses a **shared visual + functional template** so a screenshot of one is largely interchangeable with a screenshot of any other. New fixtures must adopt it.
