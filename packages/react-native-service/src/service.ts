@@ -1,7 +1,15 @@
 import type { ReactNativeServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
+import {
+  clearAllMocks,
+  isMockFunction as isMockFunctionUtil,
+  resetAllMocks,
+  restoreAllMocks,
+} from './commands/allMocks.js';
 import { executeScript } from './commands/execute.js';
+import { listWindows, switchWindow } from './commands/switchContext.js';
+import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_METRO_HOST, DEFAULT_METRO_PORT, SERVICE_NAME } from './constants.js';
 import { MetroBridge } from './metroBridge.js';
 import { createMock } from './mock.js';
@@ -10,10 +18,6 @@ import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceC
 import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from './types.js';
 
 const log = createLogger(SERVICE_NAME, 'service');
-
-const NOT_IMPLEMENTED_MVP = (method: string): never => {
-  throw new Error(`browser.reactNative.${method} is not available in this MVP release — it lands in a later version.`);
-};
 
 export default class ReactNativeWorkerService {
   private options: ReactNativeServiceGlobalOptions;
@@ -76,25 +80,26 @@ export default class ReactNativeWorkerService {
         return createMock(target, bridge.bridge, store);
       },
 
-      isMockFunction: (targetOrFn: unknown) => {
-        if (typeof targetOrFn === 'string') {
-          return store.getMock(targetOrFn) !== undefined;
+      isMockFunction: (targetOrFn: unknown) => isMockFunctionUtil(targetOrFn, store),
+
+      clearAllMocks: (targetPrefix?: string) => clearAllMocks(store, targetPrefix),
+      resetAllMocks: (targetPrefix?: string) => resetAllMocks(store, targetPrefix),
+      restoreAllMocks: (targetPrefix?: string) => restoreAllMocks(store, targetPrefix),
+
+      triggerDeeplink: (url: string) => triggerDeeplink(browser, url),
+
+      switchWindow: (context: string) => switchWindow(browser, context),
+      listWindows: () => listWindows(browser),
+
+      emitEvent: async <T = unknown>(event: string, payload?: T) => {
+        if (!bridge.connected) {
+          throw new Error('browser.reactNative.emitEvent: Hermes inspector is not connected.');
         }
-        return (
-          targetOrFn !== null &&
-          typeof targetOrFn === 'object' &&
-          (targetOrFn as { __isReactNativeMock?: boolean }).__isReactNativeMock === true
+        await executeScript(
+          bridge.bridge,
+          `DeviceEventEmitter.emit(${JSON.stringify(event)}, ${JSON.stringify(payload ?? null)})`,
         );
       },
-
-      // PR3 features — stubs so the type contract is satisfied at runtime
-      clearAllMocks: () => NOT_IMPLEMENTED_MVP('clearAllMocks'),
-      resetAllMocks: () => NOT_IMPLEMENTED_MVP('resetAllMocks'),
-      restoreAllMocks: () => NOT_IMPLEMENTED_MVP('restoreAllMocks'),
-      triggerDeeplink: () => NOT_IMPLEMENTED_MVP('triggerDeeplink'),
-      switchWindow: () => NOT_IMPLEMENTED_MVP('switchWindow'),
-      listWindows: () => NOT_IMPLEMENTED_MVP('listWindows'),
-      emitEvent: () => NOT_IMPLEMENTED_MVP('emitEvent'),
     };
 
     (browser as WebdriverIO.Browser & { reactNative?: ReactNativeServiceAPI }).reactNative = api;
@@ -107,23 +112,13 @@ export default class ReactNativeWorkerService {
     }
     const store = this.mockStore;
     if (this.options.clearMocks) {
-      for (const [target, mock] of store.getMocks()) {
-        await mock.mockClear();
-        log.debug(`[${target}] cleared`);
-      }
+      await clearAllMocks(store, this.options.clearMocksPrefix);
     }
     if (this.options.resetMocks) {
-      for (const [target, mock] of store.getMocks()) {
-        await mock.mockReset();
-        log.debug(`[${target}] reset`);
-      }
+      await resetAllMocks(store, this.options.resetMocksPrefix);
     }
     if (this.options.restoreMocks) {
-      const entries = [...store.getMocks()];
-      for (const [target, mock] of entries) {
-        await mock.mockRestore();
-        log.debug(`[${target}] restored`);
-      }
+      await restoreAllMocks(store, this.options.restoreMocksPrefix);
     }
   }
 
