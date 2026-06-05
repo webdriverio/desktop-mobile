@@ -126,6 +126,15 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     await expect(bridge.switchTarget('window-1')).rejects.toThrow(/closed/);
   });
 
+  it('should refuse refresh() after close()', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+    await bridge.close();
+
+    await expect(bridge.refresh()).rejects.toThrow(/closed/);
+  });
+
   it('should refuse connect() and leave no stale active target when close() races discovery', async () => {
     h.targets = [target('A', 'views://mainview/index.html')];
     let release: () => void = () => {};

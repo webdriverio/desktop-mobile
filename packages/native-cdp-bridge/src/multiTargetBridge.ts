@@ -101,6 +101,12 @@ export class MultiTargetCdpBridge {
 
   /** Re-enumerate targets (e.g. after a new window opens) and prune dead connections. */
   async refresh(): Promise<TargetRegistryEntry[]> {
+    // Entry guard mirrors connect(): a closed bridge must not re-enumerate or
+    // re-open sockets. Downstream #ensureConnection is already guarded, so this is
+    // defensive symmetry rather than a leak fix.
+    if (this.#closed) {
+      throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+    }
     const list = await this.#devTool.list();
     this.#targets = this.#registry.reconcile(list);
     const live = new Set(this.#targets.map((target) => target.label));
