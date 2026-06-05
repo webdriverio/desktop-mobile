@@ -1,15 +1,14 @@
-// @wdio/react-native-service — WebdriverIO service for testing React Native apps.
+// @wdio/react-native-service entry point.
 //
-// PR1 (Foundation): the @wdio/native-cdp-bridge consumption layer — Hermes target
-// selection behind Metro's inspector-proxy and the Fusebox `Origin` wiring. The
-// launcher/worker service, the full Metro/Hermes attach (adb reverse + foreground
-// guard), `execute` and `mock` land in subsequent PRs.
+// - Default export: the worker-side service (registered automatically by the
+//   WDIO test runner via `services: ['@wdio/react-native-service']`).
+// - Named `launcher` export: the main-process launch service (auto-detected by
+//   the runner via the standard WDIO service convention).
 //
 // The bare import pulls in @wdio/native-types' ambient module augmentation so
 // `browser.reactNative.*` and `wdio:reactNativeServiceOptions` are typed for
-// consumers. Only the config-time types are re-exported (mirroring the sibling
-// services) — the API/mock types reach users through the augmentation, not a
-// direct import.
+// consumers. Only config-time types are re-exported (mirroring the sibling
+// services) — the API/mock types reach users through the augmentation.
 import '@wdio/native-types';
 
 export type {
@@ -17,6 +16,6 @@ export type {
   ReactNativeServiceGlobalOptions,
   ReactNativeServiceOptions,
 } from '@wdio/native-types';
-export * from './constants.js';
-export * from './hermesBridge.js';
-export * from './hermesTarget.js';
+export { default as launcher } from './launcher.js';
+export { default } from './service.js';
+export { cleanup as cleanupWdioSession, createReactNativeCapabilities, init as startWdioSession } from './session.js';
