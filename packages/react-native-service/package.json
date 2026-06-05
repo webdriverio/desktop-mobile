@@ -48,7 +48,10 @@
   },
   "dependencies": {
     "@wdio/native-cdp-bridge": "workspace:*",
+    "@wdio/native-core": "workspace:*",
     "@wdio/native-types": "workspace:*",
+    "@wdio/native-utils": "workspace:*",
+    "@wdio/types": "catalog:default",
     "tslib": "^2.8.1",
     "webdriverio": "catalog:default"
   },

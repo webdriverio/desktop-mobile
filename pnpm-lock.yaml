@@ -1277,9 +1277,18 @@ importers:
       '@wdio/native-cdp-bridge':
         specifier: workspace:*
         version: link:../native-cdp-bridge
+      '@wdio/native-core':
+        specifier: workspace:*
+        version: link:../native-core
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../native-types
+      '@wdio/native-utils':
+        specifier: workspace:*
+        version: link:../native-utils
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.27.1
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
