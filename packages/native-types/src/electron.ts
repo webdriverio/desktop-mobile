@@ -427,14 +427,14 @@ export interface ElectronMockInstance extends Omit<Mock, MockOverride> {
   mockClear(): Promise<ElectronFunctionMock>;
   mockReset(): Promise<ElectronFunctionMock>;
   mockRestore(): Promise<ElectronFunctionMock>;
-  mockReturnThis(): Promise<unknown>;
+  mockReturnThis(): Promise<ElectronFunctionMock>;
   withImplementation<ReturnValue, InnerArguments extends unknown[]>(
     implFn: AbstractFn,
     callbackFn: (electron: typeof Electron, ...innerArgs: InnerArguments) => ReturnValue,
-  ): Promise<unknown>;
+  ): Promise<ReturnValue>;
   mockName(name: string): ElectronFunctionMock;
   getMockName(): string;
-  getMockImplementation(): AbstractFn;
+  getMockImplementation(): AbstractFn | undefined;
   update(): Promise<ElectronFunctionMock>;
   mock: ElectronMockContext;
   __isElectronMock: boolean;

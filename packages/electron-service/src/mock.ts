@@ -343,7 +343,9 @@ export async function createElectronBrowserModeMock(
       throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
     }
     await mock.update();
-    return result;
+    // The wire result is the callback's (serialized) return value; TS can't connect an
+    // assigned arrow's body to the contextual generic, so assert it back.
+    return result as ReturnType<typeof callbackFn>;
   };
 
   // Used by the re-registration path in service.ts to replay persistent implementation

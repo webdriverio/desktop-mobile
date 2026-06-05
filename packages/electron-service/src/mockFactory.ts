@@ -422,7 +422,9 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
   };
 
   mock.withImplementation = async (implFn, callbackFn) => {
-    return await browserToUse.electron.execute<unknown, [MockAccessor, string, string, ExecuteOpts]>(
+    // The wire result is the callback's (serialized) return value; TS can't connect an
+    // assigned arrow's body to the contextual generic, so assert it back.
+    return (await browserToUse.electron.execute<unknown, [MockAccessor, string, string, ExecuteOpts]>(
       async (electron, accessor, implFnStr, callbackFnStr) => {
         let innerMock: { withImplementation?: (impl: unknown, cb: () => unknown) => unknown } | undefined;
         if (accessor.kind === 'api') {
@@ -451,6 +453,6 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
       implFn.toString(),
       callbackFn.toString(),
       { internal: true },
-    );
+    )) as ReturnType<typeof callbackFn>;
   };
 }

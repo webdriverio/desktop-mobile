@@ -66,7 +66,7 @@ export interface DioxusMockInstance extends Omit<Mock, MockOverride> {
   mockReturnThis(): Promise<DioxusMock>;
   mockName(name: string): DioxusMock;
   getMockName(): string;
-  getMockImplementation(): AbstractFn;
+  getMockImplementation(): AbstractFn | undefined;
   update(): Promise<DioxusMock>;
   __isDioxusMock: boolean;
   mock: DioxusMockContext;

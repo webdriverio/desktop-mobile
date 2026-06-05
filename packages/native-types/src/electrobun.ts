@@ -55,7 +55,7 @@ export interface ElectrobunMockInstance extends Omit<Mock, MockOverride> {
   mockReturnThis(): Promise<ElectrobunMock>;
   mockName(name: string): ElectrobunMock;
   getMockName(): string;
-  getMockImplementation(): AbstractFn;
+  getMockImplementation(): AbstractFn | undefined;
   update(): Promise<ElectrobunMock>;
   __isElectrobunMock: boolean;
   mock: ElectrobunMockContext;

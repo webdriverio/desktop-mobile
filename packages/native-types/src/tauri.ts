@@ -59,10 +59,10 @@ export interface TauriMockInstance extends Omit<Mock, MockOverride> {
   withImplementation<ReturnValue, InnerArguments extends unknown[]>(
     implFn: AbstractFn,
     callbackFn: (tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue,
-  ): Promise<unknown>;
+  ): Promise<ReturnValue>;
   mockName(name: string): TauriMock;
   getMockName(): string;
-  getMockImplementation(): AbstractFn;
+  getMockImplementation(): AbstractFn | undefined;
   update(): Promise<TauriMock>;
   __isTauriMock: boolean;
   mock: TauriMockContext;
@@ -125,22 +125,6 @@ export interface TauriServiceAPI {
     script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     options: TauriExecuteOptions,
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
-
-  /**
-   * Execute JavaScript code with per-call options.
-   *
-   * @example
-   * ```js
-   * const result = await browser.tauri.execute(
-   *   ({ core }) => core.invoke('get_data'),
-   *   { windowLabel: 'settings' }
-   * );
-   * ```
-   */
-  execute<ReturnValue>(
-    script: string | ((tauri: TauriAPIs) => ReturnValue),
-    options: TauriExecuteOptions,
   ): Promise<ReturnValue>;
 
   /**
