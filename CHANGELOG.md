@@ -9,6 +9,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-types@2.3.1] - 2026-06-05
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-types@v2.3.0...2.3.1)
+
+### Fixed
+- Fixed type bugs with mock-instance in service modules. (#339)
+
 ## [@wdio/native-spy@1.1.0] - 2026-06-05
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-spy@v1.0.10...1.1.0)
