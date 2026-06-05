@@ -135,6 +135,26 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     await expect(bridge.refresh()).rejects.toThrow(/closed/);
   });
 
+  it('should refuse refresh() when close() races the list() await', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    let release: () => void = () => {};
+    h.listGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const refreshing = bridge.refresh();
+    refreshing.catch(() => {});
+
+    await bridge.close();
+    release();
+
+    // The entry guard passed before close(); the post-await re-check must still
+    // reject rather than return a populated list on the torn-down bridge.
+    await expect(refreshing).rejects.toThrow(/closed/);
+  });
+
   it('should refuse connect() and leave no stale active target when close() races discovery', async () => {
     h.targets = [target('A', 'views://mainview/index.html')];
     let release: () => void = () => {};

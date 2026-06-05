@@ -108,6 +108,12 @@ export class MultiTargetCdpBridge {
       throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
     }
     const list = await this.#devTool.list();
+    // close() may have landed during the await; don't return a populated list on a
+    // torn-down bridge (caller would otherwise see NOT_CONNECTED, not BRIDGE_CLOSED) —
+    // mirrors the post-await guard in #discover()/#ensureConnection().
+    if (this.#closed) {
+      throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+    }
     this.#targets = this.#registry.reconcile(list);
     const live = new Set(this.#targets.map((target) => target.label));
     // Await the closes so in-flight requests on pruned connections are rejected before
