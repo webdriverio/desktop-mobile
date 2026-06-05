@@ -4,9 +4,10 @@ import type { Debugger, DebuggerList, SelectTarget } from '@wdio/native-cdp-brid
  * Title/description hint that a discovered target is the React Native / Hermes
  * page (rather than, say, a leftover devtools entry). Metro's inspector-proxy
  * labels RN targets with strings like "React Native Experimental …" / the app
- * name; the discriminator stays loose because it drifts across RN versions.
+ * name; the discriminator stays loose (but not so loose as a bare `experimental`,
+ * which could match unrelated devtools pages) because it drifts across RN versions.
  */
-const HERMES_HINT = /hermes|react native|experimental/i;
+const HERMES_HINT = /hermes|react native/i;
 
 /** A discovered target is connectable only if it exposes a debugger socket. */
 const isConnectable = (target: Debugger): boolean => Boolean(target.webSocketDebuggerUrl);

@@ -55,10 +55,10 @@ export interface ReactNativeMockInstance extends Omit<Mock, MockOverride> {
   withImplementation<ReturnValue, InnerArguments extends unknown[]>(
     implFn: AbstractFn,
     callbackFn: (rn: ReactNativeAPIs, ...innerArgs: InnerArguments) => ReturnValue,
-  ): Promise<unknown>;
+  ): Promise<ReturnValue>;
   mockName(name: string): ReactNativeMock;
   getMockName(): string;
-  getMockImplementation(): AbstractFn;
+  getMockImplementation(): AbstractFn | undefined;
   update(): Promise<ReactNativeMock>;
   __isReactNativeMock: boolean;
   mock: ReactNativeMockContext;
@@ -113,14 +113,6 @@ export interface ReactNativeServiceAPI {
     script: string | ((rn: ReactNativeAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     options: ReactNativeExecuteOptions,
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
-
-  /**
-   * Execute JavaScript in the app's Hermes JS realm with per-call options.
-   */
-  execute<ReturnValue>(
-    script: string | ((rn: ReactNativeAPIs) => ReturnValue),
-    options: ReactNativeExecuteOptions,
   ): Promise<ReturnValue>;
 
   /**
