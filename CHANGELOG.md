@@ -8,6 +8,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-spy@1.1.0] - 2026-06-05
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-spy@v1.0.10...1.1.0)
+
+### New
+- **@wdio/dioxus-service**: Added @wdio/dioxus-service for Dioxus integration testing.
+- **Browser mode**: Implemented browser mode phase 3 with expanded browser testing capabilities.
+- **Browser-only test mode**: Added browser-only test mode (Phase 2) for running tests exclusively in browser environments.
+- **Browser mode (Tauri)**: Implemented browser mode in TauriLaunchService for Tauri application testing.
+- **Interceptor framework**: Implemented an interceptor framework for Tauri and Electron testing.
+
+### Fixed
+- Improved script handling in execute commands for better serialization.
+
+### Changed
+- **Dependencies**: Refreshed dependencies and fixed Dioxus macOS-ARM WKWebView throttling issue.
+- Improved formatting and organization in configuration files.
+
 ## [@wdio/native-utils@2.4.0] - 2026-06-05
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-utils@v2.3.0...2.4.0)
