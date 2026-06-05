@@ -218,7 +218,7 @@ function main(): void {
   if (unknownFiles.length > 0) {
     summary += '\n### ⚠️ Unclassified files (running all pipelines defensively)\n\n';
     summary += 'No naming-convention rule places these — possible convention drift. ';
-    summary += 'Either rename to match the conventions or teach `scripts/detect-changes.mjs` about them:\n\n';
+    summary += 'Either rename to match the conventions or teach `scripts/detect-changes.ts` about them:\n\n';
     for (const file of unknownFiles) summary += `- \`${file}\`\n`;
   }
   appendFile('GITHUB_STEP_SUMMARY', summary);
