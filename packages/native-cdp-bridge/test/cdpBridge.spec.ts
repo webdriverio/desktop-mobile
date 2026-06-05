@@ -6,6 +6,7 @@ const h = vi.hoisted(() => ({
   targets: [] as Debugger[],
   ctors: [] as Array<{ url: string; opts: unknown }>,
   sent: [] as string[],
+  closeGate: undefined as Promise<void> | undefined,
 }));
 
 vi.mock('../src/devTool.js', () => ({
@@ -26,7 +27,11 @@ vi.mock('../src/connection.js', () => ({
       return { result: { value: 'ok' } };
     };
     on = () => this;
-    close = async () => {};
+    close = async () => {
+      if (h.closeGate) {
+        await h.closeGate;
+      }
+    };
     state = 1;
   },
 }));
@@ -49,6 +54,7 @@ beforeEach(() => {
   h.targets = [];
   h.ctors.length = 0;
   h.sent.length = 0;
+  h.closeGate = undefined;
 });
 
 describe('CdpBridge (single-target)', () => {
@@ -99,5 +105,25 @@ describe('CdpBridge (single-target)', () => {
     await bridge.connect();
     await bridge.close();
     await expect(bridge.connect()).rejects.toThrow(/closed/i);
+  });
+
+  it('should refuse connect() during an in-progress close() (closed before #connection nulled)', async () => {
+    h.targets = [target('A', 'http://app/a')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+
+    // Hold the close handshake so #closed is set but #connection is not yet nulled.
+    let release: () => void = () => {};
+    h.closeGate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const closing = bridge.close();
+
+    // In this window the old #connection-first ordering returned "success" on a
+    // tearing-down bridge; the #closed-first ordering must reject instead.
+    await expect(bridge.connect()).rejects.toThrow(/closed/i);
+
+    release();
+    await closing;
   });
 });

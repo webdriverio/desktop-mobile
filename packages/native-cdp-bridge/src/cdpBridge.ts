@@ -89,6 +89,13 @@ export class CdpBridge {
 
   /** Discover targets, pick one via `selectTarget`, and connect. Retries discovery. */
   async connect(): Promise<void> {
+    // #closed before the #connection early-return: close() sets #closed synchronously
+    // but awaits the WebSocket handshake before nulling #connection. A connect() in that
+    // window would see #connection non-null and return "success" on a tearing-down bridge —
+    // mirrors the #closed-first ordering in MultiTargetCdpBridge.#ensureConnection.
+    if (this.#closed) {
+      throw new Error(ERROR_MESSAGE.BRIDGE_CLOSED);
+    }
     if (this.#connection) {
       return; // already connected — idempotent
     }
