@@ -57,7 +57,7 @@
     "yaml": "^2.9.0"
   },
   "peerDependencies": {
-    "tsx": "^4.22.3"
+    "tsx": "^4.22.4"
   },
   "peerDependenciesMeta": {
     "tsx": {
@@ -70,7 +70,7 @@
     "@vitest/coverage-v8": "^4.1.7",
     "@wdio/native-types": "workspace:*",
     "shx": "^0.4.0",
-    "tsx": "^4.22.3",
+    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
     "vitest": "^4.1.7"
   },
