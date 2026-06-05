@@ -15,7 +15,7 @@ If you follow this skill against any of those frameworks you should land in the 
 
 The single most important step is **Step 0**: identify which architecture archetype your framework falls into. It decides whether Phase 2 builds Rust crates, attaches over CDP, or forks a driver — and which existing service you clone.
 
-**Scope:** this skill currently targets **desktop** frameworks. The first mobile service is expected to introduce new patterns (device/emulator management, Appium-style webview contexts) that will warrant a major revision — don't assume this runbook covers mobile yet.
+**Scope:** this skill currently targets **desktop** frameworks. The first mobile service (React Native) is introducing new patterns (device/emulator management, Appium-style webview contexts) that will warrant a major revision — don't assume this runbook covers mobile *plumbing* yet. The one mobile lesson already folded in is **E2E phasing**: see "Mobile: split the E2E PR per platform" under [Plan / PR split](#plan--pr-split).
 
 ## When to use
 
@@ -328,6 +328,17 @@ The 5-PR split, mirroring the table above:
 | **PR3: Feature Complete** | `feat/<service>-feature-complete` (off PR2) | As in the 4-PR split, **plus the e2e fixture app** (the app source — not its CI run). |
 | **PR4: E2E** | `feat/<service>-e2e` (off PR3) | Fixture CI build + `_ci-build-<framework>-e2e-app` / `-all-providers` reusable workflows, e2e specs, `wdio.<framework>.conf.ts`, headless. The risky "prove it runs in CI" PR. |
 | **PR5: Ship** | `feat/<service>-ship` (off PR4) | Package-test fixture, full docs, complete CI gates, release pipeline (everything from 4-PR Ship except the e2e specs, which moved to PR4). |
+
+**Mobile: split the E2E PR *per platform*.** Mobile multiplies the toolchain risk that justifies a standalone E2E PR — each platform has an *independent* high-risk CI path: Android needs an emulator boot + the Gradle/foojay/JDK toolchain (foojay-resolver-convention pinned past the `IBM_SEMERU` break, a JDK-17 toolchain on a JDK-21 Gradle runtime), iOS needs a simulator + a WebDriverAgent build + code signing. Bundling both into one E2E PR doubles the flaky surface a single review has to stabilise, and a red iOS leg blocks an already-green Android leg. So split E2E **one PR per OS**, cheaper-runner platform first — Android on `ubuntu-latest` (KVM-accelerated, no macOS-runner cost) before iOS on `macos-latest`. This turns the 5-PR split into a **6-PR split** (PR4 E2E-Android → PR5 E2E-iOS → PR6 Ship); when iOS is a deliberate fast-follow you can frame it as PR4 + PR4.5 instead. Keep the e2e *fixture app* (both platforms' source) in the Feature-Complete PR as usual — only the per-platform CI-build-and-run splits. **Gate each mobile E2E leg as required from its first PR** via the single aggregated "CI Status" check (so branch protection needn't change): consistent with the repo's no-allow-failure stance — a leg that can't be stabilised is *removed*, never left informational (the Electrobun precedent: Linux/Windows e2e dropped, not allow-failure). **Flag the user before opening the first mobile-CI PR** — it's the highest-risk leg and the platform-scope + gating call is theirs. (React Native is the worked example: Android-first required E2E, iOS sim + WDA as the fast-follow.)
+
+The 6-PR split, mirroring the tables above:
+
+| PR | Branch (off main) | Scope |
+|---|---|---|
+| **PR1–PR3** | `…-foundation` / `…-mvp` / `…-feature-complete` | As in the 5-PR split (fixture app for **both** platforms lands in PR3). |
+| **PR4: E2E (cheaper runner)** | `feat/<service>-e2e-android` (off PR3) | Android emulator CI (ubuntu, KVM) + reusable workflows + e2e specs + `wdio.<framework>.conf.ts` (android) + headless. Required gate. |
+| **PR5: E2E (costlier runner)** | `feat/<service>-e2e-ios` (off PR4) | iOS simulator CI (macos) + WebDriverAgent build + the same specs against iOS caps. Required gate. |
+| **PR6: Ship** | `feat/<service>-ship` (off PR5) | Package-test fixture, full docs, complete CI gates, release pipeline. |
 
 ## Common gotchas
 
