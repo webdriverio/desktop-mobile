@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { classifyChanges, classifyFile, discoverServices } from '../../scripts/detect-changes.mjs';
 
-const SERVICES = ['dioxus', 'electrobun', 'electron', 'tauri'];
+const SERVICES = ['dioxus', 'electrobun', 'electron', 'react-native', 'tauri'];
 
 function decide(files: string[], forceAll = false) {
   return classifyChanges(files, SERVICES, { forceAll });
@@ -88,13 +88,13 @@ describe('classifyChanges decisions', () => {
 
   it('should run only electron for an electron src change', () => {
     const d = decide(['packages/electron-service/src/session.ts']);
-    expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: true, tauri: false });
+    expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: true, 'react-native': false, tauri: false });
     expect(d.lintOnly).toBe(false);
   });
 
   it('should run only tauri for the tauri-only script', () => {
     const d = decide(['scripts/update-tauri-version.ts']);
-    expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: false, tauri: true });
+    expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: false, 'react-native': false, tauri: true });
   });
 
   it('should run everything for a cross-service script', () => {
