@@ -1280,6 +1280,9 @@ importers:
       '@wdio/native-core':
         specifier: workspace:*
         version: link:../native-core
+      '@wdio/native-spy':
+        specifier: workspace:*
+        version: link:../native-spy
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../native-types
