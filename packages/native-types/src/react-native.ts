@@ -52,7 +52,7 @@ export interface ReactNativeMockInstance extends Omit<Mock, MockOverride> {
   getMockName(): string;
   getMockImplementation(): AbstractFn | undefined;
   update(): Promise<ReactNativeMock>;
-  __isReactNativeMock: boolean;
+  __isReactNativeMock: true;
   mock: ReactNativeMockContext;
 }
 
