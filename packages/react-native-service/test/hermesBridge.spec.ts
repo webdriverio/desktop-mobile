@@ -22,6 +22,11 @@ describe('metroOrigin', () => {
     expect(metroOrigin('localhost', 8081)).toBe('http://localhost:8081');
     expect(metroOrigin('10.0.2.2', 9000)).toBe('http://10.0.2.2:9000');
   });
+
+  it('should bracket an IPv6 host so its colons are not read as the port', () => {
+    expect(metroOrigin('::1', 8081)).toBe('http://[::1]:8081');
+    expect(metroOrigin('fe80::1', 8081)).toBe('http://[fe80::1]:8081');
+  });
 });
 
 describe('createHermesBridge', () => {

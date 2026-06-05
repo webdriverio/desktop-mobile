@@ -12,9 +12,13 @@ export type HermesBridgeOptions = Omit<CdpBridgeOptions, 'selectTarget'>;
 /**
  * The WebSocket `Origin` React Native's Fusebox inspector-proxy requires. Its
  * `verifyClient` CSRF check rejects upgrades whose Origin is not the proxy's own
- * server base URL, so this must equal `http://<host>:<port>`.
+ * server base URL, so this must equal `http://<host>:<port>`. An IPv6 host is
+ * bracketed so its colons aren't confused with the port separator.
  */
-export const metroOrigin = (host: string, port: number): string => `http://${host}:${port}`;
+export const metroOrigin = (host: string, port: number): string => {
+  const bracketedHost = host.includes(':') ? `[${host}]` : host;
+  return `http://${bracketedHost}:${port}`;
+};
 
 /**
  * Build a single-target {@link CdpBridge} for a React Native app's Hermes

@@ -6,7 +6,6 @@ import type {
   BaseServiceOptions,
   BrowserBase,
   MockOverride,
-  MockResult,
   Result,
   ServiceMockContext,
 } from './shared.js';
@@ -29,12 +28,8 @@ export interface ReactNativeAPIs {
   [key: string]: unknown;
 }
 
-/**
- * React Native mock context
- */
-interface ReactNativeMockContext extends ServiceMockContext {
-  results: MockResult[];
-}
+/** React Native mock context — the shared {@link ServiceMockContext} as-is. */
+type ReactNativeMockContext = ServiceMockContext;
 
 /**
  * React Native mock instance interface
