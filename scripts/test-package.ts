@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Script to test the wdio-electron-service, wdio-tauri-service, and wdio-dioxus-service packages in the package test apps
  * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|dioxus|electrobun|all>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]

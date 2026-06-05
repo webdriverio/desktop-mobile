@@ -371,7 +371,7 @@ jobs:
       - name: 🐛 Debug Information [Official]
         if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
         shell: bash
-        run: pnpm exec tsx e2e/scripts/show-logs.ts --provider official
+        run: node e2e/scripts/show-logs.ts --provider official
 
       # ══════════════════════════════════════════════════════════════
       # PROVIDER 2: EMBEDDED (tauri-plugin-webdriver)
@@ -419,7 +419,7 @@ jobs:
       - name: 🐛 Debug Information [Embedded]
         if: always()
         shell: bash
-        run: pnpm exec tsx e2e/scripts/show-logs.ts --provider embedded
+        run: node e2e/scripts/show-logs.ts --provider embedded
 
       # ══════════════════════════════════════════════════════════════
       # PROVIDER 3: CRABNEBULA
@@ -476,7 +476,7 @@ jobs:
       - name: 🐛 Debug Information [CrabNebula]
         if: always()
         shell: bash
-        run: pnpm exec tsx e2e/scripts/show-logs.ts --provider crabnebula
+        run: node e2e/scripts/show-logs.ts --provider crabnebula
 
       # ══════════════════════════════════════════════════════════════
       # REPORTING & ARTIFACTS

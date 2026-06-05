@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 
 import { exec } from 'node:child_process';
 import fs from 'node:fs/promises';

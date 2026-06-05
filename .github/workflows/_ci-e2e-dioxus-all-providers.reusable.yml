@@ -244,7 +244,7 @@ jobs:
       - name: 🐛 Debug Information [Embedded]
         if: always()
         shell: bash
-        run: pnpm exec tsx e2e/scripts/show-logs.ts --provider embedded
+        run: node e2e/scripts/show-logs.ts --provider embedded
 
       # ══════════════════════════════════════════════════════════════
       # REPORTING & ARTIFACTS

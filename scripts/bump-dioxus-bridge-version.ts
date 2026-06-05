@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Keep @wdio/dioxus-bridge (npm) and the dependent Cargo crates in lockstep.
  *

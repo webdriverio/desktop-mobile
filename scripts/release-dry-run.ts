@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Aggregate dry-run validator for the Dioxus release pipeline.
  *
