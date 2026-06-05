@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-utils@2.4.0] - 2026-06-05
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-utils@v2.3.0...2.4.0)
+
+### New
+- **Dioxus service**: Introduced @wdio/dioxus-service for Dioxus integration in WebdriverIO.
+
+### Fixed
+- Fixed a crash or hang during Windows session teardown when encountering benign errors.
+
+### Changed
+- **Dependencies**: Refreshed project dependencies and resolved a throttling issue affecting Dioxus on macOS ARM with WKWebView.
+- Reduced logging volume and consolidated diagnostic summaries for clearer output.
+- **Code Quality**: Improved formatting and organization in configuration files.
+
 ## [@wdio/native-types@2.3.0] - 2026-06-05
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-types@v2.2.0...2.3.0)
