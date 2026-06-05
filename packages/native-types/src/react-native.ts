@@ -2,9 +2,9 @@ import type { Mock } from '@wdio/native-spy';
 import type { Capabilities, Options } from '@wdio/types';
 import type {
   AbstractFn,
-  BaseServiceGlobalOptions,
-  BaseServiceOptions,
   BrowserBase,
+  LogCaptureConfig,
+  MockLifecycleConfig,
   MockOverride,
   Result,
   ServiceMockContext,
@@ -47,10 +47,7 @@ export interface ReactNativeMockInstance extends Omit<Mock, MockOverride> {
   mockReset(): Promise<ReactNativeMock>;
   mockRestore(): Promise<ReactNativeMock>;
   mockReturnThis(): Promise<ReactNativeMock>;
-  withImplementation<ReturnValue>(
-    implFn: AbstractFn,
-    callbackFn: (rn: ReactNativeAPIs) => ReturnValue,
-  ): Promise<ReturnValue>;
+  withImplementation<ReturnValue>(implFn: AbstractFn, callbackFn: () => ReturnValue): Promise<ReturnValue>;
   mockName(name: string): ReactNativeMock;
   getMockName(): string;
   getMockImplementation(): AbstractFn | undefined;
@@ -237,9 +234,15 @@ export interface ReactNativeServiceAPI {
 
 /**
  * The options for the React Native Service.
- * Extends base service options with React Native / Metro-specific configuration.
+ *
+ * Unlike the desktop services, this does **not** extend `BaseServiceOptions`: a
+ * React Native app is launched by Appium via capabilities (`appium:app` /
+ * `appium:appPackage`+`appium:appActivity` / `appium:bundleId`), so the
+ * desktop binary-launch fields (`appArgs`, startup/command timeouts) don't apply.
+ * Only the shared log-capture + mock-lifecycle config and RN/Metro-specific
+ * options are exposed.
  */
-export interface ReactNativeServiceOptions extends BaseServiceOptions {
+export interface ReactNativeServiceOptions extends LogCaptureConfig, MockLifecycleConfig {
   /**
    * Target mobile platform. Normally derived from the capability
    * (`platformName`); set explicitly to override.
@@ -256,16 +259,22 @@ export interface ReactNativeServiceOptions extends BaseServiceOptions {
    * @default 8081
    */
   metroPort?: number;
+  /**
+   * Path to a built app (`.apk` / `.app` / `.ipa`). Convenience that maps onto
+   * `appium:app` when the capability doesn't already set a launch target —
+   * prefer setting the `appium:*` launch capability directly.
+   */
+  appBinaryPath?: string;
 }
 
 /**
- * React Native service global options.
- * Extends base global options with React Native-specific configuration.
+ * React Native service global options (service-level; merged under per-capability options).
  */
-export interface ReactNativeServiceGlobalOptions extends BaseServiceGlobalOptions {
+export interface ReactNativeServiceGlobalOptions extends LogCaptureConfig, MockLifecycleConfig {
   platform?: 'android' | 'ios';
   metroHost?: string;
   metroPort?: number;
+  appBinaryPath?: string;
 }
 
 /**
