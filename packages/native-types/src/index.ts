@@ -70,6 +70,23 @@ export type {
   NormalizedReadResult,
   ReadPackageUpOptions,
 } from './package.js';
+// React Native types
+export type {
+  ReactNativeAPIs,
+  ReactNativeBrowserExtension,
+  ReactNativeCapabilities,
+  ReactNativeExecuteOptions,
+  ReactNativeMock,
+  ReactNativeMockInstance,
+  ReactNativeResult,
+  ReactNativeServiceAPI,
+  ReactNativeServiceCapabilities,
+  ReactNativeServiceCapabilitiesType,
+  ReactNativeServiceCustomCapability,
+  ReactNativeServiceGlobalOptions,
+  ReactNativeServiceOptions,
+  WdioReactNativeConfig,
+} from './react-native.js';
 // Shared types
 export type {
   AbstractFn,
@@ -116,16 +133,18 @@ export type {
 import type { DioxusBrowserExtension } from './dioxus.js';
 import type { ElectrobunBrowserExtension } from './electrobun.js';
 import type { ElectronBrowserExtension } from './electron.js';
+import type { ReactNativeBrowserExtension } from './react-native.js';
 import type { TauriBrowserExtension } from './tauri.js';
 
 /**
- * Browser extension that supports Electron, Tauri, Dioxus, and Electrobun services
+ * Browser extension that supports Electron, Tauri, Dioxus, Electrobun, and React Native services
  */
 export interface BrowserExtension
   extends ElectronBrowserExtension,
     TauriBrowserExtension,
     DioxusBrowserExtension,
-    ElectrobunBrowserExtension {}
+    ElectrobunBrowserExtension,
+    ReactNativeBrowserExtension {}
 
 // ============================================================================
 // Module Augmentation (WebdriverIO)
@@ -142,6 +161,7 @@ import type {
   PackageJson,
   WdioElectronWindowObj,
 } from './electron.js';
+import type { ReactNativeServiceGlobalOptions, ReactNativeServiceOptions } from './react-native.js';
 import type { ElementBase, Fn } from './shared.js';
 import type { TauriServiceGlobalOptions, TauriServiceOptions } from './tauri.js';
 
@@ -156,24 +176,28 @@ declare global {
       extends ElectronBrowserExtension,
         TauriBrowserExtension,
         DioxusBrowserExtension,
-        ElectrobunBrowserExtension {}
+        ElectrobunBrowserExtension,
+        ReactNativeBrowserExtension {}
     interface Element extends ElementBase {}
     interface MultiRemoteBrowser
       extends ElectronBrowserExtension,
         TauriBrowserExtension,
         DioxusBrowserExtension,
-        ElectrobunBrowserExtension {}
+        ElectrobunBrowserExtension,
+        ReactNativeBrowserExtension {}
     interface Capabilities {
       'wdio:electronServiceOptions'?: ElectronServiceOptions;
       'wdio:tauriServiceOptions'?: TauriServiceOptions;
       'wdio:dioxusServiceOptions'?: DioxusServiceOptions;
       'wdio:electrobunServiceOptions'?: ElectrobunServiceOptions;
+      'wdio:reactNativeServiceOptions'?: ReactNativeServiceOptions;
     }
     interface ServiceOption
       extends ElectronServiceGlobalOptions,
         TauriServiceGlobalOptions,
         DioxusServiceGlobalOptions,
-        ElectrobunServiceGlobalOptions {}
+        ElectrobunServiceGlobalOptions,
+        ReactNativeServiceGlobalOptions {}
   }
 
   var __name: (func: Fn) => Fn;
