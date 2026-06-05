@@ -85,11 +85,6 @@ function getLatestNpmVersion(packageName: string): string {
   return versions.sort(compareVersions)[0];
 }
 
-function _getLatestCargoVersion(packageName: string): string {
-  const versions = getAllCargoVersions(packageName);
-  return versions.sort(compareVersions)[0];
-}
-
 function updatePackageJson(path: string, versions: Record<string, string>) {
   console.log(`📝 Updating ${path}...`);
 

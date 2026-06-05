@@ -11,7 +11,8 @@
     ]
   },
   "include": [
-    "scripts/detect-changes.ts",
+    "scripts/**/*.ts",
+    "e2e/scripts/show-logs.ts",
     "test/scripts/**/*.ts"
   ]
 }
