@@ -170,7 +170,7 @@ export interface ElectrobunBrowserExtension extends BrowserBase {
    *
    * - {@link ElectrobunServiceAPI.clearAllMocks `browser.electrobun.clearAllMocks`} - Clear the Electrobun API mock functions
    * - {@link ElectrobunServiceAPI.execute `browser.electrobun.execute`} - Execute code in the Electrobun webview context
-   * - {@link ElectrobunServiceAPI.isMockFunction `browser.electrobun.isMockFunction`} - Check if a value is a Electrobun mock or a command is mocked
+   * - {@link ElectrobunServiceAPI.isMockFunction `browser.electrobun.isMockFunction`} - Check if a value is an Electrobun mock or a command is mocked
    * - {@link ElectrobunServiceAPI.listWindows `browser.electrobun.listWindows`} - List the labels of all open windows
    * - {@link ElectrobunServiceAPI.mock `browser.electrobun.mock`} - Mock a function from the Electrobun API
    * - {@link ElectrobunServiceAPI.resetAllMocks `browser.electrobun.resetAllMocks`} - Reset the Electrobun API mock functions
