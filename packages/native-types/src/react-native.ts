@@ -269,13 +269,9 @@ export interface ReactNativeServiceOptions extends LogCaptureConfig, MockLifecyc
 
 /**
  * React Native service global options (service-level; merged under per-capability options).
+ * Identical shape to {@link ReactNativeServiceOptions} — alias so the two types stay in sync.
  */
-export interface ReactNativeServiceGlobalOptions extends LogCaptureConfig, MockLifecycleConfig {
-  platform?: 'android' | 'ios';
-  metroHost?: string;
-  metroPort?: number;
-  appBinaryPath?: string;
-}
+export type ReactNativeServiceGlobalOptions = ReactNativeServiceOptions;
 
 /**
  * React Native service result type.
@@ -327,13 +323,6 @@ export type WdioReactNativeConfig = Options.Testrunner & {
   capabilities: ReactNativeServiceCapabilitiesType;
 };
 
-type ReactNativeServiceCustomCapability = {
-  /**
-   * custom capabilities to configure the React Native service
-   */
-  'wdio:reactNativeServiceOptions'?: ReactNativeServiceOptions;
-};
-
 /**
  * Browser extension for the React Native service.
  */
@@ -354,6 +343,3 @@ export interface ReactNativeBrowserExtension extends BrowserBase {
    */
   reactNative: ReactNativeServiceAPI;
 }
-
-// Re-export the custom capability for external use
-export type { ReactNativeServiceCustomCapability };

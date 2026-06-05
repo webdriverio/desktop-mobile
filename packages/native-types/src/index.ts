@@ -82,7 +82,6 @@ export type {
   ReactNativeServiceAPI,
   ReactNativeServiceCapabilities,
   ReactNativeServiceCapabilitiesType,
-  ReactNativeServiceCustomCapability,
   ReactNativeServiceGlobalOptions,
   ReactNativeServiceOptions,
   WdioReactNativeConfig,
