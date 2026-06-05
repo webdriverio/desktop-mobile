@@ -6,7 +6,7 @@ import WebSocket from 'ws';
 
 import { ERROR_MESSAGE, REQUEST_TIMEOUT } from './constants.js';
 
-const log = createLogger('electrobun-cdp-bridge', 'bridge');
+const log = createLogger('cdp-bridge', 'bridge');
 
 type Methods = keyof ProtocolMapping.Commands;
 type Events = keyof ProtocolMapping.Events;
@@ -33,32 +33,48 @@ type MethodReturnValue = {
   error?: { message: string };
 };
 
+export type ConnectionOptions = {
+  timeout?: number;
+  /**
+   * Value for the WebSocket `Origin` header on the upgrade request. Some CDP
+   * endpoints enforce an Origin check (e.g. React Native's Fusebox inspector-proxy
+   * rejects a missing/foreign Origin with `403/401`). Omit for endpoints that
+   * don't care (CEF, Electron).
+   */
+  origin?: string;
+  /** Extra headers for the WebSocket upgrade request (merged after `origin`). */
+  headers?: Record<string, string>;
+};
+
 // Reserved for the connect() promise: command IDs are pre-incremented from 0,
 // so send() emits 1, 2, … and a response can never carry id 0.
 const CONNECT_PROMISE_ID = 0;
 
 /**
- * A single CDP WebSocket connection to one CEF page target. Extracted from
- * `@wdio/electron-cdp-bridge`'s `CdpBridge`, but constructed from an explicit
- * `webSocketDebuggerUrl` (the multi-target `CdpBridge` owns target discovery).
+ * A single CDP WebSocket connection to one target, constructed from an explicit
+ * `webSocketDebuggerUrl` (target discovery lives in `DevTool`/the bridge).
  *
- * Deliberately exposes **no navigate helper** — attaching to a live Electrobun
- * webview must be observation/input only; issuing `Page.navigate` would reload
- * the target and destroy the app's state. Callers send arbitrary CDP methods via
- * `send()`, but the bridge never sends `Page.navigate` on attach/switch.
+ * Deliberately exposes **no navigate helper** — attaching to a live app target
+ * must be observation/input only; issuing `Page.navigate` would reload the
+ * target and destroy app state. Callers send arbitrary CDP methods via `send()`,
+ * but the connection never sends `Page.navigate` on attach.
  */
 export class Connection extends EventEmitter {
   readonly webSocketDebuggerUrl: string;
   #timeout: number;
+  #origin: string | undefined;
+  #headers: Record<string, string> | undefined;
   #ws: WebSocket | null = null;
   #promises = new Map<number, PromiseHandlers>();
   #commandId = CONNECT_PROMISE_ID;
   #closeReason: Error | undefined;
 
-  constructor(webSocketDebuggerUrl: string, options?: { timeout?: number }) {
+  constructor(webSocketDebuggerUrl: string, options?: ConnectionOptions) {
     super();
     this.webSocketDebuggerUrl = webSocketDebuggerUrl;
     this.#timeout = options?.timeout ?? REQUEST_TIMEOUT;
+    this.#origin = options?.origin;
+    this.#headers = options?.headers;
   }
 
   get state() {
@@ -77,6 +93,8 @@ export class Connection extends EventEmitter {
         perMessageDeflate: false,
         followRedirects: true,
         handshakeTimeout: this.#timeout,
+        origin: this.#origin,
+        headers: this.#headers,
       });
       this.#promises.set(CONNECT_PROMISE_ID, { resolve, reject });
       this.#setHandlers(this.#ws);

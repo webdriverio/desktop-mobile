@@ -1,9 +1,9 @@
 import vm from 'node:vm';
 
-import type { CdpBridge } from '@wdio/electrobun-cdp-bridge';
+import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('@wdio/electrobun-cdp-bridge', () => ({ CdpBridge: class {} }));
+vi.mock('@wdio/native-cdp-bridge', () => ({ MultiTargetCdpBridge: class {} }));
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from '../src/commands/allMocks.js';
 import { createMock } from '../src/mock.js';

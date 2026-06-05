@@ -1,7 +1,8 @@
-import { CdpBridge } from '@wdio/electrobun-cdp-bridge';
+import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
+import { classifyTarget } from './cefClassifier.js';
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute } from './commands/execute.js';
 import { mock } from './commands/mock.js';
@@ -92,6 +93,7 @@ export default class ElectrobunWorkerService {
       timeout: this.options.cdpConnectionTimeout,
       waitInterval: this.options.cdpConnectionRetryInterval,
       connectionRetryCount: this.options.cdpConnectionRetryCount,
+      classifyTarget,
     });
     await bridge.connect();
     this.bridges.push(bridge);

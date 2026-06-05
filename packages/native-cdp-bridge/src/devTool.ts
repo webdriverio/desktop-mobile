@@ -6,7 +6,7 @@ import waitPort from 'wait-port';
 import { DEFAULT_HOSTNAME, DEFAULT_PORT, ERROR_MESSAGE, REQUEST_TIMEOUT } from './constants.js';
 import type { DebuggerList, Version } from './types.js';
 
-const log = createLogger('electrobun-cdp-bridge', 'bridge');
+const log = createLogger('cdp-bridge', 'bridge');
 
 export type DevToolOptions = {
   host?: string;
@@ -28,10 +28,9 @@ type WaitOptions = Parameters<typeof waitPort>[0];
 const BRIDGE_RETRY_INTERVAL = 100;
 
 /**
- * Discovers CDP targets from a CEF instance's HTTP debugger endpoint. Mirrors
- * `@wdio/electron-cdp-bridge`'s DevTool, but the consumer keeps **every**
- * `type: 'page'` entry `list()` returns (CEF exposes one per webview), instead
- * of using only the first.
+ * Discovers CDP targets from a runtime's HTTP debugger endpoint (`/json`). Returns
+ * **every** entry the endpoint lists; the caller (single- or multi-target bridge)
+ * decides which to keep via `selectTarget` / `classifyTarget`.
  */
 export class DevTool {
   #options: Required<DevToolOptions>;
