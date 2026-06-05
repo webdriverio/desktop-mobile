@@ -3,12 +3,13 @@ name: Detect Affected Services (Reusable)
 # Convention-driven change detection (issue #331): dorny/paths-filter is used ONLY
 # to resolve the changed-file list (its base-ref handling across pull_request and
 # push events is battle-tested); all classification lives in
-# scripts/detect-changes.mjs, which derives the service list from packages/*-service
+# scripts/detect-changes.ts, which derives the service list from packages/*-service
 # and classifies by the repo's naming conventions. Adding a service needs NO edits
 # here — only ci.yml jobs and the per-service reusable workflows.
 #
-# The classifier is plain node (no install step) and unit-tested via
-# `pnpm test:scripts` (wired into the unconditional lint job).
+# The classifier runs on bare node (no install step) — Node 24 strips its type
+# syntax natively — and is unit-tested via `pnpm test:scripts` plus typechecked via
+# `pnpm typecheck:scripts` (both wired into the unconditional lint job).
 
 permissions:
   contents: read
@@ -63,6 +64,13 @@ jobs:
         with:
           fetch-depth: 0
 
+      # Pin the node version: native type stripping for the classifier needs >= 23.6;
+      # the runner image carries 24, so this is a PATH switch, not a download.
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+
       - name: List Changed Files
         id: changes
         uses: dorny/paths-filter@v4
@@ -77,4 +85,4 @@ jobs:
         env:
           CHANGED_FILES: ${{ steps.changes.outputs.any_files }}
           FORCE_ALL: ${{ inputs.force_all }}
-        run: node scripts/detect-changes.mjs
+        run: node scripts/detect-changes.ts

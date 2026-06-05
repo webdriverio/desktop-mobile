@@ -8,8 +8,9 @@
  * ci.yml jobs and per-service reusable workflows (which are inherently
  * per-service).
  *
- * Plain .mjs rather than .ts: the detect job runs this before any pnpm install,
- * so it must execute on bare node.
+ * Runs on bare node (no pnpm install) in the detect job — Node 24 strips the
+ * erasable type syntax natively, so keep this file free of enums, namespaces,
+ * and parameter properties.
  *
  * Classification (first matching rule wins):
  *   - *.md anywhere            → docs (never triggers pipelines; lint runs unconditionally)
@@ -33,6 +34,18 @@
 
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+
+/** 'none' | 'shared' | 'all' | 'unknown' | a service name discovered from packages/. */
+type Verdict = string;
+
+interface Classification {
+  runs: Record<string, boolean>;
+  sharedChanges: boolean;
+  lintOnly: boolean;
+  triggersAll: string[];
+  unknownFiles: string[];
+  perFile: Array<{ file: string; verdict: Verdict }>;
+}
 
 // Core CI orchestration + release workflows: changes affect every service pipeline.
 const CORE_INFRA_WORKFLOWS = new Set([
@@ -73,7 +86,7 @@ const LINT_ONLY_FILES = new Set(['biome.jsonc', 'eslint.config.js']);
 const SHARED_PACKAGE_PREFIXES = ['native-'];
 const SHARED_PACKAGES = new Set(['bundler']);
 
-export function discoverServices(repoRoot) {
+export function discoverServices(repoRoot: string): string[] {
   const packagesDir = path.join(repoRoot, 'packages');
   return fs
     .readdirSync(packagesDir)
@@ -82,11 +95,11 @@ export function discoverServices(repoRoot) {
     .sort();
 }
 
-function serviceForDir(dir, services) {
+function serviceForDir(dir: string, services: string[]): string | undefined {
   return services.find((svc) => dir === svc || dir.startsWith(`${svc}-`));
 }
 
-function serviceForToken(filename, services) {
+function serviceForToken(filename: string, services: string[]): string | undefined {
   const tokens = filename.toLowerCase().split(/[^a-z0-9]+/);
   return services.find((svc) => tokens.includes(svc));
 }
@@ -95,7 +108,7 @@ function serviceForToken(filename, services) {
  * Classify one changed file.
  * Returns: 'none' | 'shared' | 'all' | a service name.
  */
-export function classifyFile(file, services) {
+export function classifyFile(file: string, services: string[]): Verdict {
   if (file.endsWith('.md')) return 'none';
 
   const pkg = file.match(/^packages\/([^/]+)\//);
@@ -139,21 +152,21 @@ export function classifyFile(file, services) {
   return 'none';
 }
 
-export function classifyChanges(files, services, { forceAll = false } = {}) {
-  const runs = Object.fromEntries(services.map((svc) => [svc, false]));
+export function classifyChanges(files: string[], services: string[], { forceAll = false } = {}): Classification {
+  const runs: Record<string, boolean> = Object.fromEntries(services.map((svc) => [svc, false]));
   let sharedChanges = false;
   // Deliberate run-everything verdicts (core infra, cross-service scripts, shared e2e)
   // vs files no convention rule could place — both run all pipelines, but only the
   // latter signal naming-convention drift.
-  const triggersAll = [];
-  const unknownFiles = [];
+  const triggersAll: string[] = [];
+  const unknownFiles: string[] = [];
 
   if (forceAll) {
     for (const svc of services) runs[svc] = true;
     return { runs, sharedChanges: true, lintOnly: false, triggersAll, unknownFiles, perFile: [] };
   }
 
-  const perFile = [];
+  const perFile: Array<{ file: string; verdict: Verdict }> = [];
   for (const file of files) {
     const verdict = classifyFile(file, services);
     perFile.push({ file, verdict });
@@ -172,13 +185,13 @@ export function classifyChanges(files, services, { forceAll = false } = {}) {
   return { runs, sharedChanges, lintOnly, triggersAll, unknownFiles, perFile };
 }
 
-function appendFile(envVar, content) {
+function appendFile(envVar: string, content: string): void {
   const target = process.env[envVar];
   if (target) fs.appendFileSync(target, content);
 }
 
-function main() {
-  const files = JSON.parse(process.env.CHANGED_FILES || '[]');
+function main(): void {
+  const files: string[] = JSON.parse(process.env.CHANGED_FILES || '[]');
   const forceAll = process.env.FORCE_ALL === 'true';
   const services = discoverServices(process.cwd());
 
@@ -205,7 +218,7 @@ function main() {
   if (unknownFiles.length > 0) {
     summary += '\n### ⚠️ Unclassified files (running all pipelines defensively)\n\n';
     summary += 'No naming-convention rule places these — possible convention drift. ';
-    summary += 'Either rename to match the conventions or teach `scripts/detect-changes.mjs` about them:\n\n';
+    summary += 'Either rename to match the conventions or teach `scripts/detect-changes.ts` about them:\n\n';
     for (const file of unknownFiles) summary += `- \`${file}\`\n`;
   }
   appendFile('GITHUB_STEP_SUMMARY', summary);
