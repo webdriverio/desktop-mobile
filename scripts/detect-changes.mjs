@@ -92,7 +92,12 @@ function serviceForToken(filename, services) {
   // '_ci-e2e-react-native-all-providers.reusable.yml'. A plain token-split would only
   // see 'react' and 'native' and never match the joined service name.
   const normalized = `-${filename.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-`;
-  return services.find((svc) => normalized.includes(`-${svc}-`));
+  // Prefer the LONGEST matching service so a future short service (e.g. 'react') can't
+  // shadow a longer one that contains it ('react-native') — both substring-match the same
+  // filename, and a plain find() would return whichever sorts first.
+  return services
+    .filter((svc) => normalized.includes(`-${svc}-`))
+    .sort((a, b) => b.length - a.length)[0];
 }
 
 /**

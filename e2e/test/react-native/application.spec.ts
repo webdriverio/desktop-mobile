@@ -20,6 +20,10 @@ describe('React Native application', () => {
   it('should reset the counter', async () => {
     await (await $('~increment-button')).click();
     await (await $('~reset-button')).click();
-    expect(await (await $('~counter')).getText()).toBe('0');
+    // Poll like the increment test: Appium reads the accessibility tree asynchronously, so
+    // the click resolves before UiAutomator2 sees the re-rendered counter.
+    const counter = await $('~counter');
+    await browser.waitUntil(async () => (await counter.getText()) === '0', { timeout: 10000 });
+    expect(await counter.getText()).toBe('0');
   });
 });

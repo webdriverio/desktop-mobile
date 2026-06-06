@@ -106,6 +106,13 @@ describe('classifyChanges decisions', () => {
     expect(d.lintOnly).toBe(false);
   });
 
+  it('should prefer the longest service when names share a prefix (react vs react-native)', () => {
+    const services = [...SERVICES, 'react'].sort();
+    const d = classifyChanges(['.github/workflows/_ci-e2e-react-native-all-providers.reusable.yml'], services);
+    expect(d.runs['react-native']).toBe(true);
+    expect(d.runs.react).toBe(false);
+  });
+
   it('should run only react-native for its multi-word e2e workflow', () => {
     const d = decide(['.github/workflows/_ci-e2e-react-native-all-providers.reusable.yml']);
     expect(d.runs['react-native']).toBe(true);
