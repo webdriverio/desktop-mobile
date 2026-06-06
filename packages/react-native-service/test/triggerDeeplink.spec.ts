@@ -39,6 +39,20 @@ describe('triggerDeeplink', () => {
     });
   });
 
+  it('should forward -p appPackage in the am start fallback when known', async () => {
+    const browser = fakeBrowser({ platformName: 'Android', 'appium:appPackage': 'com.example.app' }, async (cmd) => {
+      if (cmd === 'mobile: deepLink') {
+        throw new Error('not supported');
+      }
+      return undefined;
+    });
+    await triggerDeeplink(browser, 'https://example.com/x');
+    expect(browser.execute).toHaveBeenLastCalledWith('mobile: shell', {
+      command: 'am',
+      args: ['start', '-a', 'android.intent.action.VIEW', '-d', 'https://example.com/x', '-p', 'com.example.app'],
+    });
+  });
+
   it('should rethrow on iOS when deepLink fails (no in-session shell)', async () => {
     const browser = fakeBrowser({ platformName: 'iOS' }, async () => {
       throw new Error('deepLink unsupported');

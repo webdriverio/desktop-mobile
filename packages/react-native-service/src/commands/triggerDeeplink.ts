@@ -33,8 +33,10 @@ export async function triggerDeeplink(browser: WebdriverIO.Browser, url: string)
   }
 
   // Android best-effort fallback: am start the VIEW intent via the device shell.
+  // Forward the resolved package (-p) when known so http/https links open the test app
+  // directly instead of raising an app chooser; custom schemes resolve without it.
   await browser.execute('mobile: shell', {
     command: 'am',
-    args: ['start', '-a', 'android.intent.action.VIEW', '-d', url],
+    args: ['start', '-a', 'android.intent.action.VIEW', '-d', url, ...(appId ? ['-p', appId] : [])],
   });
 }
