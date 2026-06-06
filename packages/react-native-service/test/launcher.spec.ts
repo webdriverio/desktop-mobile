@@ -59,3 +59,41 @@ describe('ReactNativeLaunchService.onPrepare', () => {
     await expect(make().onPrepare(config, caps)).rejects.toThrow(SevereServiceError);
   });
 });
+
+describe('ReactNativeLaunchService.onWorkerStart', () => {
+  const withDevices = () => make({ devices: [{ udid: 'emulator-5554' }, { udid: 'emulator-5556' }] });
+
+  it('should stamp appium:udid onto a single bare capability', async () => {
+    const c = cap({ platformName: 'Android' });
+    await withDevices().onWorkerStart('0-0', c);
+    expect(c['appium:udid']).toBe('emulator-5554');
+  });
+
+  it('should stamp appium:udid onto a multiremote capability object', async () => {
+    // Regression: a multiremote run passes { instance: { capabilities } }, not an array,
+    // so the device must be stamped on the nested capability — not silently dropped.
+    const caps = { phone: { capabilities: cap({ platformName: 'Android' }) } };
+    await withDevices().onWorkerStart('0-0', caps as unknown as ReactNativeCapabilities);
+    expect(caps.phone.capabilities['appium:udid']).toBe('emulator-5554');
+  });
+
+  it('should advance the device cursor per worker', async () => {
+    const launcher = withDevices();
+    const a = cap({ platformName: 'Android' });
+    const b = cap({ platformName: 'Android' });
+    await launcher.onWorkerStart('0-0', a);
+    await launcher.onWorkerStart('0-1', b);
+    expect(a['appium:udid']).toBe('emulator-5554');
+    expect(b['appium:udid']).toBe('emulator-5556');
+  });
+
+  it('should be a no-op when no device pool is configured', async () => {
+    const c = cap({ platformName: 'Android' });
+    await make().onWorkerStart('0-0', c);
+    expect(c['appium:udid']).toBeUndefined();
+  });
+
+  it('should not throw on undefined capabilities', async () => {
+    await expect(withDevices().onWorkerStart('0-0', undefined)).resolves.toBeUndefined();
+  });
+});

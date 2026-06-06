@@ -36,8 +36,7 @@ export default class ReactNativeLaunchService extends BaseLauncher {
     _config: Options.Testrunner,
     capabilities: ReactNativeCapabilities[] | Record<string, { capabilities: ReactNativeCapabilities }>,
   ): Promise<void> {
-    const capsList = normaliseCaps(capabilities);
-    for (const cap of capsList) {
+    for (const cap of flattenCaps(capabilities)) {
       const options = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
       const platform = prepareReactNativeCapability(cap, options);
       log.info(`Prepared ${platform} capability (automationName: ${cap['appium:automationName']})`);
@@ -46,13 +45,16 @@ export default class ReactNativeLaunchService extends BaseLauncher {
 
   async onWorkerStart(
     cid: string,
-    capabilities: ReactNativeCapabilities | ReactNativeCapabilities[] | undefined,
+    capabilities: ReactNativeCapabilities | ReactNativeCapabilities[] | Record<string, unknown> | undefined,
   ): Promise<void> {
     if (!capabilities) {
       return;
     }
-    const cap = Array.isArray(capabilities) ? capabilities[0] : capabilities;
-    if (!cap) {
+    // Use the same flattening as onPrepare: for a multiremote run WDIO passes the
+    // `{ instance: { capabilities } }` object, not an array, so a bare Array.isArray
+    // check would treat the whole object as one cap and never stamp the device.
+    const caps = flattenCaps(capabilities);
+    if (caps.length === 0) {
       return;
     }
 
@@ -61,12 +63,17 @@ export default class ReactNativeLaunchService extends BaseLauncher {
       return;
     }
 
-    const options = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
-    const platform = options.platform?.toLowerCase() ?? (cap as { platformName?: string }).platformName?.toLowerCase();
-
-    if (platform === 'android' || platform === 'ios') {
-      DeviceManager.applyToCapability(cap as unknown as Record<string, unknown>, device, platform);
-      log.info(`Worker ${cid}: applied device ${JSON.stringify(device)} for ${platform}`);
+    // One device per worker (the pool's contract). A multiremote worker shares that one
+    // device across its instances — distinct-device-per-instance multiremote would need
+    // the pool to allocate N devices per cid, which it doesn't do yet.
+    for (const cap of caps) {
+      const options = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
+      const platform =
+        options.platform?.toLowerCase() ?? (cap as { platformName?: string }).platformName?.toLowerCase();
+      if (platform === 'android' || platform === 'ios') {
+        DeviceManager.applyToCapability(cap as unknown as Record<string, unknown>, device, platform);
+        log.info(`Worker ${cid}: applied device ${JSON.stringify(device)} for ${platform}`);
+      }
     }
   }
 
@@ -75,12 +82,25 @@ export default class ReactNativeLaunchService extends BaseLauncher {
   }
 }
 
-/** Flatten WDIO's array-of-caps or multiremote object into a flat capability list. */
-function normaliseCaps(
-  capabilities: ReactNativeCapabilities[] | Record<string, { capabilities: ReactNativeCapabilities }>,
+/**
+ * Flatten WDIO's three capability shapes into a flat list of capability objects:
+ * an array of caps, a multiremote `{ instance: { capabilities } }` object, or a single
+ * bare W3C capabilities object (the onWorkerStart shape for a standard run).
+ */
+function flattenCaps(
+  capabilities: ReactNativeCapabilities | ReactNativeCapabilities[] | Record<string, unknown>,
 ): ReactNativeCapabilities[] {
   if (Array.isArray(capabilities)) {
     return capabilities;
   }
-  return Object.values(capabilities).map((entry) => entry.capabilities);
+  const values = Object.values(capabilities as Record<string, unknown>);
+  // Multiremote: every value is an `{ capabilities: {...} }` wrapper.
+  if (
+    values.length > 0 &&
+    values.every((v) => v !== null && typeof v === 'object' && 'capabilities' in (v as object))
+  ) {
+    return values.map((v) => (v as { capabilities: ReactNativeCapabilities }).capabilities);
+  }
+  // A single bare capabilities object.
+  return [capabilities as ReactNativeCapabilities];
 }
