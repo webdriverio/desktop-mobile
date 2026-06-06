@@ -48,6 +48,7 @@ const SETUP = `
     var NOT_SET = {};
     __rnReg.__createSpy = function() {
       var _defaultImpl;
+      var _savedImpls = [];
       var _implQueue = [];
       var _defaultReturnValue = NOT_SET;
       var _defaultResolvedValue = NOT_SET;
@@ -129,6 +130,10 @@ const SETUP = `
         _implQueue = []; _defaultImpl = undefined; _defaultReturnValue = NOT_SET;
         _defaultResolvedValue = NOT_SET; _defaultRejectedValue = NOT_SET; _returnThis = false; return spy;
       };
+      // withImplementation: temporarily swap the default impl (push), run the Node-side
+      // callback, then restore (pop). A stack so nested withImplementation calls compose.
+      spy.__pushImpl = function(fn) { _savedImpls.push(_defaultImpl); _defaultImpl = fn; return spy; };
+      spy.__popImpl = function() { if (_savedImpls.length > 0) { _defaultImpl = _savedImpls.pop(); } return spy; };
       return spy;
     };
   }`;
@@ -198,6 +203,26 @@ export function buildSetImplementationScript(target: string, source: string, onc
     var reg = ${REGISTRY};
     var entry = reg && reg[${key}];
     if (entry && entry.spy) { entry.spy.${method}((${source})); }
+  })()`;
+}
+
+/** Push a temporary default implementation (for withImplementation). */
+export function buildPushImplementationScript(target: string, source: string): string {
+  const key = pathLiteral(target);
+  return `(function() {
+    var reg = ${REGISTRY};
+    var entry = reg && reg[${key}];
+    if (entry && entry.spy && entry.spy.__pushImpl) { entry.spy.__pushImpl((${source})); }
+  })()`;
+}
+
+/** Pop the temporary default implementation pushed by buildPushImplementationScript. */
+export function buildPopImplementationScript(target: string): string {
+  const key = pathLiteral(target);
+  return `(function() {
+    var reg = ${REGISTRY};
+    var entry = reg && reg[${key}];
+    if (entry && entry.spy && entry.spy.__popImpl) { entry.spy.__popImpl(); }
   })()`;
 }
 

@@ -118,7 +118,10 @@ export default class ReactNativeWorkerService {
       return;
     }
     const store = this.mockStore;
-    if (this.options.clearMocks) {
+    // resetMocks already clears call history (mockReset → mockClear), so a separate clear
+    // pass is only needed when it targets mocks reset won't touch — i.e. a different prefix.
+    const clearRedundant = this.options.resetMocks && this.options.clearMocksPrefix === this.options.resetMocksPrefix;
+    if (this.options.clearMocks && !clearRedundant) {
       await clearAllMocks(store, this.options.clearMocksPrefix);
     }
     if (this.options.resetMocks) {
