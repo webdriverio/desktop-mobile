@@ -50,7 +50,7 @@ describe('ReactNativeLaunchService.onPrepare', () => {
 
   it('should derive the platform from the service option when platformName is unset', async () => {
     const caps = [cap({ platformName: undefined })];
-    await make({ platform: 'ios' }).onPrepare(config, caps);
+    await make({ platform: 'iOS' }).onPrepare(config, caps);
     expect(caps[0]['appium:automationName']).toBe('XCUITest');
   });
 
