@@ -206,32 +206,29 @@ export async function createMock(
     callbackFn: () => ReturnValue | Promise<ReturnValue>,
   ): Promise<ReturnValue> => {
     await evaluateInRealm<void>(bridge, buildPushImplementationScript(target, implSource(implFn, target)), mockContext);
-    // Sequential try/catch rather than try/finally: cleanup must run whether or not the
-    // callback threw, but a `throw` in `finally` (noUnsafeFinally) would clobber control
-    // flow and let a cleanup failure mask the original callback error.
-    let result!: ReturnValue;
-    let callbackError: unknown;
-    let threw = false;
+    // Capture the callback outcome as a Result-style union (both branches assign it, so
+    // it's definitely-assigned without a non-null assertion), then run cleanup. A `throw`
+    // in `finally` (noUnsafeFinally) would clobber control flow and let a cleanup failure
+    // mask the original callback error.
+    let outcome: { ok: true; value: ReturnValue } | { ok: false; error: unknown };
     try {
-      result = await callbackFn();
-    } catch (err) {
-      threw = true;
-      callbackError = err;
+      outcome = { ok: true, value: await callbackFn() };
+    } catch (error) {
+      outcome = { ok: false, error };
     }
     try {
       await evaluateInRealm<void>(bridge, buildPopImplementationScript(target), mockContext);
     } catch (popError) {
       // Prefer the original callback error; never let cleanup failure mask it.
-      if (threw) {
-        log.warn(`[${target}] withImplementation: popImpl failed after callback error: ${(popError as Error).message}`);
-      } else {
+      if (outcome.ok) {
         throw popError;
       }
+      log.warn(`[${target}] withImplementation: popImpl failed after callback error: ${(popError as Error).message}`);
     }
-    if (threw) {
-      throw callbackError;
+    if (!outcome.ok) {
+      throw outcome.error;
     }
-    return result;
+    return outcome.value;
   }) as ReactNativeMock['withImplementation'];
 
   mock.mockReturnValue = (value: unknown) => setValue('mockReturnValue', value);
