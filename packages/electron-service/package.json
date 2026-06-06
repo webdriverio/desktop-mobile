@@ -29,8 +29,8 @@
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
-    "build": "tsx ../../scripts/build-package.ts",
-    "dev": "tsx ../../scripts/build-package.ts --watch",
+    "build": "node ../../scripts/build-package.ts",
+    "dev": "node ../../scripts/build-package.ts --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run --coverage",
     "test:unit": "vitest run --coverage",

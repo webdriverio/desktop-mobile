@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Build script that minifies the readable console-wrapper source into a compact
  * inline script for injection via browser.execute().

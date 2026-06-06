@@ -39,9 +39,9 @@
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
-    "build": "tsx ../../scripts/build-package.ts",
+    "build": "node ../../scripts/build-package.ts",
     "postbuild": "node scripts/postbuild.js",
-    "dev": "tsx ../../scripts/build-package.ts --watch",
+    "dev": "node ../../scripts/build-package.ts --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:unit": "vitest run --coverage",

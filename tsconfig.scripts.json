@@ -10,6 +10,11 @@
       "node"
     ]
   },
+  // Package-local scripts (e.g. tauri-service's minify-console-wrapper) are excluded:
+  // nodenext derives their module format from the package's "type" field (CJS when
+  // absent), while bare node runs them as ESM via module-syntax detection — the same
+  // file typechecks differently than it runs. They run fine; checking them needs their
+  // package's own context.
   "include": [
     "scripts/**/*.ts",
     "e2e/scripts/show-logs.ts",

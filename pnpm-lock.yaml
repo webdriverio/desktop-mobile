@@ -851,9 +851,6 @@ importers:
       shx:
         specifier: ^0.4.0
         version: 0.4.0
-      tsx:
-        specifier: ^4.22.4
-        version: 4.22.4
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -915,9 +912,6 @@ importers:
       shx:
         specifier: ^0.4.0
         version: 0.4.0
-      tsx:
-        specifier: ^4.22.4
-        version: 4.22.4
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1165,9 +1159,6 @@ importers:
       shx:
         specifier: ^0.4.0
         version: 0.4.0
-      tsx:
-        specifier: ^4.22.4
-        version: 4.22.4
       typescript:
         specifier: ^5.9.3
         version: 5.9.3
@@ -1269,7 +1260,7 @@ importers:
         specifier: ^0.4.0
         version: 0.4.0
       tsx:
-        specifier: ^4.22.4
+        specifier: ^4.22.3
         version: 4.22.4
       typescript:
         specifier: ^5.9.3

@@ -38,8 +38,8 @@
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
-    "build": "tsx ../../scripts/build-package.ts",
-    "dev": "tsx ../../scripts/build-package.ts --watch",
+    "build": "node ../../scripts/build-package.ts",
+    "dev": "node ../../scripts/build-package.ts --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
     "test:unit": "vitest run --coverage",
@@ -70,9 +70,9 @@
     "@vitest/coverage-v8": "^4.1.7",
     "@wdio/native-types": "workspace:*",
     "shx": "^0.4.0",
-    "tsx": "^4.22.4",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.7",
+    "tsx": "^4.22.3"
   },
   "files": [
     "dist",
