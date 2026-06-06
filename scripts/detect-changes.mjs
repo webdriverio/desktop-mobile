@@ -87,8 +87,12 @@ function serviceForDir(dir, services) {
 }
 
 function serviceForToken(filename, services) {
-  const tokens = filename.toLowerCase().split(/[^a-z0-9]+/);
-  return services.find((svc) => tokens.includes(svc));
+  // Normalise every separator to a single '-' and frame the string with '-' so a
+  // multi-word service name ('react-native') matches a hyphen-bounded token run in
+  // '_ci-e2e-react-native-all-providers.reusable.yml'. A plain token-split would only
+  // see 'react' and 'native' and never match the joined service name.
+  const normalized = `-${filename.toLowerCase().replace(/[^a-z0-9]+/g, '-')}-`;
+  return services.find((svc) => normalized.includes(`-${svc}-`));
 }
 
 /**
