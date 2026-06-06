@@ -206,11 +206,32 @@ export async function createMock(
     callbackFn: () => ReturnValue | Promise<ReturnValue>,
   ): Promise<ReturnValue> => {
     await evaluateInRealm<void>(bridge, buildPushImplementationScript(target, implSource(implFn, target)), mockContext);
+    // Sequential try/catch rather than try/finally: cleanup must run whether or not the
+    // callback threw, but a `throw` in `finally` (noUnsafeFinally) would clobber control
+    // flow and let a cleanup failure mask the original callback error.
+    let result!: ReturnValue;
+    let callbackError: unknown;
+    let threw = false;
     try {
-      return await callbackFn();
-    } finally {
-      await evaluateInRealm<void>(bridge, buildPopImplementationScript(target), mockContext);
+      result = await callbackFn();
+    } catch (err) {
+      threw = true;
+      callbackError = err;
     }
+    try {
+      await evaluateInRealm<void>(bridge, buildPopImplementationScript(target), mockContext);
+    } catch (popError) {
+      // Prefer the original callback error; never let cleanup failure mask it.
+      if (threw) {
+        log.warn(`[${target}] withImplementation: popImpl failed after callback error: ${(popError as Error).message}`);
+      } else {
+        throw popError;
+      }
+    }
+    if (threw) {
+      throw callbackError;
+    }
+    return result;
   }) as ReactNativeMock['withImplementation'];
 
   mock.mockReturnValue = (value: unknown) => setValue('mockReturnValue', value);

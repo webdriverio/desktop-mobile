@@ -87,6 +87,32 @@ describe('createMock', () => {
     expect(exprs.some((e) => e.includes('__popImpl'))).toBe(true);
   });
 
+  it('should surface the callback error, not the cleanup error, when popImpl also fails', async () => {
+    const store = new ReactNativeMockStore();
+    const send = vi.fn(async (_method: string, params?: { expression?: string }) => {
+      // Match the pop *call* script (`...__popImpl()`), not the install script that
+      // *defines* `spy.__popImpl = function`.
+      if (params?.expression?.includes('__popImpl()')) {
+        throw new Error('bridge dropped during pop');
+      }
+      if (params?.expression?.includes('calls')) {
+        return { result: { value: { calls: [], results: [], invocationCallOrder: [] } } };
+      }
+      return { result: { value: undefined } };
+    });
+    const bridge = { send } as unknown as CdpBridge;
+    const mock = await createMock('greet', bridge, store);
+
+    await expect(
+      mock.withImplementation(
+        () => 'temp',
+        async () => {
+          throw new Error('original assertion failure');
+        },
+      ),
+    ).rejects.toThrow(/original assertion failure/);
+  });
+
   it('should not leak an unhandled rejection through mockClear after reconnect', async () => {
     const store = new ReactNativeMockStore();
     const first = fakeBridge();
