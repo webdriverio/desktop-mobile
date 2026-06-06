@@ -136,7 +136,15 @@ jobs:
 
       - name: 🔌 Install Appium UiAutomator2 driver
         shell: bash
-        run: pnpm --filter @repo/e2e exec appium driver install uiautomator2
+        # Idempotent: appium errors (exit 1) if the driver is already registered in
+        # APPIUM_HOME, so only install when `driver list --installed` doesn't show it.
+        run: |
+          set -euo pipefail
+          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi uiautomator2; then
+            echo "uiautomator2 driver already installed"
+          else
+            pnpm --filter @repo/e2e exec appium driver install uiautomator2
+          fi
 
       - name: 🤖 Run E2E on Android emulator
         # Third-party action (non-GitHub-owned) → pin to a full commit SHA, not a floating
