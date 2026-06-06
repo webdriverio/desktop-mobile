@@ -97,7 +97,7 @@ export interface ReactNativeServiceAPI {
    * ```js
    * const value = await browser.reactNative.execute(
    *   (rn, key) => rn.nativeModuleProxy?.SettingsManager?.[key],
-   *   { __wdioOptions__: true },
+   *   withExecuteOptions(),
    *   'appTheme'
    * );
    * ```

@@ -9,8 +9,13 @@
 // Invariant: only `Runtime.evaluate` — never `Page.navigate`.
 
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
-import type { ReactNativeAPIs } from '@wdio/native-types';
+import type { ReactNativeAPIs, ReactNativeExecuteOptions } from '@wdio/native-types';
 import { hasSemicolonOutsideQuotes } from '@wdio/native-utils';
+
+/** True for the per-call options object (the `__wdioOptions__` sentinel set by withExecuteOptions). */
+export function isExecuteOptions(arg: unknown): arg is ReactNativeExecuteOptions {
+  return typeof arg === 'object' && arg !== null && '__wdioOptions__' in arg;
+}
 
 interface RemoteObject {
   type?: string;
@@ -120,12 +125,15 @@ export async function executeScript<ReturnValue, InnerArguments extends unknown[
   script: string | ((rn: ReactNativeAPIs, ...args: InnerArguments) => ReturnValue),
   ...args: InnerArguments
 ): Promise<ReturnValue> {
+  // Strip the per-call options sentinel (RN has no per-call options yet, but the
+  // overload accepts one) so it isn't inlined as a positional arg and shift the user's.
+  const innerArgs = (isExecuteOptions(args[0]) ? args.slice(1) : args) as InnerArguments;
   const expression =
     typeof script === 'function'
       ? `(async () => {
           const userFn = (${script.toString()});
           const rn = globalThis;
-          return await userFn(rn, ${inlineArgs(args)});
+          return await userFn(rn, ${inlineArgs(innerArgs)});
         })()`
       : wrapStringScript(script);
 

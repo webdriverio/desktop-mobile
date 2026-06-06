@@ -58,6 +58,14 @@ describe('executeScript', () => {
     expect(lastExpression(send)).toContain('"sam"');
   });
 
+  it('should strip the execute options sentinel before inlining args', async () => {
+    const { bridge, send } = fakeBridge({ result: { value: undefined } });
+    await executeScript(bridge, (_rn, key) => key, { __wdioOptions__: true } as never, 'appTheme');
+    const expr = lastExpression(send);
+    expect(expr).toContain('"appTheme"');
+    expect(expr).not.toContain('__wdioOptions__');
+  });
+
   it('should wrap a bare expression string and return its value', async () => {
     const { bridge, send } = fakeBridge({ result: { value: 3 } });
     await expect(executeScript(bridge, '1 + 2')).resolves.toBe(3);

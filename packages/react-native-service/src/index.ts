@@ -10,6 +10,7 @@
 // consumers. Only config-time types are re-exported (mirroring the sibling
 // services) — the API/mock types reach users through the augmentation.
 import '@wdio/native-types';
+import type { ReactNativeExecuteOptions } from '@wdio/native-types';
 
 export type {
   ReactNativeCapabilities,
@@ -19,3 +20,15 @@ export type {
 export { default as launcher } from './launcher.js';
 export { default } from './service.js';
 export { cleanup as cleanupWdioSession, createReactNativeCapabilities, init as startWdioSession } from './session.js';
+
+/**
+ * Create a properly-typed per-call options object for `browser.reactNative.execute()`.
+ *
+ * React Native currently exposes no per-call execute options, so this only carries the
+ * internal sentinel — it exists for surface parity with the other services' execute and
+ * gives the options overload a sanctioned constructor (rather than hand-setting the
+ * `@internal` sentinel). Real options can be added here when the framework grows them.
+ */
+export function withExecuteOptions(): ReactNativeExecuteOptions {
+  return { __wdioOptions__: true };
+}

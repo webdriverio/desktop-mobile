@@ -40,8 +40,9 @@ export class MetroBridge {
   readonly #adbReverse: AdbReverse;
 
   constructor(options: MetroBridgeOptions = {}) {
-    this.#options = { ...options, host: options.host ?? DEFAULT_METRO_HOST, port: options.port ?? DEFAULT_METRO_PORT };
-    this.#port = this.#options.port ?? DEFAULT_METRO_PORT;
+    const port = options.port ?? DEFAULT_METRO_PORT;
+    this.#options = { ...options, host: options.host ?? DEFAULT_METRO_HOST, port };
+    this.#port = port;
     this.#adbReverse = options.adbReverse ?? defaultAdbReverse;
   }
 
