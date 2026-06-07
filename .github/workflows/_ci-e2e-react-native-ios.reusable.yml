@@ -95,13 +95,16 @@ jobs:
         run: |
           set -euo pipefail
           cd "$RN_BUILD_DIR/ios"
+          # xcbeautify only prettifies output and isn't guaranteed on the runner image; pipe
+          # through `(xcbeautify || cat)` so a missing tool can't SIGPIPE-kill xcodebuild, and
+          # rely on pipefail to surface a real xcodebuild failure (not the later "app not found").
           xcodebuild \
             -workspace ReactNativeE2EApp.xcworkspace \
             -scheme ReactNativeE2EApp \
             -configuration Debug \
             -sdk iphonesimulator \
             -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO | xcbeautify || true
+            CODE_SIGNING_ALLOWED=NO 2>&1 | (xcbeautify || cat)
           APP_PATH="$RN_BUILD_DIR/ios/build/Build/Products/Debug-iphonesimulator/ReactNativeE2EApp.app"
           test -d "$APP_PATH" || { echo "::error::iOS .app not found at $APP_PATH"; exit 1; }
           echo "RN_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
@@ -112,7 +115,18 @@ jobs:
           RN_IOS_DEVICE: ${{ inputs.ios-device }}
         run: |
           set -euo pipefail
-          xcrun simctl boot "$RN_IOS_DEVICE" || echo "Simulator '$RN_IOS_DEVICE' already booted"
+          # Tolerate "already booted" but fail loudly on a genuine error (e.g. the device
+          # name isn't present on this runner) rather than masking it into a later cryptic
+          # Appium "device not found".
+          if ! xcrun simctl boot "$RN_IOS_DEVICE" 2>/tmp/boot.err; then
+            if grep -qiE "already booted|current state: Booted" /tmp/boot.err; then
+              echo "Simulator '$RN_IOS_DEVICE' already booted"
+            else
+              echo "::error::Failed to boot simulator '$RN_IOS_DEVICE':"; cat /tmp/boot.err
+              echo "Available devices:"; xcrun simctl list devices available
+              exit 1
+            fi
+          fi
           xcrun simctl bootstatus "$RN_IOS_DEVICE" -b || true
 
       - name: 🔌 Install Appium XCUITest driver
