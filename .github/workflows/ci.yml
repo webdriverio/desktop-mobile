@@ -763,6 +763,27 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # React Native — iOS simulator E2E (the fast-follow to the Android leg). macOS runner;
+  # appium-xcuitest builds WebDriverAgent at session time (no signing on the sim).
+  # Required gate (see ci-status).
+  e2e-react-native-ios-macos:
+    name: E2E - React Native [iOS] - ${{ matrix.test-type }}
+    needs: [detect-changes, build]
+    if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+    uses: ./.github/workflows/_ci-e2e-react-native-ios.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
 
   # Dioxus package tests - all platforms (mirrors E2E coverage)
   package-dioxus-linux:
@@ -989,9 +1010,9 @@ jobs:
       # (CEF can't serve /json there — upstream gap; see the macOS job note), and
       # window/deeplink are not run anywhere (same gap).
       - e2e-electrobun-macos-arm
-      # React Native — Android emulator E2E is a required gate from its first PR
-      # (Android-first; iOS sim is the PR4.5 fast-follow).
+      # React Native — Android emulator + iOS simulator E2E are required gates.
       - e2e-react-native-linux
+      - e2e-react-native-ios-macos
       - package-electron-matrix
       - package-tauri-linux
       - package-tauri-windows

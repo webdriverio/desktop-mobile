@@ -11,21 +11,36 @@ const __dirname = dirname(__filename);
 
 const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'react-native');
 
+// Target platform for this run (Android by default; the iOS CI leg sets RN_PLATFORM=ios).
+const platform = (process.env.RN_PLATFORM ?? 'android').toLowerCase() as 'android' | 'ios';
+
+const newest = (paths: string[]): string =>
+  paths.map((p) => ({ p, m: statSync(p).mtimeMs })).sort((a, b) => b.m - a.m)[0].p;
+
 /**
- * Locate the built Android debug APK.
+ * Locate the built app for `appium:app`.
  *
  * React Native is Appium-driven (unlike the CDP/Wry desktop services): WDIO opens the
  * Appium session from `appium:app`, and the service attaches to the app's Hermes realm
- * over Metro's inspector for execute/mock. CI sets `RN_APP_PATH` to the exact APK built
- * by the build job; locally we glob the standard Gradle output path.
- *
- * The native `android/` project is generated (see fixtures/e2e-apps/react-native/README),
- * so this path only exists after `pnpm build:android` (or the CI build step) has run.
+ * over Metro's inspector for execute/mock. CI sets `RN_APP_PATH` to the exact artifact
+ * built by the job; locally we glob the standard build-output path. The native
+ * `android/`/`ios/` projects are generated (see the fixture README), so these paths only
+ * exist after the platform build (or the CI build step) has run.
  */
-function resolveAndroidApk(dir: string): string {
+function resolveAppPath(dir: string): string {
   const override = process.env.RN_APP_PATH;
   if (override) {
     return override;
+  }
+  if (platform === 'ios') {
+    // iOS Simulator .app from a debug xcodebuild.
+    const apps = globSync(join(dir, 'ios', '**', 'Build', 'Products', 'Debug-iphonesimulator', '*.app'));
+    if (apps.length > 0) {
+      return newest(apps);
+    }
+    throw new Error(
+      `No iOS .app found under ${join(dir, 'ios')}. Build the fixture for the simulator or set RN_APP_PATH.`,
+    );
   }
   const standard = join(dir, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
   if (existsSync(standard)) {
@@ -36,7 +51,7 @@ function resolveAndroidApk(dir: string): string {
   // version is ever lowered, swap this for the `glob` package or a manual recursive walk.
   const candidates = globSync(join(dir, 'android', '**', '*.apk'));
   if (candidates.length > 0) {
-    return candidates.map((p) => ({ p, m: statSync(p).mtimeMs })).sort((a, b) => b.m - a.m)[0].p;
+    return newest(candidates);
   }
   throw new Error(
     `No Android APK found under ${join(dir, 'android')}. ` +
@@ -44,9 +59,9 @@ function resolveAndroidApk(dir: string): string {
   );
 }
 
-const appPath = resolveAndroidApk(appDir);
+const appPath = resolveAppPath(appDir);
 if (!existsSync(appPath)) {
-  throw new Error(`React Native APK does not exist: ${appPath}. Make sure the app is built.`);
+  throw new Error(`React Native app artifact does not exist: ${appPath}. Make sure the app is built.`);
 }
 
 const testType = (process.env.TEST_TYPE as string) || 'standard';
@@ -65,27 +80,32 @@ switch (testType) {
     break;
 }
 
+const isIos = platform === 'ios';
+
 const reactNativeServiceOptions: ReactNativeServiceOptions = {
-  platform: 'Android',
+  platform: isIos ? 'iOS' : 'Android',
   metroPort,
-  // Forward the app's JS console + logcat into the WDIO log for the logging spec.
+  // Forward the app's JS console + native (logcat/syslog) logs into the WDIO log.
   captureBackendLogs: true,
 };
 
 type ReactNativeCapability = {
-  platformName: 'Android';
-  'appium:automationName': 'UiAutomator2';
+  platformName: 'Android' | 'iOS';
+  'appium:automationName': 'UiAutomator2' | 'XCUITest';
   'appium:app': string;
   'appium:newCommandTimeout': number;
+  'appium:deviceName'?: string;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
 const capabilities: ReactNativeCapability[] = [
   {
-    platformName: 'Android',
-    'appium:automationName': 'UiAutomator2',
+    platformName: isIos ? 'iOS' : 'Android',
+    'appium:automationName': isIos ? 'XCUITest' : 'UiAutomator2',
     'appium:app': appPath,
     'appium:newCommandTimeout': 240,
+    // iOS needs a target simulator; CI sets RN_IOS_DEVICE (e.g. 'iPhone 16').
+    ...(isIos ? { 'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16' } : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
   },
 ];
