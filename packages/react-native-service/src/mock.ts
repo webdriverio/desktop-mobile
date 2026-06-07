@@ -22,6 +22,8 @@ import { SERVICE_NAME } from './constants.js';
 import {
   buildClearScript,
   buildInstallScript,
+  buildPopImplementationScript,
+  buildPushImplementationScript,
   buildReadCallDataScript,
   buildResetScript,
   buildRestoreScript,
@@ -193,6 +195,41 @@ export async function createMock(
     );
     return mock;
   };
+
+  // Cross-realm withImplementation: push the temporary impl into the Hermes spy, run the
+  // Node-side callback (which drives the app and triggers the mocked path), then pop —
+  // restoring the prior impl even if the callback throws. The base ReactNativeMock is the
+  // outer vitest fn, so without this override the call would patch only the Node fn and
+  // leave the app-side spy untouched.
+  mock.withImplementation = (async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: () => ReturnValue | Promise<ReturnValue>,
+  ): Promise<ReturnValue> => {
+    await evaluateInRealm<void>(bridge, buildPushImplementationScript(target, implSource(implFn, target)), mockContext);
+    // Capture the callback outcome as a Result-style union (both branches assign it, so
+    // it's definitely-assigned without a non-null assertion), then run cleanup. A `throw`
+    // in `finally` (noUnsafeFinally) would clobber control flow and let a cleanup failure
+    // mask the original callback error.
+    let outcome: { ok: true; value: ReturnValue } | { ok: false; error: unknown };
+    try {
+      outcome = { ok: true, value: await callbackFn() };
+    } catch (error) {
+      outcome = { ok: false, error };
+    }
+    try {
+      await evaluateInRealm<void>(bridge, buildPopImplementationScript(target), mockContext);
+    } catch (popError) {
+      // Prefer the original callback error; never let cleanup failure mask it.
+      if (outcome.ok) {
+        throw popError;
+      }
+      log.warn(`[${target}] withImplementation: popImpl failed after callback error: ${(popError as Error).message}`);
+    }
+    if (!outcome.ok) {
+      throw outcome.error;
+    }
+    return outcome.value;
+  }) as ReactNativeMock['withImplementation'];
 
   mock.mockReturnValue = (value: unknown) => setValue('mockReturnValue', value);
   mock.mockReturnValueOnce = (value: unknown) => setValue('mockReturnValueOnce', value);

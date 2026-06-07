@@ -159,6 +159,13 @@ export class CdpBridge {
     return this;
   }
 
+  off<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
+    // No-op when not connected: there is no listener registry to remove from, and a
+    // closed/never-opened bridge has nothing to detach.
+    this.#connection?.off(event, listener);
+    return this;
+  }
+
   async close(): Promise<void> {
     this.#closed = true;
     await this.#connection?.close();

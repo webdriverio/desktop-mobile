@@ -1,8 +1,18 @@
 import type { ReactNativeServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
+import {
+  clearAllMocks,
+  isMockFunction as isMockFunctionUtil,
+  resetAllMocks,
+  restoreAllMocks,
+} from './commands/allMocks.js';
+import { emitEvent } from './commands/emitEvent.js';
 import { executeScript } from './commands/execute.js';
+import { listWindows, switchWindow } from './commands/switchContext.js';
+import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_METRO_HOST, DEFAULT_METRO_PORT, SERVICE_NAME } from './constants.js';
+import { collectDeviceLogs, forwardDeviceLogs, startJsLogForwarding } from './logCapture.js';
 import { MetroBridge } from './metroBridge.js';
 import { createMock } from './mock.js';
 import { ReactNativeMockStore } from './mockStore.js';
@@ -11,14 +21,13 @@ import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from '.
 
 const log = createLogger(SERVICE_NAME, 'service');
 
-const NOT_IMPLEMENTED_MVP = (method: string): never => {
-  throw new Error(`browser.reactNative.${method} is not available in this MVP release — it lands in a later version.`);
-};
-
 export default class ReactNativeWorkerService {
   private options: ReactNativeServiceGlobalOptions;
   private metroBridge: MetroBridge | undefined;
   private mockStore: ReactNativeMockStore | undefined;
+  private stopJsLogs: (() => void) | undefined;
+  private platform: 'android' | 'ios' | undefined;
+  private browser: WebdriverIO.Browser | undefined;
 
   constructor(options: ReactNativeServiceGlobalOptions, capabilities: ReactNativeCapabilities) {
     const capOptions = getServiceOptionsFromCapability(
@@ -45,9 +54,14 @@ export default class ReactNativeWorkerService {
     this.metroBridge = bridge;
     this.mockStore = store;
 
+    this.platform = platform;
+    this.browser = browser;
+
     try {
       await bridge.connect();
       log.info(`Connected to Hermes inspector at ${host}:${port}`);
+      // Forward JS console.* calls via Runtime.consoleAPICalled CDP events.
+      this.stopJsLogs = startJsLogForwarding(bridge.bridge);
     } catch (error) {
       log.warn(
         `Could not connect to Hermes inspector (${(error as Error).message}). ` +
@@ -76,25 +90,23 @@ export default class ReactNativeWorkerService {
         return createMock(target, bridge.bridge, store);
       },
 
-      isMockFunction: (targetOrFn: unknown) => {
-        if (typeof targetOrFn === 'string') {
-          return store.getMock(targetOrFn) !== undefined;
-        }
-        return (
-          targetOrFn !== null &&
-          typeof targetOrFn === 'object' &&
-          (targetOrFn as { __isReactNativeMock?: boolean }).__isReactNativeMock === true
-        );
-      },
+      isMockFunction: (targetOrFn: unknown) => isMockFunctionUtil(targetOrFn, store),
 
-      // PR3 features — stubs so the type contract is satisfied at runtime
-      clearAllMocks: () => NOT_IMPLEMENTED_MVP('clearAllMocks'),
-      resetAllMocks: () => NOT_IMPLEMENTED_MVP('resetAllMocks'),
-      restoreAllMocks: () => NOT_IMPLEMENTED_MVP('restoreAllMocks'),
-      triggerDeeplink: () => NOT_IMPLEMENTED_MVP('triggerDeeplink'),
-      switchWindow: () => NOT_IMPLEMENTED_MVP('switchWindow'),
-      listWindows: () => NOT_IMPLEMENTED_MVP('listWindows'),
-      emitEvent: () => NOT_IMPLEMENTED_MVP('emitEvent'),
+      clearAllMocks: (targetPrefix?: string) => clearAllMocks(store, targetPrefix),
+      resetAllMocks: (targetPrefix?: string) => resetAllMocks(store, targetPrefix),
+      restoreAllMocks: (targetPrefix?: string) => restoreAllMocks(store, targetPrefix),
+
+      triggerDeeplink: (url: string) => triggerDeeplink(browser, url),
+
+      switchWindow: (context: string) => switchWindow(browser, context),
+      listWindows: () => listWindows(browser),
+
+      emitEvent: async <T = unknown>(event: string, payload?: T) => {
+        if (!bridge.connected) {
+          throw new Error('browser.reactNative.emitEvent: Hermes inspector is not connected.');
+        }
+        await emitEvent(bridge.bridge, event, payload);
+      },
     };
 
     (browser as WebdriverIO.Browser & { reactNative?: ReactNativeServiceAPI }).reactNative = api;
@@ -106,32 +118,40 @@ export default class ReactNativeWorkerService {
       return;
     }
     const store = this.mockStore;
-    if (this.options.clearMocks) {
-      for (const [target, mock] of store.getMocks()) {
-        await mock.mockClear();
-        log.debug(`[${target}] cleared`);
-      }
+    // resetMocks already clears call history (mockReset → mockClear), so a separate clear
+    // pass is only needed when it targets mocks reset won't touch — i.e. a different prefix.
+    const clearRedundant = this.options.resetMocks && this.options.clearMocksPrefix === this.options.resetMocksPrefix;
+    if (this.options.clearMocks && !clearRedundant) {
+      await clearAllMocks(store, this.options.clearMocksPrefix);
     }
     if (this.options.resetMocks) {
-      for (const [target, mock] of store.getMocks()) {
-        await mock.mockReset();
-        log.debug(`[${target}] reset`);
-      }
+      await resetAllMocks(store, this.options.resetMocksPrefix);
     }
     if (this.options.restoreMocks) {
-      const entries = [...store.getMocks()];
-      for (const [target, mock] of entries) {
-        await mock.mockRestore();
-        log.debug(`[${target}] restored`);
-      }
+      await restoreAllMocks(store, this.options.restoreMocksPrefix);
     }
   }
 
+  async afterTest(): Promise<void> {
+    // Per-test native log forwarding: browser.getLogs drains everything since the last
+    // call, so collecting here (not in after(), which fires once per spec file) keeps
+    // each test's logcat/syslog lines attributed to that test.
+    if (!this.browser || !this.platform) {
+      return;
+    }
+    const logType = this.platform === 'android' ? 'logcat' : 'syslog';
+    forwardDeviceLogs(await collectDeviceLogs(this.browser, logType));
+  }
+
   async after(): Promise<void> {
+    this.stopJsLogs?.();
+    this.stopJsLogs = undefined;
     this.mockStore?.clear();
     await this.metroBridge?.close();
     this.metroBridge = undefined;
     this.mockStore = undefined;
+    this.browser = undefined;
+    this.platform = undefined;
   }
 
   async afterSession(): Promise<void> {

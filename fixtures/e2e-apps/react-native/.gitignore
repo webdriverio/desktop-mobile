@@ -1,0 +1,28 @@
+# React Native
+node_modules/
+.metro-health-check*
+*.log
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+*.keystore
+!debug.keystore
+
+# iOS
+ios/build/
+ios/Pods/
+ios/*.xcworkspace/xcuserdata/
+ios/*.xcodeproj/xcuserdata/
+ios/.xcode.env.local
+*.hmap
+*.ipa
+
+# Metro / bundler output
+*.jsbundle
+
+# Misc
+.DS_Store

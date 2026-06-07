@@ -12,7 +12,6 @@ import { remote } from 'webdriverio';
 import { CUSTOM_CAPABILITY_NAME, SERVICE_NAME } from './constants.js';
 import ReactNativeLaunchService from './launcher.js';
 import ReactNativeWorkerService from './service.js';
-import { mergeServiceOptions } from './serviceConfig.js';
 import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from './types.js';
 
 const log = createLogger(SERVICE_NAME, 'session');
@@ -49,8 +48,9 @@ export async function init(
 
   activeLaunchers.set(browser, launcher);
 
-  const serviceOptions = mergeServiceOptions(globalOptions, capability[CUSTOM_CAPABILITY_NAME]);
-  const service = new ReactNativeWorkerService(serviceOptions, capability);
+  // Pass globalOptions raw — the service constructor merges the capability options itself
+  // (avoids merging capability[CUSTOM_CAPABILITY_NAME] twice).
+  const service = new ReactNativeWorkerService(globalOptions ?? {}, capability);
   try {
     await service.before(capability, [], browser);
   } catch (error) {
