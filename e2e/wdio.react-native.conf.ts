@@ -120,4 +120,18 @@ export const config = {
     retries: 1,
   },
   outputDir: logDir,
+  // On a test failure, dump the Appium page source so a NoSuchElement (e.g. the RN tree
+  // not rendering, or accessibilityLabel not mapping to content-desc) is diagnosable from
+  // the uploaded wdio log rather than re-guessing the UI hierarchy.
+  afterTest: async (_test: unknown, _ctx: unknown, result: { error?: unknown }) => {
+    if (!result.error) {
+      return;
+    }
+    try {
+      const { browser } = await import('@wdio/globals');
+      console.log('--- Appium page source on failure ---\n', await browser.getPageSource());
+    } catch (err) {
+      console.log(`Could not capture page source: ${(err as Error).message}`);
+    }
+  },
 };
