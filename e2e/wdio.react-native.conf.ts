@@ -14,8 +14,12 @@ const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'react-native');
 // Target platform for this run (Android by default; the iOS CI leg sets RN_PLATFORM=ios).
 const platform = (process.env.RN_PLATFORM ?? 'android').toLowerCase() as 'android' | 'ios';
 
-const newest = (paths: string[]): string =>
-  paths.map((p) => ({ p, m: statSync(p).mtimeMs })).sort((a, b) => b.m - a.m)[0].p;
+const newest = (paths: string[]): string => {
+  if (paths.length === 0) {
+    throw new Error('newest: called with empty array');
+  }
+  return paths.map((p) => ({ p, m: statSync(p).mtimeMs })).sort((a, b) => b.m - a.m)[0].p;
+};
 
 /**
  * Locate the built app for `appium:app`.
