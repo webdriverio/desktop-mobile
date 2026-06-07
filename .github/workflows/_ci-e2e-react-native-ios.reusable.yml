@@ -1,0 +1,156 @@
+name: E2E Tests - React Native (iOS)
+# Description: iOS-simulator E2E for @wdio/react-native-service (the fast-follow to the
+# Android leg). Single combined job, same rationale as Android: Metro's JS bundle and the
+# built .app must agree on one scaffolded project. On the simulator, appium-xcuitest builds
+# and installs WebDriverAgent itself during session creation (no code signing required), and
+# the simulator shares the host loopback, so no `adb reverse` equivalent is needed.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Runner OS (macos-latest)'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      test-type:
+        description: 'Test scenario (standard)'
+        type: string
+        default: 'standard'
+      rn-version:
+        description: 'React Native version to scaffold the native project with'
+        type: string
+        default: '0.76.5'
+      rn-cli-version:
+        description: '@react-native-community/cli major to scaffold with (pinned to match rn-version)'
+        type: string
+        default: '15'
+      ios-device:
+        description: 'Simulator device name'
+        type: string
+        default: 'iPhone 16'
+      build_id:
+        type: string
+        required: false
+      artifact_size:
+        type: string
+        required: false
+      cache_key:
+        type: string
+        required: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  RN_BUILD_DIR: ${{ github.workspace }}/rn-build
+
+jobs:
+  e2e:
+    name: Run
+    runs-on: ${{ inputs.os }}
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # The e2e link-deps resolve against the prebuilt package dist from the build job.
+      - name: 📦 Download Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      # Scaffold a complete RN project at the pinned version (with CocoaPods installed for
+      # iOS), then overlay the fixture's App.tsx. The fixture App only imports react-native
+      # core, so the stock template builds it unmodified.
+      - name: 🏗️ Scaffold native project + CocoaPods
+        shell: bash
+        env:
+          RN_VERSION: ${{ inputs.rn-version }}
+          RN_CLI_VERSION: ${{ inputs.rn-cli-version }}
+        run: |
+          set -euo pipefail
+          npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
+            --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods true
+          cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
+
+      - name: 📱 Build iOS app for the simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RN_BUILD_DIR/ios"
+          xcodebuild \
+            -workspace ReactNativeE2EApp.xcworkspace \
+            -scheme ReactNativeE2EApp \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO | xcbeautify || true
+          APP_PATH="$RN_BUILD_DIR/ios/build/Build/Products/Debug-iphonesimulator/ReactNativeE2EApp.app"
+          test -d "$APP_PATH" || { echo "::error::iOS .app not found at $APP_PATH"; exit 1; }
+          echo "RN_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      - name: 📲 Boot iOS simulator
+        shell: bash
+        env:
+          RN_IOS_DEVICE: ${{ inputs.ios-device }}
+        run: |
+          set -euo pipefail
+          xcrun simctl boot "$RN_IOS_DEVICE" || echo "Simulator '$RN_IOS_DEVICE' already booted"
+          xcrun simctl bootstatus "$RN_IOS_DEVICE" -b || true
+
+      - name: 🔌 Install Appium XCUITest driver
+        shell: bash
+        # Idempotent: appium exits 1 if the driver is already registered.
+        run: |
+          set -euo pipefail
+          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi xcuitest; then
+            echo "xcuitest driver already installed"
+          else
+            pnpm --filter @repo/e2e exec appium driver install xcuitest
+          fi
+
+      - name: 🧪 Run E2E on iOS simulator
+        shell: bash
+        env:
+          RN_IOS_DEVICE: ${{ inputs.ios-device }}
+        run: |
+          set -euo pipefail
+          # Metro serves the JS bundle + Hermes inspector; the simulator reaches it over
+          # the shared host loopback (no adb-reverse equivalent needed on iOS).
+          ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
+          npx --yes wait-on tcp:8081 --timeout 120000
+          pnpm --filter @repo/e2e run test:e2e:react-native:ios
+
+      - name: 🐛 Show Metro log on failure
+        if: failure()
+        shell: bash
+        run: tail -n 200 e2e/metro.log || true
+
+      - name: 📦 Upload Test Logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs-react-native-ios-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
+          path: |
+            e2e/logs/**/*.log
+            e2e/metro.log
+          retention-days: 30
+          if-no-files-found: warn
