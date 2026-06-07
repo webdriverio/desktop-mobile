@@ -95,9 +95,7 @@ function serviceForToken(filename, services) {
   // Prefer the LONGEST matching service so a future short service (e.g. 'react') can't
   // shadow a longer one that contains it ('react-native') — both substring-match the same
   // filename, and a plain find() would return whichever sorts first.
-  return services
-    .filter((svc) => normalized.includes(`-${svc}-`))
-    .sort((a, b) => b.length - a.length)[0];
+  return services.filter((svc) => normalized.includes(`-${svc}-`)).sort((a, b) => b.length - a.length)[0];
 }
 
 /**
