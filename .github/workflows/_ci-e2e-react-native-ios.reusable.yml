@@ -87,8 +87,13 @@ jobs:
         run: |
           set -euo pipefail
           npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
-            --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods true
+            --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
           cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
+          # Disable the New Architecture (Fabric) — same reason as Android: under Fabric the RN
+          # surface isn't exposed to XCUITest (empty tree → NoSuchElement) and the Hermes
+          # inspector doesn't register. pod install with RCT_NEW_ARCH_ENABLED=0 builds the old
+          # (Paper) arch, which renders into the standard tree and attaches the inspector.
+          ( cd "$RN_BUILD_DIR/ios" && RCT_NEW_ARCH_ENABLED=0 pod install )
 
       - name: 📱 Build iOS app for the simulator
         shell: bash
