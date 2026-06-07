@@ -1,4 +1,4 @@
-import { existsSync, globSync, statSync } from 'node:fs';
+import { appendFileSync, existsSync, globSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -120,18 +120,26 @@ export const config = {
     retries: 1,
   },
   outputDir: logDir,
-  // On a test failure, dump the Appium page source so a NoSuchElement (e.g. the RN tree
-  // not rendering, or accessibilityLabel not mapping to content-desc) is diagnosable from
-  // the uploaded wdio log rather than re-guessing the UI hierarchy.
-  afterTest: async (_test: unknown, _ctx: unknown, result: { error?: unknown }) => {
+  // On a test failure, write the Appium page source to a .log file in the logs dir (which
+  // is uploaded as an artifact, unlike hook stdout) so a NoSuchElement is diagnosable from
+  // the actual UI hierarchy rather than re-guessing.
+  afterTest: async (test: { title?: string }, _ctx: unknown, result: { error?: unknown }) => {
     if (!result.error) {
       return;
     }
+    const out = join(logDir, 'page-source.log');
     try {
       const { browser } = await import('@wdio/globals');
-      console.log('--- Appium page source on failure ---\n', await browser.getPageSource());
+      const source = await browser.getPageSource();
+      mkdirSync(logDir, { recursive: true });
+      appendFileSync(out, `\n===== ${test.title ?? 'test'} =====\n${source}\n`);
     } catch (err) {
-      console.log(`Could not capture page source: ${(err as Error).message}`);
+      try {
+        mkdirSync(logDir, { recursive: true });
+        appendFileSync(out, `\ncapture failed for '${test.title ?? 'test'}': ${(err as Error).message}\n`);
+      } catch {
+        // best-effort diagnostic; never let it mask the real test failure
+      }
     }
   },
 };
