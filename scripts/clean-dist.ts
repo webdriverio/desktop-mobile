@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 import { mkdirSync, rmSync } from 'node:fs';
 
 const targets = process.argv.slice(2);

@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 
 import { exec } from 'node:child_process';
 import fs from 'node:fs/promises';
@@ -282,7 +282,7 @@ async function updateWorkspaceYaml(
   }
 
   // Stringify only the catalogs section
-  const catalogsToWrite = { catalogs: {} };
+  const catalogsToWrite: { catalogs: Record<string, Record<string, string>> } = { catalogs: {} };
   for (const [catalog, deps] of Object.entries(workspaceYaml.catalogs)) {
     catalogsToWrite.catalogs[catalog] = {};
     for (const [name, version] of Object.entries(deps)) {

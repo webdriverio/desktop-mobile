@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 
 import { execSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';

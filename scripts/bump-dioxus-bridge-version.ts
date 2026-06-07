@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Keep @wdio/dioxus-bridge (npm) and the dependent Cargo crates in lockstep.
  *
@@ -14,13 +14,13 @@
  * script does the same.
  *
  * Usage:
- *   pnpm tsx scripts/bump-dioxus-bridge-version.ts
+ *   node scripts/bump-dioxus-bridge-version.ts
  *     → read npm version, sync all crate targets to its core
  *
- *   pnpm tsx scripts/bump-dioxus-bridge-version.ts 1.0.0-next.1
+ *   node scripts/bump-dioxus-bridge-version.ts 1.0.0-next.1
  *     → write 1.0.0-next.1 verbatim to package.json, then sync as above
  *
- *   pnpm tsx scripts/bump-dioxus-bridge-version.ts --check
+ *   node scripts/bump-dioxus-bridge-version.ts --check
  *     → exit 1 if any target is out of sync; print what would change
  */
 
@@ -169,7 +169,7 @@ function main(): void {
   }
 
   if (checkOnly) {
-    console.error('\n❌ Versions out of sync. Run `pnpm tsx scripts/bump-dioxus-bridge-version.ts` to fix.');
+    console.error('\n❌ Versions out of sync. Run `node scripts/bump-dioxus-bridge-version.ts` to fix.');
     process.exit(1);
   }
 

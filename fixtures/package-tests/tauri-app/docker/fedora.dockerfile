@@ -8,14 +8,18 @@ RUN dnf install -y \
         ca-certificates \
         sudo \
         git \
-        nodejs \
-        npm \
         gcc \
         gcc-c++ \
         make \
         pkg-config \
         openssl-devel \
         xorg-x11-server-Xvfb && \
+    dnf clean all
+
+# Node.js 24 LTS from NodeSource — the distro repo ships a pre-type-stripping
+# node that can't run the workspace's bare-node .ts build scripts
+RUN curl -fsSL https://rpm.nodesource.com/setup_24.x | bash - && \
+    dnf install -y nodejs && \
     dnf clean all
 
 # Install pnpm globally
