@@ -158,8 +158,11 @@ jobs:
           ram-size: 4096M
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # android-emulator-runner executes this with /usr/bin/sh (dash), which has no
+          # `pipefail` — `set -euo pipefail` would abort the script with exit 2 right after
+          # boot. Use POSIX-safe `set -eu`.
           script: |
-            set -euo pipefail
+            set -eu
             # Map emulator:8081 → host:8081 so both the debug bundle load and the Hermes
             # inspector attach reach Metro running on the runner host.
             adb reverse tcp:8081 tcp:8081
