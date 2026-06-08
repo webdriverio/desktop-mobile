@@ -11,10 +11,14 @@ describe('React Native application', () => {
   });
 
   it('should increment the counter on tap', async () => {
-    await (await $('~increment-button')).click();
+    // Assert the delta, not an absolute value: mochaOpts.retries re-runs in the same Appium
+    // session without resetting app state, so a retry after a successful click would see the
+    // counter already advanced. Reading the start value keeps the retry self-consistent.
     const counter = await $('~counter');
-    await browser.waitUntil(async () => (await counter.getText()) === '1', { timeout: 10000 });
-    expect(await counter.getText()).toBe('1');
+    const start = Number(await counter.getText());
+    await (await $('~increment-button')).click();
+    await browser.waitUntil(async () => Number(await counter.getText()) === start + 1, { timeout: 10000 });
+    expect(Number(await counter.getText())).toBe(start + 1);
   });
 
   it('should reset the counter', async () => {
