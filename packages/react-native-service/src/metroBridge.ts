@@ -49,9 +49,9 @@ export class MetroBridge {
 
   get connected(): boolean {
     // Liveness, not mere allocation: a dropped WebSocket (app backgrounded → Hermes inspector
-    // suspends) nulls the underlying connection, so `state` becomes undefined and the next
-    // connect()/ensureHermes() re-attaches instead of handing out a dead bridge.
-    return this.#bridge?.state !== undefined;
+    // suspends) leaves a non-null but dead bridge, so the next connect()/ensureHermes() must
+    // re-attach. `isOpen` reports OPEN directly rather than inferring it from `state`.
+    return this.#bridge?.isOpen ?? false;
   }
 
   /** The live Hermes bridge. Throws if {@link connect} hasn't run. */

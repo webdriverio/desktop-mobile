@@ -82,6 +82,13 @@ export class CdpBridge {
     return this.#connection?.state;
   }
 
+  /** True only while the underlying CDP socket is OPEN. A live-connection check that, unlike
+   *  `state`, doesn't depend on how a dropped socket is represented (the connection nulls its
+   *  socket on close, so `state` reads `undefined` — `isOpen` says what it means directly). */
+  get isOpen(): boolean {
+    return this.#connection?.isOpen ?? false;
+  }
+
   /** CDP `/json/version` (browser/protocol version, for driver matching). */
   version() {
     return this.#devTool.version();
