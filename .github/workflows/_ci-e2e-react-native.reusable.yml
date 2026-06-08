@@ -163,50 +163,17 @@ jobs:
           ram-size: 4096M
           disable-animations: true
           emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
-          # android-emulator-runner executes this with /usr/bin/sh (dash), which has no
-          # `pipefail` — `set -euo pipefail` would abort the script with exit 2 right after
-          # boot. Use POSIX-safe `set -eu`.
+          # android-emulator-runner executes each line of this `script:` as a separate
+          # `sh -c` (so shell variables do NOT persist across lines — an inline PKG=/OUT=/loop
+          # died at `mkdir ''` for that reason) and with dash (no `pipefail`, so `set -eu` only).
+          # Keep these lines env-var-only and hand the stateful probe to a single `bash <file>`
+          # invocation — one process, so its OUT/PROBE/PKG/n survive the whole loop.
           script: |
             set -eu
-            # Map emulator:8081 → host:8081 so both the debug bundle load and the Hermes
-            # inspector attach reach Metro running on the runner host.
             adb reverse tcp:8081 tcp:8081
-            # Start Metro from the scaffolded project (serves the JS bundle + Hermes inspector).
             ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
             npx --yes wait-on tcp:8081 --timeout 120000
-            # SPIKE diagnostic (no Appium): launch the app ourselves and capture ground truth
-            # about new-arch drivability at several time points — does Hermes ever register a
-            # /json/list target (and its shape), does the UiAutomator2 tree ever populate under
-            # content, and any Fabric/Hermes/redbox errors in logcat.
-            adb install -r "$RN_APP_PATH" || true
-            PKG=$(adb shell pm list packages 2>/dev/null | sed 's/package://' | tr -d '\r' | grep -i reactnative | head -1) || true
-            echo "app package: $PKG"
-            adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 || true
-            OUT="$GITHUB_WORKSPACE/e2e/logs/standard-react-native"
-            mkdir -p "$OUT"
-            PROBE="$OUT/newarch-probe.log"
-            n=1
-            while [ "$n" -le 8 ]; do
-              {
-                echo "===================== probe $n ====================="
-                echo "--- adb reverse --list ---"
-                adb reverse --list 2>&1 || true
-                echo "--- curl /json/list ---"
-                curl -s http://localhost:8081/json/list 2>&1 || echo "curl failed"
-                echo ""
-                echo "--- uiautomator dump (first 6000 chars) ---"
-                adb shell uiautomator dump /sdcard/win.xml >/dev/null 2>&1 || true
-                adb shell cat /sdcard/win.xml 2>/dev/null | head -c 6000 || true
-                echo ""
-                echo "--- logcat (RN/Hermes/Fabric/inspector/errors) ---"
-                adb logcat -d 2>/dev/null | grep -Ei 'ReactNative|Hermes|Fabric|Bridgeless|inspector|fatal|Exception' | tail -60 || true
-                echo ""
-              } >> "$PROBE" 2>&1
-              n=$((n + 1))
-              sleep 12
-            done
-            echo "===== PROBE RESULT ====="
-            cat "$PROBE"
+            bash "$GITHUB_WORKSPACE/fixtures/e2e-apps/react-native/scripts/newarch-probe.sh"
 
       - name: 🐛 Show Metro log on failure
         if: failure()
