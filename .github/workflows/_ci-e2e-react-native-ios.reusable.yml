@@ -236,7 +236,8 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$GITHUB_WORKSPACE/wda_prebuilt"
+          # NOTE: download-wda creates --outdir itself and errors if it already exists, so do NOT
+          # pre-create it.
           pnpm --filter @repo/e2e exec appium driver run xcuitest download-wda -- \
             --outdir="$GITHUB_WORKSPACE/wda_prebuilt" --kind=sim --platform=ios
           WDA_APP=$(find "$GITHUB_WORKSPACE/wda_prebuilt" -maxdepth 4 -name 'WebDriverAgentRunner-Runner.app' -type d | head -1)
