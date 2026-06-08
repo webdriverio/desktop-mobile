@@ -35,6 +35,10 @@ on:
         description: 'Simulator device name'
         type: string
         default: 'iPhone 16'
+      new-arch:
+        description: 'Build the fixture with the New Architecture (Fabric/bridgeless) enabled'
+        type: boolean
+        default: false
       build_id:
         type: string
         required: false
@@ -84,16 +88,18 @@ jobs:
         env:
           RN_VERSION: ${{ inputs.rn-version }}
           RN_CLI_VERSION: ${{ inputs.rn-cli-version }}
+          NEW_ARCH: ${{ inputs.new-arch }}
         run: |
           set -euo pipefail
           npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
             --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
           cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
-          # Disable the New Architecture (Fabric) — same reason as Android: under Fabric the RN
-          # surface isn't exposed to XCUITest (empty tree → NoSuchElement) and the Hermes
-          # inspector doesn't register. pod install with RCT_NEW_ARCH_ENABLED=0 builds the old
-          # (Paper) arch, which renders into the standard tree and attaches the inspector.
-          ( cd "$RN_BUILD_DIR/ios" && RCT_NEW_ARCH_ENABLED=0 pod install )
+          # Select the RN architecture for this leg (mirrors Android) — BOTH old (Paper) and new
+          # (Fabric/bridgeless, the RN 0.76 default) are required gates. RCT_NEW_ARCH_ENABLED at
+          # pod-install time picks the arch; under Fabric the tree/Hermes register slightly later
+          # but the spec mount-waits + the service's Hermes connect-retry absorb it.
+          NEW_ARCH_FLAG=$([ "$NEW_ARCH" = "true" ] && echo 1 || echo 0)
+          ( cd "$RN_BUILD_DIR/ios" && RCT_NEW_ARCH_ENABLED="$NEW_ARCH_FLAG" pod install )
 
       - name: 📱 Build iOS app for the simulator
         shell: bash
