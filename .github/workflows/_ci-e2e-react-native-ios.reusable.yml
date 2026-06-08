@@ -132,7 +132,9 @@ jobs:
               exit 1
             fi
           fi
-          xcrun simctl bootstatus "$RN_IOS_DEVICE" -b || true
+          # bootstatus -b blocks until the sim reaches Booted; a non-zero exit is a real
+          # boot failure/timeout — surface it here, not later as a cryptic Appium session error.
+          xcrun simctl bootstatus "$RN_IOS_DEVICE" -b || { echo "::error::Simulator '$RN_IOS_DEVICE' did not reach Booted state"; exit 1; }
 
       - name: 🔌 Install Appium XCUITest driver
         shell: bash
@@ -154,7 +156,9 @@ jobs:
           # Metro serves the JS bundle + Hermes inspector; the simulator reaches it over
           # the shared host loopback (no adb-reverse equivalent needed on iOS).
           ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
-          npx --yes wait-on tcp:8081 --timeout 120000
+          # wait-on is a pinned e2e devDependency — run the workspace-local binary (not an
+          # unpinned `npx --yes`) so a breaking release can't silently break the readiness check.
+          pnpm --filter @repo/e2e exec wait-on tcp:8081 --timeout 120000
           pnpm --filter @repo/e2e run test:e2e:react-native:ios
 
       - name: 🐛 Show Metro log on failure
