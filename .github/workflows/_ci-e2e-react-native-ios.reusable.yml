@@ -100,6 +100,16 @@ jobs:
           # but the spec mount-waits + the service's Hermes connect-retry absorb it.
           NEW_ARCH_FLAG=$([ "$NEW_ARCH" = "true" ] && echo 1 || echo 0)
           ( cd "$RN_BUILD_DIR/ios" && RCT_NEW_ARCH_ENABLED="$NEW_ARCH_FLAG" pod install )
+          # Assert the flag actually took effect (the iOS analogue of Android's newArchEnabled
+          # grep): the New Architecture pulls Fabric pods (React-Fabric) into Podfile.lock; the
+          # old arch does not. Catches a silent pod-install fallback exercising the wrong arch.
+          if [ "$NEW_ARCH" = "true" ]; then
+            grep -q 'React-Fabric' "$RN_BUILD_DIR/ios/Podfile.lock" \
+              || { echo "::error::new-arch requested but Fabric pods (React-Fabric) absent from Podfile.lock"; exit 1; }
+          else
+            ! grep -q 'React-Fabric' "$RN_BUILD_DIR/ios/Podfile.lock" \
+              || { echo "::error::old-arch requested but Fabric pods (React-Fabric) present in Podfile.lock"; exit 1; }
+          fi
 
       - name: 📱 Build iOS app for the simulator
         shell: bash
@@ -177,7 +187,7 @@ jobs:
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
-          name: e2e-logs-react-native-ios-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
+          name: e2e-logs-react-native-ios-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: |
             e2e/logs/**/*.log
             e2e/metro.log

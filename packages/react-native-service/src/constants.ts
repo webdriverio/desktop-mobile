@@ -14,9 +14,10 @@ export const DEFAULT_METRO_PORT = 8081;
  * Discovery budget for the Hermes inspector attach. Hermes registers its target
  * with Metro's inspector-proxy a few seconds *after* the JS bundle loads (longer
  * on a cold emulator/first launch), so the CdpBridge default (3 × 100ms ≈ 300ms)
- * gives up long before the target appears in `/json/list`. Poll for ~45s instead:
+ * gives up long before the target appears in `/json/list`. Poll for ~60s instead:
  * the New Architecture (Fabric/bridgeless) registers later than Paper (the probe
- * saw `/json/list` populate at ~24s), so the budget covers the slower path too.
+ * saw `/json/list` populate at ~24s), and GitHub-hosted macOS runners are slower
+ * under load, so a full minute of headroom keeps the new-arch iOS leg non-flaky.
  */
-export const HERMES_CONNECT_RETRIES = 45;
+export const HERMES_CONNECT_RETRIES = 60;
 export const HERMES_CONNECT_INTERVAL_MS = 1000;
