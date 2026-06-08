@@ -99,6 +99,7 @@ type ReactNativeCapability = {
   'appium:app': string;
   'appium:newCommandTimeout': number;
   'appium:deviceName'?: string;
+  'appium:wdaLaunchTimeout'?: number;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -108,8 +109,12 @@ const capabilities: ReactNativeCapability[] = [
     'appium:automationName': isIos ? 'XCUITest' : 'UiAutomator2',
     'appium:app': appPath,
     'appium:newCommandTimeout': 240,
-    // iOS needs a target simulator; CI sets RN_IOS_DEVICE (e.g. 'iPhone 16').
-    ...(isIos ? { 'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16' } : {}),
+    // iOS needs a target simulator; CI sets RN_IOS_DEVICE (e.g. 'iPhone 16'). wdaLaunchTimeout
+    // is generous because appium-xcuitest compiles WebDriverAgent on the first session of a cold
+    // runner (minutes); without it the session create aborts before WDA is ready.
+    ...(isIos
+      ? { 'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16', 'appium:wdaLaunchTimeout': 240000 }
+      : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
   },
 ];
@@ -132,7 +137,10 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  connectionRetryTimeout: 180000,
+  // iOS: the first `POST /session` blocks while appium-xcuitest builds WebDriverAgent (several
+  // minutes on a cold macOS runner). The default 3-min request timeout aborts mid-build, so give
+  // iOS a 10-min ceiling; Android stays tight. (It's a max, not a delay — fast commands return fast.)
+  connectionRetryTimeout: isIos ? 600000 : 180000,
   connectionRetryCount: 3,
   // @wdio/appium-service boots the Appium 2 server; @wdio/react-native-service prepares
   // capabilities (automationName/app) and attaches the Hermes bridge for execute/mock.

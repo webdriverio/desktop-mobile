@@ -100,16 +100,11 @@ jobs:
           # but the spec mount-waits + the service's Hermes connect-retry absorb it.
           NEW_ARCH_FLAG=$([ "$NEW_ARCH" = "true" ] && echo 1 || echo 0)
           ( cd "$RN_BUILD_DIR/ios" && RCT_NEW_ARCH_ENABLED="$NEW_ARCH_FLAG" pod install )
-          # Assert the flag actually took effect (the iOS analogue of Android's newArchEnabled
-          # grep): the New Architecture pulls Fabric pods (React-Fabric) into Podfile.lock; the
-          # old arch does not. Catches a silent pod-install fallback exercising the wrong arch.
-          if [ "$NEW_ARCH" = "true" ]; then
-            grep -q 'React-Fabric' "$RN_BUILD_DIR/ios/Podfile.lock" \
-              || { echo "::error::new-arch requested but Fabric pods (React-Fabric) absent from Podfile.lock"; exit 1; }
-          else
-            ! grep -q 'React-Fabric' "$RN_BUILD_DIR/ios/Podfile.lock" \
-              || { echo "::error::old-arch requested but Fabric pods (React-Fabric) present in Podfile.lock"; exit 1; }
-          fi
+          # NOTE: there is no reliable Podfile.lock-level arch assertion on iOS (unlike Android's
+          # gradle.properties grep). RN 0.76 vendors the Fabric pods (React-Fabric, hermes-engine,
+          # …) into Podfile.lock for BOTH archs — RCT_NEW_ARCH_ENABLED is a build-time flag, not a
+          # pod-set difference — so pod presence can't discriminate old vs new. The E2E run itself
+          # is the validation (Fabric renders/behaves differently at runtime).
 
       - name: 📱 Build iOS app for the simulator
         shell: bash
