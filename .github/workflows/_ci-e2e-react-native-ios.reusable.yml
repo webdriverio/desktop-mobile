@@ -240,6 +240,12 @@ jobs:
           # wait-on is a pinned e2e devDependency — run the workspace-local binary (not an
           # unpinned `npx --yes`) so a breaking release can't silently break the readiness check.
           pnpm --filter @repo/e2e exec wait-on tcp:8081 --timeout 120000
+          # Pre-bundle: Metro compiles the JS bundle lazily on first request (~60s cold). Without
+          # this, the first app launch lands on Metro's "Bundling…" overlay with an empty native
+          # tree, and the earliest specs fail finding elements before bundling completes. Force the
+          # compile now (best-effort — the specs surface a real bundling error more clearly).
+          curl -fsS --max-time 300 "http://localhost:8081/index.bundle?platform=ios&dev=true&minify=false" -o /dev/null \
+            && echo "Metro bundle pre-built" || echo "::warning::Metro pre-bundle request failed (continuing)"
           pnpm --filter @repo/e2e run test:e2e:react-native:ios
 
       - name: 🐛 Show Metro log on failure

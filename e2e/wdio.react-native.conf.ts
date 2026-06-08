@@ -100,6 +100,7 @@ type ReactNativeCapability = {
   'appium:newCommandTimeout': number;
   'appium:deviceName'?: string;
   'appium:wdaLaunchTimeout'?: number;
+  'appium:simulatorStartupTimeout'?: number;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -113,7 +114,14 @@ const capabilities: ReactNativeCapability[] = [
     // is generous because appium-xcuitest compiles WebDriverAgent on the first session of a cold
     // runner (minutes); without it the session create aborts before WDA is ready.
     ...(isIos
-      ? { 'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16', 'appium:wdaLaunchTimeout': 240000 }
+      ? {
+          'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16',
+          'appium:wdaLaunchTimeout': 240000,
+          // The workflow pre-boots the sim, but appium re-monitors boot on session create and the
+          // default 120s ceiling has timed out on a cold/slow runner ("failed to finish booting
+          // after 122s"). Give it headroom.
+          'appium:simulatorStartupTimeout': 240000,
+        }
       : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
   },
@@ -132,9 +140,10 @@ export const config = {
   logLevel: 'info',
   bail: 0,
   // TEMPORARY (while stabilising #353): retry counts dialled down so a failing iOS leg surfaces
-  // in ONE attempt (~the WDA window) instead of 3× — fast iteration. RESTORE before merge:
-  // specFileRetries 1, connectionRetryCount 3, mochaOpts.retries 1 (they absorb emulator
-  // boot / first-attach flake). The iOS connectionRetryTimeout stays high — WDA needs it.
+  // in ONE attempt (~the WDA window) instead of multiplying the 10-min session timeout — fast
+  // iteration. RESTORE before merge: specFileRetries 1, connectionRetryCount 3, mochaOpts.retries 1
+  // (they absorb emulator boot / first-attach flake). The iOS connectionRetryTimeout stays high —
+  // WDA needs it.
   specFileRetries: 0,
   specFileRetriesDeferred: false,
   baseUrl: '',
@@ -143,7 +152,9 @@ export const config = {
   // minutes on a cold macOS runner). The default 3-min request timeout aborts mid-build, so give
   // iOS a 10-min ceiling; Android stays tight. (It's a max, not a delay — fast commands return fast.)
   connectionRetryTimeout: isIos ? 600000 : 180000,
-  connectionRetryCount: 1,
+  // 0 while stabilising: a failed iOS session-create otherwise retries the full 10-min timeout,
+  // doubling the runtime. RESTORE to 3 before merge.
+  connectionRetryCount: 0,
   // @wdio/appium-service boots the Appium 2 server; @wdio/react-native-service prepares
   // capabilities (automationName/app) and attaches the Hermes bridge for execute/mock.
   services: ['appium', 'react-native'],
