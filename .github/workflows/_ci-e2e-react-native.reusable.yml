@@ -36,6 +36,10 @@ on:
         description: '@react-native-community/cli major to scaffold with (pinned to match rn-version; bump together)'
         type: string
         default: '15'
+      new-arch:
+        description: 'Build the fixture with the New Architecture (Fabric/bridgeless) enabled'
+        type: boolean
+        default: false
       build_id:
         type: string
         required: false
@@ -123,6 +127,7 @@ jobs:
         env:
           RN_VERSION: ${{ inputs.rn-version }}
           RN_CLI_VERSION: ${{ inputs.rn-cli-version }}
+          NEW_ARCH: ${{ inputs.new-arch }}
         run: |
           set -euo pipefail
           # Pin the CLI major to match the RN version — an unpinned @latest could ship a
@@ -130,13 +135,13 @@ jobs:
           npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
             --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
           cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
-          # Disable the New Architecture (Fabric). Under Fabric/bridgeless the RN surface is
-          # NOT exposed in the UiAutomator2 view hierarchy (android:id/content comes back
-          # empty → every selector is NoSuchElement) and the Hermes inspector doesn't register
-          # with Metro (execute/mock get "No debugger instance"). The old (Paper) arch renders
-          # into the standard testable tree and registers the inspector. The service supports
-          # both; the fixture just needs to be drivable.
-          sed -i 's/^newArchEnabled=true/newArchEnabled=false/' "$RN_BUILD_DIR/android/gradle.properties"
+          # Select the RN architecture for this leg — BOTH are required gates: old (Paper) and
+          # new (Fabric/bridgeless, the RN 0.76 default). Under Fabric the UiAutomator2 view
+          # tree and the Hermes inspector register a few seconds LATER than Paper (proven by the
+          # probe: tree by ~12s, /json/list by ~24s) — the spec mount-waits and the service's
+          # Hermes connect-retry absorb that, so both archs drive the same fixture.
+          NEW_ARCH_VALUE=$([ "$NEW_ARCH" = "true" ] && echo true || echo false)
+          sed -i "s/^newArchEnabled=.*/newArchEnabled=$NEW_ARCH_VALUE/" "$RN_BUILD_DIR/android/gradle.properties"
           grep '^newArchEnabled=' "$RN_BUILD_DIR/android/gradle.properties"
           cd "$RN_BUILD_DIR/android"
           ./gradlew assembleDebug --no-daemon -PreactNativeArchitectures=x86_64
