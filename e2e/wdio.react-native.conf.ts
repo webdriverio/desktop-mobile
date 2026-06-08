@@ -101,6 +101,8 @@ type ReactNativeCapability = {
   'appium:deviceName'?: string;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
+  'appium:usePreinstalledWDA'?: boolean;
+  'appium:prebuiltWDAPath'?: string;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -121,6 +123,12 @@ const capabilities: ReactNativeCapability[] = [
           // default 120s ceiling has timed out on a cold/slow runner ("failed to finish booting
           // after 122s"). Give it headroom.
           'appium:simulatorStartupTimeout': 240000,
+          // Use a prebuilt WDA (CI downloads it via `appium driver run xcuitest download-wda`) so
+          // session-create skips the ~8-min WDA xcodebuild that otherwise timed out the first two
+          // sessions on a cold runner. Falls back to building WDA when RN_WDA_PATH is unset (local).
+          ...(process.env.RN_WDA_PATH
+            ? { 'appium:usePreinstalledWDA': true, 'appium:prebuiltWDAPath': process.env.RN_WDA_PATH }
+            : {}),
         }
       : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
