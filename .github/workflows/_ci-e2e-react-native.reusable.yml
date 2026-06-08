@@ -130,13 +130,10 @@ jobs:
           npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
             --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
           cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
-          # Disable the New Architecture (Fabric). Under Fabric/bridgeless the RN surface is
-          # NOT exposed in the UiAutomator2 view hierarchy (android:id/content comes back
-          # empty → every selector is NoSuchElement) and the Hermes inspector doesn't register
-          # with Metro (execute/mock get "No debugger instance"). The old (Paper) arch renders
-          # into the standard testable tree and registers the inspector. The service supports
-          # both; the fixture just needs to be drivable.
-          sed -i 's/^newArchEnabled=true/newArchEnabled=false/' "$RN_BUILD_DIR/android/gradle.properties"
+          # SPIKE: keep the New Architecture (Fabric/bridgeless, RN 0.76 default) ENABLED to
+          # investigate drivability (the diagnostic probe below captures ground truth). Force
+          # the flag explicitly + confirm.
+          sed -i 's/^newArchEnabled=false/newArchEnabled=true/' "$RN_BUILD_DIR/android/gradle.properties"
           grep '^newArchEnabled=' "$RN_BUILD_DIR/android/gradle.properties"
           cd "$RN_BUILD_DIR/android"
           ./gradlew assembleDebug --no-daemon -PreactNativeArchitectures=x86_64
@@ -177,7 +174,39 @@ jobs:
             # Start Metro from the scaffolded project (serves the JS bundle + Hermes inspector).
             ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
             npx --yes wait-on tcp:8081 --timeout 120000
-            pnpm --filter @repo/e2e run test:e2e:react-native
+            # SPIKE diagnostic (no Appium): launch the app ourselves and capture ground truth
+            # about new-arch drivability at several time points — does Hermes ever register a
+            # /json/list target (and its shape), does the UiAutomator2 tree ever populate under
+            # content, and any Fabric/Hermes/redbox errors in logcat.
+            adb install -r "$RN_APP_PATH" || true
+            PKG=$(adb shell pm list packages 2>/dev/null | sed 's/package://' | tr -d '\r' | grep -i reactnative | head -1) || true
+            echo "app package: $PKG"
+            adb shell monkey -p "$PKG" -c android.intent.category.LAUNCHER 1 || true
+            OUT="$GITHUB_WORKSPACE/e2e/logs/standard-react-native"
+            mkdir -p "$OUT"
+            PROBE="$OUT/newarch-probe.log"
+            n=1
+            while [ "$n" -le 8 ]; do
+              {
+                echo "===================== probe $n ====================="
+                echo "--- adb reverse --list ---"
+                adb reverse --list 2>&1 || true
+                echo "--- curl /json/list ---"
+                curl -s http://localhost:8081/json/list 2>&1 || echo "curl failed"
+                echo ""
+                echo "--- uiautomator dump (first 6000 chars) ---"
+                adb shell uiautomator dump /sdcard/win.xml >/dev/null 2>&1 || true
+                adb shell cat /sdcard/win.xml 2>/dev/null | head -c 6000 || true
+                echo ""
+                echo "--- logcat (RN/Hermes/Fabric/inspector/errors) ---"
+                adb logcat -d 2>/dev/null | grep -Ei 'ReactNative|Hermes|Fabric|Bridgeless|inspector|fatal|Exception' | tail -60 || true
+                echo ""
+              } >> "$PROBE" 2>&1
+              n=$((n + 1))
+              sleep 12
+            done
+            echo "===== PROBE RESULT ====="
+            cat "$PROBE"
 
       - name: 🐛 Show Metro log on failure
         if: failure()
