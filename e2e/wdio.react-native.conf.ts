@@ -101,8 +101,6 @@ type ReactNativeCapability = {
   'appium:deviceName'?: string;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
-  'appium:usePreinstalledWDA'?: boolean;
-  'appium:prebuiltWDAPath'?: string;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -112,23 +110,21 @@ const capabilities: ReactNativeCapability[] = [
     'appium:automationName': isIos ? 'XCUITest' : 'UiAutomator2',
     'appium:app': appPath,
     'appium:newCommandTimeout': 240,
-    // iOS needs a target simulator; CI sets RN_IOS_DEVICE (e.g. 'iPhone 16'). wdaLaunchTimeout
-    // is generous because appium-xcuitest compiles WebDriverAgent on the first session of a cold
-    // runner (minutes); without it the session create aborts before WDA is ready.
+    // iOS needs a target simulator; CI sets RN_IOS_DEVICE (e.g. 'iPhone 16').
     ...(isIos
       ? {
           'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16',
-          'appium:wdaLaunchTimeout': 240000,
+          // appium-xcuitest compiles WebDriverAgent on the first session of a cold runner — the
+          // build measured ~8-9 min. wdaLaunchTimeout must exceed it (the default 4 min made
+          // appium give up before WDA was ready, failing the first sessions); the first session
+          // then waits the build out and the rest reuse the cached WDA. It's a ceiling, not a
+          // delay — the run is only as long as the build — so the margin is free. connectionRetry
+          // Timeout (below) is set higher still so WDIO doesn't abort the POST /session first.
+          'appium:wdaLaunchTimeout': 720000,
           // The workflow pre-boots the sim, but appium re-monitors boot on session create and the
           // default 120s ceiling has timed out on a cold/slow runner ("failed to finish booting
           // after 122s"). Give it headroom.
           'appium:simulatorStartupTimeout': 240000,
-          // Use a prebuilt WDA (CI downloads it via `appium driver run xcuitest download-wda`) so
-          // session-create skips the ~8-min WDA xcodebuild that otherwise timed out the first two
-          // sessions on a cold runner. Falls back to building WDA when RN_WDA_PATH is unset (local).
-          ...(process.env.RN_WDA_PATH
-            ? { 'appium:usePreinstalledWDA': true, 'appium:prebuiltWDAPath': process.env.RN_WDA_PATH }
-            : {}),
         }
       : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
@@ -159,7 +155,9 @@ export const config = {
   // iOS: the first `POST /session` blocks while appium-xcuitest builds WebDriverAgent (several
   // minutes on a cold macOS runner). The default 3-min request timeout aborts mid-build, so give
   // iOS a 10-min ceiling; Android stays tight. (It's a max, not a delay — fast commands return fast.)
-  connectionRetryTimeout: isIos ? 600000 : 180000,
+  // iOS: must exceed wdaLaunchTimeout (720s) so WDIO doesn't abort POST /session while
+  // appium-xcuitest builds WebDriverAgent (~8-9 min cold) on the first session. Android stays tight.
+  connectionRetryTimeout: isIos ? 900000 : 180000,
   // 0 while stabilising: a failed iOS session-create otherwise retries the full 10-min timeout,
   // doubling the runtime. RESTORE to 3 before merge.
   connectionRetryCount: 0,
