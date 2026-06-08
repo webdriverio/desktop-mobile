@@ -71,14 +71,16 @@ export default class ElectrobunWorkerService {
   }
 
   private async attachInstance(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
-    const chromeOptions = (capabilities as { 'goog:chromeOptions'?: { debuggerAddress?: string } } | undefined)?.[
-      'goog:chromeOptions'
-    ];
-    const debuggerAddress = chromeOptions?.debuggerAddress;
+    // The launcher sets debuggerAddress under `goog:chromeOptions` for the CEF/chromedriver
+    // path and under `ms:edgeOptions` for the WebView2/Edge (msedgedriver) path — read both.
+    const caps = capabilities as
+      | { 'goog:chromeOptions'?: { debuggerAddress?: string }; 'ms:edgeOptions'?: { debuggerAddress?: string } }
+      | undefined;
+    const debuggerAddress = caps?.['goog:chromeOptions']?.debuggerAddress ?? caps?.['ms:edgeOptions']?.debuggerAddress;
 
     if (!debuggerAddress) {
       log.warn(
-        'No goog:chromeOptions.debuggerAddress on the capability — cannot attach the CDP bridge. ' +
+        'No goog:chromeOptions/ms:edgeOptions debuggerAddress on the capability — cannot attach the CDP bridge. ' +
           'browser.electrobun.* will be unavailable. Was the launcher (native mode) run?',
       );
       return;
