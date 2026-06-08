@@ -1,15 +1,31 @@
 /**
  * React Native E2E Test Fixture — big-glass counter
  *
- * Every element is selected by `testID` (see e2e el(): Android resource-id / iOS
- * accessibilityIdentifier). We do NOT set accessibilityLabel on value-bearing elements:
- * on iOS an accessibilityLabel shadows the element's value, so getText() on the counter
- * would return "counter" instead of the rendered number.
+ * Every element is selected by the e2e `~` (accessibility-id) selector via `sel()` below:
+ * content-desc on Android (accessibilityLabel), accessibilityIdentifier on iOS (testID). iOS
+ * deliberately gets no accessibilityLabel — it shadows a value element's text, so getText() on
+ * the counter would return "counter" instead of the rendered number.
  *
- *   testID: app-title | counter | increment-button | decrement-button | reset-button | status
+ *   ids: app-title | counter | increment-button | decrement-button | reset-button | status
  */
 import React, { useState } from 'react';
-import { DeviceEventEmitter, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import {
+  DeviceEventEmitter,
+  Platform,
+  SafeAreaView,
+  StatusBar,
+  StyleSheet,
+  Text,
+  TouchableOpacity,
+  View,
+} from 'react-native';
+
+// Selector props for the e2e `~` (accessibility-id) selector. That id maps to content-desc on
+// Android (accessibilityLabel) and to accessibilityIdentifier on iOS (testID). We must NOT set
+// accessibilityLabel on iOS: it shadows a value-bearing element's text, so getText() on the
+// counter would return "counter" instead of the rendered number. testID everywhere;
+// accessibilityLabel only on Android.
+const sel = (id: string) => (Platform.OS === 'android' ? { testID: id, accessibilityLabel: id } : { testID: id });
 
 // Expose a mockable greeting function for execute/mock tests.
 (globalThis as { greet?: (name: string) => string }).greet = (name: string) => `Hello, ${name}!`;
@@ -58,30 +74,30 @@ export default function App(): React.JSX.Element {
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#667eea" />
       <View style={styles.container}>
-        <Text testID="app-title" style={styles.title}>
+        <Text {...sel('app-title')} style={styles.title}>
           React Native E2E App
         </Text>
 
         <View style={styles.counterSection}>
-          <Text testID="counter" style={styles.counter}>
+          <Text {...sel('counter')} style={styles.counter}>
             {count}
           </Text>
         </View>
 
         <View style={styles.buttons}>
-          <TouchableOpacity testID="increment-button" style={styles.button} onPress={increment}>
+          <TouchableOpacity {...sel('increment-button')} style={styles.button} onPress={increment}>
             <Text style={styles.buttonText}>+</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="decrement-button" style={styles.button} onPress={decrement}>
+          <TouchableOpacity {...sel('decrement-button')} style={styles.button} onPress={decrement}>
             <Text style={styles.buttonText}>−</Text>
           </TouchableOpacity>
-          <TouchableOpacity testID="reset-button" style={styles.button} onPress={reset}>
+          <TouchableOpacity {...sel('reset-button')} style={styles.button} onPress={reset}>
             <Text style={styles.buttonText}>Reset</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.infoSection}>
-          <Text testID="status" style={styles.status}>
+          <Text {...sel('status')} style={styles.status}>
             {status}
           </Text>
         </View>

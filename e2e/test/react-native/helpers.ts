@@ -1,16 +1,16 @@
-import { $, browser } from '@wdio/globals';
+import { $ } from '@wdio/globals';
 
 /**
- * Select a fixture element by its React Native `testID`, cross-platform.
+ * Select a fixture element by its stable id via the `~` (accessibility-id) selector.
  *
- * RN surfaces `testID` as the Android `resource-id` (UiAutomator2) and as the iOS
- * `accessibilityIdentifier` (XCUITest, reachable via the `~` accessibility-id selector).
+ * The fixture (App.tsx `sel()`) exposes that id as **content-desc** on Android
+ * (accessibilityLabel) and as **accessibilityIdentifier** on iOS (testID) — both of which `~`
+ * matches. iOS deliberately omits accessibilityLabel: it would shadow a value-bearing element's
+ * text, so getText() on the counter would return "counter" instead of the rendered number.
  *
- * We deliberately select by `testID` rather than `accessibilityLabel`: on iOS an
- * accessibilityLabel shadows the element's value, so `getText()` on a value-bearing element
- * (e.g. the counter) would return the label ("counter") instead of the rendered text ("0").
- * `resourceIdMatches` tolerates an optional `pkg:id/` prefix on the Android resource id.
+ * (RN's testID does NOT surface as a queryable Android resource-id, so resource-id selection is
+ * not an option there — content-desc is.)
  */
 export function el(testId: string) {
-  return browser.isIOS ? $(`~${testId}`) : $(`android=new UiSelector().resourceIdMatches("(.*/)?${testId}")`);
+  return $(`~${testId}`);
 }
