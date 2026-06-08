@@ -1,13 +1,12 @@
 /**
  * React Native E2E Test Fixture — big-glass counter
  *
- * Stable selectors (accessible via Appium accessibility ID or testID):
- *   #app-title         → accessibilityLabel="app-title"
- *   #counter           → accessibilityLabel="counter"
- *   #increment-button  → accessibilityLabel="increment-button"
- *   #decrement-button  → accessibilityLabel="decrement-button"
- *   #reset-button      → accessibilityLabel="reset-button"
- *   #status            → accessibilityLabel="status"
+ * Every element is selected by `testID` (see e2e el(): Android resource-id / iOS
+ * accessibilityIdentifier). We do NOT set accessibilityLabel on value-bearing elements:
+ * on iOS an accessibilityLabel shadows the element's value, so getText() on the counter
+ * would return "counter" instead of the rendered number.
+ *
+ *   testID: app-title | counter | increment-button | decrement-button | reset-button | status
  */
 import React, { useState } from 'react';
 import { DeviceEventEmitter, SafeAreaView, StatusBar, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
@@ -59,45 +58,30 @@ export default function App(): React.JSX.Element {
     <SafeAreaView style={styles.root}>
       <StatusBar barStyle="light-content" backgroundColor="#667eea" />
       <View style={styles.container}>
-        <Text accessibilityLabel="app-title" style={styles.title}>
+        <Text testID="app-title" style={styles.title}>
           React Native E2E App
         </Text>
 
         <View style={styles.counterSection}>
-          <Text accessibilityLabel="counter" testID="counter" style={styles.counter}>
+          <Text testID="counter" style={styles.counter}>
             {count}
           </Text>
         </View>
 
         <View style={styles.buttons}>
-          <TouchableOpacity
-            accessibilityLabel="increment-button"
-            testID="increment-button"
-            style={styles.button}
-            onPress={increment}
-          >
+          <TouchableOpacity testID="increment-button" style={styles.button} onPress={increment}>
             <Text style={styles.buttonText}>+</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            accessibilityLabel="decrement-button"
-            testID="decrement-button"
-            style={styles.button}
-            onPress={decrement}
-          >
+          <TouchableOpacity testID="decrement-button" style={styles.button} onPress={decrement}>
             <Text style={styles.buttonText}>−</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            accessibilityLabel="reset-button"
-            testID="reset-button"
-            style={styles.button}
-            onPress={reset}
-          >
+          <TouchableOpacity testID="reset-button" style={styles.button} onPress={reset}>
             <Text style={styles.buttonText}>Reset</Text>
           </TouchableOpacity>
         </View>
 
         <View style={styles.infoSection}>
-          <Text accessibilityLabel="status" testID="status" style={styles.status}>
+          <Text testID="status" style={styles.status}>
             {status}
           </Text>
         </View>
