@@ -131,9 +131,11 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // Emulator boot + app install is slow and occasionally flaky on first attach; a
-  // spec-file retry re-launches the app cleanly.
-  specFileRetries: 1,
+  // TEMPORARY (while stabilising #353): retry counts dialled down so a failing iOS leg surfaces
+  // in ONE attempt (~the WDA window) instead of 3× — fast iteration. RESTORE before merge:
+  // specFileRetries 1, connectionRetryCount 3, mochaOpts.retries 1 (they absorb emulator
+  // boot / first-attach flake). The iOS connectionRetryTimeout stays high — WDA needs it.
+  specFileRetries: 0,
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
@@ -141,7 +143,7 @@ export const config = {
   // minutes on a cold macOS runner). The default 3-min request timeout aborts mid-build, so give
   // iOS a 10-min ceiling; Android stays tight. (It's a max, not a delay — fast commands return fast.)
   connectionRetryTimeout: isIos ? 600000 : 180000,
-  connectionRetryCount: 3,
+  connectionRetryCount: 1,
   // @wdio/appium-service boots the Appium 2 server; @wdio/react-native-service prepares
   // capabilities (automationName/app) and attaches the Hermes bridge for execute/mock.
   services: ['appium', 'react-native'],
@@ -151,7 +153,7 @@ export const config = {
   mochaOpts: {
     ui: 'bdd',
     timeout: 120000,
-    retries: 1,
+    retries: 0,
   },
   outputDir: logDir,
   // On a test failure, write the Appium page source to a .log file in the logs dir (which
