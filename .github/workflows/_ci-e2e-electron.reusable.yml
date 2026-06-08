@@ -274,7 +274,7 @@ jobs:
       - name: 🐛 Show Logs on Failure
         shell: bash
         if: failure()
-        run: pnpm exec tsx e2e/scripts/show-logs.ts
+        run: node e2e/scripts/show-logs.ts
 
       # Upload logs as artifacts for later analysis
       # This helps debug issues without cluttering the GitHub Actions console

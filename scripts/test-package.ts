@@ -1,21 +1,21 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 /**
  * Script to test the wdio-electron-service, wdio-tauri-service, and wdio-dioxus-service packages in the package test apps
- * Usage: pnpx tsx scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|dioxus|electrobun|all>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]
+ * Usage: node scripts/test-package.ts [--package=<package-name>] [--service=<electron|tauri|dioxus|electrobun|all>] [--module-type=<cjs|esm|both>] [--mode=<native|browser>] [--skip-build]
  *
  * Examples:
- * pnpx tsx scripts/test-package.ts
- * pnpx tsx scripts/test-package.ts --service=electron
- * pnpx tsx scripts/test-package.ts --service=electron --module-type=cjs
- * pnpx tsx scripts/test-package.ts --service=electron --module-type=esm
- * pnpx tsx scripts/test-package.ts --service=electron --mode=browser
- * pnpx tsx scripts/test-package.ts --service=tauri
- * pnpx tsx scripts/test-package.ts --service=dioxus
- * pnpx tsx scripts/test-package.ts --service=electrobun  (macOS only)
- * pnpx tsx scripts/test-package.ts --package=electron-builder-app-cjs
- * pnpx tsx scripts/test-package.ts --package=electron-builder-app-esm
- * pnpx tsx scripts/test-package.ts --package=tauri-app --skip-build
- * pnpx tsx scripts/test-package.ts --package=dioxus-app --skip-build
+ * node scripts/test-package.ts
+ * node scripts/test-package.ts --service=electron
+ * node scripts/test-package.ts --service=electron --module-type=cjs
+ * node scripts/test-package.ts --service=electron --module-type=esm
+ * node scripts/test-package.ts --service=electron --mode=browser
+ * node scripts/test-package.ts --service=tauri
+ * node scripts/test-package.ts --service=dioxus
+ * node scripts/test-package.ts --service=electrobun  (macOS only)
+ * node scripts/test-package.ts --package=electron-builder-app-cjs
+ * node scripts/test-package.ts --package=electron-builder-app-esm
+ * node scripts/test-package.ts --package=tauri-app --skip-build
+ * node scripts/test-package.ts --package=dioxus-app --skip-build
  */
 
 import { execSync } from 'node:child_process';

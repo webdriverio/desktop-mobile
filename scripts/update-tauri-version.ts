@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 
 import { execSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -82,11 +82,6 @@ function findAlignedVersion(npmVersions: string[], cargoVersions: string[]): str
 
 function getLatestNpmVersion(packageName: string): string {
   const versions = getAllNpmVersions(packageName);
-  return versions.sort(compareVersions)[0];
-}
-
-function _getLatestCargoVersion(packageName: string): string {
-  const versions = getAllCargoVersions(packageName);
   return versions.sort(compareVersions)[0];
 }
 

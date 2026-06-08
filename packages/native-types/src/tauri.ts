@@ -59,10 +59,10 @@ export interface TauriMockInstance extends Omit<Mock, MockOverride> {
   withImplementation<ReturnValue, InnerArguments extends unknown[]>(
     implFn: AbstractFn,
     callbackFn: (tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue,
-  ): Promise<unknown>;
+  ): Promise<ReturnValue>;
   mockName(name: string): TauriMock;
   getMockName(): string;
-  getMockImplementation(): AbstractFn;
+  getMockImplementation(): AbstractFn | undefined;
   update(): Promise<TauriMock>;
   __isTauriMock: boolean;
   mock: TauriMockContext;
@@ -125,22 +125,6 @@ export interface TauriServiceAPI {
     script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     options: TauriExecuteOptions,
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
-
-  /**
-   * Execute JavaScript code with per-call options.
-   *
-   * @example
-   * ```js
-   * const result = await browser.tauri.execute(
-   *   ({ core }) => core.invoke('get_data'),
-   *   { windowLabel: 'settings' }
-   * );
-   * ```
-   */
-  execute<ReturnValue>(
-    script: string | ((tauri: TauriAPIs) => ReturnValue),
-    options: TauriExecuteOptions,
   ): Promise<ReturnValue>;
 
   /**
@@ -438,10 +422,14 @@ export interface TauriBrowserExtension extends BrowserBase {
    * Access the WebdriverIO Tauri Service API.
    *
    * - {@link TauriServiceAPI.clearAllMocks `browser.tauri.clearAllMocks`} - Clear the Tauri API mock functions
+   * - {@link TauriServiceAPI.emitEvent `browser.tauri.emitEvent`} - Emit a Tauri event to frontend listeners
    * - {@link TauriServiceAPI.execute `browser.tauri.execute`} - Execute code in the Tauri frontend context
+   * - {@link TauriServiceAPI.isMockFunction `browser.tauri.isMockFunction`} - Check if a value is a Tauri mock or a command is mocked
+   * - {@link TauriServiceAPI.listWindows `browser.tauri.listWindows`} - List the labels of all open windows
    * - {@link TauriServiceAPI.mock `browser.tauri.mock`} - Mock a function from the Tauri API
    * - {@link TauriServiceAPI.resetAllMocks `browser.tauri.resetAllMocks`} - Reset the Tauri API mock functions
    * - {@link TauriServiceAPI.restoreAllMocks `browser.tauri.restoreAllMocks`} - Restore the original Tauri API functionality
+   * - {@link TauriServiceAPI.switchWindow `browser.tauri.switchWindow`} - Switch WebDriver focus to another window
    * - {@link TauriServiceAPI.triggerDeeplink `browser.tauri.triggerDeeplink`} - Trigger a deeplink for testing protocol handlers
    */
   tauri: TauriServiceAPI;

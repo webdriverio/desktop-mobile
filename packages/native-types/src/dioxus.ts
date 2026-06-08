@@ -66,7 +66,7 @@ export interface DioxusMockInstance extends Omit<Mock, MockOverride> {
   mockReturnThis(): Promise<DioxusMock>;
   mockName(name: string): DioxusMock;
   getMockName(): string;
-  getMockImplementation(): AbstractFn;
+  getMockImplementation(): AbstractFn | undefined;
   update(): Promise<DioxusMock>;
   __isDioxusMock: boolean;
   mock: DioxusMockContext;
@@ -176,7 +176,23 @@ export interface DioxusCapabilities {
   'wdio:dioxusServiceOptions'?: DioxusServiceOptions;
 }
 
+/**
+ * Browser extension for Dioxus service
+ */
 export interface DioxusBrowserExtension extends BrowserBase {
+  /**
+   * Access the WebdriverIO Dioxus Service API.
+   *
+   * - {@link DioxusServiceAPI.clearAllMocks `browser.dioxus.clearAllMocks`} - Clear the Dioxus API mock functions
+   * - {@link DioxusServiceAPI.execute `browser.dioxus.execute`} - Execute code in the Dioxus frontend context
+   * - {@link DioxusServiceAPI.isMockFunction `browser.dioxus.isMockFunction`} - Check if a value is a Dioxus mock or a command is mocked
+   * - {@link DioxusServiceAPI.listWindows `browser.dioxus.listWindows`} - List the labels of all open windows
+   * - {@link DioxusServiceAPI.mock `browser.dioxus.mock`} - Mock a function from the Dioxus API
+   * - {@link DioxusServiceAPI.resetAllMocks `browser.dioxus.resetAllMocks`} - Reset the Dioxus API mock functions
+   * - {@link DioxusServiceAPI.restoreAllMocks `browser.dioxus.restoreAllMocks`} - Restore the original Dioxus API functionality
+   * - {@link DioxusServiceAPI.switchWindow `browser.dioxus.switchWindow`} - Switch WebDriver focus to another window
+   * - {@link DioxusServiceAPI.triggerDeeplink `browser.dioxus.triggerDeeplink`} - Trigger a deeplink for testing protocol handlers
+   */
   dioxus: DioxusServiceAPI;
 }
 

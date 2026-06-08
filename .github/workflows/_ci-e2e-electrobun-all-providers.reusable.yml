@@ -193,7 +193,7 @@ jobs:
       - name: 🐛 Debug Information
         if: always()
         shell: bash
-        run: pnpm exec tsx e2e/scripts/show-logs.ts || true
+        run: node e2e/scripts/show-logs.ts || true
 
       - name: 📊 E2E Summary
         if: always()

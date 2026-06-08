@@ -8,7 +8,7 @@
     "dev": "tauri dev",
     "clean:dist": "rm -rf dist",
     "build:js": "pnpm --filter @wdio/tauri-plugin build:js",
-    "build:web": "tsx scripts/build-web.ts",
+    "build:web": "node scripts/build-web.ts",
     "build": "pnpm build:js && pnpm build:web && tauri build --debug",
     "test": "cross-env DEBUG=@wdio/tauri-service wdio run wdio.conf.ts",
     "test:embedded": "cross-env DEBUG=@wdio/tauri-service wdio run wdio.embedded.conf.ts",

@@ -2,7 +2,7 @@
 
 /**
  * Script to switch catalog dependencies for all packages in the workspace
- * Usage: pnpx tsx scripts/switch-catalog.ts [default|next|minimum]
+ * Usage: node scripts/switch-catalog.ts [default|next|minimum]
  */
 
 import { execSync } from 'node:child_process';

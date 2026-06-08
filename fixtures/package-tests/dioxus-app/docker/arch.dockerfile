@@ -5,8 +5,8 @@ ENV CI=true
 # Update package database and install basic requirements.
 # Note: Node.js is NOT installed from pacman — Arch's `nodejs` package tracks
 # the latest release whose stricter undici validation trips WDIO's session POST
-# (UND_ERR_INVALID_ARG). We install Node 20 LTS from official binaries below to
-# match Ubuntu/Debian (which pin via setup_20.x) and keep builds repeatable.
+# (UND_ERR_INVALID_ARG). We install Node 24 LTS from official binaries below to
+# match Ubuntu/Debian (which pin via setup_24.x) and keep builds repeatable.
 RUN pacman -Syu --noconfirm && \
     pacman -S --noconfirm \
         curl \
@@ -19,8 +19,8 @@ RUN pacman -Syu --noconfirm && \
         xorg-server-xvfb && \
     pacman -Scc --noconfirm
 
-# Install Node.js 20 LTS from official binaries (pinned for repeatable builds)
-RUN NODE_VERSION="20.18.1" && \
+# Install Node.js 24 LTS from official binaries (pinned for repeatable builds)
+RUN NODE_VERSION="24.11.0" && \
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
         -o /tmp/node.tar.xz && \
     tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 && \

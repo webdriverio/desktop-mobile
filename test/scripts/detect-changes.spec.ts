@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { classifyChanges, classifyFile, discoverServices } from '../../scripts/detect-changes.mjs';
+import { classifyChanges, classifyFile, discoverServices } from '../../scripts/detect-changes.ts';
 
 const SERVICES = ['dioxus', 'electrobun', 'electron', 'react-native', 'tauri'];
 
@@ -62,7 +62,7 @@ describe('classifyFile', () => {
     // scripts
     ['scripts/update-tauri-version.ts', 'tauri'],
     ['scripts/test-package.ts', 'all'],
-    ['scripts/detect-changes.mjs', 'all'],
+    ['scripts/detect-changes.ts', 'all'],
     // root config
     ['package.json', 'all'],
     ['pnpm-lock.yaml', 'all'],

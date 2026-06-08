@@ -1,6 +1,6 @@
 {
   "name": "@wdio/native-types",
-  "version": "2.2.0",
+  "version": "2.3.1",
   "description": "Type definitions for WebdriverIO Native Desktop Services (Electron and Tauri)",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/native-types",
   "license": "MIT",
@@ -28,8 +28,8 @@
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
-    "build": "tsx ../../scripts/build-package.ts",
-    "dev": "tsx ../../scripts/build-package.ts --watch",
+    "build": "node ../../scripts/build-package.ts",
+    "dev": "node ../../scripts/build-package.ts --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json"
   },
   "devDependencies": {

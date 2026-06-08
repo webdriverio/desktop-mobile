@@ -6,7 +6,7 @@
  * - For minor/patch releases: Updates the description of the range milestone if needed
  *
  * Usage:
- *   pnpx tsx scripts/create-milestones.ts
+ *   node scripts/create-milestones.ts
  */
 
 import * as fs from 'node:fs';
