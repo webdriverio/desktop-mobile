@@ -200,9 +200,20 @@ function spawnWebView2App(params: SpawnElectrobunAppParams): ElectrobunAppProces
   // hardcoded args target different switches, so they coexist.
   const callerArgs =
     options.env?.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS ?? process.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS ?? '';
+
+  // Per-instance WebView2 data isolation. Electrobun derives the WebView2 user-data folder
+  // from %LOCALAPPDATA%\<identifier>\<channel>\WebView2 and passes it to
+  // CreateCoreWebView2EnvironmentWithOptions (so the WEBVIEW2_USER_DATA_FOLDER env var is
+  // ignored). Two instances sharing that folder with different --remote-debugging-port
+  // collide ("Failed to create WebView2 controller, HRESULT: 0x8007139F" = ERROR_INVALID_STATE).
+  // Redirect LOCALAPPDATA to a unique temp dir per spawn so each instance gets its own
+  // WebView2 root — the WebView2 analog of CEF's root_cache_path single-instance issue; also
+  // a prerequisite for multiremote.
+  const dataParent = mkdtempSync(join(tmpdir(), 'wdio-electrobun-webview2-'));
   const env: NodeJS.ProcessEnv = {
     ...process.env,
     ...options.env,
+    LOCALAPPDATA: dataParent,
     WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}${callerArgs ? ` ${callerArgs}` : ''}`,
   };
 
@@ -213,7 +224,7 @@ function spawnWebView2App(params: SpawnElectrobunAppParams): ElectrobunAppProces
     port,
     options,
     instanceId,
-    cleanupDirs: [],
+    cleanupDirs: [dataParent],
     displayBinary: app.binaryPath,
     displayArgs: appArgs,
   });

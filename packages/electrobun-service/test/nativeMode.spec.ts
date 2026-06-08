@@ -358,11 +358,14 @@ describe('nativeMode', () => {
       expect(binary).toBe('C:/apps/Demo/bin/launcher.exe');
       expect(args).toEqual(['--flag']);
       expect(opts.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS).toBe('--remote-debugging-port=9444');
-      // No CEF clone / build.json pin on the WebView2 path, so nothing to tear down.
+      // Per-instance WebView2 data isolation: LOCALAPPDATA redirected to a fresh temp dir
+      // (the non-'bundle' mkdtemp prefix resolves to USER_HOME in the stub), tracked for teardown.
+      expect(opts.env.LOCALAPPDATA).toBe(USER_HOME);
+      expect(result.cleanupDirs).toEqual([USER_HOME]);
+      // No CEF bundle clone / build.json pin on the WebView2 path.
       expect(execFileSyncMock).not.toHaveBeenCalled();
       expect(cpSyncMock).not.toHaveBeenCalled();
       expect(writeRemoteDebuggingPortMock).not.toHaveBeenCalled();
-      expect(result.cleanupDirs).toEqual([]);
     });
 
     it('keeps the remote-debugging port first and appends caller-supplied WebView2 args', () => {

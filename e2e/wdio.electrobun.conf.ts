@@ -134,14 +134,17 @@ const electrobunServiceOptions: ElectrobunServiceOptions = {
 
 const capabilities: ElectrobunCapability[] = [
   {
-    // CDP-attach: the launcher rewrites this 'electrobun' → 'chrome' and sets
-    // goog:chromeOptions.debuggerAddress onto the capability in onWorkerStart.
+    // CDP-attach: the launcher rewrites this 'electrobun' → 'chrome' (CEF/macOS) or
+    // 'MicrosoftEdge' (WebView2/Windows) and sets the debuggerAddress onto the
+    // capability in onWorkerStart.
     browserName: 'electrobun',
-    // Electrobun 1.18.1 bundles CEF on Chromium 147 (147.0.7727.118); pin the
-    // driver to that major so WDIO doesn't fetch the latest (148+), which refuses
-    // to attach with "only supports Chrome version N". Matching the major is what
-    // matters (spike RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin.
-    browserVersion: '147',
+    // CEF (macOS) bundles Chromium 147 (147.0.7727.118); pin the driver to that major
+    // so WDIO doesn't fetch the latest (148+), which refuses to attach with "only
+    // supports Chrome version N". Matching the major is what matters (spike
+    // RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin. On Windows the
+    // WebView2 (Edge) path omits this so WDIO/edgedriver match the runner's installed
+    // Edge/WebView2 runtime instead (#317).
+    ...(process.platform === 'win32' ? {} : { browserVersion: '147' }),
     'wdio:electrobunServiceOptions': electrobunServiceOptions,
   },
 ];

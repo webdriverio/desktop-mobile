@@ -197,7 +197,7 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(resolveElectrobunApp)).not.toHaveBeenCalled();
     });
 
-    it('should drive Windows via the WebView2 native renderer (resolve + force chrome, no CEF verify)', async () => {
+    it('should drive Windows via WebView2/Edge (browserName=MicrosoftEdge, no CEF verify)', async () => {
       setPlatform('win32');
       const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
       const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
@@ -207,7 +207,8 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(resolveElectrobunApp)).toHaveBeenCalledTimes(1);
       // WebView2 (Chromium) always serves /json once the launcher injects the port — nothing to verify.
       expect(vi.mocked(verifyCefRenderer)).not.toHaveBeenCalled();
-      expect(caps[0].browserName).toBe('chrome');
+      // WebView2 is Edge → msedgedriver (chromedriver rejects the `Edg/` version string).
+      expect(caps[0].browserName).toBe('MicrosoftEdge');
     });
 
     it('should reject a CEF-built bundle on Windows (CEF serves no /json there, #320 → #317)', async () => {
@@ -243,6 +244,20 @@ describe('ElectrobunLaunchService', () => {
       expect(typeof spawnArg.port).toBe('number');
 
       expect(cap['goog:chromeOptions']).toEqual({ debuggerAddress: `127.0.0.1:${spawnArg.port}` });
+    });
+
+    it('should set debuggerAddress under ms:edgeOptions on the WebView2 (Windows) path', async () => {
+      setPlatform('win32');
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      await launcher.onPrepare(baseConfig, [{}]);
+
+      const cap: ElectrobunCapabilities = {};
+      await launcher.onWorkerStart('0-0', [cap]);
+
+      const spawnArg = vi.mocked(spawnElectrobunApp).mock.calls[0][0];
+      // Edge reads debuggerAddress from ms:edgeOptions, not goog:chromeOptions.
+      expect(cap['ms:edgeOptions']).toEqual({ debuggerAddress: `127.0.0.1:${spawnArg.port}` });
+      expect(cap['goog:chromeOptions']).toBeUndefined();
     });
 
     it('should NOT pin the port directly — clone + port-write happen inside the spawn path', async () => {

@@ -144,7 +144,10 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         verifyCefRenderer(app);
       }
       this.resolvedApps.push(app);
-      (cap as { browserName?: string }).browserName = 'chrome';
+      // CEF is plain Chromium → chromedriver. WebView2 is Edge (it reports `Edg/<ver>`,
+      // which chromedriver rejects as an "unrecognized Chrome version"), so it must be
+      // driven by msedgedriver → browserName 'MicrosoftEdge' (WDIO provisions edgedriver).
+      (cap as { browserName?: string }).browserName = transport === 'webview2' ? 'MicrosoftEdge' : 'chrome';
     }
     log.info(`Native mode prepared ${this.resolvedApps.length} Electrobun app(s)`);
   }
@@ -187,15 +190,22 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       const spawned = this.spawnApp(app, port, instanceOptions, cid);
       workerApps.push(spawned);
 
-      const existingChromeOptions = (cap['goog:chromeOptions'] ?? {}) as Record<string, unknown>;
-      cap['goog:chromeOptions'] = {
-        ...existingChromeOptions,
-        // 127.0.0.1, not 'localhost': CEF binds the debugger on IPv4, but Node/
-        // Chromedriver resolve 'localhost' to IPv6 ::1 first on Windows/Linux CI →
-        // the attach (and the /json poll below) fail. The bridge inherits this host
-        // via parseDebuggerAddress, so it connects on IPv4 too.
-        debuggerAddress: `127.0.0.1:${port}`,
-      };
+      // 127.0.0.1, not 'localhost': the renderer binds the debugger on IPv4, but Node/
+      // the driver resolve 'localhost' to IPv6 ::1 first on Windows/Linux CI → the attach
+      // (and the /json poll below) fail. The bridge inherits this host via
+      // parseDebuggerAddress, so it connects on IPv4 too. WebView2 is Edge: msedgedriver
+      // reads debuggerAddress from `ms:edgeOptions`, whereas CEF/chromedriver uses
+      // `goog:chromeOptions`.
+      const debuggerAddress = `127.0.0.1:${port}`;
+      if (resolveTransport(app) === 'webview2') {
+        // `ms:edgeOptions` isn't on the narrowed ElectrobunCapabilities type — index via a record.
+        const edgeCap = cap as Record<string, unknown>;
+        const existingEdgeOptions = (edgeCap['ms:edgeOptions'] ?? {}) as Record<string, unknown>;
+        edgeCap['ms:edgeOptions'] = { ...existingEdgeOptions, debuggerAddress };
+      } else {
+        const existingChromeOptions = (cap['goog:chromeOptions'] ?? {}) as Record<string, unknown>;
+        cap['goog:chromeOptions'] = { ...existingChromeOptions, debuggerAddress };
+      }
 
       // Wait for CEF to actually serve /json with a page target before the worker's
       // Chromedriver attaches to debuggerAddress — otherwise it races the (slow on
