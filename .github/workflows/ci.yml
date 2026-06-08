@@ -24,7 +24,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
+  # A new push to a branch cancels its in-progress CI — superseded runs (esp. the slow mobile
+  # E2E legs) shouldn't keep burning runners. Previously PR events were exempt; cancel them too.
+  cancel-in-progress: true
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
