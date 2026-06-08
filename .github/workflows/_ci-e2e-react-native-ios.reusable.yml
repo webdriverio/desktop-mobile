@@ -1,9 +1,13 @@
 name: E2E Tests - React Native (iOS)
-# Description: iOS-simulator E2E for @wdio/react-native-service (the fast-follow to the
-# Android leg). Single combined job, same rationale as Android: Metro's JS bundle and the
-# built .app must agree on one scaffolded project. On the simulator, appium-xcuitest builds
-# and installs WebDriverAgent itself during session creation (no code signing required), and
-# the simulator shares the host loopback, so no `adb reverse` equivalent is needed.
+# Description: iOS-simulator E2E for @wdio/react-native-service. Split into a BUILD job
+# (scaffold + CocoaPods + xcodebuild → upload the .app) and an E2E job (re-scaffold the JS for
+# Metro, download the .app, drive it on a fresh runner). The split keeps the heavy xcodebuild
+# OFF the E2E runner: when both shared one runner, appium-xcuitest's session-create (its
+# `xcrun --show-sdk-version` SDK probe + the WebDriverAgent build) was starved by the
+# just-finished xcodebuild and timed out at 15s. A debug .app loads its JS from Metro at
+# runtime, so the E2E job's freshly-scaffolded project (same pinned RN version + App.tsx)
+# serves a compatible bundle; the simulator shares the host loopback, so no adb-reverse
+# equivalent is needed.
 
 permissions:
   contents: read
@@ -56,8 +60,8 @@ env:
   RN_BUILD_DIR: ${{ github.workspace }}/rn-build
 
 jobs:
-  e2e:
-    name: Run
+  build:
+    name: Build .app
     runs-on: ${{ inputs.os }}
     steps:
       - name: 👷 Checkout Repository
@@ -69,16 +73,6 @@ jobs:
         uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: ${{ inputs.node-version }}
-
-      # The e2e link-deps resolve against the prebuilt package dist from the build job.
-      - name: 📦 Download Build Artifacts
-        uses: ./.github/workflows/actions/download-archive
-        with:
-          name: wdio-desktop-mobile
-          path: wdio-desktop-mobile-build
-          filename: artifact.zip
-          cache_key_prefix: wdio-desktop-build
-          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
       # Scaffold a complete RN project at the pinned version (with CocoaPods installed for
       # iOS), then overlay the fixture's App.tsx. The fixture App only imports react-native
@@ -123,7 +117,83 @@ jobs:
             CODE_SIGNING_ALLOWED=NO 2>&1 | (xcbeautify || cat)
           APP_PATH="$RN_BUILD_DIR/ios/build/Build/Products/Debug-iphonesimulator/ReactNativeE2EApp.app"
           test -d "$APP_PATH" || { echo "::error::iOS .app not found at $APP_PATH"; exit 1; }
+          # Tar the bundle (preserves the simulator .app's symlinks + exec bits, which a raw
+          # artifact upload would mangle) so the E2E job can install it verbatim.
+          tar -czf "$GITHUB_WORKSPACE/rn-ios-app.tar.gz" -C "$(dirname "$APP_PATH")" ReactNativeE2EApp.app
+
+      - name: 📦 Upload built .app
+        uses: actions/upload-artifact@v7
+        with:
+          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: rn-ios-app.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+
+  e2e:
+    name: Run
+    needs: build
+    runs-on: ${{ inputs.os }}
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # The e2e link-deps resolve against the prebuilt package dist from the build job.
+      - name: 📦 Download Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      - name: 📥 Download built .app
+        uses: actions/download-artifact@v7
+        with:
+          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ github.workspace }}/rn-app-dl
+
+      - name: 📦 Unpack built .app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/rn-app"
+          tar -xzf "$GITHUB_WORKSPACE/rn-app-dl/rn-ios-app.tar.gz" -C "$GITHUB_WORKSPACE/rn-app"
+          APP_PATH="$GITHUB_WORKSPACE/rn-app/ReactNativeE2EApp.app"
+          test -d "$APP_PATH" || { echo "::error::unpacked .app not found at $APP_PATH"; exit 1; }
           echo "RN_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      # Metro is JS-only — re-scaffold the project here (without CocoaPods/xcodebuild) so the
+      # heavy native build stays in the build job. A debug .app loads its bundle from Metro at
+      # runtime; the same pinned RN version + App.tsx yields a compatible bundle.
+      - name: 🏗️ Scaffold JS project for Metro
+        shell: bash
+        env:
+          RN_VERSION: ${{ inputs.rn-version }}
+          RN_CLI_VERSION: ${{ inputs.rn-cli-version }}
+        run: |
+          set -euo pipefail
+          npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
+            --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
+          cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
+
+      # Warm the Xcode toolchain on the fresh runner before the Appium session: appium-xcuitest
+      # probes the SDK with `xcrun --show-sdk-version` under a 15s timeout, and the first cold
+      # invocation can exceed it. Pre-resolving it here makes the in-session probe instant.
+      - name: 🔥 Warm Xcode toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Xcode: $(xcode-select -p)"
+          xcrun --sdk iphonesimulator --show-sdk-version
+          xcrun simctl list devices available >/dev/null
 
       - name: 📲 Boot iOS simulator
         shell: bash
