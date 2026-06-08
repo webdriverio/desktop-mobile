@@ -107,11 +107,11 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     }
 
     // Native renderer automation covers macOS (CEF) and Windows (WebView2 over CDP).
-    // Linux's WebKitGTK exposes no CDP/automation surface yet (upstream-blocked, #317)
-    // and CEF-on-Linux serves no /json (#320) — fail fast here, before touching the
-    // bundle, rather than let the user hit a cryptic CDP-attach timeout. Browser mode is
-    // unaffected — it already returned above. The per-app renderer→transport decision
-    // (and the CEF-on-Windows rejection) happens in the resolve loop below.
+    // Linux's WebKitGTK exposes no CDP/automation surface yet, and CEF-on-Linux serves no
+    // /json — fail fast here, before touching the bundle, rather than let the user hit a
+    // cryptic CDP-attach timeout. Browser mode is unaffected — it already returned above.
+    // The per-app renderer→transport decision (and the CEF-on-Windows rejection) happens in
+    // the resolve loop below.
     if (process.platform !== 'darwin' && process.platform !== 'win32') {
       throw nativeRendererUnsupportedPlatform(process.platform);
     }
@@ -135,7 +135,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       const app = resolveElectrobunApp(instanceOptions.appBinaryPath);
       const transport = resolveTransport(app);
       if (!transport) {
-        // e.g. a CEF-built bundle on Windows — CEF serves no /json there (#320).
+        // e.g. a CEF-built bundle on Windows — CEF serves no /json there.
         throw nativeRendererUnsupportedPlatform(process.platform, app.renderer);
       }
       // CEF needs the framework/renderer check; WebView2 (Chromium) always serves /json

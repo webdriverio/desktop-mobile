@@ -143,11 +143,11 @@ const capabilities: ElectrobunCapability[] = [
     // supports Chrome version N". Matching the major is what matters (spike
     // RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin. On Windows the
     // WebView2 (Edge) path omits this so WDIO/edgedriver match the runner's installed
-    // Edge/WebView2 runtime instead (#317). It also forces CLASSIC WebDriver: Edge defaults
-    // to WebDriver BiDi, whose session resets the app's only webview to about:blank (a
+    // Edge/WebView2 runtime instead. It also forces CLASSIC WebDriver: Edge defaults to
+    // WebDriver BiDi, whose session resets the app's only webview to about:blank (a
     // "BiDi-CDP Mapper" target appears and the content target vanishes), so the CDP bridge
-    // finds no content. Classic attach leaves the `views://` page intact (as chromedriver
-    // does for CEF). #317.
+    // finds no content. Classic attach leaves the `views://` page intact, as chromedriver
+    // does for CEF.
     ...(process.platform === 'win32' ? { 'wdio:enforceWebDriverClassic': true } : { browserVersion: '147' }),
     'wdio:electrobunServiceOptions': electrobunServiceOptions,
   },

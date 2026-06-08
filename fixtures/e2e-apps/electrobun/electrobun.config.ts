@@ -4,7 +4,7 @@ import type { ElectrobunConfig } from 'electrobun';
 // service pins the remote-debugging port into the built bundle's build.json at launch.
 // Windows builds with the native WebView2 (Chromium) renderer instead: it serves CDP via
 // --remote-debugging-port, which the service injects through the
-// WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS env var — no CEF (CEF-on-Windows serves no /json). #317.
+// WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS env var — no CEF (CEF-on-Windows serves no /json).
 const bundleCEF = true;
 
 export default {
@@ -38,7 +38,7 @@ export default {
     },
     win: {
       // Native WebView2 (Chromium) renderer — driven over CDP by @wdio/electrobun-service
-      // via an injected --remote-debugging-port (#317). No CEF bundle on Windows.
+      // via an injected --remote-debugging-port. No CEF bundle on Windows.
       bundleCEF: false,
       defaultRenderer: 'native',
     },

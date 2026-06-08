@@ -211,7 +211,7 @@ describe('ElectrobunLaunchService', () => {
       expect(caps[0].browserName).toBe('MicrosoftEdge');
     });
 
-    it('should reject a CEF-built bundle on Windows (CEF serves no /json there, #320 → #317)', async () => {
+    it('should reject a CEF-built bundle on Windows (CEF serves no /json there)', async () => {
       setPlatform('win32');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
         binaryPath: 'C:/apps/Demo/bin/launcher.exe',

@@ -3,9 +3,9 @@
 // Electrobun's renderer is per-OS: macOS uses CEF (the only macOS renderer that serves
 // a `/json` CDP endpoint — WKWebView has none), while the default `'native'` renderer maps
 // to the system webview — WebView2 (Chromium) on Windows, which serves CDP once launched
-// with `--remote-debugging-port`. Linux's WebKitGTK has no CDP/automation surface yet
-// (upstream-blocked, #317), and CEF-on-Windows/Linux serves no `/json` (#320). This keeps
-// the platform/renderer decision in one tested place for the launcher and the spawn path.
+// with `--remote-debugging-port`. Linux's WebKitGTK has no CDP/automation surface yet, and
+// CEF-on-Windows/Linux serves no `/json`. This keeps the platform/renderer decision in one
+// tested place for the launcher and the spawn path.
 
 import type { ResolvedElectrobunApp } from './electrobunConfig.js';
 
@@ -18,7 +18,7 @@ export type ElectrobunTransport = 'cef' | 'webview2';
  *
  * - macOS → `'cef'`.
  * - Windows → `'webview2'`, UNLESS the bundle is explicitly CEF (CEF-on-Windows serves no
- *   `/json` — #320), which yields `undefined`.
+ *   `/json`), which yields `undefined`.
  * - Linux (and anything else) → `undefined`.
  */
 export function resolveTransport(

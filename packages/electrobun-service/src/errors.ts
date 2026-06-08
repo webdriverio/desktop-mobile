@@ -30,9 +30,9 @@ export function cefRendererRequired(platform: NodeJS.Platform = process.platform
  * Thrown by the launcher in native mode when the current platform has no usable CDP
  * surface for the app's renderer. Driven native renderers: macOS via CEF, Windows via
  * the WebView2 (Chromium) system renderer over CDP. Linux's WebKitGTK exposes no
- * CDP/automation surface yet (upstream-blocked — webdriverio/desktop-mobile#317), and a
- * CEF build on Windows/Linux serves no `/json` (#320). Fail fast with an actionable
- * message rather than letting the user hit a cryptic CDP-attach timeout.
+ * CDP/automation surface yet, and a CEF build on Windows/Linux serves no `/json`. Fail
+ * fast with an actionable message rather than letting the user hit a cryptic CDP-attach
+ * timeout.
  */
 export function nativeRendererUnsupportedPlatform(
   platform: NodeJS.Platform = process.platform,
@@ -45,7 +45,7 @@ export function nativeRendererUnsupportedPlatform(
       'Linux (WebKitGTK) has no CDP/automation surface yet — tracked in ' +
       'https://github.com/webdriverio/desktop-mobile/issues/317. On Windows, build with the native ' +
       'renderer (bundleCEF: false / defaultRenderer: "native"); a CEF build there exposes no /json ' +
-      "endpoint (see #320). Otherwise run on macOS, or use browser mode (mode: 'browser').",
+      "endpoint. Otherwise run on macOS, or use browser mode (mode: 'browser').",
   );
 }
 
