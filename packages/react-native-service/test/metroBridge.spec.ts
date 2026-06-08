@@ -9,7 +9,9 @@ const h = vi.hoisted(() => ({
 vi.mock('../src/hermesBridge.js', () => ({
   createHermesBridge: (options: Record<string, unknown>) => {
     h.lastOptions = options;
-    return { connect: h.connect, close: h.close, send: vi.fn() };
+    // `state` mirrors CdpBridge's WebSocket readyState (1 = OPEN); MetroBridge.connected now
+    // reads it for liveness rather than mere allocation.
+    return { connect: h.connect, close: h.close, send: vi.fn(), state: 1 };
   },
 }));
 

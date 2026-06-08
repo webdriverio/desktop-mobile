@@ -20,15 +20,30 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, ReactNativeLaunchServic
 const activeServices = new WeakMap<WebdriverIO.Browser, ReactNativeWorkerService>();
 
 /**
+ * Appium-server connection for a standalone session. In the runner path
+ * `@wdio/appium-service` supplies this; standalone callers pass it here. Defaults target
+ * Appium's own defaults (`localhost:4723/`) — NOT WebdriverIO's `localhost:4444`, which would
+ * never reach an Appium server.
+ */
+export interface AppiumServerConnection {
+  hostname?: string;
+  port?: number;
+  path?: string;
+  protocol?: string;
+}
+
+/**
  * Create a React Native standalone session.
  *
  * Drives launcher.onPrepare (capability mutation) then opens the Appium session
  * and installs `browser.reactNative.*`. Appium itself is expected to be running;
- * this service does not spawn it.
+ * this service does not spawn it. `connection` overrides the Appium server address
+ * (defaults to `localhost:4723/`).
  */
 export async function init(
   capabilities: ReactNativeCapabilities,
   globalOptions?: ReactNativeServiceGlobalOptions,
+  connection?: AppiumServerConnection,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing React Native service in standalone mode…');
 
@@ -39,6 +54,12 @@ export async function init(
   await launcher.onPrepare(testRunnerOpts, [capability]);
 
   const browser = await remote({
+    // Appium defaults; remote() otherwise targets WebdriverIO's localhost:4444, which an Appium
+    // server (default localhost:4723) is never on. Callers override via `connection`.
+    hostname: 'localhost',
+    port: 4723,
+    path: '/',
+    ...connection,
     capabilities: capability as WebdriverIO.Capabilities,
   }).catch(async (error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
