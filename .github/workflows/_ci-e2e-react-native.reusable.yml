@@ -176,7 +176,9 @@ jobs:
             adb reverse tcp:8081 tcp:8081
             # Start Metro from the scaffolded project (serves the JS bundle + Hermes inspector).
             ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
-            npx --yes wait-on tcp:8081 --timeout 120000
+            # wait-on is a pinned e2e devDependency — run the workspace-local binary (not an
+            # unpinned `npx --yes`) so a breaking release can't silently break the readiness check.
+            pnpm --filter @repo/e2e exec wait-on tcp:8081 --timeout 120000
             pnpm --filter @repo/e2e run test:e2e:react-native
 
       - name: 🐛 Show Metro log on failure

@@ -32,6 +32,8 @@ function resolveAndroidApk(dir: string): string {
     return standard;
   }
   // Fallback: newest matching debug APK anywhere under the android build tree.
+  // NOTE: fs.globSync requires Node >= 22 (the repo targets Node 24 LTS); if the minimum Node
+  // version is ever lowered, swap this for the `glob` package or a manual recursive walk.
   const candidates = globSync(join(dir, 'android', '**', '*.apk'));
   if (candidates.length > 0) {
     return candidates.map((p) => ({ p, m: statSync(p).mtimeMs })).sort((a, b) => b.m - a.m)[0].p;

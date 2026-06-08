@@ -78,8 +78,11 @@ export default class ReactNativeWorkerService {
     try {
       await bridge.connect();
       log.info(`Connected to Hermes inspector at ${host}:${port}`);
-      // Forward JS console.* calls via Runtime.consoleAPICalled CDP events.
-      this.stopJsLogs = startJsLogForwarding(bridge.bridge);
+      // Forward JS console.* calls via Runtime.consoleAPICalled CDP events — only when the
+      // user opted in via captureBackendLogs (default off, matching the other services).
+      if (this.options.captureBackendLogs) {
+        this.stopJsLogs = startJsLogForwarding(bridge.bridge);
+      }
     } catch (error) {
       log.warn(
         `Hermes inspector not ready at ${host}:${port} yet (${(error as Error).message}); ` +
@@ -96,7 +99,9 @@ export default class ReactNativeWorkerService {
       }
       try {
         await bridge.connect();
-        this.stopJsLogs ??= startJsLogForwarding(bridge.bridge);
+        if (this.options.captureBackendLogs) {
+          this.stopJsLogs ??= startJsLogForwarding(bridge.bridge);
+        }
       } catch (error) {
         throw new Error(
           `browser.reactNative.${command}: Hermes inspector is not connected ` +
@@ -159,8 +164,9 @@ export default class ReactNativeWorkerService {
   async afterTest(): Promise<void> {
     // Per-test native log forwarding: browser.getLogs drains everything since the last
     // call, so collecting here (not in after(), which fires once per spec file) keeps
-    // each test's logcat/syslog lines attributed to that test.
-    if (!this.browser || !this.platform) {
+    // each test's logcat/syslog lines attributed to that test. Gated on captureBackendLogs
+    // (default off) like the JS-console forwarding above and the other services.
+    if (!this.browser || !this.platform || !this.options.captureBackendLogs) {
       return;
     }
     const logType = this.platform === 'android' ? 'logcat' : 'syslog';
