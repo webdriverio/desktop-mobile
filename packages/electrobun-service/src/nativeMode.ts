@@ -31,6 +31,7 @@ import { createLogger } from '@wdio/native-utils';
 import { SERVICE_NAME } from './constants.js';
 import { type ResolvedElectrobunApp, writeRemoteDebuggingPort } from './electrobunConfig.js';
 import { SevereServiceError } from './errors.js';
+import { resolveTransport } from './transport.js';
 import type { ElectrobunServiceOptions } from './types.js';
 
 const log = createLogger(SERVICE_NAME, 'launcher');
@@ -112,6 +113,16 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
 export function spawnElectrobunApp(params: SpawnElectrobunAppParams): ElectrobunAppProcess {
   const { app, appArgs, port, options, instanceId } = params;
 
+  // Windows native renderer is WebView2 (Chromium): it serves a CDP /json endpoint when
+  // launched with --remote-debugging-port. Electrobun never reads the env var itself, and
+  // the WebView2 runtime applies switches per-switch alongside Electrobun's hardcoded ones,
+  // so the injected port survives WITHOUT an upstream change — unlike CEF, which reads the
+  // port only from build.json. No bundle clone / port-pin needed: ride the port on the env
+  // var and spawn the binary in place.
+  if (resolveTransport(app) === 'webview2') {
+    return spawnWebView2App(params);
+  }
+
   if (!app.buildJsonPath) {
     throw new SevereServiceError(
       `Cannot pin the CEF remote-debugging port: the resolved Electrobun app has no build.json path ` +
@@ -161,7 +172,75 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
   const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;
 
-  log.info(`Spawning Electrobun app: ${clonedBinaryPath} ${appArgs.join(' ')} (CDP port ${port})`);
+  return startAppProcess({
+    command,
+    spawnArgs,
+    env,
+    port,
+    options,
+    instanceId,
+    cleanupDirs: [cloneParentDir],
+    displayBinary: clonedBinaryPath,
+    displayArgs: appArgs,
+  });
+}
+
+/**
+ * Spawn a WebView2 (Windows native renderer) app for CDP attach. Unlike CEF, the port
+ * is NOT pinned into build.json — WebView2 reads `--remote-debugging-port` from the
+ * `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` environment variable, which Electrobun does not
+ * set, so the launcher injects it here. No bundle clone is needed (nothing on disk is
+ * mutated), so this app has no temp dirs to tear down.
+ */
+function spawnWebView2App(params: SpawnElectrobunAppParams): ElectrobunAppProcess {
+  const { app, appArgs, port, options, instanceId } = params;
+
+  // Preserve any caller-supplied WebView2 args, but always keep our remote-debugging port
+  // first so it can't be dropped. WebView2 merges switches per-switch, and Electrobun's own
+  // hardcoded args target different switches, so they coexist.
+  const callerArgs =
+    options.env?.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS ?? process.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS ?? '';
+  const env: NodeJS.ProcessEnv = {
+    ...process.env,
+    ...options.env,
+    WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: `--remote-debugging-port=${port}${callerArgs ? ` ${callerArgs}` : ''}`,
+  };
+
+  return startAppProcess({
+    command: app.binaryPath,
+    spawnArgs: appArgs,
+    env,
+    port,
+    options,
+    instanceId,
+    cleanupDirs: [],
+    displayBinary: app.binaryPath,
+    displayArgs: appArgs,
+  });
+}
+
+interface StartAppProcessParams {
+  command: string;
+  spawnArgs: string[];
+  env: NodeJS.ProcessEnv;
+  port: number;
+  options: ElectrobunServiceOptions;
+  instanceId?: string;
+  /** Temp dirs to remove on teardown (the bundle-clone parent for CEF; none for WebView2). */
+  cleanupDirs: string[];
+  /** Binary + args used only for the log line (the real binary may be wrapped, e.g. xvfb-run). */
+  displayBinary: string;
+  displayArgs: string[];
+}
+
+/**
+ * Shared spawn + backend-log-capture + error-handler for both renderer transports. Returns
+ * the process handle plus the temp dirs the launcher tears down.
+ */
+function startAppProcess(params: StartAppProcessParams): ElectrobunAppProcess {
+  const { command, spawnArgs, env, port, options, instanceId, cleanupDirs, displayBinary, displayArgs } = params;
+
+  log.info(`Spawning Electrobun app: ${displayBinary} ${displayArgs.join(' ')} (CDP port ${port})`);
   const proc = spawn(command, spawnArgs, {
     env,
     stdio: ['ignore', 'pipe', 'pipe'],
@@ -192,7 +271,7 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
     log.error(`Electrobun app process error: ${err.message}`);
   });
 
-  return { proc, cleanupDirs: [cloneParentDir], port, logHandlers };
+  return { proc, cleanupDirs, port, logHandlers };
 }
 
 const CDP_READY_TIMEOUT_MS = 30_000;

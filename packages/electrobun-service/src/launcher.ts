@@ -4,9 +4,10 @@ import type { Options } from '@wdio/types';
 
 import { DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
 import { type ResolvedElectrobunApp, resolveElectrobunApp, verifyCefRenderer } from './electrobunConfig.js';
-import { cefNativeModeMacOnly, SevereServiceError } from './errors.js';
+import { nativeRendererUnsupportedPlatform, SevereServiceError } from './errors.js';
 import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from './nativeMode.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
+import { resolveTransport } from './transport.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
 
 const log = createLogger(SERVICE_NAME, 'launcher');
@@ -105,13 +106,14 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       return;
     }
 
-    // Native mode is macOS-only in the 0.x line: on Linux/Windows, CEF's failed-profile
-    // fallback serves no /json so Chromedriver can never attach (upstream-blocked, see the
-    // plan "Framework gaps" / #317). Fail fast here rather than let the user hit a cryptic
-    // CDP-attach timeout. Browser mode is unaffected — it already returned above. Lift this
-    // when the WebView2/WebKitGTK native-renderer transports land (#317).
-    if (process.platform !== 'darwin') {
-      throw cefNativeModeMacOnly(process.platform);
+    // Native renderer automation covers macOS (CEF) and Windows (WebView2 over CDP).
+    // Linux's WebKitGTK exposes no CDP/automation surface yet (upstream-blocked, #317)
+    // and CEF-on-Linux serves no /json (#320) — fail fast here, before touching the
+    // bundle, rather than let the user hit a cryptic CDP-attach timeout. Browser mode is
+    // unaffected — it already returned above. The per-app renderer→transport decision
+    // (and the CEF-on-Windows rejection) happens in the resolve loop below.
+    if (process.platform !== 'darwin' && process.platform !== 'win32') {
+      throw nativeRendererUnsupportedPlatform(process.platform);
     }
 
     // CEF can't isolate ≥2 app instances (shared root_cache_path → instance folding;
@@ -124,14 +126,23 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       );
     }
 
-    // Native mode: resolve + CEF-verify each bundle, force chrome capability. The
-    // app clone + port pinning + spawn happen in onWorkerStart so each worker gets
-    // a freshly allocated port pinned into its own bundle clone.
+    // Native mode: resolve each bundle, pick its CDP transport, force chrome capability.
+    // The spawn (CEF clone+port-pin, or WebView2 env-var injection) happens in
+    // onWorkerStart so each worker gets a freshly allocated port.
     this.resolvedApps = [];
     for (const cap of capsList) {
       const instanceOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
       const app = resolveElectrobunApp(instanceOptions.appBinaryPath);
-      verifyCefRenderer(app);
+      const transport = resolveTransport(app);
+      if (!transport) {
+        // e.g. a CEF-built bundle on Windows — CEF serves no /json there (#320).
+        throw nativeRendererUnsupportedPlatform(process.platform, app.renderer);
+      }
+      // CEF needs the framework/renderer check; WebView2 (Chromium) always serves /json
+      // once the launcher injects --remote-debugging-port, so there's nothing to verify.
+      if (transport === 'cef') {
+        verifyCefRenderer(app);
+      }
       this.resolvedApps.push(app);
       (cap as { browserName?: string }).browserName = 'chrome';
     }

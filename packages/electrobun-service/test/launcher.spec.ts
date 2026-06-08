@@ -188,7 +188,7 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(resolveElectrobunApp)).toHaveBeenCalledWith('/apps/PerCap.app');
     });
 
-    it('should fail fast with a SevereServiceError in native mode on Linux (CEF macOS-only)', async () => {
+    it('should fail fast with a SevereServiceError in native mode on Linux (no CDP surface yet)', async () => {
       setPlatform('linux');
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
 
@@ -197,13 +197,32 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(resolveElectrobunApp)).not.toHaveBeenCalled();
     });
 
-    it('should explain native mode is macOS-only and cite the #317 follow-up on Windows', async () => {
+    it('should drive Windows via the WebView2 native renderer (resolve + force chrome, no CEF verify)', async () => {
       setPlatform('win32');
-      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare(baseConfig, caps);
+
+      expect(vi.mocked(resolveElectrobunApp)).toHaveBeenCalledTimes(1);
+      // WebView2 (Chromium) always serves /json once the launcher injects the port — nothing to verify.
+      expect(vi.mocked(verifyCefRenderer)).not.toHaveBeenCalled();
+      expect(caps[0].browserName).toBe('chrome');
+    });
+
+    it('should reject a CEF-built bundle on Windows (CEF serves no /json there, #320 → #317)', async () => {
+      setPlatform('win32');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'cef',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
 
       const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
       expect(error).toBeInstanceOf(SevereServiceError);
-      expect((error as Error).message).toMatch(/macOS/);
       expect((error as Error).message).toContain('win32');
       expect((error as Error).message).toContain('issues/317');
     });

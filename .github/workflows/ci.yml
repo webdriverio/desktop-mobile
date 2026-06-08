@@ -191,6 +191,27 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # ────────────────────────────────────────────────────────────────────────
+  # #317 Phase 1A PROOF LEG (temporary, non-gating): Windows WebView2 (non-CEF).
+  # The Windows fixture builds with the native WebView2 renderer (bundleCEF:false → no CEF
+  # download), and the service injects --remote-debugging-port via
+  # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS to attach over CDP — no upstream dependency. This
+  # leg exists to prove the env-var mechanism on a real Windows runner; it is deliberately
+  # NOT in ci-status.needs (pass/fail is informational). Promote to a required gate in
+  # Phase 1B once green; remove if the proof fails (Windows then becomes an upstream ask).
+  # ────────────────────────────────────────────────────────────────────────
+  build-electrobun-e2e-app-windows:
+    name: Build Electrobun E2E App [Windows]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # macOS-only (CEF). The package-test fixture build mirrors the e2e build (Bun/CEF, tar
   # artifact). Linux/Windows are not built — the service is macOS-only in 0.x.
   build-electrobun-package-app-macos-arm:
@@ -728,6 +749,31 @@ jobs:
     secrets: inherit
     with:
       os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  # ────────────────────────────────────────────────────────────────────────
+  # #317 Phase 1A PROOF LEG (temporary, non-gating): Windows WebView2 (non-CEF) E2E.
+  # Drives the WebView2 fixture over CDP via the injected --remote-debugging-port. NOT in
+  # ci-status.needs — its result is the proof signal, not a gate. The `standard` suite's
+  # session attach is the key signal: does WebView2 expose /json and let Chromedriver
+  # attach? Promote to a required gate (+ window/multiremote) in Phase 1B once confirmed.
+  # ────────────────────────────────────────────────────────────────────────
+  e2e-electrobun-windows:
+    name: E2E - Electrobun [Windows] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-electrobun-e2e-app-windows]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
       node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}

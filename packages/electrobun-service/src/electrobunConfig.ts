@@ -49,6 +49,12 @@ export interface ResolvedElectrobunApp {
   buildJsonPath: string;
   /** App identifier from build.json, when present. */
   identifier?: string;
+  /**
+   * Renderer recorded in build.json (`renderer` ?? `defaultRenderer`), lower-cased.
+   * `'cef'` → CDP via CEF (macOS); `'native'`/system webview → CDP via WebView2 (Windows).
+   * Drives transport selection in `resolveTransport`.
+   */
+  renderer?: string;
 }
 
 function pathExists(p: string): boolean {
@@ -114,8 +120,15 @@ export function resolveElectrobunApp(
     resourcesDir = binDir;
   }
   const buildJsonPath = join(resourcesDir, 'build.json');
-  const identifier = readBuildJson(buildJsonPath)?.identifier;
-  return { binaryPath, bundlePath, resourcesDir, buildJsonPath, identifier };
+  const buildJson = readBuildJson(buildJsonPath);
+  return {
+    binaryPath,
+    bundlePath,
+    resourcesDir,
+    buildJsonPath,
+    identifier: buildJson?.identifier,
+    renderer: readRenderer(buildJson),
+  };
 }
 
 function resolveMacosApp(appPath: string): ResolvedElectrobunApp {
@@ -123,9 +136,16 @@ function resolveMacosApp(appPath: string): ResolvedElectrobunApp {
   const resourcesDir = join(bundlePath, 'Contents', 'Resources');
   const buildJsonPath = join(resourcesDir, 'build.json');
   const binaryPath = resolveMacosBinary(bundlePath, appPath);
-  const identifier = readBuildJson(buildJsonPath)?.identifier;
+  const buildJson = readBuildJson(buildJsonPath);
 
-  return { binaryPath, bundlePath, resourcesDir, buildJsonPath, identifier };
+  return {
+    binaryPath,
+    bundlePath,
+    resourcesDir,
+    buildJsonPath,
+    identifier: buildJson?.identifier,
+    renderer: readRenderer(buildJson),
+  };
 }
 
 function resolveMacosBundle(appPath: string): string {
@@ -267,6 +287,12 @@ export function readBuildJson(buildJsonPath: string): BuildJson | undefined {
     log.warn(`Failed to parse build.json at ${buildJsonPath}: ${(error as Error).message}`);
     return undefined;
   }
+}
+
+/** Read the renderer recorded in build.json (`renderer` ?? `defaultRenderer`), lower-cased. */
+function readRenderer(buildJson: BuildJson | undefined): string | undefined {
+  const renderer = buildJson?.renderer ?? buildJson?.defaultRenderer;
+  return renderer === undefined ? undefined : String(renderer).toLowerCase();
 }
 
 /** Read the pinned CEF remote-debugging port from a parsed build.json, if any. */
