@@ -74,6 +74,14 @@ describe('classifyFile', () => {
     ['LICENSE', 'none'],
     // electron vs electrobun token boundaries
     ['.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml', 'electrobun'],
+    // react-native: hyphenated service name must match across packages, e2e, fixtures,
+    // and (the easy-to-miss case) multi-word workflow filenames.
+    ['packages/react-native-service/src/launcher.ts', 'react-native'],
+    ['e2e/wdio.react-native.conf.ts', 'react-native'],
+    ['e2e/test/react-native/api.spec.ts', 'react-native'],
+    ['fixtures/e2e-apps/react-native/App.tsx', 'react-native'],
+    ['.github/workflows/_ci-e2e-react-native-all-providers.reusable.yml', 'react-native'],
+    ['.github/workflows/_ci-build-react-native-e2e-app.reusable.yml', 'react-native'],
   ])('should classify %s as %s', (file, expected) => {
     expect(classifyFile(file, SERVICES)).toBe(expected);
   });
@@ -90,6 +98,25 @@ describe('classifyChanges decisions', () => {
     const d = decide(['packages/electron-service/src/session.ts']);
     expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: true, 'react-native': false, tauri: false });
     expect(d.lintOnly).toBe(false);
+  });
+
+  it('should run only react-native for a react-native src change', () => {
+    const d = decide(['packages/react-native-service/src/launcher.ts']);
+    expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: false, 'react-native': true, tauri: false });
+    expect(d.lintOnly).toBe(false);
+  });
+
+  it('should prefer the longest service when names share a prefix (react vs react-native)', () => {
+    const services = [...SERVICES, 'react'].sort();
+    const d = classifyChanges(['.github/workflows/_ci-e2e-react-native-all-providers.reusable.yml'], services);
+    expect(d.runs['react-native']).toBe(true);
+    expect(d.runs.react).toBe(false);
+  });
+
+  it('should run only react-native for its multi-word e2e workflow', () => {
+    const d = decide(['.github/workflows/_ci-e2e-react-native-all-providers.reusable.yml']);
+    expect(d.runs['react-native']).toBe(true);
+    expect(d.runs.electron).toBe(false);
   });
 
   it('should run only tauri for the tauri-only script', () => {

@@ -11,7 +11,14 @@ import { emitEvent } from './commands/emitEvent.js';
 import { executeScript } from './commands/execute.js';
 import { listWindows, switchWindow } from './commands/switchContext.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
-import { CUSTOM_CAPABILITY_NAME, DEFAULT_METRO_HOST, DEFAULT_METRO_PORT, SERVICE_NAME } from './constants.js';
+import {
+  CUSTOM_CAPABILITY_NAME,
+  DEFAULT_METRO_HOST,
+  DEFAULT_METRO_PORT,
+  HERMES_CONNECT_INTERVAL_MS,
+  HERMES_CONNECT_RETRIES,
+  SERVICE_NAME,
+} from './constants.js';
 import { collectDeviceLogs, forwardDeviceLogs, startJsLogForwarding } from './logCapture.js';
 import { MetroBridge } from './metroBridge.js';
 import { createMock } from './mock.js';
@@ -49,7 +56,15 @@ export default class ReactNativeWorkerService {
     const host = this.options.metroHost ?? DEFAULT_METRO_HOST;
     const port = this.options.metroPort ?? DEFAULT_METRO_PORT;
 
-    const bridge = new MetroBridge({ platform, host, port });
+    const bridge = new MetroBridge({
+      platform,
+      host,
+      port,
+      // Wait out Hermes' post-launch registration lag (see HERMES_CONNECT_* docs) — the
+      // CdpBridge default budget gives up before the inspector target appears.
+      connectionRetryCount: HERMES_CONNECT_RETRIES,
+      waitInterval: HERMES_CONNECT_INTERVAL_MS,
+    });
     const store = new ReactNativeMockStore();
     this.metroBridge = bridge;
     this.mockStore = store;
@@ -57,36 +72,52 @@ export default class ReactNativeWorkerService {
     this.platform = platform;
     this.browser = browser;
 
+    // Best-effort warm-up so JS log forwarding starts capturing from launch. Non-fatal:
+    // the inspector target often isn't registered yet at `before` time, so the commands
+    // below lazily (re)connect on first use via ensureHermes().
     try {
       await bridge.connect();
       log.info(`Connected to Hermes inspector at ${host}:${port}`);
-      // Forward JS console.* calls via Runtime.consoleAPICalled CDP events.
-      this.stopJsLogs = startJsLogForwarding(bridge.bridge);
+      // Forward JS console.* calls via Runtime.consoleAPICalled CDP events — only when the
+      // user opted in via captureBackendLogs (default off, matching the other services).
+      if (this.options.captureBackendLogs) {
+        this.stopJsLogs = startJsLogForwarding(bridge.bridge);
+      }
     } catch (error) {
       log.warn(
-        `Could not connect to Hermes inspector (${(error as Error).message}). ` +
-          'execute/mock will not be available — ensure Metro is running and the app is foregrounded.',
+        `Hermes inspector not ready at ${host}:${port} yet (${(error as Error).message}); ` +
+          'will connect on first execute/mock.',
       );
     }
 
+    // Connect on demand: the eager warm-up above races Hermes' registration, so the first
+    // execute/mock/emitEvent may be the point at which the target finally exists. Retries
+    // via the bridge's discovery budget; throws a friendly error only if it still can't.
+    const ensureHermes = async (command: string): Promise<void> => {
+      if (bridge.connected) {
+        return;
+      }
+      try {
+        await bridge.connect();
+        if (this.options.captureBackendLogs) {
+          this.stopJsLogs ??= startJsLogForwarding(bridge.bridge);
+        }
+      } catch (error) {
+        throw new Error(
+          `browser.reactNative.${command}: Hermes inspector is not connected ` +
+            `(${(error as Error).message}). Ensure Metro is running and the app is in the foreground.`,
+        );
+      }
+    };
+
     const api: ReactNativeServiceAPI = {
       execute: async (script, ...args) => {
-        if (!bridge.connected) {
-          throw new Error(
-            'browser.reactNative.execute: Hermes inspector is not connected. ' +
-              'Ensure Metro is running and the app is in the foreground.',
-          );
-        }
+        await ensureHermes('execute');
         return executeScript(bridge.bridge, script as unknown as string, ...(args as unknown[]));
       },
 
       mock: async (target: string) => {
-        if (!bridge.connected) {
-          throw new Error(
-            'browser.reactNative.mock: Hermes inspector is not connected. ' +
-              'Ensure Metro is running and the app is in the foreground.',
-          );
-        }
+        await ensureHermes('mock');
         return createMock(target, bridge.bridge, store);
       },
 
@@ -102,9 +133,7 @@ export default class ReactNativeWorkerService {
       listWindows: () => listWindows(browser),
 
       emitEvent: async <T = unknown>(event: string, payload?: T) => {
-        if (!bridge.connected) {
-          throw new Error('browser.reactNative.emitEvent: Hermes inspector is not connected.');
-        }
+        await ensureHermes('emitEvent');
         await emitEvent(bridge.bridge, event, payload);
       },
     };
@@ -135,8 +164,9 @@ export default class ReactNativeWorkerService {
   async afterTest(): Promise<void> {
     // Per-test native log forwarding: browser.getLogs drains everything since the last
     // call, so collecting here (not in after(), which fires once per spec file) keeps
-    // each test's logcat/syslog lines attributed to that test.
-    if (!this.browser || !this.platform) {
+    // each test's logcat/syslog lines attributed to that test. Gated on captureBackendLogs
+    // (default off) like the JS-console forwarding above and the other services.
+    if (!this.browser || !this.platform || !this.options.captureBackendLogs) {
       return;
     }
     const logType = this.platform === 'android' ? 'logcat' : 'syslog';

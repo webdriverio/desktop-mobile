@@ -1,10 +1,18 @@
 // browser.reactNative.execute implementation.
 //
 // React Native's `execute`/`mock` run in the app's Hermes JS realm over the CDP
-// bridge's `Runtime.evaluate` (Metro inspector-proxy). A string-built async IIFE
-// is built from the user's function source, with args inlined as JSON literals.
+// bridge's `Runtime.evaluate` (Metro inspector-proxy). A string-built *synchronous*
+// IIFE is built from the user's function source, with args inlined as JSON literals.
 // The realm itself (`globalThis` in Hermes — `nativeModuleProxy`, `HermesInternal`)
 // is passed as the callback's first argument.
+//
+// Why synchronous (not an async IIFE): Hermes' `Runtime.evaluate` cannot compile
+// `async` source — Metro/Babel transpiles async away before it ever reaches Hermes,
+// so raw `async`/`await` sent over CDP is a compile error ("async functions are
+// unsupported"). And RN installs a polyfilled `Promise` whose internal slots CDP
+// `awaitPromise` can't unwrap, so a returned promise comes back as its raw internals
+// rather than the resolved value. The wrapper — and therefore user callbacks — must
+// be synchronous in the RN realm.
 //
 // Invariant: only `Runtime.evaluate` — never `Page.navigate`.
 
@@ -81,9 +89,9 @@ const STATEMENT_KEYWORD = /^(const|let|var|if|for|while|switch|throw|try|do|retu
 function wrapStringScript(script: string): string {
   const trimmed = script.trim();
   if (STATEMENT_KEYWORD.test(trimmed) || hasSemicolonOutsideQuotes(trimmed)) {
-    return `(async function () { ${script} })()`;
+    return `(function () { ${script} })()`;
   }
-  return `(async function () { return (${script}); })()`;
+  return `(function () { return (${script}); })()`;
 }
 
 /**
@@ -115,10 +123,11 @@ export async function evaluateInRealm<ReturnValue>(
  * Run a user function (or raw expression string) in the app's Hermes realm and
  * return its (JSON-serialisable) result.
  *
- * Function form: the source is wrapped in an async IIFE that passes the Hermes
+ * Function form: the source is wrapped in a synchronous IIFE that passes the Hermes
  * realm (`globalThis`) as the first arg, then the inlined user args. String form:
  * wrapped via `wrapStringScript` so both a bare expression and a statement body
- * return their value.
+ * return their value. The wrapper is synchronous (and so user callbacks must be too)
+ * because Hermes can't eval async source — see the file header.
  */
 export async function executeScript<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   bridge: CdpBridge,
@@ -130,10 +139,10 @@ export async function executeScript<ReturnValue, InnerArguments extends unknown[
   const innerArgs = (isExecuteOptions(args[0]) ? args.slice(1) : args) as InnerArguments;
   const expression =
     typeof script === 'function'
-      ? `(async () => {
-          const userFn = (${script.toString()});
-          const rn = globalThis;
-          return await userFn(rn, ${inlineArgs(innerArgs)});
+      ? `(function () {
+          var userFn = (${script.toString()});
+          var rn = globalThis;
+          return userFn(rn, ${inlineArgs(innerArgs)});
         })()`
       : wrapStringScript(script);
 

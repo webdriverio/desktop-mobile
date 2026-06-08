@@ -15,6 +15,12 @@ import { DeviceEventEmitter, SafeAreaView, StatusBar, StyleSheet, Text, Touchabl
 // Expose a mockable greeting function for execute/mock tests.
 (globalThis as { greet?: (name: string) => string }).greet = (name: string) => `Hello, ${name}!`;
 
+// Expose DeviceEventEmitter on the Hermes global so browser.reactNative.emitEvent can reach
+// it: Runtime.evaluate runs in global scope where `require` isn't defined (Metro's loader is
+// `global.__r`, not a bare `require`), so the service's `require('react-native')` lookup can't
+// resolve it. This is the documented `globalThis` fallback in commands/emitEvent.ts.
+(globalThis as { DeviceEventEmitter?: typeof DeviceEventEmitter }).DeviceEventEmitter = DeviceEventEmitter;
+
 export default function App(): React.JSX.Element {
   const [count, setCount] = useState(0);
   const [status, setStatus] = useState('Ready');
