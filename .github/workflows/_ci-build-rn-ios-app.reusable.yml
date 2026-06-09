@@ -62,16 +62,12 @@ jobs:
           path: ~/.npm
           key: npm-rn-${{ inputs.rn-version }}-v1
 
-      - name: 💾 Restore CocoaPods cache
-        id: pods-cache
-        uses: actions/cache@v4
-        with:
-          path: ${{ env.RN_BUILD_DIR }}/ios/Pods
-          key: rn-cocoapods-${{ inputs.rn-version }}-${{ inputs.new-arch && 'new' || 'old' }}-arch-v1
-
       # Scaffold a complete RN project at the pinned version so CocoaPods can install for
       # iOS, then overlay the fixture's App.tsx. The fixture App only imports react-native
       # core, so the stock template builds it unmodified.
+      # IMPORTANT: the CocoaPods cache restore must come AFTER this step — actions/cache
+      # creates parent directories on restore, so restoring ios/Pods/ before scaffold would
+      # create a non-empty $RN_BUILD_DIR that makes npx init abort with "directory exists".
       - name: 🏗️ Scaffold native project
         shell: bash
         env:
@@ -82,6 +78,13 @@ jobs:
           npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
             --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
           cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
+
+      - name: 💾 Restore CocoaPods cache
+        id: pods-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.RN_BUILD_DIR }}/ios/Pods
+          key: rn-cocoapods-${{ inputs.rn-version }}-${{ inputs.new-arch && 'new' || 'old' }}-arch-v1
 
       - name: 🏗️ Install CocoaPods
         if: steps.pods-cache.outputs.cache-hit != 'true'

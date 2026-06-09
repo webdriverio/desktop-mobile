@@ -174,15 +174,16 @@ jobs:
             pnpm --filter @repo/e2e exec appium driver install xcuitest
           fi
 
-      # WDA DerivedData is keyed on e2e/package.json (appium-xcuitest-driver pin). A cache hit
-      # skips the multi-minute xcodebuild entirely; the graded sessions still read this path via
-      # appium:derivedDataPath + usePrebuiltWDA.
+      # WDA DerivedData is keyed on e2e/package.json (xcuitest driver pin) AND the runner
+      # image version. ImageVersion is set automatically on GitHub-hosted macOS runners and
+      # encodes the Xcode major — a stale DerivedData compiled against a previous SDK causes
+      # cryptic E2E failures rather than a clean miss-and-rebuild.
       - name: 💾 Restore WDA DerivedData cache
         id: wda-cache
         uses: actions/cache@v4
         with:
           path: ${{ env.RN_WDA_DD }}
-          key: wda-dd-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}-v1
+          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v1
 
       # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
       # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (several
