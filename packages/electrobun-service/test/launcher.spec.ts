@@ -43,10 +43,15 @@ vi.mock('../src/nativeMode.js', () => ({
   waitForCdpReady: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../src/webview2Version.js', () => ({
+  detectWebView2RuntimeVersion: vi.fn(() => '148.0.3967.83'),
+}));
+
 import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } from '../src/electrobunConfig.js';
 import ElectrobunLaunchService from '../src/launcher.js';
 import { spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions } from '../src/types.js';
+import { detectWebView2RuntimeVersion } from '../src/webview2Version.js';
 
 const baseConfig = {} as Parameters<ElectrobunLaunchService['onPrepare']>[0];
 
@@ -54,8 +59,8 @@ function makeLauncher(options: ElectrobunServiceGlobalOptions): ElectrobunLaunch
   return new ElectrobunLaunchService(options, {} as ElectrobunCapabilities, baseConfig);
 }
 
-// Native mode is macOS-only (0.x), so default every test to darwin; the platform-guard
-// tests below override to linux/win32. Restored after each test.
+// Tests default to darwin (the CEF path); the platform-guard and Windows/WebView2 tests
+// override to linux/win32. Restored after each test.
 const originalPlatform = process.platform;
 function setPlatform(value: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { value, writable: true, configurable: true });
@@ -167,6 +172,85 @@ describe('ElectrobunLaunchService', () => {
       await launcher.onPrepare({ maxInstances: 2 } as Parameters<typeof launcher.onPrepare>[0], caps);
 
       expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
+    });
+
+    it('should pin browserVersion to the WebView2 runtime version on the Windows WebView2 path', async () => {
+      setPlatform('win32');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'native',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
+
+      await launcher.onPrepare(baseConfig, [cap]);
+
+      expect((cap as { browserName?: string }).browserName).toBe('MicrosoftEdge');
+      // Pinned to the detected runtime version (mocked), not WDIO's Edge-browser auto-match.
+      expect((cap as { browserVersion?: string }).browserVersion).toBe('148.0.3967.83');
+    });
+
+    it('should NOT override a user-set browserVersion on the WebView2 path (??= preserves it)', async () => {
+      setPlatform('win32');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'native',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
+      (cap as { browserVersion?: string }).browserVersion = '150.0.1';
+
+      await launcher.onPrepare(baseConfig, [cap]);
+
+      // The user's pin wins over the detected runtime version (mocked 148.0.3967.83).
+      expect((cap as { browserVersion?: string }).browserVersion).toBe('150.0.1');
+    });
+
+    it('should warn and fall back to auto-match when the WebView2 runtime version is undetectable', async () => {
+      setPlatform('win32');
+      vi.mocked(detectWebView2RuntimeVersion).mockReturnValueOnce(undefined);
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'native',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
+
+      await launcher.onPrepare(baseConfig, [cap]);
+
+      // No version pinned → WDIO auto-matches; the warn makes that traceable in CI logs.
+      expect((cap as { browserVersion?: string }).browserVersion).toBeUndefined();
+      expect(logMocks.warn).toHaveBeenCalledWith(expect.stringContaining('WebView2 runtime version'));
+    });
+
+    it('should NOT warn when runtime detection fails but the user pinned browserVersion', async () => {
+      setPlatform('win32');
+      vi.mocked(detectWebView2RuntimeVersion).mockReturnValueOnce(undefined);
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'native',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
+      (cap as { browserVersion?: string }).browserVersion = '150.0.1';
+
+      await launcher.onPrepare(baseConfig, [cap]);
+
+      // User pinned the version → no auto-match fallback, so no (spurious) warning.
+      expect((cap as { browserVersion?: string }).browserVersion).toBe('150.0.1');
+      expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('WebView2 runtime version'));
     });
 
     it('should propagate a missing-appBinaryPath SevereServiceError from resolution', async () => {

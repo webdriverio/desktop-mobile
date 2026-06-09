@@ -145,9 +145,10 @@ const baseCapability: ElectrobunCapability = {
   // CEF (macOS) bundles Chromium 147 (147.0.7727.118); pin the driver to that major
   // so WDIO doesn't fetch the latest (148+), which refuses to attach with "only
   // supports Chrome version N". Matching the major is what matters (spike
-  // RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin. On Windows the
-  // WebView2 (Edge) path omits this so WDIO/edgedriver match the runner's installed
-  // Edge/WebView2 runtime instead. It also forces CLASSIC WebDriver: Edge defaults to
+  // RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin. The Windows WebView2 path
+  // omits this — the launcher pins browserVersion to the detected WebView2 *runtime* version
+  // instead, since msedgedriver must match the runtime (which can lag the Edge browser WDIO
+  // would otherwise auto-match). It also forces CLASSIC WebDriver: Edge defaults to
   // WebDriver BiDi, whose session resets the app's only webview to about:blank (a
   // "BiDi-CDP Mapper" target appears and the content target vanishes), so the CDP bridge
   // finds no content. Classic attach leaves the `views://` page intact, as chromedriver

@@ -75,9 +75,9 @@ const capabilities: ElectrobunCapability[] = [
     // The launcher rewrites 'electrobun' → 'chrome' (CEF/macOS) or 'MicrosoftEdge'
     // (WebView2/Windows) + sets debuggerAddress in onWorkerStart. CEF pins the Chromium major
     // (147) so WDIO doesn't fetch a newer Chromedriver that refuses to attach; the Windows
-    // WebView2/Edge path omits the pin (edgedriver matches the runner's Edge) and forces
-    // classic WebDriver — Edge's default BiDi resets the page to about:blank, hiding the
-    // content target.
+    // WebView2/Edge path omits the pin (the launcher pins browserVersion to the detected
+    // WebView2 runtime version, which msedgedriver must match) and forces classic WebDriver —
+    // Edge's default BiDi resets the page to about:blank, hiding the content target.
     browserName: 'electrobun',
     ...(process.platform === 'win32' ? { 'wdio:enforceWebDriverClassic': true } : { browserVersion: '147' }),
     'wdio:electrobunServiceOptions': electrobunServiceOptions,

@@ -24,7 +24,7 @@ e2e/
 │   │   ├── api.spec.ts
 │   │   ├── mock.spec.ts
 │   │   └── ...
-│   └── electrobun/         # Electrobun E2E tests (macOS-only; CI runs the `standard` suite)
+│   └── electrobun/         # Electrobun E2E tests (macOS CEF: `standard`; Windows WebView2: standard+window+multiremote)
 │       ├── api.spec.ts
 │       └── ...
 ├── lib/                    # Shared test utilities
@@ -41,7 +41,7 @@ fixtures/e2e-apps/
 ├── electron-script/        # Electron app (script mode)
 ├── tauri/                  # Tauri app
 ├── dioxus/                 # Dioxus app
-└── electrobun/             # Electrobun app (CEF renderer)
+└── electrobun/             # Electrobun app (CEF on macOS / native WebView2 on Windows)
 ```
 
 ## Running E2E Tests

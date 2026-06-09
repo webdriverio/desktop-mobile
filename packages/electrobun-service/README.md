@@ -7,12 +7,14 @@ It mirrors the surface of the sibling services (`@wdio/electron-service`,
 `@wdio/tauri-service`, `@wdio/dioxus-service`): `browser.electrobun.execute`,
 Vitest-style mocking, log capture, browser mode, and standalone sessions.
 
-> **Status: `0.1.0` — macOS-only, pre-1.0.** This is a `0.x` release because the
-> CEF renderer Electrobun apps must be built with cannot currently be driven on
-> Linux/Windows, and multiremote/multi-window/deeplink are blocked by the same
-> upstream limitation. See [Known limitations](#known-limitations). `1.0` is
-> reserved for full parity once those gaps are filled
-> ([#317](https://github.com/webdriverio/desktop-mobile/issues/317) tracks the work).
+> **Status: `0.1.0`, pre-1.0 — macOS (CEF) + Windows (native WebView2).** Windows uses the
+> native WebView2 (Chromium) renderer over CDP — no CEF — and runs multi-window + multiremote.
+> This is still a `0.x` release because **Linux** isn't yet drivable (CEF serves no `/json` off
+> macOS; the native WebKitGTK renderer needs upstream automation support), and on the **macOS
+> CEF** path multiremote/deeplink remain blocked by an upstream limitation. See
+> [Known limitations](#known-limitations). `1.0` is reserved for full parity once those gaps are
+> filled ([#317](https://github.com/webdriverio/desktop-mobile/issues/317) +
+> [#320](https://github.com/webdriverio/desktop-mobile/issues/320) track the work).
 
 ## Installation
 
@@ -27,26 +29,30 @@ Protocol (the launcher spawns the app binary and WebdriverIO attaches via
 Chromedriver's `debuggerAddress`). Electrobun's default webview engine differs
 per platform and only the Chromium-based ones speak CDP:
 
-| Platform | Default webview | CDP? |
-|---|---|---|
-| Windows | WebView2 (Chromium) | ✅ |
-| macOS | WKWebView (WebKit) | ❌ |
-| Linux | WebKitGTK (WebKit) | ❌ |
+| Platform | Native webview | CDP? | How the service drives it |
+|---|---|---|---|
+| Windows | WebView2 (Chromium) | ✅ | the **native WebView2** renderer directly (no CEF) |
+| macOS | WKWebView (WebKit) | ❌ | build with the **CEF** renderer (bundled Chromium) |
+| Linux | WebKitGTK (WebKit) | ❌ | unsupported (CEF serves no `/json`; WebKitGTK automation is upstream-blocked) |
 
-So the service requires the app under test to be built with Electrobun's **CEF
-renderer**:
+So the renderer the app must be built with is **per platform** — CEF on macOS, the native
+WebView2 on Windows:
 
 ```ts
 // electrobun.config.ts
 export default {
   build: {
+    // macOS: WKWebView can't be driven, so build with CEF.
     mac: { bundleCEF: true, defaultRenderer: 'cef' },
+    // Windows: the native WebView2 renderer speaks CDP directly — no CEF (this is the default).
+    win: { bundleCEF: false, defaultRenderer: 'native' },
   },
 };
 ```
 
-Apps built with the default WebKit renderer are an explicit, documented
-unsupported configuration — the launcher fails fast with a clear error.
+On **macOS**, an app built with the default WKWebView renderer is an explicit, documented
+unsupported configuration — the launcher fails fast with a clear error. On **Windows**, a CEF
+build is likewise unsupported (CEF can't create its profile there); use the native renderer.
 
 ## Quick start
 
@@ -56,11 +62,13 @@ export const config = {
   services: ['electrobun'],
   capabilities: [
     {
-      // The launcher rewrites this to 'chrome' + sets the CDP debuggerAddress.
+      // The launcher rewrites this to 'chrome'/'MicrosoftEdge' + sets the CDP debuggerAddress.
       browserName: 'electrobun',
-      // Pin Chromedriver to the CEF Chromium major (147 for current Electrobun).
+      // macOS/CEF: pin Chromedriver to the CEF Chromium major (147 for current Electrobun).
+      // On Windows, omit this — the launcher pins msedgedriver to the WebView2 runtime version.
       browserVersion: '147',
       'wdio:electrobunServiceOptions': {
+        // macOS: the .app bundle; Windows: the built `…\bin\launcher.exe`.
         appBinaryPath: '/path/to/build/<env>/MyApp.app',
       },
     },
@@ -75,7 +83,7 @@ const title = await browser.electrobun.execute(() => document.title);
 expect(title).toBe('My App');
 ```
 
-## Supported surface (macOS)
+## Supported surface (macOS + Windows)
 
 | Feature | Status |
 |---|---|

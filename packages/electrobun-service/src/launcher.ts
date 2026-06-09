@@ -9,24 +9,34 @@ import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitF
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import { resolveTransport } from './transport.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
+import { detectWebView2RuntimeVersion } from './webview2Version.js';
 
 const log = createLogger(SERVICE_NAME, 'launcher');
 
 /**
  * Main-process launcher for `@wdio/electrobun-service`.
  *
- * Electrobun is a CDP-attach framework: the launcher spawns the app binary and
- * the worker attaches over CDP through Chromedriver (`debuggerAddress`). It
- * extends `BaseLauncher` to reuse `@wdio/native-core`'s port/process/log infra.
+ * Electrobun is a CDP-attach framework: the launcher spawns the app binary and the worker
+ * attaches over CDP via `debuggerAddress`. It extends `BaseLauncher` to reuse
+ * `@wdio/native-core`'s port/process/log infra. The CDP transport is per platform
+ * (see `resolveTransport`):
+ *  - **macOS → CEF** (Chromium), driven by **chromedriver** (`browserName: 'chrome'`,
+ *    `goog:chromeOptions.debuggerAddress`). Single-instance (`maxInstances=1`): CEF can't
+ *    isolate the forced `persist:default` profile per worker, so we do NOT redirect the cache
+ *    root (no `CFFIXED_USER_HOME`, no per-worker `--user-data-dir`) — CEF uses its own
+ *    `root_cache_path`.
+ *  - **Windows → native WebView2** (Edge-based Chromium), driven by **msedgedriver**
+ *    (`browserName: 'MicrosoftEdge'`, `ms:edgeOptions.debuggerAddress`). Isolates per instance
+ *    (its own `LOCALAPPDATA` data root), so parallel workers + multiremote work.
+ *  - **Linux** has no CDP/automation surface yet → unsupported (fail fast). See the
+ *    implementation plan "Framework gaps".
  *
- * 0.x is macOS-only + single-instance (`maxInstances=1`): CEF can't isolate the
- * forced `persist:default` profile per worker, so we do NOT redirect the cache root
- * (no `CFFIXED_USER_HOME`, no per-worker `--user-data-dir`) — CEF uses its own
- * `root_cache_path`. See the implementation plan "Framework gaps". Native-mode flow:
- *  - `onPrepare`: resolve + CEF-verify each app bundle, force `browserName: 'chrome'`.
- *  - `onWorkerStart`: allocate a port; spawn the app (the spawn path clones the bundle
- *    and pins the port into the clone's build.json); wait for CEF to serve `/json`;
- *    set `goog:chromeOptions.debuggerAddress`.
+ * Native-mode flow:
+ *  - `onPrepare`: resolve each bundle + pick its transport; CEF-verify (CEF only); force
+ *    `browserName`; pin the driver to the WebView2 runtime version (WebView2 only).
+ *  - `onWorkerStart`: allocate a port; spawn the app — CEF clones the bundle and pins the port
+ *    into the clone's `build.json`, WebView2 injects `--remote-debugging-port` via env — wait
+ *    for `/json`, then set the `debuggerAddress`.
  *  - `onComplete`: kill spawned apps + clean temp dirs.
  */
 export default class ElectrobunLaunchService extends BaseLauncher {
@@ -130,6 +140,10 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     // Native mode: resolve each bundle, pick its CDP transport, force chrome capability.
     // The spawn (CEF clone+port-pin, or WebView2 env-var injection) happens in
     // onWorkerStart so each worker gets a freshly allocated port.
+    // WebView2 (Windows) only: detect the installed runtime version once so the loop can pin
+    // msedgedriver to it (see the per-cap note below). Off Windows this is skipped.
+    const webview2Version = process.platform === 'win32' ? detectWebView2RuntimeVersion() : undefined;
+    let warnedNoWebView2Version = false;
     this.resolvedApps = [];
     for (const cap of capsList) {
       const instanceOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
@@ -149,6 +163,25 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       // which chromedriver rejects as an "unrecognized Chrome version"), so it must be
       // driven by msedgedriver → browserName 'MicrosoftEdge' (WDIO provisions edgedriver).
       (cap as { browserName?: string }).browserName = transport === 'webview2' ? 'MicrosoftEdge' : 'chrome';
+      // The WebView2 runtime can lag the Edge browser WDIO auto-matches; a mismatched
+      // msedgedriver then refuses to attach ("only supports Microsoft Edge version N"). Pin the
+      // driver to the runtime version instead, respecting any user-set browserVersion. If the
+      // runtime version couldn't be detected, warn once so the at-risk auto-match is traceable.
+      if (transport === 'webview2') {
+        const versioned = cap as { browserVersion?: string };
+        if (webview2Version) {
+          versioned.browserVersion ??= webview2Version;
+        } else if (versioned.browserVersion === undefined && !warnedNoWebView2Version) {
+          // Only warn when we'd actually fall back to auto-match — not when the user pinned
+          // browserVersion themselves (then there's no fallback and nothing at risk).
+          warnedNoWebView2Version = true;
+          log.warn(
+            "Could not detect the installed WebView2 runtime version — falling back to WDIO's " +
+              'Edge-browser driver auto-match. If the runtime lags the Edge browser, msedgedriver may ' +
+              'refuse to attach ("session not created: only supports Microsoft Edge version N").',
+          );
+        }
+      }
     }
     log.info(`Native mode prepared ${this.resolvedApps.length} Electrobun app(s)`);
   }
