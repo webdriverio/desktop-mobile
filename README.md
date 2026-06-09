@@ -64,7 +64,7 @@
 
 ## Experimental Support
 
-> Pre-release (`1.0.0-next`) support — the surface is complete and the service is under active stabilisation. Expect `1.0.0-next.N` pre-releases before the stable tag.
+> Pre-release (`1.0.0-next.x`) support — the surface is complete and the service is under active stabilisation. Expect `1.0.0-next.N` pre-releases before the stable tag.
 
 <h4>
   <div>

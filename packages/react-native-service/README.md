@@ -10,7 +10,7 @@ through **Metro's inspector-proxy** — structurally identical to how
 `@wdio/electron-service` drives Electron, and reusing the same
 [`@wdio/native-cdp-bridge`](../native-cdp-bridge).
 
-> **Status: `1.0.0-next` pre-release.** Both platforms ship together; the feature
+> **Status: `1.0.0-next.x` pre-release.** Both platforms ship together; the feature
 > surface is complete. `execute` and `mock` require a **debug / Metro build**
 > (Hermes inspector is only active with `HERMES_ENABLE_DEBUGGER` / Fusebox). See
 > [Known limitations](#known-limitations).

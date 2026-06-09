@@ -11,7 +11,7 @@ This is a monorepo providing WebdriverIO services for automated testing of nativ
 - **Tauri** - `@wdio/tauri-service` (v1.x)
 - **Dioxus** - `@wdio/dioxus-service` (v1.x)
 - **Electrobun** - `@wdio/electrobun-service` (v0.1.x — **macOS** via CEF + **Windows** via the native WebView2 renderer (CDP), incl. multi-window/multiremote; **Linux** upstream-blocked, and deeplink/multiremote blocked on the macOS CEF path — see the package README)
-- **React Native** - `@wdio/react-native-service` (v1.0.0-next — **Android** + **iOS**; native find/tap via Appium (UiAutomator2/XCUITest); `execute` + `mock` via Hermes CDP (debug/Metro build); full mock, deeplink, context switching, logs, multiremote)
+- **React Native** - `@wdio/react-native-service` (v1.0.0-next.x — **Android** + **iOS**; native find/tap via Appium (UiAutomator2/XCUITest); `execute` + `mock` via Hermes CDP (debug/Metro build); full mock, deeplink, context switching, logs, multiremote)
 
 **Planned:** Flutter, Capacitor, Neutralino. See [ROADMAP.md](./ROADMAP.md) for details.
 
