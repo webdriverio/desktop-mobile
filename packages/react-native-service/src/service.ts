@@ -99,19 +99,27 @@ export default class ReactNativeWorkerService {
       }
       try {
         await bridge.connect();
-        if (this.options.captureBackendLogs) {
-          this.stopJsLogs?.();
-          this.stopJsLogs = startJsLogForwarding(bridge.bridge);
-        }
-        // Rewire existing mocks to the new bridge. createMock's reconnect path
-        // reinstalls the inner Hermes spy and re-closes all CDP closures over the
-        // new CdpBridge while preserving the outer mock's call history.
-        await Promise.all(store.getMocks().map(([target]) => createMock(target, bridge.bridge, store)));
       } catch (error) {
         throw new Error(
           `browser.reactNative.${command}: Hermes inspector is not connected ` +
             `(${(error as Error).message}). Ensure Metro is running and the app is in the foreground.`,
         );
+      }
+      if (this.options.captureBackendLogs) {
+        this.stopJsLogs?.();
+        this.stopJsLogs = startJsLogForwarding(bridge.bridge);
+      }
+      // Rewire existing mocks to the new bridge — best-effort per entry so a failed
+      // reinstall on one target (e.g. the module no longer exists after a bundle reload)
+      // doesn't leave every other mock broken or mask the connection-error path above.
+      for (const [target] of store.getMocks()) {
+        try {
+          await createMock(target, bridge.bridge, store);
+        } catch (error) {
+          log.warn(
+            `ensureHermes: failed to rewire mock '${target}' after reconnect — it will throw on next use: ${(error as Error).message}`,
+          );
+        }
       }
     };
 
