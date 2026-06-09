@@ -103,7 +103,6 @@ type ReactNativeCapability = {
   'appium:simulatorStartupTimeout'?: number;
   'appium:derivedDataPath'?: string;
   'appium:usePrebuiltWDA'?: boolean;
-  'appium:fullReset'?: boolean;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -130,10 +129,6 @@ const capabilities: ReactNativeCapability[] = [
           ...(process.env.RN_WDA_DD
             ? { 'appium:derivedDataPath': process.env.RN_WDA_DD, 'appium:usePrebuiltWDA': true }
             : {}),
-          // Reinstall per session: reusing the install (the default) lets relaunch churn degrade
-          // the sim's FrontBoard registration → "Application … is unknown to FrontBoard". (noReset
-          // was tried instead and broke Fabric — it never became interactive on a reused launch.)
-          'appium:fullReset': true,
         }
       : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
@@ -152,7 +147,10 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // One spec retry to absorb transient mobile-CI flake (emulator/simulator boot, first-session attach).
+  // One spec retry to absorb transient mobile-CI flake (emulator/simulator boot, first-session
+  // attach). NOTE: iOS also has an intermittent appium-sim "unknown to FrontBoard" session-create
+  // flake that in-run retries CAN'T clear (same sim) — re-run the leg to clear it. Tracked in #359;
+  // neither noReset nor fullReset fixed it (see that issue).
   specFileRetries: 1,
   specFileRetriesDeferred: false,
   baseUrl: '',
