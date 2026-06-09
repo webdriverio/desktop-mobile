@@ -103,6 +103,7 @@ type ReactNativeCapability = {
   'appium:simulatorStartupTimeout'?: number;
   'appium:derivedDataPath'?: string;
   'appium:usePrebuiltWDA'?: boolean;
+  'appium:noReset'?: boolean;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -132,6 +133,11 @@ const capabilities: ReactNativeCapability[] = [
           ...(process.env.RN_WDA_DD
             ? { 'appium:derivedDataPath': process.env.RN_WDA_DD, 'appium:usePrebuiltWDA': true }
             : {}),
+          // Each spec opens its own session; without this appium reinstalls the .app every time,
+          // and the rapid install/uninstall churn intermittently desyncs the sim's FrontBoard
+          // registration → "Application … is unknown to FrontBoard (NotFound)" on a random session.
+          // Install once, reuse (appium still relaunches per session, so RN state resets to 0).
+          'appium:noReset': true,
         }
       : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,

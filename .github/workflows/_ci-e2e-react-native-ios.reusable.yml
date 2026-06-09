@@ -220,6 +220,17 @@ jobs:
           # boot failure/timeout — surface it here, not later as a cryptic Appium session error.
           xcrun simctl bootstatus "$RN_IOS_DEVICE" -b || { echo "::error::Simulator '$RN_IOS_DEVICE' did not reach Booted state"; exit 1; }
 
+      # Install the app once, up front. With appium:noReset the graded sessions reuse this install
+      # instead of reinstalling per spec — the rapid install churn was intermittently desyncing the
+      # sim's FrontBoard registration ("Application … is unknown to FrontBoard"). Pre-installing
+      # guarantees it's present before the first session regardless of noReset's install-if-absent.
+      - name: 📦 Install app on simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun simctl install booted "$RN_APP_PATH"
+          echo "Installed $RN_APP_PATH on the booted simulator"
+
       - name: 🔌 Install Appium XCUITest driver
         shell: bash
         # Idempotent: appium exits 1 if the driver is already registered.
