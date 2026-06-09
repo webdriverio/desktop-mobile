@@ -4,9 +4,10 @@ import type { Options } from '@wdio/types';
 
 import { DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
 import { type ResolvedElectrobunApp, resolveElectrobunApp, verifyCefRenderer } from './electrobunConfig.js';
-import { cefNativeModeMacOnly, SevereServiceError } from './errors.js';
+import { nativeRendererUnsupportedPlatform, SevereServiceError } from './errors.js';
 import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from './nativeMode.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
+import { resolveTransport } from './transport.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
 
 const log = createLogger(SERVICE_NAME, 'launcher');
@@ -105,42 +106,60 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       return;
     }
 
-    // Native mode is macOS-only in the 0.x line: on Linux/Windows, CEF's failed-profile
-    // fallback serves no /json so Chromedriver can never attach (upstream-blocked, see the
-    // plan "Framework gaps" / #317). Fail fast here rather than let the user hit a cryptic
-    // CDP-attach timeout. Browser mode is unaffected — it already returned above. Lift this
-    // when the WebView2/WebKitGTK native-renderer transports land (#317).
-    if (process.platform !== 'darwin') {
-      throw cefNativeModeMacOnly(process.platform);
+    // Native renderer automation covers macOS (CEF) and Windows (WebView2 over CDP).
+    // Linux's WebKitGTK exposes no CDP/automation surface yet, and CEF-on-Linux serves no
+    // /json — fail fast here, before touching the bundle, rather than let the user hit a
+    // cryptic CDP-attach timeout. Browser mode is unaffected — it already returned above.
+    // The per-app renderer→transport decision (and the CEF-on-Windows rejection) happens in
+    // the resolve loop below.
+    if (process.platform !== 'darwin' && process.platform !== 'win32') {
+      throw nativeRendererUnsupportedPlatform(process.platform);
     }
 
-    // CEF can't isolate ≥2 app instances (shared root_cache_path → instance folding;
-    // upstream-blocked, #320). WDIO's default maxInstances is 100, so this can't be a
-    // hard error — warn so a run that does schedule parallel workers fails recognisably.
-    if ((config.maxInstances ?? 1) > 1) {
+    // CEF (macOS) can't isolate ≥2 app instances (shared root_cache_path → instance folding;
+    // upstream-blocked, #320), so parallel workers race there. WebView2 (Windows) isolates
+    // each instance (its own LOCALAPPDATA data root), so parallel workers + multiremote work —
+    // only warn on macOS. WDIO's default maxInstances is 100, so this can't be a hard error.
+    if (process.platform === 'darwin' && (config.maxInstances ?? 1) > 1) {
       log.warn(
-        `maxInstances is ${config.maxInstances}, but Electrobun CEF is single-instance: parallel workers ` +
-          'share one CEF cache root and race ("Cannot create profile" / CDP timeouts). Pin maxInstances: 1.',
+        `maxInstances is ${config.maxInstances}, but Electrobun CEF on macOS is single-instance: parallel ` +
+          'workers share one CEF cache root and race ("Cannot create profile" / CDP timeouts). Pin maxInstances: 1.',
       );
     }
 
-    // Native mode: resolve + CEF-verify each bundle, force chrome capability. The
-    // app clone + port pinning + spawn happen in onWorkerStart so each worker gets
-    // a freshly allocated port pinned into its own bundle clone.
+    // Native mode: resolve each bundle, pick its CDP transport, force chrome capability.
+    // The spawn (CEF clone+port-pin, or WebView2 env-var injection) happens in
+    // onWorkerStart so each worker gets a freshly allocated port.
     this.resolvedApps = [];
     for (const cap of capsList) {
       const instanceOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
       const app = resolveElectrobunApp(instanceOptions.appBinaryPath);
-      verifyCefRenderer(app);
+      const transport = resolveTransport(app);
+      if (!transport) {
+        // e.g. a CEF-built bundle on Windows — CEF serves no /json there.
+        throw nativeRendererUnsupportedPlatform(process.platform, app.renderer);
+      }
+      // CEF needs the framework/renderer check; WebView2 (Chromium) always serves /json
+      // once the launcher injects --remote-debugging-port, so there's nothing to verify.
+      if (transport === 'cef') {
+        verifyCefRenderer(app);
+      }
       this.resolvedApps.push(app);
-      (cap as { browserName?: string }).browserName = 'chrome';
+      // CEF is plain Chromium → chromedriver. WebView2 is Edge (it reports `Edg/<ver>`,
+      // which chromedriver rejects as an "unrecognized Chrome version"), so it must be
+      // driven by msedgedriver → browserName 'MicrosoftEdge' (WDIO provisions edgedriver).
+      (cap as { browserName?: string }).browserName = transport === 'webview2' ? 'MicrosoftEdge' : 'chrome';
     }
     log.info(`Native mode prepared ${this.resolvedApps.length} Electrobun app(s)`);
   }
 
   async onWorkerStart(
     cid: string,
-    capabilities: ElectrobunCapabilities | ElectrobunCapabilities[] | undefined,
+    capabilities:
+      | ElectrobunCapabilities
+      | ElectrobunCapabilities[]
+      | Record<string, { capabilities: ElectrobunCapabilities }>
+      | undefined,
   ): Promise<void> {
     if (this.browserMode) {
       log.debug(`Worker ${cid}: browser mode — skipping app spawn`);
@@ -151,7 +170,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       return;
     }
 
-    const capsList = Array.isArray(capabilities) ? capabilities : [capabilities];
+    const capsList = normaliseWorkerCaps(capabilities);
     const workerApps: ElectrobunAppProcess[] = [];
 
     for (let i = 0; i < capsList.length; i++) {
@@ -176,15 +195,22 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       const spawned = this.spawnApp(app, port, instanceOptions, cid);
       workerApps.push(spawned);
 
-      const existingChromeOptions = (cap['goog:chromeOptions'] ?? {}) as Record<string, unknown>;
-      cap['goog:chromeOptions'] = {
-        ...existingChromeOptions,
-        // 127.0.0.1, not 'localhost': CEF binds the debugger on IPv4, but Node/
-        // Chromedriver resolve 'localhost' to IPv6 ::1 first on Windows/Linux CI →
-        // the attach (and the /json poll below) fail. The bridge inherits this host
-        // via parseDebuggerAddress, so it connects on IPv4 too.
-        debuggerAddress: `127.0.0.1:${port}`,
-      };
+      // 127.0.0.1, not 'localhost': the renderer binds the debugger on IPv4, but Node/
+      // the driver resolve 'localhost' to IPv6 ::1 first on Windows/Linux CI → the attach
+      // (and the /json poll below) fail. The bridge inherits this host via
+      // parseDebuggerAddress, so it connects on IPv4 too. WebView2 is Edge: msedgedriver
+      // reads debuggerAddress from `ms:edgeOptions`, whereas CEF/chromedriver uses
+      // `goog:chromeOptions`.
+      const debuggerAddress = `127.0.0.1:${port}`;
+      if (resolveTransport(app) === 'webview2') {
+        // `ms:edgeOptions` isn't on the narrowed ElectrobunCapabilities type — index via a record.
+        const edgeCap = cap as Record<string, unknown>;
+        const existingEdgeOptions = (edgeCap['ms:edgeOptions'] ?? {}) as Record<string, unknown>;
+        edgeCap['ms:edgeOptions'] = { ...existingEdgeOptions, debuggerAddress };
+      } else {
+        const existingChromeOptions = (cap['goog:chromeOptions'] ?? {}) as Record<string, unknown>;
+        cap['goog:chromeOptions'] = { ...existingChromeOptions, debuggerAddress };
+      }
 
       // Wait for CEF to actually serve /json with a page target before the worker's
       // Chromedriver attaches to debuggerAddress — otherwise it races the (slow on
@@ -250,4 +276,27 @@ function normaliseCaps(
     return capabilities;
   }
   return Object.values(capabilities).map((entry) => entry.capabilities);
+}
+
+/**
+ * Normalise the capabilities `onWorkerStart` receives into a flat per-instance list. For a
+ * multiremote run WDIO passes the `{ instanceName: { capabilities } }` record; for a standard
+ * run it's an array (or a lone cap object). Extracting the record's per-instance caps — by
+ * reference, so the `debuggerAddress` set on each below reaches WDIO — is what lets multiremote
+ * spawn one app per instance instead of mistaking the whole record for a single cap.
+ */
+function normaliseWorkerCaps(
+  capabilities:
+    | ElectrobunCapabilities
+    | ElectrobunCapabilities[]
+    | Record<string, { capabilities: ElectrobunCapabilities }>,
+): ElectrobunCapabilities[] {
+  if (Array.isArray(capabilities)) {
+    return capabilities;
+  }
+  const values = Object.values(capabilities);
+  if (values.length > 0 && values.every((v) => v != null && typeof v === 'object' && 'capabilities' in v)) {
+    return (values as Array<{ capabilities: ElectrobunCapabilities }>).map((entry) => entry.capabilities);
+  }
+  return [capabilities as ElectrobunCapabilities];
 }

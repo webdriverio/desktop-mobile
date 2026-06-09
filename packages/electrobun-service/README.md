@@ -87,21 +87,23 @@ expect(title).toBe('My App');
 
 ## Known limitations
 
-These are **upstream Electrobun/CEF limitations**, not service bugs — the service
-code implements the full surface and is unit-tested. CEF's chrome-runtime can't
-create the `persist:default` profile its `BrowserWindow` forces and falls back to
-a global browser context; macOS recovers (serves `/json`), but Linux/Windows do
-not. The upstream CEF fixes and what each unblocks are tracked in
+Most of these are **upstream Electrobun/CEF limitations**, not service bugs — the
+service code implements the full surface and is unit-tested. CEF's chrome-runtime
+can't create the `persist:default` profile its `BrowserWindow` forces and falls back
+to a global browser context; macOS recovers (serves `/json`), Linux does not.
+**Windows is driven instead via the native WebView2 (Chromium) renderer over CDP — no
+CEF.** The upstream CEF fixes and what each unblocks are tracked in
 [#320](https://github.com/webdriverio/desktop-mobile/issues/320); the non-CEF
-(native-renderer) track that fills Linux/Windows a different way is
+(native-renderer) track is
 [#317](https://github.com/webdriverio/desktop-mobile/issues/317).
 
 | Area | Status |
 |---|---|
-| **Linux / Windows** | ❌ unsupported — CEF exposes no reachable CDP endpoint there. The launcher throws a clear `SevereServiceError` in native mode. |
-| multiremote / parallel workers | ❌ blocked — CEF can't isolate ≥2 instances (single-instance only). |
-| `switchWindow` / `listWindows` (multi-window) | ⚠️ implemented but unreliable, even on macOS (2-window global-context race). |
-| `triggerDeeplink` (macOS) | ⚠️ unreliable — no open-url routing to the spawned instance. |
+| **Windows** | ✅ supported via the native **WebView2** (Chromium) renderer over CDP — no CEF (build `bundleCEF: false` / `defaultRenderer: 'native'`, the Electrobun default). |
+| **Linux** | ❌ unsupported — CEF serves no `/json`, and the native WebKitGTK renderer needs upstream WebDriver-automation support ([#317](https://github.com/webdriverio/desktop-mobile/issues/317)). The launcher throws a clear `SevereServiceError` in native mode. |
+| multiremote / parallel workers | ✅ Windows (WebView2 isolates each instance — its own process + `LOCALAPPDATA` data dir); ❌ macOS CEF (shared `root_cache_path` → instance folding). |
+| `switchWindow` / `listWindows` (multi-window) | ✅ on Windows (WebView2, gated in CI); ⚠️ macOS CEF unreliable (2-window global-context race — run locally). |
+| `triggerDeeplink` | ⚠️ macOS — unreliable (no open-url routing to the spawned instance); ❌ Windows — upstream-blocked: Electrobun registers URL schemes + wires `open-url` macOS-only ([blackboardsh/electrobun#465](https://github.com/blackboardsh/electrobun/issues/465)). |
 | single-window apps | ⚠️ a lone CEF window doesn't reliably appear in `/json`, so the bridge can intermittently find no target to attach to. Opening a second window stabilises target exposure (the test fixtures do this, staggered behind the first window's `dom-ready`). |
 | `emitEvent` | deferred — the Bun event bus isn't CDP-reachable. |
 

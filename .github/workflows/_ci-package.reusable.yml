@@ -161,7 +161,11 @@ jobs:
         shell: bash
         run: |
           mkdir -p fixtures/package-tests/electrobun-app
-          tar -xzpf "${RUNNER_TEMP}/electrobun-package-app.tgz" -C fixtures/package-tests/electrobun-app
+          # Windows: --force-local so GNU tar reads D:\… as a path, not a remote host ("Cannot
+          # connect to D:") — matches the build workflow's archive step. macOS bsdtar lacks the flag.
+          flags=""
+          [ "$RUNNER_OS" = "Windows" ] && flags="--force-local"
+          tar $flags -xzpf "${RUNNER_TEMP}/electrobun-package-app.tgz" -C fixtures/package-tests/electrobun-app
           if [ ! -d "fixtures/package-tests/electrobun-app/build" ]; then
             echo "::error::Electrobun package-app build dir not found — bundle was not extracted correctly."
             find fixtures/package-tests/electrobun-app/ -maxdepth 1 || true
