@@ -97,10 +97,12 @@ RN runs JS in Hermes behind **Metro's inspector-proxy**, which speaks CDP — so
 
 ### Dart VM (Flutter) — Tier 2
 
-Flutter runs Dart on its own **VM Service protocol** (not CDP/Hermes), so there is **no JS-eval
-channel into the Dart realm** — `execute`/`mock` can't inject transparently. This section carries the
-contract shape the Phase-0 spike proved, so you build Flutter **from here** — re-confirm the
-specifics in your own spike (versions drift), but you don't need Flutter to exist yet:
+Flutter runs Dart on its own **VM Service protocol** (not CDP/Hermes). That protocol *does* give
+`execute` an eval path (its generic **`evaluate`** RPC), but it offers **no way to transparently
+rewrite Dart functions** — so only **`mock`** needs a **Tier-2 cooperative contract** (no
+monkeypatch). This section carries the contract shape the Phase-0 spike proved, so you build Flutter
+**from here** — re-confirm the specifics in your own spike (versions drift), but you don't need
+Flutter to exist yet:
 
 - **Connect / `execute`.** Open your own WebSocket to the **Dart VM Service** (the debug/profile
   build the Appium Flutter driver already needs) and call its generic **`evaluate`** RPC — that's the
