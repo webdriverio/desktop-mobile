@@ -28,10 +28,8 @@ export interface LogEntry {
  * JS bundle (Metro build) while the test is running.
  *
  * The listener binds to the `CdpBridge` instance passed here. `MetroBridge.reconnect()`
- * swaps in a fresh `CdpBridge`, so a caller that reconnects must re-invoke this against
- * the new `bridge.bridge` (and run the returned cleanup for the old one) to keep
- * forwarding live. `reconnect()` is not wired into the service yet, so today's single
- * connection needs no re-registration.
+ * swaps in a fresh `CdpBridge`, so a caller that reconnects must run the returned cleanup
+ * for the old bridge and re-invoke this against `bridge.bridge` to keep forwarding live.
  */
 export function startJsLogForwarding(bridge: CdpBridge): () => void {
   const handler = (params: unknown) => {

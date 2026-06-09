@@ -100,7 +100,8 @@ export default class ReactNativeWorkerService {
       try {
         await bridge.connect();
         if (this.options.captureBackendLogs) {
-          this.stopJsLogs ??= startJsLogForwarding(bridge.bridge);
+          this.stopJsLogs?.();
+          this.stopJsLogs = startJsLogForwarding(bridge.bridge);
         }
       } catch (error) {
         throw new Error(
