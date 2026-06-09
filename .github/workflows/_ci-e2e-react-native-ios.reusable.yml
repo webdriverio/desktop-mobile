@@ -1,13 +1,13 @@
 name: E2E Tests - React Native (iOS)
-# Description: iOS-simulator E2E for @wdio/react-native-service. Split into a BUILD job
-# (scaffold + CocoaPods + xcodebuild → upload the .app) and an E2E job (re-scaffold the JS for
-# Metro, download the .app, drive it on a fresh runner). The split keeps the heavy xcodebuild
-# OFF the E2E runner: when both shared one runner, appium-xcuitest's session-create (its
-# `xcrun --show-sdk-version` SDK probe + the WebDriverAgent build) was starved by the
-# just-finished xcodebuild and timed out at 15s. A debug .app loads its JS from Metro at
-# runtime, so the E2E job's freshly-scaffolded project (same pinned RN version + App.tsx)
-# serves a compatible bundle; the simulator shares the host loopback, so no adb-reverse
-# equivalent is needed.
+# Description: iOS-simulator E2E for @wdio/react-native-service. The .app is built by a
+# sibling CI job (_ci-build-rn-ios-app) that runs in parallel with the package build; this
+# workflow downloads that artifact, re-scaffolds JS for Metro (no CocoaPods/xcodebuild), and
+# drives the simulator. The split keeps the heavy xcodebuild OFF the E2E runner: when both
+# shared one runner, appium-xcuitest's session-create (its `xcrun --show-sdk-version` SDK probe
+# + the WebDriverAgent build) was starved by the just-finished xcodebuild and timed out at 15s.
+# A debug .app loads its JS from Metro at runtime, so the freshly-scaffolded project (same
+# pinned RN version + App.tsx) serves a compatible bundle; the simulator shares the host
+# loopback, so no adb-reverse equivalent is needed.
 
 permissions:
   contents: read
@@ -63,85 +63,8 @@ env:
   RN_WDA_DD: ${{ github.workspace }}/wda_dd
 
 jobs:
-  build:
-    name: Build .app
-    runs-on: ${{ inputs.os }}
-    # Cap a stuck xcodebuild/CocoaPods rather than holding a scarce macOS runner for the 6h default.
-    timeout-minutes: 40
-    steps:
-      - name: 👷 Checkout Repository
-        uses: actions/checkout@v6
-        with:
-          ssh-key: ${{ secrets.DEPLOY_KEY }}
-
-      - name: 🛠️ Setup Development Environment
-        uses: ./.github/workflows/actions/setup-workspace
-        with:
-          node-version: ${{ inputs.node-version }}
-
-      # Scaffold a complete RN project at the pinned version (with CocoaPods installed for
-      # iOS), then overlay the fixture's App.tsx. The fixture App only imports react-native
-      # core, so the stock template builds it unmodified.
-      - name: 🏗️ Scaffold native project + CocoaPods
-        shell: bash
-        env:
-          RN_VERSION: ${{ inputs.rn-version }}
-          RN_CLI_VERSION: ${{ inputs.rn-cli-version }}
-          NEW_ARCH: ${{ inputs.new-arch }}
-        run: |
-          set -euo pipefail
-          npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
-            --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
-          cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
-          # Select the RN architecture for this leg (mirrors Android) — BOTH old (Paper) and new
-          # (Fabric/bridgeless, the RN 0.76 default) are required gates. RCT_NEW_ARCH_ENABLED at
-          # pod-install time picks the arch; under Fabric the tree/Hermes register slightly later
-          # but the spec mount-waits + the service's Hermes connect-retry absorb it.
-          NEW_ARCH_FLAG=$([ "$NEW_ARCH" = "true" ] && echo 1 || echo 0)
-          ( cd "$RN_BUILD_DIR/ios" && RCT_NEW_ARCH_ENABLED="$NEW_ARCH_FLAG" pod install )
-          # NOTE: there is no reliable Podfile.lock-level arch assertion on iOS (unlike Android's
-          # gradle.properties grep). RN 0.76 vendors the Fabric pods (React-Fabric, hermes-engine,
-          # …) into Podfile.lock for BOTH archs — RCT_NEW_ARCH_ENABLED is a build-time flag, not a
-          # pod-set difference — so pod presence can't discriminate old vs new. The E2E run itself
-          # is the validation (Fabric renders/behaves differently at runtime).
-
-      - name: 📱 Build iOS app for the simulator
-        shell: bash
-        run: |
-          set -euo pipefail
-          cd "$RN_BUILD_DIR/ios"
-          # xcbeautify only prettifies output and isn't guaranteed on the runner image; pipe
-          # through `(xcbeautify || cat)` so a missing tool can't SIGPIPE-kill xcodebuild, and
-          # rely on pipefail to surface a real xcodebuild failure (not the later "app not found").
-          xcodebuild \
-            -workspace ReactNativeE2EApp.xcworkspace \
-            -scheme ReactNativeE2EApp \
-            -configuration Debug \
-            -sdk iphonesimulator \
-            -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO 2>&1 | (xcbeautify || cat)
-          APP_PATH="$RN_BUILD_DIR/ios/build/Build/Products/Debug-iphonesimulator/ReactNativeE2EApp.app"
-          test -d "$APP_PATH" || { echo "::error::iOS .app not found at $APP_PATH"; exit 1; }
-          # Tar the bundle (preserves the simulator .app's symlinks + exec bits, which a raw
-          # artifact upload would mangle) so the E2E job can install it verbatim.
-          tar -czf "$GITHUB_WORKSPACE/rn-ios-app.tar.gz" -C "$(dirname "$APP_PATH")" ReactNativeE2EApp.app
-
-      - name: 📦 Upload built .app
-        uses: actions/upload-artifact@v7
-        with:
-          # Keyed by run_id only (NOT run_attempt): `gh run rerun --failed` re-runs the failed Run
-          # job but NOT this Build job (it passed), so the artifact keeps its original name — a
-          # run_attempt suffix would leave the retried Run job looking for an artifact that was
-          # never re-uploaded. overwrite handles a full re-run that does rebuild.
-          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}
-          path: rn-ios-app.tar.gz
-          retention-days: 1
-          if-no-files-found: error
-          overwrite: true
-
-  e2e:
+  run:
     name: Run
-    needs: build
     runs-on: ${{ inputs.os }}
     # Cap a hung Appium/WDA session (a stuck session-create can otherwise idle the macOS runner for
     # the 6h default). Generous over a normal pass (~16-24 min) but well under the default.
@@ -184,6 +107,14 @@ jobs:
           APP_PATH="$GITHUB_WORKSPACE/rn-app/ReactNativeE2EApp.app"
           test -d "$APP_PATH" || { echo "::error::unpacked .app not found at $APP_PATH"; exit 1; }
           echo "RN_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      # Keyed identically to the build job's npm cache so the first fetch is already warm —
+      # the cli init downloads the same tarballs for the same pinned RN version.
+      - name: 💾 Restore npm download cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.npm
+          key: npm-rn-${{ inputs.rn-version }}-v1
 
       # Metro is JS-only — re-scaffold the project here (without CocoaPods/xcodebuild) so the
       # heavy native build stays in the build job. A debug .app loads its bundle from Metro at
@@ -243,6 +174,16 @@ jobs:
             pnpm --filter @repo/e2e exec appium driver install xcuitest
           fi
 
+      # WDA DerivedData is keyed on e2e/package.json (appium-xcuitest-driver pin). A cache hit
+      # skips the multi-minute xcodebuild entirely; the graded sessions still read this path via
+      # appium:derivedDataPath + usePrebuiltWDA.
+      - name: 💾 Restore WDA DerivedData cache
+        id: wda-cache
+        uses: actions/cache@v4
+        with:
+          path: ${{ env.RN_WDA_DD }}
+          key: wda-dd-${{ runner.os }}-${{ hashFiles('e2e/package.json') }}-v1
+
       # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
       # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (several
       # minutes) on the first graded session, and under WDIO's undici client that long POST /session
@@ -250,6 +191,7 @@ jobs:
       # shared derivedDataPath that the graded run reads (appium:derivedDataPath + usePrebuiltWDA)
       # means the graded sessions skip the build and are fast.
       - name: 🏎️ Pre-build WebDriverAgent
+        if: steps.wda-cache.outputs.cache-hit != 'true'
         shell: bash
         run: |
           set -euo pipefail
