@@ -96,13 +96,28 @@ RN runs JS in Hermes behind **Metro's inspector-proxy**, which speaks CDP — so
 ### Dart VM (Flutter) — Tier 2
 
 Flutter runs Dart on its own **VM Service protocol** (not CDP/Hermes), so there is **no JS-eval
-channel into the Dart realm** — `execute`/`mock` can't inject transparently. Flutter's mock is a
-**Tier-2 cooperative opt-in contract** baked into the fixture/app (validated in the throwaway
-Phase-0 mobile spike — gitignored per convention, so the contract's durable home is Flutter's
-implementation plan and the Flutter service docs once built, not a committed spike artifact): the
-app exposes named hooks the test toggles, rather than the service rewriting arbitrary functions.
-`execute` maps to the Flutter driver's eval-equivalent where available. Keep the converged *surface*
-(`mock`, `clear/reset/restoreAllMocks`, …) — only the mechanism differs.
+channel into the Dart realm** — `execute`/`mock` can't inject transparently. This section carries the
+contract shape the Phase-0 spike proved, so you build Flutter **from here** — re-confirm the
+specifics in your own spike (versions drift), but you don't need Flutter to exist yet:
+
+- **Connect / `execute`.** Open your own WebSocket to the **Dart VM Service** (the debug/profile
+  build the Appium Flutter driver already needs) and call its generic **`evaluate`** RPC — that's the
+  eval-equivalent for `execute`. (`appium-flutter-driver` is itself a meta-driver that attaches to the
+  VM Service via `ext.flutter.driver` and adds a `FLUTTER` context; open a *parallel* VM-Service
+  connection for `execute`/`mock` rather than routing through it.)
+- **Mock — the Tier-2 cooperative contract.** Dart has no transparent monkeypatch, so the app
+  **opts in**: ship a small **Dart package of service extensions + a mock registry** the app wires its
+  DI seams to (opt-in cost ≈ `enableFlutterDriverExtension()`), and the test drives that registry over
+  the VM Service (real → mocked → cleared). The **outer mock + one-way `update()` sync reuse
+  verbatim** — only the *inner* mock differs (app-registered vs JS-injected). `browser.flutter.mock.*`
+  stays API-convergent with the other services. This is a documented **boundary** (you mock
+  app-exposed seams), not a missing feature.
+- Keep the converged *surface* (`mock`, `clear/reset/restoreAllMocks`, …) — only the inner mechanism
+  differs.
+
+(This shape was validated in the RN+Flutter double-spike; that scratch is gitignored, so **this
+section is the durable record you build from** — not the spike, and not the Flutter service docs,
+which are an *output* written into the Flutter README/`docs/` once it ships.)
 
 ### WebView context (Ionic/Capacitor) — Tier 1
 
