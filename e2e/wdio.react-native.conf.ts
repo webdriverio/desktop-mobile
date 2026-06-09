@@ -143,23 +143,21 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // TEMPORARY (while stabilising #353): retry counts dialled down so a failing iOS leg surfaces
-  // in ONE attempt (~the WDA window) instead of multiplying the 10-min session timeout — fast
-  // iteration. RESTORE before merge: specFileRetries 1, connectionRetryCount 3, mochaOpts.retries 1
-  // (they absorb emulator boot / first-attach flake). The iOS connectionRetryTimeout stays high —
-  // WDA needs it.
-  specFileRetries: 0,
-  specFileRetriesDeferred: false,
+  // Deferred spec retry, specifically for the iOS WDA cold-build: the first session(s) build
+  // WebDriverAgent (~8-9 min) and on a slow runner can get socket-dropped (UND_ERR_SOCKET) before
+  // it finishes. Deferring the retry re-runs those casualties at the END of the queue, by which
+  // point WDA is built and cached, so the retried session is fast and passes. Also absorbs
+  // emulator boot / first-attach flake.
+  specFileRetries: 1,
+  specFileRetriesDeferred: true,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS: the first `POST /session` blocks while appium-xcuitest builds WebDriverAgent (several
-  // minutes on a cold macOS runner). The default 3-min request timeout aborts mid-build, so give
-  // iOS a 10-min ceiling; Android stays tight. (It's a max, not a delay — fast commands return fast.)
   // iOS: must exceed wdaLaunchTimeout (720s) so WDIO doesn't abort POST /session while
   // appium-xcuitest builds WebDriverAgent (~8-9 min cold) on the first session. Android stays tight.
+  // (It's a max, not a delay — fast commands return fast.)
   connectionRetryTimeout: isIos ? 900000 : 180000,
-  // 0 while stabilising: a failed iOS session-create otherwise retries the full 10-min timeout,
-  // doubling the runtime. RESTORE to 3 before merge.
+  // 0: a failed iOS session-create otherwise retries the full (now 15-min) timeout, ballooning
+  // runtime; the deferred specFileRetry above is the recovery path instead.
   connectionRetryCount: 0,
   // @wdio/appium-service boots the Appium 2 server; @wdio/react-native-service prepares
   // capabilities (automationName/app) and attaches the Hermes bridge for execute/mock.
