@@ -168,6 +168,23 @@ describe('createMock', () => {
     expect(vitestFn.mock.calls).toHaveLength(0);
   });
 
+  it('should reset outer vitest state even when the CDP restore call fails (dead bridge)', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge, close } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    const vitestFn = (mock as unknown as { _vitestFn: ReturnType<typeof vi.fn> })._vitestFn;
+    vitestFn('arg');
+    expect(vitestFn.mock.calls).toHaveLength(1);
+
+    close();
+
+    // The CDP uninstall throws — outer state must still be reset via finally.
+    // Store entry is kept (Hermes spy was not uninstalled).
+    await expect(mock.mockRestore()).rejects.toThrow(/WebSocket is closed/);
+    expect(vitestFn.mock.calls).toHaveLength(0);
+    expect(store.getMock('greet')).toBeDefined();
+  });
+
   it('should preserve call history across a reconnect (same vitest fn)', async () => {
     const store = new ReactNativeMockStore();
     const first = fakeBridge();

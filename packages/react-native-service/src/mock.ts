@@ -264,8 +264,13 @@ export async function createMock(
   };
 
   mock.mockRestore = async () => {
-    await evaluateInRealm<void>(bridge, buildRestoreScript(target), mockContext);
-    outerMockReset();
+    try {
+      await evaluateInRealm<void>(bridge, buildRestoreScript(target), mockContext);
+    } finally {
+      outerMockReset();
+    }
+    // Store deletion stays outside finally: if the CDP uninstall threw, the Hermes
+    // spy is still active and the entry should remain so subsequent calls still work.
     store.deleteMock(target);
     return mock;
   };
