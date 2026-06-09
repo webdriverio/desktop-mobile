@@ -78,6 +78,13 @@ describe('executeScript', () => {
     expect(lastExpression(send)).not.toContain('return (return 5)');
   });
 
+  it('should throw when a string-form script receives positional arguments', async () => {
+    const { bridge } = fakeBridge({ result: { value: undefined } });
+    await expect(executeScript(bridge, 'return 1', 'extra' as never)).rejects.toThrow(
+      /positional arguments are not supported with string-form scripts/,
+    );
+  });
+
   it('should treat a function declaration as a statement body, not an expression', async () => {
     const { bridge, send } = fakeBridge({ result: { value: undefined } });
     await executeScript(bridge, 'function foo() { return 42; }');
