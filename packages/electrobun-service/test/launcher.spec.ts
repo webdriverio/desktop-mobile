@@ -232,6 +232,27 @@ describe('ElectrobunLaunchService', () => {
       expect(logMocks.warn).toHaveBeenCalledWith(expect.stringContaining('WebView2 runtime version'));
     });
 
+    it('should NOT warn when runtime detection fails but the user pinned browserVersion', async () => {
+      setPlatform('win32');
+      vi.mocked(detectWebView2RuntimeVersion).mockReturnValueOnce(undefined);
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'native',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
+      (cap as { browserVersion?: string }).browserVersion = '150.0.1';
+
+      await launcher.onPrepare(baseConfig, [cap]);
+
+      // User pinned the version → no auto-match fallback, so no (spurious) warning.
+      expect((cap as { browserVersion?: string }).browserVersion).toBe('150.0.1');
+      expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('WebView2 runtime version'));
+    });
+
     it('should propagate a missing-appBinaryPath SevereServiceError from resolution', async () => {
       vi.mocked(resolveElectrobunApp).mockImplementationOnce(() => {
         throw new SevereServiceError('@wdio/electrobun-service requires an explicit appBinaryPath in native mode.');

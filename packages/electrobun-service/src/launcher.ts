@@ -171,7 +171,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         const versioned = cap as { browserVersion?: string };
         if (webview2Version) {
           versioned.browserVersion ??= webview2Version;
-        } else if (!warnedNoWebView2Version) {
+        } else if (versioned.browserVersion === undefined && !warnedNoWebView2Version) {
+          // Only warn when we'd actually fall back to auto-match — not when the user pinned
+          // browserVersion themselves (then there's no fallback and nothing at risk).
           warnedNoWebView2Version = true;
           log.warn(
             "Could not detect the installed WebView2 runtime version — falling back to WDIO's " +
