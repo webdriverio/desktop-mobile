@@ -103,7 +103,6 @@ type ReactNativeCapability = {
   'appium:simulatorStartupTimeout'?: number;
   'appium:derivedDataPath'?: string;
   'appium:usePrebuiltWDA'?: boolean;
-  'appium:noReset'?: boolean;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -133,11 +132,10 @@ const capabilities: ReactNativeCapability[] = [
           ...(process.env.RN_WDA_DD
             ? { 'appium:derivedDataPath': process.env.RN_WDA_DD, 'appium:usePrebuiltWDA': true }
             : {}),
-          // Each spec opens its own session; without this appium reinstalls the .app every time,
-          // and the rapid install/uninstall churn intermittently desyncs the sim's FrontBoard
-          // registration → "Application … is unknown to FrontBoard (NotFound)" on a random session.
-          // Install once, reuse (appium still relaunches per session, so RN state resets to 0).
-          'appium:noReset': true,
+          // NOTE: appium:noReset was tried to stop the occasional "unknown to FrontBoard" glitch
+          // but it broke the Fabric (new-arch) app entirely (0/6 — the reused install never became
+          // interactive), while Paper tolerated it. Left at the default reinstall-per-session; the
+          // rare FrontBoard glitch is absorbed by the deferred specFileRetries below.
         }
       : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
@@ -156,12 +154,12 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // One spec retry on both platforms (absorbs emulator boot / first-attach flake). The retry is
-  // DEFERRED on iOS only: the first session(s) build WebDriverAgent (~8-9 min) and on a slow runner
-  // can get socket-dropped before it finishes — deferring re-runs those casualties at the END of
-  // the queue, by which point WDA is built and cached so the retried session is fast and passes.
-  // Android has no such cold-build, so it keeps the default (immediate) retry ordering.
-  specFileRetries: 1,
+  // Spec retries absorb mobile-CI flake: emulator boot / first-attach on Android, and on iOS the
+  // occasional appium-simulator "unknown to FrontBoard" launch glitch (a random spec, ~rare). The
+  // retry is DEFERRED on iOS only — re-runs casualties at the END of the queue so they don't repeat
+  // back-to-back into the same transient state; Android keeps the default (immediate) ordering and
+  // one retry. iOS gets two, since the FrontBoard glitch has occasionally survived a single retry.
+  specFileRetries: isIos ? 2 : 1,
   specFileRetriesDeferred: isIos,
   baseUrl: '',
   waitforTimeout: 15000,

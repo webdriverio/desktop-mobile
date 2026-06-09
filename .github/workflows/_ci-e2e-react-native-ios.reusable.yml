@@ -66,6 +66,8 @@ jobs:
   build:
     name: Build .app
     runs-on: ${{ inputs.os }}
+    # Cap a stuck xcodebuild/CocoaPods rather than holding a scarce macOS runner for the 6h default.
+    timeout-minutes: 40
     steps:
       - name: 👷 Checkout Repository
         uses: actions/checkout@v6
@@ -136,6 +138,9 @@ jobs:
     name: Run
     needs: build
     runs-on: ${{ inputs.os }}
+    # Cap a hung Appium/WDA session (a stuck session-create can otherwise idle the macOS runner for
+    # the 6h default). Generous over a normal pass (~16-24 min) but well under the default.
+    timeout-minutes: 55
     steps:
       - name: 👷 Checkout Repository
         uses: actions/checkout@v6
@@ -219,17 +224,6 @@ jobs:
           # bootstatus -b blocks until the sim reaches Booted; a non-zero exit is a real
           # boot failure/timeout — surface it here, not later as a cryptic Appium session error.
           xcrun simctl bootstatus "$RN_IOS_DEVICE" -b || { echo "::error::Simulator '$RN_IOS_DEVICE' did not reach Booted state"; exit 1; }
-
-      # Install the app once, up front. With appium:noReset the graded sessions reuse this install
-      # instead of reinstalling per spec — the rapid install churn was intermittently desyncing the
-      # sim's FrontBoard registration ("Application … is unknown to FrontBoard"). Pre-installing
-      # guarantees it's present before the first session regardless of noReset's install-if-absent.
-      - name: 📦 Install app on simulator
-        shell: bash
-        run: |
-          set -euo pipefail
-          xcrun simctl install booted "$RN_APP_PATH"
-          echo "Installed $RN_APP_PATH on the booted simulator"
 
       - name: 🔌 Install Appium XCUITest driver
         shell: bash
