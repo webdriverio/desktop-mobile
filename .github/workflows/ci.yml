@@ -766,8 +766,9 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E [Windows] — WebView2 over CDP (msedgedriver, classic WebDriver). Runs
-  # `standard` + `window`; multi-window works on WebView2 (no persist:default gap, so it runs
-  # where CEF is local-only). Gating (in ci-status.needs).
+  # `standard`, `window` (multi-window), and `multiremote` (two isolated WebView2 instances in
+  # one worker — each its own process + LOCALAPPDATA data dir) — all capabilities CEF lacks, so
+  # they run on Windows where CEF is local-only / single-instance. Gating (in ci-status.needs).
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-windows:
     name: E2E - Electrobun [Windows] - ${{ matrix.test-type }}
@@ -776,32 +777,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window']
+        test-type: ['standard', 'window', 'multiremote']
     uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
     secrets: inherit
     with:
       os: 'windows-latest'
       node-version: '24'
       test-type: ${{ matrix.test-type }}
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
-
-  # ────────────────────────────────────────────────────────────────────────
-  # Electrobun multiremote [Windows] — two isolated WebView2 instances in one worker (each its
-  # own process + LOCALAPPDATA data dir), a capability CEF lacks. NON-gating (NOT in
-  # ci-status.needs) until validated; promote into the gating job's matrix once green. #317.
-  # ────────────────────────────────────────────────────────────────────────
-  e2e-electrobun-windows-multiremote:
-    name: E2E - Electrobun [Windows] - multiremote
-    needs: [detect-changes, build, build-electrobun-e2e-app-windows]
-    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
-    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
-    secrets: inherit
-    with:
-      os: 'windows-latest'
-      node-version: '24'
-      test-type: 'multiremote'
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
