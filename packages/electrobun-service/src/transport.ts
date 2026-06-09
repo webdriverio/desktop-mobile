@@ -30,7 +30,10 @@ export function resolveTransport(
     return 'cef';
   }
   if (platform === 'win32') {
-    return renderer.includes('cef') ? undefined : 'webview2';
+    // Windows drives the native WebView2 renderer; an explicit CEF build is unsupported there
+    // (it serves no /json). `readRenderer` records build.json's renderer as exactly 'cef' or
+    // 'native' (lower-cased), so match the whole value rather than a substring.
+    return renderer === 'cef' ? undefined : 'webview2';
   }
   return undefined;
 }
