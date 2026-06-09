@@ -1,15 +1,12 @@
 import { $ } from '@wdio/globals';
 
 /**
- * Select a fixture element by its stable id via the `~` (accessibility-id) selector.
+ * Select a fixture element by its stable id via the `~` (accessibility-id) selector — it matches
+ * content-desc on Android and accessibilityIdentifier on iOS, both set by the fixture's `sel()`
+ * (see App.tsx for the per-platform mapping + the iOS accessibilityLabel caveat).
  *
- * The fixture (App.tsx `sel()`) exposes that id as **content-desc** on Android
- * (accessibilityLabel) and as **accessibilityIdentifier** on iOS (testID) — both of which `~`
- * matches. iOS deliberately omits accessibilityLabel: it would shadow a value-bearing element's
- * text, so getText() on the counter would return "counter" instead of the rendered number.
- *
- * (RN's testID does NOT surface as a queryable Android resource-id, so resource-id selection is
- * not an option there — content-desc is.)
+ * RN's testID does NOT surface as a queryable Android resource-id, so `~`/content-desc is the only
+ * cross-platform option there.
  */
 export function el(testId: string) {
   return $(`~${testId}`);

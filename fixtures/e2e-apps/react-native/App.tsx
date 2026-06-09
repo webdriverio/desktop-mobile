@@ -1,10 +1,8 @@
 /**
  * React Native E2E Test Fixture — big-glass counter
  *
- * Every element is selected by the e2e `~` (accessibility-id) selector via `sel()` below:
- * content-desc on Android (accessibilityLabel), accessibilityIdentifier on iOS (testID). iOS
- * deliberately gets no accessibilityLabel — it shadows a value element's text, so getText() on
- * the counter would return "counter" instead of the rendered number.
+ * Every element is selected by the e2e `~` (accessibility-id) selector; `sel()` below maps each
+ * id to the right per-platform a11y prop (and explains the iOS accessibilityLabel caveat).
  *
  *   ids: app-title | counter | increment-button | decrement-button | reset-button | status
  */

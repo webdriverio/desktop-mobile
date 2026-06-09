@@ -116,16 +116,13 @@ const capabilities: ReactNativeCapability[] = [
     ...(isIos
       ? {
           'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16',
-          // appium-xcuitest compiles WebDriverAgent on the first session of a cold runner — the
-          // build measured ~8-9 min. wdaLaunchTimeout must exceed it (the default 4 min made
-          // appium give up before WDA was ready, failing the first sessions); the first session
-          // then waits the build out and the rest reuse the cached WDA. It's a ceiling, not a
-          // delay — the run is only as long as the build — so the margin is free. connectionRetry
-          // Timeout (below) is set higher still so WDIO doesn't abort the POST /session first.
+          // appium-xcuitest builds WebDriverAgent on the first session of a cold runner (several
+          // minutes) — far past appium's default wait, so without headroom the first session aborts
+          // before WDA is ready. A ceiling, not a delay (the run is only as long as the build);
+          // connectionRetryTimeout below is set higher still so WDIO doesn't abort first.
           'appium:wdaLaunchTimeout': 720000,
-          // The workflow pre-boots the sim, but appium re-monitors boot on session create and the
-          // default 120s ceiling has timed out on a cold/slow runner ("failed to finish booting
-          // after 122s"). Give it headroom.
+          // The workflow pre-boots the sim, but appium re-monitors boot on session-create and its
+          // default ~120s ceiling has timed out on cold/slow runners. Give it headroom.
           'appium:simulatorStartupTimeout': 240000,
           // CI pre-builds WDA into RN_WDA_DD; reuse it (no per-session xcodebuild → no long
           // POST /session → no UND_ERR_SOCKET). Omitted locally so appium builds WDA as usual.
@@ -163,14 +160,13 @@ export const config = {
   specFileRetriesDeferred: isIos,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS: must exceed wdaLaunchTimeout (720s) so WDIO doesn't abort POST /session while
-  // appium-xcuitest builds WebDriverAgent (~8-9 min cold) on the first session. Android stays tight.
-  // (It's a max, not a delay — fast commands return fast.)
+  // iOS: must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session while WDA builds on the
+  // first cold-runner session. Android stays tight. (A max, not a delay — fast commands return fast.)
   connectionRetryTimeout: isIos ? 900000 : 180000,
   // 0: a failed iOS session-create otherwise retries the full (now 15-min) timeout, ballooning
   // runtime; the deferred specFileRetry above is the recovery path instead.
   connectionRetryCount: 0,
-  // @wdio/appium-service boots the Appium 2 server; @wdio/react-native-service prepares
+  // @wdio/appium-service boots the Appium server; @wdio/react-native-service prepares
   // capabilities (automationName/app) and attaches the Hermes bridge for execute/mock.
   services: ['appium', 'react-native'],
   port: 4723,

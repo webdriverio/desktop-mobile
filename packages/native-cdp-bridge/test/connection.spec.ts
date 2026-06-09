@@ -60,7 +60,7 @@ describe('Connection.isOpen', () => {
     h.sockets.length = 0;
   });
 
-  it('is false before connect, true while open, and false again after close', async () => {
+  it('should be false before connect, true while open, and false again after close', async () => {
     const connection = new Connection('ws://127.0.0.1:9222/devtools/page/A');
     expect(connection.isOpen).toBe(false);
 

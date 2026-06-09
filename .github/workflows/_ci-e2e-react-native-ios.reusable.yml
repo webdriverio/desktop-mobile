@@ -237,11 +237,11 @@ jobs:
           fi
 
       # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
-      # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (~8-9 min)
-      # on the first graded session, and under WDIO's undici client that long POST /session dropped
-      # the socket (UND_ERR_SOCKET) and failed the first spec. Building here into an explicit, shared
-      # derivedDataPath that the graded run reads (appium:derivedDataPath + usePrebuiltWDA) means the
-      # graded sessions skip the build and are fast.
+      # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (several
+      # minutes) on the first graded session, and under WDIO's undici client that long POST /session
+      # dropped the socket (UND_ERR_SOCKET) and failed the first spec. Building here into an explicit,
+      # shared derivedDataPath that the graded run reads (appium:derivedDataPath + usePrebuiltWDA)
+      # means the graded sessions skip the build and are fast.
       - name: 🏎️ Pre-build WebDriverAgent
         shell: bash
         run: |
