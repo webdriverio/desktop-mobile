@@ -25,8 +25,10 @@ The launcher only mutates the caps WDIO hands it; the worker (`service.ts`) inst
 - **Compose at the runner, not in the package.** The config lists `services: ['appium', '<framework>']`
   (`@wdio/appium-service` boots the server; your service prepares caps + attaches the JS-realm
   bridge). `@wdio/appium-service` is an **e2e/runner devDependency**, *not* a dependency of the
-  service package — don't add it to `package.json` (see gotcha). The service depends only on the four
-  `@wdio/native-*` packages + `webdriverio`.
+  service package — don't add it to `package.json` (see gotcha). The service depends only on the
+  baseline `@wdio/native-*` packages (`native-core`/`native-spy`/`native-types`/`native-utils`) +
+  `webdriverio` — a **Tier-1** service adds `native-cdp-bridge` for its JS-realm channel (five
+  `@wdio/native-*` deps, as RN has); a **Tier-2** service stays at the four.
 - **Per-platform automation name.** `capabilities.ts` sets `appium:automationName` from a
   `{ android: 'UiAutomator2', ios: 'XCUITest' }` map and maps the service `appBinaryPath` option onto
   `appium:app` *only when no launch cap is already set* (prefer the explicit `appium:*` launch cap).
