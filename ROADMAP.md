@@ -19,6 +19,16 @@ This document outlines the planned services and their development sequencing for
 **Platforms:** Windows, macOS, Linux (`'embedded'` provider); Windows only for `'external'` in v1\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/dioxus-service)](https://npmjs.com/package/@wdio/dioxus-service)
 
+### [@wdio/electrobun-service](./packages/electrobun-service) - v0.1.x
+**Status:** 🧪 Experimental (`0.x`) — macOS (CEF) + Windows (native WebView2); Linux upstream-blocked\
+**Platforms:** macOS, Windows\
+[![npm downloads](https://img.shields.io/npm/dm/@wdio/electrobun-service)](https://npmjs.com/package/@wdio/electrobun-service)
+
+### [@wdio/react-native-service](./packages/react-native-service) - v1.0.0-next.x
+**Status:** 🧪 Pre-release (`1.0.0-next.x`) — complete feature surface on Android + iOS\
+**Platforms:** Android, iOS\
+[![npm downloads](https://img.shields.io/npm/dm/@wdio/react-native-service)](https://npmjs.com/package/@wdio/react-native-service)
+
 ---
 
 ## Cross-cutting Capabilities
@@ -53,23 +63,10 @@ The table below quantifies the key factors used to prioritise and sequence plann
 
 ## Planned Services
 
-### Phase 2: React Native Mobile (Q3 2026)
-**Priority:** High - Mobile testing expansion
+### Phase 2: React Native Mobile — ✅ Shipped (Android + iOS, `1.0.0-next.x`)
 
-**Target Platforms:** iOS, Android
-**Future:** Windows, macOS, Linux (desktop support)
-
-**Why React Native:**
-- Massive ecosystem and user base
-- Well-established mobile testing needs
-- Appium integration already proven
-- Establishes mobile scaffold pattern
-
-**Technical approach:**
-- Appium server + hybrid context switching
-- XCUITest driver (iOS)
-- UiAutomator2 driver (Android)
-- Standard WebdriverIO Appium patterns
+**Platforms:** Android (UiAutomator2), iOS (XCUITest)\
+**Highlights:** native find/tap via Appium; `execute` + `mock` via Hermes CDP (debug/Metro build); deeplink, context switching, log capture, multiremote/DeviceManager. Establishes the mobile scaffold for Phase 3 (Flutter) and Phase 4 (Capacitor).
 
 ### Phase 3: Flutter Mobile (Q4 2026)
 **Priority:** Medium - Mobile testing completion

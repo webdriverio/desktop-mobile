@@ -33,7 +33,9 @@
       "dioxus-app-example",
       "wdio-dioxus-e2e-app",
       "electrobun-app-example",
-      "electrobun-e2e-app"
+      "electrobun-e2e-app",
+      "react-native-app-example",
+      "react-native-e2e-app"
     ]
   },
   "ci": {
@@ -48,7 +50,8 @@
       "scope:tauri": "@wdio/tauri-*",
       "scope:dioxus": "@wdio/dioxus-*",
       "scope:electron": "@wdio/electron-*",
-      "scope:electrobun": "@wdio/electrobun-*"
+      "scope:electrobun": "@wdio/electrobun-*",
+      "scope:react-native": "@wdio/react-native-*"
     }
   },
   "notes": {
