@@ -41,7 +41,7 @@ fixtures/e2e-apps/
 ├── electron-script/        # Electron app (script mode)
 ├── tauri/                  # Tauri app
 ├── dioxus/                 # Dioxus app
-└── electrobun/             # Electrobun app (CEF renderer)
+└── electrobun/             # Electrobun app (CEF on macOS / native WebView2 on Windows)
 ```
 
 ## Running E2E Tests

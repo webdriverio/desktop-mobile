@@ -10,7 +10,7 @@ This is a monorepo providing WebdriverIO services for automated testing of nativ
 - **Electron** - `@wdio/electron-service` (v10.x)
 - **Tauri** - `@wdio/tauri-service` (v1.x)
 - **Dioxus** - `@wdio/dioxus-service` (v1.x)
-- **Electrobun** - `@wdio/electrobun-service` (v0.1.x — **macOS-only**, requires the CEF renderer; Linux/Windows + multiremote/multi-window/deeplink are upstream-blocked, see the package README)
+- **Electrobun** - `@wdio/electrobun-service` (v0.1.x — **macOS** via CEF + **Windows** via the native WebView2 renderer (CDP), incl. multi-window/multiremote; **Linux** upstream-blocked, and deeplink/multiremote blocked on the macOS CEF path — see the package README)
 
 **Planned:** React Native, Flutter, Capacitor, Neutralino. See [ROADMAP.md](./ROADMAP.md) for details.
 
