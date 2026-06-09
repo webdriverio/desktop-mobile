@@ -7,12 +7,14 @@ It mirrors the surface of the sibling services (`@wdio/electron-service`,
 `@wdio/tauri-service`, `@wdio/dioxus-service`): `browser.electrobun.execute`,
 Vitest-style mocking, log capture, browser mode, and standalone sessions.
 
-> **Status: `0.1.0` — macOS-only, pre-1.0.** This is a `0.x` release because the
-> CEF renderer Electrobun apps must be built with cannot currently be driven on
-> Linux/Windows, and multiremote/multi-window/deeplink are blocked by the same
-> upstream limitation. See [Known limitations](#known-limitations). `1.0` is
-> reserved for full parity once those gaps are filled
-> ([#317](https://github.com/webdriverio/desktop-mobile/issues/317) tracks the work).
+> **Status: `0.1.0`, pre-1.0 — macOS (CEF) + Windows (native WebView2).** Windows uses the
+> native WebView2 (Chromium) renderer over CDP — no CEF — and runs multi-window + multiremote.
+> This is still a `0.x` release because **Linux** isn't yet drivable (CEF serves no `/json` off
+> macOS; the native WebKitGTK renderer needs upstream automation support), and on the **macOS
+> CEF** path multiremote/deeplink remain blocked by an upstream limitation. See
+> [Known limitations](#known-limitations). `1.0` is reserved for full parity once those gaps are
+> filled ([#317](https://github.com/webdriverio/desktop-mobile/issues/317) +
+> [#320](https://github.com/webdriverio/desktop-mobile/issues/320) track the work).
 
 ## Installation
 
