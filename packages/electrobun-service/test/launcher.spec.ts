@@ -270,6 +270,23 @@ describe('ElectrobunLaunchService', () => {
       expect(cap['goog:chromeOptions']).toBeUndefined();
     });
 
+    it('should spawn one app per instance for a multiremote capability record', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      const record = {
+        instanceA: { capabilities: {} as ElectrobunCapabilities },
+        instanceB: { capabilities: {} as ElectrobunCapabilities },
+      };
+      await launcher.onPrepare(baseConfig, record as Parameters<typeof launcher.onPrepare>[1]);
+
+      await launcher.onWorkerStart('0-0', record as Parameters<typeof launcher.onWorkerStart>[1]);
+
+      // The record must be unwrapped to its per-instance caps — two instances → two spawns,
+      // each with debuggerAddress set on its own caps (by reference).
+      expect(vi.mocked(spawnElectrobunApp)).toHaveBeenCalledTimes(2);
+      expect(record.instanceA.capabilities['goog:chromeOptions']).toBeDefined();
+      expect(record.instanceB.capabilities['goog:chromeOptions']).toBeDefined();
+    });
+
     it('should NOT pin the port directly — clone + port-write happen inside the spawn path', async () => {
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
       await launcher.onPrepare(baseConfig, [{}]);

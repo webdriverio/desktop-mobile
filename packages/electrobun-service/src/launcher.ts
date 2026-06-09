@@ -155,7 +155,11 @@ export default class ElectrobunLaunchService extends BaseLauncher {
 
   async onWorkerStart(
     cid: string,
-    capabilities: ElectrobunCapabilities | ElectrobunCapabilities[] | undefined,
+    capabilities:
+      | ElectrobunCapabilities
+      | ElectrobunCapabilities[]
+      | Record<string, { capabilities: ElectrobunCapabilities }>
+      | undefined,
   ): Promise<void> {
     if (this.browserMode) {
       log.debug(`Worker ${cid}: browser mode — skipping app spawn`);
@@ -166,7 +170,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       return;
     }
 
-    const capsList = Array.isArray(capabilities) ? capabilities : [capabilities];
+    const capsList = normaliseWorkerCaps(capabilities);
     const workerApps: ElectrobunAppProcess[] = [];
 
     for (let i = 0; i < capsList.length; i++) {
@@ -272,4 +276,27 @@ function normaliseCaps(
     return capabilities;
   }
   return Object.values(capabilities).map((entry) => entry.capabilities);
+}
+
+/**
+ * Normalise the capabilities `onWorkerStart` receives into a flat per-instance list. For a
+ * multiremote run WDIO passes the `{ instanceName: { capabilities } }` record; for a standard
+ * run it's an array (or a lone cap object). Extracting the record's per-instance caps — by
+ * reference, so the `debuggerAddress` set on each below reaches WDIO — is what lets multiremote
+ * spawn one app per instance instead of mistaking the whole record for a single cap.
+ */
+function normaliseWorkerCaps(
+  capabilities:
+    | ElectrobunCapabilities
+    | ElectrobunCapabilities[]
+    | Record<string, { capabilities: ElectrobunCapabilities }>,
+): ElectrobunCapabilities[] {
+  if (Array.isArray(capabilities)) {
+    return capabilities;
+  }
+  const values = Object.values(capabilities);
+  if (values.length > 0 && values.every((v) => v != null && typeof v === 'object' && 'capabilities' in v)) {
+    return (values as Array<{ capabilities: ElectrobunCapabilities }>).map((entry) => entry.capabilities);
+  }
+  return [capabilities as ElectrobunCapabilities];
 }
