@@ -1,4 +1,10 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+
+const h = vi.hoisted(() => ({ warn: vi.fn(), debug: vi.fn() }));
+vi.mock('@wdio/native-utils', async (importOriginal) => {
+  const mod = await importOriginal<typeof import('@wdio/native-utils')>();
+  return { ...mod, createLogger: () => ({ ...h, info: vi.fn(), error: vi.fn() }) };
+});
 
 import { DeviceManager } from '../src/deviceManager.js';
 
@@ -47,5 +53,17 @@ describe('DeviceManager', () => {
     const cap: Record<string, unknown> = {};
     DeviceManager.applyToCapability(cap, { iOSUdid: 'ABC-123' }, 'ios');
     expect(cap['appium:udid']).toBe('ABC-123');
+  });
+
+  it('should warn and still claim when more workers than devices', () => {
+    h.warn.mockClear();
+    const dm = new DeviceManager([{ udid: 'd0' }, { udid: 'd1' }]);
+    dm.claim('a'); // device[0] — no warn
+    dm.claim('b'); // device[1] — no warn
+    expect(h.warn).not.toHaveBeenCalled();
+    const device = dm.claim('c'); // wraps → device[0] again, should warn
+    expect(h.warn).toHaveBeenCalledOnce();
+    expect(h.warn.mock.calls[0][0]).toContain('More workers than configured devices');
+    expect(device).toEqual({ udid: 'd0' });
   });
 });

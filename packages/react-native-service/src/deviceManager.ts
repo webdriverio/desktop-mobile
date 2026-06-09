@@ -46,6 +46,12 @@ export class DeviceManager {
     if (this.#devices.length === 0) {
       return undefined;
     }
+    if (this.#nextIndex >= this.#devices.length) {
+      log.warn(
+        `More workers than configured devices (${this.#devices.length}): worker ${cid} will share ` +
+          `device[${this.#nextIndex % this.#devices.length}] with another worker.`,
+      );
+    }
     const index = this.#nextIndex % this.#devices.length;
     this.#nextIndex += 1;
     this.#claimed.set(cid, index);

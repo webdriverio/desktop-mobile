@@ -77,4 +77,14 @@ describe('executeScript', () => {
     await executeScript(bridge, 'return 5');
     expect(lastExpression(send)).not.toContain('return (return 5)');
   });
+
+  it('should treat a function declaration as a statement body, not an expression', async () => {
+    const { bridge, send } = fakeBridge({ result: { value: undefined } });
+    await executeScript(bridge, 'function foo() { return 42; }');
+    const expr = lastExpression(send);
+    // A function declaration at the top level is a statement — wrapping it as `return (function foo…)`
+    // would return the function object instead of undefined (expected for a declaration with no call).
+    expect(expr).not.toContain('return (function foo');
+    expect(expr).toContain('function foo');
+  });
 });

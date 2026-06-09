@@ -77,7 +77,7 @@ function inlineArgs(args: unknown[]): string {
   return args.map((arg, index) => jsonLiteral(arg, 'browser.reactNative.execute argument', index)).join(', ');
 }
 
-const STATEMENT_KEYWORD = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/;
+const STATEMENT_KEYWORD = /^(const|let|var|if|for|while|switch|throw|try|do|return|function)(?=[^\w$]|$)/;
 
 /**
  * Wrap a string script for `Runtime.evaluate`, mirroring the convergent execute

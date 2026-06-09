@@ -145,6 +145,12 @@ export default class ReactNativeWorkerService {
 
   async beforeTest(): Promise<void> {
     if (!this.mockStore || !this.metroBridge?.connected) {
+      if (this.mockStore && (this.options.clearMocks || this.options.resetMocks || this.options.restoreMocks)) {
+        log.warn(
+          'beforeTest: Hermes bridge is not connected — clearMocks/resetMocks/restoreMocks skipped. ' +
+            'Mock state from the previous test may bleed into this one if the app crashed or was backgrounded.',
+        );
+      }
       return;
     }
     const store = this.mockStore;
