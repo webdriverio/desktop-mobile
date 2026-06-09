@@ -97,8 +97,10 @@ RN runs JS in Hermes behind **Metro's inspector-proxy**, which speaks CDP — so
 
 Flutter runs Dart on its own **VM Service protocol** (not CDP/Hermes), so there is **no JS-eval
 channel into the Dart realm** — `execute`/`mock` can't inject transparently. Flutter's mock is a
-**Tier-2 cooperative opt-in contract** baked into the fixture/app (proven in the spike): the app
-exposes named hooks the test toggles, rather than the service rewriting arbitrary functions.
+**Tier-2 cooperative opt-in contract** baked into the fixture/app (proven in the RN+Flutter
+double-spike — see its findings doc, the gitignored `spike/mobile-spike/FINDINGS.md` per the Phase 0
+spike convention): the app exposes named hooks the test toggles, rather than the service rewriting
+arbitrary functions.
 `execute` maps to the Flutter driver's eval-equivalent where available. Keep the converged *surface*
 (`mock`, `clear/reset/restoreAllMocks`, …) — only the mechanism differs.
 
@@ -135,8 +137,14 @@ Two channels, both gated on `captureBackendLogs` (`logCapture.ts`):
    **`afterTest`** (not `after`) so each test's lines attribute to it — `getLogs` drains everything
    since the last call.
 2. **JS console** via CDP `Runtime.consoleAPICalled` over the Hermes bridge. The listener binds to a
-   specific `CdpBridge`, so after `MetroBridge.reconnect()` you must run the old cleanup and
-   re-attach against the fresh bridge.
+   **specific `CdpBridge` instance**, and there is **no dedicated reconnect hook** — so re-attach it
+   in the same place you (re)connect: RN attaches once in `before` (the initial warm-up) and
+   **re-attaches inside the `ensureHermes()` lazy-(re)connect guard** that the next
+   `execute`/`mock`/`emitEvent` triggers (`stopJsLogs?.()` then `startJsLogForwarding(bridge.bridge)`
+   on the new instance — `service.ts`). Miss this and the CDP console channel **silently stops
+   capturing** after a background-triggered reconnect, with no test failure. (Don't reach for a
+   `MetroBridge.on('reconnect', …)` event — RN reconnects lazily via `ensureHermes()`, not a standalone
+   `reconnect()`; co-locate the re-attach with that guard.)
 
 ## Shared-layer extraction (the Flutter enabler)
 
