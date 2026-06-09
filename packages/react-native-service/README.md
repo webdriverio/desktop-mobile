@@ -254,11 +254,10 @@ Appium picks whatever is connected.
 
 ## Standalone / session mode
 
-Use `createReactNativeCapabilities` and `startWdioSession` to drive sessions outside
-of the WDIO runner:
+Use `startWdioSession` to drive sessions outside of the WDIO runner:
 
 ```ts
-import { createReactNativeCapabilities, startWdioSession } from '@wdio/react-native-service';
+import { startWdioSession } from '@wdio/react-native-service';
 
 const { browser, cleanup } = await startWdioSession({
   platformName: 'Android',

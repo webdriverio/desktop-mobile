@@ -18,7 +18,11 @@ if (!appPath) {
 }
 
 // Select platform from RN_PLATFORM (defaults to Android).
-const platform = (process.env.RN_PLATFORM ?? 'android').toLowerCase() as 'android' | 'ios';
+const rawPlatform = (process.env.RN_PLATFORM ?? 'android').toLowerCase();
+if (rawPlatform !== 'android' && rawPlatform !== 'ios') {
+  throw new Error(`RN_PLATFORM must be 'android' or 'ios', got: ${rawPlatform}`);
+}
+const platform = rawPlatform as 'android' | 'ios';
 
 const rnServiceOptions: ReactNativeServiceOptions = {
   captureBackendLogs: true,
