@@ -103,6 +103,10 @@ export default class ReactNativeWorkerService {
           this.stopJsLogs?.();
           this.stopJsLogs = startJsLogForwarding(bridge.bridge);
         }
+        // Rewire existing mocks to the new bridge. createMock's reconnect path
+        // reinstalls the inner Hermes spy and re-closes all CDP closures over the
+        // new CdpBridge while preserving the outer mock's call history.
+        await Promise.all(store.getMocks().map(([target]) => createMock(target, bridge.bridge, store)));
       } catch (error) {
         throw new Error(
           `browser.reactNative.${command}: Hermes inspector is not connected ` +
