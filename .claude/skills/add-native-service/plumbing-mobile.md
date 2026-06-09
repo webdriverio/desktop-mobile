@@ -97,10 +97,10 @@ RN runs JS in Hermes behind **Metro's inspector-proxy**, which speaks CDP — so
 
 Flutter runs Dart on its own **VM Service protocol** (not CDP/Hermes), so there is **no JS-eval
 channel into the Dart realm** — `execute`/`mock` can't inject transparently. Flutter's mock is a
-**Tier-2 cooperative opt-in contract** baked into the fixture/app (proven in the RN+Flutter
-double-spike — see its findings doc, the gitignored `spike/mobile-spike/FINDINGS.md` per the Phase 0
-spike convention): the app exposes named hooks the test toggles, rather than the service rewriting
-arbitrary functions.
+**Tier-2 cooperative opt-in contract** baked into the fixture/app (validated in the throwaway
+Phase-0 mobile spike — gitignored per convention, so the contract's durable home is Flutter's
+implementation plan and the Flutter service docs once built, not a committed spike artifact): the
+app exposes named hooks the test toggles, rather than the service rewriting arbitrary functions.
 `execute` maps to the Flutter driver's eval-equivalent where available. Keep the converged *surface*
 (`mock`, `clear/reset/restoreAllMocks`, …) — only the mechanism differs.
 
