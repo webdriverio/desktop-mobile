@@ -171,6 +171,15 @@ export const config = {
     retries: 0,
   },
   outputDir: logDir,
+  // App-ready gate: wait for the fixture to be interactive before any spec runs. On Android
+  // New-Arch (Fabric) the view tree registers ~12s after launch, and Metro's first bundle adds
+  // latency, so the earliest specs (api/application/logging) would otherwise race an empty tree.
+  // Absorbing it once here — after the session opens, before the test body — keeps every spec
+  // deterministic, and confirms the app + Hermes realm are live before the execute/mock specs.
+  before: async () => {
+    const { browser } = await import('@wdio/globals');
+    await browser.$('~counter').waitForDisplayed({ timeout: 90000 });
+  },
   // On a test failure, write the Appium page source to a .log file in the logs dir (which
   // is uploaded as an artifact, unlike hook stdout) so a NoSuchElement is diagnosable from
   // the actual UI hierarchy rather than re-guessing.
