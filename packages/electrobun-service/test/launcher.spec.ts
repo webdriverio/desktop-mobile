@@ -51,6 +51,7 @@ import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } fro
 import ElectrobunLaunchService from '../src/launcher.js';
 import { spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions } from '../src/types.js';
+import { detectWebView2RuntimeVersion } from '../src/webview2Version.js';
 
 const baseConfig = {} as Parameters<ElectrobunLaunchService['onPrepare']>[0];
 
@@ -190,6 +191,45 @@ describe('ElectrobunLaunchService', () => {
       expect((cap as { browserName?: string }).browserName).toBe('MicrosoftEdge');
       // Pinned to the detected runtime version (mocked), not WDIO's Edge-browser auto-match.
       expect((cap as { browserVersion?: string }).browserVersion).toBe('148.0.3967.83');
+    });
+
+    it('should NOT override a user-set browserVersion on the WebView2 path (??= preserves it)', async () => {
+      setPlatform('win32');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'native',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
+      (cap as { browserVersion?: string }).browserVersion = '150.0.1';
+
+      await launcher.onPrepare(baseConfig, [cap]);
+
+      // The user's pin wins over the detected runtime version (mocked 148.0.3967.83).
+      expect((cap as { browserVersion?: string }).browserVersion).toBe('150.0.1');
+    });
+
+    it('should warn and fall back to auto-match when the WebView2 runtime version is undetectable', async () => {
+      setPlatform('win32');
+      vi.mocked(detectWebView2RuntimeVersion).mockReturnValueOnce(undefined);
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'native',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
+
+      await launcher.onPrepare(baseConfig, [cap]);
+
+      // No version pinned → WDIO auto-matches; the warn makes that traceable in CI logs.
+      expect((cap as { browserVersion?: string }).browserVersion).toBeUndefined();
+      expect(logMocks.warn).toHaveBeenCalledWith(expect.stringContaining('WebView2 runtime version'));
     });
 
     it('should propagate a missing-appBinaryPath SevereServiceError from resolution', async () => {

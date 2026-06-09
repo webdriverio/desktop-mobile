@@ -134,6 +134,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     // WebView2 (Windows) only: detect the installed runtime version once so the loop can pin
     // msedgedriver to it (see the per-cap note below). Off Windows this is skipped.
     const webview2Version = process.platform === 'win32' ? detectWebView2RuntimeVersion() : undefined;
+    let warnedNoWebView2Version = false;
     this.resolvedApps = [];
     for (const cap of capsList) {
       const instanceOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
@@ -155,10 +156,20 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       (cap as { browserName?: string }).browserName = transport === 'webview2' ? 'MicrosoftEdge' : 'chrome';
       // The WebView2 runtime can lag the Edge browser WDIO auto-matches; a mismatched
       // msedgedriver then refuses to attach ("only supports Microsoft Edge version N"). Pin the
-      // driver to the runtime version instead, respecting any user-set browserVersion.
-      if (transport === 'webview2' && webview2Version) {
+      // driver to the runtime version instead, respecting any user-set browserVersion. If the
+      // runtime version couldn't be detected, warn once so the at-risk auto-match is traceable.
+      if (transport === 'webview2') {
         const versioned = cap as { browserVersion?: string };
-        versioned.browserVersion ??= webview2Version;
+        if (webview2Version) {
+          versioned.browserVersion ??= webview2Version;
+        } else if (!warnedNoWebView2Version) {
+          warnedNoWebView2Version = true;
+          log.warn(
+            "Could not detect the installed WebView2 runtime version — falling back to WDIO's " +
+              'Edge-browser driver auto-match. If the runtime lags the Edge browser, msedgedriver may ' +
+              'refuse to attach ("session not created: only supports Microsoft Edge version N").',
+          );
+        }
       }
     }
     log.info(`Native mode prepared ${this.resolvedApps.length} Electrobun app(s)`);
