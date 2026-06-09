@@ -139,6 +139,35 @@ describe('createMock', () => {
     expect(second.bridge.send).toHaveBeenCalled();
   });
 
+  it('should clear outer vitest state even when the CDP clear call fails (dead bridge)', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge, close } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    const vitestFn = (mock as unknown as { _vitestFn: ReturnType<typeof vi.fn> })._vitestFn;
+    vitestFn('arg'); // seed a call so there is state to clear
+    expect(vitestFn.mock.calls).toHaveLength(1);
+
+    close();
+
+    // CDP call throws, but outer vitest call history must still be cleared via finally
+    await expect(mock.mockClear()).rejects.toThrow(/WebSocket is closed/);
+    expect(vitestFn.mock.calls).toHaveLength(0);
+  });
+
+  it('should reset outer vitest state even when the CDP reset call fails (dead bridge)', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge, close } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    const vitestFn = (mock as unknown as { _vitestFn: ReturnType<typeof vi.fn> })._vitestFn;
+    vitestFn('arg');
+    expect(vitestFn.mock.calls).toHaveLength(1);
+
+    close();
+
+    await expect(mock.mockReset()).rejects.toThrow(/WebSocket is closed/);
+    expect(vitestFn.mock.calls).toHaveLength(0);
+  });
+
   it('should preserve call history across a reconnect (same vitest fn)', async () => {
     const store = new ReactNativeMockStore();
     const first = fakeBridge();

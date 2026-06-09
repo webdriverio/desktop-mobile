@@ -244,16 +244,22 @@ export async function createMock(
   };
 
   mock.mockClear = async () => {
-    await evaluateInRealm<void>(bridge, buildClearScript(target), mockContext);
-    outerMockClear();
+    try {
+      await evaluateInRealm<void>(bridge, buildClearScript(target), mockContext);
+    } finally {
+      outerMockClear();
+    }
     return mock;
   };
 
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
-    await evaluateInRealm<void>(bridge, buildResetScript(target), mockContext);
-    outerMockReset();
-    outerMock.mockName(currentName);
+    try {
+      await evaluateInRealm<void>(bridge, buildResetScript(target), mockContext);
+    } finally {
+      outerMockReset();
+      outerMock.mockName(currentName);
+    }
     return mock;
   };
 
