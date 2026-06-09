@@ -116,11 +116,11 @@ const capabilities: ReactNativeCapability[] = [
     ...(isIos
       ? {
           'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16',
-          // appium-xcuitest builds WebDriverAgent on the first session of a cold runner (several
-          // minutes) — far past appium's default wait, so without headroom the first session aborts
-          // before WDA is ready. A ceiling, not a delay (the run is only as long as the build);
-          // connectionRetryTimeout below is set higher still so WDIO doesn't abort first.
-          'appium:wdaLaunchTimeout': 720000,
+          // wdaLaunchTimeout is a ceiling, not a delay. CI pre-builds WDA into RN_WDA_DD (reused
+          // via usePrebuiltWDA below) so the first session just launches it — fast, a tight ceiling
+          // is fine. Without a prebuilt WDA (local) appium compiles it on the first session (several
+          // minutes), so the wait must stay generous. connectionRetryTimeout below tracks this.
+          'appium:wdaLaunchTimeout': process.env.RN_WDA_DD ? 180000 : 720000,
           // The workflow pre-boots the sim, but appium re-monitors boot on session-create and its
           // default ~120s ceiling has timed out on cold/slow runners. Give it headroom.
           'appium:simulatorStartupTimeout': 240000,
@@ -155,11 +155,13 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS: must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session while WDA builds on the
-  // first cold-runner session. Android stays tight. (A max, not a delay — fast commands return fast.)
-  connectionRetryTimeout: isIos ? 900000 : 180000,
-  // 0: a failed iOS session-create otherwise retries the full (now 15-min) timeout, ballooning
-  // runtime; the deferred specFileRetry above is the recovery path instead.
+  // iOS: must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session before WDA is ready.
+  // With a prebuilt WDA (CI) the session is fast, so a tighter 7-min ceiling surfaces a flaky
+  // first-session (sim boot / socket / "unknown to FrontBoard", #359) in ~7 min instead of dragging
+  // to 15; without a prebuilt WDA (local build) it stays generous. Android stays tight.
+  connectionRetryTimeout: isIos ? (process.env.RN_WDA_DD ? 420000 : 900000) : 180000,
+  // 0: a failed iOS session-create otherwise retries the full timeout, ballooning runtime; the
+  // deferred specFileRetry above is the recovery path instead.
   connectionRetryCount: 0,
   // @wdio/appium-service boots the Appium server; @wdio/react-native-service prepares
   // capabilities (automationName/app) and attaches the Hermes bridge for execute/mock.
