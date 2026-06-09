@@ -262,7 +262,7 @@ jobs:
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO GCC_TREAT_WARNINGS_AS_ERRORS=0 2>&1 | (xcbeautify || cat)
           RUNNER_APP="$RN_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
-          test -d "$RUNNER_APP" || { echo "::error::prebuilt WDA runner not found at $RUNNER_APP"; ls -R "$RN_WDA_DD/Build/Products" 2>/dev/null | head -40; exit 1; }
+          test -d "$RUNNER_APP" || { echo "::error::prebuilt WDA runner not found at $RUNNER_APP"; find "$RN_WDA_DD/Build/Products" 2>/dev/null | head -40; exit 1; }
           echo "✅ WDA prebuilt at $RUNNER_APP"
 
       - name: 🧪 Run E2E on iOS simulator

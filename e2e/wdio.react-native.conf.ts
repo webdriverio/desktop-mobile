@@ -156,13 +156,13 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // Deferred spec retry, specifically for the iOS WDA cold-build: the first session(s) build
-  // WebDriverAgent (~8-9 min) and on a slow runner can get socket-dropped (UND_ERR_SOCKET) before
-  // it finishes. Deferring the retry re-runs those casualties at the END of the queue, by which
-  // point WDA is built and cached, so the retried session is fast and passes. Also absorbs
-  // emulator boot / first-attach flake.
+  // One spec retry on both platforms (absorbs emulator boot / first-attach flake). The retry is
+  // DEFERRED on iOS only: the first session(s) build WebDriverAgent (~8-9 min) and on a slow runner
+  // can get socket-dropped before it finishes — deferring re-runs those casualties at the END of
+  // the queue, by which point WDA is built and cached so the retried session is fast and passes.
+  // Android has no such cold-build, so it keeps the default (immediate) retry ordering.
   specFileRetries: 1,
-  specFileRetriesDeferred: true,
+  specFileRetriesDeferred: isIos,
   baseUrl: '',
   waitforTimeout: 15000,
   // iOS: must exceed wdaLaunchTimeout (720s) so WDIO doesn't abort POST /session while
