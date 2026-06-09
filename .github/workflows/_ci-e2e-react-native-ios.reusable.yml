@@ -58,6 +58,9 @@ env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
   RN_BUILD_DIR: ${{ github.workspace }}/rn-build
+  # Explicit, shared DerivedData for the prebuilt WebDriverAgent: the pre-build step writes here
+  # and the graded run reads it (appium:derivedDataPath), so the cached WDA is reused, not rebuilt.
+  RN_WDA_DD: ${{ github.workspace }}/wda_dd
 
 jobs:
   build:
@@ -228,39 +231,28 @@ jobs:
             pnpm --filter @repo/e2e exec appium driver install xcuitest
           fi
 
-      # Pre-build WebDriverAgent once, decoupled from the graded run. appium-xcuitest compiles WDA
-      # (~8-9 min cold) on the first session; under WDIO's undici client that long POST /session was
-      # dropping the socket (UND_ERR_SOCKET) and failing the first specs (api/application) on the
-      # old-arch leg. A throwaway appium session here builds WDA into the shared DerivedData — curl
-      # tolerates the multi-minute wait — so the graded run reuses the cached WDA and every session
-      # is fast. Best-effort: if it can't prime WDA, the graded run + deferred retries still build it.
-      - name: 🏎️ Pre-build WebDriverAgent (warm-up session)
+      # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
+      # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (~8-9 min)
+      # on the first graded session, and under WDIO's undici client that long POST /session dropped
+      # the socket (UND_ERR_SOCKET) and failed the first spec. Building here into an explicit, shared
+      # derivedDataPath that the graded run reads (appium:derivedDataPath + usePrebuiltWDA) means the
+      # graded sessions skip the build and are fast.
+      - name: 🏎️ Pre-build WebDriverAgent
         shell: bash
-        env:
-          RN_IOS_DEVICE: ${{ inputs.ios-device }}
         run: |
-          set -uo pipefail
-          pnpm --filter @repo/e2e exec appium --port 4799 \
-            --log "$GITHUB_WORKSPACE/e2e/warmup-appium.log" --log-level info &
-          AP=$!
-          if ! pnpm --filter @repo/e2e exec wait-on tcp:4799 --timeout 60000; then
-            echo "::warning::warm-up appium did not start; graded run will build WDA itself"
-            kill "$AP" 2>/dev/null || true
-            exit 0
-          fi
-          printf '{"capabilities":{"alwaysMatch":{"platformName":"iOS","appium:automationName":"XCUITest","appium:deviceName":"%s","appium:app":"%s","appium:wdaLaunchTimeout":720000,"appium:simulatorStartupTimeout":240000,"appium:newCommandTimeout":120}}}' \
-            "$RN_IOS_DEVICE" "$RN_APP_PATH" > /tmp/warmup-caps.json
-          SID=$(curl -sS -m 900 -X POST http://127.0.0.1:4799/session \
-            -H 'Content-Type: application/json' -d @/tmp/warmup-caps.json \
-            | python3 -c "import sys,json; print(json.load(sys.stdin).get('value',{}).get('sessionId',''))" 2>/dev/null || true)
-          echo "warm-up sessionId: ${SID:-<none>}"
-          [ -n "$SID" ] && curl -sS -m 60 -X DELETE "http://127.0.0.1:4799/session/$SID" >/dev/null 2>&1 || true
-          kill "$AP" 2>/dev/null || true
-          if find ~/Library/Developer/Xcode/DerivedData -path '*WebDriverAgent*/Build/Products/*-iphonesimulator/WebDriverAgentRunner-Runner.app' -type d 2>/dev/null | grep -q .; then
-            echo "✅ WDA prebuilt into DerivedData — graded sessions will reuse it"
-          else
-            echo "::warning::WDA not found in DerivedData after warm-up; graded run will build it (may flake)"
-          fi
+          set -euo pipefail
+          WDA_PROJ=$(find node_modules/.pnpm -maxdepth 6 -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -type d 2>/dev/null | head -1)
+          test -n "$WDA_PROJ" || { echo "::error::WebDriverAgent.xcodeproj not found under node_modules"; exit 1; }
+          echo "WDA project: $WDA_PROJ"
+          xcodebuild build-for-testing \
+            -project "$WDA_PROJ" \
+            -scheme WebDriverAgentRunner \
+            -derivedDataPath "$RN_WDA_DD" \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO GCC_TREAT_WARNINGS_AS_ERRORS=0 2>&1 | (xcbeautify || cat)
+          RUNNER_APP="$RN_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
+          test -d "$RUNNER_APP" || { echo "::error::prebuilt WDA runner not found at $RUNNER_APP"; ls -R "$RN_WDA_DD/Build/Products" 2>/dev/null | head -40; exit 1; }
+          echo "✅ WDA prebuilt at $RUNNER_APP"
 
       - name: 🧪 Run E2E on iOS simulator
         shell: bash
@@ -296,6 +288,5 @@ jobs:
           path: |
             e2e/logs/**/*.log
             e2e/metro.log
-            e2e/warmup-appium.log
           retention-days: 30
           if-no-files-found: warn
