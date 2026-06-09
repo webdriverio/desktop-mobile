@@ -103,6 +103,7 @@ type ReactNativeCapability = {
   'appium:simulatorStartupTimeout'?: number;
   'appium:derivedDataPath'?: string;
   'appium:usePrebuiltWDA'?: boolean;
+  'appium:fullReset'?: boolean;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -129,10 +130,13 @@ const capabilities: ReactNativeCapability[] = [
           ...(process.env.RN_WDA_DD
             ? { 'appium:derivedDataPath': process.env.RN_WDA_DD, 'appium:usePrebuiltWDA': true }
             : {}),
-          // NOTE: appium:noReset was tried to stop the occasional "unknown to FrontBoard" glitch
-          // but it broke the Fabric (new-arch) app entirely (0/6 — the reused install never became
-          // interactive), while Paper tolerated it. Left at the default reinstall-per-session; the
-          // rare FrontBoard glitch is absorbed by the deferred specFileRetries below.
+          // Reinstall the app each session so every session (and retry) gets a freshly-registered
+          // app. Without this, cumulative install/relaunch churn degrades the sim's FrontBoard
+          // registration by ~the 4th session → "Application … is unknown to FrontBoard" on a random
+          // leg, which in-run retries can't clear (same sim). (noReset — reuse the install — was
+          // tried instead and broke the Fabric app, which never became interactive on a reused
+          // launch; don't re-add it.)
+          'appium:fullReset': true,
         }
       : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
@@ -151,13 +155,11 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // Spec retries absorb mobile-CI flake: emulator boot / first-attach on Android, and on iOS the
-  // occasional appium-simulator "unknown to FrontBoard" launch glitch (a random spec, ~rare). The
-  // retry is DEFERRED on iOS only — re-runs casualties at the END of the queue so they don't repeat
-  // back-to-back into the same transient state; Android keeps the default (immediate) ordering and
-  // one retry. iOS gets two, since the FrontBoard glitch has occasionally survived a single retry.
-  specFileRetries: isIos ? 2 : 1,
-  specFileRetriesDeferred: isIos,
+  // One spec retry to absorb transient mobile-CI flake (emulator/simulator boot, first-session
+  // attach). The iOS FrontBoard registration glitch is handled by appium:fullReset (fresh install
+  // per session), NOT retries — a retry reuses the same sim and can't clear that state.
+  specFileRetries: 1,
+  specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
   // iOS: must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session while WDA builds on the
