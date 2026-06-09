@@ -169,15 +169,15 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
-  # Electrobun E2E app (CEF bundle, no Rust crates). The CEF fixture build is
+  # Electrobun E2E app — macOS (CEF bundle, no Rust crates). The CEF fixture build is
   # the biggest unknown in this pipeline: a beta Bun/CEF toolchain that pulls a
-  # ~150MB CEF download. macOS is the validated platform.
+  # ~150MB CEF download. macOS is the validated CEF platform; Windows builds the native
+  # WebView2 renderer in the sibling job below (bundleCEF:false → no CEF download).
   #
-  # macOS-ONLY in 0.x (pre-1.0): Linux/Windows build + e2e are NOT run. They build
-  # fine, but their CEF can't recover from the chrome-runtime persist:default
-  # profile failure (the global-context fallback serves no /json), so the e2e can't
-  # attach — an upstream electrobun limitation (see the agent-os plan "Framework
-  # gaps"). Re-add the Linux/Windows build + e2e jobs once that lands upstream (#320).
+  # Linux is NOT built/run: its CEF can't recover from the chrome-runtime persist:default
+  # profile failure (the global-context fallback serves no /json), and native WebKitGTK
+  # needs upstream W3C automation (blackboardsh/electrobun#467). Re-add a Linux leg once
+  # one of those lands (#320 CEF / #317 native).
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
@@ -725,27 +725,23 @@ jobs:
       dioxus_cache_key: ${{ needs.build-dioxus-e2e-app-macos-arm.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
-  # Electrobun E2E tests (single CDP-attach provider — no provider matrix).
-  #
-  # macOS-ONLY in 0.x (pre-1.0): only the macOS-ARM leg runs. Linux/Windows e2e are
-  # NOT run — their CEF can't recover from the persist:default profile failure (no
-  # /json), an upstream electrobun limitation (see the agent-os plan "Framework
-  # gaps"). Re-add a Linux/Windows leg (+ its build job above) once that lands (#320).
+  # Electrobun E2E tests — macOS (CEF), single CDP-attach provider (no provider matrix).
+  # Windows (WebView2) runs as a separate gating job below; Linux is NOT run (CEF serves
+  # no /json off macOS; native WebKitGTK needs upstream blackboardsh/electrobun#467).
   #
   # Test-type matrix: 'standard' (api/application/execute/logging/mock),
   # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
   # ────────────────────────────────────────────────────────────────────────
-  # REQUIRED gate (listed in ci-status.needs): the `standard` SINGLE-WINDOW suite
-  # (api/application/execute/logging/mock). The window (multi-window) and deeplink
-  # suites are intentionally NOT run on CI: they hit an upstream CEF per-instance
-  # profile-isolation limitation — BrowserWindow forces a `persist:default` partition
-  # the chrome-runtime can't create as a non-global profile, so multi-window/relaunch
-  # fall back to a racy global context, and a shared user-data-dir folds instances →
-  # no CDP targets. Not fixable from the fixture/service, and multiremote is blocked
-  # for the same reason. See the agent-os plan "Framework gaps" + the skip notes in
-  # window.spec.ts / deeplink.spec.ts. Re-add these (and a multiremote leg) once
-  # electrobun ships per-window partitions / per-instance root_cache_path / open-url
-  # routing (#320). The specs stay runnable locally via TEST_TYPE=window|deeplink.
+  # REQUIRED gate (listed in ci-status.needs): on THIS macOS CEF leg, only the `standard`
+  # single-window suite. window (multi-window), multiremote and deeplink are NOT run on
+  # the CEF leg — CEF hits an upstream per-instance profile-isolation limit: BrowserWindow
+  # forces a `persist:default` partition the chrome-runtime can't create as a non-global
+  # profile, so multi-window/relaunch fall back to a racy global context, and a shared
+  # user-data-dir folds instances → no CDP targets. window + multiremote DO run and gate
+  # on the Windows WebView2 leg below (a renderer that isolates per instance); deeplink
+  # runs nowhere on CI (also needs open-url routing — #320 / blackboardsh/electrobun#465).
+  # The CEF specs stay runnable locally via TEST_TYPE=window|deeplink; see the skip notes
+  # in window.spec.ts / deeplink.spec.ts.
   e2e-electrobun-macos-arm:
     name: E2E - Electrobun [macOS-ARM] - ${{ matrix.test-type }}
     needs: [detect-changes, build, build-electrobun-e2e-app-macos-arm]
@@ -1023,9 +1019,10 @@ jobs:
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
       # Electrobun gates: macOS CEF `standard`, plus Windows WebView2 `standard` + `window`
-      # (multi-window works on WebView2 — no persist:default gap, so it runs where CEF is
-      # local-only). Linux is not run (CEF serves no /json; native WebKitGTK needs upstream
-      # automation). deeplink stays local-only.
+      # + `multiremote` (multi-window AND per-instance isolation work on WebView2 — no
+      # persist:default gap — so they run where CEF is local-only / single-instance). Linux
+      # is not run (CEF serves no /json; native WebKitGTK needs upstream automation #467).
+      # deeplink stays local-only (also upstream-gated on Windows — #465).
       - e2e-electrobun-macos-arm
       - e2e-electrobun-windows
       - package-electron-matrix
