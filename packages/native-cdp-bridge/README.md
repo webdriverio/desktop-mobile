@@ -9,7 +9,7 @@ Shared Chrome DevTools Protocol (CDP) bridge for WebdriverIO native-app services
 
 Consumers:
 
-- `@wdio/electrobun-service` — `MultiTargetCdpBridge` (CEF, one target per window; supplies the CEF classifier).
+- `@wdio/electrobun-service` — `MultiTargetCdpBridge` (CEF on macOS / native WebView2 on Windows, one target per window; supplies the target classifier).
 - `@wdio/react-native-service` — `CdpBridge` (single Hermes target via Metro's inspector-proxy; supplies a Hermes `selectTarget` + `origin`).
 - `@wdio/electron-service` — migrating to `CdpBridge` (single-target).
 

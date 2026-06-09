@@ -48,6 +48,7 @@
     "test:e2e:electrobun": "wdio run wdio.electrobun.conf.ts",
     "test:e2e:electrobun:window": "cross-env TEST_TYPE=window wdio run wdio.electrobun.conf.ts",
     "test:e2e:electrobun:deeplink": "cross-env TEST_TYPE=deeplink wdio run wdio.electrobun.conf.ts",
+    "test:e2e:electrobun:multiremote": "cross-env TEST_TYPE=multiremote wdio run wdio.electrobun.conf.ts",
     "test:e2e:react-native": "wdio run wdio.react-native.conf.ts",
     "test:e2e:react-native:ios": "cross-env RN_PLATFORM=ios wdio run wdio.react-native.conf.ts",
     "test:e2e:react-native:deeplink": "cross-env TEST_TYPE=deeplink wdio run wdio.react-native.conf.ts",

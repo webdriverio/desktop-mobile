@@ -83,6 +83,18 @@ describe('ElectrobunWorkerService', () => {
       expect(connectMock).toHaveBeenCalledTimes(1);
     });
 
+    it('should attach the CDP bridge from ms:edgeOptions.debuggerAddress (WebView2/Edge)', async () => {
+      const browser = makeBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+
+      // WebView2 path: the launcher sets debuggerAddress under ms:edgeOptions (Edge), not goog:chromeOptions.
+      await service.before({ 'ms:edgeOptions': { debuggerAddress: 'localhost:9360' } }, [], browser);
+
+      expect(cdpBridgeCtor).toHaveBeenCalledTimes(1);
+      expect(cdpBridgeCtor.mock.calls[0][0]).toMatchObject({ host: 'localhost', port: 9360 });
+      expect(connectMock).toHaveBeenCalledTimes(1);
+    });
+
     it('should focus the WebDriver session on the content window, not a blank shell', async () => {
       const browser = makeBrowser([
         { handle: 'win-blank', url: 'about:blank' },

@@ -333,6 +333,56 @@ describe('nativeMode', () => {
     });
   });
 
+  // The WebView2 (Windows native renderer) spawn path uses no node:path joins on the binary
+  // (it's spawned in place), so its assertions hold on any runner regardless of separator.
+  describe('spawnElectrobunApp — WebView2 (Windows native renderer)', () => {
+    const winApp: ResolvedElectrobunApp = {
+      binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+      bundlePath: 'C:/apps/Demo',
+      resourcesDir: 'C:/apps/Demo/Resources',
+      buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+      renderer: 'native',
+    };
+
+    it('injects --remote-debugging-port via WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS and spawns the binary in place', () => {
+      setPlatform('win32');
+
+      const result = spawnElectrobunApp({
+        app: winApp,
+        appArgs: ['--flag'],
+        port: 9444,
+        options: {} as ElectrobunServiceOptions,
+      });
+
+      const [binary, args, opts] = spawnMock.mock.calls[0] as [string, string[], { env: NodeJS.ProcessEnv }];
+      expect(binary).toBe('C:/apps/Demo/bin/launcher.exe');
+      expect(args).toEqual(['--flag']);
+      expect(opts.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS).toBe('--remote-debugging-port=9444');
+      // Per-instance WebView2 data isolation: LOCALAPPDATA redirected to a fresh temp dir
+      // (the non-'bundle' mkdtemp prefix resolves to USER_HOME in the stub), tracked for teardown.
+      expect(opts.env.LOCALAPPDATA).toBe(USER_HOME);
+      expect(result.cleanupDirs).toEqual([USER_HOME]);
+      // No CEF bundle clone / build.json pin on the WebView2 path.
+      expect(execFileSyncMock).not.toHaveBeenCalled();
+      expect(cpSyncMock).not.toHaveBeenCalled();
+      expect(writeRemoteDebuggingPortMock).not.toHaveBeenCalled();
+    });
+
+    it('keeps the remote-debugging port first and appends caller-supplied WebView2 args', () => {
+      setPlatform('win32');
+
+      spawnElectrobunApp({
+        app: winApp,
+        appArgs: [],
+        port: 9444,
+        options: { env: { WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS: '--lang=en-GB' } } as ElectrobunServiceOptions,
+      });
+
+      const opts = spawnMock.mock.calls[0][2] as { env: NodeJS.ProcessEnv };
+      expect(opts.env.WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS).toBe('--remote-debugging-port=9444 --lang=en-GB');
+    });
+  });
+
   describePosixPaths('stopElectrobunApp', () => {
     it('should close log handlers, SIGTERM the live process, and remove every cleanup dir', async () => {
       const handler = { close: vi.fn() };

@@ -1,7 +1,8 @@
 import type { ElectrobunConfig } from 'electrobun';
 
-// Reduced install-smoke fixture: a single CEF window. CEF is still enabled so the
-// bundle matches what @wdio/electrobun-service attaches to over CDP.
+// Reduced install-smoke fixture. macOS/Linux build with CEF; Windows builds with the
+// native WebView2 (Chromium) renderer instead — the bundle matches what
+// @wdio/electrobun-service attaches to over CDP on each platform.
 const bundleCEF = true;
 
 export default {
@@ -28,8 +29,10 @@ export default {
       defaultRenderer: 'cef',
     },
     win: {
-      bundleCEF,
-      defaultRenderer: 'cef',
+      // Native WebView2 (Chromium) renderer — driven over CDP by @wdio/electrobun-service
+      // via an injected --remote-debugging-port. No CEF bundle on Windows.
+      bundleCEF: false,
+      defaultRenderer: 'native',
     },
     linux: {
       bundleCEF,

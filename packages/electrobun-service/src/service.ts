@@ -71,14 +71,16 @@ export default class ElectrobunWorkerService {
   }
 
   private async attachInstance(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
-    const chromeOptions = (capabilities as { 'goog:chromeOptions'?: { debuggerAddress?: string } } | undefined)?.[
-      'goog:chromeOptions'
-    ];
-    const debuggerAddress = chromeOptions?.debuggerAddress;
+    // The launcher sets debuggerAddress under `goog:chromeOptions` for the CEF/chromedriver
+    // path and under `ms:edgeOptions` for the WebView2/Edge (msedgedriver) path — read both.
+    const caps = capabilities as
+      | { 'goog:chromeOptions'?: { debuggerAddress?: string }; 'ms:edgeOptions'?: { debuggerAddress?: string } }
+      | undefined;
+    const debuggerAddress = caps?.['goog:chromeOptions']?.debuggerAddress ?? caps?.['ms:edgeOptions']?.debuggerAddress;
 
     if (!debuggerAddress) {
       log.warn(
-        'No goog:chromeOptions.debuggerAddress on the capability — cannot attach the CDP bridge. ' +
+        'No goog:chromeOptions/ms:edgeOptions debuggerAddress on the capability — cannot attach the CDP bridge. ' +
           'browser.electrobun.* will be unavailable. Was the launcher (native mode) run?',
       );
       return;
@@ -95,7 +97,22 @@ export default class ElectrobunWorkerService {
       connectionRetryCount: this.options.cdpConnectionRetryCount,
       classifyTarget,
     });
-    await bridge.connect();
+    try {
+      await bridge.connect();
+    } catch (error) {
+      // Dump what the endpoint actually exposed so a discovery/classification failure
+      // (e.g. a renderer whose /json target shape differs from CEF's) is debuggable from
+      // the logs rather than only surfacing as an opaque "no page targets" error.
+      try {
+        const res = await fetch(`http://${host}:${port}/json`);
+        const raw = (await res.json()) as Array<{ type?: string; url?: string; title?: string }>;
+        const summary = raw.map((t) => ({ type: t.type, url: t.url, title: t.title }));
+        log.warn(`CDP bridge connect failed at ${host}:${port}; raw /json targets: ${JSON.stringify(summary)}`);
+      } catch (probeError) {
+        log.warn(`CDP bridge connect failed; /json probe also failed: ${(probeError as Error).message}`);
+      }
+      throw error;
+    }
     this.bridges.push(bridge);
 
     const mockStore = new ElectrobunMockStore();

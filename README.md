@@ -74,7 +74,7 @@
   </div>
 </h4>
 
-[`@wdio/electrobun-service`](./packages/electrobun-service) - Electrobun desktop applications — **experimental**, **macOS only** (`0.x`), requires the CEF renderer. Linux/Windows plus multiremote / multi-window / deeplink are upstream-blocked ([#317](https://github.com/webdriverio/desktop-mobile/issues/317)). See the [package README](./packages/electrobun-service).
+[`@wdio/electrobun-service`](./packages/electrobun-service) - Electrobun desktop applications — **experimental** (`0.x`): **macOS** (CEF) and **Windows** (native WebView2 — Chromium over CDP, including multi-window + multiremote). **Linux** is upstream-blocked, and deeplink/multiremote remain blocked on the macOS CEF path ([#317](https://github.com/webdriverio/desktop-mobile/issues/317), [#320](https://github.com/webdriverio/desktop-mobile/issues/320)). See the [package README](./packages/electrobun-service).
 
 ## Planned Support
 

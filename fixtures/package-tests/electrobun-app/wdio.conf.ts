@@ -8,13 +8,14 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 /**
- * Resolve the built Electrobun `.app` bundle for the package-install smoke test.
+ * Resolve the built Electrobun app for the package-install smoke test.
  *
- * macOS-only: `@wdio/electrobun-service` is macOS-only in 0.x (Linux/Windows CEF is
- * upstream-blocked), and the package-test CI job runs on macOS only. Electrobun writes
- * the bundle under `build/<environment>/<AppName>.app`; the environment subdir isn't fixed
- * across the beta toolchain, so glob for the newest top-level `.app` (helper bundles nested
- * inside `…/Contents/…` are filtered out). `ELECTROBUN_APP_PATH` overrides for local runs.
+ * macOS/Linux build with CEF, Windows with the native WebView2 renderer; the package-test CI
+ * jobs run on macOS + Windows. Electrobun writes a `build/<environment>/<AppName>.app` bundle
+ * on macOS (the environment subdir isn't fixed across the beta toolchain, so glob for the
+ * newest top-level `.app`; helper bundles nested under `…/Contents/…` are filtered out) and
+ * `build/<environment>/<App>/bin/launcher[.exe]` on Windows/Linux. `ELECTROBUN_APP_PATH`
+ * overrides for local runs.
  */
 function resolveAppBinaryPath(): string {
   const override = process.env.ELECTROBUN_APP_PATH;
@@ -24,10 +25,6 @@ function resolveAppBinaryPath(): string {
   const buildDir = join(__dirname, 'build');
   if (!existsSync(buildDir)) {
     throw new Error(`Electrobun build directory not found: ${buildDir}. Run \`pnpm build\` in this fixture first.`);
-  }
-  const bundles = globSync(join(buildDir, '**', '*.app')).filter((p) => !/\.app[\\/]/.test(p));
-  if (bundles.length === 0) {
-    throw new Error(`No Electrobun .app bundle found under ${buildDir}. Set ELECTROBUN_APP_PATH to the built bundle.`);
   }
   const newestBy = (paths: string[]) => {
     const mtime = (p: string) => {
@@ -39,7 +36,23 @@ function resolveAppBinaryPath(): string {
     };
     return paths.map((path) => ({ path, mtime: mtime(path) })).sort((a, b) => b.mtime - a.mtime)[0].path;
   };
-  return newestBy(bundles);
+  if (process.platform === 'darwin') {
+    const bundles = globSync(join(buildDir, '**', '*.app')).filter((p) => !/\.app[\\/]/.test(p));
+    if (bundles.length === 0) {
+      throw new Error(
+        `No Electrobun .app bundle found under ${buildDir}. Set ELECTROBUN_APP_PATH to the built bundle.`,
+      );
+    }
+    return newestBy(bundles);
+  }
+  const launcherName = process.platform === 'win32' ? 'launcher.exe' : 'launcher';
+  const launchers = globSync(join(buildDir, '**', 'bin', launcherName));
+  if (launchers.length === 0) {
+    throw new Error(
+      `No Electrobun launcher (bin/${launcherName}) found under ${buildDir}. Set ELECTROBUN_APP_PATH to the built launcher.`,
+    );
+  }
+  return newestBy(launchers);
 }
 
 const appBinaryPath = resolveAppBinaryPath();
@@ -59,12 +72,14 @@ type ElectrobunCapability = ElectrobunCapabilities & {
 
 const capabilities: ElectrobunCapability[] = [
   {
-    // Idiomatic, like the sibling services (browserName: 'tauri'/'dioxus'): the launcher
-    // rewrites 'electrobun' → 'chrome' + sets debuggerAddress in onWorkerStart. Pin the
-    // driver to CEF's Chromium major (147) so WDIO doesn't fetch a newer Chromedriver that
-    // refuses to attach. Bump alongside the Electrobun/CEF pin.
+    // The launcher rewrites 'electrobun' → 'chrome' (CEF/macOS) or 'MicrosoftEdge'
+    // (WebView2/Windows) + sets debuggerAddress in onWorkerStart. CEF pins the Chromium major
+    // (147) so WDIO doesn't fetch a newer Chromedriver that refuses to attach; the Windows
+    // WebView2/Edge path omits the pin (the launcher pins browserVersion to the detected
+    // WebView2 runtime version, which msedgedriver must match) and forces classic WebDriver —
+    // Edge's default BiDi resets the page to about:blank, hiding the content target.
     browserName: 'electrobun',
-    browserVersion: '147',
+    ...(process.platform === 'win32' ? { 'wdio:enforceWebDriverClassic': true } : { browserVersion: '147' }),
     'wdio:electrobunServiceOptions': electrobunServiceOptions,
   },
 ];

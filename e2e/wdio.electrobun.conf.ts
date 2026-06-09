@@ -107,6 +107,11 @@ switch (testType) {
   case 'window':
     specs = ['./test/electrobun/window.spec.ts'];
     break;
+  case 'multiremote':
+    // Two independent instances in one worker — WebView2 isolates each (per-instance data
+    // dir), which CEF can't, so this runs on Windows only.
+    specs = ['./test/electrobun/multiremote/*.spec.ts'];
+    break;
   case 'deeplink':
     // Deeplink tests dispatch the OS protocol handler and must not race parallel apps.
     specs = ['./test/electrobun/deeplink.spec.ts'];
@@ -132,19 +137,32 @@ const electrobunServiceOptions: ElectrobunServiceOptions = {
   backendLogLevel: 'info',
 };
 
-const capabilities: ElectrobunCapability[] = [
-  {
-    // CDP-attach: the launcher rewrites this 'electrobun' → 'chrome' and sets
-    // goog:chromeOptions.debuggerAddress onto the capability in onWorkerStart.
-    browserName: 'electrobun',
-    // Electrobun 1.18.1 bundles CEF on Chromium 147 (147.0.7727.118); pin the
-    // driver to that major so WDIO doesn't fetch the latest (148+), which refuses
-    // to attach with "only supports Chrome version N". Matching the major is what
-    // matters (spike RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin.
-    browserVersion: '147',
-    'wdio:electrobunServiceOptions': electrobunServiceOptions,
-  },
-];
+const baseCapability: ElectrobunCapability = {
+  // CDP-attach: the launcher rewrites this 'electrobun' → 'chrome' (CEF/macOS) or
+  // 'MicrosoftEdge' (WebView2/Windows) and sets the debuggerAddress onto the
+  // capability in onWorkerStart.
+  browserName: 'electrobun',
+  // CEF (macOS) bundles Chromium 147 (147.0.7727.118); pin the driver to that major
+  // so WDIO doesn't fetch the latest (148+), which refuses to attach with "only
+  // supports Chrome version N". Matching the major is what matters (spike
+  // RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin. The Windows WebView2 path
+  // omits this — the launcher pins browserVersion to the detected WebView2 *runtime* version
+  // instead, since msedgedriver must match the runtime (which can lag the Edge browser WDIO
+  // would otherwise auto-match). It also forces CLASSIC WebDriver: Edge defaults to
+  // WebDriver BiDi, whose session resets the app's only webview to about:blank (a
+  // "BiDi-CDP Mapper" target appears and the content target vanishes), so the CDP bridge
+  // finds no content. Classic attach leaves the `views://` page intact, as chromedriver
+  // does for CEF.
+  ...(process.platform === 'win32' ? { 'wdio:enforceWebDriverClassic': true } : { browserVersion: '147' }),
+  'wdio:electrobunServiceOptions': electrobunServiceOptions,
+};
+
+// Multiremote drives two independent instances in one worker (each gets its own WebView2
+// process, port, and data dir); the other test types use the single-instance array shape.
+const capabilities =
+  testType === 'multiremote'
+    ? { instanceA: { capabilities: { ...baseCapability } }, instanceB: { capabilities: { ...baseCapability } } }
+    : [baseCapability];
 
 const logDirName = getLogDirName(testType, 'electrobun');
 const logDir = join(__dirname, 'logs', logDirName);

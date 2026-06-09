@@ -1,9 +1,10 @@
 import type { ElectrobunConfig } from 'electrobun';
 
-// CEF renderer is mandatory on every OS: it is the only renderer that exposes a
-// CDP endpoint, which is how @wdio/electrobun-service attaches. The service pins
-// the remote-debugging port into the built bundle's build.json at launch, so no
-// port is hardcoded here.
+// macOS + Linux build with CEF — the renderer that exposes a CDP endpoint there; the
+// service pins the remote-debugging port into the built bundle's build.json at launch.
+// Windows builds with the native WebView2 (Chromium) renderer instead: it serves CDP via
+// --remote-debugging-port, which the service injects through the
+// WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS env var — no CEF (CEF-on-Windows serves no /json).
 const bundleCEF = true;
 
 export default {
@@ -36,8 +37,10 @@ export default {
       defaultRenderer: 'cef',
     },
     win: {
-      bundleCEF,
-      defaultRenderer: 'cef',
+      // Native WebView2 (Chromium) renderer — driven over CDP by @wdio/electrobun-service
+      // via an injected --remote-debugging-port. No CEF bundle on Windows.
+      bundleCEF: false,
+      defaultRenderer: 'native',
     },
     linux: {
       bundleCEF,
