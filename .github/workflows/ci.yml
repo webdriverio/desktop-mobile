@@ -192,13 +192,10 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
-  # #317 Phase 1A PROOF LEG (temporary, non-gating): Windows WebView2 (non-CEF).
-  # The Windows fixture builds with the native WebView2 renderer (bundleCEF:false → no CEF
-  # download), and the service injects --remote-debugging-port via
-  # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS to attach over CDP — no upstream dependency. This
-  # leg exists to prove the env-var mechanism on a real Windows runner; it is deliberately
-  # NOT in ci-status.needs (pass/fail is informational). Promote to a required gate in
-  # Phase 1B once green; remove if the proof fails (Windows then becomes an upstream ask).
+  # Electrobun E2E app [Windows] — built with the native WebView2 renderer
+  # (bundleCEF:false → no CEF download). The service injects --remote-debugging-port via
+  # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS and attaches over CDP (msedgedriver), no upstream
+  # dependency. Gating (in ci-status.needs), alongside the macOS CEF build.
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-windows:
     name: Build Electrobun E2E App [Windows]
@@ -756,10 +753,9 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
-  # Windows WebView2 (non-CEF) E2E (#317). The `standard` suite is confirmed green; the
-  # `window` (multi-window) suite is added here because WebView2 may pass it where CEF can't
-  # (CEF runs window/deeplink local-only). Still non-gating (NOT in ci-status.needs) until
-  # Phase 1B promotes it to a required gate.
+  # Electrobun E2E [Windows] — WebView2 over CDP (msedgedriver, classic WebDriver). Runs
+  # `standard` + `window`; multi-window works on WebView2 (no persist:default gap, so it runs
+  # where CEF is local-only). Gating (in ci-status.needs).
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-windows:
     name: E2E - Electrobun [Windows] - ${{ matrix.test-type }}
@@ -1000,11 +996,12 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
-      # Electrobun is macOS-only in 0.x: the required gate is the macOS `standard`
-      # single-window suite. Linux/Windows e2e (+ their build jobs) are not run at all
-      # (CEF can't serve /json there — upstream gap; see the macOS job note), and
-      # window/deeplink are not run anywhere (same gap).
+      # Electrobun gates: macOS CEF `standard`, plus Windows WebView2 `standard` + `window`
+      # (multi-window works on WebView2 — no persist:default gap, so it runs where CEF is
+      # local-only). Linux is not run (CEF serves no /json; native WebKitGTK needs upstream
+      # automation). deeplink stays local-only.
       - e2e-electrobun-macos-arm
+      - e2e-electrobun-windows
       - package-electron-matrix
       - package-tauri-linux
       - package-tauri-windows
@@ -1031,6 +1028,7 @@ jobs:
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
       - build-electrobun-e2e-app-macos-arm
+      - build-electrobun-e2e-app-windows
       - build-electrobun-package-app-macos-arm
       - build-dioxus-package-app-linux
       - build-dioxus-package-app-windows
