@@ -102,8 +102,8 @@ CEF.** The upstream CEF fixes and what each unblocks are tracked in
 | **Windows** | ✅ supported via the native **WebView2** (Chromium) renderer over CDP — no CEF (build `bundleCEF: false` / `defaultRenderer: 'native'`, the Electrobun default). |
 | **Linux** | ❌ unsupported — CEF serves no `/json`, and the native WebKitGTK renderer needs upstream WebDriver-automation support ([#317](https://github.com/webdriverio/desktop-mobile/issues/317)). The launcher throws a clear `SevereServiceError` in native mode. |
 | multiremote / parallel workers | ❌ blocked — CEF can't isolate ≥2 instances (single-instance only). |
-| `switchWindow` / `listWindows` (multi-window) | ⚠️ implemented but unreliable, even on macOS (2-window global-context race). |
-| `triggerDeeplink` (macOS) | ⚠️ unreliable — no open-url routing to the spawned instance. |
+| `switchWindow` / `listWindows` (multi-window) | ✅ on Windows (WebView2, gated in CI); ⚠️ macOS CEF unreliable (2-window global-context race — run locally). |
+| `triggerDeeplink` | ⚠️ macOS — unreliable (no open-url routing to the spawned instance); ❌ Windows — upstream-blocked: Electrobun registers URL schemes + wires `open-url` macOS-only ([blackboardsh/electrobun#465](https://github.com/blackboardsh/electrobun/issues/465)). |
 | single-window apps | ⚠️ a lone CEF window doesn't reliably appear in `/json`, so the bridge can intermittently find no target to attach to. Opening a second window stabilises target exposure (the test fixtures do this, staggered behind the first window's `dom-ready`). |
 | `emitEvent` | deferred — the Bun event bus isn't CDP-reachable. |
 

@@ -209,8 +209,8 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
-  # macOS-only (CEF). The package-test fixture build mirrors the e2e build (Bun/CEF, tar
-  # artifact). Linux/Windows are not built — the service is macOS-only in 0.x.
+  # macOS (CEF) + Windows (WebView2). The package-test fixture build mirrors the e2e build
+  # (Bun, tar artifact); Windows builds the native WebView2 renderer (no CEF download).
   build-electrobun-package-app-macos-arm:
     name: Build Electrobun Package Test App [macOS-ARM]
     needs: [detect-changes, build]
@@ -219,6 +219,18 @@ jobs:
     secrets: inherit
     with:
       os: 'macos-latest'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  build-electrobun-package-app-windows:
+    name: Build Electrobun Package Test App [Windows]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-electrobun-package-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -877,8 +889,8 @@ jobs:
     with:
       distro: ${{ matrix.distro }}
 
-  # Electrobun package test — macOS-only (CEF). The fixture bundle is downloaded by
-  # artifact name within the run (tar/symlinks), so no cache_key is threaded.
+  # Electrobun package test — macOS (CEF) + Windows (WebView2). The fixture bundle is
+  # downloaded by artifact name within the run (tar/symlinks), so no cache_key is threaded.
   package-electrobun-macos-arm:
     name: Package - Electrobun [macOS-ARM]
     needs: [detect-changes, build, build-electrobun-package-app-macos-arm]
@@ -887,6 +899,19 @@ jobs:
     secrets: inherit
     with:
       os: 'macos-latest'
+      service: 'electrobun'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  package-electrobun-windows:
+    name: Package - Electrobun [Windows]
+    needs: [detect-changes, build, build-electrobun-package-app-windows]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-package.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
       service: 'electrobun'
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -1016,6 +1041,7 @@ jobs:
       - package-dioxus-linux-arm
       - package-dioxus-distros
       - package-electrobun-macos-arm
+      - package-electrobun-windows
       - build-matrix
       - build-dioxus-crates-linux
       - build-tauri-e2e-app-linux
@@ -1030,6 +1056,7 @@ jobs:
       - build-electrobun-e2e-app-macos-arm
       - build-electrobun-e2e-app-windows
       - build-electrobun-package-app-macos-arm
+      - build-electrobun-package-app-windows
       - build-dioxus-package-app-linux
       - build-dioxus-package-app-windows
       - build-dioxus-package-app-macos-arm
