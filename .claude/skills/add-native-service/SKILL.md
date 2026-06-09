@@ -73,7 +73,7 @@ CDP frameworks need **no** in-app plumbing — Chromium exposes the protocol nat
 
 ### Mobile
 
-A **third transport family**, not a point on the Desktop axes — there is no driver to spawn (Appium does), no in-app Rust, no `<framework>:options` capability, no `<FRAMEWORK>_WEBVIEW_AUTOMATION` env var. The launcher's job shifts to **capability mutation** (`appium:automationName` per platform, `appBinaryPath`→`appium:app`, `appium:udid`/`appium:avd`) and **device-pool allocation** (one device per worker, round-robin). The runner composes `services: ['appium', '<framework>']` (`@wdio/appium-service` is an **e2e/runner devDependency**, never a service-package dep — see gotcha 11). The service still extends `BaseLauncher` and reuses the shared `@wdio/native-cdp-bridge` for the JS-realm channel below.
+A **third transport family**, not a point on the Desktop axes — there is no driver to spawn (Appium does), no in-app Rust, no `<framework>:options` capability, no `<FRAMEWORK>_WEBVIEW_AUTOMATION` env var. The launcher's job shifts to **capability mutation** (`appium:automationName` per platform, `appBinaryPath`→`appium:app`, `appium:udid`/`appium:avd`) and **device-pool allocation** (one device per worker, round-robin). The runner composes `services: ['appium', '<framework>']` (`@wdio/appium-service` is an **e2e/runner devDependency**, never a service-package dep — see gotcha 11). The service still extends `BaseLauncher`; a **Tier-1** service additionally reuses the shared `@wdio/native-cdp-bridge` for the JS-realm channel below (a Tier-2 service has no eval channel and doesn't).
 
 **Mobile sub-axis — the JS-realm channel: how do `execute`/`mock` reach the framework's scripting realm?** (the native UI is *always* Appium; this axis is only about the eval/mock channel)
 
@@ -106,7 +106,7 @@ packages/<framework>-*    — Rust crates (Wry path only)
 
 New services build **on `@wdio/native-core`** (Tauri and Dioxus do; Electron predates the extraction and is being migrated). Reuse port management, driver lifecycle, and log writing; add framework behaviour on top. Audit before extracting more into core — extract only what's duplicated bit-for-bit (see gotcha 2).
 
-**Mobile** services reuse `BaseLauncher` (the hook lifecycle) + `@wdio/native-cdp-bridge` (the Tier-1 JS-realm channel) but **none** of the `native-core` driver/port/OS-protocol-deeplink primitives — Appium owns the session. The shared mobile concerns (caps, device pool, contexts, `mobile: deepLink`, device-log channels) live in the RN package today and graduate to a new `@wdio/native-mobile-core` **when Flutter — the second consumer — lands** (extract-on-second-use, gotcha 2). See [plumbing-mobile.md](plumbing-mobile.md) → "Shared-layer extraction".
+**Mobile** services reuse `BaseLauncher` (the hook lifecycle) but **none** of the `native-core` driver/port/OS-protocol-deeplink primitives — Appium owns the session; **Tier-1** services additionally use `@wdio/native-cdp-bridge` for the JS-realm channel (Tier-2 doesn't). The shared mobile concerns (caps, device pool, contexts, `mobile: deepLink`, device-log channels) live in the RN package today and graduate to a new `@wdio/native-mobile-core` **when Flutter — the second consumer — lands** (extract-on-second-use, gotcha 2). See [plumbing-mobile.md](plumbing-mobile.md) → "Shared-layer extraction".
 
 ## Feature scope
 

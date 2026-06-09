@@ -180,8 +180,13 @@ needs the same code — so **extract on Flutter's arrival, not before** (the pos
   launcher infra (`PortManager`, `DriverPool`, `DriverProcess`, the OS-protocol `deeplink.ts`) —
   every export assumes a spawned driver/binary the service owns, which has zero overlap with
   Appium-owned-session concerns; folding mobile in would make it a grab-bag and force desktop
-  consumers to carry mobile deps. `native-mobile-core` depends on `native-core` for `BaseLauncher`
-  (the hook lifecycle mobile reuses) and on `native-cdp-bridge` for the Tier-1 channel.
+  consumers to carry mobile deps. `native-mobile-core` depends on `native-core` (for `BaseLauncher`,
+  the hook lifecycle mobile reuses) + `native-utils`/`native-types` for the generic primitives
+  (logger, `Result`, option-merge) — but **not** `native-cdp-bridge`. The Tier-1 JS-realm channel is a
+  *non-candidate* (it stays in the framework service package), and the extract-candidates above are
+  pure Appium infra (caps, device pool, contexts, deeplink, device logs) that never touch CDP — so
+  each service adds `native-cdp-bridge` **itself, iff it's Tier-1** (RN does; a Tier-2 Flutter service
+  never does, and so never drags the CDP bridge in transitively).
 - **When**: a **dedicated extraction step/PR after RN is green and before Flutter's feature work** — rework RN onto `native-mobile-core` and prove RN's tests still pass, *then* build Flutter on the stable package. Don't interleave the RN refactor with Flutter development (two moving parts). This mirrors the `@wdio/native-cdp-bridge` PR0 precedent; both services being pre-publish means both ship clean on `native-mobile-core` from publish #1.
 
 ## Gotcha — the inspector goes quiet when backgrounded (Tier-1/Hermes)
