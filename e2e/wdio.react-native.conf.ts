@@ -130,12 +130,9 @@ const capabilities: ReactNativeCapability[] = [
           ...(process.env.RN_WDA_DD
             ? { 'appium:derivedDataPath': process.env.RN_WDA_DD, 'appium:usePrebuiltWDA': true }
             : {}),
-          // Reinstall the app each session so every session (and retry) gets a freshly-registered
-          // app. Without this, cumulative install/relaunch churn degrades the sim's FrontBoard
-          // registration by ~the 4th session → "Application … is unknown to FrontBoard" on a random
-          // leg, which in-run retries can't clear (same sim). (noReset — reuse the install — was
-          // tried instead and broke the Fabric app, which never became interactive on a reused
-          // launch; don't re-add it.)
+          // Reinstall per session: reusing the install (the default) lets relaunch churn degrade
+          // the sim's FrontBoard registration → "Application … is unknown to FrontBoard". (noReset
+          // was tried instead and broke Fabric — it never became interactive on a reused launch.)
           'appium:fullReset': true,
         }
       : {}),
@@ -155,9 +152,7 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // One spec retry to absorb transient mobile-CI flake (emulator/simulator boot, first-session
-  // attach). The iOS FrontBoard registration glitch is handled by appium:fullReset (fresh install
-  // per session), NOT retries — a retry reuses the same sim and can't clear that state.
+  // One spec retry to absorb transient mobile-CI flake (emulator/simulator boot, first-session attach).
   specFileRetries: 1,
   specFileRetriesDeferred: false,
   baseUrl: '',
@@ -181,10 +176,9 @@ export const config = {
   },
   outputDir: logDir,
   // App-ready gate: wait for the fixture to be interactive before any spec runs. On Android
-  // New-Arch (Fabric) the view tree registers ~12s after launch, and Metro's first bundle adds
-  // latency, so the earliest specs (api/application/logging) would otherwise race an empty tree.
-  // Absorbing it once here — after the session opens, before the test body — keeps every spec
-  // deterministic, and confirms the app + Hermes realm are live before the execute/mock specs.
+  // New-Arch (Fabric) the view tree registers later than Paper, and Metro's first bundle adds
+  // latency, so the earliest specs would otherwise race an empty tree. Also confirms the app +
+  // Hermes realm are live before the execute/mock specs.
   before: async () => {
     const { browser } = await import('@wdio/globals');
     await browser.$('~counter').waitForDisplayed({ timeout: 90000 });
