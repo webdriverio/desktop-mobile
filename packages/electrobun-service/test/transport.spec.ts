@@ -30,8 +30,8 @@ describe('resolveTransport', () => {
     expect(resolveTransport(app(''), 'win32')).toBe('webview2');
   });
 
-  it('should return undefined on Windows for an explicit CEF build (CEF serves no /json there)', () => {
-    expect(resolveTransport(app('cef'), 'win32')).toBeUndefined();
+  it('SPIKE: should route a Windows CEF build through the cef transport (#320 verification)', () => {
+    expect(resolveTransport(app('cef'), 'win32')).toBe('cef');
   });
 
   it('should match the CEF renderer exactly, not by substring', () => {

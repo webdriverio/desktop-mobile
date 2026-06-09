@@ -152,7 +152,9 @@ const baseCapability: ElectrobunCapability = {
   // "BiDi-CDP Mapper" target appears and the content target vanishes), so the CDP bridge
   // finds no content. Classic attach leaves the `views://` page intact, as chromedriver
   // does for CEF.
-  ...(process.platform === 'win32' ? { 'wdio:enforceWebDriverClassic': true } : { browserVersion: '147' }),
+  // SPIKE (#320 CEF-on-Windows): CEF on every platform → chromedriver-147 caps everywhere
+  // (NOT the WebView2/Edge classic-WebDriver path the Windows native renderer needs).
+  browserVersion: '147',
   'wdio:electrobunServiceOptions': electrobunServiceOptions,
 };
 

@@ -30,10 +30,10 @@ export function resolveTransport(
     return 'cef';
   }
   if (platform === 'win32') {
-    // Windows drives the native WebView2 renderer; an explicit CEF build is unsupported there
-    // (it serves no /json). `readRenderer` records build.json's renderer as exactly 'cef' or
-    // 'native' (lower-cased), so match the whole value rather than a substring.
-    return renderer === 'cef' ? undefined : 'webview2';
+    // SPIKE (#320 CEF-on-Windows): route an explicit CEF build through the CEF transport to
+    // test whether CEF-on-Windows serves /json. Normally a Windows CEF build is `undefined`
+    // (unsupported). `readRenderer` records build.json's renderer as exactly 'cef' or 'native'.
+    return renderer === 'cef' ? 'cef' : 'webview2';
   }
   return undefined;
 }

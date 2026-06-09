@@ -773,7 +773,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote']
+        # SPIKE (#320 CEF-on-Windows): standard only — CEF is single-instance (shared
+        # root_cache_path), so window/multiremote can't run on the CEF renderer.
+        test-type: ['standard']
     uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
     secrets: inherit
     with:

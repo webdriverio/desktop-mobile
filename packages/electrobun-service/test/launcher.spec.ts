@@ -221,7 +221,7 @@ describe('ElectrobunLaunchService', () => {
       expect(caps[0].browserName).toBe('MicrosoftEdge');
     });
 
-    it('should reject a CEF-built bundle on Windows (CEF serves no /json there)', async () => {
+    it('SPIKE (#320): should route a CEF-built bundle on Windows through the cef transport', async () => {
       setPlatform('win32');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
         binaryPath: 'C:/apps/Demo/bin/launcher.exe',
@@ -231,11 +231,12 @@ describe('ElectrobunLaunchService', () => {
         renderer: 'cef',
       });
       const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
 
-      const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
-      expect(error).toBeInstanceOf(SevereServiceError);
-      expect((error as Error).message).toContain('win32');
-      expect((error as Error).message).toContain('issues/317');
+      // No longer rejected — CEF-on-Windows resolves to the cef transport (chromedriver), so
+      // onPrepare forces browserName 'chrome' instead of throwing.
+      await launcher.onPrepare(baseConfig, [cap]);
+      expect((cap as { browserName?: string }).browserName).toBe('chrome');
     });
   });
 

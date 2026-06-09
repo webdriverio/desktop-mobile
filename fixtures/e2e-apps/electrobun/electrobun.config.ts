@@ -37,10 +37,10 @@ export default {
       defaultRenderer: 'cef',
     },
     win: {
-      // Native WebView2 (Chromium) renderer — driven over CDP by @wdio/electrobun-service
-      // via an injected --remote-debugging-port. No CEF bundle on Windows.
-      bundleCEF: false,
-      defaultRenderer: 'native',
+      // SPIKE (#320 CEF-on-Windows): build CEF on Windows too, to test whether CEF serves
+      // /json there. Normally Windows is native WebView2 (bundleCEF:false/'native').
+      bundleCEF,
+      defaultRenderer: 'cef',
     },
     linux: {
       bundleCEF,

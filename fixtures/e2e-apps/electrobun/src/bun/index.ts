@@ -17,8 +17,6 @@ import { app, BrowserWindow } from 'electrobun/bun';
 // Windows (WebView2): no persist:default race, so the second window opens immediately
 // (concurrently) rather than staggered behind dom-ready.
 
-const isWindows = process.platform === 'win32';
-
 const mainWindow = new BrowserWindow({
   title: 'WDIO Electrobun E2E — Main',
   url: 'views://mainview/index.html',
@@ -35,19 +33,16 @@ const openSecondWindow = (): void => {
   console.log('[e2e] opened second window', { second: secondWindow.id });
 };
 
-if (isWindows) {
+// SPIKE (#320 CEF-on-Windows): every platform builds CEF here, so stagger the second window
+// behind mainview's dom-ready on all platforms (the CEF workaround described above).
+let secondOpened = false;
+mainWindow.webview.on('dom-ready', () => {
+  if (secondOpened) {
+    return;
+  }
+  secondOpened = true;
   openSecondWindow();
-} else {
-  // CEF: stagger the second window behind mainview's dom-ready (see the note above).
-  let secondOpened = false;
-  mainWindow.webview.on('dom-ready', () => {
-    if (secondOpened) {
-      return;
-    }
-    secondOpened = true;
-    openSecondWindow();
-  });
-}
+});
 
 // Deeplink handler — `open wdio-electrobun://<path>` (macOS), routed via the
 // urlSchemes entry in electrobun.config.ts. Surface the URL into the main view
