@@ -79,10 +79,12 @@ export class MetroBridge {
   }
 
   async #doConnect(): Promise<void> {
-    // A non-live bridge (WebSocket dropped) is still non-null — close it before reconnecting so
-    // the dead socket isn't leaked and #bridge isn't clobbered with a second live one.
+    // Close a dead (dropped-socket) bridge directly rather than through this.close() —
+    // close() awaits #connecting to prevent the zombie-bridge race, and #connecting IS
+    // this very #doConnect promise, so calling this.close() here would deadlock.
     if (this.#bridge) {
-      await this.close();
+      await this.#bridge.close();
+      this.#bridge = undefined;
     }
     if (this.#options.platform === 'android') {
       try {
@@ -105,6 +107,17 @@ export class MetroBridge {
   }
 
   async close(): Promise<void> {
+    // Await any in-flight connect before tearing down: #doConnect sets #bridge AFTER
+    // its internal bridge.connect() resolves. Without this wait, an external close()
+    // (e.g. service.after() on test timeout) can return while #doConnect is still
+    // suspended — #doConnect then assigns a live bridge that is never closed.
+    if (this.#connecting) {
+      try {
+        await this.#connecting;
+      } catch {
+        // connect failure: #bridge was never assigned, fall through to the cleanup below
+      }
+    }
     await this.#bridge?.close();
     this.#bridge = undefined;
   }

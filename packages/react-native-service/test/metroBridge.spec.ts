@@ -119,4 +119,30 @@ describe('MetroBridge', () => {
     await metro.connect();
     expect(h.lastOptions).toMatchObject({ host: 'localhost', port: 8081 });
   });
+
+  it('should not orphan a bridge when close() races #doConnect()', async () => {
+    // Regression: close() called while #doConnect() is suspended at bridge.connect()
+    // previously returned before the new bridge was assigned, leaving the socket open.
+    let resolveConnect!: () => void;
+    const connectGate = new Promise<void>((r) => {
+      resolveConnect = r;
+    });
+    h.connect.mockImplementationOnce(() => connectGate);
+
+    const metro = new MetroBridge({ platform: 'ios', adbReverse: vi.fn(async () => {}) });
+
+    // Start connect; it suspends inside the gate above, so #doConnect is in-flight.
+    const connectPromise = metro.connect();
+    // close() must await the in-flight connect before tearing down.
+    const closePromise = metro.close();
+
+    // Let the pending bridge.connect() resolve — #doConnect assigns #bridge.
+    resolveConnect();
+    await connectPromise;
+    await closePromise;
+
+    // close() should have closed the bridge that #doConnect assigned, not left it open.
+    expect(h.close).toHaveBeenCalledOnce();
+    expect(metro.connected).toBe(false);
+  });
 });
