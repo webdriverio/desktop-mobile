@@ -81,6 +81,11 @@ export class Connection extends EventEmitter {
     return !this.#ws ? undefined : this.#ws.readyState;
   }
 
+  /** True only while the socket is OPEN — not CONNECTING, CLOSING, or dropped. */
+  get isOpen() {
+    return this.#ws?.readyState === WebSocket.OPEN;
+  }
+
   connect(): Promise<void> {
     return new Promise((resolve, reject) => {
       if (this.#ws) {

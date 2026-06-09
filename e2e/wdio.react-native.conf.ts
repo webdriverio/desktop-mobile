@@ -11,21 +11,40 @@ const __dirname = dirname(__filename);
 
 const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'react-native');
 
+// Target platform for this run (Android by default; the iOS CI leg sets RN_PLATFORM=ios).
+const platform = (process.env.RN_PLATFORM ?? 'android').toLowerCase() as 'android' | 'ios';
+
+const newest = (paths: string[]): string => {
+  if (paths.length === 0) {
+    throw new Error('newest: called with empty array');
+  }
+  return paths.map((p) => ({ p, m: statSync(p).mtimeMs })).sort((a, b) => b.m - a.m)[0].p;
+};
+
 /**
- * Locate the built Android debug APK.
+ * Locate the built app for `appium:app`.
  *
  * React Native is Appium-driven (unlike the CDP/Wry desktop services): WDIO opens the
  * Appium session from `appium:app`, and the service attaches to the app's Hermes realm
- * over Metro's inspector for execute/mock. CI sets `RN_APP_PATH` to the exact APK built
- * by the build job; locally we glob the standard Gradle output path.
- *
- * The native `android/` project is generated (see fixtures/e2e-apps/react-native/README),
- * so this path only exists after `pnpm build:android` (or the CI build step) has run.
+ * over Metro's inspector for execute/mock. CI sets `RN_APP_PATH` to the exact artifact
+ * built by the job; locally we glob the standard build-output path. The native
+ * `android/`/`ios/` projects are generated (see the fixture README), so these paths only
+ * exist after the platform build (or the CI build step) has run.
  */
-function resolveAndroidApk(dir: string): string {
+function resolveAppPath(dir: string): string {
   const override = process.env.RN_APP_PATH;
   if (override) {
     return override;
+  }
+  if (platform === 'ios') {
+    // iOS Simulator .app from a debug xcodebuild.
+    const apps = globSync(join(dir, 'ios', '**', 'Build', 'Products', 'Debug-iphonesimulator', '*.app'));
+    if (apps.length > 0) {
+      return newest(apps);
+    }
+    throw new Error(
+      `No iOS .app found under ${join(dir, 'ios')}. Build the fixture for the simulator or set RN_APP_PATH.`,
+    );
   }
   const standard = join(dir, 'android', 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
   if (existsSync(standard)) {
@@ -36,7 +55,7 @@ function resolveAndroidApk(dir: string): string {
   // version is ever lowered, swap this for the `glob` package or a manual recursive walk.
   const candidates = globSync(join(dir, 'android', '**', '*.apk'));
   if (candidates.length > 0) {
-    return candidates.map((p) => ({ p, m: statSync(p).mtimeMs })).sort((a, b) => b.m - a.m)[0].p;
+    return newest(candidates);
   }
   throw new Error(
     `No Android APK found under ${join(dir, 'android')}. ` +
@@ -44,9 +63,9 @@ function resolveAndroidApk(dir: string): string {
   );
 }
 
-const appPath = resolveAndroidApk(appDir);
+const appPath = resolveAppPath(appDir);
 if (!existsSync(appPath)) {
-  throw new Error(`React Native APK does not exist: ${appPath}. Make sure the app is built.`);
+  throw new Error(`React Native app artifact does not exist: ${appPath}. Make sure the app is built.`);
 }
 
 const testType = (process.env.TEST_TYPE as string) || 'standard';
@@ -65,27 +84,53 @@ switch (testType) {
     break;
 }
 
+const isIos = platform === 'ios';
+
 const reactNativeServiceOptions: ReactNativeServiceOptions = {
-  platform: 'Android',
+  platform: isIos ? 'iOS' : 'Android',
   metroPort,
-  // Forward the app's JS console + logcat into the WDIO log for the logging spec.
+  // Forward the app's JS console + native (logcat/syslog) logs into the WDIO log.
   captureBackendLogs: true,
 };
 
 type ReactNativeCapability = {
-  platformName: 'Android';
-  'appium:automationName': 'UiAutomator2';
+  platformName: 'Android' | 'iOS';
+  'appium:automationName': 'UiAutomator2' | 'XCUITest';
   'appium:app': string;
   'appium:newCommandTimeout': number;
+  'appium:deviceName'?: string;
+  'appium:wdaLaunchTimeout'?: number;
+  'appium:simulatorStartupTimeout'?: number;
+  'appium:derivedDataPath'?: string;
+  'appium:usePrebuiltWDA'?: boolean;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
 const capabilities: ReactNativeCapability[] = [
   {
-    platformName: 'Android',
-    'appium:automationName': 'UiAutomator2',
+    platformName: isIos ? 'iOS' : 'Android',
+    'appium:automationName': isIos ? 'XCUITest' : 'UiAutomator2',
     'appium:app': appPath,
     'appium:newCommandTimeout': 240,
+    // iOS needs a target simulator; CI sets RN_IOS_DEVICE (e.g. 'iPhone 16').
+    ...(isIos
+      ? {
+          'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16',
+          // appium-xcuitest builds WebDriverAgent on the first session of a cold runner (several
+          // minutes) — far past appium's default wait, so without headroom the first session aborts
+          // before WDA is ready. A ceiling, not a delay (the run is only as long as the build);
+          // connectionRetryTimeout below is set higher still so WDIO doesn't abort first.
+          'appium:wdaLaunchTimeout': 720000,
+          // The workflow pre-boots the sim, but appium re-monitors boot on session-create and its
+          // default ~120s ceiling has timed out on cold/slow runners. Give it headroom.
+          'appium:simulatorStartupTimeout': 240000,
+          // CI pre-builds WDA into RN_WDA_DD; reuse it (no per-session xcodebuild → no long
+          // POST /session → no UND_ERR_SOCKET). Omitted locally so appium builds WDA as usual.
+          ...(process.env.RN_WDA_DD
+            ? { 'appium:derivedDataPath': process.env.RN_WDA_DD, 'appium:usePrebuiltWDA': true }
+            : {}),
+        }
+      : {}),
     'wdio:reactNativeServiceOptions': reactNativeServiceOptions,
   },
 ];
@@ -102,15 +147,21 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // Emulator boot + app install is slow and occasionally flaky on first attach; a
-  // spec-file retry re-launches the app cleanly.
+  // One spec retry to absorb transient mobile-CI flake (emulator/simulator boot, first-session
+  // attach). NOTE: iOS also has an intermittent appium-sim "unknown to FrontBoard" session-create
+  // flake that in-run retries CAN'T clear (same sim) — re-run the leg to clear it. Tracked in #359;
+  // neither noReset nor fullReset fixed it (see that issue).
   specFileRetries: 1,
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  connectionRetryTimeout: 180000,
-  connectionRetryCount: 3,
-  // @wdio/appium-service boots the Appium 2 server; @wdio/react-native-service prepares
+  // iOS: must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session while WDA builds on the
+  // first cold-runner session. Android stays tight. (A max, not a delay — fast commands return fast.)
+  connectionRetryTimeout: isIos ? 900000 : 180000,
+  // 0: a failed iOS session-create otherwise retries the full (now 15-min) timeout, ballooning
+  // runtime; the deferred specFileRetry above is the recovery path instead.
+  connectionRetryCount: 0,
+  // @wdio/appium-service boots the Appium server; @wdio/react-native-service prepares
   // capabilities (automationName/app) and attaches the Hermes bridge for execute/mock.
   services: ['appium', 'react-native'],
   port: 4723,
@@ -119,9 +170,17 @@ export const config = {
   mochaOpts: {
     ui: 'bdd',
     timeout: 120000,
-    retries: 1,
+    retries: 0,
   },
   outputDir: logDir,
+  // App-ready gate: wait for the fixture to be interactive before any spec runs. On Android
+  // New-Arch (Fabric) the view tree registers later than Paper, and Metro's first bundle adds
+  // latency, so the earliest specs would otherwise race an empty tree. Also confirms the app +
+  // Hermes realm are live before the execute/mock specs.
+  before: async () => {
+    const { browser } = await import('@wdio/globals');
+    await browser.$('~counter').waitForDisplayed({ timeout: 90000 });
+  },
   // On a test failure, write the Appium page source to a .log file in the logs dir (which
   // is uploaded as an artifact, unlike hook stdout) so a NoSuchElement is diagnosable from
   // the actual UI hierarchy rather than re-guessing.

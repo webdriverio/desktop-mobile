@@ -35,6 +35,7 @@ export interface MetroBridgeOptions extends HermesBridgeOptions {
  */
 export class MetroBridge {
   #bridge: CdpBridge | undefined;
+  #connecting: Promise<void> | undefined;
   readonly #options: MetroBridgeOptions;
   readonly #port: number;
   readonly #adbReverse: AdbReverse;
@@ -47,7 +48,10 @@ export class MetroBridge {
   }
 
   get connected(): boolean {
-    return this.#bridge !== undefined;
+    // Liveness, not mere allocation: a dropped WebSocket (app backgrounded → Hermes inspector
+    // suspends) leaves a non-null but dead bridge, so the next connect()/ensureHermes() must
+    // re-attach. `isOpen` reports OPEN directly rather than inferring it from `state`.
+    return this.#bridge?.isOpen ?? false;
   }
 
   /** The live Hermes bridge. Throws if {@link connect} hasn't run. */
@@ -58,10 +62,27 @@ export class MetroBridge {
     return this.#bridge;
   }
 
-  /** Connect to the Hermes inspector (idempotent). Android runs `adb reverse` first. */
+  /**
+   * Connect to the Hermes inspector — idempotent AND concurrency-safe. Android runs
+   * `adb reverse` first. Concurrent first-use callers (e.g. `execute` and `mock` awaited
+   * together) share one in-flight connect via {@link #connecting}, so we never open two
+   * sockets and orphan one (the loser's WebSocket would leak and Metro may drop it).
+   */
   async connect(): Promise<void> {
-    if (this.#bridge) {
+    if (this.connected) {
       return;
+    }
+    this.#connecting ??= this.#doConnect().finally(() => {
+      this.#connecting = undefined;
+    });
+    return this.#connecting;
+  }
+
+  async #doConnect(): Promise<void> {
+    // A non-live bridge (WebSocket dropped) is still non-null — close it before reconnecting so
+    // the dead socket isn't leaked and #bridge isn't clobbered with a second live one.
+    if (this.#bridge) {
+      await this.close();
     }
     if (this.#options.platform === 'android') {
       try {

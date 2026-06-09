@@ -1,0 +1,304 @@
+name: E2E Tests - React Native (iOS)
+# Description: iOS-simulator E2E for @wdio/react-native-service. Split into a BUILD job
+# (scaffold + CocoaPods + xcodebuild → upload the .app) and an E2E job (re-scaffold the JS for
+# Metro, download the .app, drive it on a fresh runner). The split keeps the heavy xcodebuild
+# OFF the E2E runner: when both shared one runner, appium-xcuitest's session-create (its
+# `xcrun --show-sdk-version` SDK probe + the WebDriverAgent build) was starved by the
+# just-finished xcodebuild and timed out at 15s. A debug .app loads its JS from Metro at
+# runtime, so the E2E job's freshly-scaffolded project (same pinned RN version + App.tsx)
+# serves a compatible bundle; the simulator shares the host loopback, so no adb-reverse
+# equivalent is needed.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Runner OS (macos-latest)'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      test-type:
+        description: 'Test scenario (standard)'
+        type: string
+        default: 'standard'
+      rn-version:
+        description: 'React Native version to scaffold the native project with'
+        type: string
+        default: '0.76.5'
+      rn-cli-version:
+        description: '@react-native-community/cli major to scaffold with (pinned to match rn-version)'
+        type: string
+        default: '15'
+      ios-device:
+        description: 'Simulator device name'
+        type: string
+        default: 'iPhone 16'
+      new-arch:
+        description: 'Build the fixture with the New Architecture (Fabric/bridgeless) enabled'
+        type: boolean
+        default: false
+      build_id:
+        type: string
+        required: false
+      artifact_size:
+        type: string
+        required: false
+      cache_key:
+        type: string
+        required: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  RN_BUILD_DIR: ${{ github.workspace }}/rn-build
+  # Explicit, shared DerivedData for the prebuilt WebDriverAgent: the pre-build step writes here
+  # and the graded run reads it (appium:derivedDataPath), so the cached WDA is reused, not rebuilt.
+  RN_WDA_DD: ${{ github.workspace }}/wda_dd
+
+jobs:
+  build:
+    name: Build .app
+    runs-on: ${{ inputs.os }}
+    # Cap a stuck xcodebuild/CocoaPods rather than holding a scarce macOS runner for the 6h default.
+    timeout-minutes: 40
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # Scaffold a complete RN project at the pinned version (with CocoaPods installed for
+      # iOS), then overlay the fixture's App.tsx. The fixture App only imports react-native
+      # core, so the stock template builds it unmodified.
+      - name: 🏗️ Scaffold native project + CocoaPods
+        shell: bash
+        env:
+          RN_VERSION: ${{ inputs.rn-version }}
+          RN_CLI_VERSION: ${{ inputs.rn-cli-version }}
+          NEW_ARCH: ${{ inputs.new-arch }}
+        run: |
+          set -euo pipefail
+          npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
+            --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
+          cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
+          # Select the RN architecture for this leg (mirrors Android) — BOTH old (Paper) and new
+          # (Fabric/bridgeless, the RN 0.76 default) are required gates. RCT_NEW_ARCH_ENABLED at
+          # pod-install time picks the arch; under Fabric the tree/Hermes register slightly later
+          # but the spec mount-waits + the service's Hermes connect-retry absorb it.
+          NEW_ARCH_FLAG=$([ "$NEW_ARCH" = "true" ] && echo 1 || echo 0)
+          ( cd "$RN_BUILD_DIR/ios" && RCT_NEW_ARCH_ENABLED="$NEW_ARCH_FLAG" pod install )
+          # NOTE: there is no reliable Podfile.lock-level arch assertion on iOS (unlike Android's
+          # gradle.properties grep). RN 0.76 vendors the Fabric pods (React-Fabric, hermes-engine,
+          # …) into Podfile.lock for BOTH archs — RCT_NEW_ARCH_ENABLED is a build-time flag, not a
+          # pod-set difference — so pod presence can't discriminate old vs new. The E2E run itself
+          # is the validation (Fabric renders/behaves differently at runtime).
+
+      - name: 📱 Build iOS app for the simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$RN_BUILD_DIR/ios"
+          # xcbeautify only prettifies output and isn't guaranteed on the runner image; pipe
+          # through `(xcbeautify || cat)` so a missing tool can't SIGPIPE-kill xcodebuild, and
+          # rely on pipefail to surface a real xcodebuild failure (not the later "app not found").
+          xcodebuild \
+            -workspace ReactNativeE2EApp.xcworkspace \
+            -scheme ReactNativeE2EApp \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO 2>&1 | (xcbeautify || cat)
+          APP_PATH="$RN_BUILD_DIR/ios/build/Build/Products/Debug-iphonesimulator/ReactNativeE2EApp.app"
+          test -d "$APP_PATH" || { echo "::error::iOS .app not found at $APP_PATH"; exit 1; }
+          # Tar the bundle (preserves the simulator .app's symlinks + exec bits, which a raw
+          # artifact upload would mangle) so the E2E job can install it verbatim.
+          tar -czf "$GITHUB_WORKSPACE/rn-ios-app.tar.gz" -C "$(dirname "$APP_PATH")" ReactNativeE2EApp.app
+
+      - name: 📦 Upload built .app
+        uses: actions/upload-artifact@v7
+        with:
+          # Keyed by run_id only (NOT run_attempt): `gh run rerun --failed` re-runs the failed Run
+          # job but NOT this Build job (it passed), so the artifact keeps its original name — a
+          # run_attempt suffix would leave the retried Run job looking for an artifact that was
+          # never re-uploaded. overwrite handles a full re-run that does rebuild.
+          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}
+          path: rn-ios-app.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
+
+  e2e:
+    name: Run
+    needs: build
+    runs-on: ${{ inputs.os }}
+    # Cap a hung Appium/WDA session (a stuck session-create can otherwise idle the macOS runner for
+    # the 6h default). Generous over a normal pass (~16-24 min) but well under the default.
+    timeout-minutes: 55
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # The e2e link-deps resolve against the prebuilt package dist from the build job.
+      - name: 📦 Download Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      - name: 📥 Download built .app
+        uses: actions/download-artifact@v7
+        with:
+          # Matches the build job's run_id-only name so a `--failed` rerun (which doesn't rebuild)
+          # still finds the artifact from the original attempt.
+          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}
+          path: ${{ github.workspace }}/rn-app-dl
+
+      - name: 📦 Unpack built .app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$GITHUB_WORKSPACE/rn-app"
+          tar -xzf "$GITHUB_WORKSPACE/rn-app-dl/rn-ios-app.tar.gz" -C "$GITHUB_WORKSPACE/rn-app"
+          APP_PATH="$GITHUB_WORKSPACE/rn-app/ReactNativeE2EApp.app"
+          test -d "$APP_PATH" || { echo "::error::unpacked .app not found at $APP_PATH"; exit 1; }
+          echo "RN_APP_PATH=$APP_PATH" >> "$GITHUB_ENV"
+
+      # Metro is JS-only — re-scaffold the project here (without CocoaPods/xcodebuild) so the
+      # heavy native build stays in the build job. A debug .app loads its bundle from Metro at
+      # runtime; the same pinned RN version + App.tsx yields a compatible bundle.
+      - name: 🏗️ Scaffold JS project for Metro
+        shell: bash
+        env:
+          RN_VERSION: ${{ inputs.rn-version }}
+          RN_CLI_VERSION: ${{ inputs.rn-cli-version }}
+        run: |
+          set -euo pipefail
+          npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
+            --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
+          cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
+
+      # Warm the Xcode toolchain on the fresh runner before the Appium session: appium-xcuitest
+      # probes the SDK with `xcrun --show-sdk-version` under a 15s timeout, and the first cold
+      # invocation can exceed it. Pre-resolving it here makes the in-session probe instant.
+      - name: 🔥 Warm Xcode toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "Xcode: $(xcode-select -p)"
+          xcrun --sdk iphonesimulator --show-sdk-version
+          xcrun simctl list devices available >/dev/null
+
+      - name: 📲 Boot iOS simulator
+        shell: bash
+        env:
+          RN_IOS_DEVICE: ${{ inputs.ios-device }}
+        run: |
+          set -euo pipefail
+          # Tolerate "already booted" but fail loudly on a genuine error (e.g. the device
+          # name isn't present on this runner) rather than masking it into a later cryptic
+          # Appium "device not found".
+          if ! xcrun simctl boot "$RN_IOS_DEVICE" 2>/tmp/boot.err; then
+            if grep -qiE "already booted|current state: Booted" /tmp/boot.err; then
+              echo "Simulator '$RN_IOS_DEVICE' already booted"
+            else
+              echo "::error::Failed to boot simulator '$RN_IOS_DEVICE':"; cat /tmp/boot.err
+              echo "Available devices:"; xcrun simctl list devices available
+              exit 1
+            fi
+          fi
+          # bootstatus -b blocks until the sim reaches Booted; a non-zero exit is a real
+          # boot failure/timeout — surface it here, not later as a cryptic Appium session error.
+          xcrun simctl bootstatus "$RN_IOS_DEVICE" -b || { echo "::error::Simulator '$RN_IOS_DEVICE' did not reach Booted state"; exit 1; }
+
+      - name: 🔌 Install Appium XCUITest driver
+        shell: bash
+        # Idempotent: appium exits 1 if the driver is already registered.
+        run: |
+          set -euo pipefail
+          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi xcuitest; then
+            echo "xcuitest driver already installed"
+          else
+            pnpm --filter @repo/e2e exec appium driver install xcuitest
+          fi
+
+      # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
+      # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (several
+      # minutes) on the first graded session, and under WDIO's undici client that long POST /session
+      # dropped the socket (UND_ERR_SOCKET) and failed the first spec. Building here into an explicit,
+      # shared derivedDataPath that the graded run reads (appium:derivedDataPath + usePrebuiltWDA)
+      # means the graded sessions skip the build and are fast.
+      - name: 🏎️ Pre-build WebDriverAgent
+        shell: bash
+        run: |
+          set -euo pipefail
+          WDA_PROJ=$(find node_modules/.pnpm -maxdepth 6 -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -type d 2>/dev/null | head -1)
+          test -n "$WDA_PROJ" || { echo "::error::WebDriverAgent.xcodeproj not found under node_modules"; exit 1; }
+          echo "WDA project: $WDA_PROJ"
+          xcodebuild build-for-testing \
+            -project "$WDA_PROJ" \
+            -scheme WebDriverAgentRunner \
+            -derivedDataPath "$RN_WDA_DD" \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO GCC_TREAT_WARNINGS_AS_ERRORS=0 2>&1 | (xcbeautify || cat)
+          RUNNER_APP="$RN_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
+          test -d "$RUNNER_APP" || { echo "::error::prebuilt WDA runner not found at $RUNNER_APP"; find "$RN_WDA_DD/Build/Products" 2>/dev/null | head -40; exit 1; }
+          echo "✅ WDA prebuilt at $RUNNER_APP"
+
+      - name: 🧪 Run E2E on iOS simulator
+        shell: bash
+        env:
+          RN_IOS_DEVICE: ${{ inputs.ios-device }}
+        run: |
+          set -euo pipefail
+          # Metro serves the JS bundle + Hermes inspector; the simulator reaches it over
+          # the shared host loopback (no adb-reverse equivalent needed on iOS).
+          ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
+          # wait-on is a pinned e2e devDependency — run the workspace-local binary (not an
+          # unpinned `npx --yes`) so a breaking release can't silently break the readiness check.
+          pnpm --filter @repo/e2e exec wait-on tcp:8081 --timeout 120000
+          # Pre-bundle: Metro compiles the JS bundle lazily on first request (~60s cold). Without
+          # this, the first app launch lands on Metro's "Bundling…" overlay with an empty native
+          # tree, and the earliest specs fail finding elements before bundling completes. Force the
+          # compile now (best-effort — the specs surface a real bundling error more clearly).
+          curl -fsS --max-time 300 "http://localhost:8081/index.bundle?platform=ios&dev=true&minify=false" -o /dev/null \
+            && echo "Metro bundle pre-built" || echo "::warning::Metro pre-bundle request failed (continuing)"
+          pnpm --filter @repo/e2e run test:e2e:react-native:ios
+
+      - name: 🐛 Show Metro log on failure
+        if: failure()
+        shell: bash
+        run: tail -n 200 e2e/metro.log || true
+
+      - name: 📦 Upload Test Logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs-react-native-ios-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
+          path: |
+            e2e/logs/**/*.log
+            e2e/metro.log
+          retention-days: 30
+          if-no-files-found: warn

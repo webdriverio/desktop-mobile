@@ -744,7 +744,7 @@ jobs:
   # (PR4.5). Required gate (see ci-status).
   # ────────────────────────────────────────────────────────────────────────
   e2e-react-native-linux:
-    name: E2E - React Native [Linux] - ${{ matrix.test-type }}
+    name: E2E - React Native [Linux] - ${{ matrix.test-type }} (${{ matrix.arch }}-arch)
     needs: [detect-changes, build]
     # New services consume the `runs` JSON map rather than a static run_<svc> output
     # (see _ci-detect-changes.reusable.yml — the map is populated automatically).
@@ -753,12 +753,39 @@ jobs:
       fail-fast: false
       matrix:
         test-type: ['standard']
+        # Both RN architectures are required gates: old (Paper) and new (Fabric/bridgeless,
+        # the 0.76 default). One fixture, two scaffold flags — see the reusable workflow.
+        arch: ['old', 'new']
     uses: ./.github/workflows/_ci-e2e-react-native.reusable.yml
     secrets: inherit
     with:
       os: 'ubuntu-latest'
       node-version: '24'
       test-type: ${{ matrix.test-type }}
+      new-arch: ${{ matrix.arch == 'new' }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  # React Native — iOS simulator E2E (the fast-follow to the Android leg). macOS runner;
+  # appium-xcuitest builds WebDriverAgent at session time (no signing on the sim).
+  # Required gate (see ci-status).
+  e2e-react-native-ios-macos:
+    name: E2E - React Native [iOS] - ${{ matrix.test-type }} (${{ matrix.arch }}-arch)
+    needs: [detect-changes, build]
+    if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+        arch: ['old', 'new']
+    uses: ./.github/workflows/_ci-e2e-react-native-ios.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      new-arch: ${{ matrix.arch == 'new' }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -989,9 +1016,9 @@ jobs:
       # (CEF can't serve /json there — upstream gap; see the macOS job note), and
       # window/deeplink are not run anywhere (same gap).
       - e2e-electrobun-macos-arm
-      # React Native — Android emulator E2E is a required gate from its first PR
-      # (Android-first; iOS sim is the PR4.5 fast-follow).
+      # React Native — Android emulator + iOS simulator E2E are required gates.
       - e2e-react-native-linux
+      - e2e-react-native-ios-macos
       - package-electron-matrix
       - package-tauri-linux
       - package-tauri-windows

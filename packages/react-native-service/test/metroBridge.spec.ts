@@ -4,12 +4,19 @@ const h = vi.hoisted(() => ({
   connect: vi.fn(async () => {}),
   close: vi.fn(async () => {}),
   lastOptions: undefined as Record<string, unknown> | undefined,
+  // Each createHermesBridge call pushes its bridge here so a test can flip `isOpen` to false
+  // (simulate a dropped socket) on a specific bridge instance.
+  bridges: [] as { isOpen: boolean }[],
 }));
 
 vi.mock('../src/hermesBridge.js', () => ({
   createHermesBridge: (options: Record<string, unknown>) => {
     h.lastOptions = options;
-    return { connect: h.connect, close: h.close, send: vi.fn() };
+    // MetroBridge.connected reads CdpBridge.isOpen for liveness (OPEN socket), not mere
+    // allocation; a freshly connected mock bridge is open until a test marks it dead.
+    const bridge = { connect: h.connect, close: h.close, send: vi.fn(), isOpen: true };
+    h.bridges.push(bridge);
+    return bridge;
   },
 }));
 
@@ -19,6 +26,7 @@ beforeEach(() => {
   h.connect.mockClear();
   h.close.mockClear();
   h.lastOptions = undefined;
+  h.bridges.length = 0;
 });
 
 describe('MetroBridge', () => {
@@ -54,6 +62,34 @@ describe('MetroBridge', () => {
     await metro.connect();
     await metro.connect();
     expect(h.connect).toHaveBeenCalledOnce();
+  });
+
+  it('should coalesce concurrent connect() calls into a single connection', async () => {
+    // The `#connecting ??=` guard exists to dedupe genuinely concurrent first-use callers
+    // (e.g. execute and mock awaited together). Sequential calls clear `#connecting` via finally
+    // before the next, so only concurrency exercises the short-circuit.
+    const metro = new MetroBridge({ platform: 'ios', adbReverse: vi.fn(async () => {}) });
+    await Promise.all([metro.connect(), metro.connect(), metro.connect()]);
+    expect(h.connect).toHaveBeenCalledOnce();
+    expect(h.bridges).toHaveLength(1);
+    expect(metro.connected).toBe(true);
+  });
+
+  it('should close a dead (dropped-socket) bridge before reconnecting', async () => {
+    const metro = new MetroBridge({ platform: 'ios', adbReverse: vi.fn(async () => {}) });
+    await metro.connect();
+    expect(metro.connected).toBe(true);
+
+    // Socket drops (app backgrounded → Hermes inspector suspends): bridge is still non-null but
+    // no longer OPEN, so connect() must close it before opening a fresh one rather than leaking it.
+    h.bridges[0].isOpen = false;
+    expect(metro.connected).toBe(false);
+
+    await metro.connect();
+    expect(h.close).toHaveBeenCalledOnce();
+    expect(h.connect).toHaveBeenCalledTimes(2);
+    expect(h.bridges).toHaveLength(2);
+    expect(metro.connected).toBe(true);
   });
 
   it('should throw when the bridge is accessed before connect()', () => {
