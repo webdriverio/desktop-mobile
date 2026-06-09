@@ -59,8 +59,8 @@ function makeLauncher(options: ElectrobunServiceGlobalOptions): ElectrobunLaunch
   return new ElectrobunLaunchService(options, {} as ElectrobunCapabilities, baseConfig);
 }
 
-// Native mode is macOS-only (0.x), so default every test to darwin; the platform-guard
-// tests below override to linux/win32. Restored after each test.
+// Tests default to darwin (the CEF path); the platform-guard and Windows/WebView2 tests
+// override to linux/win32. Restored after each test.
 const originalPlatform = process.platform;
 function setPlatform(value: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { value, writable: true, configurable: true });

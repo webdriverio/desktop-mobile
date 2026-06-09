@@ -16,18 +16,27 @@ const log = createLogger(SERVICE_NAME, 'launcher');
 /**
  * Main-process launcher for `@wdio/electrobun-service`.
  *
- * Electrobun is a CDP-attach framework: the launcher spawns the app binary and
- * the worker attaches over CDP through Chromedriver (`debuggerAddress`). It
- * extends `BaseLauncher` to reuse `@wdio/native-core`'s port/process/log infra.
+ * Electrobun is a CDP-attach framework: the launcher spawns the app binary and the worker
+ * attaches over CDP via `debuggerAddress`. It extends `BaseLauncher` to reuse
+ * `@wdio/native-core`'s port/process/log infra. The CDP transport is per platform
+ * (see `resolveTransport`):
+ *  - **macOS → CEF** (Chromium), driven by **chromedriver** (`browserName: 'chrome'`,
+ *    `goog:chromeOptions.debuggerAddress`). Single-instance (`maxInstances=1`): CEF can't
+ *    isolate the forced `persist:default` profile per worker, so we do NOT redirect the cache
+ *    root (no `CFFIXED_USER_HOME`, no per-worker `--user-data-dir`) — CEF uses its own
+ *    `root_cache_path`.
+ *  - **Windows → native WebView2** (Edge-based Chromium), driven by **msedgedriver**
+ *    (`browserName: 'MicrosoftEdge'`, `ms:edgeOptions.debuggerAddress`). Isolates per instance
+ *    (its own `LOCALAPPDATA` data root), so parallel workers + multiremote work.
+ *  - **Linux** has no CDP/automation surface yet → unsupported (fail fast). See the
+ *    implementation plan "Framework gaps".
  *
- * 0.x is macOS-only + single-instance (`maxInstances=1`): CEF can't isolate the
- * forced `persist:default` profile per worker, so we do NOT redirect the cache root
- * (no `CFFIXED_USER_HOME`, no per-worker `--user-data-dir`) — CEF uses its own
- * `root_cache_path`. See the implementation plan "Framework gaps". Native-mode flow:
- *  - `onPrepare`: resolve + CEF-verify each app bundle, force `browserName: 'chrome'`.
- *  - `onWorkerStart`: allocate a port; spawn the app (the spawn path clones the bundle
- *    and pins the port into the clone's build.json); wait for CEF to serve `/json`;
- *    set `goog:chromeOptions.debuggerAddress`.
+ * Native-mode flow:
+ *  - `onPrepare`: resolve each bundle + pick its transport; CEF-verify (CEF only); force
+ *    `browserName`; pin the driver to the WebView2 runtime version (WebView2 only).
+ *  - `onWorkerStart`: allocate a port; spawn the app — CEF clones the bundle and pins the port
+ *    into the clone's `build.json`, WebView2 injects `--remote-debugging-port` via env — wait
+ *    for `/json`, then set the `debuggerAddress`.
  *  - `onComplete`: kill spawned apps + clean temp dirs.
  */
 export default class ElectrobunLaunchService extends BaseLauncher {
