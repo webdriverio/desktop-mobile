@@ -756,11 +756,10 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
-  # #317 Phase 1A PROOF LEG (temporary, non-gating): Windows WebView2 (non-CEF) E2E.
-  # Drives the WebView2 fixture over CDP via the injected --remote-debugging-port. NOT in
-  # ci-status.needs — its result is the proof signal, not a gate. The `standard` suite's
-  # session attach is the key signal: does WebView2 expose /json and let Chromedriver
-  # attach? Promote to a required gate (+ window/multiremote) in Phase 1B once confirmed.
+  # Windows WebView2 (non-CEF) E2E (#317). The `standard` suite is confirmed green; the
+  # `window` (multi-window) suite is added here because WebView2 may pass it where CEF can't
+  # (CEF runs window/deeplink local-only). Still non-gating (NOT in ci-status.needs) until
+  # Phase 1B promotes it to a required gate.
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-windows:
     name: E2E - Electrobun [Windows] - ${{ matrix.test-type }}
@@ -769,7 +768,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard']
+        test-type: ['standard', 'window']
     uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
     secrets: inherit
     with:

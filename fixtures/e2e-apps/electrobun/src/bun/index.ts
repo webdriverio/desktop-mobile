@@ -14,9 +14,8 @@ import { app, BrowserWindow } from 'electrobun/bun';
 // cleanly first. The bridge labels content targets in registration order: first = 'main'
 // (mainview), next = 'window-1' (secondview).
 //
-// Windows (WebView2): a single window exposes `/json` cleanly — no persist:default race — so
-// the second window is skipped for now (#317 Phase 1A proof slice; multi-window is re-added
-// in Phase 1B once WebView2 CDP attach is validated on a Windows runner).
+// Windows (WebView2): no persist:default race, so the second window opens immediately
+// (concurrently) rather than staggered behind dom-ready.
 
 const isWindows = process.platform === 'win32';
 
@@ -27,19 +26,26 @@ const mainWindow = new BrowserWindow({
 });
 console.log('[e2e] opened main window', { main: mainWindow.id });
 
-if (!isWindows) {
+const openSecondWindow = (): void => {
+  const secondWindow = new BrowserWindow({
+    title: 'WDIO Electrobun E2E — Second',
+    url: 'views://secondview/index.html',
+    frame: { x: 900, y: 150, width: 520, height: 440 },
+  });
+  console.log('[e2e] opened second window', { second: secondWindow.id });
+};
+
+if (isWindows) {
+  openSecondWindow();
+} else {
+  // CEF: stagger the second window behind mainview's dom-ready (see the note above).
   let secondOpened = false;
   mainWindow.webview.on('dom-ready', () => {
     if (secondOpened) {
       return;
     }
     secondOpened = true;
-    const secondWindow = new BrowserWindow({
-      title: 'WDIO Electrobun E2E — Second',
-      url: 'views://secondview/index.html',
-      frame: { x: 900, y: 150, width: 520, height: 440 },
-    });
-    console.log('[e2e] opened second window', { second: secondWindow.id });
+    openSecondWindow();
   });
 }
 
