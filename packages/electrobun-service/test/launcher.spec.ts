@@ -43,6 +43,10 @@ vi.mock('../src/nativeMode.js', () => ({
   waitForCdpReady: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../src/webview2Version.js', () => ({
+  detectWebView2RuntimeVersion: vi.fn(() => '148.0.3967.83'),
+}));
+
 import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } from '../src/electrobunConfig.js';
 import ElectrobunLaunchService from '../src/launcher.js';
 import { spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
@@ -167,6 +171,25 @@ describe('ElectrobunLaunchService', () => {
       await launcher.onPrepare({ maxInstances: 2 } as Parameters<typeof launcher.onPrepare>[0], caps);
 
       expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
+    });
+
+    it('should pin browserVersion to the WebView2 runtime version on the Windows WebView2 path', async () => {
+      setPlatform('win32');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
+        binaryPath: 'C:/apps/Demo/bin/launcher.exe',
+        bundlePath: 'C:/apps/Demo',
+        resourcesDir: 'C:/apps/Demo/Resources',
+        buildJsonPath: 'C:/apps/Demo/Resources/build.json',
+        renderer: 'native',
+      });
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const cap: ElectrobunCapabilities = {};
+
+      await launcher.onPrepare(baseConfig, [cap]);
+
+      expect((cap as { browserName?: string }).browserName).toBe('MicrosoftEdge');
+      // Pinned to the detected runtime version (mocked), not WDIO's Edge-browser auto-match.
+      expect((cap as { browserVersion?: string }).browserVersion).toBe('148.0.3967.83');
     });
 
     it('should propagate a missing-appBinaryPath SevereServiceError from resolution', async () => {

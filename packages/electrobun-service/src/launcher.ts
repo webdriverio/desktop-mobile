@@ -9,6 +9,7 @@ import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitF
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import { resolveTransport } from './transport.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
+import { detectWebView2RuntimeVersion } from './webview2Version.js';
 
 const log = createLogger(SERVICE_NAME, 'launcher');
 
@@ -130,6 +131,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     // Native mode: resolve each bundle, pick its CDP transport, force chrome capability.
     // The spawn (CEF clone+port-pin, or WebView2 env-var injection) happens in
     // onWorkerStart so each worker gets a freshly allocated port.
+    // WebView2 (Windows) only: detect the installed runtime version once so the loop can pin
+    // msedgedriver to it (see the per-cap note below). Off Windows this is skipped.
+    const webview2Version = process.platform === 'win32' ? detectWebView2RuntimeVersion() : undefined;
     this.resolvedApps = [];
     for (const cap of capsList) {
       const instanceOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
@@ -149,6 +153,13 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       // which chromedriver rejects as an "unrecognized Chrome version"), so it must be
       // driven by msedgedriver → browserName 'MicrosoftEdge' (WDIO provisions edgedriver).
       (cap as { browserName?: string }).browserName = transport === 'webview2' ? 'MicrosoftEdge' : 'chrome';
+      // The WebView2 runtime can lag the Edge browser WDIO auto-matches; a mismatched
+      // msedgedriver then refuses to attach ("only supports Microsoft Edge version N"). Pin the
+      // driver to the runtime version instead, respecting any user-set browserVersion.
+      if (transport === 'webview2' && webview2Version) {
+        const versioned = cap as { browserVersion?: string };
+        versioned.browserVersion ??= webview2Version;
+      }
     }
     log.info(`Native mode prepared ${this.resolvedApps.length} Electrobun app(s)`);
   }
