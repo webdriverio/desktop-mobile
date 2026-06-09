@@ -129,10 +129,15 @@ jobs:
       - name: 📦 Upload built .app
         uses: actions/upload-artifact@v7
         with:
-          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}-${{ github.run_attempt }}
+          # Keyed by run_id only (NOT run_attempt): `gh run rerun --failed` re-runs the failed Run
+          # job but NOT this Build job (it passed), so the artifact keeps its original name — a
+          # run_attempt suffix would leave the retried Run job looking for an artifact that was
+          # never re-uploaded. overwrite handles a full re-run that does rebuild.
+          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}
           path: rn-ios-app.tar.gz
           retention-days: 1
           if-no-files-found: error
+          overwrite: true
 
   e2e:
     name: Run
@@ -165,7 +170,9 @@ jobs:
       - name: 📥 Download built .app
         uses: actions/download-artifact@v7
         with:
-          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}-${{ github.run_attempt }}
+          # Matches the build job's run_id-only name so a `--failed` rerun (which doesn't rebuild)
+          # still finds the artifact from the original attempt.
+          name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}
           path: ${{ github.workspace }}/rn-app-dl
 
       - name: 📦 Unpack built .app
