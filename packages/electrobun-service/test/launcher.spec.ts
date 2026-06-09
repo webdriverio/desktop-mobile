@@ -159,6 +159,16 @@ describe('ElectrobunLaunchService', () => {
       expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
     });
 
+    it('should NOT warn about maxInstances > 1 on Windows — WebView2 isolates per-instance', async () => {
+      setPlatform('win32');
+      const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare({ maxInstances: 2 } as Parameters<typeof launcher.onPrepare>[0], caps);
+
+      expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
+    });
+
     it('should propagate a missing-appBinaryPath SevereServiceError from resolution', async () => {
       vi.mocked(resolveElectrobunApp).mockImplementationOnce(() => {
         throw new SevereServiceError('@wdio/electrobun-service requires an explicit appBinaryPath in native mode.');

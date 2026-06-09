@@ -19,7 +19,7 @@ on:
         required: true
         type: string
       test-type:
-        description: 'Test type (standard, window, deeplink)'
+        description: 'Test type (standard, window, deeplink, multiremote)'
         type: string
         default: 'standard'
       build_id:
@@ -137,7 +137,7 @@ jobs:
           TEST_TYPE: ${{ inputs.test-type }}
         with:
           script: |
-            const ALLOWED = ['standard', 'window', 'deeplink'];
+            const ALLOWED = ['standard', 'window', 'deeplink', 'multiremote'];
             const testType = process.env.TEST_TYPE.trim();
             if (!ALLOWED.includes(testType)) {
               core.setFailed(`Invalid test-type: "${testType}". Allowed: ${ALLOWED.join(', ')}`);

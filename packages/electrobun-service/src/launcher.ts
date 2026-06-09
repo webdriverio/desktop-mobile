@@ -116,13 +116,14 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       throw nativeRendererUnsupportedPlatform(process.platform);
     }
 
-    // CEF can't isolate ≥2 app instances (shared root_cache_path → instance folding;
-    // upstream-blocked, #320). WDIO's default maxInstances is 100, so this can't be a
-    // hard error — warn so a run that does schedule parallel workers fails recognisably.
-    if ((config.maxInstances ?? 1) > 1) {
+    // CEF (macOS) can't isolate ≥2 app instances (shared root_cache_path → instance folding;
+    // upstream-blocked, #320), so parallel workers race there. WebView2 (Windows) isolates
+    // each instance (its own LOCALAPPDATA data root), so parallel workers + multiremote work —
+    // only warn on macOS. WDIO's default maxInstances is 100, so this can't be a hard error.
+    if (process.platform === 'darwin' && (config.maxInstances ?? 1) > 1) {
       log.warn(
-        `maxInstances is ${config.maxInstances}, but Electrobun CEF is single-instance: parallel workers ` +
-          'share one CEF cache root and race ("Cannot create profile" / CDP timeouts). Pin maxInstances: 1.',
+        `maxInstances is ${config.maxInstances}, but Electrobun CEF on macOS is single-instance: parallel ` +
+          'workers share one CEF cache root and race ("Cannot create profile" / CDP timeouts). Pin maxInstances: 1.',
       );
     }
 
