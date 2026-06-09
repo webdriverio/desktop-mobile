@@ -64,6 +64,18 @@
 
 ## Experimental Support
 
+> Pre-release (`1.0.0-next`) support — the surface is complete and the service is under active stabilisation. Expect `1.0.0-next.N` pre-releases before the stable tag.
+
+<h4>
+  <div>
+    <a href="https://www.npmjs.com/package/@wdio/react-native-service"><img src="https://img.shields.io/badge/@wdio-react--native--service-61DAFB?labelColor=1a1a1a&style=plastic" alt="npm package" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/react-native-service"><img src="https://img.shields.io/npm/v/@wdio/react-native-service" alt="npm version" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/react-native-service"><img src="https://img.shields.io/npm/dw/@wdio/react-native-service" alt="npm downloads" /></a>
+  </div>
+</h4>
+
+[`@wdio/react-native-service`](./packages/react-native-service) - React Native mobile applications — **Android + iOS**. Native find/tap via Appium (UiAutomator2 / XCUITest); `execute` and `mock` via Hermes CDP (debug/Metro build). See the [package README](./packages/react-native-service).
+
 > Early (`0.x`) support — scope is limited and the surface may change as upstream gaps are resolved. Not yet at parity with the frameworks above.
 
 <h4>
@@ -78,7 +90,6 @@
 
 ## Planned Support
 
-- **React Native** - Popular mobile and desktop framework
 - **Flutter** - Google's UI toolkit for mobile and beyond
 - **Capacitor** - Ionic's cross-platform mobile framework
 - **Neutralino** - Lightweight desktop applications

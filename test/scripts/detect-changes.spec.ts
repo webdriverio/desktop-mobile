@@ -80,6 +80,7 @@ describe('classifyFile', () => {
     ['e2e/wdio.react-native.conf.ts', 'react-native'],
     ['e2e/test/react-native/api.spec.ts', 'react-native'],
     ['fixtures/e2e-apps/react-native/App.tsx', 'react-native'],
+    ['fixtures/package-tests/react-native-app/wdio.conf.ts', 'react-native'],
     ['.github/workflows/_ci-e2e-react-native-all-providers.reusable.yml', 'react-native'],
     ['.github/workflows/_ci-build-react-native-e2e-app.reusable.yml', 'react-native'],
   ])('should classify %s as %s', (file, expected) => {
