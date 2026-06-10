@@ -1,25 +1,29 @@
 ---
 name: Add Native Service
-description: Runbook for adding a new native-app testing service to this WebdriverIO monorepo. Covers every shipped desktop architecture — Electron's CDP attach, Tauri's external WebDriver driver, and Dioxus's in-process embedded driver + bridge crate — and is abstracted to apply to any new desktop framework. Use this skill when asked to add support for a new desktop framework, to bootstrap a new @wdio/<framework>-service package, to extend the supported-frameworks list in ROADMAP.md, or when shipping/refactoring any of the existing electron, tauri, or dioxus services along the shared pattern. (Mobile frameworks are expected to introduce new patterns warranting a future revision.)
+description: Runbook for adding a new native-app testing service to this WebdriverIO monorepo. Covers every shipped architecture — desktop (Electron's CDP attach, Tauri's external WebDriver driver, Dioxus's in-process embedded driver + bridge crate) and mobile (React Native's Appium-driven native UI + Hermes/Metro JS-realm channel) — abstracted to apply to any new desktop or mobile framework. Use this skill when asked to add support for a new framework (desktop or mobile, e.g. Flutter/Capacitor), to bootstrap a new @wdio/<framework>-service package, to extend the supported-frameworks list in ROADMAP.md, or when shipping/refactoring any existing service along the shared pattern.
 ---
 
 # Add Native Service
 
-A runbook for bootstrapping a new WebdriverIO service package in this monorepo. It abstracts over the **three architectures already shipped here** so the same process can ship any of them:
+A runbook for bootstrapping a new WebdriverIO service package in this monorepo. It abstracts over the **architectures already shipped here** so the same process can ship any of them:
 
+**Desktop:**
 - **Electron** (`@wdio/electron-service`) — CDP attach, no driver process, no Rust.
 - **Tauri** (`@wdio/tauri-service`) — Wry webview, external WebDriver driver + Tauri plugin crate.
 - **Dioxus** (`@wdio/dioxus-service`) — Wry webview, in-process embedded WebDriver server + bridge crate.
 
-If you follow this skill against any of those frameworks you should land in the same place the shipped package already is, and the same process bootstraps the next desktop framework. See `ROADMAP.md` for what's planned.
+**Mobile:**
+- **React Native** (`@wdio/react-native-service`) — Appium-driven native UI (UiAutomator2/XCUITest); `execute`/`mock` over a Hermes/Metro JS-realm CDP channel. No driver process, no Rust.
 
-The single most important step is **Step 0**: identify which architecture archetype your framework falls into. It decides whether Phase 2 builds Rust crates, attaches over CDP, or forks a driver — and which existing service you clone.
+If you follow this skill against any of those frameworks you should land in the same place the shipped package already is, and the same process bootstraps the next framework. See `ROADMAP.md` for what's planned (Flutter and Capacitor are the next mobile frameworks).
 
-**Scope:** this skill currently targets **desktop** frameworks. The first mobile service (React Native) is introducing new patterns (device/emulator management, Appium-style webview contexts) that will warrant a major revision — don't assume this runbook covers mobile *plumbing* yet. The one mobile lesson already folded in is **E2E phasing**: see "Mobile: split the E2E PR per platform" under [Plan / PR split](#plan--pr-split).
+The single most important step is **Step 0**: identify which integration archetype your framework falls into — first **desktop or mobile**, then the axis within. It decides whether Phase 2 builds Rust crates, attaches over CDP, forks a driver, or composes with Appium — and which existing service you clone.
+
+**Scope:** this skill covers **desktop** (CDP, Wry/WebDriver) and **mobile** (Appium) frameworks. Mobile is a third transport family with patterns desktop has no analogue for — device-pool allocation, Appium capability mutation, contexts-as-windows, a per-platform E2E split — all captured in [plumbing-mobile.md](plumbing-mobile.md) and flagged inline below.
 
 ## When to use
 
-- A new desktop framework is being added per `ROADMAP.md`.
+- A new desktop or mobile framework (e.g. Flutter, Capacitor) is being added per `ROADMAP.md`.
 - An existing pre-1.0 service is being promoted from a Phase 0 spike to its first MVP package.
 - You're validating that a framework can be automated before committing to a service implementation.
 - You're refactoring one of the shipped services and want to keep it aligned with the shared pattern.
@@ -31,13 +35,22 @@ The single most important step is **Step 0**: identify which architecture archet
 
 ## Step 0 — Identify the integration archetype
 
-Every framework here resolves to a point on two axes. Decide both before writing code (confirm them in the Phase 0 spike).
+Every framework resolves to a point in **one of two families**. First decide the family, then the axes within it. Confirm in the Phase 0 spike before writing code.
+
+| Family | Signal | Driven by | Branch |
+|---|---|---|---|
+| **Desktop** | A windowed app you launch on the test host (Electron/Tauri/Dioxus) | The service spawns/attaches: a CDP client or a W3C WebDriver driver | Desktop axes below |
+| **Mobile** | An app installed on a device/emulator/simulator (React Native, Flutter, Capacitor) | **Appium** owns the session + app launch (UiAutomator2/XCUITest); the service mutates caps + allocates devices | [Mobile](#mobile) below |
+
+### Desktop
+
+Resolves to a point on two axes (plus a plumbing sub-axis).
 
 **Axis 1 — Transport: how does the test process drive the app?**
 
 | | Signal | Path | Clone |
 |---|---|---|---|
-| **CDP attach** | Runtime exposes a Chrome DevTools Protocol endpoint (Chromium-based runtimes, e.g. Electron) | Attach a WebSocket CDP client. No driver process, no in-app Rust. | `@wdio/electron-service` + `@wdio/electron-cdp-bridge` |
+| **CDP attach** | Runtime exposes a Chrome DevTools Protocol endpoint (Chromium-based runtimes, e.g. Electron) | Attach a WebSocket CDP client. No driver process, no in-app Rust. | `@wdio/electron-service` + the shared `@wdio/native-cdp-bridge` |
 | **WebDriver** | App embeds a system webview via **Wry** (Tauri, Dioxus) or another WebView host with no CDP | Drive a W3C WebDriver endpoint. Needs in-app plumbing + a driver. | `@wdio/tauri-service` or `@wdio/dioxus-service` |
 
 **Axis 2 — (WebDriver only) Driver model: where does the WebDriver server live?**
@@ -56,9 +69,34 @@ Every framework here resolves to a point on two axes. Decide both before writing
 | a plugin system | **plugin crate(s)** registered by the app — note these are *separate concerns*: one plugin for execute/mock IPC, and (for the embedded provider) a **second** plugin for the embedded WebDriver server | Tauri → `tauri-plugin-wdio` (execute/mock) **+** `tauri-plugin-wdio-webdriver` (embedded server) |
 | no plugin system | a **bridge crate** that injects guest-js via the Config's custom-head + a `wdio://` custom protocol (the same bridge also wires the embedded server) | Dioxus → `wdio-dioxus-bridge` |
 
-CDP frameworks need **no** in-app plumbing — Chromium exposes the protocol natively; a test-side CDP bridge package handles the connection.
+CDP frameworks need **no** in-app plumbing — Chromium exposes the protocol natively; the shared `@wdio/native-cdp-bridge` package handles the connection.
 
-→ **Worked detail:** [plumbing-cdp.md](plumbing-cdp.md) (CDP path — Electron) · [plumbing-wry.md](plumbing-wry.md) (Wry path — Tauri/Dioxus).
+### Mobile
+
+A **third transport family**, not a point on the Desktop axes — there is no driver to spawn (Appium does), no in-app Rust, no `<framework>:options` capability, no `<FRAMEWORK>_WEBVIEW_AUTOMATION` env var. The launcher's job shifts to **capability mutation** (`appium:automationName` per platform, `appBinaryPath`→`appium:app`, `appium:udid`/`appium:avd`) and **device-pool allocation** (one device per worker, round-robin). The runner composes `services: ['appium', '<framework>']` (`@wdio/appium-service` is an **e2e/runner devDependency**, never a service-package dep — see gotcha 11). The service still extends `BaseLauncher`; a **Tier-1** service additionally reuses the shared `@wdio/native-cdp-bridge` for the JS-realm channel below (a Tier-2 service uses a non-CDP channel — e.g. Flutter's Dart VM Service — so it doesn't).
+
+Appium always owns the **session**, but **two** things vary by framework. For a *native-widget* framework both collapse to the native path; a *self-rendered* framework diverges on both. (Worked detail + the instrumented-build requirement → [plumbing-mobile.md](plumbing-mobile.md).)
+
+**Sub-axis 1 — find/tap: where do the elements live?**
+
+| | Element model | Find/tap | Reference |
+|---|---|---|---|
+| **Native-widget** | renders real native views (`testID` → `accessibilityId`/`resource-id`) | standard Appium/W3C locators (`browser.$`) — the service adds nothing | React Native; Capacitor's native shell |
+| **Self-rendered** | paints its own canvas; widgets are **invisible** to UiAutomator2/XCUITest | the framework's **own finder protocol** in a dedicated context (Flutter: `ByValueKey`/`ByText` via `ext.flutter.driver` in the `FLUTTER` context); normalise `getText` (iOS `value` vs Android `text`) | Flutter |
+
+**Sub-axis 2 — the JS-realm channel: how do `execute`/`mock` reach the scripting realm?** (distinct from find/tap)
+
+| | Signal | Channel | Mock tier | Reference |
+|---|---|---|---|---|
+| **Hermes / CDP** | RN's Hermes engine behind Metro's inspector-proxy | `@wdio/native-cdp-bridge` `CdpBridge` + a Hermes target selector + a Fusebox `Origin` header; Android needs `adb reverse tcp:8081`. **Sync IIFE only** — Hermes can't eval `async`. | **Tier 1** (transparent JS-eval injection) | `@wdio/react-native-service` |
+| **Dart VM** | Flutter's own VM Service protocol (not CDP) | VM Service **`evaluate`** RPC drives `execute`; Dart has no monkeypatch, so only `mock` needs a cooperative contract | **Tier 2** (`mock` only — `execute` has an eval path) | Flutter (next) |
+| **WebView context** | Pure-WebView app (Ionic/Capacitor) | Appium `WEBVIEW_*` context — `execute` runs in the webview over **W3C** (chromedriver/safaridriver), **not** the CDP bridge | Tier 1 (eval channel = the webview) | Capacitor (planned) |
+
+For a **self-rendered** framework, find/tap (sub-axis 1) and `execute`/`mock` (sub-axis 2) often ride the **same** channel — Flutter does both over the VM Service.
+
+**Decision rule for the mock tier:** is there an eval channel into the layer you want to mock? Yes → **Tier 1** (reuse the `native-spy` outer + an inner script-builder recorder, one-way `update()` sync — the desktop doctrine; the *transport* under the recorder still varies: RN's CDP bridge vs a webview's W3C `execute`). No → **Tier 2** (cooperative contract baked into the app/fixture; proven for Flutter in spike).
+
+→ **Worked detail:** [plumbing-cdp.md](plumbing-cdp.md) (CDP — Electron) · [plumbing-wry.md](plumbing-wry.md) (Wry — Tauri/Dioxus) · [plumbing-mobile.md](plumbing-mobile.md) (Appium — React Native/Flutter/Capacitor).
 
 ## Architecture layering
 
@@ -66,19 +104,27 @@ CDP frameworks need **no** in-app plumbing — Chromium exposes the protocol nat
 @wdio/native-types       — type-only; framework types + module augmentation
 @wdio/native-utils       — generic primitives (logger, Result, config readers)
 @wdio/native-spy         — mock framework + per-framework interceptor adapters
+@wdio/native-cdp-bridge  — shared CDP transport (single + multi-target): Electrobun, React Native
+                            (Hermes); Electron next. Electron's own @wdio/electron-cdp-bridge is
+                            the legacy per-framework instance.
 @wdio/native-core        — shared launcher infra (PortManager, DriverPool, DriverProcess,
-                            BaseLauncher, logWriter, deeplink helpers, logLevel)
+                            BaseLauncher, logWriter, OS-protocol deeplink helpers, logLevel)
+@wdio/native-mobile-core — shared Appium layer: caps, device pool, contexts, mobile deeplink,
+                            log channels. (extract when Flutter lands — see plumbing-mobile.md)
 @wdio/<framework>-service — your new package
 packages/<framework>-*    — Rust crates (Wry path only)
 ```
 
 New services build **on `@wdio/native-core`** (Tauri and Dioxus do; Electron predates the extraction and is being migrated). Reuse port management, driver lifecycle, and log writing; add framework behaviour on top. Audit before extracting more into core — extract only what's duplicated bit-for-bit (see gotcha 2).
 
+**Mobile** services reuse `BaseLauncher` (the hook lifecycle) but **none** of the `native-core` driver/port/OS-protocol-deeplink primitives — Appium owns the session; **Tier-1** services additionally use `@wdio/native-cdp-bridge` for the JS-realm channel (Tier-2 doesn't). The shared mobile concerns (caps, device pool, contexts, `mobile: deepLink`, device-log channels) live in the RN package today and graduate to a new `@wdio/native-mobile-core` **when Flutter — the second consumer — lands** (extract-on-second-use, gotcha 2). See [plumbing-mobile.md](plumbing-mobile.md) → "Shared-layer extraction".
+
 ## Feature scope
 
-**Converge on one surface.** Every service should expose as close to an identical API and feature set as possible — a user moving between `@wdio/electron-service`, `@wdio/tauri-service`, and a new service should barely relearn anything. Mocking is the template: one Vitest-like shape, standardised across all three. Design new features the same way (same method names, option names, semantics). The default answer to "should this service have feature X?" is **yes, with the same surface as the others**; you only omit a standard feature when the framework lacks the underlying concept, and then you document it as a known gap.
+**Converge on one surface.** Every service should expose as close to an identical API and feature set as possible — a user moving between `@wdio/electron-service`, `@wdio/tauri-service`, `@wdio/react-native-service`, and a new service should barely relearn anything. Mocking is the template: one Vitest-like shape, standardised across every service. Design new features the same way (same method names, option names, semantics). The default answer to "should this service have feature X?" is **yes, with the same surface as the others**; you only omit a standard feature when the framework lacks the underlying concept, and then you document it as a known gap.
 
-- **Standard surface — ship in every service, identical shape:** `execute`, mocking (`mock` + `clear/reset/restoreAllMocks` + `isMockFunction`, via `@wdio/native-spy`), `triggerDeeplink`, multi-window `switchWindow`/`listWindows`, backend+frontend log capture, browser mode, standalone/session mode, **multiremote + per-worker parallelism**, **headless on all supported platforms** (provided by WDIO's `@wdio/xvfb` / `autoXvfb` — being renamed `@wdio/display-server` in v10 — not by the service; CDP services use `autoXvfb` directly, Wry services wrap the command in `xvfb-run` because their driver runs in the launcher process), consistent config-option names.
+- **Standard surface — ship in every service, identical shape:** `execute`, mocking (`mock` + `clear/reset/restoreAllMocks` + `isMockFunction`, via `@wdio/native-spy`), `triggerDeeplink`, multi-window `switchWindow`/`listWindows`, backend+frontend log capture, browser mode, standalone/session mode, **multiremote + per-worker parallelism**, **headless on all supported platforms** (provided by WDIO's `@wdio/xvfb` / `autoXvfb` — being renamed `@wdio/display-server` in v10 — not by the service; CDP services use `autoXvfb` directly, Wry services wrap the command in `xvfb-run` because their driver runs in the launcher process), consistent config-option names. **Mobile keeps the same surface with mobile semantics:** `switchWindow`/`listWindows` = Appium contexts (`NATIVE_APP` ↔ `WEBVIEW_*`); `triggerDeeplink` = `mobile: deepLink` (+ Android `am start` fallback); log capture = native `logcat`/`syslog` **plus** JS-console-over-CDP; multiremote/parallelism = a device pool instead of per-worker driver ports; headless = the emulator/simulator (no Xvfb).
+- **Two mock tiers, one surface.** Mocking is always the same Vitest-like API, but the *inner* mechanism has two tiers: **Tier 1** transparent JS-eval injection (`native-spy` outer + an inner script-builder recorder — desktop CDP/Wry and RN/Hermes) and **Tier 2** a cooperative opt-in contract baked into the app/fixture (Flutter/Dart-VM, where the target can't be transparently rewritten — `execute` still works via the VM `evaluate` RPC; only `mock` needs the contract). Decision rule: *can you transparently rewrite the target through an eval channel?* See [features.md](features.md) → "Mocking — the two-tier doctrine".
 - **Conditional only on the framework having the concept** (ship with the standard shape if it does): `emitEvent` (needs an event bus).
 - **Framework-specific — additive, never a divergent reinvention:** Electron `mockAll`/class-mock + fuses/AppArmor/Chromedriver-versioning, Tauri CrabNebula provider, Dioxus bridge IPC. The *mechanism* of auto binary-path detection is framework-specific (skip when there's no canonical build tool), but the user-facing `appBinaryPath`/`application` option stays standard.
 - **Not service features** (docs only, don't build): visual regression and video recording — usage examples composing with third-party WDIO packages we don't control (`@wdio/visual-service`, `wdio-video-reporter`).
@@ -201,14 +247,22 @@ src/
 **Conventions:**
 
 - Initial `package.json` dev placeholder `1.0.0-next.0` for a service that reaches the full convergent surface on its target platforms (releases as stable `1.0.0`) — or **`0.1.0-next.0`** (releases as `0.1.0`) if upstream blocks a lot of the surface (see [When upstream blocks the standard surface](#when-upstream-blocks-the-standard-surface-shipping-pre-10)). Build script: `tsx ../../scripts/build-package.ts`.
-- Mirror the closest sibling's `package.json` exactly (exports, scripts, devDeps, peerDeps): CDP → clone `@wdio/electron-service`; Wry → clone `@wdio/tauri-service`. Always depend on `@wdio/native-core`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-utils` as workspace deps.
+- Mirror the closest sibling's `package.json` exactly (exports, scripts, devDeps, peerDeps): CDP → clone `@wdio/electron-service`; Wry → clone `@wdio/tauri-service`; **Mobile → clone `@wdio/react-native-service`**. Always depend on `@wdio/native-core`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-utils` as workspace deps. **Only Tier-1 mobile** (an eval-channel framework — e.g. RN/Hermes) adds `@wdio/native-cdp-bridge`; a **Tier-2** framework (Dart-VM/Flutter) never constructs a `CdpBridge` (its eval channel is the Dart VM Service, not CDP), and must **drop that dep** when cloning RN. **Mobile: do NOT add `@wdio/appium-service` as a package dep** — it's composed at the runner (`services: ['appium', '<framework>']`) and stays an e2e devDependency.
 - `vitest.integration.config.ts` MUST set `fileParallelism: false` + 30s timeout + `setupFiles: ['test/integration/setup.ts']`.
 - `tsconfig.json` extends `../../tsconfig.base.json`, out `./dist`, root `./src`.
 - `index.ts`: `export { default as launcher } from './launcher.js'`, `export { default } from './service.js'`, plus session helpers and public types. Import `'@wdio/native-types'` for side-effect module augmentation.
 
 **`launcher.ts`** extends `BaseLauncher`; implement `onPrepare` / `onComplete`. Throw a platform-specific `SevereServiceError` when a platform/provider combination is known-unsupportable (per spike). Handle browser mode (skip binary/driver setup) and multiremote shapes if in scope.
 
-**Types in `@wdio/native-types/src/<framework>.ts`** (mirror `tauri.ts`):
+**Mobile branch — the skeleton differs.** Clone `@wdio/react-native-service`, not a desktop service:
+- The `src/` tree drops the desktop driver pieces and adds mobile ones: `capabilities.ts` (Appium cap shaping), `deviceManager.ts` (device pool), `serviceConfig.ts` (option merge), `commands/{execute,switchContext,triggerDeeplink,emitEvent}.ts`, `logCapture.ts`, plus the JS-realm channel for your sub-axis (RN: `metroBridge.ts`/`hermesBridge.ts`/`hermesTarget.ts` + `mock.ts`/`innerRecorder.ts`/`mockStore.ts`). **That list is RN's *pre-extraction* layout** (RN is the first consumer).
+- **If `@wdio/native-mobile-core` is already extracted** — it should be, before a *second* mobile service ([plumbing-mobile.md](plumbing-mobile.md) → "Shared-layer extraction") — **consume** the shared Appium infra (`capabilities`/`deviceManager`/`switchContext`/`triggerDeeplink`/device-log capture) from it rather than rebuilding those files. Your package then builds only the framework-specific JS-realm channel, the find/tap glue (below), and the thin launcher/service wiring.
+- **Find/tap (Step 0 sub-axis 1).** A **native-widget** framework (RN) adds nothing — `testID`s surface as `accessibilityId`/`resource-id` and `browser.$` just works. A **self-rendered** framework (Flutter) must wire its **own finder protocol** (the `FLUTTER` context + `ByValueKey`/`ByText`) and normalise `getText` (iOS `value` vs Android `text`); this glue is framework-specific — it stays in the service package, never `native-mobile-core`.
+- `launcher.ts` still extends `BaseLauncher` but implements **`onPrepare` (cap mutation) + `onWorkerStart`/`onWorkerEnd` (device claim/release)** — no `onComplete` driver teardown (Appium owns the session).
+- The service `*ServiceOptions` extend **`LogCaptureConfig, MockLifecycleConfig`**, **not `BaseServiceOptions`** — Appium launches via caps, so the desktop binary-launch fields (`appArgs`, startup/command timeouts) don't apply. `<Framework>Capabilities` is a plain Appium-cap interface (`platformName`, `appium:*`, `wdio:<framework>ServiceOptions`).
+- Worker hooks: `before` (attach JS-realm bridge + install `browser.<framework>.*`), `beforeTest` (mock lifecycle), **`afterTest` (drain native device logs)**, `after`/`afterSession` (close bridge). See [plumbing-mobile.md](plumbing-mobile.md).
+
+**Types in `@wdio/native-types/src/<framework>.ts`** (mirror `tauri.ts`, or `react-native.ts` for mobile):
 `<Framework>APIs`, `<Framework>ExecuteOptions`, `<Framework>Mock<T,R>` + `<Framework>MockInstance`, `<Framework>ServiceAPI`, `<Framework>ServiceOptions` + `<Framework>ServiceGlobalOptions`, `<Framework>Capabilities`, `<Framework>BrowserExtension`. WebDriver path also: `<Framework>DriverProvider` (`'external' | 'embedded'` — never `'official'`, a deprecated Tauri alias). Then wire `@wdio/native-types/src/index.ts`: re-export the types, extend `BrowserExtension`, and `declare global { namespace WebdriverIO }` for `Browser`, `Capabilities['wdio:<framework>ServiceOptions']`, and `ServiceOption`.
 
 > `<Framework>Capabilities` must be a **plain interface** — do NOT extend `Capabilities.RequestedStandaloneCapabilities` (Rollup's TS plugin can't extend dynamic-member interfaces). Intersect with it at service-level aliases instead (see `TauriServiceRequestedStandaloneCapabilities`).
@@ -217,6 +271,7 @@ src/
 
 - **CDP path** → [plumbing-cdp.md](plumbing-cdp.md): CDP bridge connection, binary/build detection, no Rust.
 - **Wry path** → [plumbing-wry.md](plumbing-wry.md): driver crate (external), bridge/plugin crate + guest-js, embedded WebDriver server crate, Cargo conventions, macOS throttling.
+- **Mobile path** → [plumbing-mobile.md](plumbing-mobile.md): Appium composition + capability mutation, device pool, the JS-realm sub-axis (Hermes-CDP / Dart-VM / WebView), contexts, deeplink, logs, shared-layer extraction. No Rust, no driver.
 
 ### Phase 3 — Tests (shared)
 
@@ -225,18 +280,19 @@ src/
 - Mock at the **`@wdio/native-core` boundary**, not local module boundaries, when a service module is a thin wrapper around core — otherwise the mock never reaches the real spawn/IO. Map-backed in-memory fake; see `packages/tauri-service/test/driverPool.spec.ts`.
 - Rust: inline `#[cfg(test)] mod tests` with `should_*` names.
 - Minimum at Phase 1 commit: `test/index.spec.ts` (export shape), `test/errors.spec.ts`, `test/launcher.spec.ts` (platform × provider matrix incl. every `SevereServiceError` throw).
+- **Mobile** (`@wdio/react-native-service/test/` is the reference): the launcher matrix is **platform × automationName** (Android→UiAutomator2, iOS→XCUITest, unsupported→`SevereServiceError`); test the device pool's fairness/release (round-robin, more-workers-than-devices warning); and unit-test the Tier-1 mock script-builders as the **JS expressions they emit**, not in-realm behaviour (the realm semantics are only exercised E2E against a live Metro/Hermes target).
 - Coverage ≥80% (per `AGENTS.md`); thin-wrapper packages may declare an exception in `vitest.config.ts` with a comment explaining why.
 
 ### Phase 4 — CI gates
 
-See [ci-and-release.md](ci-and-release.md) → "CI gates". Add `run_<framework>` outputs, path filters (`<framework>_service`, `e2e_<framework>`, `fixtures_<framework>`, `infra_<framework>`), extend the `shared` filter for any new `native-*` package, and clone the per-framework reusable workflows.
+See [ci-and-release.md](ci-and-release.md) → "CI gates". Add `run_<framework>` outputs, path filters (`<framework>_service`, `e2e_<framework>`, `fixtures_<framework>`, `infra_<framework>`), extend the `shared` filter for any new `native-*` package, and clone the per-framework reusable workflows. `scripts/detect-changes.ts` auto-discovers a `packages/<framework>-service` by convention, but its **test cases in `test/scripts/detect-changes.spec.ts` are per-framework** — add the new framework's paths (RN's are already in; this recurs for Flutter; CI's lint job runs `test:scripts`). **Mobile clones per-platform E2E workflows** (`_ci-e2e-<framework>.reusable.yml` Android + `_ci-e2e-<framework>-ios.reusable.yml`), not the desktop `-all-providers` shape.
 
 ### Phase 5 — Fixtures, E2E, docs, release
 
-- `fixtures/e2e-apps/<framework>/` — minimal app exercising the service surface (execute + mock + multi-window). See **Fixture app conventions** below.
-- `fixtures/package-tests/<framework>-app/` — package-install smoke fixture. Same visual conventions; reduced functional surface (typically just `#app-title` + `#status`).
-- `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,mocking,window}.spec.ts` mirroring `e2e/test/tauri/`. Also add `logging.external.spec.ts` if the service has an **external** driver provider — capturing the driver subprocess's stdout/stderr is a distinct code path from in-app frontend/backend logging and needs its own coverage.
-- `e2e/wdio.<framework>.conf.ts` (+ `wdio.<framework>-embedded.conf.ts` for a Wry embedded provider).
+- `fixtures/e2e-apps/<framework>/` — minimal app exercising the service surface (execute + mock + multi-window). See **Fixture app conventions** below. **Mobile**: one fixture app drives every leg; the native `android/`/`ios/` projects are **generated in CI (not committed)** by scaffolding a pinned framework version and overlaying the fixture source. RN additionally runs it under a **dual-architecture matrix** (Paper + Fabric) — that's RN-specific (see ci-and-release.md), not a universal mobile rule.
+- `fixtures/package-tests/<framework>-app/` — package-install smoke fixture. Same visual conventions; reduced functional surface (typically just `#app-title` + `#status`). **Mobile package-tests are ESM-only** (a CJS config can't compose `services: ['appium', …]` — `@wdio/appium-service` + WDIO v9 core are ESM-only); ship one ESM fixture, no CJS variant. May be a deferred follow-up (RN's isn't shipped yet — file a tracked issue).
+- `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,mocking,window}.spec.ts` mirroring `e2e/test/tauri/`. Also add `logging.external.spec.ts` if the service has an **external** driver provider — capturing the driver subprocess's stdout/stderr is a distinct code path from in-app frontend/backend logging and needs its own coverage. **Mobile** mirrors `e2e/test/react-native/` (`{api,application,execute,mocking,logging,contexts,deeplink}.spec.ts`).
+- `e2e/wdio.<framework>.conf.ts` (+ `wdio.<framework>-embedded.conf.ts` for a Wry embedded provider). **Mobile**: `services: ['appium', '<framework>']`, `maxInstances: 1`, `specFileRetries: 1` (absorbs emulator/sim-boot + first-session flake), generous `connectionRetryTimeout`, an **app-ready `before` gate** (`waitForDisplayed` on a known element), and a **page-source-on-failure `afterTest`** (writes the Appium UI hierarchy to the uploaded logs). iOS reads `RN_WDA_DD`/device env to reuse a prebuilt WebDriverAgent.
 - `packages/<framework>-service/README.md` + `docs/` set + per-crate READMEs.
 - Root `README.md`, `ROADMAP.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/*.md` updates.
 - Release pipeline — see [ci-and-release.md](ci-and-release.md) → "Release pipeline".
@@ -286,14 +342,20 @@ Don't introduce a new per-framework gradient or container style — pick `.conta
 
 | What | Convention | Example | Path |
 |---|---|---|---|
-| npm service package | `@wdio/<framework>-service` | `@wdio/dioxus-service` | all |
-| WDIO service options key | `wdio:<framework>ServiceOptions` | `wdio:dioxusServiceOptions` | all |
-| Browser API surface | `browser.<framework>.*` | `browser.dioxus.execute(...)` | all |
-| CDP bridge package | `@wdio/<framework>-cdp-bridge` | `@wdio/electron-cdp-bridge` | CDP |
+| npm service package | `@wdio/<framework>-service` | `@wdio/react-native-service` | all |
+| WDIO service options key | `wdio:<framework>ServiceOptions` | `wdio:reactNativeServiceOptions` | all |
+| Browser API surface | `browser.<framework>.*` | `browser.reactNative.execute(...)` | all |
+| Shared CDP bridge | `@wdio/native-cdp-bridge` (shared; electron's `@wdio/electron-cdp-bridge` is the legacy per-framework instance) | — | CDP + Mobile/Hermes |
 | Capability key | `<framework>:options` | `dioxus:options` | Wry |
 | Automation toggle env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION` | `DIOXUS_WEBVIEW_AUTOMATION` | Wry |
 | Embedded-driver port env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` | `DIOXUS_WEBVIEW_AUTOMATION_PORT` | Wry/embedded |
 | Window namespace | `window.__WDIO_<FRAMEWORK>__` | `window.__WDIO_DIOXUS__` | Wry |
+| Appium automation name | per platform: Android `UiAutomator2`, iOS `XCUITest` (on `appium:automationName`) | — | Mobile |
+| Appium launch caps | `appium:app` / `appium:appPackage`+`appium:appActivity` (Android) / `appium:bundleId` (iOS) | — | Mobile |
+| Device descriptor | `{ udid?, avd?, iOSUdid? }` (Android serial / AVD name / iOS sim UDID) | `{ avd: 'Pixel_7_API_35' }` | Mobile |
+| Inner-mock realm namespace | `globalThis.__WDIO_<FRAMEWORK>_MOCKS__` | `globalThis.__WDIO_RN_MOCKS__` | Mobile/Tier-1 |
+| E2E env vars (conf, not service) | `<FW>_PLATFORM` / `<FW>_APP_PATH` / `<FW>_METRO_PORT` / `<FW>_WDA_DD` / `<FW>_IOS_DEVICE` | `RN_PLATFORM`, `RN_WDA_DD` | Mobile E2E |
+| Release scope label | `scope:<framework>` | `scope:react-native` | all |
 | npm bridge JS bundle | `@wdio/<framework>-bridge` (no `-js`) | `@wdio/dioxus-bridge` | Wry/bridge |
 | Rust bridge crate | `wdio-<framework>-bridge` | `wdio-dioxus-bridge` | Wry/bridge |
 | Rust driver crate (external) | `wdio-<framework>-driver` (NOT `<framework>-driver`) | `wdio-dioxus-driver` | Wry/external |
@@ -303,6 +365,8 @@ Don't introduce a new per-framework gradient or container style — pick `.conta
 For a **new** service, pair the embedded port var with the toggle prefix: `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` (as Dioxus does). Tauri's `TAURI_WEBDRIVER_PORT` predates this convention — don't copy it.
 
 **`wdio-` prefix on Rust crates** leaves the unprefixed name (e.g. `dioxus-driver`) free for the framework's own project. The embedded server takes the **plugin** form when the framework has a plugin system (Tauri ships `tauri-plugin-wdio-webdriver` alongside the execute/mock plugin `tauri-plugin-wdio`) and the standalone `wdio-<framework>-embedded-driver` crate form otherwise (Dioxus, wired in via the bridge). **Providers** are `'external'` / `'embedded'` — `'official'` is a deprecated Tauri-only alias.
+
+**Mobile naming has no Wry analogues:** no automation-toggle env var, no `<framework>:options` capability, no `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` — the launch surface is the `appium:*` namespace. For a **multi-word** framework, the options key + browser surface camel-case the name: `react-native` → `wdio:reactNativeServiceOptions` / `browser.reactNative` (the package and `scope:` label stay hyphenated: `@wdio/react-native-service`, `scope:react-native`).
 
 ## Plan / PR split
 
@@ -329,15 +393,15 @@ The 5-PR split, mirroring the table above:
 | **PR4: E2E** | `feat/<service>-e2e` (off PR3) | Fixture CI build + `_ci-build-<framework>-e2e-app` / `-all-providers` reusable workflows, e2e specs, `wdio.<framework>.conf.ts`, headless. The risky "prove it runs in CI" PR. |
 | **PR5: Ship** | `feat/<service>-ship` (off PR4) | Package-test fixture, full docs, complete CI gates, release pipeline (everything from 4-PR Ship except the e2e specs, which moved to PR4). |
 
-**Mobile: split the E2E PR *per platform*.** Mobile multiplies the toolchain risk that justifies a standalone E2E PR — each platform has an *independent* high-risk CI path: Android needs an emulator boot + the Gradle/foojay/JDK toolchain (foojay-resolver-convention pinned past the `IBM_SEMERU` break, a JDK-17 toolchain on a JDK-21 Gradle runtime), iOS needs a simulator + a WebDriverAgent build + code signing. Bundling both into one E2E PR doubles the flaky surface a single review has to stabilise, and a red iOS leg blocks an already-green Android leg. So split E2E **one PR per OS**, cheaper-runner platform first — Android on `ubuntu-latest` (KVM-accelerated, no macOS-runner cost) before iOS on `macos-latest`. This turns the 5-PR split into a **6-PR split** (PR4 E2E-Android → PR5 E2E-iOS → PR6 Ship); when iOS is a deliberate fast-follow you can frame it as PR4 + PR4.5 instead. Keep the e2e *fixture app* (both platforms' source) in the Feature-Complete PR as usual — only the per-platform CI-build-and-run splits. **Gate each mobile E2E leg as required from its first PR** via the single aggregated "CI Status" check (so branch protection needn't change): consistent with the repo's no-allow-failure stance — a leg that can't be stabilised is *removed*, never left informational (the Electrobun precedent: Linux/Windows e2e dropped, not allow-failure). **Flag the user before opening the first mobile-CI PR** — it's the highest-risk leg and the platform-scope + gating call is theirs. (React Native is the worked example: Android-first required E2E, iOS sim + WDA as the fast-follow.)
+**Mobile: split the E2E PR *per platform*.** Mobile multiplies the toolchain risk that justifies a standalone E2E PR — each platform has an *independent* high-risk CI path: Android needs an emulator boot + the Gradle/JDK toolchain (RN 0.76 = JDK 17 + Gradle 8.x; the foojay-resolver / `IBM_SEMERU` trap only bites Gradle 9 + foojay-resolver < 1.0 — revisit if the framework version bumps), iOS needs a simulator + a WebDriverAgent build + code signing. The two also have *different CI shapes* (see ci-and-release.md): Android is a **single combined job** (the JS bundle couples to the APK at runtime, so scaffold→build→Metro→specs must agree on one project), iOS is **two-stage** (heavy `xcodebuild` build → artifact → a light E2E runner with a prebuilt WDA, to keep `xcodebuild` off the runner that boots the Appium session). Bundling both into one E2E PR doubles the flaky surface a single review has to stabilise, and a red iOS leg blocks an already-green Android leg. So split E2E **one PR per OS**, cheaper-runner platform first — Android on `ubuntu-latest` (KVM-accelerated, no macOS-runner cost) before iOS on `macos-latest`. This turns the 5-PR split into a **6-PR split** (PR4 E2E-Android → PR5 E2E-iOS → PR6 Ship); when iOS is a deliberate fast-follow you can frame it as PR4 + PR4.5 instead. Keep the e2e *fixture app* (one app, both platforms) in the Feature-Complete PR as usual — only the per-platform CI-build-and-run splits. If the framework needs an architecture matrix (RN's Paper + Fabric — framework-specific, not universal), it rides on **both** legs. **Gate each mobile E2E leg as required from its first PR** via the single aggregated "CI Status" check (so branch protection needn't change): consistent with the repo's no-allow-failure stance — a leg that can't be stabilised is *removed*, never left informational (the Electrobun precedent: Linux/Windows e2e dropped, not allow-failure). **Flag the user before opening the first mobile-CI PR** — it's the highest-risk leg and the platform-scope + gating call is theirs. (React Native is the worked example: Android-first required E2E, iOS sim + WDA as the fast-follow.)
 
 The 6-PR split, mirroring the tables above:
 
 | PR | Branch (off main) | Scope |
 |---|---|---|
 | **PR1–PR3** | `…-foundation` / `…-mvp` / `…-feature-complete` | As in the 5-PR split (fixture app for **both** platforms lands in PR3). |
-| **PR4: E2E (cheaper runner)** | `feat/<service>-e2e-android` (off PR3) | Android emulator CI (ubuntu, KVM) + reusable workflows + e2e specs + `wdio.<framework>.conf.ts` (android) + headless. Required gate. |
-| **PR5: E2E (costlier runner)** | `feat/<service>-e2e-ios` (off PR4) | iOS simulator CI (macos) + WebDriverAgent build + the same specs against iOS caps. Required gate. |
+| **PR4: E2E (cheaper runner)** | `feat/<service>-e2e-android` (off PR3) | Android emulator CI — a **single combined job** (ubuntu, KVM: scaffold native project → build APK → `adb reverse` → Metro → specs) + `_ci-e2e-<framework>.reusable.yml` + e2e specs + `wdio.<framework>.conf.ts` (android). Required gate. |
+| **PR5: E2E (costlier runner)** | `feat/<service>-e2e-ios` (off PR4) | iOS simulator CI — a **two-stage** `_ci-e2e-<framework>-ios.reusable.yml` (macOS: `xcodebuild` build job → `.app` artifact; E2E job with a prebuilt WDA) running the same specs against iOS caps. Required gate. |
 | **PR6: Ship** | `feat/<service>-ship` (off PR5) | Package-test fixture, full docs, complete CI gates, release pipeline. |
 
 ## Common gotchas
@@ -352,6 +416,13 @@ The 6-PR split, mirroring the tables above:
 8. **(Wry) gitignore Rust artefacts.** `packages/*/target/` and `packages/*/Cargo.lock` in root `.gitignore` — once caused a 42 MB accidental commit.
 9. **(Wry) Rust env-var tests** use `unsafe { std::env::set_var(...) }` (2024 edition). Keep them in one `mod tests` or clean up to avoid parallel interference.
 10. **Async `LogWriter.close()`.** `@wdio/native-core`'s `LogWriter.close()` is async — it calls `stream.end(callback)` and waits for the flush. Launchers must `await closeLogWriter(...)` in `onComplete`, and tests exercising that path must mock `end: vi.fn((cb?) => cb?.())` so the promise resolves. Porting a synchronous Tauri-style `close()` caller without awaiting silently hangs the test.
+11. **(Mobile) `@wdio/appium-service` is a runner devDependency, not a service dep.** Compose it at `services: ['appium', '<framework>']` in the config; never add it to the service `package.json`. The service depends only on the `@wdio/native-*` packages + `webdriverio`.
+12. **(Mobile/Hermes) `execute`/`mock` must be synchronous.** Hermes can't compile `async` source (Metro/Babel strips it before Hermes; the polyfilled `Promise` won't unwrap via CDP `awaitPromise`), so the eval wrapper — and user callbacks — are synchronous IIFEs. A Tier-1 channel over a different engine may not share this constraint; confirm in the spike.
+13. **(Mobile) gate on the capability's platform, never `process.platform`.** One host drives both OSes over Appium. Read `platformName` / the service `platform` option so the launcher tests can exercise both branches.
+14. **(Mobile/Hermes) the JS-realm inspector dies on backgrounding.** Connect **lazily** on first `execute`/`mock` (an eager warm-up in `before` races the engine's registration), and treat `connected` as a **liveness** check (`isOpen`) so a dropped socket reconnects — a backgrounded app suspends the inspector.
+15. **(Mobile) the device-pool cursor must be monotonic.** Derive the round-robin index from a `nextIndex++`, not `claimed.size` — `size` shrinks on `release()` and would re-hand a freed index to a new worker while an earlier one still holds it.
+16. **(Mobile/iOS CI) keep heavy `xcodebuild` off the E2E runner.** Pre-build WebDriverAgent into an explicit `derivedDataPath` (cap `appium:derivedDataPath` + `usePrebuiltWDA`); a per-session WDA xcodebuild on the same runner as the Appium session starves appium-xcuitest's SDK probe and drops the `POST /session` socket. Mirror the two-stage iOS workflow.
+17. **(Mobile) `execute`/`mock` (and a self-rendered framework's find/tap) need an *instrumented, non-release* build.** The eval/finder channel only exists in a debug build: RN needs the Hermes debugger + Metro; Flutter needs the Dart VM Service + `enableFlutterDriverExtension()`. A release build has no channel — `execute`/`mock` silently have nothing to attach to. This shapes the fixture and the CI build step (build *debug*, expose the debug/VM port), so decide it in the spike, not late.
 
 ## Verification checklist (per PR)
 
@@ -366,5 +437,6 @@ The 6-PR split, mirroring the tables above:
 - **CDP** — `packages/electron-service/` + `packages/electron-cdp-bridge/`. The reference for any new CDP-based service.
 - **Wry / plugin system** — `packages/tauri-service/` + `packages/tauri-plugin/` (execute/mock) + `packages/tauri-plugin-webdriver/` (`tauri-plugin-wdio-webdriver`, embedded server). Mature; all providers (external, embedded, CrabNebula), multiremote, browser mode. The reference for the **plugin-route embedded provider**.
 - **Wry / no plugin system (bridge)** — `packages/dioxus-service/` + `dioxus-bridge` / `dioxus-embedded-driver` / `dioxus-driver`. The reference for the **bridge-route embedded provider** and for frameworks without a plugin system.
+- **Mobile / Appium** — `packages/react-native-service/` + `e2e/wdio.react-native.conf.ts` + the two `.github/workflows/_ci-e2e-react-native*.reusable.yml`. The reference for any Appium-driven mobile service; the worked example of the **Hermes-CDP Tier-1** JS-realm sub-axis (caps mutation, device pool, contexts, `mobile: deepLink`, dual-arch E2E). Types: `packages/native-types/src/react-native.ts`.
 - **Plan files** — `~/.claude/plans/<plan>.md`. Start every service with a plan capturing Strategy, Package layout, Phasing, Risks, Open decisions.
 - **Spike findings** — `spike/FINDINGS.md`.

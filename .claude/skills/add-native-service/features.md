@@ -1,31 +1,52 @@
 # Feature inventory — converge on one surface
 
-**Guiding principle: every service should expose as close to an identical API and feature surface as possible.** A user who knows `@wdio/electron-service` should be able to move to `@wdio/tauri-service` or a new service with minimal relearning. Mocking is the template — it's already standardised across all three services, and new features should be designed the same way: one shape, same method names, same option names, same semantics.
+**Guiding principle: every service should expose as close to an identical API and feature surface as possible.** A user who knows `@wdio/electron-service` should be able to move to `@wdio/tauri-service`, `@wdio/react-native-service`, or a new service with minimal relearning. Mocking is the template — it's already standardised across every service, and new features should be designed the same way: one shape, same method names, same option names, same semantics.
 
 So the default answer to "should this service have feature X?" is **yes, with the same surface as the others**. You only omit a standard feature when the framework genuinely lacks the underlying concept — and then you document it as a known gap, not a design choice. Framework-specific work is *additive* (extra methods on top of the shared surface), never a divergent reinvention of something that already has a standard shape.
 
 ## The standard `browser.<framework>.*` surface
 
-| Method | Standard? | Electron | Tauri | Dioxus |
-|---|---|---|---|---|
-| `execute(script, …args)` | ✅ every service | ✅ | ✅ | ✅ |
-| `mock(target)` | ✅ every service | ✅ | ✅ | ✅ |
-| `clearAllMocks` / `resetAllMocks` / `restoreAllMocks` | ✅ every service | ✅ | ✅ | ✅ |
-| `isMockFunction` | ✅ every service | ✅ | ✅ | ✅ |
-| `triggerDeeplink(url)` | ✅ every service | ✅ | ✅ | ✅ |
-| `switchWindow` / `listWindows` | ✅ standard multi-window API | ⚠️ gap¹ | ✅ | ✅ |
-| `emitEvent(...)` | ✅ where an event bus exists | ✅ | ✅ | ⚠️ gap² |
-| `mockAll(apiName)` / class mock | extension (object-API frameworks) | ✅ | — | — |
+| Method | Standard? | Electron | Tauri | Dioxus | React Native |
+|---|---|---|---|---|---|
+| `execute(script, …args)` | ✅ every service | ✅ | ✅ | ✅ | ✅ |
+| `mock(target)` | ✅ every service | ✅ | ✅ | ✅ | ✅ |
+| `clearAllMocks` / `resetAllMocks` / `restoreAllMocks` | ✅ every service | ✅ | ✅ | ✅ | ✅ |
+| `isMockFunction` | ✅ every service | ✅ | ✅ | ✅ | ✅ |
+| `triggerDeeplink(url)` | ✅ every service | ✅ | ✅ | ✅ | ✅ |
+| `switchWindow` / `listWindows` | ✅ standard multi-window API | ⚠️ gap¹ | ✅ | ✅ | ✅ contexts³ |
+| `emitEvent(...)` | ✅ where an event bus exists | ✅ | ✅ | ⚠️ gap² | ✅ ⁴ |
+| `mockAll(apiName)` / class mock | extension (object-API frameworks) | ✅ | — | — | — |
 
 ¹ Electron currently exposes `windowHandle` + automatic window focus instead of `switchWindow`/`listWindows`. Treat this as a **known divergence to converge**, not a template — a new multi-window service should implement `switchWindow`/`listWindows` (the Wry standard).
 ² Dioxus has no event bus today, so it omits `emitEvent`. Documented gap, not a deliberate exclusion.
+³ React Native realises `switchWindow`/`listWindows` over **Appium contexts** (`NATIVE_APP` ↔ `WEBVIEW_*`) — the cleanly-converged form of the same surface Electron still diverges from. Same API, mobile semantics.
+⁴ React Native's `emitEvent` drives RN's `DeviceEventEmitter` over the Hermes JS-realm bridge.
+
+## Mocking — the two-tier doctrine
+
+Mocking is always the **same Vitest-like surface** (`mock`, `clearAllMocks`, `resetAllMocks`, `restoreAllMocks`, `isMockFunction`) with the two-process inner/outer split (inner intercepts in-app, outer for assertions, one-way `update()` sync). What varies by framework is only the *inner* mechanism — two tiers:
+
+- **Tier 1 — transparent JS-eval injection.** The service rewrites the target function in the app's scripting realm through an eval channel: a `@wdio/native-spy` outer mock in the test process + an inner script-builder recorder installed into the realm. Used by every desktop service (CDP `Runtime.evaluate` / Wry `execute`) **and** React Native (Hermes via Metro inspector, recorder under `globalThis.__WDIO_RN_MOCKS__`). The app needs no cooperation — the eval channel is enough.
+- **Tier 2 — cooperative opt-in contract.** When the target can't be **transparently rewritten in place** (the channel can run code but offers no monkeypatch seam), the app/fixture exposes named hooks the test toggles (mock baked in, opt-in). This is Flutter's path: the Dart VM Service has an `evaluate` RPC but no in-place function replacement, so the *fixture* cooperates for `mock`. It's a **`mock`-only** boundary — **`execute` still works**, over that same `evaluate` RPC. Proven in the Flutter spike.
+
+**Decision rule:** *can you transparently rewrite the target through an eval channel?* Yes → Tier 1; no → Tier 2 (an eval channel may still exist for `execute` — e.g. Dart's `evaluate` RPC — it just can't monkeypatch). This is a **`mock`-mechanism** split only; the user-facing surface is identical either way — never invent a different mocking idiom. See `agent-os/standards/global/mock-architecture.md` for the inner/outer split.
+
+## Mobile reinterpretations of the standard surface
+
+Mobile ships the **same** Tier-1 standard surface, re-expressed in Appium terms (none of these is a new idiom — match the existing method/option names):
+
+- **`switchWindow` / `listWindows` = Appium contexts.** `getContexts()` (normalised to id strings — Appium 2 returns plain strings *or* `{ id }` objects) and `switchContext`, over `NATIVE_APP` ↔ `WEBVIEW_*`. The mobile realisation of the multi-window surface.
+- **`triggerDeeplink` = `mobile: deepLink`** (both drivers, since Appium 2) reading `appium:appPackage`/`appium:bundleId`; Android falls back to `mobile: shell` `am start` where the driver lacks `mobile: deepLink`. Contrast the desktop OS-protocol spawn (`rundll32`/`open`/`xdg-open`) — mobile does not use it.
+- **Log capture = two channels under `captureBackendLogs`.** Native device logs (`getLogs('logcat'|'syslog')`, drained per-`afterTest` so lines attribute to the test) **plus** JS console over CDP `Runtime.consoleAPICalled`. Same gate, two sources.
+- **Multiremote + per-worker parallelism = a device pool.** Where Wry services give each worker its own driver/port via `PortManager`/`DriverPool`, mobile claims one device per worker round-robin from a configured pool (`DeviceManager`). Same universal feature, mobile mechanism.
+- **Find/tap is NOT uniform across mobile** (the one place mobile *doesn't* converge cleanly). A **native-widget** framework (RN) surfaces `testID` as `accessibilityId`/`resource-id`, so standard `browser.$` just works and the service adds nothing. A **self-rendered** framework (Flutter) paints a canvas its widgets don't reach the native a11y tree from — find/tap goes through the framework's own finder protocol (Flutter: `ByValueKey`/`ByText` in the `FLUTTER` context), and `getText` needs normalising (iOS `value` vs Android `text`). This is the Step 0 "sub-axis 1" split; the service may absorb the finder/context boilerplate but the mechanism stays framework-specific.
 
 ## Tier 1 — Standard surface (implement the same shape in every service)
 
 These are the baseline. Match method names, option names, and semantics to the existing services exactly.
 
 - **`execute(script, …args)`** — run a function in the app context with the framework API handle injected. CDP: `Runtime.evaluate`/`callFunctionOn`; Wry: WebDriver `execute` / the bridge `wdio://` invoke.
-- **Mocking** — the canonical example of standardisation. Vitest-like surface (`mock`, `clearAllMocks`, `resetAllMocks`, `restoreAllMocks`, `isMockFunction`) over `@wdio/native-spy`, with the two-process inner/outer split (inner intercepts in-app, outer for assertions, one-way `update()` sync). New services reuse this design wholesale — see `agent-os/standards/global/mock-architecture.md`. Do not invent a different mocking idiom.
+- **Mocking** — the canonical example of standardisation. Vitest-like surface (`mock`, `clearAllMocks`, `resetAllMocks`, `restoreAllMocks`, `isMockFunction`) over `@wdio/native-spy`, with the two-process inner/outer split (inner intercepts in-app, outer for assertions, one-way `update()` sync). New services reuse this design wholesale; the *inner* mechanism comes in two tiers (see "Mocking — the two-tier doctrine" above) — see also `agent-os/standards/global/mock-architecture.md`. Do not invent a different mocking idiom.
 - **Deeplink / protocol testing** — `triggerDeeplink(url)`; OS-level trigger (`rundll32`/`xdg-open`/`open`) is portable, only the app-side handler differs.
 - **Multi-window** — `switchWindow(label)` / `listWindows()` is the standard. Wry tracks a label registry in the bridge (`window_state`); a CDP service maps it onto CDP targets. Implement this shape whenever the framework has addressable windows/targets.
 - **Log capture** — backend (main/native) + frontend (renderer/webview), gated by `captureBackendLogs` / `captureFrontendLogs` with per-stream level options. `logForwarder`/`logParser` stay framework-local (formats differ); only `shouldLog` is shared.
