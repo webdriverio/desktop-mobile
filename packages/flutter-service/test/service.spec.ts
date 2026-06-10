@@ -109,4 +109,21 @@ describe('FlutterWorkerService', () => {
     await service.afterTest();
     expect(getLogs).toHaveBeenCalledWith('logcat');
   });
+
+  it('emitEvent should drive the VM Service', async () => {
+    const browser = {} as WebdriverIO.Browser & { flutter?: { emitEvent: (n: string, p?: unknown) => Promise<void> } };
+    const service = new FlutterWorkerService({}, cap);
+    await service.before(cap, [], browser);
+    await expect(browser.flutter?.emitEvent('ev', { a: 1 })).resolves.toBeUndefined();
+  });
+
+  it('byValueKey / byText should return element handles', async () => {
+    const browser = {} as WebdriverIO.Browser & {
+      flutter?: { byValueKey: (k: string) => { tap: unknown }; byText: (t: string) => { getText: unknown } };
+    };
+    const service = new FlutterWorkerService({}, cap);
+    await service.before(cap, [], browser);
+    expect(typeof browser.flutter?.byValueKey('k').tap).toBe('function');
+    expect(typeof browser.flutter?.byText('t').getText).toBe('function');
+  });
 });
