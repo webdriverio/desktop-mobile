@@ -91,7 +91,6 @@ export async function createFlutterMock(
     (mock as unknown as { _nativeClear: () => void })._nativeClear = rawClear;
     (mock as unknown as { _clearEpoch: { v: number } })._clearEpoch = clearEpoch;
   }
-  const originalMock = outerMock.mock;
 
   const ext = async (method: string, params: Record<string, unknown> = {}): Promise<unknown> => {
     const client = await getClient();
@@ -115,6 +114,9 @@ export async function createFlutterMock(
     if (clearEpoch.v !== epoch) {
       return mock;
     }
+    // Read outerMock.mock fresh here rather than caching it at construction — the vitest fn can
+    // swap its internal mock-state object (e.g. on reset), so a cached reference could go stale.
+    const originalMock = outerMock.mock;
     (originalMock.calls as unknown[][]).length = 0;
     (originalMock.results as { type: string; value: unknown }[]).length = 0;
     (originalMock.invocationCallOrder as number[]).length = 0;

@@ -132,6 +132,16 @@ class WdioMockRegistry {
     return value;
   }
 
+  /// Write an interceptAsync result back by its reserved index, tolerating a clearMock/reset that
+  /// shrank the buffer while real() was awaited — the bare `results[index] = …` would otherwise
+  /// throw a RangeError. A clear means the call was intentionally discarded, so dropping the late
+  /// write-back is the correct outcome.
+  void _writeResult(_MockEntry entry, int index, Map<String, dynamic> result) {
+    if (index < entry.results.length) {
+      entry.results[index] = result;
+    }
+  }
+
   /// Route an asynchronous (Future-returning) seam: supports `return`, `resolve`, `reject`.
   Future<T> interceptAsync<T>(String target, List<dynamic> args, Future<T> Function() real) async {
     final entry = _entry(target);
@@ -149,19 +159,19 @@ class WdioMockRegistry {
     if (spec == null) {
       try {
         final value = await real();
-        entry.results[index] = {'type': 'return', 'value': value};
+        _writeResult(entry, index, {'type': 'return', 'value': value});
         return value;
       } catch (error) {
-        entry.results[index] = {'type': 'throw', 'value': error.toString()};
+        _writeResult(entry, index, {'type': 'throw', 'value': error.toString()});
         rethrow;
       }
     }
     if (spec['kind'] == 'reject') {
-      entry.results[index] = {'type': 'throw', 'value': spec['value']};
+      _writeResult(entry, index, {'type': 'throw', 'value': spec['value']});
       throw _WdioMockException(spec['value']);
     }
     final value = _castMockValue<T>(spec['value']);
-    entry.results[index] = {'type': 'return', 'value': value};
+    _writeResult(entry, index, {'type': 'return', 'value': value});
     return value;
   }
 

@@ -68,7 +68,10 @@ async function scrapeVmServiceUrl(
   let entries: Array<{ message?: string }>;
   try {
     entries = (await browser.getLogs(logType)) as Array<{ message?: string }>;
-  } catch {
+  } catch (error) {
+    // Surface *why* the log scrape failed (e.g. the driver doesn't expose this log type) at debug
+    // level instead of silently returning undefined and masking the discovery-failure cause.
+    log.debug(`getLogs('${logType}') failed during VM-service discovery: ${(error as Error).message}`);
     return undefined;
   }
   // Keep the LAST match, not the first: getLogs returns entries oldest-first, and after a
