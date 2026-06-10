@@ -13,7 +13,7 @@
     "clean:dist": "node ../../../scripts/clean-dist.ts ./dist"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.2",
     "@wdio/cli": "catalog:default",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",

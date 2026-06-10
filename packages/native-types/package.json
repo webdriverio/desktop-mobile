@@ -35,11 +35,11 @@
   "devDependencies": {
     "@electron-forge/shared-types": "^7.11.2",
     "@electron/packager": "^18.4.4",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.2",
     "@wdio/globals": "catalog:default",
     "@wdio/native-spy": "workspace:*",
     "@wdio/types": "catalog:default",
-    "builder-util": "^26.8.0",
+    "builder-util": "^26.15.0",
     "electron": "catalog:default",
     "shx": "^0.4.0",
     "typescript": "^5.9.3",
