@@ -111,7 +111,7 @@ jobs:
       # Keyed identically to the build job's npm cache so the first fetch is already warm —
       # the cli init downloads the same tarballs for the same pinned RN version.
       - name: 💾 Restore npm download cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.npm
           key: npm-rn-${{ inputs.rn-version }}-v1
@@ -180,7 +180,7 @@ jobs:
       # cryptic E2E failures rather than a clean miss-and-rebuild.
       - name: 💾 Restore WDA DerivedData cache
         id: wda-cache
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ${{ env.RN_WDA_DD }}
           key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v1
