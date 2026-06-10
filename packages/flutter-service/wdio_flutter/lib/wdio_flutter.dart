@@ -24,6 +24,18 @@ import 'dart:developer' as developer;
 
 int _invocationCounter = 0;
 
+/// Cast a JSON-decoded mock value to the seam's return type `T`, coercing between Dart
+/// numeric types first: `jsonDecode` yields `int` for whole numbers, so a `double`-typed
+/// seam would otherwise hit `int as double` — which throws in Dart. Other types fall
+/// through to a plain cast.
+T _castMockValue<T>(dynamic value) {
+  if (value is num) {
+    if (T == double) return value.toDouble() as T;
+    if (T == int) return value.toInt() as T;
+  }
+  return value as T;
+}
+
 class _MockEntry {
   /// Default mocked value (`{kind, value}`), or null when not mocked.
   Map<String, dynamic>? value;
@@ -79,7 +91,7 @@ class WdioMockRegistry {
       entry.results.add({'type': 'throw', 'value': spec['value']});
       throw _WdioMockException(spec['value']);
     }
-    final value = spec['value'] as T;
+    final value = _castMockValue<T>(spec['value']);
     entry.results.add({'type': 'return', 'value': value});
     return value;
   }
@@ -103,7 +115,7 @@ class WdioMockRegistry {
       entry.results.add({'type': 'throw', 'value': spec['value']});
       throw _WdioMockException(spec['value']);
     }
-    final value = spec['value'] as T;
+    final value = _castMockValue<T>(spec['value']);
     entry.results.add({'type': 'return', 'value': value});
     return value;
   }

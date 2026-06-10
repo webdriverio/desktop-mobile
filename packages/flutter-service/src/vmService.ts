@@ -202,11 +202,14 @@ export class VmServiceClient {
       return;
     }
     await new Promise<void>((resolve) => {
-      const done = () => resolve();
-      ws.once('close', done);
+      // Fallback so teardown doesn't hang on a half-dead socket; cleared on a clean close so the
+      // timer doesn't linger (keeping the event loop alive ~1s) on the happy path.
+      const timer = setTimeout(resolve, 1000);
+      ws.once('close', () => {
+        clearTimeout(timer);
+        resolve();
+      });
       ws.close();
-      // Don't hang teardown on a half-dead socket.
-      setTimeout(done, 1000);
     });
   }
 }
