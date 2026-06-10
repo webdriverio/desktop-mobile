@@ -1,0 +1,22 @@
+name: wdio_flutter
+description: >-
+  WebdriverIO Flutter service contract — opt-in Dart VM service extensions (ext.wdio.*)
+  and a mock registry your app's DI seams route through, driven by @wdio/flutter-service
+  over the Dart VM Service. The app-side half of browser.flutter.mock.*.
+version: 1.0.0
+homepage: https://github.com/webdriverio/desktop-mobile/tree/main/packages/flutter-service/wdio_flutter
+repository: https://github.com/webdriverio/desktop-mobile
+issue_tracker: https://github.com/webdriverio/desktop-mobile/issues
+topics:
+  - testing
+  - webdriverio
+  - mocking
+  - appium
+
+# Pure Dart (dart:developer only) — no Flutter dependency, so it works in any Flutter app.
+environment:
+  sdk: ^3.5.0
+
+dev_dependencies:
+  lints: ^4.0.0
+  test: ^1.25.0
