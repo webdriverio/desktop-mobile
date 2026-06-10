@@ -130,6 +130,11 @@ jobs:
           cd "$FIXTURE_DIR"
           flutter create --org com.wdio --project-name wdio_flutter_fixture --platforms=android .
           git checkout -- lib/main.dart pubspec.yaml
+          # The fixture has no native (C/C++) code, so it doesn't need the NDK. flutter create still
+          # writes `ndkVersion = flutter.ndkVersion`, which makes Gradle auto-download the NDK (~1GB)
+          # at build time — a flaky fetch that fails configuration with "Archive is not a ZIP archive"
+          # on a truncated download. Strip the line so no NDK is required.
+          find android -name 'build.gradle*' -exec sed -i '/ndkVersion/d' {} +
           flutter pub get
           flutter build apk --debug --target-platform android-x64
           echo "FLUTTER_APP_PATH=$FIXTURE_DIR/build/app/outputs/flutter-apk/app-debug.apk" >> "$GITHUB_ENV"
