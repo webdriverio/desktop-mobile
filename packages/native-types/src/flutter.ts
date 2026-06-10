@@ -101,6 +101,44 @@ export interface FlutterServiceAPI {
 
   /** List the available Appium contexts. */
   listWindows: () => Promise<string[]>;
+
+  /**
+   * Emit an event into the app's `wdio_flutter` event bus (the app opts in by listening to
+   * `wdioEvents.stream`). The conditional convergent feature — present because Flutter has an
+   * event-bus concept via the contract.
+   *
+   * @example
+   * ```js
+   * await browser.flutter.emitEvent('deeplink', { path: '/profile' });
+   * ```
+   */
+  emitEvent: (name: string, payload?: unknown) => Promise<void>;
+
+  /**
+   * Find a Flutter widget by its `ValueKey` (the recommended, stable selector). Returns a
+   * handle for tap/getText; the find runs in the `FLUTTER` context (auto-switched).
+   *
+   * @example
+   * ```js
+   * await browser.flutter.byValueKey('increment').tap();
+   * const value = await browser.flutter.byValueKey('counter').getText();
+   * ```
+   */
+  byValueKey: (key: string | number) => FlutterElement;
+
+  /** Find a Flutter widget by its rendered text. See {@link byValueKey}. */
+  byText: (text: string) => FlutterElement;
+}
+
+/**
+ * A handle to a Flutter widget located via {@link FlutterServiceAPI.byValueKey} /
+ * {@link FlutterServiceAPI.byText}, driven through appium-flutter-driver.
+ */
+export interface FlutterElement {
+  /** Tap the widget. */
+  tap: () => Promise<void>;
+  /** Read the widget's text. */
+  getText: () => Promise<string>;
 }
 
 /**

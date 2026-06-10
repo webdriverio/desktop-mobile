@@ -4,6 +4,9 @@ export const SERVICE_NAME = 'flutter-service';
 /** WDIO capability key carrying per-capability service options. */
 export const CUSTOM_CAPABILITY_NAME = 'wdio:flutterServiceOptions';
 
+/** The native Appium context — deeplinks are native commands and must run here. */
+export const NATIVE_CONTEXT = 'NATIVE_APP';
+
 /** Default host of the Dart VM Service used for the `execute`/`mock` attach. */
 export const DEFAULT_VM_SERVICE_HOST = 'localhost';
 

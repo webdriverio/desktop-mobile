@@ -68,6 +68,7 @@ export type {
 export type {
   FlutterBrowserExtension,
   FlutterCapabilities,
+  FlutterElement,
   FlutterMock,
   FlutterMockInstance,
   FlutterResult,
