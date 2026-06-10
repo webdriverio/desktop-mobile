@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { classifyChanges, classifyFile, discoverServices } from '../../scripts/detect-changes.ts';
 
-const SERVICES = ['dioxus', 'electrobun', 'electron', 'react-native', 'tauri'];
+const SERVICES = ['dioxus', 'electrobun', 'electron', 'flutter', 'react-native', 'tauri'];
 
 function decide(files: string[], forceAll = false) {
   return classifyChanges(files, SERVICES, { forceAll });
@@ -86,6 +86,13 @@ describe('classifyFile', () => {
     ['fixtures/package-tests/react-native-app/wdio.conf.ts', 'react-native'],
     ['.github/workflows/_ci-e2e-react-native-all-providers.reusable.yml', 'react-native'],
     ['.github/workflows/_ci-build-react-native-e2e-app.reusable.yml', 'react-native'],
+    // flutter: service src, the nested wdio_flutter Dart contract, e2e, fixtures, workflows.
+    ['packages/flutter-service/src/launcher.ts', 'flutter'],
+    ['packages/flutter-service/wdio_flutter/lib/wdio_flutter.dart', 'flutter'],
+    ['e2e/wdio.flutter.conf.ts', 'flutter'],
+    ['e2e/test/flutter/api.spec.ts', 'flutter'],
+    ['fixtures/e2e-apps/flutter/lib/main.dart', 'flutter'],
+    ['.github/workflows/_ci-e2e-flutter.reusable.yml', 'flutter'],
   ])('should classify %s as %s', (file, expected) => {
     expect(classifyFile(file, SERVICES)).toBe(expected);
   });
@@ -100,13 +107,40 @@ describe('classifyChanges decisions', () => {
 
   it('should run only electron for an electron src change', () => {
     const d = decide(['packages/electron-service/src/session.ts']);
-    expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: true, 'react-native': false, tauri: false });
+    expect(d.runs).toEqual({
+      dioxus: false,
+      electrobun: false,
+      electron: true,
+      flutter: false,
+      'react-native': false,
+      tauri: false,
+    });
     expect(d.lintOnly).toBe(false);
   });
 
   it('should run only react-native for a react-native src change', () => {
     const d = decide(['packages/react-native-service/src/launcher.ts']);
-    expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: false, 'react-native': true, tauri: false });
+    expect(d.runs).toEqual({
+      dioxus: false,
+      electrobun: false,
+      electron: false,
+      flutter: false,
+      'react-native': true,
+      tauri: false,
+    });
+    expect(d.lintOnly).toBe(false);
+  });
+
+  it('should run only flutter for a flutter src change', () => {
+    const d = decide(['packages/flutter-service/src/launcher.ts']);
+    expect(d.runs).toEqual({
+      dioxus: false,
+      electrobun: false,
+      electron: false,
+      flutter: true,
+      'react-native': false,
+      tauri: false,
+    });
     expect(d.lintOnly).toBe(false);
   });
 
@@ -125,7 +159,14 @@ describe('classifyChanges decisions', () => {
 
   it('should run only tauri for the tauri-only script', () => {
     const d = decide(['scripts/update-tauri-version.ts']);
-    expect(d.runs).toEqual({ dioxus: false, electrobun: false, electron: false, 'react-native': false, tauri: true });
+    expect(d.runs).toEqual({
+      dioxus: false,
+      electrobun: false,
+      electron: false,
+      flutter: false,
+      'react-native': false,
+      tauri: true,
+    });
   });
 
   it('should run everything for a cross-service script', () => {
