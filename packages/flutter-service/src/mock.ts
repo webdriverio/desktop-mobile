@@ -152,9 +152,12 @@ export async function createFlutterMock(
     try {
       await ext('ext.wdio.restoreMock');
     } finally {
+      // Delete from the store in the finally (not after): if the VM call throws (socket drop),
+      // leaving the entry behind would let a later browser.flutter.mock(target) re-use this
+      // cleared mock while the Dart seam still intercepts — a fresh mock() is the correct recovery.
       outerClear();
+      store.deleteMock(target);
     }
-    store.deleteMock(target);
     return mock;
   };
 

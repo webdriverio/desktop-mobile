@@ -70,6 +70,17 @@ describe('createFlutterMock', () => {
     expect(store.getMock('Svc.m')).toBeUndefined();
   });
 
+  it('mockRestore should delete the store entry even when the VM call fails (no ghost entry)', async () => {
+    const { client } = makeClient();
+    (client.callServiceExtension as ReturnType<typeof vi.fn>).mockImplementation((method: string) =>
+      method === 'ext.wdio.restoreMock' ? Promise.reject(new Error('socket drop')) : Promise.resolve({ ok: true }),
+    );
+    const store = new FlutterMockStore();
+    const mock = await createFlutterMock('Svc.m', () => Promise.resolve(client), store);
+    await expect(mock.mockRestore()).rejects.toThrow('socket drop');
+    expect(store.getMock('Svc.m')).toBeUndefined();
+  });
+
   it('mockClear should call ext.wdio.clearMock', async () => {
     const { client, calls } = makeClient();
     const mock = await createFlutterMock('Svc.m', () => Promise.resolve(client), new FlutterMockStore());
