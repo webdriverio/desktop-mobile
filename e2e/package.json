@@ -63,7 +63,7 @@
     "@wdio/mocha-framework": "catalog:default",
     "@wdio/native-utils": "workspace:*",
     "@wdio/tauri-service": "link:../packages/tauri-service",
-    "@wdio/visual-service": "^9.2.2",
+    "@wdio/visual-service": "^9.2.3",
     "@wdio/xvfb": "catalog:default",
     "electron": "catalog:default",
     "tsx": "^4.22.4",
