@@ -42,6 +42,11 @@ export class VmServiceClient {
   #ws: WebSocket | undefined;
   #nextId = 0;
   #pending = new Map<string, PendingCall>();
+  // Per-connection cache of the isolate + root-library ids (stable for one connection);
+  // avoids re-running getVM/getIsolate on every execute/mock. Cleared when the socket drops —
+  // a reconnect always makes a fresh client, so the cache can't outlive its connection.
+  #cachedIsolateId: string | undefined;
+  #cachedRootLibraryId: string | undefined;
   readonly #url: string;
   readonly #rpcTimeoutMs: number;
 
@@ -107,6 +112,8 @@ export class VmServiceClient {
     });
     ws.on('close', () => {
       this.#failAllPending(new Error('Dart VM Service socket closed'));
+      this.#cachedIsolateId = undefined;
+      this.#cachedRootLibraryId = undefined;
       if (this.#ws === ws) {
         this.#ws = undefined;
       }
@@ -144,11 +151,15 @@ export class VmServiceClient {
 
   /** The main (root) isolate id — the target for service-extension calls (`ext.wdio.*`). */
   async getMainIsolateId(): Promise<string> {
+    if (this.#cachedIsolateId) {
+      return this.#cachedIsolateId;
+    }
     const vm = await this.getVM();
     const id = vm.isolates[0]?.id;
     if (!id) {
       throw new Error('No Dart isolate found on the VM Service');
     }
+    this.#cachedIsolateId = id;
     return id;
   }
 
@@ -168,21 +179,23 @@ export class VmServiceClient {
 
   /** Resolve the main isolate id + its root library id (the `execute` evaluation target). */
   async resolveRootLibrary(): Promise<{ isolateId: string; rootLibraryId: string }> {
-    const vm = await this.getVM();
-    const isolateId = vm.isolates[0]?.id;
-    if (!isolateId) {
-      throw new Error('No Dart isolate found on the VM Service');
+    const isolateId = await this.getMainIsolateId();
+    if (this.#cachedRootLibraryId) {
+      return { isolateId, rootLibraryId: this.#cachedRootLibraryId };
     }
     const isolate = await this.getIsolate(isolateId);
     const rootLibraryId = isolate.rootLib?.id;
     if (!rootLibraryId) {
       throw new Error(`Dart isolate ${isolateId} exposes no root library`);
     }
+    this.#cachedRootLibraryId = rootLibraryId;
     return { isolateId, rootLibraryId };
   }
 
   async close(): Promise<void> {
     this.#failAllPending(new Error('Dart VM Service client closed'));
+    this.#cachedIsolateId = undefined;
+    this.#cachedRootLibraryId = undefined;
     const ws = this.#ws;
     this.#ws = undefined;
     if (!ws) {

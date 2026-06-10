@@ -87,6 +87,20 @@ describe('FlutterWorkerService', () => {
     await expect(service.beforeTest()).resolves.toBeUndefined();
   });
 
+  it('should open only one connection for concurrent ops (single-flight guard)', async () => {
+    const { VmServiceClient } = (await import('../src/vmService.js')) as unknown as {
+      VmServiceClient: { mock: { calls: unknown[] }; mockClear: () => void };
+    };
+    VmServiceClient.mockClear();
+    const browser = {} as WebdriverIO.Browser & {
+      flutter?: { execute: (s: string) => Promise<unknown>; mock: (t: string) => Promise<unknown> };
+    };
+    const service = new FlutterWorkerService({}, cap);
+    await service.before(cap, [], browser);
+    await Promise.all([browser.flutter?.execute('a'), browser.flutter?.mock('Svc.m')]);
+    expect(VmServiceClient.mock.calls.length).toBe(1);
+  });
+
   it('afterTest should forward device logs when captureBackendLogs is set', async () => {
     const getLogs = vi.fn().mockResolvedValue([{ message: 'x', level: 'INFO', timestamp: 1 }]);
     const browser = { getLogs } as unknown as WebdriverIO.Browser;

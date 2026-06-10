@@ -163,27 +163,46 @@ void enableWdioMocking() {
   _enabled = true;
 
   developer.registerExtension('ext.wdio.setMock', (method, params) async {
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
     final spec = jsonDecode(params['value'] ?? '{}') as Map<String, dynamic>;
-    wdioRegistry.setMock(params['target']!, spec);
-    return developer.ServiceExtensionResponse.result(jsonEncode({'ok': true}));
+    wdioRegistry.setMock(target, spec);
+    return _ok();
   });
 
   developer.registerExtension('ext.wdio.getCalls', (method, params) async {
-    return developer.ServiceExtensionResponse.result(jsonEncode(wdioRegistry.getCalls(params['target']!)));
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    return developer.ServiceExtensionResponse.result(jsonEncode(wdioRegistry.getCalls(target)));
   });
 
   developer.registerExtension('ext.wdio.clearMock', (method, params) async {
-    wdioRegistry.clearMock(params['target']!);
-    return developer.ServiceExtensionResponse.result(jsonEncode({'ok': true}));
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    wdioRegistry.clearMock(target);
+    return _ok();
   });
 
   developer.registerExtension('ext.wdio.resetMock', (method, params) async {
-    wdioRegistry.resetMock(params['target']!);
-    return developer.ServiceExtensionResponse.result(jsonEncode({'ok': true}));
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    wdioRegistry.resetMock(target);
+    return _ok();
   });
 
   developer.registerExtension('ext.wdio.restoreMock', (method, params) async {
-    wdioRegistry.restoreMock(params['target']!);
-    return developer.ServiceExtensionResponse.result(jsonEncode({'ok': true}));
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    wdioRegistry.restoreMock(target);
+    return _ok();
   });
 }
+
+developer.ServiceExtensionResponse _ok() =>
+    developer.ServiceExtensionResponse.result(jsonEncode({'ok': true}));
+
+developer.ServiceExtensionResponse _missingParam(String name) =>
+    developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.invalidParams,
+      jsonEncode({'error': "missing required param '$name'"}),
+    );

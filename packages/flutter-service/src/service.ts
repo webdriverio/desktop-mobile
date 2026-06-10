@@ -59,35 +59,50 @@ export default class FlutterWorkerService {
     // first execute/mock is often the point at which it's discoverable. Mirrors the RN service's
     // ensureHermes lazy-(re)connect — also covers reconnect after the app is backgrounded (the
     // isolate suspends and the socket drops).
+    let connecting: Promise<VmServiceClient> | undefined;
     const ensureVmService = async (command: string): Promise<VmServiceClient> => {
       if (this.client?.connected) {
         return this.client;
       }
-      try {
-        if (!this.vmServiceUrl) {
-          this.vmServiceUrl = await discoverVmServiceUrl(browser, {
-            platform,
-            retries: VM_SERVICE_CONNECT_RETRIES,
-            intervalMs: VM_SERVICE_CONNECT_INTERVAL_MS,
-          });
+      // Single-flight: concurrent ops awaited during the connect window (e.g.
+      // `Promise.all([browser.flutter.execute(...), browser.flutter.mock(...)])`) must share ONE
+      // client — without this guard each opens its own VmServiceClient + adb-forward tunnel and
+      // only the last `this.client` assignment survives, leaking the rest for the session.
+      connecting ??= (async () => {
+        try {
+          // Drop a stale (disconnected) client before reconnecting so its socket doesn't linger.
+          const stale = this.client;
+          if (stale) {
+            await stale.close().catch(() => undefined);
+          }
+          if (!this.vmServiceUrl) {
+            this.vmServiceUrl = await discoverVmServiceUrl(browser, {
+              platform,
+              retries: VM_SERVICE_CONNECT_RETRIES,
+              intervalMs: VM_SERVICE_CONNECT_INTERVAL_MS,
+            });
+          }
+          const client = new VmServiceClient(this.vmServiceUrl);
+          await client.connect();
+          this.client = client;
+          // Re-wire existing mocks onto the new connection (reconnect path) while preserving
+          // the outer mock's call history.
+          for (const [target] of store.getMocks()) {
+            await createFlutterMock(target, client, store);
+          }
+          return client;
+        } catch (error) {
+          // Force a fresh discovery next time — a relaunch changes the VM-service URL/token.
+          this.vmServiceUrl = undefined;
+          throw new Error(
+            `browser.flutter.${command}: Dart VM Service is not connected (${(error as Error).message}). ` +
+              'Ensure the app is a debug/profile build with `enableFlutterDriverExtension()` and is foregrounded.',
+          );
+        } finally {
+          connecting = undefined;
         }
-        const client = new VmServiceClient(this.vmServiceUrl);
-        await client.connect();
-        this.client = client;
-        // Re-wire existing mocks onto the new connection (reconnect path) while preserving
-        // the outer mock's call history.
-        for (const [target] of store.getMocks()) {
-          await createFlutterMock(target, client, store);
-        }
-        return client;
-      } catch (error) {
-        // Force a fresh discovery next time — a relaunch changes the VM-service URL/token.
-        this.vmServiceUrl = undefined;
-        throw new Error(
-          `browser.flutter.${command}: Dart VM Service is not connected (${(error as Error).message}). ` +
-            'Ensure the app is a debug/profile build with `enableFlutterDriverExtension()` and is foregrounded.',
-        );
-      }
+      })();
+      return connecting;
     };
 
     const api: FlutterServiceAPI = {
