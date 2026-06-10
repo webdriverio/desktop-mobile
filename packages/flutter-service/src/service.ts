@@ -50,6 +50,9 @@ export default class FlutterWorkerService {
     const platform = (
       this.options.platform ?? (capabilities as { platformName?: string }).platformName
     )?.toLowerCase() as 'android' | 'ios' | undefined;
+    // The device pool stamps appium:udid per worker — pass it to adb forward so parallel
+    // Android workers each select their own emulator.
+    const udid = (capabilities as { 'appium:udid'?: string })['appium:udid'];
     this.platform = platform;
     this.browser = browser;
     this.store = new FlutterMockStore();
@@ -78,6 +81,7 @@ export default class FlutterWorkerService {
           if (!this.vmServiceUrl) {
             this.vmServiceUrl = await discoverVmServiceUrl(browser, {
               platform,
+              udid,
               // Honour the documented CI-pinning options: skip the log scrape when set.
               pinnedPort: this.options.vmServicePort,
               host: this.options.vmServiceHost,

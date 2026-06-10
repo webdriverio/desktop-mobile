@@ -28,7 +28,16 @@ describe('discoverVmServiceUrl', () => {
       { platform: 'android', adbForward },
     );
     expect(url).toBe('ws://127.0.0.1:5555/tok/ws');
-    expect(adbForward).toHaveBeenCalledWith(5555);
+    expect(adbForward).toHaveBeenCalledWith(5555, undefined);
+  });
+
+  it('should pass the udid to adb forward (parallel device pool)', async () => {
+    const adbForward = vi.fn().mockResolvedValue(undefined);
+    await discoverVmServiceUrl(
+      browserWithLogs([{ message: 'Dart VM service is listening on http://127.0.0.1:5555/tok/' }]),
+      { platform: 'android', udid: 'emulator-5556', adbForward },
+    );
+    expect(adbForward).toHaveBeenCalledWith(5555, 'emulator-5556');
   });
 
   it('should not adb-forward on iOS', async () => {
@@ -65,7 +74,7 @@ describe('discoverVmServiceUrl', () => {
     const browser = { getLogs } as unknown as WebdriverIO.Browser;
     const url = await discoverVmServiceUrl(browser, { platform: 'android', pinnedPort: 8181, adbForward });
     expect(url).toBe('ws://localhost:8181/ws');
-    expect(adbForward).toHaveBeenCalledWith(8181);
+    expect(adbForward).toHaveBeenCalledWith(8181, undefined);
     expect(getLogs).not.toHaveBeenCalled();
   });
 

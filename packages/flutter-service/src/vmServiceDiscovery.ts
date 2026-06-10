@@ -22,14 +22,19 @@ const log = createLogger(SERVICE_NAME, 'bridge');
 const execFileAsync = promisify(execFile);
 
 /** Forwards the device VM-service port to the host (Android). Injectable for tests. */
-export type AdbForward = (port: number) => Promise<void>;
+export type AdbForward = (port: number, udid?: string) => Promise<void>;
 
-const defaultAdbForward: AdbForward = async (port) => {
-  await execFileAsync('adb', ['forward', `tcp:${port}`, `tcp:${port}`]);
+const defaultAdbForward: AdbForward = async (port, udid) => {
+  // `-s <udid>` is required under the device pool: with >1 emulator a bare `adb forward` errors
+  // "more than one device/emulator", breaking VM-service connectivity on every worker but the first.
+  const selector = udid ? ['-s', udid] : [];
+  await execFileAsync('adb', [...selector, 'forward', `tcp:${port}`, `tcp:${port}`]);
 };
 
 export interface VmServiceDiscoveryOptions {
   platform?: 'android' | 'ios';
+  /** Device udid (from `appium:udid`) — selects the target emulator for `adb forward` (device pool). */
+  udid?: string;
   /**
    * Explicit VM-Service port (from `vmServicePort` / `appium:dartVmServicePort`). When set,
    * the log scrape is skipped and the URL is built directly — requires the app launched with
@@ -99,7 +104,7 @@ export async function discoverVmServiceUrl(
   if (options.pinnedPort) {
     if (platform === 'android') {
       try {
-        await adbForward(options.pinnedPort);
+        await adbForward(options.pinnedPort, options.udid);
       } catch (error) {
         log.warn(`adb forward tcp:${options.pinnedPort} failed (continuing): ${(error as Error).message}`);
       }
@@ -115,7 +120,7 @@ export async function discoverVmServiceUrl(
       const port = portFromUrl(httpUrl);
       if (platform === 'android' && port) {
         try {
-          await adbForward(port);
+          await adbForward(port, options.udid);
         } catch (error) {
           log.warn(
             `adb forward tcp:${port} failed (continuing — port may already be reachable): ${(error as Error).message}`,
