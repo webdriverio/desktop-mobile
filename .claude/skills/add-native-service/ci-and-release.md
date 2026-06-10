@@ -74,14 +74,24 @@ Mobile has no driver providers; instead it splits **per platform** (the per-plat
 
 Releases run through **ReleaseKit** (`goosewobbler/releasekit`), driven by a **scope**. Two entry points in `release.yml`: auto (on successful CI push to `main`, gated by a ReleaseKit `gate` job) and manual (`workflow_dispatch` with `scope` / `bump` / `release_type` / `dry_run`).
 
-To add a framework:
+The pipeline has **two layers that must both be updated and kept in lock-step** — ReleaseKit's config *and* the GitHub Actions wrapper around it. Updating only one ships broken in a way every *other* CI check passes, so it's easy to miss (React Native did — see the warning below).
 
-1. **`release.yml`** — add `<framework>` to the `scope` choice list (`workflow_dispatch.inputs.scope.options`).
-2. **`_release.reusable.yml`** — three edits, all keyed on `scope`:
-   - **Compute target packages** (`steps.targets`): add a `case` mapping `<framework>` to its comma-separated publish set. CDP example (Electron's legacy shape, with its own bridge): `@wdio/<framework>-service,@wdio/<framework>-cdp-bridge` — but a **new** CDP service reuses the shared `@wdio/native-cdp-bridge` and is therefore service-only, like the mobile example below. Wry example (Dioxus): `@wdio/dioxus-service,@wdio/dioxus-bridge,wdio-dioxus-bridge,wdio-dioxus-embedded-driver,wdio-dioxus-driver`. **Mobile example: `@wdio/<framework>-service` only** — it reuses the shared `@wdio/native-cdp-bridge` (released on its own scope) and ships no Rust crates.
-   - **Build packages** (`steps` "Build packages"): add a `case` running the right `turbo run build --filter=...` set; Wry adds `pnpm turbo run build:rust --filter='@wdio/<framework>-bridge'`. Mobile is a plain `turbo run build --filter=@wdio/<framework>-service` (no `build:rust`).
-   - **Rust setup + GTK libs**: the "Setup Rust" and "Install GTK development libraries" steps run `if: contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus')`. Add `|| contains(inputs.scope, '<framework>')` for a new Wry framework. **CDP and mobile frameworks need neither.**
-3. Rust crates publish to crates.io via `CARGO_REGISTRY_TOKEN` (from `crates_io_token` secret); npm packages publish with provenance. Both already wired in the `Run ReleaseKit` step — listing the crate in the target set is enough.
+**Layer 1 — `releasekit.config.json`** (the config the `gate` job reads):
+
+1. **`ci.scopeLabels`**: add `"scope:<framework>": "@wdio/<framework>-*"`. This maps the PR/commit label to the package set and is what the **auto-gate** uses to detect a release. Without it no auto-release ever fires for the framework.
+2. **`version.skip`**: add the framework's fixtures (`<framework>-app-example`, `<framework>-e2e-app`, and any extra package-test/e2e apps) so they're never versioned or published.
+3. **Nothing else per-package.** The global `publish.npm` block (`access: public`, `provenance: true`, `auth: oidc`, `copyFiles: ["LICENSE"]`) applies to *every* package — so a new service needs **no** `publishConfig.access` and **no** in-package `LICENSE` file; ReleaseKit injects both at publish. (This is why sibling service packages have neither — don't "fix" it by adding them.) `publish.githubRelease.skipPackages` lists shared/bridge packages that get no standalone GH release; a top-level `@wdio/<framework>-service` is **not** skipped.
+
+**Layer 2 — the workflow wrapper** (`release.yml` + `_release.reusable.yml`), all keyed on `scope`:
+
+1. **`release.yml`** — add `<framework>` to the `scope` choice list (`workflow_dispatch.inputs.scope.options`) and its description string.
+2. **`_release.reusable.yml` → Compute target packages** (`steps.targets`): add a `case` mapping `<framework>` to its comma-separated publish set. Wry example (Dioxus): `@wdio/dioxus-service,@wdio/dioxus-bridge,wdio-dioxus-bridge,wdio-dioxus-embedded-driver,wdio-dioxus-driver`. **CDP/mobile example: `@wdio/<framework>-service` only** — a new service reuses the shared `@wdio/native-cdp-bridge` (released on its own scope) and ships no Rust crates. (Electron's `…-service,…-cdp-bridge` pair is legacy — its bridge predates the shared one.)
+3. **`_release.reusable.yml` → Build packages**: add a `case` running the right `turbo run build --filter=...` set (include `--filter='@wdio/bundler...'` — `build-package.ts` needs it). Wry adds `pnpm turbo run build:rust --filter='@wdio/<framework>-bridge'`. Mobile/CDP is a plain build, no `build:rust`.
+4. **`_release.reusable.yml` → Rust setup + GTK libs**: the "Setup Rust" and "Install GTK development libraries" steps run `if: contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus')`. Add `|| contains(inputs.scope, '<framework>')` for a new Wry framework. **CDP and mobile frameworks need neither.**
+
+> ⚠️ **Keep the two layers in sync — the wrapper hard-fails closed.** Both `case` statements in `_release.reusable.yml` (compute-targets *and* build) end in `*) echo "::error::Unknown scope: $scope"; exit 1`. So if Layer 1 maps a `scope:<framework>` label the wrapper doesn't handle, the auto-gate emits that scope and the release **errors out at compute-targets before publishing anything** — config-correct but unpublishable, and nothing in ordinary CI catches it. React Native shipped exactly this way (scopeLabels + `version.skip` done, wrapper `case`s missing) and would have exit-1'd on its first release; fixed post-Ship. When adding a framework, `grep` both files for an existing service (e.g. `electrobun`) and confirm you've matched it in **every** spot — both layers, all four wrapper edits.
+
+Rust crates publish to crates.io via `CARGO_REGISTRY_TOKEN` (from `crates_io_token` secret); npm packages publish with provenance. Both already wired in the `Run ReleaseKit` step — listing the crate in the target set is enough.
 
 ### Release notes — generated by ReleaseKit, do NOT hand-author
 
