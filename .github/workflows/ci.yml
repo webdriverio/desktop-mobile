@@ -793,12 +793,31 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # Build the RN iOS .app ahead of (and in parallel with) the Linux package build. The native
+  # xcodebuild + CocoaPods step is the dominant cost on the iOS leg; decoupling it from `build`
+  # means the macOS runner starts as soon as detect-changes finishes instead of waiting for the
+  # Linux package build to complete.
+  build-rn-ios-e2e-app-macos:
+    name: Build RN iOS E2E App - ${{ matrix.arch }}-arch
+    needs: [detect-changes]
+    if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['old', 'new']
+    uses: ./.github/workflows/_ci-build-rn-ios-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      new-arch: ${{ matrix.arch == 'new' }}
+
   # React Native — iOS simulator E2E (the fast-follow to the Android leg). macOS runner;
   # appium-xcuitest builds WebDriverAgent at session time (no signing on the sim).
   # Required gate (see ci-status).
   e2e-react-native-ios-macos:
     name: E2E - React Native [iOS] - ${{ matrix.test-type }} (${{ matrix.arch }}-arch)
-    needs: [detect-changes, build]
+    needs: [detect-changes, build, build-rn-ios-e2e-app-macos]
     if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -1082,6 +1101,7 @@ jobs:
       # React Native — Android emulator + iOS simulator E2E are required gates.
       - e2e-react-native-linux
       - e2e-react-native-ios-macos
+      - build-rn-ios-e2e-app-macos
       - e2e-electrobun-windows
       - package-electron-matrix
       - package-tauri-linux
