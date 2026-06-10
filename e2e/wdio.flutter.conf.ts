@@ -83,6 +83,10 @@ type FlutterCapability = {
   'appium:newCommandTimeout': number;
   'appium:deviceName'?: string;
   'appium:dartVmServicePort'?: number;
+  'appium:wdaLaunchTimeout'?: number;
+  'appium:simulatorStartupTimeout'?: number;
+  'appium:derivedDataPath'?: string;
+  'appium:usePrebuiltWDA'?: boolean;
   'wdio:flutterServiceOptions': FlutterServiceOptions;
 };
 
@@ -92,7 +96,20 @@ const capabilities: FlutterCapability[] = [
     'appium:automationName': 'Flutter',
     'appium:app': appPath,
     'appium:newCommandTimeout': 240,
-    ...(isIos ? { 'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 16' } : {}),
+    // iOS: appium-flutter-driver wraps appium-xcuitest, which launches WebDriverAgent. CI
+    // pre-builds WDA into FLUTTER_WDA_DD; reuse it (usePrebuiltWDA) so the first session just
+    // launches it — fast, no per-session compile (which under WDIO's undici client dropped the
+    // POST /session socket on the RN leg). Generous sim-boot ceiling for cold/slow runners.
+    ...(isIos
+      ? {
+          'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 16',
+          'appium:simulatorStartupTimeout': 240000,
+          'appium:wdaLaunchTimeout': process.env.FLUTTER_WDA_DD ? 180000 : 720000,
+          ...(process.env.FLUTTER_WDA_DD
+            ? { 'appium:derivedDataPath': process.env.FLUTTER_WDA_DD, 'appium:usePrebuiltWDA': true }
+            : {}),
+        }
+      : {}),
     'wdio:flutterServiceOptions': flutterServiceOptions,
   },
 ];
@@ -113,7 +130,10 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  connectionRetryTimeout: 180000,
+  // iOS must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session before WDA is ready;
+  // with a prebuilt WDA (CI) the session is fast, so a tighter 7-min ceiling surfaces a flaky
+  // first session quickly. Android stays tight.
+  connectionRetryTimeout: isIos ? (process.env.FLUTTER_WDA_DD ? 420000 : 900000) : 180000,
   connectionRetryCount: 0,
   // @wdio/appium-service boots Appium; @wdio/flutter-service prepares the capability
   // (automationName Flutter) and attaches the Dart VM Service for execute/mock.
