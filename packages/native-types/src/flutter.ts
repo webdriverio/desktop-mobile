@@ -101,6 +101,44 @@ export interface FlutterServiceAPI {
 
   /** List the available Appium contexts. */
   listWindows: () => Promise<string[]>;
+
+  /**
+   * Emit an event into the app's `wdio_flutter` event bus (the app opts in by listening to
+   * `wdioEvents.stream`). The conditional convergent feature — present because Flutter has an
+   * event-bus concept via the contract.
+   *
+   * @example
+   * ```js
+   * await browser.flutter.emitEvent('deeplink', { path: '/profile' });
+   * ```
+   */
+  emitEvent: (name: string, payload?: unknown) => Promise<void>;
+
+  /**
+   * Find a Flutter widget by its `ValueKey` (the recommended, stable selector). Returns a
+   * handle for tap/getText; the find runs in the `FLUTTER` context (auto-switched).
+   *
+   * @example
+   * ```js
+   * await browser.flutter.byValueKey('increment').tap();
+   * const value = await browser.flutter.byValueKey('counter').getText();
+   * ```
+   */
+  byValueKey: (key: string | number) => FlutterElement;
+
+  /** Find a Flutter widget by its rendered text. See {@link byValueKey}. */
+  byText: (text: string) => FlutterElement;
+}
+
+/**
+ * A handle to a Flutter widget located via {@link FlutterServiceAPI.byValueKey} /
+ * {@link FlutterServiceAPI.byText}, driven through appium-flutter-driver.
+ */
+export interface FlutterElement {
+  /** Tap the widget. */
+  tap: () => Promise<void>;
+  /** Read the widget's text. */
+  getText: () => Promise<string>;
 }
 
 /**
@@ -197,6 +235,9 @@ export interface FlutterBrowserExtension extends BrowserBase {
    *
    * - {@link FlutterServiceAPI.execute `browser.flutter.execute`} — evaluate a Dart expression
    * - {@link FlutterServiceAPI.mock `browser.flutter.mock`} — mock a Dart seam via the contract
+   * - {@link FlutterServiceAPI.byValueKey `browser.flutter.byValueKey`} — find a widget by ValueKey (tap/getText)
+   * - {@link FlutterServiceAPI.byText `browser.flutter.byText`} — find a widget by text (tap/getText)
+   * - {@link FlutterServiceAPI.emitEvent `browser.flutter.emitEvent`} — emit an event into the app's bus
    * - {@link FlutterServiceAPI.triggerDeeplink `browser.flutter.triggerDeeplink`} — trigger a deeplink
    * - {@link FlutterServiceAPI.switchWindow `browser.flutter.switchWindow`} — switch the Appium context
    * - {@link FlutterServiceAPI.listWindows `browser.flutter.listWindows`} — list the Appium contexts

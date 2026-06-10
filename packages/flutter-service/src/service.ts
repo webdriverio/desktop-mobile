@@ -14,9 +14,12 @@ import {
   resetAllMocks,
   restoreAllMocks,
 } from './commands/allMocks.js';
+import { emitEvent } from './commands/emitEvent.js';
 import { executeScript } from './commands/execute.js';
+import { byTextFinder, byValueKeyFinder, createFlutterElement } from './commands/finder.js';
 import {
   CUSTOM_CAPABILITY_NAME,
+  NATIVE_CONTEXT,
   SERVICE_NAME,
   VM_SERVICE_CONNECT_INTERVAL_MS,
   VM_SERVICE_CONNECT_RETRIES,
@@ -128,10 +131,22 @@ export default class FlutterWorkerService {
       resetAllMocks: (targetPrefix?: string) => resetAllMocks(store, targetPrefix),
       restoreAllMocks: (targetPrefix?: string) => restoreAllMocks(store, targetPrefix),
 
-      triggerDeeplink: (url: string) => triggerDeeplink(browser, url),
+      emitEvent: async (name: string, payload?: unknown) => {
+        const client = await ensureVmService('emitEvent');
+        return emitEvent(client, name, payload);
+      },
+
+      triggerDeeplink: async (url: string) => {
+        // Deeplinks are a native command — leave the FLUTTER/WEBVIEW context first if active.
+        await switchWindow(browser, NATIVE_CONTEXT).catch(() => undefined);
+        return triggerDeeplink(browser, url);
+      },
 
       switchWindow: (context: string) => switchWindow(browser, context),
       listWindows: () => listWindows(browser),
+
+      byValueKey: (key: string | number) => createFlutterElement(browser, byValueKeyFinder(key)),
+      byText: (text: string) => createFlutterElement(browser, byTextFinder(text)),
     };
 
     (browser as WebdriverIO.Browser & { flutter?: FlutterServiceAPI }).flutter = api;
