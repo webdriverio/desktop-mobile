@@ -758,7 +758,7 @@ importers:
         version: 14.0.3
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       find-up-simple:
         specifier: ^1.0.1
         version: 1.0.1
@@ -846,7 +846,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -907,7 +907,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -1017,7 +1017,7 @@ importers:
         version: 6.1.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       deepmerge-ts:
         specifier: ^7.1.5
         version: 7.1.5
@@ -1157,7 +1157,7 @@ importers:
         version: link:../native-utils
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -1168,6 +1168,43 @@ importers:
       '@types/debug':
         specifier: ^4.1.12
         version: 4.1.13
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      '@vitest/coverage-v8':
+        specifier: ^4.1.7
+        version: 4.1.7(vitest@4.1.7)
+      shx:
+        specifier: ^0.4.0
+        version: 0.4.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/native-mobile-core:
+    dependencies:
+      '@wdio/native-core':
+        specifier: workspace:*
+        version: link:../native-core
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../native-types
+      '@wdio/native-utils':
+        specifier: workspace:*
+        version: link:../native-utils
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.27.1
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
+      webdriverio:
+        specifier: catalog:default
+        version: 9.27.1(puppeteer-core@25.1.0)
+    devDependencies:
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
@@ -1245,7 +1282,7 @@ importers:
         version: 9.18.0
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
@@ -1295,6 +1332,9 @@ importers:
       '@wdio/native-core':
         specifier: workspace:*
         version: link:../native-core
+      '@wdio/native-mobile-core':
+        specifier: workspace:*
+        version: link:../native-mobile-core
       '@wdio/native-spy':
         specifier: workspace:*
         version: link:../native-spy
@@ -1395,7 +1435,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0

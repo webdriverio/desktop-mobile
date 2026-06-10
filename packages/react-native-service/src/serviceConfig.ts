@@ -1,6 +1,10 @@
-// Option resolution shared by the launcher and worker service: merge global
-// (service-level) options with per-capability options, capability taking
-// precedence, and pull the custom-capability options off a capability object.
+// Option resolution — a thin binding of @wdio/native-mobile-core's generic helpers
+// to RN's custom-capability key + option type. The merge/read logic is shared.
+
+import {
+  getServiceOptionsFromCapability as coreGetServiceOptionsFromCapability,
+  mergeServiceOptions as coreMergeServiceOptions,
+} from '@wdio/native-mobile-core';
 
 import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 import type { ReactNativeServiceGlobalOptions, ReactNativeServiceOptions } from './types.js';
@@ -9,17 +13,16 @@ import type { ReactNativeServiceGlobalOptions, ReactNativeServiceOptions } from 
 export function getServiceOptionsFromCapability(
   capability: { [CUSTOM_CAPABILITY_NAME]?: ReactNativeServiceOptions } | undefined,
 ): ReactNativeServiceOptions | undefined {
-  return capability?.[CUSTOM_CAPABILITY_NAME];
+  return coreGetServiceOptionsFromCapability<ReactNativeServiceOptions>(
+    capability as Record<string, unknown> | undefined,
+    CUSTOM_CAPABILITY_NAME,
+  );
 }
 
-/**
- * Merge service-level global options with per-capability options. Capability
- * options win on conflict, matching the precedence used across the sibling
- * services.
- */
+/** Merge service-level global options with per-capability options (capability wins). */
 export function mergeServiceOptions(
   globalOptions: ReactNativeServiceGlobalOptions = {},
   capabilityOptions: ReactNativeServiceOptions | undefined,
 ): ReactNativeServiceOptions {
-  return { ...globalOptions, ...capabilityOptions };
+  return coreMergeServiceOptions<ReactNativeServiceOptions>(globalOptions, capabilityOptions);
 }
