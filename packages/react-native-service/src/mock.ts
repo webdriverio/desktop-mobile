@@ -119,8 +119,9 @@ export async function createMock(
   const mockContext = `browser.reactNative.mock("${target}")`;
 
   // Reinstall the inner spy on the current bridge, then rewire all closures.
-  // Called at first creation AND when re-using an existing mock after MetroBridge.reconnect():
-  // the existing mock's closures pointed at the old (now-closed) CdpBridge and would throw
+  // Called at first creation AND when re-using an existing mock after the bridge re-attaches
+  // (ensureHermes re-runs createMock for each stored mock once connect() swaps in a fresh
+  // CdpBridge): the existing mock's closures pointed at the old (now-closed) CdpBridge and would throw
   // on any subsequent call — rewiring them here keeps the outer mock's call history intact
   // while routing all CDP operations to the new connection.
   await evaluateInRealm<void>(bridge, buildInstallScript(target), mockContext);

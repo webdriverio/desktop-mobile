@@ -19,18 +19,3 @@ export function unsupportedPlatform(platform: string): Error {
       "Set platformName to 'Android' or 'iOS' in your capabilities.",
   );
 }
-
-/**
- * Returned (rejected) when `execute`/`mock` is used but the app's Hermes
- * inspector is not reachable through Metro. These features need a debug/Metro
- * build with the Hermes engine and the inspector-proxy running; native find/tap
- * works without it.
- */
-export function hermesUnavailable(host: string, port: number): Error {
-  return new Error(
-    `Could not reach the React Native Hermes inspector via Metro at ${host}:${port}. ` +
-      'browser.reactNative.execute / mock require a debug (Metro) build with the Hermes engine and ' +
-      'the Metro inspector-proxy running. Start Metro and ensure the app is foregrounded ' +
-      '(Android also needs `adb reverse tcp:<port> tcp:<port>`).',
-  );
-}

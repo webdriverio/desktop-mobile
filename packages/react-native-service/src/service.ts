@@ -136,9 +136,21 @@ export default class ReactNativeWorkerService {
 
       isMockFunction: (targetOrFn: unknown) => isMockFunctionUtil(targetOrFn, store),
 
-      clearAllMocks: (targetPrefix?: string) => clearAllMocks(store, targetPrefix),
-      resetAllMocks: (targetPrefix?: string) => resetAllMocks(store, targetPrefix),
-      restoreAllMocks: (targetPrefix?: string) => restoreAllMocks(store, targetPrefix),
+      // ensureHermes first, like mock/execute: each entry's mockClear/Reset/Restore drives a
+      // native CDP op, so a dropped bridge must be re-attached (and mocks rewired) or the bulk
+      // op would only log per-entry warnings. No-op when already connected / the store is empty.
+      clearAllMocks: async (targetPrefix?: string) => {
+        await ensureHermes('clearAllMocks');
+        return clearAllMocks(store, targetPrefix);
+      },
+      resetAllMocks: async (targetPrefix?: string) => {
+        await ensureHermes('resetAllMocks');
+        return resetAllMocks(store, targetPrefix);
+      },
+      restoreAllMocks: async (targetPrefix?: string) => {
+        await ensureHermes('restoreAllMocks');
+        return restoreAllMocks(store, targetPrefix);
+      },
 
       triggerDeeplink: (url: string) => triggerDeeplink(browser, url),
 

@@ -105,15 +105,6 @@ describe('MetroBridge', () => {
     expect(metro.connected).toBe(false);
   });
 
-  it('should reconnect by closing then connecting again', async () => {
-    const metro = new MetroBridge({ platform: 'ios', adbReverse: vi.fn(async () => {}) });
-    await metro.connect();
-    await metro.reconnect();
-    expect(h.close).toHaveBeenCalledOnce();
-    expect(h.connect).toHaveBeenCalledTimes(2);
-    expect(metro.connected).toBe(true);
-  });
-
   it('should default the Metro host and port', async () => {
     const metro = new MetroBridge({ platform: 'ios', adbReverse: vi.fn(async () => {}) });
     await metro.connect();

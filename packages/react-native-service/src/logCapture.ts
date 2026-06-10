@@ -27,9 +27,10 @@ export interface LogEntry {
  * This captures `console.log/warn/error/info` calls made inside the React Native
  * JS bundle (Metro build) while the test is running.
  *
- * The listener binds to the `CdpBridge` instance passed here. `MetroBridge.reconnect()`
- * swaps in a fresh `CdpBridge`, so a caller that reconnects must run the returned cleanup
- * for the old bridge and re-invoke this against `bridge.bridge` to keep forwarding live.
+ * The listener binds to the `CdpBridge` instance passed here. When `MetroBridge.connect()`
+ * re-attaches after a drop it swaps in a fresh `CdpBridge`, so a caller that reconnects must run
+ * the returned cleanup for the old bridge and re-invoke this against `bridge.bridge` to keep
+ * forwarding live (ensureHermes does exactly this).
  */
 export function startJsLogForwarding(bridge: CdpBridge): () => void {
   const handler = (params: unknown) => {

@@ -28,10 +28,11 @@ export interface MetroBridgeOptions extends HermesBridgeOptions {
 /**
  * Lifecycle wrapper around the single-target Hermes {@link CdpBridge}.
  *
- * Establishes the Android `adb reverse` link, connects lazily, and can reconnect
- * after the Hermes inspector drops (e.g. when the app is backgrounded — the spike
- * showed backgrounding suspends the inspector and the target disappears). The
- * `execute`/`mock` commands drive the underlying bridge via {@link bridge}.
+ * Establishes the Android `adb reverse` link and connects lazily; {@link connect}
+ * re-attaches after the Hermes inspector drops (e.g. when the app is backgrounded — the
+ * spike showed backgrounding suspends the inspector and the target disappears) by closing
+ * the dead bridge first. The `execute`/`mock` commands drive the underlying bridge via
+ * {@link bridge}.
  */
 export class MetroBridge {
   #bridge: CdpBridge | undefined;
@@ -98,12 +99,6 @@ export class MetroBridge {
     const bridge = createHermesBridge(this.#options);
     await bridge.connect();
     this.#bridge = bridge;
-  }
-
-  /** Re-establish the connection after an inspector drop (close, then connect). */
-  async reconnect(): Promise<void> {
-    await this.close();
-    await this.connect();
   }
 
   async close(): Promise<void> {
