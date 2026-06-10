@@ -155,6 +155,9 @@ export class VmServiceClient {
       return this.#cachedIsolateId;
     }
     const vm = await this.getVM();
+    // isolates[0] is the main/root isolate for a standard Flutter app (it runs the UI + the
+    // app's code). An app spawning extra isolates (compute()/Isolate.spawn) still lists the
+    // root first, so this heuristic holds for the realistic cases execute/mock target.
     const id = vm.isolates[0]?.id;
     if (!id) {
       throw new Error('No Dart isolate found on the VM Service');

@@ -105,6 +105,9 @@ class WdioMockRegistry {
     final index = entry.calls.length;
     entry.calls.add(args);
     entry.invocationCallOrder.add(_invocationCounter++);
+    // 'incomplete' is the Vitest-compatible marker for an in-flight call: if update() reads
+    // getCalls before this future settles, the outer mock surfaces it as `{ type: 'incomplete' }`
+    // (matching Vitest), then it's overwritten with the settled result by index below.
     entry.results.add({'type': 'incomplete', 'value': null});
     final spec = entry.takeValue();
     if (spec == null) {
