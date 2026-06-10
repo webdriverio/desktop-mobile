@@ -104,6 +104,7 @@ type ReactNativeCapability = {
   'appium:simulatorStartupTimeout'?: number;
   'appium:derivedDataPath'?: string;
   'appium:usePrebuiltWDA'?: boolean;
+  'appium:isHeadless'?: boolean;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
 
@@ -128,8 +129,15 @@ const capabilities: ReactNativeCapability[] = [
           // is fine. Without a prebuilt WDA (local) appium compiles it on the first session (several
           // minutes), so the wait must stay generous. connectionRetryTimeout below tracks this.
           'appium:wdaLaunchTimeout': process.env.RN_WDA_DD ? 180000 : 720000,
-          // The workflow pre-boots the sim, but appium re-monitors boot on session-create and its
-          // default ~120s ceiling has timed out on cold/slow runners. Give it headroom.
+          // CI boots the sim headless (simctl). Without isHeadless, XCUITest restarts it on
+          // session-create "with the Simulator window visible" — a ~225s GUI re-boot on a
+          // display-less runner that raced the 240s ceiling below and was the proven root cause
+          // of the #359 first-session flake (the appium debug log showed "booted in 230.541s").
+          // Headless skips that restart and reuses the already-booted sim. CI-only: a local run
+          // still wants the visible window, and appium boots its own sim there.
+          ...(process.env.CI ? { 'appium:isHeadless': true } : {}),
+          // Safety margin for appium's boot monitor on a cold/slow runner; with isHeadless above
+          // the redundant restart is gone, so this ceiling should no longer be approached in CI.
           'appium:simulatorStartupTimeout': 240000,
           // CI pre-builds WDA into RN_WDA_DD; reuse it (no per-session xcodebuild → no long
           // POST /session → no UND_ERR_SOCKET). Omitted locally so appium builds WDA as usual.
