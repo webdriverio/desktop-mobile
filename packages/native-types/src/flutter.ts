@@ -120,7 +120,9 @@ export interface FlutterServiceOptions extends LogCaptureConfig, MockLifecycleCo
   vmServiceHost?: string;
   /**
    * Explicit Dart VM Service port. When unset, the service discovers it from the
-   * device log; pinning it (also via `appium:dartVmServicePort`) is the CI-robust path.
+   * device log; pinning it (also via `appium:dartVmServicePort`) is the CI-robust path —
+   * it skips the (up to 60s) log scrape. Requires the app launched with
+   * `--disable-service-auth-codes` so the endpoint carries no per-launch token.
    */
   vmServicePort?: number;
   /** Path to a built app (`.apk` / `.app` / `.ipa`). Maps onto `appium:app`. */

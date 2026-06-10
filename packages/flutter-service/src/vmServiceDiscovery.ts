@@ -30,6 +30,14 @@ const defaultAdbForward: AdbForward = async (port) => {
 
 export interface VmServiceDiscoveryOptions {
   platform?: 'android' | 'ios';
+  /**
+   * Explicit VM-Service port (from `vmServicePort` / `appium:dartVmServicePort`). When set,
+   * the log scrape is skipped and the URL is built directly — requires the app launched with
+   * `--disable-service-auth-codes` so the endpoint carries no per-launch token.
+   */
+  pinnedPort?: number;
+  /** VM-Service host for the pinned fast-path (default `localhost`). */
+  host?: string;
   retries?: number;
   intervalMs?: number;
   adbForward?: AdbForward;
@@ -81,6 +89,21 @@ export async function discoverVmServiceUrl(
   const intervalMs = options.intervalMs ?? VM_SERVICE_CONNECT_INTERVAL_MS;
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const adbForward = options.adbForward ?? defaultAdbForward;
+
+  // Fast path: an explicit port pin skips the (up to 60s) log scrape — the CI-robust route.
+  // Build the WS URL directly; on Android forward the port to the host as the scrape path does.
+  if (options.pinnedPort) {
+    if (platform === 'android') {
+      try {
+        await adbForward(options.pinnedPort);
+      } catch (error) {
+        log.warn(`adb forward tcp:${options.pinnedPort} failed (continuing): ${(error as Error).message}`);
+      }
+    }
+    const host = options.host ?? 'localhost';
+    log.debug(`Using pinned Dart VM Service port ${options.pinnedPort} on ${host}`);
+    return `ws://${host}:${options.pinnedPort}/ws`;
+  }
 
   for (let attempt = 0; attempt < retries; attempt += 1) {
     const httpUrl = await scrapeVmServiceUrl(browser, logType);

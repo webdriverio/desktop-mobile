@@ -78,6 +78,9 @@ export default class FlutterWorkerService {
           if (!this.vmServiceUrl) {
             this.vmServiceUrl = await discoverVmServiceUrl(browser, {
               platform,
+              // Honour the documented CI-pinning options: skip the log scrape when set.
+              pinnedPort: this.options.vmServicePort,
+              host: this.options.vmServiceHost,
               retries: VM_SERVICE_CONNECT_RETRIES,
               intervalMs: VM_SERVICE_CONNECT_INTERVAL_MS,
             });

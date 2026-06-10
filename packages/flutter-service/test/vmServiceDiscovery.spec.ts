@@ -47,4 +47,26 @@ describe('discoverVmServiceUrl', () => {
     );
     expect(sleep).toHaveBeenCalledTimes(2);
   });
+
+  it('should use a pinned port directly (skip the scrape) and adb-forward on Android', async () => {
+    const adbForward = vi.fn().mockResolvedValue(undefined);
+    const getLogs = vi.fn();
+    const browser = { getLogs } as unknown as WebdriverIO.Browser;
+    const url = await discoverVmServiceUrl(browser, { platform: 'android', pinnedPort: 8181, adbForward });
+    expect(url).toBe('ws://localhost:8181/ws');
+    expect(adbForward).toHaveBeenCalledWith(8181);
+    expect(getLogs).not.toHaveBeenCalled();
+  });
+
+  it('should honour a custom host for the pinned port (and not adb-forward on iOS)', async () => {
+    const adbForward = vi.fn();
+    const url = await discoverVmServiceUrl({ getLogs: vi.fn() } as unknown as WebdriverIO.Browser, {
+      platform: 'ios',
+      pinnedPort: 8181,
+      host: '127.0.0.1',
+      adbForward,
+    });
+    expect(url).toBe('ws://127.0.0.1:8181/ws');
+    expect(adbForward).not.toHaveBeenCalled();
+  });
 });

@@ -64,9 +64,16 @@ class WdioMockRegistry {
     _record(entry, args);
     final spec = entry.takeValue();
     if (spec == null) {
-      final value = real();
-      entry.results.add({'type': 'return', 'value': value});
-      return value;
+      // Record a 'throw' result too if the real impl raises, so calls/results stay 1:1
+      // (the WDIO outer mock's update() relies on that invariant).
+      try {
+        final value = real();
+        entry.results.add({'type': 'return', 'value': value});
+        return value;
+      } catch (error) {
+        entry.results.add({'type': 'throw', 'value': error.toString()});
+        rethrow;
+      }
     }
     if (spec['kind'] == 'reject') {
       entry.results.add({'type': 'throw', 'value': spec['value']});
@@ -83,9 +90,14 @@ class WdioMockRegistry {
     _record(entry, args);
     final spec = entry.takeValue();
     if (spec == null) {
-      final value = await real();
-      entry.results.add({'type': 'return', 'value': value});
-      return value;
+      try {
+        final value = await real();
+        entry.results.add({'type': 'return', 'value': value});
+        return value;
+      } catch (error) {
+        entry.results.add({'type': 'throw', 'value': error.toString()});
+        rethrow;
+      }
     }
     if (spec['kind'] == 'reject') {
       entry.results.add({'type': 'throw', 'value': spec['value']});
