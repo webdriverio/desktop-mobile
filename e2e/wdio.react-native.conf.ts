@@ -99,6 +99,7 @@ type ReactNativeCapability = {
   'appium:app': string;
   'appium:newCommandTimeout': number;
   'appium:deviceName'?: string;
+  'appium:udid'?: string;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
   'appium:derivedDataPath'?: string;
@@ -116,6 +117,12 @@ const capabilities: ReactNativeCapability[] = [
     ...(isIos
       ? {
           'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16',
+          // Pin the exact simulator the workflow already booted. Without a udid, appium resolves
+          // the deviceName independently and — when the runner image carries duplicate device names
+          // across runtimes — can monitor/boot a *different* instance than CI pre-booted, surfacing
+          // as "failed to finish booting" even though our `bootstatus -b` step passed (#359). CI
+          // exports RN_IOS_UDID from the boot step; omitted locally (appium resolves by name).
+          ...(process.env.RN_IOS_UDID ? { 'appium:udid': process.env.RN_IOS_UDID } : {}),
           // wdaLaunchTimeout is a ceiling, not a delay. CI pre-builds WDA into RN_WDA_DD (reused
           // via usePrebuiltWDA below) so the first session just launches it — fast, a tight ceiling
           // is fine. Without a prebuilt WDA (local) appium compiles it on the first session (several
@@ -165,7 +172,11 @@ export const config = {
   connectionRetryCount: 0,
   // @wdio/appium-service boots the Appium server; @wdio/react-native-service prepares
   // capabilities (automationName/app) and attaches the Hermes bridge for execute/mock.
-  services: ['appium', 'react-native'],
+  // logPath writes the full appium server output to <logDir>/wdio-appium.log (uploaded as a CI
+  // artifact via the e2e/logs/**/*.log glob); --log-level debug surfaces the XCUITest driver's
+  // sim-boot/WDA/FrontBoard trace, which is the only place the #359 session-create flake is
+  // diagnosable (the failing session has no app/page-source to capture).
+  services: [['appium', { logPath: logDir, args: { logLevel: 'debug' } }], 'react-native'],
   port: 4723,
   framework: 'mocha',
   reporters: ['spec'],

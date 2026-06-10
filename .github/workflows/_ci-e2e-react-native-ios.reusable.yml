@@ -147,21 +147,31 @@ jobs:
           RN_IOS_DEVICE: ${{ inputs.ios-device }}
         run: |
           set -euo pipefail
-          # Tolerate "already booted" but fail loudly on a genuine error (e.g. the device
-          # name isn't present on this runner) rather than masking it into a later cryptic
-          # Appium "device not found".
-          if ! xcrun simctl boot "$RN_IOS_DEVICE" 2>/tmp/boot.err; then
+          # Resolve a concrete UDID for the device name and act on THAT throughout. Booting by name
+          # is ambiguous when the runner image carries duplicate device names across runtimes; appium
+          # then resolves the name independently and can monitor/boot a different instance than we
+          # booted here — a source of the "failed to finish booting" first-session flake (#359). We
+          # export RN_IOS_UDID so the wdio config pins appium:udid to this exact simulator.
+          # Prefer the newest runtime (highest SimRuntime key) when a name appears more than once.
+          UDID=$(xcrun simctl list devices available --json \
+            | jq -r --arg name "$RN_IOS_DEVICE" \
+                'first(.devices | to_entries | sort_by(.key) | reverse | .[].value[] | select(.name == $name) | .udid) // empty')
+          test -n "$UDID" || { echo "::error::No available simulator named '$RN_IOS_DEVICE'"; xcrun simctl list devices available; exit 1; }
+          echo "Using simulator $RN_IOS_DEVICE ($UDID)"
+          echo "RN_IOS_UDID=$UDID" >> "$GITHUB_ENV"
+          # Tolerate "already booted" but fail loudly on a genuine error rather than masking it into
+          # a later cryptic Appium "device not found".
+          if ! xcrun simctl boot "$UDID" 2>/tmp/boot.err; then
             if grep -qiE "already booted|current state: Booted" /tmp/boot.err; then
-              echo "Simulator '$RN_IOS_DEVICE' already booted"
+              echo "Simulator already booted"
             else
-              echo "::error::Failed to boot simulator '$RN_IOS_DEVICE':"; cat /tmp/boot.err
-              echo "Available devices:"; xcrun simctl list devices available
+              echo "::error::Failed to boot simulator '$RN_IOS_DEVICE' ($UDID):"; cat /tmp/boot.err
               exit 1
             fi
           fi
           # bootstatus -b blocks until the sim reaches Booted; a non-zero exit is a real
           # boot failure/timeout — surface it here, not later as a cryptic Appium session error.
-          xcrun simctl bootstatus "$RN_IOS_DEVICE" -b || { echo "::error::Simulator '$RN_IOS_DEVICE' did not reach Booted state"; exit 1; }
+          xcrun simctl bootstatus "$UDID" -b || { echo "::error::Simulator '$UDID' did not reach Booted state"; exit 1; }
 
       - name: 🔌 Install Appium XCUITest driver
         shell: bash
@@ -233,6 +243,14 @@ jobs:
         if: failure()
         shell: bash
         run: tail -n 200 e2e/metro.log || true
+
+      # The failing session-create (#359) leaves no app/page-source, so the appium debug log is the
+      # primary evidence. Surface its tail inline (the session error is near the end) for a quick
+      # read without downloading the artifact; the full log ships in Upload Test Logs below.
+      - name: 🐛 Show Appium log on failure
+        if: failure()
+        shell: bash
+        run: find e2e/logs -name 'wdio-appium.log' -exec sh -c 'echo "===== $1 ====="; tail -n 400 "$1"' _ {} \; || true
 
       - name: 📦 Upload Test Logs
         if: always()
