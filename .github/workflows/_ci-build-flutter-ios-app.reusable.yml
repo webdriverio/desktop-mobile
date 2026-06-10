@@ -1,0 +1,87 @@
+name: Build Flutter iOS E2E App
+# Description: Scaffolds the Flutter iOS platform project and builds a debug .app for the
+# simulator. Split from the e2e run (mirrors the RN iOS leg) so the heavy build stays OFF the
+# e2e runner — appium-xcuitest's session-create SDK probe (xcrun, 15s timeout) is fragile when a
+# build is competing for the runner. The e2e job downloads this artifact.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Runner OS (macos-latest)'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      flutter-version:
+        description: 'Flutter SDK version to build the fixture with'
+        type: string
+        default: '3.35.6'
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  FIXTURE_DIR: ${{ github.workspace }}/fixtures/e2e-apps/flutter
+
+jobs:
+  build:
+    name: Build .app
+    runs-on: ${{ inputs.os }}
+    # Cap a stuck Flutter/CocoaPods/xcodebuild build rather than holding a scarce macOS runner
+    # for the 6h default.
+    timeout-minutes: 60
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # Third-party action with secret access (secrets: inherit) → SHA-pinned, not a floating tag.
+      - name: 🐦 Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ inputs.flutter-version }}
+          channel: stable
+          cache: true
+
+      # Scaffold the iOS platform project over the source-only fixture, restore our lib/main.dart +
+      # pubspec.yaml (flutter create can overwrite them), and build a debug .app for the simulator.
+      # A debug build exposes the Dart VM Service execute/mock attach to. --no-codesign: the sim
+      # doesn't require signing.
+      - name: 🏗️ Scaffold + build debug .app (simulator)
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$FIXTURE_DIR"
+          flutter create --org com.wdio --project-name wdio_flutter_fixture --platforms=ios .
+          git checkout -- lib/main.dart pubspec.yaml
+          flutter pub get
+          flutter build ios --debug --simulator --no-codesign
+          APP=$(find build/ios/iphonesimulator -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$APP" || { echo "::error::no .app under build/ios/iphonesimulator"; exit 1; }
+          # Tar the bundle (preserves the simulator .app's symlinks + exec bits, which a raw
+          # actions/upload-artifact corrupts → Appium can't install it on the sim).
+          tar -czf "$GITHUB_WORKSPACE/flutter-ios-app.tar.gz" -C "$(dirname "$APP")" "$(basename "$APP")"
+          echo "Built + tarred $APP"
+
+      - name: 📦 Upload built .app
+        uses: actions/upload-artifact@v7
+        with:
+          name: flutter-ios-app-${{ github.run_id }}
+          # The tarball, not the raw .app dir, so symlinks/exec bits survive. overwrite handles a
+          # full re-run that rebuilds (the run_id-only name otherwise collides).
+          path: flutter-ios-app.tar.gz
+          retention-days: 1
+          if-no-files-found: error
+          overwrite: true
