@@ -27,7 +27,7 @@ on:
         type: boolean
         default: false
       scope:
-        description: 'Release scope (electron, tauri, dioxus, electrobun, utils, types, spy, core, cdp-bridge, shared) — controls build and toolchain steps'
+        description: 'Release scope (electron, tauri, dioxus, electrobun, flutter, native-mobile-core, utils, types, spy, core, cdp-bridge, shared) — controls build and toolchain steps'
         required: true
         type: string
     secrets:
@@ -96,6 +96,15 @@ jobs:
           sudo apt-get install -y libayatana-appindicator3-dev || true
           sudo apt-get install -y libsoup3-dev || true
 
+      # Flutter SDK only for the wdio_flutter pub.dev publish below (the @wdio/flutter-service npm
+      # package is plain TS). SHA-pinned third-party action — secrets: inherit gives secret access.
+      - name: Setup Flutter
+        if: ${{ contains(inputs.scope, 'flutter') }}
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: '3.35.6'
+          channel: stable
+
       - name: Compute target packages from scope
         id: targets
         run: |
@@ -128,6 +137,12 @@ jobs:
               ;;
             cdp-bridge)
               echo "packages=@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
+              ;;
+            native-mobile-core)
+              echo "packages=@wdio/native-mobile-core" >> "$GITHUB_OUTPUT"
+              ;;
+            flutter)
+              echo "packages=@wdio/flutter-service" >> "$GITHUB_OUTPUT"
               ;;
             shared)
               echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy,@wdio/native-core,@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
@@ -216,6 +231,12 @@ jobs:
             cdp-bridge)
               pnpm turbo run build --filter='@wdio/native-cdp-bridge...'
               ;;
+            native-mobile-core)
+              pnpm turbo run build --filter='@wdio/native-mobile-core...'
+              ;;
+            flutter)
+              pnpm turbo run build --filter='@wdio/flutter-service...'
+              ;;
             shared)
               pnpm turbo run build \
                 --filter='@wdio/native-types...' \
@@ -279,3 +300,28 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
           OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
+
+      # Publish the wdio_flutter Dart contract to pub.dev alongside the npm @wdio/flutter-service
+      # release — they version together but live in separate ecosystems (pub.dev / npm). Uses
+      # pub.dev's GitHub-Actions automated publishing over OIDC (id-token: write is granted above);
+      # REQUIRES the pub.dev package's "Automated publishing" to be configured to trust this repo +
+      # workflow first. ReleaseKit bumps the npm package.json only, so keep
+      # wdio_flutter/pubspec.yaml's version in sync with the @wdio/flutter-service line by hand
+      # before a release. dry_run validates packaging without publishing.
+      - name: Publish wdio_flutter to pub.dev
+        if: ${{ contains(inputs.scope, 'flutter') }}
+        working-directory: packages/flutter-service/wdio_flutter
+        shell: bash
+        run: |
+          set -euo pipefail
+          flutter pub get
+          if [ "${{ inputs.dry_run }}" = "true" ]; then
+            echo "Dry run — validating the wdio_flutter package without publishing."
+            flutter pub publish --dry-run
+          elif [ "${{ steps.params.outputs.stable }}" = "true" ]; then
+            flutter pub publish --force
+          else
+            # pubspec.yaml carries a stable version; publishing it on an npm -next.N prerelease would
+            # burn the 1.0.0 slot before the real release. wdio_flutter publishes on the stable line.
+            echo "Prerelease release — skipping pub.dev publish (wdio_flutter publishes on stable)."
+          fi
