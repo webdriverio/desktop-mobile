@@ -81,8 +81,8 @@ export default class FlutterWorkerService {
           if (stale) {
             await stale.close().catch(() => undefined);
           }
-          if (!this.vmServiceUrl) {
-            this.vmServiceUrl = await discoverVmServiceUrl(browser, {
+          const discover = () =>
+            discoverVmServiceUrl(browser, {
               platform,
               udid,
               // Honour the documented CI-pinning options: skip the log scrape when set.
@@ -91,9 +91,28 @@ export default class FlutterWorkerService {
               retries: VM_SERVICE_CONNECT_RETRIES,
               intervalMs: VM_SERVICE_CONNECT_INTERVAL_MS,
             });
+          const connectTo = async (url: string) => {
+            const c = new VmServiceClient(url);
+            await c.connect();
+            return c;
+          };
+          let client: VmServiceClient;
+          if (this.vmServiceUrl) {
+            // A cached URL goes stale after a *passive* socket drop — the app was killed and
+            // relaunched between commands, which changes the VM-service URL/token. Try the cached
+            // URL, but if the connect fails, rediscover and retry ONCE within this same call so the
+            // first command after a relaunch self-heals, instead of throwing (forcing the caller to
+            // retry) and only reconnecting on the *next* command.
+            try {
+              client = await connectTo(this.vmServiceUrl);
+            } catch {
+              this.vmServiceUrl = await discover();
+              client = await connectTo(this.vmServiceUrl);
+            }
+          } else {
+            this.vmServiceUrl = await discover();
+            client = await connectTo(this.vmServiceUrl);
           }
-          const client = new VmServiceClient(this.vmServiceUrl);
-          await client.connect();
           this.client = client;
           // No explicit mock re-wire needed: each mock resolves the live client lazily via
           // getClient (() => ensureVmService('mock')), so existing mocks pick up this new
