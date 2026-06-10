@@ -58,7 +58,10 @@ function notSupported(target: string, method: string): Error {
  */
 export async function createFlutterMock(
   target: string,
-  client: VmServiceClient,
+  // A resolver, not a captured client: each op re-resolves the live (reconnected) client, so
+  // direct mock.update()/mockReturnValue() calls after a mid-test socket drop reconnect instead
+  // of failing against a stale handle.
+  getClient: () => Promise<VmServiceClient>,
   store: FlutterMockStore,
 ): Promise<FlutterMock> {
   log.debug(`[${target}] createFlutterMock`);
@@ -83,6 +86,7 @@ export async function createFlutterMock(
   const originalMock = outerMock.mock;
 
   const ext = async (method: string, params: Record<string, unknown> = {}): Promise<unknown> => {
+    const client = await getClient();
     const isolateId = await client.getMainIsolateId();
     return client.callServiceExtension(method, { isolateId, target, ...params });
   };

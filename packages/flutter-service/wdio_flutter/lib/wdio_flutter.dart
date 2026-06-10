@@ -24,11 +24,22 @@ import 'dart:developer' as developer;
 
 int _invocationCounter = 0;
 
-/// Cast a JSON-decoded mock value to the seam's return type `T`, coercing between Dart
-/// numeric types first: `jsonDecode` yields `int` for whole numbers, so a `double`-typed
-/// seam would otherwise hit `int as double` — which throws in Dart. Other types fall
-/// through to a plain cast.
+/// Cast a JSON-decoded mock value to the seam's return type `T`.
+///
+/// - null: returned only if `T` is nullable; for a non-nullable `T` (e.g. mockReturnValue(undefined)
+///   on a `String`-returning seam) throw a clear ArgumentError instead of the cryptic
+///   "Null check operator used on a null value" the bare `null as T` would raise.
+/// - numbers: coerce between int/double first — `jsonDecode` yields `int` for whole numbers, so a
+///   `double`-typed seam would otherwise hit `int as double` (throws in Dart).
+/// - everything else: a plain cast.
 T _castMockValue<T>(dynamic value) {
+  if (value == null) {
+    if (null is T) return null as T;
+    throw ArgumentError(
+      "wdio_flutter: a null mock value can't satisfy non-nullable return type '$T' — "
+      'mockReturnValue(undefined)/null was used on a non-nullable seam; mock a concrete value.',
+    );
+  }
   if (value is num) {
     if (T == double) return value.toDouble() as T;
     if (T == int) return value.toInt() as T;

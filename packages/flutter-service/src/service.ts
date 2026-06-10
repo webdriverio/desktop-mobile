@@ -88,11 +88,9 @@ export default class FlutterWorkerService {
           const client = new VmServiceClient(this.vmServiceUrl);
           await client.connect();
           this.client = client;
-          // Re-wire existing mocks onto the new connection (reconnect path) while preserving
-          // the outer mock's call history.
-          for (const [target] of store.getMocks()) {
-            await createFlutterMock(target, client, store);
-          }
+          // No explicit mock re-wire needed: each mock resolves the live client lazily via
+          // getClient (() => ensureVmService('mock')), so existing mocks pick up this new
+          // connection on their next op. The Dart-side registry persists across the reconnect.
           return client;
         } catch (error) {
           // Force a fresh discovery next time — a relaunch changes the VM-service URL/token.
@@ -115,8 +113,9 @@ export default class FlutterWorkerService {
       }) as FlutterServiceAPI['execute'],
 
       mock: async (target: string) => {
-        const client = await ensureVmService('mock');
-        return createFlutterMock(target, client, store);
+        await ensureVmService('mock'); // fail fast if the app isn't reachable yet
+        // Pass a resolver, not the client: the mock's ops reconnect-on-demand after a socket drop.
+        return createFlutterMock(target, () => ensureVmService('mock'), store);
       },
 
       isMockFunction: (targetOrFn: unknown) => isMockFunctionUtil(targetOrFn, store),
@@ -136,13 +135,15 @@ export default class FlutterWorkerService {
   }
 
   async beforeTest(): Promise<void> {
-    if (!this.store || !this.client?.connected) {
-      if (this.store && (this.options.clearMocks || this.options.resetMocks || this.options.restoreMocks)) {
-        log.warn('beforeTest: Dart VM Service not connected — clear/reset/restoreMocks skipped.');
-      }
+    const store = this.store;
+    const wantsLifecycle = this.options.clearMocks || this.options.resetMocks || this.options.restoreMocks;
+    // Run the lifecycle even if the socket dropped mid-test: the bulk ops resolve the client
+    // lazily (reconnect-on-demand) and are best-effort per entry, so stale Dart mock state from
+    // the previous test still gets cleared once the app is reachable again. No mocks → no-op
+    // (and no reconnect attempt).
+    if (!store || !wantsLifecycle || store.getMocks().length === 0) {
       return;
     }
-    const store = this.store;
     const clearRedundant = this.options.resetMocks && this.options.clearMocksPrefix === this.options.resetMocksPrefix;
     if (this.options.clearMocks && !clearRedundant) {
       await clearAllMocks(store, this.options.clearMocksPrefix);
