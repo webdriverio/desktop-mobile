@@ -73,15 +73,23 @@ export async function createFlutterMock(
   if (!existing) {
     outerMock.mockName(`flutter.${target}`);
   }
-  const outerClear = existing
+  // Bump an epoch on every outer clear so update()'s async-read-then-sync-write can detect a clear
+  // that raced its fetch and skip repopulating (otherwise it resurrects just-cleared call data).
+  const clearEpoch = existing ? (existing as unknown as { _clearEpoch: { v: number } })._clearEpoch : { v: 0 };
+  const rawClear = existing
     ? (existing as unknown as { _nativeClear: () => void })._nativeClear
     : outerMock.mockClear.bind(outerMock);
+  const outerClear = () => {
+    clearEpoch.v += 1;
+    rawClear();
+  };
 
   const mock = (existing ?? (outerMock as unknown as FlutterMock)) as FlutterMock;
   if (!existing) {
     mock.__isFlutterMock = true;
     (mock as unknown as { _vitestFn: ReturnType<typeof vitestFn> })._vitestFn = outerMock;
-    (mock as unknown as { _nativeClear: () => void })._nativeClear = outerClear;
+    (mock as unknown as { _nativeClear: () => void })._nativeClear = rawClear;
+    (mock as unknown as { _clearEpoch: { v: number } })._clearEpoch = clearEpoch;
   }
   const originalMock = outerMock.mock;
 
@@ -100,7 +108,13 @@ export async function createFlutterMock(
   };
 
   mock.update = async () => {
+    const epoch = clearEpoch.v;
     const sync = parseCallData(await ext('ext.wdio.getCalls'));
+    // If a clear (mockClear / a lifecycle reset) ran while we were fetching, the snapshot is stale —
+    // honour the clear instead of resurrecting the just-cleared call data (TOCTOU guard).
+    if (clearEpoch.v !== epoch) {
+      return mock;
+    }
     (originalMock.calls as unknown[][]).length = 0;
     (originalMock.results as { type: string; value: unknown }[]).length = 0;
     (originalMock.invocationCallOrder as number[]).length = 0;

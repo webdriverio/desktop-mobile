@@ -56,6 +56,13 @@ export default class FlutterWorkerService {
     // The device pool stamps appium:udid per worker — pass it to adb forward so parallel
     // Android workers each select their own emulator.
     const udid = (capabilities as { 'appium:udid'?: string })['appium:udid'];
+    // Pinned VM-service port enables the discovery fast-path (skip the up-to-60s log scrape). The
+    // wdio:flutterServiceOptions option wins; fall back to the appium:dartVmServicePort capability
+    // so a user who pins it the documented way (directly on the cap) still gets the skip — matters
+    // most on iOS, where syslog discovery is less reliable.
+    const pinnedVmServicePort =
+      this.options.vmServicePort ??
+      (capabilities as { 'appium:dartVmServicePort'?: number })['appium:dartVmServicePort'];
     this.platform = platform;
     this.browser = browser;
     this.store = new FlutterMockStore();
@@ -86,7 +93,7 @@ export default class FlutterWorkerService {
               platform,
               udid,
               // Honour the documented CI-pinning options: skip the log scrape when set.
-              pinnedPort: this.options.vmServicePort,
+              pinnedPort: pinnedVmServicePort,
               host: this.options.vmServiceHost,
               retries: VM_SERVICE_CONNECT_RETRIES,
               intervalMs: VM_SERVICE_CONNECT_INTERVAL_MS,
@@ -121,15 +128,22 @@ export default class FlutterWorkerService {
         } catch (error) {
           // Force a fresh discovery next time — a relaunch changes the VM-service URL/token.
           this.vmServiceUrl = undefined;
-          throw new Error(
-            `browser.flutter.${command}: Dart VM Service is not connected (${(error as Error).message}). ` +
-              'Ensure the app is a debug/profile build with `enableFlutterDriverExtension()` and is foregrounded.',
-          );
+          throw error; // rethrow raw — the awaiting caller attributes it to its own command below
         } finally {
           connecting = undefined;
         }
       })();
-      return connecting;
+      try {
+        return await connecting;
+      } catch (error) {
+        // Attribute the failure to THIS caller's command, not whichever command happened to win
+        // the single-flight race and create `connecting` — so concurrent execute()+mock() each
+        // surface the right command in the message.
+        throw new Error(
+          `browser.flutter.${command}: Dart VM Service is not connected (${(error as Error).message}). ` +
+            'Ensure the app is a debug/profile build with `enableFlutterDriverExtension()` and is foregrounded.',
+        );
+      }
     };
 
     const api: FlutterServiceAPI = {
@@ -182,15 +196,23 @@ export default class FlutterWorkerService {
     if (!store || !wantsLifecycle || store.getMocks().length === 0) {
       return;
     }
-    const clearRedundant = this.options.resetMocks && this.options.clearMocksPrefix === this.options.resetMocksPrefix;
-    if (this.options.clearMocks && !clearRedundant) {
-      await clearAllMocks(store, this.options.clearMocksPrefix);
+    // Precedence: restore (removes the mock) ⊃ reset (clears value + calls) ⊃ clear (clears calls).
+    // Skip an earlier op when a higher-precedence one runs on the SAME prefix — otherwise we redo
+    // work the next op immediately discards (e.g. reset then restore on the same scope).
+    const { clearMocks, resetMocks, restoreMocks, clearMocksPrefix, resetMocksPrefix, restoreMocksPrefix } =
+      this.options;
+    const clearRedundant =
+      (resetMocks && clearMocksPrefix === resetMocksPrefix) ||
+      (restoreMocks && clearMocksPrefix === restoreMocksPrefix);
+    const resetRedundant = restoreMocks && resetMocksPrefix === restoreMocksPrefix;
+    if (clearMocks && !clearRedundant) {
+      await clearAllMocks(store, clearMocksPrefix);
     }
-    if (this.options.resetMocks) {
-      await resetAllMocks(store, this.options.resetMocksPrefix);
+    if (resetMocks && !resetRedundant) {
+      await resetAllMocks(store, resetMocksPrefix);
     }
-    if (this.options.restoreMocks) {
-      await restoreAllMocks(store, this.options.restoreMocksPrefix);
+    if (restoreMocks) {
+      await restoreAllMocks(store, restoreMocksPrefix);
     }
   }
 
