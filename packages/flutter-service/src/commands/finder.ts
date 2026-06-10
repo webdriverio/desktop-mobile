@@ -36,9 +36,15 @@ export function serializeFinder(finder: FlutterFinder): string {
 export function createFlutterElement(browser: WebdriverIO.Browser, finder: FlutterFinder): FlutterElement {
   const selector = serializeFinder(finder);
   const inFlutterContext = async () => {
-    // Back-to-back finds stay in FLUTTER between calls, and some drivers throw on a redundant
-    // context switch — already-in-FLUTTER is fine (same guard triggerDeeplink uses for NATIVE_APP).
-    await switchWindow(browser, FLUTTER_CONTEXT).catch(() => undefined);
+    // Skip the switch when already in FLUTTER (back-to-back finds stay in context, and some drivers
+    // throw on a redundant switch) by checking the current context first — rather than blanket-
+    // catching the switch, which would also swallow a real driver failure (session crash,
+    // unreachable server) and surface it as a confusing flutter:waitFor selector error.
+    const current = await browser.getContext?.()?.catch(() => undefined);
+    if (current === FLUTTER_CONTEXT) {
+      return;
+    }
+    await switchWindow(browser, FLUTTER_CONTEXT);
   };
   return {
     tap: async () => {
