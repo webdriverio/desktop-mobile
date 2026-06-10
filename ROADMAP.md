@@ -29,6 +29,11 @@ This document outlines the planned services and their development sequencing for
 **Platforms:** Android, iOS\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/react-native-service)](https://npmjs.com/package/@wdio/react-native-service)
 
+### [@wdio/flutter-service](./packages/flutter-service) - v1.0.0-next.x
+**Status:** 🧪 Pre-release (`1.0.0-next.x`) — complete feature surface on Android + iOS\
+**Platforms:** Android, iOS\
+[![npm downloads](https://img.shields.io/npm/dm/@wdio/flutter-service)](https://npmjs.com/package/@wdio/flutter-service)
+
 ---
 
 ## Cross-cutting Capabilities
@@ -68,20 +73,10 @@ The table below quantifies the key factors used to prioritise and sequence plann
 **Platforms:** Android (UiAutomator2), iOS (XCUITest)\
 **Highlights:** native find/tap via Appium; `execute` + `mock` via Hermes CDP (debug/Metro build); deeplink, context switching, log capture, multiremote/DeviceManager. Establishes the mobile scaffold for Phase 3 (Flutter) and Phase 4 (Capacitor).
 
-### Phase 3: Flutter Mobile (Q4 2026)
-**Priority:** Medium - Mobile testing completion
+### Phase 3: Flutter Mobile — ✅ Shipped (Android + iOS, `1.0.0-next.x`)
+[`@wdio/flutter-service`](./packages/flutter-service) — see the [package README](./packages/flutter-service/README.md).
 
-**Target Platforms:** iOS, Android
-
-**Why Flutter:**
-- Google backing and strong mobile presence
-- Production-ready Appium Flutter Driver
-- Complements React Native mobile coverage
-- Reuses mobile scaffold
-
-**Technical approach:**
-- Appium Flutter Driver integration
-- Standard WebdriverIO Appium patterns
+**Highlights:** native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (a Dart expression) + `mock` (the cooperative [`wdio_flutter`](./packages/flutter-service/wdio_flutter) Dart contract) via the Dart VM Service (debug/profile build); deeplink, context switching, log capture, multiremote/DeviceManager. Built on the `@wdio/native-mobile-core` layer extracted from React Native — the shared mobile scaffold Phase 4 (Capacitor) will reuse.
 
 ### Phase 4: Capacitor Mobile (Q1 2027)
 **Priority:** Medium - Ionic ecosystem coverage

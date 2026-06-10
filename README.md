@@ -76,6 +76,16 @@
 
 [`@wdio/react-native-service`](./packages/react-native-service) - React Native mobile applications — **Android + iOS**. Native find/tap via Appium (UiAutomator2 / XCUITest); `execute` and `mock` via Hermes CDP (debug/Metro build). See the [package README](./packages/react-native-service).
 
+<h4>
+  <div>
+    <a href="https://www.npmjs.com/package/@wdio/flutter-service"><img src="https://img.shields.io/badge/@wdio-flutter--service-027DFD?labelColor=1a1a1a&style=plastic" alt="npm package" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/flutter-service"><img src="https://img.shields.io/npm/v/@wdio/flutter-service" alt="npm version" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/flutter-service"><img src="https://img.shields.io/npm/dw/@wdio/flutter-service" alt="npm downloads" /></a>
+  </div>
+</h4>
+
+[`@wdio/flutter-service`](./packages/flutter-service) - Flutter mobile applications — **Android + iOS**. Native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (a Dart expression) and `mock` (the cooperative [`wdio_flutter`](./packages/flutter-service/wdio_flutter) contract) via the Dart VM Service (debug/profile build). See the [package README](./packages/flutter-service).
+
 > Early (`0.x`) support — scope is limited and the surface may change as upstream gaps are resolved. Not yet at parity with the frameworks above.
 
 <h4>
@@ -90,7 +100,6 @@
 
 ## Planned Support
 
-- **Flutter** - Google's UI toolkit for mobile and beyond
 - **Capacitor** - Ionic's cross-platform mobile framework
 - **Neutralino** - Lightweight desktop applications
 
