@@ -58,3 +58,8 @@ expect(greet.mock.calls).toHaveLength(1);
 
 This is a documented **boundary**: you mock the seams the app exposes (idiomatic Flutter DI), not
 arbitrary internals — Dart can't replace a function in place at runtime.
+
+> **Serialization note.** Call args and recorded return values are sent test-side as JSON. A
+> non-JSON-serializable Dart object (a custom class instance) is encoded as its `toString()` rather
+> than throwing — the call is still recorded, but assert against serializable values
+> (`String`/`num`/`bool`/`List`/`Map`) for deep equality.

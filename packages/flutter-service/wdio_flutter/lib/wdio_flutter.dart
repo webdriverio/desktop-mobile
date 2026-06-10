@@ -223,7 +223,13 @@ void enableWdioMocking() {
   developer.registerExtension('ext.wdio.getCalls', (method, params) async {
     final target = params['target'];
     if (target == null) return _missingParam('target');
-    return developer.ServiceExtensionResponse.result(jsonEncode(wdioRegistry.getCalls(target)));
+    // toEncodable: a seam's real return value (recorded in results) or a call arg may be a
+    // non-JSON object (a custom class instance); fall back to its toString so getCalls never
+    // throws JsonUnsupportedObjectError. Such values aren't deep-comparable test-side, but the
+    // call is still recorded — mock assertions target serialisable values.
+    return developer.ServiceExtensionResponse.result(
+      jsonEncode(wdioRegistry.getCalls(target), toEncodable: (Object? o) => o.toString()),
+    );
   });
 
   developer.registerExtension('ext.wdio.clearMock', (method, params) async {
