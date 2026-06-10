@@ -86,8 +86,12 @@ jobs:
           path: ${{ env.RN_BUILD_DIR }}/ios/Pods
           key: rn-cocoapods-${{ inputs.rn-version }}-${{ inputs.new-arch && 'new' || 'old' }}-arch-v1
 
+      # `pod install` must run on EVERY build, not just on a cache miss: besides populating
+      # ios/Pods (the only thing the cache restores) it integrates the .xcodeproj and generates
+      # ReactNativeE2EApp.xcworkspace — neither of which is cached. Gating it on cache-miss left
+      # cache-hit runs with no workspace (`xcodebuild: 'ReactNativeE2EApp.xcworkspace' does not
+      # exist`). The restored ios/Pods still accelerates this run (no pod re-download).
       - name: 🏗️ Install CocoaPods
-        if: steps.pods-cache.outputs.cache-hit != 'true'
         shell: bash
         env:
           NEW_ARCH: ${{ inputs.new-arch }}
