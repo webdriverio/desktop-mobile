@@ -160,4 +160,55 @@ describe('FlutterWorkerService', () => {
     expect(typeof browser.flutter?.byValueKey('k').tap).toBe('function');
     expect(typeof browser.flutter?.byText('t').getText).toBe('function');
   });
+
+  it('attributes a shared connect failure to each caller command, not just the single-flight winner', async () => {
+    const { discoverVmServiceUrl } = (await import('../src/vmServiceDiscovery.js')) as unknown as {
+      discoverVmServiceUrl: ReturnType<typeof vi.fn>;
+    };
+    // The shared single-flight connect calls discover once; make it fail.
+    discoverVmServiceUrl.mockRejectedValueOnce(new Error('no vm service'));
+    const browser = {} as WebdriverIO.Browser & {
+      flutter?: { execute: (s: string) => Promise<unknown>; mock: (t: string) => Promise<unknown> };
+    };
+    const service = new FlutterWorkerService({}, cap);
+    await service.before(cap, [], browser);
+    const [exec, mck] = await Promise.allSettled([browser.flutter?.execute('a'), browser.flutter?.mock('M')]);
+    expect((exec as PromiseRejectedResult).reason.message).toContain('browser.flutter.execute');
+    expect((mck as PromiseRejectedResult).reason.message).toContain('browser.flutter.mock');
+  });
+
+  it('uses the appium:dartVmServicePort capability as the discovery fast-path port', async () => {
+    const { discoverVmServiceUrl } = (await import('../src/vmServiceDiscovery.js')) as unknown as {
+      discoverVmServiceUrl: ReturnType<typeof vi.fn>;
+    };
+    discoverVmServiceUrl.mockClear();
+    const capWithPort = {
+      platformName: 'Android',
+      'appium:dartVmServicePort': 12345,
+    } as unknown as FlutterCapabilities;
+    const browser = {} as WebdriverIO.Browser & { flutter?: { execute: (s: string) => Promise<unknown> } };
+    const service = new FlutterWorkerService({}, capWithPort);
+    await service.before(capWithPort, [], browser);
+    await browser.flutter?.execute('a');
+    expect(discoverVmServiceUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ pinnedPort: 12345 }),
+    );
+  });
+
+  it('prefers the service-option vmServicePort over the appium:dartVmServicePort capability', async () => {
+    const { discoverVmServiceUrl } = (await import('../src/vmServiceDiscovery.js')) as unknown as {
+      discoverVmServiceUrl: ReturnType<typeof vi.fn>;
+    };
+    discoverVmServiceUrl.mockClear();
+    const capWithPort = {
+      platformName: 'Android',
+      'appium:dartVmServicePort': 12345,
+    } as unknown as FlutterCapabilities;
+    const browser = {} as WebdriverIO.Browser & { flutter?: { execute: (s: string) => Promise<unknown> } };
+    const service = new FlutterWorkerService({ vmServicePort: 9999 }, capWithPort);
+    await service.before(capWithPort, [], browser);
+    await browser.flutter?.execute('a');
+    expect(discoverVmServiceUrl).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ pinnedPort: 9999 }));
+  });
 });

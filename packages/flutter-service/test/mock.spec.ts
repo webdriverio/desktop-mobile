@@ -49,6 +49,27 @@ describe('createFlutterMock', () => {
     expect(mock.mock.results).toEqual([{ type: 'return', value: 'mocked' }]);
   });
 
+  it('update() does not resurrect call data when a clear races its fetch (TOCTOU)', async () => {
+    const { client } = makeClient();
+    let releaseGetCalls: () => void = () => undefined;
+    (client.callServiceExtension as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+      if (method === 'ext.wdio.getCalls') {
+        // Hold the fetch open so a clear can interleave before update() writes back.
+        return new Promise((res) => {
+          releaseGetCalls = () =>
+            res({ calls: [['x']], results: [{ type: 'return', value: 1 }], invocationCallOrder: [0] });
+        });
+      }
+      return Promise.resolve({ ok: true });
+    });
+    const mock = await createFlutterMock('Svc.m', () => Promise.resolve(client), new FlutterMockStore());
+    const updating = mock.update(); // captures the epoch, then suspends on the held getCalls
+    await mock.mockClear(); // clears + bumps the epoch mid-fetch
+    releaseGetCalls(); // resolve getCalls with the now-stale snapshot
+    await updating;
+    expect(mock.mock.calls.length).toBe(0); // the clear wins; stale data not resurrected
+  });
+
   it('should register in the store', async () => {
     const { client } = makeClient();
     const store = new FlutterMockStore();
