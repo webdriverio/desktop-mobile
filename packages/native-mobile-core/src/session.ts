@@ -69,7 +69,14 @@ export function createMobileSession<TOptions extends object, TCap extends object
   ): Promise<WebdriverIO.Browser> {
     log.debug('Initializing mobile service in standalone mode…');
 
-    const capability = (Array.isArray(capabilities) ? capabilities[0] : capabilities) as TCap;
+    const capability = (Array.isArray(capabilities) ? capabilities[0] : capabilities) as TCap | undefined;
+    if (!capability) {
+      // An empty array (or undefined) otherwise resolves to an undefined capability that
+      // surfaces as a cryptic onPrepare/remote() failure deep in the launch path.
+      throw new Error(
+        'createMobileSession.init(): no capability provided — pass a capability object or a non-empty capabilities array.',
+      );
+    }
     const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
     const opts = (globalOptions ?? {}) as TOptions;
     const launcher = new deps.LauncherClass(opts, capability, testRunnerOpts);

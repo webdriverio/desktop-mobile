@@ -72,6 +72,18 @@ describe('createMobileSession init', () => {
     await expect(makeSession().init({ platformName: 'Android' })).rejects.toThrow('before boom');
     expect(deleteSession).toHaveBeenCalled();
   });
+
+  it('should throw a clear error for an empty capabilities array (no remote() call)', async () => {
+    resetMocks();
+    await expect(makeSession().init([])).rejects.toThrow(/no capability/);
+    expect(remoteMock).not.toHaveBeenCalled();
+  });
+
+  it('should throw a clear error for an undefined capability', async () => {
+    resetMocks();
+    await expect(makeSession().init(undefined as never)).rejects.toThrow(/no capability/);
+    expect(remoteMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('createMobileSession cleanup', () => {
