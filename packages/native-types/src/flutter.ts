@@ -51,7 +51,7 @@ export interface FlutterMock<TArgs extends unknown[] = unknown[], TReturns = unk
  *
  * NOTE — `execute` divergence: Flutter has no JS realm, so `script` is a **Dart
  * expression string** evaluated in the app's root library (not a JS function like the
- * other services). Args are interpolated as Dart literals.
+ * other services).
  */
 export interface FlutterServiceAPI {
   /**
@@ -64,8 +64,11 @@ export interface FlutterServiceAPI {
    * ```js
    * const isFlutter = await browser.flutter.execute('WidgetsBinding.instance != null');
    * ```
+   *
+   * (Positional args / a Dart `scope` binding are a planned enhancement; v1 evaluates the
+   * expression as written.)
    */
-  execute<ReturnValue = unknown>(script: string, ...args: unknown[]): Promise<ReturnValue>;
+  execute<ReturnValue = unknown>(script: string): Promise<ReturnValue>;
 
   /**
    * Mock a Dart seam the app exposed through the `wdio_flutter` contract (by target id).

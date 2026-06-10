@@ -1098,6 +1098,58 @@ importers:
         specifier: ^4.1.7
         version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
+  packages/flutter-service:
+    dependencies:
+      '@wdio/native-core':
+        specifier: workspace:*
+        version: link:../native-core
+      '@wdio/native-mobile-core':
+        specifier: workspace:*
+        version: link:../native-mobile-core
+      '@wdio/native-spy':
+        specifier: workspace:*
+        version: link:../native-spy
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../native-types
+      '@wdio/native-utils':
+        specifier: workspace:*
+        version: link:../native-utils
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.27.1
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
+      webdriverio:
+        specifier: catalog:default
+        version: 9.27.1(puppeteer-core@25.1.0)
+      ws:
+        specifier: ^8.21.0
+        version: 8.21.0
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.1
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      '@vitest/coverage-v8':
+        specifier: ^4.1.7
+        version: 4.1.7(vitest@4.1.7)
+      shx:
+        specifier: ^0.4.0
+        version: 0.4.0
+      tsx:
+        specifier: ^4.22.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+
   packages/native-cdp-bridge:
     dependencies:
       '@wdio/native-utils':
