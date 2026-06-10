@@ -1,7 +1,7 @@
 // Error helpers for the React Native service.
 //
 // `unsupportedPlatform` is shared with @wdio/flutter-service via @wdio/native-mobile-core
-// (bound here to RN's package name); `hermesUnavailable` is RN/Hermes-specific.
+// (bound here to RN's package name).
 
 import { unsupportedPlatform as coreUnsupportedPlatform } from '@wdio/native-mobile-core';
 import { SevereServiceError } from 'webdriverio';
