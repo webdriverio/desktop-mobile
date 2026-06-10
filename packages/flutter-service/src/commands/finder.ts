@@ -13,8 +13,7 @@ const FLUTTER_CONTEXT = 'FLUTTER';
 
 export type FlutterFinder =
   | { finderType: 'ByValueKey'; keyValueString: string; keyValueType: 'String' | 'int' }
-  | { finderType: 'ByText'; text: string }
-  | { finderType: 'ByType'; type: string };
+  | { finderType: 'ByText'; text: string };
 
 export function byValueKeyFinder(key: string | number): FlutterFinder {
   return {

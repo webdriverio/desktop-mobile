@@ -235,6 +235,9 @@ export interface FlutterBrowserExtension extends BrowserBase {
    *
    * - {@link FlutterServiceAPI.execute `browser.flutter.execute`} — evaluate a Dart expression
    * - {@link FlutterServiceAPI.mock `browser.flutter.mock`} — mock a Dart seam via the contract
+   * - {@link FlutterServiceAPI.byValueKey `browser.flutter.byValueKey`} — find a widget by ValueKey (tap/getText)
+   * - {@link FlutterServiceAPI.byText `browser.flutter.byText`} — find a widget by text (tap/getText)
+   * - {@link FlutterServiceAPI.emitEvent `browser.flutter.emitEvent`} — emit an event into the app's bus
    * - {@link FlutterServiceAPI.triggerDeeplink `browser.flutter.triggerDeeplink`} — trigger a deeplink
    * - {@link FlutterServiceAPI.switchWindow `browser.flutter.switchWindow`} — switch the Appium context
    * - {@link FlutterServiceAPI.listWindows `browser.flutter.listWindows`} — list the Appium contexts
