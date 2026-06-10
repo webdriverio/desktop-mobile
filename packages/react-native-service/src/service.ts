@@ -81,7 +81,7 @@ export default class ReactNativeWorkerService {
       // Forward JS console.* calls via Runtime.consoleAPICalled CDP events — only when the
       // user opted in via captureBackendLogs (default off, matching the other services).
       if (this.options.captureBackendLogs) {
-        this.stopJsLogs = startJsLogForwarding(bridge.bridge);
+        this.stopJsLogs = await startJsLogForwarding(bridge.bridge);
       }
     } catch (error) {
       log.warn(
@@ -107,7 +107,7 @@ export default class ReactNativeWorkerService {
       }
       if (this.options.captureBackendLogs) {
         this.stopJsLogs?.();
-        this.stopJsLogs = startJsLogForwarding(bridge.bridge);
+        this.stopJsLogs = await startJsLogForwarding(bridge.bridge);
       }
       // Rewire existing mocks to the new bridge — best-effort per entry so a failed
       // reinstall on one target (e.g. the module no longer exists after a bundle reload)

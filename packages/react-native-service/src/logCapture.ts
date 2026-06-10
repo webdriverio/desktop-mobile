@@ -27,12 +27,17 @@ export interface LogEntry {
  * This captures `console.log/warn/error/info` calls made inside the React Native
  * JS bundle (Metro build) while the test is running.
  *
+ * `Runtime.consoleAPICalled` is only dispatched once the Runtime domain is enabled, so we
+ * send `Runtime.enable` before subscribing (matching electron-service's logCapture). It's
+ * best-effort: log capture is opt-in (captureBackendLogs) and an enable failure must not
+ * break execute/mock — on failure we skip the subscription and return a no-op cleanup.
+ *
  * The listener binds to the `CdpBridge` instance passed here. When `MetroBridge.connect()`
  * re-attaches after a drop it swaps in a fresh `CdpBridge`, so a caller that reconnects must run
  * the returned cleanup for the old bridge and re-invoke this against `bridge.bridge` to keep
  * forwarding live (ensureHermes does exactly this).
  */
-export function startJsLogForwarding(bridge: CdpBridge): () => void {
+export async function startJsLogForwarding(bridge: CdpBridge): Promise<() => void> {
   const handler = (params: unknown) => {
     const event = params as {
       type?: string;
@@ -57,6 +62,13 @@ export function startJsLogForwarding(bridge: CdpBridge): () => void {
         log.debug(`[JS] ${message}`);
     }
   };
+
+  try {
+    await bridge.send('Runtime.enable');
+  } catch (error) {
+    log.warn(`JS console capture disabled — Runtime.enable failed: ${(error as Error).message}`);
+    return () => {};
+  }
 
   bridge.on('Runtime.consoleAPICalled', handler);
   return () => {
