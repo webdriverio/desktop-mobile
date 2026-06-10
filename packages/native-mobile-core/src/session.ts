@@ -34,8 +34,28 @@ interface MobileWorkerLike<TCap> {
 }
 
 export interface MobileSessionDeps<TOptions, TCap> {
-  LauncherClass: new (options: TOptions, capability: TCap, config: Options.Testrunner) => MobileLauncherLike<TCap>;
-  WorkerClass: new (options: TOptions, capability: TCap) => MobileWorkerLike<TCap>;
+  /**
+   * The launch service. `init()` constructs it as `new LauncherClass(globalOptions, capability,
+   * testRunnerConfig)` then drives `onPrepare(config, [capability])` to mutate the capability
+   * (automationName/app) before the Appium session opens. The third arg is a minimal
+   * `Options.Testrunner` (`{ capabilities: [] }`) — standalone mode has no real runner config.
+   * Typically a `MobileBaseLauncher` subclass.
+   */
+  LauncherClass: new (
+    options: TOptions,
+    capability: TCap,
+    config: Options.Testrunner,
+  ) => MobileLauncherLike<TCap>;
+  /**
+   * The worker service. `init()` constructs it as `new WorkerClass(globalOptions, capability)`
+   * (BEFORE opening the session, so a ctor throw leaks nothing) then calls
+   * `before(capability, [], browser)` to install the `browser.<framework>` surface. The
+   * constructor is expected to merge per-capability options itself; raw global options are passed.
+   */
+  WorkerClass: new (
+    options: TOptions,
+    capability: TCap,
+  ) => MobileWorkerLike<TCap>;
   /** Default Appium server address; falls back to localhost:4723/. */
   defaultConnection?: AppiumServerConnection;
   /** Logger namespace (the consuming service's package short name). */
