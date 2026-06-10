@@ -1,9 +1,9 @@
 // Error helpers for the React Native service.
 //
-// `SevereServiceError` (re-exported from webdriverio) tells the WDIO runner the
-// failure is non-recoverable and the run should abort — used when a capability
-// fundamentally can't work, e.g. it targets a platform the service doesn't support.
+// `unsupportedPlatform` is shared with @wdio/flutter-service via @wdio/native-mobile-core
+// (bound here to RN's package name); `hermesUnavailable` is RN/Hermes-specific.
 
+import { unsupportedPlatform as coreUnsupportedPlatform } from '@wdio/native-mobile-core';
 import { SevereServiceError } from 'webdriverio';
 
 export { SevereServiceError };
@@ -14,10 +14,7 @@ export { SevereServiceError };
  * (XCUITest) only.
  */
 export function unsupportedPlatform(platform: string): Error {
-  return new SevereServiceError(
-    `@wdio/react-native-service supports Android and iOS only (received platformName: '${platform}'). ` +
-      "Set platformName to 'Android' or 'iOS' in your capabilities.",
-  );
+  return coreUnsupportedPlatform(platform, '@wdio/react-native-service');
 }
 
 /**
