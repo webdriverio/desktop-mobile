@@ -48,8 +48,11 @@ describe('createFlutterElement', () => {
   });
 
   it('getText() should switch context, wait, and read the text', async () => {
+    (switchWindow as ReturnType<typeof vi.fn>).mockClear();
     const { browser, element } = makeBrowser();
     expect(await createFlutterElement(browser, byTextFinder('Counter')).getText()).toBe('42');
+    expect(switchWindow).toHaveBeenCalledWith(browser, 'FLUTTER');
+    expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', expect.stringContaining('ByText'));
     expect(element.getText).toHaveBeenCalled();
   });
 });
