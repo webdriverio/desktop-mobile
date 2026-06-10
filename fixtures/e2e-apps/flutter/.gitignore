@@ -1,0 +1,15 @@
+# Source-only fixture: the platform projects + build outputs are scaffolded by
+# `flutter create .` in CI (PR4/PR5), not committed. Only lib/ + pubspec.yaml are tracked.
+.dart_tool/
+.flutter-plugins
+.flutter-plugins-dependencies
+.packages
+build/
+pubspec.lock
+android/
+ios/
+linux/
+macos/
+windows/
+web/
+test/

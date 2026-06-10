@@ -19,10 +19,26 @@
 /// ```
 library;
 
+import 'dart:async';
 import 'dart:convert';
 import 'dart:developer' as developer;
 
 int _invocationCounter = 0;
+
+/// Broadcast bus backing `browser.flutter.emitEvent`. The app opts in by listening to
+/// [wdioEvents].stream (e.g. to drive navigation or feature flags from a test); if nothing
+/// listens, emitted events are simply dropped.
+class WdioEventBus {
+  final StreamController<Map<String, dynamic>> _controller = StreamController.broadcast();
+
+  /// Events emitted by the test, as `{ 'name': String, 'payload': dynamic }`.
+  Stream<Map<String, dynamic>> get stream => _controller.stream;
+
+  void emit(String name, dynamic payload) => _controller.add({'name': name, 'payload': payload});
+}
+
+/// The single event-bus instance the app subscribes to.
+final WdioEventBus wdioEvents = WdioEventBus();
 
 /// Cast a JSON-decoded mock value to the seam's return type `T`.
 ///
@@ -233,6 +249,14 @@ void enableWdioMocking() {
     return developer.ServiceExtensionResponse.result(
       jsonEncode(wdioRegistry.getCalls(target), toEncodable: (Object? o) => o.toString()),
     );
+  });
+
+  developer.registerExtension('ext.wdio.emitEvent', (method, params) async {
+    final name = params['name'];
+    if (name == null) return _missingParam('name');
+    final payload = params['payload'] != null ? jsonDecode(params['payload']!) : null;
+    wdioEvents.emit(name, payload);
+    return _ok();
   });
 
   developer.registerExtension('ext.wdio.clearMock', (method, params) async {
