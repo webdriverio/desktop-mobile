@@ -797,6 +797,28 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # Flutter — Android emulator E2E. Single combined job (scaffold + build apk + run): a Flutter
+  # debug build is self-contained (no Metro) and exposes the Dart VM Service in-app, which the
+  # service discovers from logcat + reaches via `adb forward`. No Paper/Fabric arch split. iOS
+  # simulator is the fast-follow (PR5). Required gate (see ci-status).
+  e2e-flutter-linux:
+    name: E2E - Flutter [Linux] - ${{ matrix.test-type }}
+    needs: [detect-changes, build]
+    if: fromJSON(needs.detect-changes.outputs.runs)['flutter'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+    uses: ./.github/workflows/_ci-e2e-flutter.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build the RN iOS .app ahead of (and in parallel with) the Linux package build. The native
   # xcodebuild + CocoaPods step is the dominant cost on the iOS leg; decoupling it from `build`
   # means the macOS runner starts as soon as detect-changes finishes instead of waiting for the
@@ -1127,6 +1149,8 @@ jobs:
       - e2e-react-native-ios-macos-new-arch
       - build-rn-ios-e2e-app-macos-old-arch
       - build-rn-ios-e2e-app-macos-new-arch
+      # Flutter — Android emulator E2E is a required gate (iOS simulator lands in PR5).
+      - e2e-flutter-linux
       - e2e-electrobun-windows
       - package-electron-matrix
       - package-tauri-linux
