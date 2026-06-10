@@ -10,6 +10,7 @@
 // enableWdioMocking() (register ext.wdio.*) BEFORE runApp().
 
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_driver/driver_extension.dart';
@@ -60,9 +61,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    // emitEvent target: reflect the last event the test emits into the UI.
+    // emitEvent target: reflect the last event into the UI. jsonEncode the payload so object
+    // payloads render deterministically (e.g. {"path":"/x"}) for stable E2E assertions, rather
+    // than Dart's Map.toString ({path: /x}).
     _eventSub = wdioEvents.stream.listen((event) {
-      setState(() => _lastEvent = '${event['name']}:${event['payload']}');
+      setState(() => _lastEvent = '${event['name']}:${jsonEncode(event['payload'])}');
     });
   }
 
