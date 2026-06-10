@@ -84,6 +84,23 @@ describe('createMobileSession init', () => {
     await expect(makeSession().init(undefined as never)).rejects.toThrow(/no capability/);
     expect(remoteMock).not.toHaveBeenCalled();
   });
+
+  it('should not open a session if the worker constructor throws', async () => {
+    resetMocks();
+    class ThrowingWorker {
+      constructor() {
+        throw new Error('worker ctor boom');
+      }
+    }
+    const session = createMobileSession<Record<string, unknown>, { platformName?: string }>({
+      LauncherClass: FakeLauncher as never,
+      WorkerClass: ThrowingWorker as never,
+      logNamespace: 'test-service',
+    });
+    await expect(session.init({ platformName: 'Android' })).rejects.toThrow('worker ctor boom');
+    // The worker is constructed before remote(), so a ctor throw leaks no live session.
+    expect(remoteMock).not.toHaveBeenCalled();
+  });
 });
 
 describe('createMobileSession cleanup', () => {

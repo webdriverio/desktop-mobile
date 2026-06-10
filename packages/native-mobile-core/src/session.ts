@@ -83,6 +83,11 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
     await launcher.onPrepare(testRunnerOpts, [capability]);
 
+    // Construct the worker BEFORE opening the session: a constructor throw here would otherwise
+    // leave a live Appium session the caller never receives a browser handle for (so can't close).
+    // Pass globalOptions raw — the service constructor merges the capability options itself.
+    const service = new deps.WorkerClass(opts, capability);
+
     const browser = await remote({
       // Appium defaults; remote() otherwise targets WebdriverIO's localhost:4444, which an Appium
       // server (default localhost:4723) is never on. Callers override via `connection`.
@@ -100,8 +105,6 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
     activeLaunchers.set(browser, launcher);
 
-    // Pass globalOptions raw — the service constructor merges the capability options itself.
-    const service = new deps.WorkerClass(opts, capability);
     try {
       await service.before(capability, [], browser);
     } catch (error) {
