@@ -12,8 +12,9 @@ This is a monorepo providing WebdriverIO services for automated testing of nativ
 - **Dioxus** - `@wdio/dioxus-service` (v1.x)
 - **Electrobun** - `@wdio/electrobun-service` (v0.1.x — **macOS** via CEF + **Windows** via the native WebView2 renderer (CDP), incl. multi-window/multiremote; **Linux** upstream-blocked, and deeplink/multiremote blocked on the macOS CEF path — see the package README)
 - **React Native** - `@wdio/react-native-service` (v1.0.0-next.x — **Android** + **iOS**; native find/tap via Appium (UiAutomator2/XCUITest); `execute` + `mock` via Hermes CDP (debug/Metro build); full mock, deeplink, context switching, logs, multiremote)
+- **Flutter** - `@wdio/flutter-service` (v1.0.0-next.x — **Android** + **iOS**; native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (Dart expression) + `mock` (Tier-2 cooperative `wdio_flutter` Dart contract) via the Dart VM Service (debug/profile build); full mock, deeplink, context switching, logs, multiremote). Built on `@wdio/native-mobile-core`.
 
-**Planned:** Flutter, Capacitor, Neutralino. See [ROADMAP.md](./ROADMAP.md) for details.
+**Planned:** Capacitor, Neutralino. See [ROADMAP.md](./ROADMAP.md) for details.
 
 ## Tech Stack
 
@@ -36,6 +37,8 @@ packages/
 ├── dioxus-service/         # Dioxus WDIO service
 ├── electrobun-service/     # Electrobun WDIO service
 ├── react-native-service/   # React Native WDIO service (Android + iOS via Appium + Hermes CDP)
+├── flutter-service/        # Flutter WDIO service (Android + iOS via appium-flutter-driver + Dart VM Service); nested wdio_flutter Dart contract
+├── native-mobile-core/     # Shared Appium-mobile layer (DeviceManager, MobileBaseLauncher, session/caps/deeplink/contexts/logs) — RN + Flutter
 ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
 ├── dioxus-bridge/          # Dioxus bridge crate (Rust) — IPC, mocking, log forwarding
 ├── dioxus-embedded-driver/ # Dioxus in-process WebDriver server (Rust)

@@ -27,7 +27,7 @@ on:
         type: boolean
         default: false
       scope:
-        description: 'Release scope (electron, tauri, dioxus, electrobun, react-native, utils, types, spy, core, cdp-bridge, shared) — controls build and toolchain steps'
+        description: 'Release scope (electron, tauri, dioxus, electrobun, react-native, flutter, native-mobile-core, utils, types, spy, core, cdp-bridge, shared) — controls build and toolchain steps'
         required: true
         type: string
     secrets:
@@ -132,6 +132,12 @@ jobs:
             cdp-bridge)
               echo "packages=@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
               ;;
+            native-mobile-core)
+              echo "packages=@wdio/native-mobile-core" >> "$GITHUB_OUTPUT"
+              ;;
+            flutter)
+              echo "packages=@wdio/flutter-service" >> "$GITHUB_OUTPUT"
+              ;;
             shared)
               echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy,@wdio/native-core,@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
               ;;
@@ -225,6 +231,12 @@ jobs:
             cdp-bridge)
               pnpm turbo run build --filter='@wdio/native-cdp-bridge...'
               ;;
+            native-mobile-core)
+              pnpm turbo run build --filter='@wdio/native-mobile-core...'
+              ;;
+            flutter)
+              pnpm turbo run build --filter='@wdio/flutter-service...'
+              ;;
             shared)
               pnpm turbo run build \
                 --filter='@wdio/native-types...' \
@@ -288,3 +300,8 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
           OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
+
+      # The wdio_flutter Dart contract (packages/flutter-service/wdio_flutter) publishes to pub.dev
+      # as part of the `flutter` scope. This is handled inside ReleaseKit — peer to its npm +
+      # crates.io publishing — rather than a bespoke step here, so the pubspec.yaml version bumps in
+      # lockstep with the @wdio/flutter-service npm line. Tracked: goosewobbler/releasekit#285.

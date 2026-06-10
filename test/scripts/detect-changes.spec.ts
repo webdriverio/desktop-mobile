@@ -92,7 +92,10 @@ describe('classifyFile', () => {
     ['e2e/wdio.flutter.conf.ts', 'flutter'],
     ['e2e/test/flutter/api.spec.ts', 'flutter'],
     ['fixtures/e2e-apps/flutter/lib/main.dart', 'flutter'],
+    ['fixtures/package-tests/flutter-app/wdio.conf.ts', 'flutter'],
     ['.github/workflows/_ci-e2e-flutter.reusable.yml', 'flutter'],
+    ['.github/workflows/_ci-e2e-flutter-ios.reusable.yml', 'flutter'],
+    ['.github/workflows/_ci-build-flutter-ios-app.reusable.yml', 'flutter'],
   ])('should classify %s as %s', (file, expected) => {
     expect(classifyFile(file, SERVICES)).toBe(expected);
   });
