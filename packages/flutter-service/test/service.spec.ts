@@ -101,6 +101,40 @@ describe('FlutterWorkerService', () => {
     expect(VmServiceClient.mock.calls.length).toBe(1);
   });
 
+  it('rediscovers and retries within one call when the cached URL is stale (app relaunch)', async () => {
+    const { VmServiceClient } = (await import('../src/vmService.js')) as unknown as {
+      VmServiceClient: ReturnType<typeof vi.fn>;
+    };
+    const { discoverVmServiceUrl } = (await import('../src/vmServiceDiscovery.js')) as unknown as {
+      discoverVmServiceUrl: ReturnType<typeof vi.fn>;
+    };
+    discoverVmServiceUrl.mockClear();
+    let firstClient: Record<string, unknown> | undefined;
+    // mockImplementationOnce queues these in order then falls back to the default impl — no leak.
+    VmServiceClient.mockImplementationOnce(function (this: Record<string, unknown>) {
+      Object.assign(this, fakeClient());
+      firstClient = this; // capture so we can simulate a passive drop below
+    })
+      .mockImplementationOnce(function (this: Record<string, unknown>) {
+        // The reconnect attempt against the STALE cached URL: connect rejects.
+        Object.assign(this, fakeClient());
+        this.connected = false;
+        this.connect = vi.fn().mockRejectedValue(new Error('ECONNREFUSED'));
+      })
+      .mockImplementationOnce(function (this: Record<string, unknown>) {
+        Object.assign(this, fakeClient()); // post-rediscovery: connects fine
+      });
+
+    const browser = {} as WebdriverIO.Browser & { flutter?: { execute: (s: string) => Promise<unknown> } };
+    const service = new FlutterWorkerService({}, cap);
+    await service.before(cap, [], browser);
+    await browser.flutter?.execute('a'); // discover + connect; URL cached
+    (firstClient as Record<string, unknown>).connected = false; // app killed + relaunched
+    // The next command tries the cached URL (fails), rediscovers, retries — and SUCCEEDS in-call.
+    await expect(browser.flutter?.execute('b')).resolves.toBe(true);
+    expect(discoverVmServiceUrl).toHaveBeenCalledTimes(2); // initial + rediscovery
+  });
+
   it('afterTest should forward device logs when captureBackendLogs is set', async () => {
     const getLogs = vi.fn().mockResolvedValue([{ message: 'x', level: 'INFO', timestamp: 1 }]);
     const browser = { getLogs } as unknown as WebdriverIO.Browser;
