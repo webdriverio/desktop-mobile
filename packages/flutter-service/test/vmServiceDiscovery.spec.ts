@@ -40,6 +40,17 @@ describe('discoverVmServiceUrl', () => {
     expect(adbForward).not.toHaveBeenCalled();
   });
 
+  it('should return the most recent (last) URL when the log holds several (relaunch)', async () => {
+    const url = await discoverVmServiceUrl(
+      browserWithLogs([
+        { message: 'Dart VM service is listening on http://127.0.0.1:1111/old/' },
+        { message: 'Dart VM service is listening on http://127.0.0.1:2222/new/' },
+      ]),
+      { platform: 'ios' },
+    );
+    expect(url).toBe('ws://127.0.0.1:2222/new/ws');
+  });
+
   it('should retry then throw when the URL never appears', async () => {
     const sleep = vi.fn().mockResolvedValue(undefined);
     await expect(discoverVmServiceUrl(browserWithLogs([]), { platform: 'android', retries: 3, sleep })).rejects.toThrow(

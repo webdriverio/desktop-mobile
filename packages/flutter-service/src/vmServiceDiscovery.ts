@@ -66,13 +66,17 @@ async function scrapeVmServiceUrl(
   } catch {
     return undefined;
   }
+  // Keep the LAST match, not the first: getLogs returns entries oldest-first, and after a
+  // relaunch (reconnect) the buffer can hold a stale "VM service is listening" line from the
+  // previous launch — the most recent URL is the live one.
+  let url: string | undefined;
   for (const entry of entries) {
     const match = entry.message?.match(VM_SERVICE_LOG_PATTERN);
     if (match?.[1]) {
-      return match[1];
+      url = match[1];
     }
   }
-  return undefined;
+  return url;
 }
 
 /**
