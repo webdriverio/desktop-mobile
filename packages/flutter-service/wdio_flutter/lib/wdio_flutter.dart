@@ -99,24 +99,30 @@ class WdioMockRegistry {
   /// Route an asynchronous (Future-returning) seam: supports `return`, `resolve`, `reject`.
   Future<T> interceptAsync<T>(String target, List<dynamic> args, Future<T> Function() real) async {
     final entry = _entry(target);
-    _record(entry, args);
+    // Reserve this call's slot synchronously (before any await) so concurrent calls to the same
+    // seam keep calls[i] ↔ results[i] aligned even if their futures complete out of order — the
+    // result is written back by index, not appended on completion.
+    final index = entry.calls.length;
+    entry.calls.add(args);
+    entry.invocationCallOrder.add(_invocationCounter++);
+    entry.results.add({'type': 'incomplete', 'value': null});
     final spec = entry.takeValue();
     if (spec == null) {
       try {
         final value = await real();
-        entry.results.add({'type': 'return', 'value': value});
+        entry.results[index] = {'type': 'return', 'value': value};
         return value;
       } catch (error) {
-        entry.results.add({'type': 'throw', 'value': error.toString()});
+        entry.results[index] = {'type': 'throw', 'value': error.toString()};
         rethrow;
       }
     }
     if (spec['kind'] == 'reject') {
-      entry.results.add({'type': 'throw', 'value': spec['value']});
+      entry.results[index] = {'type': 'throw', 'value': spec['value']};
       throw _WdioMockException(spec['value']);
     }
     final value = _castMockValue<T>(spec['value']);
-    entry.results.add({'type': 'return', 'value': value});
+    entry.results[index] = {'type': 'return', 'value': value};
     return value;
   }
 

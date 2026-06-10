@@ -88,7 +88,10 @@ export async function createFlutterMock(
   };
 
   const setValue = async (kind: ValueKind, value: unknown, once = false): Promise<FlutterMock> => {
-    await ext('ext.wdio.setMock', { value: JSON.stringify({ kind, value, once }) });
+    // JSON.stringify drops `undefined` (it would arrive as a missing key), so serialise it as
+    // null explicitly — the contract value is always present, and Dart has no `undefined`, so
+    // null is the closest analogue (e.g. mockReturnValue(undefined) → a null Dart value).
+    await ext('ext.wdio.setMock', { value: JSON.stringify({ kind, value: value ?? null, once }) });
     return mock;
   };
 
