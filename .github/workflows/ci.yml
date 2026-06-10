@@ -815,6 +815,37 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # Flutter iOS .app build (macOS) — split from the e2e run so the heavy build stays off the e2e
+  # runner (appium-xcuitest's SDK probe is fragile under build contention). Mirrors the RN iOS split.
+  build-flutter-ios-e2e-app-macos:
+    name: Build Flutter iOS E2E App
+    needs: [detect-changes]
+    if: fromJSON(needs.detect-changes.outputs.runs)['flutter'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-flutter-ios-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+
+  # Flutter — iOS simulator E2E (fast-follow to the Android leg). Required gate (see ci-status).
+  e2e-flutter-ios-macos:
+    name: E2E - Flutter [iOS] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-flutter-ios-e2e-app-macos]
+    if: fromJSON(needs.detect-changes.outputs.runs)['flutter'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+    uses: ./.github/workflows/_ci-e2e-flutter-ios.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build the RN iOS .app ahead of (and in parallel with) the Linux package build. The native
   # xcodebuild + CocoaPods step is the dominant cost on the iOS leg; decoupling it from `build`
   # means the macOS runner starts as soon as detect-changes finishes instead of waiting for the
@@ -1124,8 +1155,10 @@ jobs:
       - e2e-react-native-linux
       - e2e-react-native-ios-macos
       - build-rn-ios-e2e-app-macos
-      # Flutter — Android emulator E2E is a required gate (iOS simulator lands in PR5).
+      # Flutter — Android emulator + iOS simulator E2E are required gates.
       - e2e-flutter-linux
+      - e2e-flutter-ios-macos
+      - build-flutter-ios-e2e-app-macos
       - e2e-electrobun-windows
       - package-electron-matrix
       - package-tauri-linux

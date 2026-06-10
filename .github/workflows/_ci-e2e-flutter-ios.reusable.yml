@@ -1,0 +1,168 @@
+name: E2E Tests - Flutter (iOS)
+# Description: iOS-simulator E2E for @wdio/flutter-service. The .app is built by the
+# build-flutter-ios-app job and downloaded here; this job boots the simulator, prebuilds
+# WebDriverAgent (appium-flutter-driver wraps appium-xcuitest on iOS), and runs the suite.
+# No Metro — a Flutter debug build is self-contained; the Dart VM Service is in-app and the
+# service discovers it from the device syslog over the simulator's shared host loopback.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Runner OS (macos-latest)'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      test-type:
+        type: string
+        default: 'standard'
+      ios-device:
+        description: 'Simulator device name'
+        type: string
+        default: 'iPhone 16'
+      build_id:
+        type: string
+        required: false
+      artifact_size:
+        type: string
+        required: false
+      cache_key:
+        type: string
+        required: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  FLUTTER_WDA_DD: ${{ github.workspace }}/wda_dd
+  FLUTTER_APP_DIR: ${{ github.workspace }}/flutter-ios-app
+
+jobs:
+  run:
+    name: Run
+    runs-on: ${{ inputs.os }}
+    timeout-minutes: 60
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      - name: 📦 Download Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      - name: 📥 Download built .app
+        uses: actions/download-artifact@v7
+        with:
+          name: flutter-ios-app-${{ github.run_id }}
+          path: ${{ github.workspace }}/flutter-app-dl
+
+      - name: 📦 Unpack built .app
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$FLUTTER_APP_DIR"
+          tar -xzf "$GITHUB_WORKSPACE/flutter-app-dl/flutter-ios-app.tar.gz" -C "$FLUTTER_APP_DIR"
+          APP=$(find "$FLUTTER_APP_DIR" -maxdepth 1 -name '*.app' -type d | head -1)
+          test -n "$APP" || { echo "::error::unpacked .app not found under $FLUTTER_APP_DIR"; find "$FLUTTER_APP_DIR" | head -40; exit 1; }
+          echo "FLUTTER_APP_PATH=$APP" >> "$GITHUB_ENV"
+          echo "Using app: $APP"
+
+      # Warm the Xcode toolchain before the Appium session: appium-xcuitest (which the flutter
+      # driver wraps) probes the SDK with `xcrun --show-sdk-version` under a 15s timeout; the first
+      # cold invocation on a fresh runner can exceed it.
+      - name: 🔥 Warm Xcode toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcrun --sdk iphonesimulator --show-sdk-version
+          xcrun simctl list devices available >/dev/null
+
+      - name: 📲 Boot iOS simulator
+        shell: bash
+        env:
+          FLUTTER_IOS_DEVICE: ${{ inputs.ios-device }}
+        run: |
+          set -euo pipefail
+          if ! xcrun simctl boot "$FLUTTER_IOS_DEVICE" 2>/tmp/boot.err; then
+            if grep -qiE "already booted|current state: Booted" /tmp/boot.err; then
+              echo "Simulator '$FLUTTER_IOS_DEVICE' already booted"
+            else
+              echo "::error::Failed to boot simulator '$FLUTTER_IOS_DEVICE':"; cat /tmp/boot.err
+              echo "Available devices:"; xcrun simctl list devices available
+              exit 1
+            fi
+          fi
+          xcrun simctl bootstatus "$FLUTTER_IOS_DEVICE" -b || { echo "::error::Simulator '$FLUTTER_IOS_DEVICE' did not reach Booted state"; exit 1; }
+
+      - name: 🔌 Install Appium Flutter + XCUITest drivers
+        shell: bash
+        run: |
+          set -euo pipefail
+          installed=$(pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 || true)
+          echo "$installed" | grep -qi xcuitest || pnpm --filter @repo/e2e exec appium driver install xcuitest
+          echo "$installed" | grep -qi flutter || pnpm --filter @repo/e2e exec appium driver install --source=npm appium-flutter-driver
+
+      # WDA DerivedData cache keyed on e2e/package.json (driver pins) + the runner image version.
+      - name: 💾 Restore WDA DerivedData cache
+        id: wda-cache
+        uses: actions/cache@v5
+        with:
+          path: ${{ env.FLUTTER_WDA_DD }}
+          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v1
+
+      # Pre-build WebDriverAgent deterministically (no appium session, so no socket fragility).
+      # The graded run reuses it via appium:derivedDataPath + usePrebuiltWDA, skipping the
+      # multi-minute compile on the first session (which under WDIO's undici client dropped the
+      # POST /session socket on the RN leg).
+      - name: 🏎️ Pre-build WebDriverAgent
+        if: steps.wda-cache.outputs.cache-hit != 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          WDA_PROJ=$(find node_modules/.pnpm -maxdepth 6 -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -type d 2>/dev/null | head -1)
+          test -n "$WDA_PROJ" || { echo "::error::WebDriverAgent.xcodeproj not found under node_modules"; exit 1; }
+          xcodebuild build-for-testing \
+            -project "$WDA_PROJ" \
+            -scheme WebDriverAgentRunner \
+            -derivedDataPath "$FLUTTER_WDA_DD" \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO GCC_TREAT_WARNINGS_AS_ERRORS=0 2>&1 | (xcbeautify || cat)
+          test -d "$FLUTTER_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app" \
+            || { echo "::error::prebuilt WDA runner not found"; exit 1; }
+
+      - name: 🧪 Run E2E on iOS simulator
+        shell: bash
+        env:
+          FLUTTER_IOS_DEVICE: ${{ inputs.ios-device }}
+        run: |
+          set -euo pipefail
+          pnpm --filter @repo/e2e run test:e2e:flutter:ios
+
+      - name: 📦 Upload Test Logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs-flutter-ios-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
+          path: |
+            e2e/logs/**/*.log
+          retention-days: 30
+          if-no-files-found: warn
