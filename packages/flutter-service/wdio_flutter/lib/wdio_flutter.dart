@@ -44,11 +44,14 @@ T _castMockValue<T>(dynamic value) {
     // JSON has no int/double distinction (mockReturnValue(3.0) serialises as 3), so coerce to
     // whatever numeric type T expects. Test assignability with `is T` rather than `T == double`,
     // which is false for the NULLABLE types double?/int? and would let `3 as double?` crash.
+    // The explicit `as T` is required: `x is T` does NOT statically promote a `double`/`int` local
+    // to the type variable T, so a bare `return asDouble` fails to compile — the cast is runtime-
+    // checked but safe here, since the `is T` guard just confirmed the type matches.
     if (value is T) return value as T; // already the right numeric type (incl. num / num?)
     final asDouble = value.toDouble();
-    if (asDouble is T) return asDouble; // double / double?
+    if (asDouble is T) return asDouble as T; // double / double?
     final asInt = value.toInt();
-    if (asInt is T) return asInt; // int / int?
+    if (asInt is T) return asInt as T; // int / int?
   }
   return value as T;
 }
