@@ -44,7 +44,10 @@ export class DeviceManager {
     if (this.#devices.length === 0) {
       return undefined;
     }
-    if (this.#nextIndex >= this.#devices.length) {
+    // Warn only on genuine contention *at this instant* — when every device is currently
+    // held. Gating on #nextIndex (monotonic, never resets) would false-positive on the
+    // first claim after a full round of workers has released their devices.
+    if (this.#claimed.size >= this.#devices.length) {
       log.warn(
         `More workers than configured devices (${this.#devices.length}): worker ${cid} will share ` +
           `device[${this.#nextIndex % this.#devices.length}] with another worker.`,

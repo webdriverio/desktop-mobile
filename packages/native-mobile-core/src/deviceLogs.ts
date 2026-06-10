@@ -13,8 +13,12 @@ export interface LogEntry {
   timestamp: number;
   level: string;
   message: string;
-  /** 'device' = logcat/syslog; 'js'/'dart' = a framework realm channel (tagged by the service). */
-  source: 'device' | 'js' | 'dart';
+  /**
+   * Always `'device'` (logcat/syslog) — the only kind this helper produces. A framework's
+   * own realm-log channel (RN's Hermes console, a Flutter VM-service stream) forwards
+   * directly via the logger, not as a `LogEntry`, so the union stays single-member here.
+   */
+  source: 'device';
 }
 
 /**
