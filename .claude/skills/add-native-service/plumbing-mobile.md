@@ -9,16 +9,20 @@ capability, and no `<FRAMEWORK>_WEBVIEW_AUTOMATION` env var**. The shipped refer
 
 ## What you build
 
-| Piece | Where | Job |
-|---|---|---|
-| Launcher | `src/launcher.ts` (extends `BaseLauncher`) | capability mutation in `onPrepare`; device claim/release in `onWorkerStart`/`onWorkerEnd`. No `onComplete` driver teardown. |
-| Capability prep | `src/capabilities.ts` | per-platform `appium:automationName`; `appBinaryPath`→`appium:app`; platform validation (`SevereServiceError`) |
-| Device pool | `src/deviceManager.ts` | round-robin `claim(cid)`/`release(cid)` + `applyToCapability()` |
-| JS-realm channel | sub-axis specific (below) | `execute` / `mock` |
-| Converged commands | `src/commands/*` + `src/logCapture.ts` | contexts, deeplink, logs — the standard surface, mobile-flavoured |
+| Piece | Where | Job | After extraction |
+|---|---|---|---|
+| Launcher | `src/launcher.ts` (extends `BaseLauncher`) | cap mutation in `onPrepare`; device claim/release in `onWorkerStart`/`onWorkerEnd`. No `onComplete` driver teardown. | thin, per-service |
+| Capability prep | `src/capabilities.ts` | per-platform `appium:automationName`; `appBinaryPath`→`appium:app`; platform validation (`SevereServiceError`) | → `native-mobile-core` |
+| Device pool | `src/deviceManager.ts` | round-robin `claim(cid)`/`release(cid)` + `applyToCapability()` | → `native-mobile-core` |
+| Find/tap | standard locators (native-widget) **or** finder glue (self-rendered) | `browser.$` for RN; the `FLUTTER` context + `ByValueKey`/`ByText` + `getText` normalisation for Flutter | framework-specific |
+| JS-realm channel | sub-axis 2 (below) | `execute` / `mock` | framework-specific |
+| Contexts / deeplink / device logs | `src/commands/*` + `src/logCapture.ts` (device-log half) | the converged surface, mobile-flavoured | → `native-mobile-core` |
 
 The launcher only mutates the caps WDIO hands it; the worker (`service.ts`) installs
-`browser.<framework>.*` in `before` and attaches the JS-realm channel.
+`browser.<framework>.*` in `before` and attaches the JS-realm channel. The **"After extraction"**
+column shows where each piece lives once `@wdio/native-mobile-core` exists (see "Shared-layer
+extraction"): a *second* mobile service **consumes** the `→ native-mobile-core` rows and builds only
+the framework-specific ones. The src tree above is RN's *pre-extraction* (first-consumer) layout.
 
 ## Appium composition + capability mutation
 
@@ -54,8 +58,12 @@ The launcher only mutates the caps WDIO hands it; the worker (`service.ts`) inst
 
 ## The JS-realm sub-axis — how `execute`/`mock` reach the scripting realm
 
-The native UI is always Appium. This sub-axis is *only* about the eval/mock channel. Pick the point
-that matches the framework's engine (confirm in the spike):
+Appium drives the session; **find/tap** is Step 0 sub-axis 1 (native a11y tree for a native-widget
+framework vs the framework's own finder protocol for a self-rendered one — see SKILL.md). This
+section is **sub-axis 2** — the eval/mock channel, which is independent. Both channels exist **only
+in an instrumented debug build** (gotcha 17: RN needs Hermes+Metro; Flutter needs the VM Service +
+`enableFlutterDriverExtension()`; a release build has nothing to attach to). Pick the point that
+matches the framework's engine (confirm in the spike):
 
 ### Hermes / CDP (React Native) — Tier 1, worked detail
 
@@ -126,8 +134,10 @@ which are an *output* written into the Flutter README/`docs/` once it ships.)
 ### WebView context (Ionic/Capacitor) — Tier 1
 
 A pure-WebView app's scripting realm **is** the webview, reachable through Appium's `WEBVIEW_*`
-context (Chrome/Safari devtools). `execute`/`mock` run in that context — same Tier-1 doctrine, the
-webview is the realm. Minimal new plumbing beyond context switching.
+context (chromedriver/safaridriver). `execute`/`mock` run there via **W3C `browser.execute`** — *not*
+the `native-cdp-bridge` transport RN uses. It's still Tier 1 (an eval channel exists), so you reuse
+the inner script-builder *pattern* (a `native-spy` outer + an injected recorder) — but over the
+webview's W3C `execute`, not CDP. Minimal new plumbing beyond context switching.
 
 **Decision rule for the mock tier:** is there an eval channel into the layer you want to mock?
 **Yes → Tier 1** (reuse `native-spy` + a script-builder recorder). **No → Tier 2** (cooperative

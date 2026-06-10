@@ -75,15 +75,26 @@ CDP frameworks need **no** in-app plumbing — Chromium exposes the protocol nat
 
 A **third transport family**, not a point on the Desktop axes — there is no driver to spawn (Appium does), no in-app Rust, no `<framework>:options` capability, no `<FRAMEWORK>_WEBVIEW_AUTOMATION` env var. The launcher's job shifts to **capability mutation** (`appium:automationName` per platform, `appBinaryPath`→`appium:app`, `appium:udid`/`appium:avd`) and **device-pool allocation** (one device per worker, round-robin). The runner composes `services: ['appium', '<framework>']` (`@wdio/appium-service` is an **e2e/runner devDependency**, never a service-package dep — see gotcha 11). The service still extends `BaseLauncher`; a **Tier-1** service additionally reuses the shared `@wdio/native-cdp-bridge` for the JS-realm channel below (a Tier-2 service has no eval channel and doesn't).
 
-**Mobile sub-axis — the JS-realm channel: how do `execute`/`mock` reach the framework's scripting realm?** (the native UI is *always* Appium; this axis is only about the eval/mock channel)
+Appium always owns the **session**, but **two** things vary by framework. For a *native-widget* framework both collapse to the native path; a *self-rendered* framework diverges on both. (Worked detail + the instrumented-build requirement → [plumbing-mobile.md](plumbing-mobile.md).)
+
+**Sub-axis 1 — find/tap: where do the elements live?**
+
+| | Element model | Find/tap | Reference |
+|---|---|---|---|
+| **Native-widget** | renders real native views (`testID` → `accessibilityId`/`resource-id`) | standard Appium/W3C locators (`browser.$`) — the service adds nothing | React Native; Capacitor's native shell |
+| **Self-rendered** | paints its own canvas; widgets are **invisible** to UiAutomator2/XCUITest | the framework's **own finder protocol** in a dedicated context (Flutter: `ByValueKey`/`ByText` via `ext.flutter.driver` in the `FLUTTER` context); normalise `getText` (iOS `value` vs Android `text`) | Flutter |
+
+**Sub-axis 2 — the JS-realm channel: how do `execute`/`mock` reach the scripting realm?** (distinct from find/tap)
 
 | | Signal | Channel | Mock tier | Reference |
 |---|---|---|---|---|
 | **Hermes / CDP** | RN's Hermes engine behind Metro's inspector-proxy | `@wdio/native-cdp-bridge` `CdpBridge` + a Hermes target selector + a Fusebox `Origin` header; Android needs `adb reverse tcp:8081`. **Sync IIFE only** — Hermes can't eval `async`. | **Tier 1** (transparent JS-eval injection) | `@wdio/react-native-service` |
-| **Dart VM** | Flutter's own VM Service protocol (not CDP) | VM Service / Flutter driver — no JS-eval channel into the Dart realm | **Tier 2** (cooperative opt-in contract in the fixture) | Flutter (next) |
-| **WebView context** | Pure-WebView app (Ionic/Capacitor) | Appium `WEBVIEW_*` context — `execute` runs in the webview directly | Tier 1 (eval channel = the webview) | Capacitor (planned) |
+| **Dart VM** | Flutter's own VM Service protocol (not CDP) | VM Service **`evaluate`** RPC drives `execute`; Dart has no monkeypatch, so only `mock` needs a cooperative contract | **Tier 2** (`mock` only — `execute` has an eval path) | Flutter (next) |
+| **WebView context** | Pure-WebView app (Ionic/Capacitor) | Appium `WEBVIEW_*` context — `execute` runs in the webview over **W3C** (chromedriver/safaridriver), **not** the CDP bridge | Tier 1 (eval channel = the webview) | Capacitor (planned) |
 
-**Decision rule for the mock tier:** is there an eval channel into the layer you want to mock? Yes → **Tier 1** (reuse `native-spy` outer + an inner script-builder recorder, one-way `update()` sync — the desktop doctrine, unchanged). No → **Tier 2** (cooperative contract baked into the app/fixture; proven for Flutter in spike).
+For a **self-rendered** framework, find/tap (sub-axis 1) and `execute`/`mock` (sub-axis 2) often ride the **same** channel — Flutter does both over the VM Service.
+
+**Decision rule for the mock tier:** is there an eval channel into the layer you want to mock? Yes → **Tier 1** (reuse the `native-spy` outer + an inner script-builder recorder, one-way `update()` sync — the desktop doctrine; the *transport* under the recorder still varies: RN's CDP bridge vs a webview's W3C `execute`). No → **Tier 2** (cooperative contract baked into the app/fixture; proven for Flutter in spike).
 
 → **Worked detail:** [plumbing-cdp.md](plumbing-cdp.md) (CDP — Electron) · [plumbing-wry.md](plumbing-wry.md) (Wry — Tauri/Dioxus) · [plumbing-mobile.md](plumbing-mobile.md) (Appium — React Native/Flutter/Capacitor).
 
@@ -244,7 +255,9 @@ src/
 **`launcher.ts`** extends `BaseLauncher`; implement `onPrepare` / `onComplete`. Throw a platform-specific `SevereServiceError` when a platform/provider combination is known-unsupportable (per spike). Handle browser mode (skip binary/driver setup) and multiremote shapes if in scope.
 
 **Mobile branch — the skeleton differs.** Clone `@wdio/react-native-service`, not a desktop service:
-- The `src/` tree drops the desktop driver pieces and adds mobile ones: `capabilities.ts` (Appium cap shaping), `deviceManager.ts` (device pool), `serviceConfig.ts` (option merge), `commands/{execute,switchContext,triggerDeeplink,emitEvent}.ts`, `logCapture.ts`, plus the JS-realm channel for your sub-axis (RN: `metroBridge.ts`/`hermesBridge.ts`/`hermesTarget.ts` + `mock.ts`/`innerRecorder.ts`/`mockStore.ts`).
+- The `src/` tree drops the desktop driver pieces and adds mobile ones: `capabilities.ts` (Appium cap shaping), `deviceManager.ts` (device pool), `serviceConfig.ts` (option merge), `commands/{execute,switchContext,triggerDeeplink,emitEvent}.ts`, `logCapture.ts`, plus the JS-realm channel for your sub-axis (RN: `metroBridge.ts`/`hermesBridge.ts`/`hermesTarget.ts` + `mock.ts`/`innerRecorder.ts`/`mockStore.ts`). **That list is RN's *pre-extraction* layout** (RN is the first consumer).
+- **If `@wdio/native-mobile-core` is already extracted** — it should be, before a *second* mobile service ([plumbing-mobile.md](plumbing-mobile.md) → "Shared-layer extraction") — **consume** the shared Appium infra (`capabilities`/`deviceManager`/`switchContext`/`triggerDeeplink`/device-log capture) from it rather than rebuilding those files. Your package then builds only the framework-specific JS-realm channel, the find/tap glue (below), and the thin launcher/service wiring.
+- **Find/tap (Step 0 sub-axis 1).** A **native-widget** framework (RN) adds nothing — `testID`s surface as `accessibilityId`/`resource-id` and `browser.$` just works. A **self-rendered** framework (Flutter) must wire its **own finder protocol** (the `FLUTTER` context + `ByValueKey`/`ByText`) and normalise `getText` (iOS `value` vs Android `text`); this glue is framework-specific — it stays in the service package, never `native-mobile-core`.
 - `launcher.ts` still extends `BaseLauncher` but implements **`onPrepare` (cap mutation) + `onWorkerStart`/`onWorkerEnd` (device claim/release)** — no `onComplete` driver teardown (Appium owns the session).
 - The service `*ServiceOptions` extend **`LogCaptureConfig, MockLifecycleConfig`**, **not `BaseServiceOptions`** — Appium launches via caps, so the desktop binary-launch fields (`appArgs`, startup/command timeouts) don't apply. `<Framework>Capabilities` is a plain Appium-cap interface (`platformName`, `appium:*`, `wdio:<framework>ServiceOptions`).
 - Worker hooks: `before` (attach JS-realm bridge + install `browser.<framework>.*`), `beforeTest` (mock lifecycle), **`afterTest` (drain native device logs)**, `after`/`afterSession` (close bridge). See [plumbing-mobile.md](plumbing-mobile.md).
@@ -409,6 +422,7 @@ The 6-PR split, mirroring the tables above:
 14. **(Mobile/Hermes) the JS-realm inspector dies on backgrounding.** Connect **lazily** on first `execute`/`mock` (an eager warm-up in `before` races the engine's registration), and treat `connected` as a **liveness** check (`isOpen`) so a dropped socket reconnects — a backgrounded app suspends the inspector.
 15. **(Mobile) the device-pool cursor must be monotonic.** Derive the round-robin index from a `nextIndex++`, not `claimed.size` — `size` shrinks on `release()` and would re-hand a freed index to a new worker while an earlier one still holds it.
 16. **(Mobile/iOS CI) keep heavy `xcodebuild` off the E2E runner.** Pre-build WebDriverAgent into an explicit `derivedDataPath` (cap `appium:derivedDataPath` + `usePrebuiltWDA`); a per-session WDA xcodebuild on the same runner as the Appium session starves appium-xcuitest's SDK probe and drops the `POST /session` socket. Mirror the two-stage iOS workflow.
+17. **(Mobile) `execute`/`mock` (and a self-rendered framework's find/tap) need an *instrumented, non-release* build.** The eval/finder channel only exists in a debug build: RN needs the Hermes debugger + Metro; Flutter needs the Dart VM Service + `enableFlutterDriverExtension()`. A release build has no channel — `execute`/`mock` silently have nothing to attach to. This shapes the fixture and the CI build step (build *debug*, expose the debug/VM port), so decide it in the spike, not late.
 
 ## Verification checklist (per PR)
 
