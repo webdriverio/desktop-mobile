@@ -67,13 +67,13 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 
 ## Features
 
-- 🎯 **Framework-specific automation** - Native integration with Electron, Tauri, Dioxus, React Native, Flutter, Electrobun
-- 🔍 **Smart binary detection** - Automatic app discovery and configuration
+- 🎯 **Framework-specific automation** - Native integration with desktop and mobile frameworks
+- ⚙️ **Automatic driver setup** - Framework drivers spawned, configured, and torn down automatically
 - 🎭 **API mocking & isolation** - Built-in mocking for deterministic tests
-- 📱 **Native mobile automation** - Appium-driven UI interaction (UiAutomator2 / XCUITest / appium-flutter-driver) for Android + iOS
-- 🌍 **Browser-only test mode** - Run the renderer in Chrome against a dev server, no binary required. See the [Electron](./packages/electron-service/docs/browser-mode.md), [Tauri](./packages/tauri-service/docs/browser-mode.md), and [Dioxus](./packages/dioxus-service/docs/browser-mode.md) guides.
-- 🌐 **Cross-platform support** - Write once, test everywhere
-- 🔧 **Consistent API** - Familiar WDIO patterns across all frameworks
+- ⚡ **Backend code execution** - Evaluate expressions and call functions in the app's native runtime
+- 📱 **Native mobile automation** - Appium-driven UI interaction for Android + iOS
+- 🌍 **Browser-only test mode** - Run the renderer in Chrome against a dev server, no binary required (desktop services)
+- 🔧 **Consistent cross-platform API** - Familiar WDIO patterns across all frameworks and platforms
 
 ## Project Structure
 
@@ -148,6 +148,7 @@ See [docs/architecture.md](./docs/architecture.md) for detailed architecture doc
 | [docs/setup.md](./docs/setup.md) | Detailed setup instructions |
 | [docs/architecture.md](./docs/architecture.md) | Service architecture overview |
 | [docs/e2e-testing.md](./docs/e2e-testing.md) | E2E testing guide |
+| [Electron browser mode](./packages/electron-service/docs/browser-mode.md), [Tauri](./packages/tauri-service/docs/browser-mode.md), [Dioxus](./packages/dioxus-service/docs/browser-mode.md) | Browser-only test mode guides |
 | [docs/visual-testing.md](./docs/visual-testing.md) | Visual regression testing with `@wdio/visual-service` |
 | [docs/package-structure.md](./docs/package-structure.md) | Package conventions |
 
