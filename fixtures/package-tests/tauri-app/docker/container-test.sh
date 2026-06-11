@@ -71,6 +71,7 @@ JS_EOF
 echo "$PATCHED_PKG" > package.json.patched
 mv package.json package.json.orig
 mv package.json.patched package.json
+trap 'mv -f package.json.orig package.json 2>/dev/null || true' EXIT
 
 npm install --prefer-offline 2>&1
 
@@ -84,7 +85,7 @@ echo '=== Building Tauri app ==='
 # tsx + Node >=23.6 to execute @wdio/tauri-plugin's build script. The plugin
 # JS is already in node_modules/@wdio/tauri-plugin from the tarball install.
 # build-web.ts probes node_modules/@wdio/tauri-plugin and copies it to dist/.
-node scripts/build-web.ts
+npx tsx scripts/build-web.ts
 npx tauri build --debug
 
 echo '=== Running Tauri package test ==='

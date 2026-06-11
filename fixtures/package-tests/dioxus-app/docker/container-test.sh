@@ -89,6 +89,7 @@ JS_EOF
 echo "$PATCHED_PKG" > package.json.patched
 mv package.json package.json.orig
 mv package.json.patched package.json
+trap 'mv -f package.json.orig package.json 2>/dev/null || true' EXIT
 
 npm install --prefer-offline 2>&1
 
