@@ -31,6 +31,8 @@
 
 ## Supported Frameworks
 
+[`@wdio/electron-service`](./packages/electron-service) — Electron (Windows / macOS / Linux)
+
 <h4>
     <div>
         <a href="https://www.npmjs.com/package/@wdio/electron-service"><img src="https://img.shields.io/badge/@wdio-electron--service-9feaf9?labelColor=1a1a1a&style=plastic" alt="npm package" /></a>
@@ -40,7 +42,7 @@
     </div>
 </h4>
 
-[`@wdio/electron-service`](./packages/electron-service) — Electron (Windows / macOS / Linux)
+[`@wdio/tauri-service`](./packages/tauri-service) — Tauri (Windows / macOS / Linux)
 
 <h4>
   <div>
@@ -50,11 +52,11 @@
   </div>
 </h4>
 
-[`@wdio/tauri-service`](./packages/tauri-service) — Tauri (Windows / macOS / Linux)
-
 ## Pre-release
 
 > Feature-complete services published under the `next` dist-tag (`1.0.0-next.x`). Install with `@next` — e.g. `npm install @wdio/react-native-service@next`. Expect `1.0.0` stable releases as the services stabilise.
+
+[`@wdio/dioxus-service`](./packages/dioxus-service) — Dioxus (Windows / macOS / Linux)
 
 <h4>
   <div>
@@ -64,7 +66,7 @@
   </div>
 </h4>
 
-[`@wdio/dioxus-service`](./packages/dioxus-service) — Dioxus (Windows / macOS / Linux)
+[`@wdio/react-native-service`](./packages/react-native-service) — React Native (Android / iOS)
 
 <h4>
   <div>
@@ -74,7 +76,7 @@
   </div>
 </h4>
 
-[`@wdio/react-native-service`](./packages/react-native-service) — React Native (Android / iOS)
+[`@wdio/flutter-service`](./packages/flutter-service) — Flutter (Android / iOS)
 
 <h4>
   <div>
@@ -84,11 +86,12 @@
   </div>
 </h4>
 
-[`@wdio/flutter-service`](./packages/flutter-service) — Flutter (Android / iOS)
-
 ## Early Support
 
 > Early (`0.x`) support — feature surface is limited by upstream gaps. Not yet at parity with the services above.
+
+[`@wdio/electrobun-service`](./packages/electrobun-service) — Electrobun (macOS / Windows)
+Linux is upstream-blocked; macOS deeplink + multiremote are upstream-blocked. See the [package README](./packages/electrobun-service).
 
 <h4>
   <div>
@@ -97,9 +100,6 @@
     <a href="https://www.npmjs.com/package/@wdio/electrobun-service"><img src="https://img.shields.io/npm/dw/@wdio/electrobun-service" alt="npm downloads" /></a>
   </div>
 </h4>
-
-[`@wdio/electrobun-service`](./packages/electrobun-service) — Electrobun (macOS / Windows)
-Linux is upstream-blocked; macOS deeplink + multiremote are upstream-blocked. See the [package README](./packages/electrobun-service).
 
 ## Planned Support
 
