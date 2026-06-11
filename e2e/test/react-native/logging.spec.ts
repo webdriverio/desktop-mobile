@@ -1,19 +1,31 @@
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { browser, expect } from '@wdio/globals';
 import '@wdio/native-types';
 
+import { getLogDirName, readWdioLogs } from '../../lib/utils.js';
 import { el } from './helpers.js';
 
-// The service forwards JS console.* (via Runtime.consoleAPICalled) and native
-// logcat into the WDIO logger. Forwarding is fire-and-forget, so these specs assert
-// the instrumented code paths run without error rather than scraping the log output.
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const getLogDir = () => join(__dirname, '../../logs', getLogDirName('standard', 'react-native'));
+
+// The service forwards two channels into the WDIO log: the app's JS/Metro console (frontend,
+// via Runtime.consoleAPICalled) and native logcat/syslog (backend). The conf enables both;
+// this asserts the frontend channel actually reaches the WDIO log output.
 describe('React Native logging', () => {
-  it('should run an execute that emits a JS console log', async () => {
-    const result = await browser.reactNative.execute(() => {
-      console.log('wdio-rn-log-marker');
-      console.warn('wdio-rn-warn-marker');
+  it('should forward a JS console log into the WDIO output (frontend capture)', async () => {
+    const marker = 'wdio-rn-frontend-marker';
+    const result = await browser.reactNative.execute((m) => {
+      console.info(m);
       return 'logged';
-    });
+    }, marker);
     expect(result).toBe('logged');
+    // Forwarding is async (CDP event → WDIO logger → log file), so poll the output.
+    await browser.waitUntil(async () => (await readWdioLogs(getLogDir())).includes(marker), {
+      timeout: 15000,
+      interval: 500,
+      timeoutMsg: `frontend console marker '${marker}' not found in the WDIO log`,
+    });
   });
 
   it('should emit a DeviceEventEmitter event without throwing', async () => {

@@ -7,6 +7,8 @@
 //      over the Hermes bridge while it's connected.
 
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
+import { shouldLog } from '@wdio/native-core';
+import type { LogLevel } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 import { SERVICE_NAME } from './constants.js';
@@ -21,15 +23,70 @@ export interface LogEntry {
 }
 
 /**
+ * Map a CDP `Runtime.consoleAPICalled` type to a WDIO {@link LogLevel}. `console.log`
+ * and any unrecognised type map to `info` so a default (`info`) `frontendLogLevel`
+ * still captures them.
+ */
+function consoleTypeToLevel(type: string | undefined): LogLevel {
+  switch (type) {
+    case 'error':
+      return 'error';
+    case 'warning':
+      return 'warn';
+    case 'debug':
+      return 'debug';
+    default:
+      return 'info';
+  }
+}
+
+/** Map a logcat/syslog level string to a WDIO {@link LogLevel}. */
+function deviceLevelToLevel(raw: string): LogLevel {
+  switch (raw.toLowerCase()) {
+    case 'error':
+    case 'fatal':
+      return 'error';
+    case 'warn':
+    case 'warning':
+      return 'warn';
+    case 'debug':
+    case 'verbose':
+    case 'trace':
+      return 'debug';
+    default:
+      return 'info';
+  }
+}
+
+/** Forward a message through the WDIO logger method matching its level. */
+function forwardAtLevel(level: LogLevel, message: string): void {
+  switch (level) {
+    case 'error':
+      log.error(message);
+      break;
+    case 'warn':
+      log.warn(message);
+      break;
+    case 'trace':
+    case 'debug':
+      log.debug(message);
+      break;
+    default:
+      log.info(message);
+  }
+}
+
+/**
  * Start forwarding CDP `Runtime.consoleAPICalled` events from the Hermes bridge
  * into the WDIO logger. Returns a cleanup function that removes the listener.
  *
  * This captures `console.log/warn/error/info` calls made inside the React Native
- * JS bundle (Metro build) while the test is running.
+ * JS bundle (Metro build) while the test is running. `minLevel` (the service's
+ * `frontendLogLevel`, default `info`) drops anything below it.
  *
  * `Runtime.consoleAPICalled` is only dispatched once the Runtime domain is enabled, so we
  * send `Runtime.enable` before subscribing (matching electron-service's logCapture). It's
- * best-effort: log capture is opt-in (captureBackendLogs) and an enable failure must not
+ * best-effort: log capture is opt-in (captureFrontendLogs) and an enable failure must not
  * break execute/mock — on failure we skip the subscription and return a no-op cleanup.
  *
  * The listener binds to the `CdpBridge` instance passed here. When `MetroBridge.connect()`
@@ -37,30 +94,20 @@ export interface LogEntry {
  * the returned cleanup for the old bridge and re-invoke this against `bridge.bridge` to keep
  * forwarding live (ensureHermes does exactly this).
  */
-export async function startJsLogForwarding(bridge: CdpBridge): Promise<() => void> {
+export async function startJsLogForwarding(bridge: CdpBridge, minLevel: LogLevel = 'info'): Promise<() => void> {
   const handler = (params: unknown) => {
     const event = params as {
       type?: string;
       args?: Array<{ type?: string; value?: unknown; description?: string }>;
     };
-    const level = event.type ?? 'log';
+    const level = consoleTypeToLevel(event.type);
+    if (!shouldLog(level, minLevel)) {
+      return;
+    }
     const message = (event.args ?? [])
       .map((a) => (a.value !== undefined ? String(a.value) : (a.description ?? '')))
       .join(' ');
-
-    switch (level) {
-      case 'warning':
-        log.warn(`[JS] ${message}`);
-        break;
-      case 'error':
-        log.error(`[JS] ${message}`);
-        break;
-      case 'info':
-        log.info(`[JS] ${message}`);
-        break;
-      default:
-        log.debug(`[JS] ${message}`);
-    }
+    forwardAtLevel(level, `[JS] ${message}`);
   };
 
   try {
@@ -107,17 +154,14 @@ export async function collectDeviceLogs(
 /**
  * Log all device entries via the WDIO logger. Called from the worker's afterTest
  * hook to forward the native device logs collected since the previous test.
+ * `minLevel` (the service's `backendLogLevel`, default `info`) drops anything below it.
  */
-export function forwardDeviceLogs(entries: LogEntry[]): void {
+export function forwardDeviceLogs(entries: LogEntry[], minLevel: LogLevel = 'info'): void {
   for (const entry of entries) {
-    const msg = `[${entry.source.toUpperCase()}:${entry.level}] ${entry.message}`;
-    const level = entry.level.toLowerCase();
-    if (level === 'error' || level === 'fatal') {
-      log.error(msg);
-    } else if (level === 'warn' || level === 'warning') {
-      log.warn(msg);
-    } else {
-      log.debug(msg);
+    const level = deviceLevelToLevel(entry.level);
+    if (!shouldLog(level, minLevel)) {
+      continue;
     }
+    forwardAtLevel(level, `[${entry.source.toUpperCase()}:${entry.level}] ${entry.message}`);
   }
 }

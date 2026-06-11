@@ -78,10 +78,11 @@ export default class ReactNativeWorkerService {
     try {
       await bridge.connect();
       log.info(`Connected to Hermes inspector at ${host}:${port}`);
-      // Forward JS console.* calls via Runtime.consoleAPICalled CDP events — only when the
-      // user opted in via captureBackendLogs (default off, matching the other services).
-      if (this.options.captureBackendLogs) {
-        this.stopJsLogs = await startJsLogForwarding(bridge.bridge);
+      // Forward JS console.* (Runtime.consoleAPICalled) — the "frontend" channel, gated on
+      // captureFrontendLogs (default off) and filtered by frontendLogLevel. Device logcat/syslog
+      // is the separate "backend" channel (captureBackendLogs), forwarded in afterTest below.
+      if (this.options.captureFrontendLogs) {
+        this.stopJsLogs = await startJsLogForwarding(bridge.bridge, this.options.frontendLogLevel ?? 'info');
       }
     } catch (error) {
       log.warn(
@@ -105,9 +106,9 @@ export default class ReactNativeWorkerService {
             `(${(error as Error).message}). Ensure Metro is running and the app is in the foreground.`,
         );
       }
-      if (this.options.captureBackendLogs) {
+      if (this.options.captureFrontendLogs) {
         this.stopJsLogs?.();
-        this.stopJsLogs = await startJsLogForwarding(bridge.bridge);
+        this.stopJsLogs = await startJsLogForwarding(bridge.bridge, this.options.frontendLogLevel ?? 'info');
       }
       // Rewire existing mocks to the new bridge — best-effort per entry so a failed
       // reinstall on one target (e.g. the module no longer exists after a bundle reload)
@@ -205,15 +206,15 @@ export default class ReactNativeWorkerService {
   }
 
   async afterTest(): Promise<void> {
-    // Per-test native log forwarding: browser.getLogs drains everything since the last
-    // call, so collecting here (not in after(), which fires once per spec file) keeps
-    // each test's logcat/syslog lines attributed to that test. Gated on captureBackendLogs
-    // (default off) like the JS-console forwarding above and the other services.
+    // Per-test native device-log forwarding (the "backend" channel): browser.getLogs drains
+    // everything since the last call, so collecting here (not in after(), which fires once per
+    // spec file) keeps each test's logcat/syslog lines attributed to that test. Gated on
+    // captureBackendLogs (default off) and filtered by backendLogLevel.
     if (!this.browser || !this.platform || !this.options.captureBackendLogs) {
       return;
     }
     const logType = this.platform === 'android' ? 'logcat' : 'syslog';
-    forwardDeviceLogs(await collectDeviceLogs(this.browser, logType));
+    forwardDeviceLogs(await collectDeviceLogs(this.browser, logType), this.options.backendLogLevel ?? 'info');
   }
 
   async after(): Promise<void> {

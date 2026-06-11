@@ -89,8 +89,10 @@ const isIos = platform === 'ios';
 const reactNativeServiceOptions: ReactNativeServiceOptions = {
   platform: isIos ? 'iOS' : 'Android',
   metroPort,
-  // Forward the app's JS console + native (logcat/syslog) logs into the WDIO log.
+  // Forward both channels into the WDIO log: backend = native logcat/syslog,
+  // frontend = the app's JS/Metro console. The logging spec asserts frontend capture.
   captureBackendLogs: true,
+  captureFrontendLogs: true,
 };
 
 type ReactNativeCapability = {
