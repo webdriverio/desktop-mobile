@@ -72,26 +72,39 @@ const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const tarballs = fs.readdirSync('/tarballs').filter(f => f.endsWith('.tgz'));
 
-for (const section of ['dependencies', 'devDependencies', 'peerDependencies']) {
-  if (!pkg[section]) continue;
-  for (const [name, ver] of Object.entries(pkg[section])) {
-    if (ver !== 'workspace:*') continue;
-    // Map @wdio/foo-bar -> wdio-foo-bar-*.tgz
-    const base = name.replace(/^@/, '').replace('/', '-');
-    const match = tarballs.find(t => t.startsWith(base + '-'));
-    if (!match) { console.error('No tarball found for ' + name); process.exit(1); }
-    pkg[section][name] = 'file:/tarballs/' + match;
-  }
-}
-pkg.overrides = pkg.overrides || {};
+// Build a map of @wdio/package-name -> file: path for every tarball
+const tarballMap = {};
 for (const tarball of tarballs) {
   const base = tarball.replace('.tgz', '');
   const segments = base.split('-');
   const versionIdx = segments.findIndex(s => /^\d+\.\d+/.test(s));
   if (versionIdx <= 1) continue;
   const pkgName = '@' + segments[0] + '/' + segments.slice(1, versionIdx).join('-');
-  pkg.overrides[pkgName] = 'file:/tarballs/' + tarball;
+  tarballMap[pkgName] = 'file:/tarballs/' + tarball;
 }
+
+// Patch workspace:* in all dep sections
+for (const section of ['dependencies', 'devDependencies', 'peerDependencies']) {
+  if (!pkg[section]) continue;
+  for (const [name, ver] of Object.entries(pkg[section])) {
+    if (ver !== 'workspace:*') continue;
+    if (!tarballMap[name]) { console.error('No tarball found for ' + name); process.exit(1); }
+    pkg[section][name] = tarballMap[name];
+  }
+}
+
+// Add ALL workspace tarballs as direct devDependencies so npm can
+// deduplicate transitive @wdio/* deps without hitting the registry.
+// (Avoids the npm arborist bug with file: in overrides.)
+pkg.devDependencies = pkg.devDependencies || {};
+for (const [name, path] of Object.entries(tarballMap)) {
+  if (!pkg.dependencies?.[name] && !pkg.devDependencies[name]) {
+    pkg.devDependencies[name] = path;
+  }
+}
+// Remove any overrides left from a previous attempt
+delete pkg.overrides;
+
 process.stdout.write(JSON.stringify(pkg, null, 2) + '\n');
 JS_EOF
 )
