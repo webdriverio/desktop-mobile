@@ -32,29 +32,31 @@ describe('finder descriptors', () => {
 
 describe('createFlutterElement', () => {
   const makeBrowser = () => {
-    const element = { click: vi.fn().mockResolvedValue(undefined), getText: vi.fn().mockResolvedValue('42') };
+    // No `$`/findElement — appium-flutter-driver doesn't implement it; the finder is the element id
+    // passed straight to the element commands.
     const browser = {
       execute: vi.fn().mockResolvedValue(undefined),
-      $: vi.fn().mockResolvedValue(element),
+      elementClick: vi.fn().mockResolvedValue(undefined),
+      getElementText: vi.fn().mockResolvedValue('42'),
     } as unknown as WebdriverIO.Browser;
-    return { browser, element };
+    return { browser };
   };
 
-  it('tap() should switch to the FLUTTER context, wait, and click', async () => {
+  it('tap() should switch to the FLUTTER context, wait, and click via the finder element id', async () => {
     (switchWindow as ReturnType<typeof vi.fn>).mockClear();
-    const { browser, element } = makeBrowser();
+    const { browser } = makeBrowser();
     await createFlutterElement(browser, byValueKeyFinder('inc')).tap();
     expect(switchWindow).toHaveBeenCalledWith(browser, 'FLUTTER');
     expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', serializeFinder(byValueKeyFinder('inc')));
-    expect(element.click).toHaveBeenCalled();
+    expect(browser.elementClick).toHaveBeenCalledWith(serializeFinder(byValueKeyFinder('inc')));
   });
 
-  it('getText() should switch context, wait, and read the text', async () => {
+  it('getText() should switch context, wait, and read the text via the finder element id', async () => {
     (switchWindow as ReturnType<typeof vi.fn>).mockClear();
-    const { browser, element } = makeBrowser();
+    const { browser } = makeBrowser();
     expect(await createFlutterElement(browser, byTextFinder('Counter')).getText()).toBe('42');
     expect(switchWindow).toHaveBeenCalledWith(browser, 'FLUTTER');
     expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', serializeFinder(byTextFinder('Counter')));
-    expect(element.getText).toHaveBeenCalled();
+    expect(browser.getElementText).toHaveBeenCalledWith(serializeFinder(byTextFinder('Counter')));
   });
 });

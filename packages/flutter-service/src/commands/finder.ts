@@ -54,12 +54,15 @@ export function createFlutterElement(browser: WebdriverIO.Browser, finder: Flutt
     tap: async () => {
       await inFlutterContext();
       await browser.execute('flutter:waitFor', selector);
-      await (await browser.$(selector)).click();
+      // appium-flutter-driver does NOT implement findElement (POST /element → 405 NotImplemented);
+      // it takes the base64 finder AS the element id for the element commands. So call them
+      // directly with the finder, rather than `browser.$(selector)` (which would findElement first).
+      await browser.elementClick(selector);
     },
     getText: async () => {
       await inFlutterContext();
       await browser.execute('flutter:waitFor', selector);
-      return (await browser.$(selector)).getText();
+      return browser.getElementText(selector);
     },
   };
 }
