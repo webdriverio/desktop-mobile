@@ -37,19 +37,30 @@ export interface ElectronServiceAPI {
    * Native mode supports two forms:
    * - `mock(className)` returns an {@link ElectronClassMock} that mocks every
    *   method of the named Electron class.
-   * - `mock(apiName, funcName, returnValue?)` mocks a single function on the
-   *   named API and returns an {@link ElectronFunctionMock}.
+   * - `mock(apiName, funcName)` mocks a single function on the named API and
+   *   returns an {@link ElectronFunctionMock}.
    *
    * Browser mode supports only `mock(channel)`; the two-argument form throws.
    *
    * @param classNameOrApiOrChannel - Electron class name, API name, or IPC channel
    * @param funcName - function name (native two-arg form only)
-   * @param returnValue - initial return value for the mocked function
    * @returns a {@link Promise} that resolves once the mock is registered
    */
   mock: {
     (className: string): Promise<ElectronClassMock>;
-    (apiName: string, funcName: string, returnValue?: unknown): Promise<ElectronFunctionMock>;
+    (apiName: string, funcName: string): Promise<ElectronFunctionMock>;
+    /**
+     * @deprecated Pass `returnValue` via the chained setter instead:
+     * `(await browser.electron.mock('api', 'fn')).mockReturnValue(value)`.
+     * The inline `returnValue` argument is a legacy convenience specific to
+     * Electron's two-part mock identity; all other services use the chained
+     * setter as the single convergent pattern.
+     *
+     * Note: TypeScript's TS-6385 deprecation diagnostic does not fire for `@deprecated`
+     * placed on individual call signatures within an object-type overload set (verified
+     * against TS 5.9). The JSDoc text surfaces in hover tooltips but no squiggle is emitted.
+     */
+    (apiName: string, funcName: string, returnValue: unknown): Promise<ElectronFunctionMock>;
   };
   /**
    * Mock all functions from an Electron API.
