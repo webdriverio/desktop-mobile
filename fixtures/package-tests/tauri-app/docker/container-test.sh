@@ -65,6 +65,15 @@ for (const section of ['dependencies', 'devDependencies', 'peerDependencies']) {
     pkg[section][name] = 'file:/tarballs/' + match;
   }
 }
+pkg.overrides = pkg.overrides || {};
+for (const tarball of tarballs) {
+  const base = tarball.replace('.tgz', '');
+  const segments = base.split('-');
+  const versionIdx = segments.findIndex(s => /^\d+\.\d+/.test(s));
+  if (versionIdx <= 1) continue;
+  const pkgName = '@' + segments[0] + '/' + segments.slice(1, versionIdx).join('-');
+  pkg.overrides[pkgName] = 'file:/tarballs/' + tarball;
+}
 process.stdout.write(JSON.stringify(pkg, null, 2) + '\n');
 JS_EOF
 )
@@ -76,7 +85,7 @@ trap 'mv -f package.json.orig package.json 2>/dev/null || true' EXIT
 npm install --prefer-offline 2>&1
 
 # Restore original package.json so the working tree stays clean for log uploads
-mv package.json package.json.installed
+rm package.json
 mv package.json.orig package.json
 
 echo '=== Building Tauri app ==='
