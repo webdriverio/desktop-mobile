@@ -139,23 +139,26 @@ jobs:
           flutter build apk --debug --target-platform android-x64
           echo "FLUTTER_APP_PATH=$FIXTURE_DIR/build/app/outputs/flutter-apk/app-debug.apk" >> "$GITHUB_ENV"
 
-      - name: 🔌 Install Appium Flutter driver (goosewobbler fork — Android vm-service-port pin)
+      - name: 🔌 Use the goosewobbler appium-flutter-driver fork (getVMServiceUrl)
         shell: bash
-        # Interim: the fork adds the Android `vm-service-port` intent-extra injection that pins the
-        # Dart VM Service to a fixed token-free port (execute/mock need it; upstream PR pending). The
-        # driver is a subdir with no root package.json, so `--source=git` can't resolve it — clone,
-        # build, install --source=local. Switch to `--source=npm @goosewobbler/appium-flutter-driver`
-        # once the fork is published. Idempotent: only install when not already registered.
+        # @repo/e2e depends on appium-flutter-driver (node_modules), and `appium driver list
+        # --installed` detects node_modules drivers — so appium loads THAT, not an APPIUM_HOME
+        # install. `appium driver install --source=local/git` therefore can't replace it (and the
+        # fork's driver/ subdir has no root package.json for a git dep). So build the fork and
+        # overwrite the node_modules driver's build/ in place — appium then loads the fork's code
+        # (the getVMServiceUrl command). Interim until getVMServiceUrl is upstreamed/published.
         run: |
           set -euo pipefail
-          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi flutter; then
-            echo "flutter driver already installed"
-          else
-            git clone --depth 1 -b feat/android-vm-service-port \
-              https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
-            ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
-            pnpm --filter @repo/e2e exec appium driver install --source=local "$RUNNER_TEMP/afd/driver"
-          fi
+          git clone --depth 1 -b feat/android-vm-service-port \
+            https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
+          ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
+          AFD=$(pnpm --filter @repo/e2e exec node -e "process.stdout.write(require('path').dirname(require.resolve('appium-flutter-driver/package.json')))")
+          echo "Overwriting node_modules appium-flutter-driver at: $AFD"
+          rm -rf "$AFD/build"
+          cp -R "$RUNNER_TEMP/afd/driver/build" "$AFD/build"
+          grep -q getVMServiceUrl "$AFD/build/lib/commands/execute.js" \
+            && echo "✓ fork getVMServiceUrl present in the loaded driver" \
+            || { echo "✗ fork overwrite failed — getVMServiceUrl not found"; exit 1; }
 
       - name: 🤖 Run E2E on Android emulator
         # Third-party action (non-GitHub-owned) → pin to a full commit SHA, not a floating

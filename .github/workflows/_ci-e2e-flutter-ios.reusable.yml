@@ -112,22 +112,27 @@ jobs:
           fi
           xcrun simctl bootstatus "$FLUTTER_IOS_DEVICE" -b || { echo "::error::Simulator '$FLUTTER_IOS_DEVICE' did not reach Booted state"; exit 1; }
 
-      - name: 🔌 Install Appium Flutter + XCUITest drivers
+      - name: 🔌 Install XCUITest + use the appium-flutter-driver fork (getVMServiceUrl)
         shell: bash
-        # Flutter driver from the goosewobbler fork (interim): the published 3.7.1 already pins the
-        # iOS VM-service port via processArguments, but we use the same fork on both legs for parity
-        # while the Android vm-service-port intent-extra change is upstreamed. Subdir/no-root-pkg →
-        # clone+build+--source=local (not --source=git). Switch to the published scoped pkg later.
+        # XCUITest installs normally. For Flutter: @repo/e2e depends on appium-flutter-driver
+        # (node_modules), which appium loads by default — so `appium driver install --source=local/git`
+        # can't replace it (and the fork's driver/ subdir has no root package.json for a git dep).
+        # Build the fork and overwrite the node_modules driver's build/ in place so appium loads the
+        # fork's code (getVMServiceUrl). Interim until that's upstreamed/published.
         run: |
           set -euo pipefail
           installed=$(pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 || true)
           echo "$installed" | grep -qi xcuitest || pnpm --filter @repo/e2e exec appium driver install xcuitest
-          if ! echo "$installed" | grep -qi flutter; then
-            git clone --depth 1 -b feat/android-vm-service-port \
-              https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
-            ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
-            pnpm --filter @repo/e2e exec appium driver install --source=local "$RUNNER_TEMP/afd/driver"
-          fi
+          git clone --depth 1 -b feat/android-vm-service-port \
+            https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
+          ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
+          AFD=$(pnpm --filter @repo/e2e exec node -e "process.stdout.write(require('path').dirname(require.resolve('appium-flutter-driver/package.json')))")
+          echo "Overwriting node_modules appium-flutter-driver at: $AFD"
+          rm -rf "$AFD/build"
+          cp -R "$RUNNER_TEMP/afd/driver/build" "$AFD/build"
+          grep -q getVMServiceUrl "$AFD/build/lib/commands/execute.js" \
+            && echo "✓ fork getVMServiceUrl present in the loaded driver" \
+            || { echo "✗ fork overwrite failed — getVMServiceUrl not found"; exit 1; }
 
       # WDA DerivedData cache keyed on e2e/package.json (driver pins) + the runner image version.
       - name: 💾 Restore WDA DerivedData cache
