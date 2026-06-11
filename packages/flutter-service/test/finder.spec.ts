@@ -1,8 +1,8 @@
 import { describe, expect, it, vi } from 'vitest';
 
-vi.mock('@wdio/native-mobile-core', () => ({ switchWindow: vi.fn().mockResolvedValue(undefined) }));
+vi.mock('@wdio/native-mobile-core', () => ({ switchContext: vi.fn().mockResolvedValue(undefined) }));
 
-import { switchWindow } from '@wdio/native-mobile-core';
+import { switchContext } from '@wdio/native-mobile-core';
 
 import { byTextFinder, byValueKeyFinder, createFlutterElement, serializeFinder } from '../src/commands/finder.js';
 
@@ -43,19 +43,19 @@ describe('createFlutterElement', () => {
   };
 
   it('tap() should switch to the FLUTTER context, wait, and click via the finder element id', async () => {
-    (switchWindow as ReturnType<typeof vi.fn>).mockClear();
+    (switchContext as ReturnType<typeof vi.fn>).mockClear();
     const { browser } = makeBrowser();
     await createFlutterElement(browser, byValueKeyFinder('inc')).tap();
-    expect(switchWindow).toHaveBeenCalledWith(browser, 'FLUTTER');
+    expect(switchContext).toHaveBeenCalledWith(browser, 'FLUTTER');
     expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', serializeFinder(byValueKeyFinder('inc')));
     expect(browser.elementClick).toHaveBeenCalledWith(serializeFinder(byValueKeyFinder('inc')));
   });
 
   it('getText() should switch context, wait, and read the text via the finder element id', async () => {
-    (switchWindow as ReturnType<typeof vi.fn>).mockClear();
+    (switchContext as ReturnType<typeof vi.fn>).mockClear();
     const { browser } = makeBrowser();
     expect(await createFlutterElement(browser, byTextFinder('Counter')).getText()).toBe('42');
-    expect(switchWindow).toHaveBeenCalledWith(browser, 'FLUTTER');
+    expect(switchContext).toHaveBeenCalledWith(browser, 'FLUTTER');
     expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', serializeFinder(byTextFinder('Counter')));
     expect(browser.getElementText).toHaveBeenCalledWith(serializeFinder(byTextFinder('Counter')));
   });

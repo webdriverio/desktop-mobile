@@ -6,7 +6,7 @@
 // suite (PR4/PR5), where the exact `flutter:` command surface is pinned to the driver
 // version in use.
 
-import { switchWindow } from '@wdio/native-mobile-core';
+import { switchContext } from '@wdio/native-mobile-core';
 import type { FlutterElement } from '@wdio/native-types';
 
 const FLUTTER_CONTEXT = 'FLUTTER';
@@ -48,7 +48,7 @@ export function createFlutterElement(browser: WebdriverIO.Browser, finder: Flutt
     if (current === FLUTTER_CONTEXT) {
       return;
     }
-    await switchWindow(browser, FLUTTER_CONTEXT);
+    await switchContext(browser, FLUTTER_CONTEXT);
   };
   return {
     tap: async () => {

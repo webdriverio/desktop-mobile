@@ -32,7 +32,7 @@ describe('FlutterWorkerService', () => {
     expect(typeof browser.flutter?.execute).toBe('function');
     expect(typeof browser.flutter?.mock).toBe('function');
     expect(typeof browser.flutter?.triggerDeeplink).toBe('function');
-    expect(typeof browser.flutter?.switchWindow).toBe('function');
+    expect(typeof browser.flutter?.switchContext).toBe('function');
   });
 
   it('execute should evaluate via the VM Service and coerce the result', async () => {

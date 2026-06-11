@@ -1,7 +1,8 @@
-// browser.<framework>.switchWindow / listWindows — Appium context switching.
-// Mobile "windows" = Appium contexts: NATIVE_APP, WEBVIEW_<packageId>, FLUTTER, etc.
+// browser.<framework>.switchContext / listContexts — Appium context switching.
+// The mobile counterpart of the desktop services' switchWindow/listWindows: mobile switches
+// Appium contexts (NATIVE_APP, WEBVIEW_<packageId>, FLUTTER, …), not windows.
 
-export async function listWindows(browser: WebdriverIO.Browser): Promise<string[]> {
+export async function listContexts(browser: WebdriverIO.Browser): Promise<string[]> {
   // Appium 2 drivers may return plain context strings OR ContextInfo objects
   // ({ id, title?, ... }, e.g. via the `mobile: getContexts` extended API). Normalise
   // to the id string so callers can compare against 'NATIVE_APP' / 'WEBVIEW_*' / 'FLUTTER' directly.
@@ -9,6 +10,6 @@ export async function listWindows(browser: WebdriverIO.Browser): Promise<string[
   return contexts.map((context) => (typeof context === 'string' ? context : context.id));
 }
 
-export async function switchWindow(browser: WebdriverIO.Browser, context: string): Promise<void> {
+export async function switchContext(browser: WebdriverIO.Browser, context: string): Promise<void> {
   await browser.switchContext(context);
 }

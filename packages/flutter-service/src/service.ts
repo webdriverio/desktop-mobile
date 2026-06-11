@@ -1,8 +1,8 @@
 import {
   collectDeviceLogs,
   forwardDeviceLogs,
-  listWindows,
-  switchWindow,
+  listContexts,
+  switchContext,
   triggerDeeplink,
 } from '@wdio/native-mobile-core';
 import type { FlutterServiceAPI } from '@wdio/native-types';
@@ -159,7 +159,10 @@ export default class FlutterWorkerService {
         return createFlutterMock(target, () => ensureVmService('mock'), store);
       },
 
-      isMockFunction: (targetOrFn: unknown) => isMockFunctionUtil(targetOrFn, store),
+      // Single runtime check; the overloaded signature (path→boolean, value→type guard) is static
+      // only, so cast the impl to satisfy both overloads.
+      isMockFunction: ((targetOrFn: unknown) =>
+        isMockFunctionUtil(targetOrFn, store)) as FlutterServiceAPI['isMockFunction'],
 
       clearAllMocks: (targetPrefix?: string) => clearAllMocks(store, targetPrefix),
       resetAllMocks: (targetPrefix?: string) => resetAllMocks(store, targetPrefix),
@@ -172,12 +175,12 @@ export default class FlutterWorkerService {
 
       triggerDeeplink: async (url: string) => {
         // Deeplinks are a native command — leave the FLUTTER/WEBVIEW context first if active.
-        await switchWindow(browser, NATIVE_CONTEXT).catch(() => undefined);
+        await switchContext(browser, NATIVE_CONTEXT).catch(() => undefined);
         return triggerDeeplink(browser, url);
       },
 
-      switchWindow: (context: string) => switchWindow(browser, context),
-      listWindows: () => listWindows(browser),
+      switchContext: (context: string) => switchContext(browser, context),
+      listContexts: () => listContexts(browser),
 
       byValueKey: (key: string | number) => createFlutterElement(browser, byValueKeyFinder(key)),
       byText: (text: string) => createFlutterElement(browser, byTextFinder(text)),

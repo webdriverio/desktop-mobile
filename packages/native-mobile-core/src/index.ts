@@ -15,6 +15,6 @@ export { flattenCaps, MobileBaseLauncher } from './launcher.js';
 export { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 export type { AppiumServerConnection, MobileSession, MobileSessionDeps } from './session.js';
 export { createMobileSession } from './session.js';
-export { listWindows, switchWindow } from './switchContext.js';
+export { listContexts, switchContext } from './switchContext.js';
 export type { DeeplinkCapKeys } from './triggerDeeplink.js';
 export { triggerDeeplink } from './triggerDeeplink.js';

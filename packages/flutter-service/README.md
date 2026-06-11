@@ -219,7 +219,7 @@ first).
 await browser.flutter.triggerDeeplink('myapp://products/42');
 ```
 
-### `switchWindow(context)` / `listWindows()`
+### `switchContext(context)` / `listContexts()`
 
 Switch between Appium contexts — `NATIVE_APP` ↔ `FLUTTER` (↔ `WEBVIEW_*` for embedded web).
 

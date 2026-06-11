@@ -81,8 +81,17 @@ export interface FlutterServiceAPI {
    */
   mock: (target: string) => Promise<FlutterMock>;
 
-  /** Check whether a target path is mocked, or a value is a Flutter mock function. */
-  isMockFunction: (targetOrFn: unknown) => boolean;
+  /**
+   * Check whether a target path is mocked, or a value is a Flutter mock function.
+   *
+   * Overloaded: the value form is a type guard (narrows to {@link FlutterMockInstance}), while the
+   * path-string form stays a plain boolean — the runtime is a single check; the overloads only
+   * refine the static type.
+   * @returns True if the target path is mocked.
+   */
+  isMockFunction(target: string): boolean;
+  /** @returns True (narrowing to {@link FlutterMockInstance}) if the value is a Flutter mock. */
+  isMockFunction(fn: unknown): fn is FlutterMockInstance;
 
   /** Clear all Flutter mocks (optionally filtered by a target-path prefix). */
   clearAllMocks: (targetPrefix?: string) => Promise<void>;
@@ -97,10 +106,10 @@ export interface FlutterServiceAPI {
   triggerDeeplink: (url: string) => Promise<void>;
 
   /** Switch the active Appium context (e.g. `NATIVE_APP` ↔ `FLUTTER` ↔ `WEBVIEW_*`). */
-  switchWindow: (context: string) => Promise<void>;
+  switchContext: (context: string) => Promise<void>;
 
   /** List the available Appium contexts. */
-  listWindows: () => Promise<string[]>;
+  listContexts: () => Promise<string[]>;
 
   /**
    * Emit an event into the app's `wdio_flutter` event bus (the app opts in by listening to
@@ -239,8 +248,8 @@ export interface FlutterBrowserExtension extends BrowserBase {
    * - {@link FlutterServiceAPI.byText `browser.flutter.byText`} — find a widget by text (tap/getText)
    * - {@link FlutterServiceAPI.emitEvent `browser.flutter.emitEvent`} — emit an event into the app's bus
    * - {@link FlutterServiceAPI.triggerDeeplink `browser.flutter.triggerDeeplink`} — trigger a deeplink
-   * - {@link FlutterServiceAPI.switchWindow `browser.flutter.switchWindow`} — switch the Appium context
-   * - {@link FlutterServiceAPI.listWindows `browser.flutter.listWindows`} — list the Appium contexts
+   * - {@link FlutterServiceAPI.switchContext `browser.flutter.switchContext`} — switch the Appium context
+   * - {@link FlutterServiceAPI.listContexts `browser.flutter.listContexts`} — list the Appium contexts
    */
   flutter: FlutterServiceAPI;
 }
