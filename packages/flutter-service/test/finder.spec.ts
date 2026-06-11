@@ -23,8 +23,10 @@ describe('finder descriptors', () => {
     expect(byTextFinder('Hello')).toEqual({ finderType: 'ByText', text: 'Hello' });
   });
 
-  it('serializeFinder JSON-encodes the descriptor', () => {
-    expect(serializeFinder(byTextFinder('x'))).toBe('{"finderType":"ByText","text":"x"}');
+  it('serializeFinder base64-encodes the descriptor (appium-flutter-finder format)', () => {
+    const encoded = serializeFinder(byTextFinder('x'));
+    expect(encoded).toBe(Buffer.from('{"finderType":"ByText","text":"x"}').toString('base64'));
+    expect(Buffer.from(encoded, 'base64').toString()).toBe('{"finderType":"ByText","text":"x"}');
   });
 });
 
@@ -43,7 +45,7 @@ describe('createFlutterElement', () => {
     const { browser, element } = makeBrowser();
     await createFlutterElement(browser, byValueKeyFinder('inc')).tap();
     expect(switchWindow).toHaveBeenCalledWith(browser, 'FLUTTER');
-    expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', expect.stringContaining('ByValueKey'));
+    expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', serializeFinder(byValueKeyFinder('inc')));
     expect(element.click).toHaveBeenCalled();
   });
 
@@ -52,7 +54,7 @@ describe('createFlutterElement', () => {
     const { browser, element } = makeBrowser();
     expect(await createFlutterElement(browser, byTextFinder('Counter')).getText()).toBe('42');
     expect(switchWindow).toHaveBeenCalledWith(browser, 'FLUTTER');
-    expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', expect.stringContaining('ByText'));
+    expect(browser.execute).toHaveBeenCalledWith('flutter:waitFor', serializeFinder(byTextFinder('Counter')));
     expect(element.getText).toHaveBeenCalled();
   });
 });

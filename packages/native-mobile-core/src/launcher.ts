@@ -76,7 +76,11 @@ export abstract class MobileBaseLauncher<
         getServiceOptionsFromCapability<TOptions>(cap as Record<string, unknown>, this.capKey),
       );
       const platform = this.mutateCapability(cap, options);
-      this.log.info(`Prepared ${platform} capability`);
+      // Read automationName back after mutateCapability sets it — confirms which driver was
+      // selected at a glance, especially when a per-capability appium:automationName overrides
+      // the framework default.
+      const automationName = (cap as { 'appium:automationName'?: string })['appium:automationName'];
+      this.log.info(`Prepared ${platform} capability (automationName: ${automationName})`);
     }
   }
 

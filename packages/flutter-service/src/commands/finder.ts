@@ -27,9 +27,13 @@ export function byTextFinder(text: string): FlutterFinder {
   return { finderType: 'ByText', text };
 }
 
-/** appium-flutter-finder serialises the descriptor to a JSON string used as the selector. */
+/**
+ * Serialise the descriptor the way appium-flutter-finder does: a base64-encoded JSON string.
+ * appium-flutter-driver base64-DECODES the selector it receives, so a raw JSON string decodes to
+ * binary garbage and the driver rejects it ("... is not valid JSON").
+ */
 export function serializeFinder(finder: FlutterFinder): string {
-  return JSON.stringify(finder);
+  return Buffer.from(JSON.stringify(finder)).toString('base64');
 }
 
 /** Build a tap/getText handle for a finder, auto-switching to the FLUTTER context first. */

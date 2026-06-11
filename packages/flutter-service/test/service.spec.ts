@@ -165,16 +165,18 @@ describe('FlutterWorkerService', () => {
     const { discoverVmServiceUrl } = (await import('../src/vmServiceDiscovery.js')) as unknown as {
       discoverVmServiceUrl: ReturnType<typeof vi.fn>;
     };
-    // The shared single-flight connect calls discover once; make it fail.
-    discoverVmServiceUrl.mockRejectedValueOnce(new Error('no vm service'));
+    // Make discovery fail throughout — before()'s best-effort pre-warm scrape also calls it, so a
+    // single mockRejectedValueOnce would be consumed there; persist it, then restore for later tests.
+    discoverVmServiceUrl.mockRejectedValue(new Error('no vm service'));
     const browser = {} as WebdriverIO.Browser & {
       flutter?: { execute: (s: string) => Promise<unknown>; mock: (t: string) => Promise<unknown> };
     };
     const service = new FlutterWorkerService({}, cap);
-    await service.before(cap, [], browser);
+    await service.before(cap, [], browser); // pre-warm scrape rejects → swallowed (best-effort)
     const [exec, mck] = await Promise.allSettled([browser.flutter?.execute('a'), browser.flutter?.mock('M')]);
     expect((exec as PromiseRejectedResult).reason.message).toContain('browser.flutter.execute');
     expect((mck as PromiseRejectedResult).reason.message).toContain('browser.flutter.mock');
+    discoverVmServiceUrl.mockResolvedValue('ws://host/ws'); // restore for subsequent tests
   });
 
   it('uses the appium:dartVmServicePort capability as the discovery fast-path port', async () => {
@@ -210,5 +212,18 @@ describe('FlutterWorkerService', () => {
     await service.before(capWithPort, [], browser);
     await browser.flutter?.execute('a');
     expect(discoverVmServiceUrl).toHaveBeenCalledWith(expect.anything(), expect.objectContaining({ pinnedPort: 9999 }));
+  });
+
+  it('pre-warms the VM service URL in before() (eager discovery, before any command)', async () => {
+    const { discoverVmServiceUrl } = (await import('../src/vmServiceDiscovery.js')) as unknown as {
+      discoverVmServiceUrl: ReturnType<typeof vi.fn>;
+    };
+    discoverVmServiceUrl.mockClear();
+    const browser = {} as WebdriverIO.Browser;
+    const service = new FlutterWorkerService({}, cap);
+    await service.before(cap, [], browser);
+    // The scrape runs at session start — while the "listening on …" line is still in the log
+    // buffer — not lazily on the first execute/mock (by when it has scrolled out).
+    expect(discoverVmServiceUrl).toHaveBeenCalledTimes(1);
   });
 });

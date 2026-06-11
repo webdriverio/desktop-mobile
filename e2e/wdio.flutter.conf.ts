@@ -155,10 +155,13 @@ export const config = {
     // catch too: if switchContext is somehow absent, `?.('FLUTTER')` is undefined and a bare
     // `.catch` would itself throw — `?.catch` short-circuits the whole expression instead.
     await browser.switchContext?.('FLUTTER')?.catch(() => undefined);
-    // The FLUTTER context needs a JSON-serialised finder (an accessibility-id `~` selector is a
-    // silent no-op here) — match what browser.flutter.byValueKey produces. NOT swallowed: this
-    // is a real gate, so a never-ready app fails fast instead of every spec timing out later.
-    const increment = JSON.stringify({ finderType: 'ByValueKey', keyValueString: 'increment', keyValueType: 'String' });
+    // The FLUTTER context needs a base64-encoded appium-flutter-finder (an accessibility-id `~`
+    // selector is a silent no-op here, and a raw JSON string is base64-decoded to garbage by the
+    // driver) — match what browser.flutter.byValueKey produces. NOT swallowed: this is a real
+    // gate, so a never-ready app fails fast instead of every spec timing out later.
+    const increment = Buffer.from(
+      JSON.stringify({ finderType: 'ByValueKey', keyValueString: 'increment', keyValueType: 'String' }),
+    ).toString('base64');
     await browser.$(increment).waitForDisplayed({ timeout: 90000 });
   },
   // On failure, dump the Appium page source to a .log artifact for diagnosis.

@@ -68,6 +68,17 @@ export default class FlutterWorkerService {
     this.store = new FlutterMockStore();
     const store = this.store;
 
+    const discover = () =>
+      discoverVmServiceUrl(browser, {
+        platform,
+        udid,
+        // Honour the documented CI-pinning options: skip the log scrape when set.
+        pinnedPort: pinnedVmServicePort,
+        host: this.options.vmServiceHost,
+        retries: VM_SERVICE_CONNECT_RETRIES,
+        intervalMs: VM_SERVICE_CONNECT_INTERVAL_MS,
+      });
+
     // Connect on demand: the Dart VM Service URL is logged a few seconds after launch, so the
     // first execute/mock is often the point at which it's discoverable. Mirrors the RN service's
     // ensureHermes lazy-(re)connect — also covers reconnect after the app is backgrounded (the
@@ -88,16 +99,6 @@ export default class FlutterWorkerService {
           if (stale) {
             await stale.close().catch(() => undefined);
           }
-          const discover = () =>
-            discoverVmServiceUrl(browser, {
-              platform,
-              udid,
-              // Honour the documented CI-pinning options: skip the log scrape when set.
-              pinnedPort: pinnedVmServicePort,
-              host: this.options.vmServiceHost,
-              retries: VM_SERVICE_CONNECT_RETRIES,
-              intervalMs: VM_SERVICE_CONNECT_INTERVAL_MS,
-            });
           const connectTo = async (url: string) => {
             const c = new VmServiceClient(url);
             await c.connect();
@@ -184,6 +185,17 @@ export default class FlutterWorkerService {
 
     (browser as WebdriverIO.Browser & { flutter?: FlutterServiceAPI }).flutter = api;
     log.debug('browser.flutter API installed');
+
+    // Pre-warm the VM-service URL while the "Dart VM service is listening on …" line is still in
+    // the device-log ring buffer. The lazy connect above can first run minutes after launch (on
+    // the first execute/mock), by which point that startup line has scrolled out and the one-shot
+    // getLogs scrape finds nothing (appium-flutter-driver catches it only because it streams the
+    // log from session start). Discovering here, right after launch, captures it; a later relaunch
+    // re-scrapes its fresh line via the reconnect path. Best-effort — a miss falls back to the
+    // lazy retry (e.g. a release build with no VM service, which then fails fast on first use).
+    if (platform) {
+      this.vmServiceUrl = (await discover().catch(() => undefined)) ?? this.vmServiceUrl;
+    }
   }
 
   async beforeTest(): Promise<void> {

@@ -14,11 +14,12 @@ export interface LogEntry {
   level: string;
   message: string;
   /**
-   * Always `'device'` (logcat/syslog) — the only kind this helper produces. A framework's
-   * own realm-log channel (RN's Hermes console, a Flutter VM-service stream) forwards
-   * directly via the logger, not as a `LogEntry`, so the union stays single-member here.
+   * The producing channel. `collectDeviceLogs` here only ever emits `'device'` (logcat/syslog),
+   * but the union keeps `'js'` (RN's Hermes console) and `'dart'` (Flutter's VM-service stream) so a
+   * framework forwarding its realm logs as `LogEntry[]` stays type-compatible — and so the shared
+   * type doesn't narrow the `source` contract `@wdio/react-native-service` previously exported.
    */
-  source: 'device';
+  source: 'device' | 'js' | 'dart';
 }
 
 /**
