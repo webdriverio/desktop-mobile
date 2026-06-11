@@ -1,0 +1,93 @@
+{
+  "name": "@wdio/react-native-service",
+  "version": "1.0.0-next.0",
+  "description": "WebdriverIO service for testing React Native mobile applications",
+  "author": "WebdriverIO Community",
+  "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/react-native-service",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.12.0"
+  },
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": [
+      {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/cjs/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        }
+      },
+      "./dist/cjs/index.js"
+    ]
+  },
+  "files": [
+    "dist",
+    "docs",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsx ../../scripts/build-package.ts",
+    "build:watch": "tsx ../../scripts/build-package.ts --watch",
+    "clean": "shx rm -rf dist",
+    "clean:dist": "shx rm -rf dist",
+    "dev": "pnpm run build:watch",
+    "lint": "biome check --linter-enabled=true --formatter-enabled=false src/",
+    "lint:fix": "biome check --write --linter-enabled=true --formatter-enabled=false src/",
+    "test": "vitest run",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@wdio/native-cdp-bridge": "workspace:*",
+    "@wdio/native-core": "workspace:*",
+    "@wdio/native-types": "workspace:*",
+    "@wdio/native-utils": "workspace:*",
+    "@wdio/types": "catalog:default",
+    "tslib": "^2.8.1",
+    "webdriverio": "catalog:default",
+    "@wdio/native-spy": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.7",
+    "shx": "^0.4.0",
+    "tsx": "^4.22.3",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.7"
+  },
+  "peerDependencies": {
+    "webdriverio": "^9.0.0"
+  },
+  "peerDependenciesMeta": {
+    "webdriverio": {
+      "optional": false
+    }
+  },
+  "keywords": [
+    "webdriverio",
+    "wdio",
+    "wdio-service",
+    "react-native",
+    "testing",
+    "e2e",
+    "mobile",
+    "appium"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webdriverio/desktop-mobile.git",
+    "directory": "packages/react-native-service"
+  },
+  "bugs": {
+    "url": "https://github.com/webdriverio/desktop-mobile/issues"
+  }
+}

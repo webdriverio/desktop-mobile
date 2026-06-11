@@ -82,6 +82,13 @@ export class CdpBridge {
     return this.#connection?.state;
   }
 
+  /** True only while the underlying CDP socket is OPEN. A live-connection check that, unlike
+   *  `state`, doesn't depend on how a dropped socket is represented (the connection nulls its
+   *  socket on close, so `state` reads `undefined` — `isOpen` says what it means directly). */
+  get isOpen(): boolean {
+    return this.#connection?.isOpen ?? false;
+  }
+
   /** CDP `/json/version` (browser/protocol version, for driver matching). */
   version() {
     return this.#devTool.version();
@@ -156,6 +163,13 @@ export class CdpBridge {
       throw new Error(ERROR_MESSAGE.NOT_CONNECTED);
     }
     this.#connection.on(event, listener);
+    return this;
+  }
+
+  off<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
+    // No-op when not connected: there is no listener registry to remove from, and a
+    // closed/never-opened bridge has nothing to detach.
+    this.#connection?.off(event, listener);
     return this;
   }
 

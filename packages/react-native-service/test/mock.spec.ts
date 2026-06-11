@@ -1,0 +1,221 @@
+import type { CdpBridge } from '@wdio/native-cdp-bridge';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+
+import { createMock, createMockAll } from '../src/mock.js';
+import { ReactNativeMockStore } from '../src/mockStore.js';
+
+// A fake CdpBridge whose `send` resolves normally while `open`, and rejects once
+// `close()` is called — modelling a connection that was torn down by reconnect().
+function fakeBridge() {
+  let open = true;
+  const send = vi.fn(async (_method: string, params?: { expression?: string }) => {
+    if (!open) {
+      throw new Error('WebSocket is closed');
+    }
+    // buildEnumerateFunctionsScript (mockAll) — return the discovered function names.
+    if (params?.expression?.includes('getOwnPropertyNames')) {
+      return { result: { value: ['greet', 'farewell'] } };
+    }
+    // buildReadCallDataScript reads call data — return an empty-but-valid shape.
+    if (params?.expression?.includes('calls')) {
+      return { result: { value: { calls: [], results: [], invocationCallOrder: [] } } };
+    }
+    return { result: { value: undefined } };
+  });
+  return {
+    bridge: { send } as unknown as CdpBridge,
+    close: () => {
+      open = false;
+    },
+  };
+}
+
+describe('createMock', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should install an inner recorder and expose a ReactNativeMock', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    expect(mock.__isReactNativeMock).toBe(true);
+    expect(store.getMock('greet')).toBe(mock);
+  });
+
+  it('should push impl, run the callback, then pop impl in withImplementation', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    const send = bridge.send as unknown as ReturnType<typeof vi.fn>;
+    send.mockClear();
+
+    const order: string[] = [];
+    const sendExpr = () => send.mock.calls.map((c) => String((c[1] as { expression?: string })?.expression ?? ''));
+
+    const result = await mock.withImplementation(
+      () => 'temp',
+      async () => {
+        order.push('callback');
+        return 'callback-result';
+      },
+    );
+
+    expect(result).toBe('callback-result');
+    const exprs = sendExpr();
+    // push happens before the callback, pop after.
+    expect(exprs.some((e) => e.includes('__pushImpl'))).toBe(true);
+    expect(exprs.some((e) => e.includes('__popImpl'))).toBe(true);
+    expect(exprs.findIndex((e) => e.includes('__pushImpl'))).toBeLessThan(
+      exprs.findIndex((e) => e.includes('__popImpl')),
+    );
+  });
+
+  it('should pop impl even if the withImplementation callback throws', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    const send = bridge.send as unknown as ReturnType<typeof vi.fn>;
+    send.mockClear();
+
+    await expect(
+      mock.withImplementation(
+        () => 'temp',
+        async () => {
+          throw new Error('boom');
+        },
+      ),
+    ).rejects.toThrow(/boom/);
+
+    const exprs = send.mock.calls.map((c) => String((c[1] as { expression?: string })?.expression ?? ''));
+    expect(exprs.some((e) => e.includes('__popImpl'))).toBe(true);
+  });
+
+  it('should surface the callback error, not the cleanup error, when popImpl also fails', async () => {
+    const store = new ReactNativeMockStore();
+    const send = vi.fn(async (_method: string, params?: { expression?: string }) => {
+      // Match the pop *call* script (`...__popImpl()`), not the install script that
+      // *defines* `spy.__popImpl = function`.
+      if (params?.expression?.includes('__popImpl()')) {
+        throw new Error('bridge dropped during pop');
+      }
+      if (params?.expression?.includes('calls')) {
+        return { result: { value: { calls: [], results: [], invocationCallOrder: [] } } };
+      }
+      return { result: { value: undefined } };
+    });
+    const bridge = { send } as unknown as CdpBridge;
+    const mock = await createMock('greet', bridge, store);
+
+    await expect(
+      mock.withImplementation(
+        () => 'temp',
+        async () => {
+          throw new Error('original assertion failure');
+        },
+      ),
+    ).rejects.toThrow(/original assertion failure/);
+  });
+
+  it('should not leak an unhandled rejection through mockClear after reconnect', async () => {
+    const store = new ReactNativeMockStore();
+    const first = fakeBridge();
+    await createMock('greet', first.bridge, store);
+
+    // Simulate MetroBridge.reconnect(): the old bridge is closed, a new one replaces it,
+    // and createMock is called again for the same target.
+    first.close();
+    const second = fakeBridge();
+    const remock = await createMock('greet', second.bridge, store);
+
+    const rejections: unknown[] = [];
+    const onRejection = (err: unknown) => rejections.push(err);
+    process.on('unhandledRejection', onRejection);
+
+    // mockClear/mockReset must route to the NEW bridge and clear native vitest state
+    // via the stashed native bindings — never the old closed bridge.
+    await remock.mockClear();
+    await remock.mockReset();
+    await new Promise((resolve) => setImmediate(resolve));
+
+    process.off('unhandledRejection', onRejection);
+    expect(rejections).toEqual([]);
+    expect(second.bridge.send).toHaveBeenCalled();
+  });
+
+  it('should clear outer vitest state even when the CDP clear call fails (dead bridge)', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge, close } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    const vitestFn = (mock as unknown as { _vitestFn: ReturnType<typeof vi.fn> })._vitestFn;
+    vitestFn('arg'); // seed a call so there is state to clear
+    expect(vitestFn.mock.calls).toHaveLength(1);
+
+    close();
+
+    // CDP call throws, but outer vitest call history must still be cleared via finally
+    await expect(mock.mockClear()).rejects.toThrow(/WebSocket is closed/);
+    expect(vitestFn.mock.calls).toHaveLength(0);
+  });
+
+  it('should reset outer vitest state even when the CDP reset call fails (dead bridge)', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge, close } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    const vitestFn = (mock as unknown as { _vitestFn: ReturnType<typeof vi.fn> })._vitestFn;
+    vitestFn('arg');
+    expect(vitestFn.mock.calls).toHaveLength(1);
+
+    close();
+
+    await expect(mock.mockReset()).rejects.toThrow(/WebSocket is closed/);
+    expect(vitestFn.mock.calls).toHaveLength(0);
+  });
+
+  it('should reset outer vitest state even when the CDP restore call fails (dead bridge)', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge, close } = fakeBridge();
+    const mock = await createMock('greet', bridge, store);
+    const vitestFn = (mock as unknown as { _vitestFn: ReturnType<typeof vi.fn> })._vitestFn;
+    vitestFn('arg');
+    expect(vitestFn.mock.calls).toHaveLength(1);
+
+    close();
+
+    // The CDP uninstall throws — outer state must still be reset via finally.
+    // Store entry is kept (Hermes spy was not uninstalled).
+    await expect(mock.mockRestore()).rejects.toThrow(/WebSocket is closed/);
+    expect(vitestFn.mock.calls).toHaveLength(0);
+    expect(store.getMock('greet')).toBeDefined();
+  });
+
+  it('should preserve call history across a reconnect (same vitest fn)', async () => {
+    const store = new ReactNativeMockStore();
+    const first = fakeBridge();
+    const mock = await createMock('greet', first.bridge, store);
+    const vitestFn = (mock as unknown as { _vitestFn: unknown })._vitestFn;
+
+    first.close();
+    const second = fakeBridge();
+    const remock = await createMock('greet', second.bridge, store);
+    expect((remock as unknown as { _vitestFn: unknown })._vitestFn).toBe(vitestFn);
+  });
+});
+
+describe('createMockAll', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should mock every enumerated function under the target path', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge } = fakeBridge();
+    const mocks = await createMockAll('Clipboard', bridge, store);
+
+    expect(Object.keys(mocks).sort()).toEqual(['farewell', 'greet']);
+    expect(mocks.greet.__isReactNativeMock).toBe(true);
+    // each enumerated function is registered under its full dotted path
+    expect(store.getMock('Clipboard.greet')).toBe(mocks.greet);
+    expect(store.getMock('Clipboard.farewell')).toBe(mocks.farewell);
+  });
+});

@@ -1,0 +1,204 @@
+name: E2E Tests - React Native (Android)
+# Description: Android-emulator E2E for @wdio/react-native-service.
+#
+# RN couples the JS bundle (served by Metro) to the native APK at runtime, so this is a
+# single combined job rather than the split build-app/e2e pattern the desktop services
+# use: generating the native project, building the APK, and running Metro must all agree
+# on one project. The iOS simulator leg lands as a fast-follow (PR4.5).
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Runner OS (ubuntu-latest)'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      test-type:
+        description: 'Test scenario (standard)'
+        type: string
+        default: 'standard'
+      api-level:
+        description: 'Android API level for the emulator'
+        type: string
+        default: '35'
+      rn-version:
+        description: 'React Native version to scaffold the native project with'
+        type: string
+        default: '0.76.5'
+      rn-cli-version:
+        description: '@react-native-community/cli major to scaffold with (pinned to match rn-version; bump together)'
+        type: string
+        default: '15'
+      new-arch:
+        description: 'Build the fixture with the New Architecture (Fabric/bridgeless) enabled'
+        type: boolean
+        default: false
+      build_id:
+        type: string
+        required: false
+      artifact_size:
+        type: string
+        required: false
+      cache_key:
+        type: string
+        required: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  # The scaffolded RN project (native android/ + JS) lives outside the workspace so it
+  # never collides with the monorepo's own node_modules / pnpm graph.
+  RN_BUILD_DIR: ${{ github.workspace }}/rn-build
+
+jobs:
+  e2e:
+    name: Run
+    runs-on: ${{ inputs.os }}
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      # Reclaim disk before the SDK/emulator/gradle footprint lands — but DO NOT remove
+      # /usr/local/lib/android: this job needs the Android SDK (the electron job removes it).
+      - name: 🧹 Free Disk Space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc /usr/local/.ghcup || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/share/powershell || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /usr/local/graalvm || true
+          sudo apt-get clean || true
+          sudo docker image prune --all --force || true
+          df -h /
+
+      # KVM acceleration for the x86_64 emulator (ubuntu-latest runners expose /dev/kvm).
+      - name: ⚡ Enable KVM
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # The e2e link-deps resolve against the prebuilt package dist from the build job.
+      - name: 📦 Download Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      # RN 0.76 targets JDK 17 (and Gradle 8.x — no foojay/IBM_SEMERU trap, which only
+      # bites Gradle 9 + foojay-resolver < 1.0; revisit the pin if RN is bumped to 0.8x).
+      - name: ☕ Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # Scaffold a complete RN project at the pinned version, then overlay the fixture's
+      # App.tsx (the native android/ project is generated, not committed — see the fixture
+      # README). The fixture's App only imports react-native core, so the stock template
+      # builds it unmodified.
+      - name: 🏗️ Scaffold native project + build debug APK
+        shell: bash
+        env:
+          RN_VERSION: ${{ inputs.rn-version }}
+          RN_CLI_VERSION: ${{ inputs.rn-cli-version }}
+          NEW_ARCH: ${{ inputs.new-arch }}
+        run: |
+          set -euo pipefail
+          # Pin the CLI major to match the RN version — an unpinned @latest could ship a
+          # breaking flag change (--pm/--install-pods/--skip-git-init) and break every run.
+          npx --yes "@react-native-community/cli@$RN_CLI_VERSION" init ReactNativeE2EApp \
+            --version "$RN_VERSION" --directory "$RN_BUILD_DIR" --skip-git-init --pm npm --install-pods false
+          cp fixtures/e2e-apps/react-native/App.tsx "$RN_BUILD_DIR/App.tsx"
+          # Select the RN architecture for this leg — BOTH are required gates: old (Paper) and
+          # new (Fabric/bridgeless, the RN 0.76 default). Under Fabric the UiAutomator2 view
+          # tree and the Hermes inspector register a few seconds LATER than Paper (proven by the
+          # probe: tree by ~12s, /json/list by ~24s) — the spec mount-waits and the service's
+          # Hermes connect-retry absorb that, so both archs drive the same fixture.
+          NEW_ARCH_VALUE=$([ "$NEW_ARCH" = "true" ] && echo true || echo false)
+          sed -i "s/^newArchEnabled=.*/newArchEnabled=$NEW_ARCH_VALUE/" "$RN_BUILD_DIR/android/gradle.properties"
+          grep '^newArchEnabled=' "$RN_BUILD_DIR/android/gradle.properties"
+          cd "$RN_BUILD_DIR/android"
+          ./gradlew assembleDebug --no-daemon -PreactNativeArchitectures=x86_64
+          echo "RN_APP_PATH=$RN_BUILD_DIR/android/app/build/outputs/apk/debug/app-debug.apk" >> "$GITHUB_ENV"
+
+      - name: 🔌 Install Appium UiAutomator2 driver
+        shell: bash
+        # Idempotent: appium errors (exit 1) if the driver is already registered in
+        # APPIUM_HOME, so only install when `driver list --installed` doesn't show it.
+        run: |
+          set -euo pipefail
+          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi uiautomator2; then
+            echo "uiautomator2 driver already installed"
+          else
+            pnpm --filter @repo/e2e exec appium driver install uiautomator2
+          fi
+
+      - name: 🤖 Run E2E on Android emulator
+        # Third-party action (non-GitHub-owned) → pin to a full commit SHA, not a floating
+        # tag, since secrets: inherit gives this job secret access. Bump deliberately.
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        with:
+          api-level: ${{ inputs.api-level }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          ram-size: 4096M
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # android-emulator-runner executes this with /usr/bin/sh (dash), which has no
+          # `pipefail` — `set -euo pipefail` would abort the script with exit 2 right after
+          # boot. Use POSIX-safe `set -eu`.
+          script: |
+            set -eu
+            # Map emulator:8081 → host:8081 so both the debug bundle load and the Hermes
+            # inspector attach reach Metro running on the runner host.
+            adb reverse tcp:8081 tcp:8081
+            # Start Metro from the scaffolded project (serves the JS bundle + Hermes inspector).
+            ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
+            # wait-on is a pinned e2e devDependency — run the workspace-local binary (not an
+            # unpinned `npx --yes`) so a breaking release can't silently break the readiness check.
+            pnpm --filter @repo/e2e exec wait-on tcp:8081 --timeout 120000
+            pnpm --filter @repo/e2e run test:e2e:react-native
+
+      - name: 🐛 Show Metro log on failure
+        if: failure()
+        shell: bash
+        run: tail -n 200 e2e/metro.log || true
+
+      - name: 📦 Upload Test Logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs-react-native-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
+          path: |
+            e2e/logs/**/*.log
+            e2e/metro.log
+          retention-days: 30
+          if-no-files-found: warn

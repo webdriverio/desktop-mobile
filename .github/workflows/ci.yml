@@ -24,7 +24,9 @@ permissions:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name != 'pull_request' }}
+  # A new push to a branch cancels its in-progress CI — superseded runs (esp. the slow mobile
+  # E2E legs) shouldn't keep burning runners. Previously PR events were exempt; cancel them too.
+  cancel-in-progress: true
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -761,6 +763,82 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
+  # React Native — Android emulator E2E (first mobile service). Single combined
+  # job (no separate build-app job): RN couples the JS bundle served by Metro to
+  # the native APK at runtime, so scaffolding the project, building the APK, and
+  # running Metro must all agree on one project. iOS simulator is the fast-follow
+  # (PR4.5). Required gate (see ci-status).
+  # Mobile legs label by TARGET PLATFORM ([Android]/[iOS]), not the runner OS — the
+  # runner (ubuntu/macos) is an implementation detail and "[Linux]" reads as if RN
+  # runs on Linux. (Desktop services keep the runner-OS axis: [Linux]/[Windows]/[macOS].)
+  # The job key stays `-linux` (the runner) to avoid churning the ci-status needs list.
+  # ────────────────────────────────────────────────────────────────────────
+  e2e-react-native-linux:
+    name: E2E - React Native [Android] - ${{ matrix.test-type }} (${{ matrix.arch }}-arch)
+    needs: [detect-changes, build]
+    # New services consume the `runs` JSON map rather than a static run_<svc> output
+    # (see _ci-detect-changes.reusable.yml — the map is populated automatically).
+    if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+        # Both RN architectures are required gates: old (Paper) and new (Fabric/bridgeless,
+        # the 0.76 default). One fixture, two scaffold flags — see the reusable workflow.
+        arch: ['old', 'new']
+    uses: ./.github/workflows/_ci-e2e-react-native.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      new-arch: ${{ matrix.arch == 'new' }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  # Build the RN iOS .app ahead of (and in parallel with) the Linux package build. The native
+  # xcodebuild + CocoaPods step is the dominant cost on the iOS leg; decoupling it from `build`
+  # means the macOS runner starts as soon as detect-changes finishes instead of waiting for the
+  # Linux package build to complete.
+  build-rn-ios-e2e-app-macos:
+    name: Build RN iOS E2E App - ${{ matrix.arch }}-arch
+    needs: [detect-changes]
+    if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: ['old', 'new']
+    uses: ./.github/workflows/_ci-build-react-native-ios-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      new-arch: ${{ matrix.arch == 'new' }}
+
+  # React Native — iOS simulator E2E (the fast-follow to the Android leg). macOS runner;
+  # appium-xcuitest builds WebDriverAgent at session time (no signing on the sim).
+  # Required gate (see ci-status).
+  e2e-react-native-ios-macos:
+    name: E2E - React Native [iOS] - ${{ matrix.test-type }} (${{ matrix.arch }}-arch)
+    needs: [detect-changes, build, build-rn-ios-e2e-app-macos]
+    if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+        arch: ['old', 'new']
+    uses: ./.github/workflows/_ci-e2e-react-native-ios.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      new-arch: ${{ matrix.arch == 'new' }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Electrobun E2E [Windows] — WebView2 over CDP (msedgedriver, classic WebDriver). Runs
   # `standard`, `window` (multi-window), and `multiremote` (two isolated WebView2 instances in
   # one worker — each its own process + LOCALAPPDATA data dir) — all capabilities CEF lacks, so
@@ -1024,6 +1102,10 @@ jobs:
       # is not run (CEF serves no /json; native WebKitGTK needs upstream automation #467).
       # deeplink stays local-only (also upstream-gated on Windows — #465).
       - e2e-electrobun-macos-arm
+      # React Native — Android emulator + iOS simulator E2E are required gates.
+      - e2e-react-native-linux
+      - e2e-react-native-ios-macos
+      - build-rn-ios-e2e-app-macos
       - e2e-electrobun-windows
       - package-electron-matrix
       - package-tauri-linux

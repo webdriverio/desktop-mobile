@@ -54,3 +54,25 @@ describe('Connection close-reason handling', () => {
     await expect(pending).rejects.toThrow(/boom/);
   });
 });
+
+describe('Connection.isOpen', () => {
+  beforeEach(() => {
+    h.sockets.length = 0;
+  });
+
+  it('should be false before connect, true while open, and false again after close', async () => {
+    const connection = new Connection('ws://127.0.0.1:9222/devtools/page/A');
+    expect(connection.isOpen).toBe(false);
+
+    const connectPromise = connection.connect();
+    const ws = h.sockets.at(-1) as DrivableSocket;
+    ws.emit('open');
+    await connectPromise;
+    expect(connection.isOpen).toBe(true);
+
+    const closePromise = connection.close();
+    ws.emit('close');
+    await closePromise;
+    expect(connection.isOpen).toBe(false);
+  });
+});
