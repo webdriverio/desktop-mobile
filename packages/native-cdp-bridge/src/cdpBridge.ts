@@ -101,7 +101,15 @@ export class CdpBridge extends EventEmitter {
     return this.#devTool.version();
   }
 
-  /** Discover targets, pick one via `selectTarget`, and connect. Retries discovery. */
+  /**
+   * Discover targets, pick one via `selectTarget`, and open a CDP WebSocket. Retries discovery.
+   *
+   * After a `cdp:disconnect` event, call this to reconnect — the bridge nulls the dead
+   * connection on an unexpected drop so this re-establishes rather than no-op'ing. CDP method
+   * listeners registered via `on()` are replayed onto the new socket automatically; the caller
+   * is responsible for deciding *when* to reconnect (e.g. after a backoff, or only when the
+   * target is expected to return).
+   */
   async connect(): Promise<void> {
     // #closed before the #connection early-return: close() sets #closed synchronously
     // but awaits the WebSocket handshake before nulling #connection. A connect() in that
