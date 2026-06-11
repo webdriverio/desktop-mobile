@@ -41,7 +41,7 @@ catalogs:
     '@wdio/types': 9.27.1
     '@wdio/xvfb': 9.27.1
     webdriverio: 9.27.1
-    electron: 41.7.1
+    electron: 41.7.2
     electron-builder: 26.8.1
     '@electron-forge/cli': 7.11.2
   # Non-default catalogs only need entries for deps whose version differs from
@@ -67,6 +67,6 @@ catalogs:
     '@wdio/spec-reporter': latest
     '@wdio/types': latest
     '@wdio/xvfb': latest
-    electron-nightly: 44.0.0-nightly.20260604
+    electron-nightly: 44.0.0-nightly.20260609
     electron-builder: next
     webdriverio: latest

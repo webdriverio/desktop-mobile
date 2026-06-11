@@ -71,7 +71,7 @@
     "compare-versions": "^6.1.1",
     "debug": "^4.4.3",
     "deepmerge-ts": "^7.1.5",
-    "electron-to-chromium": "^1.5.368",
+    "electron-to-chromium": "^1.5.371",
     "fast-copy": "^4.0.2",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
