@@ -462,3 +462,66 @@ describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)'
     expect(() => bridge.off('Runtime.consoleAPICalled', () => {})).not.toThrow();
   });
 });
+
+describe('MultiTargetCdpBridge per-target listener isolation', () => {
+  it('should not spill listeners from target A onto target B when switching', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    const wsB = 'ws://localhost:9222/devtools/page/B';
+
+    // Listener must be on A's connection.
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBe(true);
+
+    // Switch to B — #ensureConnection for B must NOT replay A's listeners.
+    await bridge.switchTarget('window-1');
+
+    expect(h.cdpMethodListeners.get(wsB)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
+  });
+
+  it('should remove the listener only from the active target when off() is called', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const fnA = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', fnA);
+
+    await bridge.switchTarget('window-1');
+    const fnB = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', fnB);
+
+    // Switch back to A and unsubscribe fnA.
+    await bridge.switchTarget('main');
+    bridge.off('Runtime.consoleAPICalled', fnA);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    const wsB = 'ws://localhost:9222/devtools/page/B';
+
+    // fnA removed from A's connection.
+    expect(h.removedListeners.get(wsA)).toContainEqual({ event: 'Runtime.consoleAPICalled', listener: fnA });
+    // fnB still on B's connection (off() only touched the active target).
+    expect(h.cdpMethodListeners.get(wsB)?.get('Runtime.consoleAPICalled')?.has(fnB)).toBe(true);
+  });
+
+  it('should remove the per-target listener entry from the registry when all listeners are off()d', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+    bridge.off('Runtime.consoleAPICalled', listener);
+
+    // No entry for A's URL remains — reconnect will not replay the removed listener.
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    h.disconnectHandlers.get(wsA)!();
+    await bridge.switchTarget('main');
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
+  });
+});
