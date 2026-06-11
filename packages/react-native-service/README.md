@@ -177,14 +177,15 @@ Open a deep link in the running app via Appium's `mobile: deepLink` command.
 await browser.reactNative.triggerDeeplink('myapp://products/42');
 ```
 
-### `switchContext(name)` / `listContexts()`
+### `switchWindow(name)` / `listWindows()`
 
 Switch between Appium contexts — `NATIVE_APP`, `WEBVIEW_*`, or (via the Appium
-Flutter meta-driver) `FLUTTER`.
+Flutter meta-driver) `FLUTTER`. These keep the convergent `*Window` naming shared
+with the desktop services; for a React Native app a "window" is an Appium context.
 
 ```ts
-const contexts = await browser.reactNative.listContexts();
-await browser.reactNative.switchContext(contexts.find(c => c.startsWith('WEBVIEW')) ?? 'NATIVE_APP');
+const contexts = await browser.reactNative.listWindows();
+await browser.reactNative.switchWindow(contexts.find(c => c.startsWith('WEBVIEW')) ?? 'NATIVE_APP');
 ```
 
 ### `emitEvent(name, payload?)`
@@ -214,20 +215,29 @@ React Native renders **real native views**, so standard Appium locators apply:
 ## Context switching (hybrid apps)
 
 RN apps that embed a WebView expose a `WEBVIEW_*` context alongside `NATIVE_APP`.
-Use `listContexts`/`switchContext` (or the raw Appium `context` command) to drive
+Use `listWindows`/`switchWindow` (or the raw Appium `context` command) to drive
 the WebView as a browser:
 
 ```ts
-await browser.reactNative.switchContext('WEBVIEW_com.myapp');
+await browser.reactNative.switchWindow('WEBVIEW_com.myapp');
 const title = await browser.getTitle();
-await browser.reactNative.switchContext('NATIVE_APP');
+await browser.reactNative.switchWindow('NATIVE_APP');
 ```
 
 ## Log capture
 
-The service collects **logcat** (Android) / **syslog** (iOS) and **Metro console**
-logs and forwards them to the WDIO test output. Enable via `captureBackendLogs` and
-`captureFrontendLogs` in the service options.
+The service forwards two independent channels into the WDIO test output, each opt-in
+and off by default:
+
+- **Backend** — native device logs: **logcat** (Android) / **syslog** (iOS). Enable with
+  `captureBackendLogs`; filter with `backendLogLevel` (default `info`).
+- **Frontend** — the app's JS / Metro console (`console.log/info/warn/error`, via the
+  Hermes `Runtime.consoleAPICalled` CDP event). Enable with `captureFrontendLogs`; filter
+  with `frontendLogLevel` (default `info`). Requires a debug / Metro build (same Hermes
+  inspector `execute`/`mock` use).
+
+`*LogLevel` is the minimum level captured — e.g. `frontendLogLevel: 'warn'` drops
+`console.log`/`console.info`. (`console.log` is treated as `info`.)
 
 ## Multiremote / parallel workers
 
@@ -254,20 +264,24 @@ Appium picks whatever is connected.
 
 ## Standalone / session mode
 
-Use `startWdioSession` to drive sessions outside of the WDIO runner:
+Use `startWdioSession` to drive sessions outside of the WDIO runner. It takes a
+`ReactNativeCapabilities` object and resolves to the `browser`; pass the same
+browser to `cleanupWdioSession` to tear the session down. Appium must already be
+running (the standalone path does not spawn it).
 
 ```ts
-import { startWdioSession } from '@wdio/react-native-service';
+import { startWdioSession, cleanupWdioSession } from '@wdio/react-native-service';
 
-const { browser, cleanup } = await startWdioSession({
+const browser = await startWdioSession({
   platformName: 'Android',
-  appPath: '/path/to/app-debug.apk',
+  'appium:automationName': 'UiAutomator2',
+  'appium:app': '/path/to/app-debug.apk',
 });
 try {
   const result = await browser.reactNative.execute(() => 'hello');
   console.log(result);
 } finally {
-  await cleanup();
+  await cleanupWdioSession(browser);
 }
 ```
 
