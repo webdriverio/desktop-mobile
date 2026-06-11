@@ -15,11 +15,14 @@ const getLogDir = () => join(__dirname, '../../logs', getLogDirName('standard', 
 describe('React Native logging', () => {
   it('should forward a JS console log into the WDIO output (frontend capture)', async () => {
     const marker = 'wdio-rn-frontend-marker';
-    const result = await browser.reactNative.execute((m) => {
+    // execute passes the Hermes realm as the first arg, then the user args — so the marker is
+    // the SECOND param. (Passing globalThis to console.* makes Hermes serialise it for the
+    // consoleAPICalled event and throw on a HostObject's Symbol.toStringTag.)
+    const result = await browser.reactNative.execute((_rn, m) => {
       console.info(m);
-      return 'logged';
+      return m;
     }, marker);
-    expect(result).toBe('logged');
+    expect(result).toBe(marker);
     // Forwarding is async (CDP event → WDIO logger → log file), so poll the output.
     await browser.waitUntil(async () => (await readWdioLogs(getLogDir())).includes(marker), {
       timeout: 15000,
