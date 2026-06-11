@@ -801,40 +801,59 @@ jobs:
   # xcodebuild + CocoaPods step is the dominant cost on the iOS leg; decoupling it from `build`
   # means the macOS runner starts as soon as detect-changes finishes instead of waiting for the
   # Linux package build to complete.
-  build-rn-ios-e2e-app-macos:
-    name: Build RN iOS E2E App - ${{ matrix.arch }}-arch
+  # Two explicitly named jobs (one per arch) so each E2E leg depends only on its matching build
+  # leg — no cross-arch wait from a shared matrix job.
+  build-rn-ios-e2e-app-macos-old-arch:
+    name: Build RN iOS E2E App [old-arch]
     needs: [detect-changes]
     if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        arch: ['old', 'new']
     uses: ./.github/workflows/_ci-build-react-native-ios-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-latest'
       node-version: '24'
-      new-arch: ${{ matrix.arch == 'new' }}
+      new-arch: false
+
+  build-rn-ios-e2e-app-macos-new-arch:
+    name: Build RN iOS E2E App [new-arch]
+    needs: [detect-changes]
+    if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-react-native-ios-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      new-arch: true
 
   # React Native — iOS simulator E2E (the fast-follow to the Android leg). macOS runner;
   # appium-xcuitest builds WebDriverAgent at session time (no signing on the sim).
   # Required gate (see ci-status).
-  e2e-react-native-ios-macos:
-    name: E2E - React Native [iOS] - ${{ matrix.test-type }} (${{ matrix.arch }}-arch)
-    needs: [detect-changes, build, build-rn-ios-e2e-app-macos]
+  e2e-react-native-ios-macos-old-arch:
+    name: E2E - React Native [iOS] - standard (old-arch)
+    needs: [detect-changes, build, build-rn-ios-e2e-app-macos-old-arch]
     if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        test-type: ['standard']
-        arch: ['old', 'new']
     uses: ./.github/workflows/_ci-e2e-react-native-ios.reusable.yml
     secrets: inherit
     with:
       os: 'macos-latest'
       node-version: '24'
-      test-type: ${{ matrix.test-type }}
-      new-arch: ${{ matrix.arch == 'new' }}
+      test-type: 'standard'
+      new-arch: false
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  e2e-react-native-ios-macos-new-arch:
+    name: E2E - React Native [iOS] - standard (new-arch)
+    needs: [detect-changes, build, build-rn-ios-e2e-app-macos-new-arch]
+    if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-e2e-react-native-ios.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: 'standard'
+      new-arch: true
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -1104,8 +1123,10 @@ jobs:
       - e2e-electrobun-macos-arm
       # React Native — Android emulator + iOS simulator E2E are required gates.
       - e2e-react-native-linux
-      - e2e-react-native-ios-macos
-      - build-rn-ios-e2e-app-macos
+      - e2e-react-native-ios-macos-old-arch
+      - e2e-react-native-ios-macos-new-arch
+      - build-rn-ios-e2e-app-macos-old-arch
+      - build-rn-ios-e2e-app-macos-new-arch
       - e2e-electrobun-windows
       - package-electron-matrix
       - package-tauri-linux
