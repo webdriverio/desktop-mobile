@@ -76,6 +76,16 @@
 
 [`@wdio/react-native-service`](./packages/react-native-service) - React Native mobile applications — **Android + iOS**. Native find/tap via Appium (UiAutomator2 / XCUITest); `execute` and `mock` via Hermes CDP (debug/Metro build). See the [package README](./packages/react-native-service).
 
+<h4>
+  <div>
+    <a href="https://www.npmjs.com/package/@wdio/flutter-service"><img src="https://img.shields.io/badge/@wdio-flutter--service-54C5F8?labelColor=1a1a1a&style=plastic" alt="npm package" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/flutter-service"><img src="https://img.shields.io/npm/v/@wdio/flutter-service/next" alt="npm version (next)" /></a>
+    <a href="https://www.npmjs.com/package/@wdio/flutter-service"><img src="https://img.shields.io/npm/dw/@wdio/flutter-service" alt="npm downloads" /></a>
+  </div>
+</h4>
+
+[`@wdio/flutter-service`](./packages/flutter-service) - Flutter mobile applications — **Android + iOS**. Native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (Dart expression) and `mock` via Dart VM Service (debug/profile build). See the [package README](./packages/flutter-service).
+
 ## Early Support
 
 > Early (`0.x`) support — feature surface is limited by upstream gaps. Not yet at parity with the services above.
@@ -92,7 +102,6 @@
 
 ## Planned Support
 
-- **Flutter** - Google's UI toolkit for mobile and beyond
 - **Capacitor** - Ionic's cross-platform mobile framework
 - **Neutralino** - Lightweight desktop applications
 
@@ -100,7 +109,7 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 
 ## Features
 
-- 🎯 **Framework-specific automation** - Native integration with Electron, Tauri, Dioxus, React Native, Electrobun
+- 🎯 **Framework-specific automation** - Native integration with Electron, Tauri, Dioxus, React Native, Flutter, Electrobun
 - 🔍 **Smart binary detection** - Automatic app discovery and configuration
 - 🎭 **API mocking & isolation** - Built-in mocking for deterministic tests
 - 🌍 **Browser-only test mode** - Run the renderer in Chrome against a dev server, no binary required. See the [Electron](./packages/electron-service/docs/browser-mode.md), [Tauri](./packages/tauri-service/docs/browser-mode.md), and [Dioxus](./packages/dioxus-service/docs/browser-mode.md) guides.
