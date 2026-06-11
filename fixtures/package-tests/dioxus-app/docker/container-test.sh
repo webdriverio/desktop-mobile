@@ -4,12 +4,21 @@
 # /workspace and invokes this file). Kept as a separate script rather than an
 # inline `bash -c "..."` string: an unescaped double quote inside an inline
 # script silently truncates it at that quote, and the container then exits 0
-# having run nothing — CI reports a green no-op. That exact failure shipped
+# having run nothing -- CI reports a green no-op. That exact failure shipped
 # two false-positive runs of this matrix.
+#
+# Tarballs are pre-packed on the CI runner (Node 24, full workspace toolchain)
+# and bind-mounted at /tarballs. The container only needs to install them and
+# build the fixture's Rust binary -- it no longer requires the workspace
+# toolchain (pnpm install --frozen-lockfile, turbo, TS execution). (#350)
+#
+# Note: dioxus-bridge dist-js is baked into the app binary at cargo-build time
+# via build.rs (packages/dioxus-bridge/build.rs). The bridge Rust crate is
+# referenced via a workspace path dep in Cargo.toml, so dist-js/index.js is
+# already present in the bind-mounted workspace after the runner's build step.
 
 set -e
 
-export TURBO_TELEMETRY_DISABLED=1
 export DISPLAY=:99
 # No GL/WebKit env tweaks needed: the "libEGL DRI3 error" warnings under
 # Xvfb are benign (the bare-runner package test prints the same ones and
@@ -23,37 +32,79 @@ if command -v Xvfb > /dev/null; then
     sleep 2
     echo "Xvfb started with PID: $XVFB_PID"
 else
-    echo '⚠️  Xvfb not found, tests may fail'
+    echo 'Warning: Xvfb not found, tests may fail'
 fi
 
-echo '=== Installing workspace dependencies ==='
-pnpm install --frozen-lockfile
+# Verify tarballs were provided
+if [ ! -d /tarballs ] || [ -z "$(ls /tarballs/*.tgz 2>/dev/null)" ]; then
+    echo 'ERROR: /tarballs must contain pre-packed workspace tarballs.'
+    echo 'Pack them on the runner before launching the container:'
+    echo '  for pkg in dioxus-service native-core native-spy native-types native-utils; do'
+    echo '    pnpm pack -C packages/$pkg --pack-destination dist/tarballs'
+    echo '  done'
+    exit 1
+fi
 
-echo '=== Building dioxus-service and dependencies ==='
-pnpm --filter @wdio/dioxus-service... build
+echo '=== Tarballs available ==='
+ls -lh /tarballs/
 
-echo '=== Building bridge guest-js (baked into the app binary) ==='
-# Not a workspace dependency of the service, so the filtered build above
-# skips it. The bridge crate's build.rs embeds dist-js/index.js into the
-# binary and silently degrades to a no-op bundle when it is missing — the
-# app then renders fine but every bridge round-trip times out. The main CI
-# build job avoids this by building all packages; this harness must build
-# it explicitly.
-pnpm --filter "@wdio/dioxus-bridge..." build
+echo '=== Verifying bridge guest-js bundle ==='
+# The bridge crate's build.rs (packages/dioxus-bridge/build.rs) embeds
+# dist-js/index.js into the binary at cargo-build time. The CI runner builds
+# @wdio/dioxus-bridge before packing, so the file is present in the workspace.
 test -s /workspace/packages/dioxus-bridge/dist-js/index.js || {
-    echo 'ERROR: bridge guest-js bundle missing after build'; exit 1;
+    echo 'ERROR: bridge guest-js bundle missing from workspace.'
+    echo 'The runner build step should have produced packages/dioxus-bridge/dist-js/index.js.'
+    exit 1
 }
 
+echo '=== Installing workspace packages from tarballs ==='
+# Install from fixture app directory. Replace workspace:* refs in package.json
+# with file: paths to the pre-packed tarballs, then run npm install so that
+# all @wdio/* workspace packages resolve to the built artefacts rather than
+# the live workspace source.
+cd /workspace/fixtures/package-tests/dioxus-app
+
+# Rewrite workspace:* entries in package.json to file:/tarballs/<tarball>.
+# npm understands file: protocol; pnpm workspace: protocol is workspace-only.
+PATCHED_PKG=$(node - << 'JS_EOF'
+const fs = require('fs');
+const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
+const tarballs = fs.readdirSync('/tarballs').filter(f => f.endsWith('.tgz'));
+
+for (const section of ['dependencies', 'devDependencies', 'peerDependencies']) {
+  if (!pkg[section]) continue;
+  for (const [name, ver] of Object.entries(pkg[section])) {
+    if (ver !== 'workspace:*') continue;
+    // Map @wdio/foo-bar -> wdio-foo-bar-*.tgz
+    const base = name.replace(/^@/, '').replace('/', '-');
+    const match = tarballs.find(t => t.startsWith(base + '-'));
+    if (!match) { console.error('No tarball found for ' + name); process.exit(1); }
+    pkg[section][name] = 'file:/tarballs/' + match;
+  }
+}
+process.stdout.write(JSON.stringify(pkg, null, 2) + '\n');
+JS_EOF
+)
+echo "$PATCHED_PKG" > package.json.patched
+mv package.json package.json.orig
+mv package.json.patched package.json
+
+npm install --prefer-offline 2>&1
+
+# Restore original package.json so the working tree stays clean for log uploads
+mv package.json package.json.installed
+mv package.json.orig package.json
+
 echo '=== Building Dioxus app (compiles embedded driver + bridge) ==='
-cd fixtures/package-tests/dioxus-app
-pnpm run build
+cargo build --manifest-path src-dioxus/Cargo.toml
 
 echo '=== Running Dioxus package test ==='
 # Capture the exit code instead of letting set -e abort here, so the
 # wdio session logs (backend/frontend tracing) are still copied out on
-# failure — that is exactly when they are needed.
+# failure -- that is exactly when they are needed.
 set +e
-pnpm test
+npx wdio run wdio.conf.ts
 TEST_EXIT=$?
 set -e
 

@@ -7,11 +7,41 @@
 # Example: ./test.sh void build
 # Example: ./test.sh void test
 # Example: ./test.sh void debug
+#
+# The TARBALLS_DIR env variable must point to a directory containing pre-packed
+# workspace tarballs (wdio-dioxus-service-*.tgz etc.).  In CI this is set by the
+# workflow after the runner-side "Pack tarballs" step.  Locally you can create
+# the tarballs first:
+#
+#   cd <repo-root>
+#   mkdir -p dist/tarballs
+#   for pkg in dioxus-service native-core native-spy native-types native-utils; do
+#     pnpm pack -C packages/$pkg --pack-destination "$(pwd)/dist/tarballs"
+#   done
+#   TARBALLS_DIR="$(pwd)/dist/tarballs" fixtures/package-tests/dioxus-app/docker/test.sh all test
 
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+
+# Validate that TARBALLS_DIR is set and non-empty before running tests
+if [ -z "${TARBALLS_DIR:-}" ]; then
+    echo "ERROR: TARBALLS_DIR is not set."
+    echo "Pack tarballs first:"
+    echo "  cd $REPO_ROOT"
+    echo "  mkdir -p dist/tarballs"
+    echo "  for pkg in dioxus-service native-core native-spy native-types native-utils; do"
+    echo "    pnpm pack -C packages/\$pkg --pack-destination \"\$(pwd)/dist/tarballs\""
+    echo "  done"
+    echo "  TARBALLS_DIR=\"\$(pwd)/dist/tarballs\" $0 \$@"
+    exit 1
+fi
+
+if [ ! -d "$TARBALLS_DIR" ]; then
+    echo "ERROR: TARBALLS_DIR '$TARBALLS_DIR' does not exist or is not a directory."
+    exit 1
+fi
 
 # Colors for output
 RED='\033[0;31m'
@@ -54,13 +84,14 @@ run_tests_in_container() {
     echo -e "${YELLOW}=== Running tests for $distro ===${NC}"
 
     # The in-container logic lives in container-test.sh (reached through the
-    # workspace bind mount) instead of an inline `bash -c` string — an
+    # workspace bind mount) instead of an inline `bash -c` string -- an
     # unescaped double quote in an inline script truncates it silently and
     # the run reports a green no-op. See the header of container-test.sh.
     docker run --rm \
         -u root \
         -v "$REPO_ROOT:/workspace" \
         -v "$log_dir:/workspace/logs-output" \
+        -v "$TARBALLS_DIR:/tarballs:ro" \
         -w /workspace \
         "dioxus-distro-test:$distro" \
         bash /workspace/fixtures/package-tests/dioxus-app/docker/container-test.sh \
