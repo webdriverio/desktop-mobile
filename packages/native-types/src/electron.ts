@@ -55,6 +55,10 @@ export interface ElectronServiceAPI {
      * The inline `returnValue` argument is a legacy convenience specific to
      * Electron's two-part mock identity; all other services use the chained
      * setter as the single convergent pattern.
+     *
+     * Note: TypeScript's TS-6385 deprecation diagnostic does not fire for `@deprecated`
+     * placed on individual call signatures within an object-type overload set (verified
+     * against TS 5.9). The JSDoc text surfaces in hover tooltips but no squiggle is emitted.
      */
     (apiName: string, funcName: string, returnValue: unknown): Promise<ElectronFunctionMock>;
   };
