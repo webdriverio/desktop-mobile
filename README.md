@@ -40,7 +40,7 @@
     </div>
 </h4>
 
-[`@wdio/electron-service`](./packages/electron-service) - Electron applications (Windows / macOS / Linux)
+[`@wdio/electron-service`](./packages/electron-service) — Electron (Windows / macOS / Linux)
 
 <h4>
   <div>
@@ -50,7 +50,7 @@
   </div>
 </h4>
 
-[`@wdio/tauri-service`](./packages/tauri-service) - Tauri applications (Windows / macOS / Linux)
+[`@wdio/tauri-service`](./packages/tauri-service) — Tauri (Windows / macOS / Linux)
 
 ## Pre-release
 
@@ -64,7 +64,7 @@
   </div>
 </h4>
 
-[`@wdio/dioxus-service`](./packages/dioxus-service) - Dioxus desktop applications (Windows / macOS / Linux)
+[`@wdio/dioxus-service`](./packages/dioxus-service) — Dioxus (Windows / macOS / Linux)
 
 <h4>
   <div>
@@ -74,7 +74,7 @@
   </div>
 </h4>
 
-[`@wdio/react-native-service`](./packages/react-native-service) - React Native mobile applications — **Android + iOS**. Native find/tap via Appium (UiAutomator2 / XCUITest); `execute` and `mock` via Hermes CDP (debug/Metro build). See the [package README](./packages/react-native-service).
+[`@wdio/react-native-service`](./packages/react-native-service) — React Native (Android / iOS)
 
 <h4>
   <div>
@@ -84,7 +84,7 @@
   </div>
 </h4>
 
-[`@wdio/flutter-service`](./packages/flutter-service) - Flutter mobile applications — **Android + iOS**. Native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (Dart expression) and `mock` via Dart VM Service (debug/profile build). See the [package README](./packages/flutter-service).
+[`@wdio/flutter-service`](./packages/flutter-service) — Flutter (Android / iOS)
 
 ## Early Support
 
@@ -98,7 +98,8 @@
   </div>
 </h4>
 
-[`@wdio/electrobun-service`](./packages/electrobun-service) - Electrobun desktop applications — **macOS** (CEF) and **Windows** (native WebView2 — Chromium over CDP, including multi-window + multiremote). **Linux** is upstream-blocked, and deeplink/multiremote remain blocked on the macOS CEF path ([#317](https://github.com/webdriverio/desktop-mobile/issues/317), [#320](https://github.com/webdriverio/desktop-mobile/issues/320)). See the [package README](./packages/electrobun-service).
+[`@wdio/electrobun-service`](./packages/electrobun-service) — Electrobun (macOS / Windows)
+Linux is upstream-blocked; macOS deeplink + multiremote are upstream-blocked. See the [package README](./packages/electrobun-service).
 
 ## Planned Support
 
@@ -112,6 +113,7 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 - 🎯 **Framework-specific automation** - Native integration with Electron, Tauri, Dioxus, React Native, Flutter, Electrobun
 - 🔍 **Smart binary detection** - Automatic app discovery and configuration
 - 🎭 **API mocking & isolation** - Built-in mocking for deterministic tests
+- 📱 **Native mobile automation** - Appium-driven UI interaction (UiAutomator2 / XCUITest / appium-flutter-driver) for Android + iOS
 - 🌍 **Browser-only test mode** - Run the renderer in Chrome against a dev server, no binary required. See the [Electron](./packages/electron-service/docs/browser-mode.md), [Tauri](./packages/tauri-service/docs/browser-mode.md), and [Dioxus](./packages/dioxus-service/docs/browser-mode.md) guides.
 - 🌐 **Cross-platform support** - Write once, test everywhere
 - 🔧 **Consistent API** - Familiar WDIO patterns across all frameworks
