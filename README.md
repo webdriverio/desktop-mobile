@@ -33,20 +33,20 @@
 
 > Stable releases — published on the `latest` dist-tag.
 
-| Service | Version | Downloads | Platforms |
+| Service | Version | Platforms | Downloads |
 |---|---|---|---|
-| [![@wdio/electron-service](https://img.shields.io/badge/@wdio-electron--service-9feaf9?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electron-service) | [![version](https://img.shields.io/npm/v/@wdio/electron-service)](https://www.npmjs.com/package/@wdio/electron-service) | [![downloads v10+](https://img.shields.io/npm/dw/@wdio/electron-service?label=downloads%20(v10%2B))](https://www.npmjs.com/package/@wdio/electron-service)<br>[![downloads ≤v9](https://img.shields.io/npm/dw/wdio-electron-service?label=downloads%20(%E2%89%A4%20v9))](https://www.npmjs.com/package/wdio-electron-service) | Windows / macOS / Linux |
-| [![@wdio/tauri-service](https://img.shields.io/badge/@wdio-tauri--service-FFC131?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/tauri-service) | [![version](https://img.shields.io/npm/v/@wdio/tauri-service)](https://www.npmjs.com/package/@wdio/tauri-service) | [![downloads](https://img.shields.io/npm/dw/@wdio/tauri-service)](https://www.npmjs.com/package/@wdio/tauri-service) | Windows / macOS / Linux |
+| [![@wdio/electron-service](https://img.shields.io/badge/@wdio-electron--service-9feaf9?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electron-service) | [![version](https://img.shields.io/npm/v/@wdio/electron-service)](https://www.npmjs.com/package/@wdio/electron-service) | Windows / macOS / Linux | [![downloads v10+](https://img.shields.io/npm/dw/@wdio/electron-service?label=downloads%20(v10%2B))](https://www.npmjs.com/package/@wdio/electron-service)<br>[![downloads ≤v9](https://img.shields.io/npm/dw/wdio-electron-service?label=downloads%20(%E2%89%A4%20v9))](https://www.npmjs.com/package/wdio-electron-service) |
+| [![@wdio/tauri-service](https://img.shields.io/badge/@wdio-tauri--service-FFC131?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/tauri-service) | [![version](https://img.shields.io/npm/v/@wdio/tauri-service)](https://www.npmjs.com/package/@wdio/tauri-service) | Windows / macOS / Linux | [![downloads](https://img.shields.io/npm/dw/@wdio/tauri-service)](https://www.npmjs.com/package/@wdio/tauri-service) |
 
 ## Pre-release
 
 > Feature-complete services published under the `next` dist-tag (`1.0.0-next.x`).
 
-| Service | Version | Downloads | Platforms |
+| Service | Version | Platforms | Downloads |
 |---|---|---|---|
-| [![@wdio/dioxus-service](https://img.shields.io/badge/@wdio-dioxus--service-e96020?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/dioxus-service) | [![version](https://img.shields.io/npm/v/@wdio/dioxus-service/next)](https://www.npmjs.com/package/@wdio/dioxus-service) | [![downloads](https://img.shields.io/npm/dw/@wdio/dioxus-service)](https://www.npmjs.com/package/@wdio/dioxus-service) | Windows / macOS / Linux |
-| [![@wdio/react-native-service](https://img.shields.io/badge/@wdio-react--native--service-61DAFB?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/react-native-service) | [![version](https://img.shields.io/npm/v/@wdio/react-native-service/next)](https://www.npmjs.com/package/@wdio/react-native-service) | [![downloads](https://img.shields.io/npm/dw/@wdio/react-native-service)](https://www.npmjs.com/package/@wdio/react-native-service) | Android / iOS |
-| [![@wdio/flutter-service](https://img.shields.io/badge/@wdio-flutter--service-055a9d?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/flutter-service) | [![version](https://img.shields.io/npm/v/@wdio/flutter-service/next)](https://www.npmjs.com/package/@wdio/flutter-service) | [![downloads](https://img.shields.io/npm/dw/@wdio/flutter-service)](https://www.npmjs.com/package/@wdio/flutter-service) | Android / iOS |
+| [![@wdio/dioxus-service](https://img.shields.io/badge/@wdio-dioxus--service-e96020?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/dioxus-service) | [![version](https://img.shields.io/npm/v/@wdio/dioxus-service/next)](https://www.npmjs.com/package/@wdio/dioxus-service) | Windows / macOS / Linux | [![downloads](https://img.shields.io/npm/dw/@wdio/dioxus-service)](https://www.npmjs.com/package/@wdio/dioxus-service) |
+| [![@wdio/react-native-service](https://img.shields.io/badge/@wdio-react--native--service-61DAFB?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/react-native-service) | [![version](https://img.shields.io/npm/v/@wdio/react-native-service/next)](https://www.npmjs.com/package/@wdio/react-native-service) | Android / iOS | [![downloads](https://img.shields.io/npm/dw/@wdio/react-native-service)](https://www.npmjs.com/package/@wdio/react-native-service) |
+| [![@wdio/flutter-service](https://img.shields.io/badge/@wdio-flutter--service-055a9d?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/flutter-service) | [![version](https://img.shields.io/npm/v/@wdio/flutter-service/next)](https://www.npmjs.com/package/@wdio/flutter-service) | Android / iOS | [![downloads](https://img.shields.io/npm/dw/@wdio/flutter-service)](https://www.npmjs.com/package/@wdio/flutter-service) |
 
 ## Early Support
 
@@ -54,9 +54,9 @@
 >
 > Electrobun: Linux upstream-blocked; macOS deeplink & multiremote upstream-blocked. [See README](./packages/electrobun-service)
 
-| Service | Version | Downloads | Platforms |
+| Service | Version | Platforms | Downloads |
 |---|---|---|---|
-| [![@wdio/electrobun-service](https://img.shields.io/badge/@wdio-electrobun--service-ffffff?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![version](https://img.shields.io/npm/v/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![downloads](https://img.shields.io/npm/dw/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | macOS / Windows |
+| [![@wdio/electrobun-service](https://img.shields.io/badge/@wdio-electrobun--service-ffffff?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![version](https://img.shields.io/npm/v/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | macOS / Windows | [![downloads](https://img.shields.io/npm/dw/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) |
 
 ## Planned Support
 
