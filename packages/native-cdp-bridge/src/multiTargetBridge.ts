@@ -59,6 +59,11 @@ export class MultiTargetCdpBridge extends EventEmitter {
   #targets: TargetRegistryEntry[] = [];
   #activeLabel: string | undefined;
   #closed = false;
+  // Side-channel registry for CDP method listeners subscribed via on().
+  // Listeners live on a specific Connection; when that connection drops and is
+  // re-opened via #ensureConnection, this registry lets us replay them onto the
+  // new socket so callers continue receiving events without re-subscribing.
+  #cdpListeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
   constructor(options: MultiTargetCdpBridgeOptions) {
     super();
@@ -192,7 +197,37 @@ export class MultiTargetCdpBridge extends EventEmitter {
     if (event === CDP_DISCONNECT_EVENT) {
       return super.on(event, listener);
     }
+    // Store in the side-channel registry so #ensureConnection can replay onto
+    // the replacement socket when the active connection drops and is re-opened.
+    let set = this.#cdpListeners.get(event);
+    if (!set) {
+      set = new Set();
+      this.#cdpListeners.set(event, set);
+    }
+    set.add(listener);
     this.#active().on(event as Events, listener as (param: unknown) => void);
+    return this;
+  }
+
+  /** Unsubscribe from a CDP event or the disconnect lifecycle event. */
+  off(event: typeof CDP_DISCONNECT_EVENT, listener: () => void): this;
+  off<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this;
+  off(event: string, listener: (...args: unknown[]) => void): this {
+    if (event === CDP_DISCONNECT_EVENT) {
+      return super.off(event, listener);
+    }
+    // Remove from the registry so #ensureConnection no longer replays this listener.
+    const set = this.#cdpListeners.get(event);
+    if (set) {
+      set.delete(listener);
+      if (set.size === 0) {
+        this.#cdpListeners.delete(event);
+      }
+    }
+    // No-op when not connected: there is no active connection to remove from.
+    if (this.#activeLabel) {
+      this.#connections.get(this.#activeLabel)?.off(event, listener);
+    }
     return this;
   }
 
@@ -281,6 +316,14 @@ export class MultiTargetCdpBridge extends EventEmitter {
       }
       this.emit(CDP_DISCONNECT_EVENT);
     });
+    // Replay any CDP method listeners registered via on() onto this new connection.
+    // Listeners survive a reconnect: when the active connection drops and the consumer
+    // re-establishes via switchTarget()/connect(), #cdpListeners is replayed here.
+    for (const [event, listeners] of this.#cdpListeners) {
+      for (const listener of listeners) {
+        connection.on(event as Events, listener as (param: unknown) => void);
+      }
+    }
     this.#connections.set(label, connection);
     return connection;
   }

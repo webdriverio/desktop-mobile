@@ -9,6 +9,11 @@ const h = vi.hoisted(() => ({
   closeGate: undefined as Promise<void> | undefined,
   // Allows tests to fire the cdp:disconnect event on the last created Connection
   disconnectHandlers: [] as Array<() => void>,
+  // Tracks CDP method listeners registered on each connection so tests can fire them.
+  // Index matches ctors: connections[i] holds the listeners for the i-th Connection.
+  cdpMethodListeners: [] as Array<Map<string, Set<(...args: unknown[]) => void>>>,
+  // Tracks which listeners were removed via off() on each Connection.
+  removedListeners: [] as Array<Array<{ event: string; listener: (...args: unknown[]) => void }>>,
 }));
 
 vi.mock('../src/devTool.js', () => ({
@@ -23,21 +28,36 @@ vi.mock('../src/connection.js', async () => {
   return {
     Connection: class {
       isOpen = true;
+      #methodListeners = new Map<string, Set<(...args: unknown[]) => void>>();
+      #removed: Array<{ event: string; listener: (...args: unknown[]) => void }> = [];
       constructor(url: string, opts: unknown) {
         h.ctors.push({ url, opts });
+        h.cdpMethodListeners.push(this.#methodListeners);
+        h.removedListeners.push(this.#removed);
       }
       connect = async () => {};
       send = async (method: string) => {
         h.sent.push(method);
         return { result: { value: 'ok' } };
       };
-      on = (event: string, listener: () => void) => {
+      on = (event: string, listener: (...args: unknown[]) => void) => {
         if (event === CDP_DISCONNECT_EVENT) {
-          h.disconnectHandlers.push(listener);
+          h.disconnectHandlers.push(listener as () => void);
+        } else {
+          let set = this.#methodListeners.get(event);
+          if (!set) {
+            set = new Set();
+            this.#methodListeners.set(event, set);
+          }
+          set.add(listener);
         }
         return this;
       };
-      off = () => this;
+      off = (event: string, listener: (...args: unknown[]) => void) => {
+        this.#removed.push({ event, listener });
+        this.#methodListeners.get(event)?.delete(listener);
+        return this;
+      };
       close = async () => {
         if (h.closeGate) {
           await h.closeGate;
@@ -69,6 +89,8 @@ beforeEach(() => {
   h.sent.length = 0;
   h.closeGate = undefined;
   h.disconnectHandlers.length = 0;
+  h.cdpMethodListeners.length = 0;
+  h.removedListeners.length = 0;
 });
 
 describe('CdpBridge (single-target)', () => {
@@ -177,5 +199,52 @@ describe('CdpBridge cdp:disconnect event and self-healing', () => {
     // so subscribing before connect() must not throw.
     const bridge = new CdpBridge();
     expect(() => bridge.on(CDP_DISCONNECT_EVENT, () => {})).not.toThrow();
+  });
+});
+
+describe('CdpBridge CDP listener registry (reconnect survival + off)', () => {
+  it('should replay CDP method listeners onto the new connection after reconnect', async () => {
+    h.targets = [target('A', 'http://app/a')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+
+    // Listener is registered on the first connection.
+    expect(h.cdpMethodListeners[0].get('Runtime.consoleAPICalled')?.has(listener)).toBe(true);
+
+    // Simulate an unexpected drop — the bridge emits cdp:disconnect and the
+    // consumer is expected to call connect() again to re-establish.
+    h.disconnectHandlers[0]();
+    await bridge.connect();
+
+    // A second connection was created.
+    expect(h.ctors).toHaveLength(2);
+    // The listener was replayed onto the new connection by connect().
+    expect(h.cdpMethodListeners[1].get('Runtime.consoleAPICalled')?.has(listener)).toBe(true);
+  });
+
+  it('should remove listener from registry and connection when off() is called', async () => {
+    h.targets = [target('A', 'http://app/a')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+    bridge.off('Runtime.consoleAPICalled', listener);
+
+    // Removed from the active connection.
+    expect(h.removedListeners[0]).toContainEqual({ event: 'Runtime.consoleAPICalled', listener });
+    // Reconnect must not replay the off'd listener.
+    h.disconnectHandlers[0]();
+    await bridge.connect();
+    expect(h.ctors).toHaveLength(2);
+    expect(h.cdpMethodListeners[1].get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
+  });
+
+  it('should be a no-op to call off() when not connected', () => {
+    const bridge = new CdpBridge();
+    expect(() => bridge.off('Runtime.consoleAPICalled', () => {})).not.toThrow();
   });
 });

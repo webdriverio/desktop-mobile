@@ -62,6 +62,10 @@ export class CdpBridge extends EventEmitter {
   #devTool: DevTool;
   #connection: Connection | null = null;
   #closed = false;
+  // Side-channel registry for CDP method listeners (e.g. 'Runtime.consoleAPICalled').
+  // Listeners on the active Connection are lost when it drops and a new one is created;
+  // this map lets connect() replay them onto the replacement socket.
+  #cdpListeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
   constructor(options?: CdpBridgeOptions) {
     super();
@@ -140,9 +144,16 @@ export class CdpBridge extends EventEmitter {
             // The WebSocket dropped unexpectedly. Null out the dead connection so
             // the next connect() call re-establishes rather than no-op'ing on it,
             // then forward the event so consumers can trigger their own reconnect.
+            // connect() will replay #cdpListeners onto the new socket.
             this.#connection = null;
             this.emit(CDP_DISCONNECT_EVENT);
           });
+          // Replay any CDP method listeners registered before this connection was created.
+          for (const [event, listeners] of this.#cdpListeners) {
+            for (const listener of listeners) {
+              connection.on(event as Events, listener as (param: unknown) => void);
+            }
+          }
           this.#connection = connection;
           return;
         }
@@ -180,6 +191,13 @@ export class CdpBridge extends EventEmitter {
     if (!this.#connection) {
       throw new Error(ERROR_MESSAGE.NOT_CONNECTED);
     }
+    // Store in the side-channel registry so reconnect can replay onto the new socket.
+    let set = this.#cdpListeners.get(event);
+    if (!set) {
+      set = new Set();
+      this.#cdpListeners.set(event, set);
+    }
+    set.add(listener);
     this.#connection.on(event as Events, listener as (param: unknown) => void);
     return this;
   }
@@ -190,8 +208,15 @@ export class CdpBridge extends EventEmitter {
     if (event === CDP_DISCONNECT_EVENT) {
       return super.off(event, listener);
     }
-    // No-op when not connected: there is no listener registry to remove from, and a
-    // closed/never-opened bridge has nothing to detach.
+    // Remove from the registry so reconnect no longer replays this listener.
+    const set = this.#cdpListeners.get(event);
+    if (set) {
+      set.delete(listener);
+      if (set.size === 0) {
+        this.#cdpListeners.delete(event);
+      }
+    }
+    // No-op when not connected: there is no active connection to remove from.
     this.#connection?.off(event, listener);
     return this;
   }
