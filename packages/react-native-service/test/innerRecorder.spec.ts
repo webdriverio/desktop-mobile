@@ -42,6 +42,21 @@ describe('inner recorder impl stack (reconnect recovery)', () => {
     exec(ctx, buildInstallScript('greet'));
     expect(call(ctx, 'greet')).toBe('set');
   });
+
+  it('should re-attach the spy on reconnect when a fast-refresh displaced the target', () => {
+    const ctx = realm({ greet: () => 'orig' });
+    exec(ctx, buildInstallScript('greet'));
+    exec(ctx, buildSetImplementationScript('greet', '() => "mocked"'));
+    expect(call(ctx, 'greet')).toBe('mocked');
+
+    // Fast Refresh replaces the target with a fresh original — the spy is now bypassed.
+    ctx.greet = () => 'fresh-orig';
+    expect(call(ctx, 'greet')).toBe('fresh-orig');
+
+    // Reconnect re-runs buildInstallScript, whose existing-entry path re-attaches the spy.
+    exec(ctx, buildInstallScript('greet'));
+    expect(call(ctx, 'greet')).toBe('mocked');
+  });
 });
 
 describe('buildEnumerateFunctionsScript (mockAll)', () => {

@@ -168,6 +168,16 @@ export function buildInstallScript(target: string): string {
       // popImpl never landed (e.g. the bridge dropped mid-call), so a temporary implementation
       // doesn't survive the reconnect (it otherwise persisted until mockRestore).
       if (existing.spy && existing.spy.__resetImplStack) { existing.spy.__resetImplStack(); }
+      // A Fast Refresh / HMR reload can replace the object our spy was installed on, leaving the
+      // live target pointing at a fresh original — the spy would then silently stop intercepting.
+      // Re-attach the persisted spy (refreshing original/parent/key so mockRestore still works).
+      var live = __resolve(${key});
+      if (live && live.parent[live.key] !== existing.spy && typeof live.parent[live.key] === 'function') {
+        existing.original = live.parent[live.key];
+        existing.parent = live.parent;
+        existing.key = live.key;
+        live.parent[live.key] = existing.spy;
+      }
       return;
     }
     var loc = __resolve(${key});
