@@ -152,7 +152,7 @@ jobs:
           git clone --depth 1 -b feat/android-vm-service-port \
             https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
           ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
-          AFD=$(pnpm --filter @repo/e2e exec node -e "process.stdout.write(require('path').dirname(require.resolve('appium-flutter-driver/package.json')))")
+          AFD=$( cd "$GITHUB_WORKSPACE/e2e" && node -e 'process.stdout.write(require("path").dirname(require.resolve("appium-flutter-driver/package.json")))' )
           echo "Overwriting node_modules appium-flutter-driver at: $AFD"
           rm -rf "$AFD/build"
           cp -R "$RUNNER_TEMP/afd/driver/build" "$AFD/build"
