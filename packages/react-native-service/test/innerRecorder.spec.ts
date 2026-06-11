@@ -5,6 +5,7 @@ import {
   buildEnumerateFunctionsScript,
   buildInstallScript,
   buildPushImplementationScript,
+  buildRestoreScript,
   buildSetImplementationScript,
 } from '../src/innerRecorder.js';
 
@@ -41,6 +42,26 @@ describe('inner recorder impl stack (reconnect recovery)', () => {
     // _savedImpls is empty (no withImplementation), so the reconnect reset must be a no-op.
     exec(ctx, buildInstallScript('greet'));
     expect(call(ctx, 'greet')).toBe('set');
+  });
+
+  it('should re-attach the spy on reconnect when a fast-refresh displaced the target', () => {
+    const ctx = realm({ greet: () => 'orig' });
+    exec(ctx, buildInstallScript('greet'));
+    exec(ctx, buildSetImplementationScript('greet', '() => "mocked"'));
+    expect(call(ctx, 'greet')).toBe('mocked');
+
+    // Fast Refresh replaces the target with a fresh original — the spy is now bypassed.
+    ctx.greet = () => 'fresh-orig';
+    expect(call(ctx, 'greet')).toBe('fresh-orig');
+
+    // Reconnect re-runs buildInstallScript, whose existing-entry path re-attaches the spy.
+    exec(ctx, buildInstallScript('greet'));
+    expect(call(ctx, 'greet')).toBe('mocked');
+
+    // mockRestore must put back the *fresh* original recorded during re-attachment, not the
+    // stale pre-mock one — verifying that existing.original was updated above.
+    exec(ctx, buildRestoreScript('greet'));
+    expect(call(ctx, 'greet')).toBe('fresh-orig');
   });
 });
 

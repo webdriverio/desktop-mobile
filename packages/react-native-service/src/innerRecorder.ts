@@ -168,6 +168,22 @@ export function buildInstallScript(target: string): string {
       // popImpl never landed (e.g. the bridge dropped mid-call), so a temporary implementation
       // doesn't survive the reconnect (it otherwise persisted until mockRestore).
       if (existing.spy && existing.spy.__resetImplStack) { existing.spy.__resetImplStack(); }
+      // A Fast Refresh / HMR reload can replace the object our spy was installed on, leaving the
+      // live target pointing at a fresh original — the spy would then silently stop intercepting.
+      // Re-attach the persisted spy (refreshing original/parent/key so mockRestore still works).
+      var live = __resolve(${key});
+      if (live && live.parent[live.key] !== existing.spy && typeof live.parent[live.key] === 'function') {
+        existing.original = live.parent[live.key];
+        existing.parent = live.parent;
+        existing.key = live.key;
+        live.parent[live.key] = existing.spy;
+      }
+      // If __resolve returns undefined here (the parent path was removed by a Fast Refresh that
+      // dropped the entire module), we fall through silently — the spy stays displaced and the mock
+      // is inactive until the next full reinstall.  This asymmetry with the fresh-install path
+      // below (which throws) is intentional: throwing during a reconnect would abort the session;
+      // the silent no-op lets the session continue, and the mock self-heals once the module
+      // re-appears and the test re-runs buildInstallScript.
       return;
     }
     var loc = __resolve(${key});
