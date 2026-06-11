@@ -136,18 +136,30 @@ export default class ReactNativeWorkerService {
 
       isMockFunction: (targetOrFn: unknown) => isMockFunctionUtil(targetOrFn, store),
 
-      // ensureHermes first, like mock/execute: each entry's mockClear/Reset/Restore drives a
-      // native CDP op, so a dropped bridge must be re-attached (and mocks rewired) or the bulk
-      // op would only log per-entry warnings. No-op when already connected / the store is empty.
+      // Guard on an empty store FIRST: a no-op bulk sweep (e.g. a beforeEach safety clear when
+      // no mocks were created) must return instantly and must not require a live bridge —
+      // otherwise ensureHermes blocks on the connect-retry budget (~60s) and throws "Hermes
+      // inspector is not connected" when the app/bridge is down. With mocks present, ensureHermes
+      // first (like mock/execute): each entry's mockClear/Reset/Restore drives a native CDP op,
+      // so a dropped bridge must be re-attached (and mocks rewired) or the op would only warn.
       clearAllMocks: async (targetPrefix?: string) => {
+        if (store.getMocks().length === 0) {
+          return;
+        }
         await ensureHermes('clearAllMocks');
         return clearAllMocks(store, targetPrefix);
       },
       resetAllMocks: async (targetPrefix?: string) => {
+        if (store.getMocks().length === 0) {
+          return;
+        }
         await ensureHermes('resetAllMocks');
         return resetAllMocks(store, targetPrefix);
       },
       restoreAllMocks: async (targetPrefix?: string) => {
+        if (store.getMocks().length === 0) {
+          return;
+        }
         await ensureHermes('restoreAllMocks');
         return restoreAllMocks(store, targetPrefix);
       },
