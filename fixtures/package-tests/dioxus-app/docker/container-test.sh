@@ -113,6 +113,15 @@ mv package.json package.json.orig
 mv package.json.patched package.json
 trap 'mv -f package.json.orig package.json 2>/dev/null || true' EXIT
 
+# This fixture is a pnpm workspace member, so the runner's `pnpm install` leaves
+# a symlinked node_modules here (entries link out to ../../../../node_modules/.pnpm
+# and ../../../../packages). The whole workspace is bind-mounted in, so npm's
+# arborist tries to load that pnpm layout and crashes on a symlink it can't
+# resolve in its own model: "Cannot destructure property 'package' of
+# 'node.target' as it is null". Clear it so npm builds node_modules purely from
+# the tarballs + registry.
+rm -rf node_modules package-lock.json
+
 npm install --prefer-offline 2>&1
 
 # Restore original package.json so the working tree stays clean for log uploads
