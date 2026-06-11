@@ -50,9 +50,11 @@
 
 > Early (`0.x`) support — feature surface is limited by upstream gaps. Not yet at parity with the services above.
 
-| Service | Version | Downloads | Platforms | Notes |
-|---|---|---|---|---|
-| [![@wdio/electrobun-service](https://img.shields.io/badge/@wdio-electrobun--service-ffffff?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![version](https://img.shields.io/npm/v/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![downloads](https://img.shields.io/npm/dw/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | macOS / Windows | Linux upstream-blocked; macOS deeplink & multiremote upstream-blocked. [See README](./packages/electrobun-service) |
+| Service | Version | Downloads | Platforms |
+|---|---|---|---|
+| [![@wdio/electrobun-service](https://img.shields.io/badge/@wdio-electrobun--service-ffffff?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![version](https://img.shields.io/npm/v/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![downloads](https://img.shields.io/npm/dw/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | macOS / Windows |
+
+> Electrobun: Linux upstream-blocked; macOS deeplink & multiremote upstream-blocked. [See README](./packages/electrobun-service)
 
 ## Planned Support
 
