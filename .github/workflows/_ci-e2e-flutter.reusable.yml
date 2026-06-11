@@ -139,16 +139,22 @@ jobs:
           flutter build apk --debug --target-platform android-x64
           echo "FLUTTER_APP_PATH=$FIXTURE_DIR/build/app/outputs/flutter-apk/app-debug.apk" >> "$GITHUB_ENV"
 
-      - name: 🔌 Install Appium Flutter driver
+      - name: 🔌 Install Appium Flutter driver (goosewobbler fork — Android vm-service-port pin)
         shell: bash
-        # Idempotent: appium errors (exit 1) if the driver is already registered in
-        # APPIUM_HOME, so only install when `driver list --installed` doesn't show it.
+        # Interim: the fork adds the Android `vm-service-port` intent-extra injection that pins the
+        # Dart VM Service to a fixed token-free port (execute/mock need it; upstream PR pending). The
+        # driver is a subdir with no root package.json, so `--source=git` can't resolve it — clone,
+        # build, install --source=local. Switch to `--source=npm @goosewobbler/appium-flutter-driver`
+        # once the fork is published. Idempotent: only install when not already registered.
         run: |
           set -euo pipefail
           if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi flutter; then
             echo "flutter driver already installed"
           else
-            pnpm --filter @repo/e2e exec appium driver install --source=npm appium-flutter-driver
+            git clone --depth 1 -b feat/android-vm-service-port \
+              https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
+            ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
+            pnpm --filter @repo/e2e exec appium driver install --source=local "$RUNNER_TEMP/afd/driver"
           fi
 
       - name: 🤖 Run E2E on Android emulator

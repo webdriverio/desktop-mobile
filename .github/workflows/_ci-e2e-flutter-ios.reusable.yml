@@ -114,11 +114,20 @@ jobs:
 
       - name: 🔌 Install Appium Flutter + XCUITest drivers
         shell: bash
+        # Flutter driver from the goosewobbler fork (interim): the published 3.7.1 already pins the
+        # iOS VM-service port via processArguments, but we use the same fork on both legs for parity
+        # while the Android vm-service-port intent-extra change is upstreamed. Subdir/no-root-pkg →
+        # clone+build+--source=local (not --source=git). Switch to the published scoped pkg later.
         run: |
           set -euo pipefail
           installed=$(pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 || true)
           echo "$installed" | grep -qi xcuitest || pnpm --filter @repo/e2e exec appium driver install xcuitest
-          echo "$installed" | grep -qi flutter || pnpm --filter @repo/e2e exec appium driver install --source=npm appium-flutter-driver
+          if ! echo "$installed" | grep -qi flutter; then
+            git clone --depth 1 -b feat/android-vm-service-port \
+              https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
+            ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
+            pnpm --filter @repo/e2e exec appium driver install --source=local "$RUNNER_TEMP/afd/driver"
+          fi
 
       # WDA DerivedData cache keyed on e2e/package.json (driver pins) + the runner image version.
       - name: 💾 Restore WDA DerivedData cache

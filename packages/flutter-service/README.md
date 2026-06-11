@@ -36,6 +36,19 @@ Native find/tap needs the Appium Flutter driver:
 appium driver install --source=npm appium-flutter-driver
 ```
 
+> **`execute` / `mock` prerequisite — pin the VM Service port.** These connect to the Dart VM
+> Service, which the driver discovers by scraping the device log — a path that isn't exposed to
+> the service. Instead, **set `appium:dartVmServicePort`** (a fixed port) so the driver binds the VM
+> Service to it with auth codes disabled, giving a deterministic `ws://localhost:<port>/ws` the
+> service connects to directly.
+>
+> On **iOS** the published `appium-flutter-driver` (≥ 3.7.1) already pins the port via
+> `processArguments`. On **Android** the equivalent (a `vm-service-port` launch-intent extra) lives
+> in a [fork](https://github.com/goosewobbler/appium-flutter-driver) pending an upstream PR — until
+> it lands, Android `execute`/`mock` need that fork (to be published as
+> `@goosewobbler/appium-flutter-driver`: `appium driver install --source=npm @goosewobbler/appium-flutter-driver`).
+> Without the pin, find/tap/deeplink/contexts still work — only `execute`/`mock` need it.
+
 ## Quick start
 
 ```ts
