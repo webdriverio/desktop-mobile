@@ -220,6 +220,10 @@ export async function createMock(
     try {
       await evaluateInRealm<void>(bridge, buildPopImplementationScript(target), mockContext);
     } catch (popError) {
+      // A failed popImpl (typically a bridge drop mid-call) leaves the temporary impl on the
+      // app-side spy with an unbalanced _savedImpls stack. It does NOT persist until mockRestore:
+      // the next reconnect re-runs buildInstallScript for this mock (ensureHermes rewire), whose
+      // existing-entry path drains the impl stack back to its base. Here we only surface the error.
       // Prefer the original callback error; never let cleanup failure mask it.
       if (outcome.ok) {
         throw popError;

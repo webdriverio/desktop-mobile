@@ -134,6 +134,14 @@ const SETUP = `
       // callback, then restore (pop). A stack so nested withImplementation calls compose.
       spy.__pushImpl = function(fn) { _savedImpls.push(_defaultImpl); _defaultImpl = fn; return spy; };
       spy.__popImpl = function() { if (_savedImpls.length > 0) { _defaultImpl = _savedImpls.pop(); } return spy; };
+      // Drain the whole stack back to its base (the impl before any withImplementation). The
+      // stack is only non-empty while a withImplementation is pending, so when a popImpl never
+      // lands (bridge dropped mid-call) this restores the pre-withImplementation default; a no-op
+      // otherwise, so it never clobbers a plain mockImplementation/mockReturnValue default.
+      spy.__resetImplStack = function() {
+        if (_savedImpls.length > 0) { _defaultImpl = _savedImpls[0]; _savedImpls.length = 0; }
+        return spy;
+      };
       return spy;
     };
   }`;
@@ -154,7 +162,14 @@ export function buildInstallScript(target: string): string {
   const key = pathLiteral(target);
   return `(function() {${SETUP}${RESOLVE_PATH}
     var existing = __rnReg[${key}];
-    if (existing) { return; }
+    if (existing) {
+      // Reconnect / idempotent re-install: the spy persisted in the app realm, so preserve its
+      // call history — but drain any impl stack left unbalanced by a withImplementation whose
+      // popImpl never landed (e.g. the bridge dropped mid-call), so a temporary implementation
+      // doesn't survive the reconnect (it otherwise persisted until mockRestore).
+      if (existing.spy && existing.spy.__resetImplStack) { existing.spy.__resetImplStack(); }
+      return;
+    }
     var loc = __resolve(${key});
     if (!loc) {
       throw new Error('browser.reactNative.mock target ' + ${key} + ' could not be resolved: a parent on the path is undefined.');
