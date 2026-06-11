@@ -83,9 +83,11 @@ export interface ReactNativeExecuteOptions {
  *
  * Mirrors the converged `browser.<framework>.*` surface of the desktop services;
  * `execute`/`mock` run in the app's Hermes JS realm over CDP (Metro inspector),
- * find/tap and the Appium-native pieces run over the W3C session. `switchWindow`/
- * `listWindows` are reinterpreted as Appium context switching (`NATIVE_APP` ↔
- * `WEBVIEW_*`).
+ * find/tap and the Appium-native pieces run over the W3C session. Where the desktop
+ * services switch multiple windows (`switchWindow`/`listWindows`), the mobile services
+ * switch Appium contexts (`NATIVE_APP` ↔ `WEBVIEW_*`) and name it idiomatically:
+ * `switchContext`/`listContexts`. This desktop-window / mobile-context split is the one
+ * deliberate naming divergence across the convergent surface.
  */
 export interface ReactNativeServiceAPI {
   /**
@@ -128,10 +130,18 @@ export interface ReactNativeServiceAPI {
    * Check if a value is a React Native mock function, or if a target path is mocked.
    * Accepts either a mock function object or a target path string.
    *
-   * @param targetOrFn - Target path (string) or mock function object to check
-   * @returns True if the target is mocked or the value is a ReactNativeMockInstance
+   * Overloaded: the value form is a type guard (narrows to {@link ReactNativeMockInstance}),
+   * while the string form answers "is this target path mocked?" and returns a plain boolean.
+   *
+   * @param target - Target path (string) to check whether it is mocked
+   * @returns True if the target path is mocked
    */
-  isMockFunction: (targetOrFn: unknown) => boolean;
+  isMockFunction(target: string): boolean;
+  /**
+   * @param fn - value to check
+   * @returns True (narrowing to {@link ReactNativeMockInstance}) if the value is an RN mock
+   */
+  isMockFunction(fn: unknown): fn is ReactNativeMockInstance;
 
   /**
    * Mock a function in the React Native JS realm by dotted path
@@ -147,6 +157,22 @@ export interface ReactNativeServiceAPI {
    * ```
    */
   mock: (target: string) => Promise<ReactNativeMock>;
+  /**
+   * Mock every function-valued property of the object at a dotted path in one call —
+   * e.g. all methods of a native-module namespace. Suits RN's object-nested mock surface
+   * (like electron's `mockAll`); flat-target services don't have it.
+   *
+   * @param target - Dotted path of the object whose function properties to mock
+   * @returns Promise resolving to a map of property name → {@link ReactNativeMock}
+   *          (empty if the path doesn't resolve or holds no functions)
+   *
+   * @example
+   * ```js
+   * const clip = await browser.reactNative.mockAll('nativeModuleProxy.Clipboard');
+   * await clip.getString.mockResolvedValue('mocked');
+   * ```
+   */
+  mockAll: (target: string) => Promise<Record<string, ReactNativeMock>>;
 
   /**
    * Clear all React Native mocks.
@@ -188,34 +214,33 @@ export interface ReactNativeServiceAPI {
   /**
    * Switch the active Appium context (e.g. `NATIVE_APP` ↔ a `WEBVIEW_*`).
    *
-   * The converged `switchWindow` of the desktop services, reinterpreted for
-   * mobile: React Native "windows" are Appium contexts.
+   * The mobile counterpart of the desktop services' `switchWindow`: where they switch
+   * windows, mobile switches Appium contexts, named idiomatically (`switchContext`).
    *
    * @param context - The context name to switch to (e.g. 'NATIVE_APP', 'WEBVIEW_com.app')
    * @returns Promise that resolves when the context switch is complete
    *
    * @example
    * ```js
-   * await browser.reactNative.switchWindow('NATIVE_APP');
+   * await browser.reactNative.switchContext('NATIVE_APP');
    * ```
    */
-  switchWindow: (context: string) => Promise<void>;
+  switchContext: (context: string) => Promise<void>;
 
   /**
    * List the available Appium contexts (`NATIVE_APP` and any `WEBVIEW_*`).
    *
-   * The converged `listWindows` of the desktop services, reinterpreted for
-   * mobile contexts.
+   * The mobile counterpart of the desktop services' `listWindows`.
    *
    * @returns Promise that resolves to an array of context names
    *
    * @example
    * ```js
-   * const contexts = await browser.reactNative.listWindows();
+   * const contexts = await browser.reactNative.listContexts();
    * console.log(contexts); // ['NATIVE_APP', 'WEBVIEW_com.app']
    * ```
    */
-  listWindows: () => Promise<string[]>;
+  listContexts: () => Promise<string[]>;
 
   /**
    * Emit an event to listeners registered in the app via React Native's
@@ -339,13 +364,14 @@ export interface ReactNativeBrowserExtension extends BrowserBase {
    *
    * - {@link ReactNativeServiceAPI.execute `browser.reactNative.execute`} - Execute code in the app's Hermes JS realm
    * - {@link ReactNativeServiceAPI.mock `browser.reactNative.mock`} - Mock a function in the React Native JS realm
+   * - {@link ReactNativeServiceAPI.mockAll `browser.reactNative.mockAll`} - Mock every function on an object path
    * - {@link ReactNativeServiceAPI.isMockFunction `browser.reactNative.isMockFunction`} - Check whether a target/value is mocked
    * - {@link ReactNativeServiceAPI.clearAllMocks `browser.reactNative.clearAllMocks`} - Clear the React Native mock functions
    * - {@link ReactNativeServiceAPI.resetAllMocks `browser.reactNative.resetAllMocks`} - Reset the React Native mock functions
    * - {@link ReactNativeServiceAPI.restoreAllMocks `browser.reactNative.restoreAllMocks`} - Restore the original implementations
    * - {@link ReactNativeServiceAPI.triggerDeeplink `browser.reactNative.triggerDeeplink`} - Trigger a deeplink for testing `Linking`
-   * - {@link ReactNativeServiceAPI.switchWindow `browser.reactNative.switchWindow`} - Switch the active Appium context
-   * - {@link ReactNativeServiceAPI.listWindows `browser.reactNative.listWindows`} - List the available Appium contexts
+   * - {@link ReactNativeServiceAPI.switchContext `browser.reactNative.switchContext`} - Switch the active Appium context
+   * - {@link ReactNativeServiceAPI.listContexts `browser.reactNative.listContexts`} - List the available Appium contexts
    * - {@link ReactNativeServiceAPI.emitEvent `browser.reactNative.emitEvent`} - Emit an event to RN's DeviceEventEmitter
    */
   reactNative: ReactNativeServiceAPI;

@@ -2,6 +2,7 @@ import { type Context, createContext, runInContext } from 'node:vm';
 import { describe, expect, it } from 'vitest';
 
 import {
+  buildEnumerateFunctionsScript,
   buildInstallScript,
   buildPushImplementationScript,
   buildSetImplementationScript,
@@ -18,7 +19,7 @@ const exec = (ctx: Context, script: string) => runInContext(script, ctx);
 const call = (ctx: Context, key: string): unknown => (ctx[key] as () => unknown)();
 
 describe('inner recorder impl stack (reconnect recovery)', () => {
-  it('drains a stuck withImplementation impl back to the prior default on reconnect', () => {
+  it('should drain a stuck withImplementation impl back to the prior default on reconnect', () => {
     const ctx = realm({ greet: () => 'orig' });
     exec(ctx, buildInstallScript('greet'));
     exec(ctx, buildSetImplementationScript('greet', '() => "base"'));
@@ -31,7 +32,7 @@ describe('inner recorder impl stack (reconnect recovery)', () => {
     expect(call(ctx, 'greet')).toBe('base');
   });
 
-  it('preserves a plain default impl on reconnect (no pending withImplementation)', () => {
+  it('should preserve a plain default impl on reconnect (no pending withImplementation)', () => {
     const ctx = realm({ greet: () => 'orig' });
     exec(ctx, buildInstallScript('greet'));
     exec(ctx, buildSetImplementationScript('greet', '() => "set"'));
@@ -40,5 +41,18 @@ describe('inner recorder impl stack (reconnect recovery)', () => {
     // _savedImpls is empty (no withImplementation), so the reconnect reset must be a no-op.
     exec(ctx, buildInstallScript('greet'));
     expect(call(ctx, 'greet')).toBe('set');
+  });
+});
+
+describe('buildEnumerateFunctionsScript (mockAll)', () => {
+  it('should return only the function-valued properties of the object at the path', () => {
+    const ctx = realm({ Mod: { greet: () => 1, farewell: () => 2, version: '1.0', nested: {} } });
+    const names = runInContext(buildEnumerateFunctionsScript('Mod'), ctx) as string[];
+    expect([...names].sort()).toEqual(['farewell', 'greet']);
+  });
+
+  it('should return [] for an unresolvable path', () => {
+    const ctx = realm({});
+    expect(runInContext(buildEnumerateFunctionsScript('Nope.Missing'), ctx)).toEqual([]);
   });
 });

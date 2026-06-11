@@ -184,6 +184,28 @@ export function buildInstallScript(target: string): string {
   })()`;
 }
 
+/**
+ * Enumerate the function-valued properties of the object at `target` (enumerable + own),
+ * for `mockAll`. Returns the property names as a string array; `[]` if the path doesn't
+ * resolve or holds no functions.
+ */
+export function buildEnumerateFunctionsScript(target: string): string {
+  const key = pathLiteral(target);
+  return `(function() {${RESOLVE_PATH}
+    var loc = __resolve(${key});
+    if (!loc) { return []; }
+    var obj = loc.parent[loc.key];
+    if (obj == null || (typeof obj !== 'object' && typeof obj !== 'function')) { return []; }
+    var names = [];
+    var add = function(n) {
+      try { if (typeof obj[n] === 'function' && names.indexOf(n) === -1) { names.push(n); } } catch (e) {}
+    };
+    for (var k in obj) { add(k); }
+    try { var own = Object.getOwnPropertyNames(obj); for (var i = 0; i < own.length; i++) { add(own[i]); } } catch (e) {}
+    return names;
+  })()`;
+}
+
 export function buildReadCallDataScript(target: string): string {
   const key = pathLiteral(target);
   return `(function() {

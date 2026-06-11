@@ -1,7 +1,8 @@
-// browser.reactNative.switchWindow / listWindows — Appium context switching.
-// React Native "windows" = Appium contexts: NATIVE_APP, WEBVIEW_<packageId>, etc.
+// browser.reactNative.switchContext / listContexts — Appium context switching.
+// The mobile counterpart of the desktop services' switchWindow/listWindows: contexts
+// are NATIVE_APP, WEBVIEW_<packageId>, etc.
 
-export async function listWindows(browser: WebdriverIO.Browser): Promise<string[]> {
+export async function listContexts(browser: WebdriverIO.Browser): Promise<string[]> {
   // Appium 2 drivers may return plain context strings OR ContextInfo objects
   // ({ id, title?, ... }, e.g. via the `mobile: getContexts` extended API). Normalise
   // to the id string so callers can compare against 'NATIVE_APP' / 'WEBVIEW_*' directly.
@@ -9,6 +10,6 @@ export async function listWindows(browser: WebdriverIO.Browser): Promise<string[
   return contexts.map((context) => (typeof context === 'string' ? context : context.id));
 }
 
-export async function switchWindow(browser: WebdriverIO.Browser, context: string): Promise<void> {
+export async function switchContext(browser: WebdriverIO.Browser, context: string): Promise<void> {
   await browser.switchContext(context);
 }

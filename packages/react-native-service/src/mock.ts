@@ -21,6 +21,7 @@ import { evaluateInRealm, jsonLiteral } from './commands/execute.js';
 import { SERVICE_NAME } from './constants.js';
 import {
   buildClearScript,
+  buildEnumerateFunctionsScript,
   buildInstallScript,
   buildPopImplementationScript,
   buildPushImplementationScript,
@@ -288,4 +289,28 @@ export async function createMock(
   store.setMock(target, mock);
   log.debug(`[${target}] mock ready`);
   return mock;
+}
+
+/**
+ * Mock every function-valued property of the object at `target` (e.g. all methods of a
+ * native-module namespace), returning a map of property name → mock. Like electron's
+ * `mockAll`, this suits object-nested mock surfaces; an empty object (or unresolvable
+ * path) yields an empty map.
+ */
+export async function createMockAll(
+  target: string,
+  bridge: CdpBridge,
+  store: ReactNativeMockStore,
+): Promise<Record<string, ReactNativeMock>> {
+  const names = await evaluateInRealm<string[]>(
+    bridge,
+    buildEnumerateFunctionsScript(target),
+    `browser.reactNative.mockAll("${target}")`,
+  );
+  const mocks: Record<string, ReactNativeMock> = {};
+  for (const name of names ?? []) {
+    mocks[name] = await createMock(`${target}.${name}`, bridge, store);
+  }
+  log.debug(`[${target}] mockAll installed ${Object.keys(mocks).length} mock(s)`);
+  return mocks;
 }

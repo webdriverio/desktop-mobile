@@ -160,14 +160,30 @@ await browser.reactNative.restoreAllMocks();
 > can be mocked. Native modules (implemented in Java/Kotlin or Objective-C/Swift) are
 > not patchable this way.
 
+### `mockAll(path)`
+
+Mock **every function-valued property** of the object at a dotted path in one call, and
+get back a `{ name: mock }` map. Handy for stubbing a whole module namespace.
+
+```ts
+const clip = await browser.reactNative.mockAll('globalThis.Clipboard');
+await clip.getString.mockResolvedValue('mocked');
+await clip.setString.mockReturnValue(undefined);
+// ... later
+await browser.reactNative.restoreAllMocks();
+```
+
+Returns an empty map if the path doesn't resolve or holds no functions.
+
 ### `clearAllMocks()` / `resetAllMocks()` / `restoreAllMocks()`
 
 Lifecycle helpers — equivalent to `vi.clearAllMocks()` etc., but operating on the
 RN service's mock registry.
 
-### `isMockFunction(fn)`
+### `isMockFunction(fnOrPath)`
 
-Returns `true` if the argument is an active RN mock instance.
+Pass a value to check if it's an active RN mock instance (TypeScript narrows it to a mock),
+or pass a target-path string to check if that path is currently mocked.
 
 ### `triggerDeeplink(url)`
 
@@ -177,15 +193,16 @@ Open a deep link in the running app via Appium's `mobile: deepLink` command.
 await browser.reactNative.triggerDeeplink('myapp://products/42');
 ```
 
-### `switchWindow(name)` / `listWindows()`
+### `switchContext(name)` / `listContexts()`
 
 Switch between Appium contexts — `NATIVE_APP`, `WEBVIEW_*`, or (via the Appium
-Flutter meta-driver) `FLUTTER`. These keep the convergent `*Window` naming shared
-with the desktop services; for a React Native app a "window" is an Appium context.
+Flutter meta-driver) `FLUTTER`. These are the mobile counterpart of the desktop
+services' `switchWindow`/`listWindows`: mobile switches Appium **contexts**, named
+idiomatically rather than as "windows".
 
 ```ts
-const contexts = await browser.reactNative.listWindows();
-await browser.reactNative.switchWindow(contexts.find(c => c.startsWith('WEBVIEW')) ?? 'NATIVE_APP');
+const contexts = await browser.reactNative.listContexts();
+await browser.reactNative.switchContext(contexts.find(c => c.startsWith('WEBVIEW')) ?? 'NATIVE_APP');
 ```
 
 ### `emitEvent(name, payload?)`
@@ -215,13 +232,13 @@ React Native renders **real native views**, so standard Appium locators apply:
 ## Context switching (hybrid apps)
 
 RN apps that embed a WebView expose a `WEBVIEW_*` context alongside `NATIVE_APP`.
-Use `listWindows`/`switchWindow` (or the raw Appium `context` command) to drive
+Use `listContexts`/`switchContext` (or the raw Appium `context` command) to drive
 the WebView as a browser:
 
 ```ts
-await browser.reactNative.switchWindow('WEBVIEW_com.myapp');
+await browser.reactNative.switchContext('WEBVIEW_com.myapp');
 const title = await browser.getTitle();
-await browser.reactNative.switchWindow('NATIVE_APP');
+await browser.reactNative.switchContext('NATIVE_APP');
 ```
 
 ## Log capture

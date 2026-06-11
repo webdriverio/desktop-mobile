@@ -9,7 +9,7 @@ import {
 } from './commands/allMocks.js';
 import { emitEvent } from './commands/emitEvent.js';
 import { executeScript } from './commands/execute.js';
-import { listWindows, switchWindow } from './commands/switchContext.js';
+import { listContexts, switchContext } from './commands/switchContext.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import {
   CUSTOM_CAPABILITY_NAME,
@@ -21,7 +21,7 @@ import {
 } from './constants.js';
 import { collectDeviceLogs, forwardDeviceLogs, startJsLogForwarding } from './logCapture.js';
 import { MetroBridge } from './metroBridge.js';
-import { createMock } from './mock.js';
+import { createMock, createMockAll } from './mock.js';
 import { ReactNativeMockStore } from './mockStore.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from './types.js';
@@ -135,7 +135,15 @@ export default class ReactNativeWorkerService {
         return createMock(target, bridge.bridge, store);
       },
 
-      isMockFunction: (targetOrFn: unknown) => isMockFunctionUtil(targetOrFn, store),
+      mockAll: async (target: string) => {
+        await ensureHermes('mockAll');
+        return createMockAll(target, bridge.bridge, store);
+      },
+
+      // Runtime is a single boolean check; the overloaded type (value→type-guard,
+      // path→boolean) is a compile-time view callers opt into, hence the cast.
+      isMockFunction: ((targetOrFn: unknown) =>
+        isMockFunctionUtil(targetOrFn, store)) as ReactNativeServiceAPI['isMockFunction'],
 
       // Guard on an empty store FIRST: a no-op bulk sweep (e.g. a beforeEach safety clear when
       // no mocks were created) must return instantly and must not require a live bridge —
@@ -167,8 +175,8 @@ export default class ReactNativeWorkerService {
 
       triggerDeeplink: (url: string) => triggerDeeplink(browser, url),
 
-      switchWindow: (context: string) => switchWindow(browser, context),
-      listWindows: () => listWindows(browser),
+      switchContext: (context: string) => switchContext(browser, context),
+      listContexts: () => listContexts(browser),
 
       emitEvent: async <T = unknown>(event: string, payload?: T) => {
         await ensureHermes('emitEvent');

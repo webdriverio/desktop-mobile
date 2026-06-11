@@ -1,7 +1,7 @@
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-import { createMock } from '../src/mock.js';
+import { createMock, createMockAll } from '../src/mock.js';
 import { ReactNativeMockStore } from '../src/mockStore.js';
 
 // A fake CdpBridge whose `send` resolves normally while `open`, and rejects once
@@ -11,6 +11,10 @@ function fakeBridge() {
   const send = vi.fn(async (_method: string, params?: { expression?: string }) => {
     if (!open) {
       throw new Error('WebSocket is closed');
+    }
+    // buildEnumerateFunctionsScript (mockAll) — return the discovered function names.
+    if (params?.expression?.includes('getOwnPropertyNames')) {
+      return { result: { value: ['greet', 'farewell'] } };
     }
     // buildReadCallDataScript reads call data — return an empty-but-valid shape.
     if (params?.expression?.includes('calls')) {
@@ -195,5 +199,23 @@ describe('createMock', () => {
     const second = fakeBridge();
     const remock = await createMock('greet', second.bridge, store);
     expect((remock as unknown as { _vitestFn: unknown })._vitestFn).toBe(vitestFn);
+  });
+});
+
+describe('createMockAll', () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  it('should mock every enumerated function under the target path', async () => {
+    const store = new ReactNativeMockStore();
+    const { bridge } = fakeBridge();
+    const mocks = await createMockAll('Clipboard', bridge, store);
+
+    expect(Object.keys(mocks).sort()).toEqual(['farewell', 'greet']);
+    expect(mocks.greet.__isReactNativeMock).toBe(true);
+    // each enumerated function is registered under its full dotted path
+    expect(store.getMock('Clipboard.greet')).toBe(mocks.greet);
+    expect(store.getMock('Clipboard.farewell')).toBe(mocks.farewell);
   });
 });
