@@ -113,9 +113,13 @@ describe('createMobileSession cleanup', () => {
     expect(deleteSession).toHaveBeenCalled();
   });
 
-  it('should warn and no-op for a browser it did not create', async () => {
+  it('should warn and no-op (no after, no deleteSession) for a browser it did not create', async () => {
     resetMocks();
-    await makeSession().cleanup({ sessionId: 'x', deleteSession: vi.fn() } as unknown as WebdriverIO.Browser);
+    // A browser this factory never init()'d (not in activeLaunchers) must be left untouched — no
+    // worker teardown and no deleteSession, so a double-cleanup or a foreign browser is a safe no-op.
+    const foreignDelete = vi.fn().mockResolvedValue(undefined);
+    await makeSession().cleanup({ sessionId: 'x', deleteSession: foreignDelete } as unknown as WebdriverIO.Browser);
     expect(after).not.toHaveBeenCalled();
+    expect(foreignDelete).not.toHaveBeenCalled();
   });
 });

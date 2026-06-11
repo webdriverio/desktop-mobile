@@ -182,6 +182,12 @@ await browser.flutter.restoreAllMocks();
 > serialise a JS closure across the boundary; use `mockReturnValue` / `mockResolvedValue` /
 > `mockRejectedValue` with serialisable values. See the [`wdio_flutter` contract](./wdio_flutter).
 
+> **Recorded values are JSON.** `mock.mock.calls` / `mock.mock.results` are synced from the app
+> over `ext.wdio.getCalls` as JSON. A seam arg or **real** (un-mocked) return value that isn't
+> JSON-serialisable — a custom Dart class instance — arrives on the test side as its `toString()`
+> string, not a structured object. Assert against serialisable values (`String`/`num`/`bool`/
+> `List`/`Map`) for deep equality.
+
 ### `clearAllMocks()` / `resetAllMocks()` / `restoreAllMocks()`
 
 Lifecycle helpers — `vi.clearAllMocks()`-equivalents over the Flutter mock registry. Also wired to
