@@ -147,24 +147,28 @@ export interface TauriServiceAPI {
    * Check if a value is a Tauri mock function or if a command is mocked.
    * Accepts either a mock function object or a command name string.
    *
-   * @param commandOrFn - Command name (string) or mock function object to check
-   * @returns True if the command is mocked or the value is a TauriMockInstance
+   * Overloaded: the string form checks whether that command is mocked (plain boolean); the value
+   * form is a type guard that narrows to {@link TauriMockInstance}.
+   *
    * @example
    * ```js
    * // Check by command name
-   * if (await browser.tauri.isMockFunction('read_clipboard')) {
+   * if (browser.tauri.isMockFunction('read_clipboard')) {
    *   // read_clipboard is mocked
    * }
    *
-   * // Check by function object
+   * // Check by function object (narrows type)
    * const mock = await browser.tauri.mock('read_clipboard');
    * if (browser.tauri.isMockFunction(mock)) {
-   *   // mock is a TauriMockInstance
+   *   // mock is narrowed to TauriMockInstance
    *   expect(mock.mock.calls).toHaveLength(1);
    * }
    * ```
    */
-  isMockFunction: (commandOrFn: unknown) => boolean;
+  isMockFunction: {
+    (target: string): boolean;
+    (fn: unknown): fn is TauriMockInstance;
+  };
 
   /**
    * Mock a Tauri backend command.

@@ -399,7 +399,7 @@ export default class TauriWorkerService {
         return clearAllMocks.call({ browser }, commandPrefix);
       },
 
-      isMockFunction: (commandOrFn: unknown) => {
+      isMockFunction: ((commandOrFn: unknown) => {
         if (typeof commandOrFn === 'string') {
           try {
             mockStore.getMock(`tauri.${commandOrFn}`);
@@ -409,7 +409,7 @@ export default class TauriWorkerService {
           }
         }
         return isMockFunction(commandOrFn);
-      },
+      }) as TauriServiceAPI['isMockFunction'],
 
       mock: async (command: string) => {
         return mock.call({ browser }, command);

@@ -80,7 +80,8 @@ export interface ElectrobunServiceAPI {
   execute<R, A extends unknown[]>(script: string | ((eb: ElectrobunAPIs, ...a: A) => R), ...args: A): Promise<R>;
 
   mock(target: string): Promise<ElectrobunMock>;
-  isMockFunction(targetOrFn: unknown): boolean;
+  isMockFunction(target: string): boolean;
+  isMockFunction(fn: unknown): fn is ElectrobunMockInstance;
   clearAllMocks(prefix?: string): Promise<void>;
   resetAllMocks(prefix?: string): Promise<void>;
   restoreAllMocks(prefix?: string): Promise<void>;

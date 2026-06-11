@@ -88,8 +88,13 @@ export interface ElectronServiceAPI {
   restoreAllMocks: (apiName?: string) => Promise<void>;
   /**
    * Checks that a given parameter is an Electron mock function. If you are using TypeScript, it will also narrow down its type.
+   *
+   * Overloaded: pass a string to check whether that API path is mocked; pass any other value to get a type-narrowing guard.
    */
-  isMockFunction: (fn: unknown) => fn is ElectronMockInstance;
+  isMockFunction: {
+    (target: string): boolean;
+    (fn: unknown): fn is ElectronMockInstance;
+  };
   /**
    * Trigger a deeplink to the Electron application for testing protocol handlers.
    *
