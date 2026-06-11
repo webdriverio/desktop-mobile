@@ -178,6 +178,12 @@ export function buildInstallScript(target: string): string {
         existing.key = live.key;
         live.parent[live.key] = existing.spy;
       }
+      // If __resolve returns undefined here (the parent path was removed by a Fast Refresh that
+      // dropped the entire module), we fall through silently — the spy stays displaced and the mock
+      // is inactive until the next full reinstall.  This asymmetry with the fresh-install path
+      // below (which throws) is intentional: throwing during a reconnect would abort the session;
+      // the silent no-op lets the session continue, and the mock self-heals once the module
+      // re-appears and the test re-runs buildInstallScript.
       return;
     }
     var loc = __resolve(${key});

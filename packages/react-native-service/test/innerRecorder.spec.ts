@@ -5,6 +5,7 @@ import {
   buildEnumerateFunctionsScript,
   buildInstallScript,
   buildPushImplementationScript,
+  buildRestoreScript,
   buildSetImplementationScript,
 } from '../src/innerRecorder.js';
 
@@ -56,6 +57,11 @@ describe('inner recorder impl stack (reconnect recovery)', () => {
     // Reconnect re-runs buildInstallScript, whose existing-entry path re-attaches the spy.
     exec(ctx, buildInstallScript('greet'));
     expect(call(ctx, 'greet')).toBe('mocked');
+
+    // mockRestore must put back the *fresh* original recorded during re-attachment, not the
+    // stale pre-mock one — verifying that existing.original was updated above.
+    exec(ctx, buildRestoreScript('greet'));
+    expect(call(ctx, 'greet')).toBe('fresh-orig');
   });
 });
 
