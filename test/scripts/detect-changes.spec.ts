@@ -55,6 +55,9 @@ describe('classifyFile', () => {
     ['.github/workflows/_ci-package-docker-dioxus.reusable.yml', 'dioxus'],
     ['.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml', 'electrobun'],
     ['.github/workflows/_ci-build-electron-package-apps.reusable.yml', 'electron'],
+    // hyphenated service name must match the joined token in workflow filenames (not 'react'/'native')
+    ['.github/workflows/_ci-e2e-react-native-ios.reusable.yml', 'react-native'],
+    ['.github/workflows/_ci-build-react-native-ios-app.reusable.yml', 'react-native'],
     ['.github/workflows/codeql.yml', 'none'],
     ['.github/workflows/release-preview.yml', 'none'],
     ['.github/workflows/some-future-workflow.yml', 'unknown'],

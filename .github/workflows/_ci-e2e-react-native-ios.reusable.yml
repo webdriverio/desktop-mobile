@@ -1,6 +1,6 @@
 name: E2E Tests - React Native (iOS)
 # Description: iOS-simulator E2E for @wdio/react-native-service. The .app is built by a
-# sibling CI job (_ci-build-rn-ios-app) that runs in parallel with the package build; this
+# sibling CI job (_ci-build-react-native-ios-app) that runs in parallel with the package build; this
 # workflow downloads that artifact, re-scaffolds JS for Metro (no CocoaPods/xcodebuild), and
 # drives the simulator. The split keeps the heavy xcodebuild OFF the E2E runner: when both
 # shared one runner, appium-xcuitest's session-create (its `xcrun --show-sdk-version` SDK probe
