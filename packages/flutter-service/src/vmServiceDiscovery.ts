@@ -102,6 +102,21 @@ export async function discoverVmServiceUrl(
   const sleep = options.sleep ?? ((ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms)));
   const adbForward = options.adbForward ?? defaultAdbForward;
 
+  // Primary: ask appium-flutter-driver for the observatory URL it already discovered, forwarded, and
+  // connected to (ws://host:port/[auth-code]/ws). The driver does the heavy lifting — log scrape +
+  // adb forward — so we just attach our own client to the same VM Service. This sidesteps both the
+  // unsupported getLogs scrape and the port-pin (which the engine ignores). Needs the fork's
+  // flutter:getVMServiceUrl command; on an older driver that lacks it, fall through to pin/scrape.
+  try {
+    const driverUrl = (await browser.execute('flutter:getVMServiceUrl')) as unknown;
+    if (typeof driverUrl === 'string' && /^wss?:\/\//.test(driverUrl)) {
+      log.debug(`Using Dart VM Service URL from appium-flutter-driver: ${driverUrl}`);
+      return driverUrl;
+    }
+  } catch (error) {
+    log.debug(`flutter:getVMServiceUrl unavailable (${(error as Error).message}); falling back to pin/scrape`);
+  }
+
   // Fast path: an explicit port pin skips the (up to 60s) log scrape — the CI-robust route.
   // Build the WS URL directly; on Android forward the port to the host as the scrape path does.
   if (options.pinnedPort) {

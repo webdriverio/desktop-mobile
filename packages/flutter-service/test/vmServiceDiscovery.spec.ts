@@ -2,8 +2,13 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { discoverVmServiceUrl, portFromUrl, toWebSocketUrl } from '../src/vmServiceDiscovery.js';
 
+// `execute` resolves undefined so the flutter:getVMServiceUrl primary path falls through to the
+// scrape/pin under test; the dedicated test below exercises the primary path itself.
 const browserWithLogs = (logs: Array<{ message?: string }>) =>
-  ({ getLogs: vi.fn().mockResolvedValue(logs) }) as unknown as WebdriverIO.Browser;
+  ({
+    getLogs: vi.fn().mockResolvedValue(logs),
+    execute: vi.fn().mockResolvedValue(undefined),
+  }) as unknown as WebdriverIO.Browser;
 
 describe('toWebSocketUrl', () => {
   it('should convert a Dart VM Service HTTP URL to its WS endpoint', () => {
@@ -71,7 +76,7 @@ describe('discoverVmServiceUrl', () => {
   it('should use a pinned port directly (skip the scrape) and adb-forward on Android', async () => {
     const adbForward = vi.fn().mockResolvedValue(undefined);
     const getLogs = vi.fn();
-    const browser = { getLogs } as unknown as WebdriverIO.Browser;
+    const browser = { getLogs, execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
     const url = await discoverVmServiceUrl(browser, { platform: 'android', pinnedPort: 8181, adbForward });
     expect(url).toBe('ws://localhost:8181/ws');
     expect(adbForward).toHaveBeenCalledWith(8181, undefined);
@@ -80,13 +85,30 @@ describe('discoverVmServiceUrl', () => {
 
   it('should honour a custom host for the pinned port (and not adb-forward on iOS)', async () => {
     const adbForward = vi.fn();
-    const url = await discoverVmServiceUrl({ getLogs: vi.fn() } as unknown as WebdriverIO.Browser, {
-      platform: 'ios',
-      pinnedPort: 8181,
-      host: '127.0.0.1',
-      adbForward,
-    });
+    const url = await discoverVmServiceUrl(
+      { getLogs: vi.fn(), execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser,
+      {
+        platform: 'ios',
+        pinnedPort: 8181,
+        host: '127.0.0.1',
+        adbForward,
+      },
+    );
     expect(url).toBe('ws://127.0.0.1:8181/ws');
+    expect(adbForward).not.toHaveBeenCalled();
+  });
+
+  it('should use the URL from flutter:getVMServiceUrl (skip scrape/pin/forward) when the driver exposes it', async () => {
+    const adbForward = vi.fn();
+    const getLogs = vi.fn();
+    const browser = {
+      getLogs,
+      execute: vi.fn().mockResolvedValue('ws://127.0.0.1:40109/AbCd=/ws'),
+    } as unknown as WebdriverIO.Browser;
+    const url = await discoverVmServiceUrl(browser, { platform: 'android', pinnedPort: 8181, adbForward });
+    expect(url).toBe('ws://127.0.0.1:40109/AbCd=/ws');
+    expect(browser.execute).toHaveBeenCalledWith('flutter:getVMServiceUrl');
+    expect(getLogs).not.toHaveBeenCalled();
     expect(adbForward).not.toHaveBeenCalled();
   });
 });

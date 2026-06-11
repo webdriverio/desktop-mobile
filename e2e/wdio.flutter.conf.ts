@@ -96,12 +96,9 @@ const capabilities: FlutterCapability[] = [
     'appium:automationName': 'Flutter',
     'appium:app': appPath,
     'appium:newCommandTimeout': 240,
-    // Pin the Dart VM Service to a fixed, token-free port: appium-flutter-driver's
-    // injectDartVmServicePortFlags binds the engine to this port with --disable-service-auth-codes,
-    // so both the driver AND @wdio/flutter-service connect to a deterministic ws://localhost:PORT/ws
-    // (the service's pinned-port fast-path) — the getLogs scrape the driver doesn't support is never
-    // needed. maxInstances:1 here, so a single fixed port is safe.
-    'appium:dartVmServicePort': Number(process.env.FLUTTER_VM_SERVICE_PORT ?? 9223),
+    // No dartVmServicePort pin: the engine ignores the launch-flag port pin (it always binds a
+    // random, auth-coded port), so @wdio/flutter-service discovers the VM Service by asking the
+    // driver for the URL it already connected to (flutter:getVMServiceUrl) rather than pinning.
     // iOS: appium-flutter-driver wraps appium-xcuitest, which launches WebDriverAgent. CI
     // pre-builds WDA into FLUTTER_WDA_DD; reuse it (usePrebuiltWDA) so the first session just
     // launches it — fast, no per-session compile (which under WDIO's undici client dropped the
