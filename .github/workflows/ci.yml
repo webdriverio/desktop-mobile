@@ -801,8 +801,10 @@ jobs:
   # debug build is self-contained (no Metro) and exposes the Dart VM Service in-app, which the
   # service discovers from logcat + reaches via `adb forward`. No Paper/Fabric arch split. iOS
   # simulator is the fast-follow (PR5). Required gate (see ci-status).
+  # Mobile legs label by TARGET PLATFORM ([Android]/[iOS]), not the runner OS (matches the RN
+  # legs; desktop services keep the runner-OS axis). Job key stays `-linux` (the runner).
   e2e-flutter-linux:
-    name: E2E - Flutter [Linux] - ${{ matrix.test-type }}
+    name: E2E - Flutter [Android] - ${{ matrix.test-type }}
     needs: [detect-changes, build]
     if: fromJSON(needs.detect-changes.outputs.runs)['flutter'] && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
