@@ -72,7 +72,7 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 - 🎭 **API mocking & isolation** - Built-in mocking for deterministic tests
 - ⚡ **Backend code execution** - Evaluate expressions and call functions in the app's native runtime
 - 📱 **Native mobile automation** - Appium-driven UI interaction for Android + iOS
-- 🌍 **Browser-only mode** - Test renderer in Chrome against a dev server, no native binary (desktop services)
+- 🌍 **Browser-only mode** - Validate UI in Chrome against a dev server, no native binary (desktop services)
 - 🔧 **Consistent cross-platform API** - Familiar WDIO patterns across all frameworks and platforms
 
 ## Project Structure
