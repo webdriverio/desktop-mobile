@@ -121,6 +121,10 @@ const capabilities: FlutterCapability[] = [
 ];
 
 const logDir = join(__dirname, 'logs', getLogDirName(testType, 'flutter'));
+// Create it up front so @wdio/appium-service can write wdio-appium.log here from session start —
+// otherwise a fast session failure leaves the dir absent and the Appium server log (which carries
+// the `am start` intent + driver discovery) never reaches the uploaded artifact.
+mkdirSync(logDir, { recursive: true });
 
 export const config = {
   runner: 'local',
@@ -143,7 +147,7 @@ export const config = {
   connectionRetryCount: 0,
   // @wdio/appium-service boots Appium; @wdio/flutter-service prepares the capability
   // (automationName Flutter) and attaches the Dart VM Service for execute/mock.
-  services: ['appium', 'flutter'],
+  services: [['appium', { logPath: logDir }], 'flutter'],
   port: 4723,
   framework: 'mocha',
   reporters: ['spec'],
