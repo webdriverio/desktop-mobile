@@ -212,7 +212,8 @@ function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: 
     },
     listWindows: async () => bridge.listWindows(),
     mock: (target: string) => mock(target, bridge, mockStore),
-    isMockFunction: (targetOrFn: unknown) => isMockFunction(targetOrFn, mockStore),
+    isMockFunction: ((targetOrFn: unknown) =>
+      isMockFunction(targetOrFn, mockStore)) as ElectrobunServiceAPI['isMockFunction'],
     clearAllMocks: (prefix?: string) => clearAllMocks(mockStore, prefix),
     resetAllMocks: (prefix?: string) => resetAllMocks(mockStore, prefix),
     restoreAllMocks: (prefix?: string) => restoreAllMocks(mockStore, prefix),

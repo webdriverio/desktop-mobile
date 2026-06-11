@@ -89,7 +89,8 @@ export interface DioxusServiceAPI {
   execute<R, A extends unknown[]>(script: string | ((dx: DioxusAPIs, ...a: A) => R), ...args: A): Promise<R>;
 
   mock(command: string): Promise<DioxusMock>;
-  isMockFunction(commandOrFn: unknown): boolean;
+  isMockFunction(target: string): boolean;
+  isMockFunction(fn: unknown): fn is DioxusMockInstance;
   clearAllMocks(prefix?: string): Promise<void>;
   resetAllMocks(prefix?: string): Promise<void>;
   restoreAllMocks(prefix?: string): Promise<void>;

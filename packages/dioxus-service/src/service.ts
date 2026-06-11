@@ -176,7 +176,7 @@ export default class DioxusWorkerService {
       clearAllMocks,
       resetAllMocks,
       restoreAllMocks,
-      isMockFunction: (commandOrFn: unknown) => {
+      isMockFunction: ((commandOrFn: unknown) => {
         if (typeof commandOrFn === 'string') {
           try {
             mockStore.getMock(`dioxus.${commandOrFn}`);
@@ -186,7 +186,7 @@ export default class DioxusWorkerService {
           }
         }
         return isMockFunction(commandOrFn);
-      },
+      }) as DioxusServiceAPI['isMockFunction'],
       switchWindow: (label: string) => switchWindowByLabel(browser, label),
       listWindows: () => listWindowLabels(browser),
       triggerDeeplink,
