@@ -151,7 +151,7 @@ jobs:
       # zip-based download-archive used above), mirroring the e2e flow. macOS-only.
       - name: 📦 Download Electrobun Package Test App Bundle
         if: inputs.service == 'electrobun'
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: electrobun-package-app-${{ runner.os }}-${{ runner.arch }}
           path: ${{ runner.temp }}

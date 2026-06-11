@@ -95,7 +95,7 @@ jobs:
       # Symlink-preserving tarball (see the build workflow) — NOT the shared
       # zip/dist-target download-archive, which can't round-trip the CEF .app.
       - name: 📦 Download Electrobun E2E App Bundle
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: electrobun-e2e-bundle-${{ runner.os }}-${{ runner.arch }}
           path: ${{ runner.temp }}

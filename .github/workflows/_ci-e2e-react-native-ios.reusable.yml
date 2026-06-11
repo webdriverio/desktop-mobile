@@ -91,7 +91,7 @@ jobs:
           exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
       - name: 📥 Download built .app
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           # Matches the build job's run_id-only name so a `--failed` rerun (which doesn't rebuild)
           # still finds the artifact from the original attempt.
