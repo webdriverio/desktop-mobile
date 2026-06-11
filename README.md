@@ -31,6 +31,8 @@
 
 ## Supported Frameworks
 
+> Stable releases — published on the `latest` dist-tag.
+
 | Service | Version | Downloads | Platforms |
 |---|---|---|---|
 | [![@wdio/electron-service](https://img.shields.io/badge/@wdio-electron--service-9feaf9?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electron-service) | [![version](https://img.shields.io/npm/v/@wdio/electron-service)](https://www.npmjs.com/package/@wdio/electron-service) | [![downloads v10+](https://img.shields.io/npm/dw/@wdio/electron-service?label=downloads%20(v10%2B))](https://www.npmjs.com/package/@wdio/electron-service)<br>[![downloads ≤v9](https://img.shields.io/npm/dw/wdio-electron-service?label=downloads%20(%E2%89%A4%20v9))](https://www.npmjs.com/package/wdio-electron-service) | Windows / macOS / Linux |
@@ -38,7 +40,7 @@
 
 ## Pre-release
 
-> Feature-complete services published under the `next` dist-tag (`1.0.0-next.x`). Install with `@next` — e.g. `npm install @wdio/react-native-service@next`. Expect `1.0.0` stable releases as the services stabilise.
+> Feature-complete services published under the `next` dist-tag (`1.0.0-next.x`).
 
 | Service | Version | Downloads | Platforms |
 |---|---|---|---|
@@ -49,12 +51,12 @@
 ## Early Support
 
 > Early (`0.x`) support — feature surface is limited by upstream gaps. Not yet at parity with the services above.
+>
+> Electrobun: Linux upstream-blocked; macOS deeplink & multiremote upstream-blocked. [See README](./packages/electrobun-service)
 
 | Service | Version | Downloads | Platforms |
 |---|---|---|---|
 | [![@wdio/electrobun-service](https://img.shields.io/badge/@wdio-electrobun--service-ffffff?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![version](https://img.shields.io/npm/v/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![downloads](https://img.shields.io/npm/dw/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | macOS / Windows |
-
-> Electrobun: Linux upstream-blocked; macOS deeplink & multiremote upstream-blocked. [See README](./packages/electrobun-service)
 
 ## Planned Support
 
