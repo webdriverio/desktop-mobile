@@ -11,6 +11,9 @@ const h = vi.hoisted(() => ({
   closed: 0,
   connectGate: undefined as Promise<void> | undefined,
   listGate: undefined as Promise<void> | undefined,
+  // Maps webSocketDebuggerUrl → the cdp:disconnect handler registered by the bridge,
+  // so tests can simulate an unexpected socket drop on a specific target.
+  disconnectHandlers: new Map<string, () => void>(),
 }));
 
 vi.mock('../src/devTool.js', () => ({
@@ -25,31 +28,40 @@ vi.mock('../src/devTool.js', () => ({
   },
 }));
 
-vi.mock('../src/connection.js', () => ({
-  Connection: class {
-    webSocketDebuggerUrl: string;
-    constructor(url: string) {
-      this.webSocketDebuggerUrl = url;
-    }
-    connect = async () => {
-      if (h.connectGate) {
-        await h.connectGate;
+vi.mock('../src/connection.js', async () => {
+  const { CDP_DISCONNECT_EVENT } = await import('../src/constants.js');
+  return {
+    Connection: class {
+      webSocketDebuggerUrl: string;
+      constructor(url: string) {
+        this.webSocketDebuggerUrl = url;
       }
-    };
-    send = async (method: string) => {
-      h.sent.push(method);
-      if (h.failEnable && method === 'Runtime.enable') {
-        throw new Error('Runtime.enable failed');
-      }
-      return {};
-    };
-    on = () => this;
-    close = async () => {
-      h.closed++;
-    };
-  },
-}));
+      connect = async () => {
+        if (h.connectGate) {
+          await h.connectGate;
+        }
+      };
+      send = async (method: string) => {
+        h.sent.push(method);
+        if (h.failEnable && method === 'Runtime.enable') {
+          throw new Error('Runtime.enable failed');
+        }
+        return {};
+      };
+      on = (event: string, listener: () => void) => {
+        if (event === CDP_DISCONNECT_EVENT) {
+          h.disconnectHandlers.set(this.webSocketDebuggerUrl, listener);
+        }
+        return this;
+      };
+      close = async () => {
+        h.closed++;
+      };
+    },
+  };
+});
 
+import { CDP_DISCONNECT_EVENT } from '../src/constants.js';
 import { MultiTargetCdpBridge, type MultiTargetCdpBridgeOptions } from '../src/multiTargetBridge.js';
 
 const classify: ClassifyTarget = (t) => {
@@ -85,6 +97,7 @@ beforeEach(() => {
   h.closed = 0;
   h.connectGate = undefined;
   h.listGate = undefined;
+  h.disconnectHandlers.clear();
 });
 
 describe('MultiTargetCdpBridge multi-target routing', () => {
@@ -299,5 +312,72 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     await bridge.refresh();
 
     expect(bridge.activeLabel).toBeUndefined();
+  });
+});
+
+describe('MultiTargetCdpBridge cdp:disconnect event and self-healing', () => {
+  it('should emit cdp:disconnect on the bridge when any Connection drops unexpectedly', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const disconnectHandler = vi.fn();
+    bridge.on(CDP_DISCONNECT_EVENT, disconnectHandler);
+
+    // Simulate the active Connection emitting cdp:disconnect.
+    const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
+    expect(handler).toBeDefined();
+    handler!();
+
+    expect(disconnectHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('should remove the dropped connection from the map on disconnect', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
+    handler!();
+
+    // The dropped connection is gone; activeLabel is cleared so the next send() throws
+    // NOT_CONNECTED (safe) rather than routing to a dead socket.
+    expect(bridge.activeLabel).toBeUndefined();
+  });
+
+  it('should clear activeLabel when the active target disconnects unexpectedly', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+    expect(bridge.activeLabel).toBe('main');
+
+    const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
+    handler!();
+
+    // Active target dropped → label cleared so consumers know to call switchTarget()
+    // or wait for a refresh before sending again.
+    expect(bridge.activeLabel).toBeUndefined();
+  });
+
+  it('should preserve activeLabel when a non-active target disconnects unexpectedly', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+    // Connect window-1 so it has a disconnect handler too.
+    await bridge.switchTarget('window-1');
+    await bridge.switchTarget('main');
+    expect(bridge.activeLabel).toBe('main');
+
+    // Fire disconnect on the non-active window-1.
+    const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/B');
+    handler!();
+
+    // Active label (main) should be unaffected.
+    expect(bridge.activeLabel).toBe('main');
+  });
+
+  it('should allow subscribing to cdp:disconnect before connect()', () => {
+    const bridge = makeBridge();
+    expect(() => bridge.on(CDP_DISCONNECT_EVENT, () => {})).not.toThrow();
   });
 });

@@ -1,9 +1,11 @@
+import EventEmitter from 'node:events';
 import { createLogger } from '@wdio/native-utils';
 
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping.js';
 
 import { Connection } from './connection.js';
 import {
+  CDP_DISCONNECT_EVENT,
   DEFAULT_HOSTNAME,
   DEFAULT_MAX_RETRY_COUNT,
   DEFAULT_PORT,
@@ -47,7 +49,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * **Invariant: never issues `Page.navigate`.** Attaching/switching only enables
  * the Runtime domain on the live target; reloading would destroy app state.
  */
-export class MultiTargetCdpBridge {
+export class MultiTargetCdpBridge extends EventEmitter {
   #options: Required<Omit<MultiTargetCdpBridgeOptions, 'origin' | 'headers' | 'classifyTarget'>>;
   #origin: string | undefined;
   #headers: Record<string, string> | undefined;
@@ -59,6 +61,7 @@ export class MultiTargetCdpBridge {
   #closed = false;
 
   constructor(options: MultiTargetCdpBridgeOptions) {
+    super();
     // Per-field `??` rather than Object.assign: a caller passing an explicit
     // `undefined` (e.g. an unset service option) must fall back to the default, not
     // overwrite it. Object.assign copies undefined values, which left `timeout`
@@ -183,8 +186,13 @@ export class MultiTargetCdpBridge {
   }
 
   /** Subscribe to a CDP event on the active target. */
-  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
-    this.#active().on(event, listener);
+  on(event: typeof CDP_DISCONNECT_EVENT, listener: () => void): this;
+  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this;
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    if (event === CDP_DISCONNECT_EVENT) {
+      return super.on(event, listener);
+    }
+    this.#active().on(event as Events, listener as (param: unknown) => void);
     return this;
   }
 
@@ -263,6 +271,16 @@ export class MultiTargetCdpBridge {
       await connection.close().catch(() => {});
       return winner;
     }
+    connection.on(CDP_DISCONNECT_EVENT, () => {
+      // The WebSocket for this target dropped unexpectedly. Remove it from the map
+      // so #ensureConnection re-opens it on the next access, clear #activeLabel if
+      // it was the active target, then forward the event so consumers can react.
+      this.#connections.delete(label);
+      if (this.#activeLabel === label) {
+        this.#activeLabel = undefined;
+      }
+      this.emit(CDP_DISCONNECT_EVENT);
+    });
     this.#connections.set(label, connection);
     return connection;
   }

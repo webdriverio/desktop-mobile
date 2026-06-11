@@ -12,6 +12,15 @@ export const DEFAULT_PORT = 9222;
 export const DEFAULT_MAX_RETRY_COUNT = 3;
 export const DEFAULT_RETRY_INTERVAL = 100;
 
+/**
+ * Lifecycle event emitted by {@link Connection}, {@link CdpBridge}, and
+ * {@link MultiTargetCdpBridge} when the underlying WebSocket drops unexpectedly
+ * (i.e. not as the result of an explicit `close()` call). The colon-namespace
+ * ensures the name can never collide with a dotted CDP method name (e.g.
+ * `Runtime.consoleAPICalled`).
+ */
+export const CDP_DISCONNECT_EVENT = 'cdp:disconnect' as const;
+
 export const ERROR_MESSAGE = {
   TIMEOUT_CONNECTION: 'Request timeout exceeded waiting for response:',
   TIMEOUT_WAIT_PORT: 'Timeout exceeded while waiting for debugger port to open',

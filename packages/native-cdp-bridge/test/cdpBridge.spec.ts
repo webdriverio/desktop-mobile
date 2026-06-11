@@ -7,6 +7,8 @@ const h = vi.hoisted(() => ({
   ctors: [] as Array<{ url: string; opts: unknown }>,
   sent: [] as string[],
   closeGate: undefined as Promise<void> | undefined,
+  // Allows tests to fire the cdp:disconnect event on the last created Connection
+  disconnectHandlers: [] as Array<() => void>,
 }));
 
 vi.mock('../src/devTool.js', () => ({
@@ -16,27 +18,38 @@ vi.mock('../src/devTool.js', () => ({
   },
 }));
 
-vi.mock('../src/connection.js', () => ({
-  Connection: class {
-    constructor(url: string, opts: unknown) {
-      h.ctors.push({ url, opts });
-    }
-    connect = async () => {};
-    send = async (method: string) => {
-      h.sent.push(method);
-      return { result: { value: 'ok' } };
-    };
-    on = () => this;
-    close = async () => {
-      if (h.closeGate) {
-        await h.closeGate;
+vi.mock('../src/connection.js', async () => {
+  const { CDP_DISCONNECT_EVENT } = await import('../src/constants.js');
+  return {
+    Connection: class {
+      isOpen = true;
+      constructor(url: string, opts: unknown) {
+        h.ctors.push({ url, opts });
       }
-    };
-    state = 1;
-  },
-}));
+      connect = async () => {};
+      send = async (method: string) => {
+        h.sent.push(method);
+        return { result: { value: 'ok' } };
+      };
+      on = (event: string, listener: () => void) => {
+        if (event === CDP_DISCONNECT_EVENT) {
+          h.disconnectHandlers.push(listener);
+        }
+        return this;
+      };
+      off = () => this;
+      close = async () => {
+        if (h.closeGate) {
+          await h.closeGate;
+        }
+      };
+      state = 1;
+    },
+  };
+});
 
 import { CdpBridge } from '../src/cdpBridge.js';
+import { CDP_DISCONNECT_EVENT } from '../src/constants.js';
 
 const target = (id: string, url: string, ws = `ws://localhost:8081/inspector/debug?page=${id}`): Debugger => ({
   id,
@@ -55,6 +68,7 @@ beforeEach(() => {
   h.ctors.length = 0;
   h.sent.length = 0;
   h.closeGate = undefined;
+  h.disconnectHandlers.length = 0;
 });
 
 describe('CdpBridge (single-target)', () => {
@@ -125,5 +139,43 @@ describe('CdpBridge (single-target)', () => {
 
     release();
     await closing;
+  });
+});
+
+describe('CdpBridge cdp:disconnect event and self-healing', () => {
+  it('should emit cdp:disconnect on the bridge when the Connection drops unexpectedly', async () => {
+    h.targets = [target('A', 'http://app/a')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+
+    const disconnectHandler = vi.fn();
+    bridge.on(CDP_DISCONNECT_EVENT, disconnectHandler);
+
+    // Simulate the Connection emitting its own cdp:disconnect (unexpected drop)
+    expect(h.disconnectHandlers).toHaveLength(1);
+    h.disconnectHandlers[0]();
+
+    expect(disconnectHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('should null out the dead connection on disconnect so the next connect() re-establishes', async () => {
+    h.targets = [target('A', 'http://app/a')];
+    const bridge = new CdpBridge();
+    await bridge.connect();
+    expect(h.ctors).toHaveLength(1);
+
+    // Trigger the unexpected disconnect handler registered by the bridge.
+    h.disconnectHandlers[0]();
+
+    // Now connect() should be callable again (re-discovers and opens a new socket).
+    await bridge.connect();
+    expect(h.ctors).toHaveLength(2);
+  });
+
+  it('should allow subscribing to cdp:disconnect before connect()', () => {
+    // cdp:disconnect lives on the bridge itself (EventEmitter), not on a Connection,
+    // so subscribing before connect() must not throw.
+    const bridge = new CdpBridge();
+    expect(() => bridge.on(CDP_DISCONNECT_EVENT, () => {})).not.toThrow();
   });
 });

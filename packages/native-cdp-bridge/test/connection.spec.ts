@@ -24,9 +24,11 @@ vi.mock('ws', async () => {
 });
 
 import { Connection } from '../src/connection.js';
+import { CDP_DISCONNECT_EVENT } from '../src/constants.js';
 
 type DrivableSocket = {
   emit: (event: string, ...args: unknown[]) => boolean;
+  readyState: number;
 };
 
 describe('Connection close-reason handling', () => {
@@ -74,5 +76,64 @@ describe('Connection.isOpen', () => {
     ws.emit('close');
     await closePromise;
     expect(connection.isOpen).toBe(false);
+  });
+});
+
+describe('Connection cdp:disconnect event', () => {
+  beforeEach(() => {
+    h.sockets.length = 0;
+  });
+
+  it('should emit cdp:disconnect when the WebSocket closes unexpectedly', async () => {
+    const connection = new Connection('ws://127.0.0.1:9222/devtools/page/A');
+    const connectPromise = connection.connect();
+    const ws = h.sockets.at(-1) as DrivableSocket;
+    ws.emit('open');
+    await connectPromise;
+
+    const disconnectHandler = vi.fn();
+    connection.on(CDP_DISCONNECT_EVENT, disconnectHandler);
+
+    // Simulate an unexpected close (no explicit close() call).
+    ws.emit('close');
+
+    expect(disconnectHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('should NOT emit cdp:disconnect when close() is called explicitly', async () => {
+    const connection = new Connection('ws://127.0.0.1:9222/devtools/page/A');
+    const connectPromise = connection.connect();
+    const ws = h.sockets.at(-1) as DrivableSocket;
+    ws.emit('open');
+    await connectPromise;
+
+    const disconnectHandler = vi.fn();
+    connection.on(CDP_DISCONNECT_EVENT, disconnectHandler);
+
+    const closePromise = connection.close();
+    ws.emit('close');
+    await closePromise;
+
+    expect(disconnectHandler).not.toHaveBeenCalled();
+  });
+
+  it('should NOT emit cdp:disconnect when an error triggers the internal close path', async () => {
+    const connection = new Connection('ws://127.0.0.1:9222/devtools/page/A');
+    const connectPromise = connection.connect();
+    const ws = h.sockets.at(-1) as DrivableSocket;
+    ws.emit('open');
+    await connectPromise;
+
+    const disconnectHandler = vi.fn();
+    connection.on(CDP_DISCONNECT_EVENT, disconnectHandler);
+
+    // Error → internal #close() → intentional flag set before ws.close()
+    ws.emit('error', new Error('boom'));
+    ws.emit('close');
+
+    // Allow microtask queue to flush (the error handler is async)
+    await new Promise((resolve) => setTimeout(resolve, 0));
+
+    expect(disconnectHandler).not.toHaveBeenCalled();
   });
 });
