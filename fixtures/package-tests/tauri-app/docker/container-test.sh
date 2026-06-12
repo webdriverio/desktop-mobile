@@ -117,12 +117,14 @@ rm package.json
 mv package.json.orig package.json
 
 echo '=== Building Tauri app ==='
-# Run the build steps individually rather than via `pnpm run build`, which
-# would invoke build:js -- a workspace-filtered pnpm operation that requires
-# tsx + Node >=23.6 to execute @wdio/tauri-plugin's build script. The plugin
-# JS is already in node_modules/@wdio/tauri-plugin from the tarball install.
-# build-web.ts probes node_modules/@wdio/tauri-plugin and copies it to dist/.
-npx tsx scripts/build-web.ts
+# Run the build steps individually rather than via `pnpm run build`, which would
+# invoke build:js -- a workspace-filtered pnpm operation (`pnpm --filter
+# @wdio/tauri-plugin build:js`) that needs the full pnpm workspace the container
+# doesn't have. The plugin JS is already in node_modules/@wdio/tauri-plugin from the
+# tarball install, and build-web.ts probes that path and copies it into dist/.
+# build-web.ts runs under bare `node` -- the container is Node 24, which strips TS
+# natively, so no tsx is needed (matches the fixture's own `build:web` script).
+node scripts/build-web.ts
 npx tauri build --debug
 
 echo '=== Running Tauri package test ==='
