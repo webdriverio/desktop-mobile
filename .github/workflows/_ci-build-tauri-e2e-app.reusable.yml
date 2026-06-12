@@ -171,12 +171,6 @@ jobs:
         run: |
           echo "::notice::Build artifact: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
 
-      # Install dependencies to ensure workspace is properly set up
-      # This is needed after downloading artifacts to ensure all workspace links are correct
-      - name: 📦 Install Dependencies
-        run: pnpm install --frozen-lockfile
-        shell: bash
-
       # Build the Tauri plugin's JavaScript first
       # This is needed by the E2E app's build process (for bundling)
       - name: 🏗️ Build Tauri Plugin JavaScript
