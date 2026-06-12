@@ -509,6 +509,30 @@ describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)'
     await bridge.switchTarget(aLabel);
     expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(fn)).toBeFalsy();
   });
+
+  it('should not store a CDP listener when on() throws because the active target has no connection', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const wsB = 'ws://localhost:9222/devtools/page/B';
+
+    // Force the auto-advanced target's connection to fail, leaving activeLabel set
+    // (window-1) but no entry in #connections.
+    h.failEnable = true;
+    h.targets = [target('B', 'views://secondview/index.html')];
+    await bridge.refresh();
+    expect(bridge.activeLabel).toBe('window-1');
+
+    // on() must throw (no live connection) WITHOUT silently storing the listener.
+    const fn = vi.fn();
+    expect(() => bridge.on('Runtime.consoleAPICalled', fn)).toThrow();
+
+    // Recover the connection; the listener must NOT replay — it was never stored.
+    h.failEnable = false;
+    await bridge.switchTarget('window-1');
+    expect(h.cdpMethodListeners.get(wsB)?.get('Runtime.consoleAPICalled')?.has(fn)).toBeFalsy();
+  });
 });
 
 describe('MultiTargetCdpBridge per-target listener isolation', () => {

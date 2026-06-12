@@ -211,8 +211,14 @@ export class MultiTargetCdpBridge extends EventEmitter {
     if (event === CDP_DISCONNECT_EVENT) {
       return super.on(event, listener);
     }
-    // Store under the active target's URL so #ensureConnection can replay only
-    // this target's listeners on reconnect — not spill them onto other targets.
+    // Resolve the active connection FIRST: #active() throws NOT_CONNECTED when the active
+    // target has no live connection (e.g. after a failed auto-advance, where #activeLabel is
+    // set but #connections has no entry). Mutating the registry before that check would leave
+    // a listener that silently replays on the next reconnect, behind a caller who saw the
+    // throw and believed the subscription never happened.
+    const connection = this.#active();
+    // Store under the active target's URL so #ensureConnection replays only this target's
+    // listeners on reconnect — not spill them onto other targets.
     const url = this.#activeUrl();
     let targetListeners = this.#cdpListeners.get(url);
     if (!targetListeners) {
@@ -225,7 +231,7 @@ export class MultiTargetCdpBridge extends EventEmitter {
       targetListeners.set(event, set);
     }
     set.add(listener);
-    this.#active().on(event as Events, listener as (param: unknown) => void);
+    connection.on(event as Events, listener as (param: unknown) => void);
     return this;
   }
 
