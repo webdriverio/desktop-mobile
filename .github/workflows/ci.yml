@@ -506,10 +506,12 @@ jobs:
     with:
       distro: ${{ matrix.distro }}
 
-  # Run build tests outside of the main Linux build job
+  # Run build tests outside of the main Linux build job.
+  # Builds from source on each OS and never downloads the Linux build artifact, so it only
+  # needs detect-changes (not build) — gating it on build just delayed these starts.
   build-matrix:
     name: Build [${{ matrix.display-name }}]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -1210,6 +1212,8 @@ jobs:
       - build-tauri-package-app-linux
       - build-tauri-package-app-windows
       - build-tauri-package-app-linux-arm
+      - build-tauri-package-app-macos-arm
+      - build-tauri-package-app-macos-intel
       - build-dioxus-e2e-app-linux
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
