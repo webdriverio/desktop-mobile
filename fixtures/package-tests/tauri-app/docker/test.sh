@@ -25,22 +25,26 @@ set -e
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 
-# Validate that TARBALLS_DIR is set and non-empty before running tests
-if [ -z "${TARBALLS_DIR:-}" ]; then
-    echo "ERROR: TARBALLS_DIR is not set."
-    echo "Pack tarballs first:"
-    echo "  cd $REPO_ROOT"
-    echo "  mkdir -p dist/tarballs"
-    echo "  for pkg in tauri-service tauri-plugin native-core native-spy native-types native-utils; do"
-    echo "    pnpm pack -C packages/\$pkg --pack-destination \"\$(pwd)/dist/tarballs\""
-    echo "  done"
-    echo "  TARBALLS_DIR=\"\$(pwd)/dist/tarballs\" $0 \$@"
-    exit 1
-fi
+# Only `test` mode consumes the tarballs (it bind-mounts them into the container);
+# `build` and `debug` just build the image, so don't require TARBALLS_DIR. Mode is
+# the second positional arg (default `build`), validated in full further down.
+if [ "${2:-build}" = "test" ]; then
+    if [ -z "${TARBALLS_DIR:-}" ]; then
+        echo "ERROR: TARBALLS_DIR is not set."
+        echo "Pack tarballs first:"
+        echo "  cd $REPO_ROOT"
+        echo "  mkdir -p dist/tarballs"
+        echo "  for pkg in tauri-service tauri-plugin native-core native-spy native-types native-utils; do"
+        echo "    pnpm pack -C packages/\$pkg --pack-destination \"\$(pwd)/dist/tarballs\""
+        echo "  done"
+        echo "  TARBALLS_DIR=\"\$(pwd)/dist/tarballs\" $0 \$@"
+        exit 1
+    fi
 
-if [ ! -d "$TARBALLS_DIR" ]; then
-    echo "ERROR: TARBALLS_DIR '$TARBALLS_DIR' does not exist or is not a directory."
-    exit 1
+    if [ ! -d "$TARBALLS_DIR" ]; then
+        echo "ERROR: TARBALLS_DIR '$TARBALLS_DIR' does not exist or is not a directory."
+        exit 1
+    fi
 fi
 
 # Colors for output
