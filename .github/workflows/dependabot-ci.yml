@@ -1,0 +1,35 @@
+name: Dependabot CI
+
+# Dependabot PRs skip CI by default (see the detect-changes gate + ci-status block in
+# ci.yml) so the weekly batch of dependency PRs doesn't drain the runners. Adding the
+# `ci:run` label dispatches the full pipeline for the PR's branch; the label is removed
+# afterwards so re-adding it re-runs CI. A human adds the label, so this run gets a normal
+# token (not Dependabot's restricted one) and can dispatch + edit the PR.
+on:
+  pull_request:
+    types: [labeled]
+
+permissions:
+  actions: write
+  pull-requests: write
+  contents: read
+
+jobs:
+  dispatch:
+    if: >-
+      github.event.label.name == 'ci:run' &&
+      github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dispatch CI for the PR branch
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+        run: gh workflow run ci.yml --repo "$REPO" --ref "$BRANCH" -f force_all=true
+      - name: Remove the ci:run label
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: gh pr edit "$PR" --repo "$REPO" --remove-label ci:run

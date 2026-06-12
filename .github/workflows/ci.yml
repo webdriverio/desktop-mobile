@@ -36,6 +36,12 @@ env:
 jobs:
   # Detect which services are affected by changes
   detect-changes:
+    # Dependabot fans the full OS matrix out on every PR and drains the runners, so its PRs
+    # skip CI by default — every downstream job needs detect-changes, so gating it here skips
+    # the whole pipeline. Run it manually when you're ready to merge a bump: add the `ci:run`
+    # label (see dependabot-ci.yml) or Actions → CI → Run workflow on the PR's branch. Both
+    # arrive as a workflow_dispatch with no pull_request context, which bypasses this gate.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     uses: ./.github/workflows/_ci-detect-changes.reusable.yml
     with:
       force_all: ${{ inputs.force_all || false }}
@@ -506,10 +512,12 @@ jobs:
     with:
       distro: ${{ matrix.distro }}
 
-  # Run build tests outside of the main Linux build job
+  # Run build tests outside of the main Linux build job.
+  # Builds from source on each OS and never downloads the Linux build artifact, so it only
+  # needs detect-changes (not build) — gating it on build just delayed these starts.
   build-matrix:
     name: Build [${{ matrix.display-name }}]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -1210,6 +1218,8 @@ jobs:
       - build-tauri-package-app-linux
       - build-tauri-package-app-windows
       - build-tauri-package-app-linux-arm
+      - build-tauri-package-app-macos-arm
+      - build-tauri-package-app-macos-intel
       - build-dioxus-e2e-app-linux
       - build-dioxus-e2e-app-windows
       - build-dioxus-e2e-app-macos-arm
@@ -1225,6 +1235,15 @@ jobs:
       - package-electron-mac-universal
     runs-on: ubuntu-latest
     steps:
+      # CI is gated off for Dependabot (see detect-changes), which leaves every job skipped
+      # and would otherwise report this required check green. Fail instead so branch
+      # protection blocks the merge until CI is run manually. A manual run arrives as a
+      # workflow_dispatch (no pull_request context), so this step steps aside there.
+      - name: Require a manual run for Dependabot PRs
+        if: github.event.pull_request.user.login == 'dependabot[bot]'
+        run: |
+          echo "::error::CI is skipped for Dependabot PRs by default. Add the 'ci:run' label, or run Actions → CI → Run workflow on this branch, before merging."
+          exit 1
       - name: Check CI results
         run: |
           results="${{ join(needs.*.result, ' ') }}"

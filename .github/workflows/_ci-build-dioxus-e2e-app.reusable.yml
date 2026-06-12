@@ -132,10 +132,6 @@ jobs:
         run: |
           echo "::notice::Build artifact: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
 
-      - name: 📦 Install Dependencies
-        run: pnpm install --frozen-lockfile
-        shell: bash
-
       - name: 🏗️ Build Dioxus Bridge Guest JS
         run: pnpm --filter @wdio/dioxus-bridge build
         shell: bash

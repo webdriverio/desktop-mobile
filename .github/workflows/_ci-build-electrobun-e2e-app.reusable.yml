@@ -89,10 +89,6 @@ jobs:
         run: |
           echo "::notice::Build artifact: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
 
-      - name: 📦 Install Dependencies
-        run: pnpm install --frozen-lockfile
-        shell: bash
-
       # CEF download + bundle. The beta Bun/CEF toolchain is the biggest unknown in
       # this pipeline (~150MB CEF download); a failure here is most likely a
       # toolchain/network issue rather than a regression in the fixture itself.
