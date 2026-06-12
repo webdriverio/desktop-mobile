@@ -55,7 +55,9 @@ From the Dioxus equivalents (names matter — match them):
 - `_ci-build-<framework>-package-app.reusable.yml` — builds the package-test fixture.
 - `_ci-e2e-<framework>-all-providers.reusable.yml` — runs E2E across providers.
 
-Extend `_ci-package.reusable.yml` and `_ci-package-docker.reusable.yml` to accept `<framework>` in the service matrix. (CDP services skip the `-crates` workflow entirely — no Rust to build.)
+Extend `_ci-package.reusable.yml` to accept `<framework>` in the service matrix. (CDP services skip the `-crates` workflow entirely — no Rust to build.)
+
+**The per-distro Docker matrix (`_ci-package-docker-*`) is only for system-webview services.** It exists because Tauri and Dioxus render through the host's system WebView (WebKitGTK), whose libraries are named/versioned differently on each distro — that variance is exactly what the matrix tests (build + launch + driver/lib detection across Ubuntu/Debian/Arch/Fedora/Void). Services that **bundle their own renderer** (Electron's Chromium, Electrobun's CEF) behave identically across glibc distros, so they get the plain `_ci-package` test and **no** Docker matrix. Decision rule for a new service: add the Docker matrix only if the service depends on system libraries that differ across distros (a future GTK/WebKitGTK-on-Linux Flutter, Neutralino, etc.); skip it for bundled-renderer ones. Mobile services (React Native) don't apply — they target Android/iOS, not desktop Linux.
 
 ### Mobile CI — per-platform, not per-provider
 
