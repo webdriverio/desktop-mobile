@@ -227,11 +227,14 @@ export class MultiTargetCdpBridge extends EventEmitter {
     if (event === CDP_DISCONNECT_EVENT) {
       return super.off(event, listener);
     }
-    // Registry removal is unconditional: an unexpected disconnect clears #activeLabel
-    // but keeps the #cdpListeners entry so the listener replays on reconnect -- gating
-    // removal on #activeLabel made off() a no-op while disconnected, resurrecting the
-    // listener on the next reconnect. Scan all targets (no #activeUrl(), which throws
-    // with no active target); a listener instance only lives under the URL it was added on.
+    // Removal is keyed by the URL the listener was registered under -- never #activeLabel.
+    // on() stores the listener on whichever target was active at the time, so it may live
+    // on a now-inactive (but still open) connection, and an unexpected disconnect clears
+    // #activeLabel while deliberately keeping the #cdpListeners entry for replay. Gating on
+    // #activeLabel therefore both let an off()'d listener resurrect on reconnect *and* left
+    // it firing on its owning connection when off() ran while a different target was active.
+    // So scan the registry and, for each matching URL, detach from that URL's own
+    // connection (a no-op while that target is disconnected -- nothing live to detach).
     for (const [url, targetListeners] of this.#cdpListeners) {
       const set = targetListeners.get(event);
       if (!set?.delete(listener)) {
@@ -243,10 +246,10 @@ export class MultiTargetCdpBridge extends EventEmitter {
       if (targetListeners.size === 0) {
         this.#cdpListeners.delete(url);
       }
-    }
-    // Detach from the live active connection (none while disconnected -- nothing to do).
-    if (this.#activeLabel) {
-      this.#connections.get(this.#activeLabel)?.off(event, listener);
+      const ownerLabel = this.#targets.find((target) => target.webSocketDebuggerUrl === url)?.label;
+      if (ownerLabel) {
+        this.#connections.get(ownerLabel)?.off(event, listener);
+      }
     }
     return this;
   }

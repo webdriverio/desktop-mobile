@@ -532,6 +532,25 @@ describe('MultiTargetCdpBridge per-target listener isolation', () => {
     expect(h.cdpMethodListeners.get(wsB)?.get('Runtime.consoleAPICalled')?.has(fnB)).toBe(true);
   });
 
+  it('should detach the listener from its owning connection when off() runs while another target is active', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    // fn is registered while A (main) is active, so it lives on A's connection.
+    const fn = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', fn);
+
+    // Switch to B and unsubscribe WITHOUT switching back: A's connection is still open
+    // but no longer active. off() must detach fn from A (its owner), not from active B.
+    await bridge.switchTarget('window-1');
+    bridge.off('Runtime.consoleAPICalled', fn);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    expect(h.removedListeners.get(wsA)).toContainEqual({ event: 'Runtime.consoleAPICalled', listener: fn });
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(fn)).toBeFalsy();
+  });
+
   it('should remove the per-target listener entry from the registry when all listeners are off()d', async () => {
     h.targets = [target('A', 'views://mainview/index.html')];
     const bridge = makeBridge();
