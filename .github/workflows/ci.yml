@@ -92,39 +92,30 @@ jobs:
   # Build Tauri E2E app binaries - only if Tauri tests will run
   build-tauri-e2e-app-linux:
     name: Build Tauri E2E App [Linux]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
     secrets: inherit
     with:
       os: 'ubuntu-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-tauri-e2e-app-windows:
     name: Build Tauri E2E App [Windows]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
     secrets: inherit
     with:
       os: 'windows-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-tauri-e2e-app-macos-arm:
     name: Build Tauri E2E App [macOS-ARM]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   # Build Dioxus Rust crates - only if Dioxus tests will run.
   # v1 scope: Linux only. wdio-dioxus-driver is Windows-targeted but
@@ -142,39 +133,30 @@ jobs:
   # Build Dioxus E2E app binaries - only if Dioxus tests will run
   build-dioxus-e2e-app-linux:
     name: Build Dioxus E2E App [Linux]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
     secrets: inherit
     with:
       os: 'ubuntu-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-dioxus-e2e-app-windows:
     name: Build Dioxus E2E App [Windows]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
     secrets: inherit
     with:
       os: 'windows-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-dioxus-e2e-app-macos-arm:
     name: Build Dioxus E2E App [macOS-ARM]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E app — macOS (CEF bundle, no Rust crates). The CEF fixture build is
@@ -189,15 +171,12 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E app [Windows] — built with the native WebView2 renderer
@@ -207,163 +186,124 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-windows:
     name: Build Electrobun E2E App [Windows]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
     secrets: inherit
     with:
       os: 'windows-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   # macOS (CEF) + Windows (WebView2). The package-test fixture build mirrors the e2e build
   # (Bun, tar artifact); Windows builds the native WebView2 renderer (no CEF download).
   build-electrobun-package-app-macos-arm:
     name: Build Electrobun Package Test App [macOS-ARM]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-electrobun-package-app-windows:
     name: Build Electrobun Package Test App [Windows]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'windows-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   # Build Dioxus package test apps - only if Dioxus package tests will run
   build-dioxus-package-app-linux:
     name: Build Dioxus Package Test App [Linux]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'ubuntu-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-dioxus-package-app-windows:
     name: Build Dioxus Package Test App [Windows]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'windows-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-dioxus-package-app-macos-arm:
     name: Build Dioxus Package Test App [macOS-ARM]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-dioxus-package-app-macos-intel:
     name: Build Dioxus Package Test App [macOS-Intel]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-15-intel'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-dioxus-package-app-linux-arm:
     name: Build Dioxus Package Test App [Linux-ARM64]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'ubuntu-24.04-arm'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   # Build Tauri package test apps - only if Tauri package tests will run
   build-tauri-package-app-linux:
     name: Build Tauri Package Test App [Linux]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'ubuntu-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-tauri-package-app-windows:
     name: Build Tauri Package Test App [Windows]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'windows-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-tauri-package-app-linux-arm:
     name: Build Tauri Package Test App [Linux-ARM64]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'ubuntu-24.04-arm'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-tauri-package-app-macos-arm:
     name: Build Tauri Package Test App [macOS-ARM]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-latest'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   build-tauri-package-app-macos-intel:
     name: Build Tauri Package Test App [macOS-Intel]
-    needs: [detect-changes, build]
+    needs: [detect-changes]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
       os: 'macos-15-intel'
-      build_id: ${{ needs.build.outputs.build_id }}
-      artifact_size: ${{ needs.build.outputs.artifact_size }}
-      cache_key: ${{ needs.build.outputs.cache_key }}
 
   # Run package tests after unit tests to ensure the package is built correctly
   # Split Electron and Tauri tests across separate jobs for better parallelization and clarity
