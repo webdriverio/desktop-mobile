@@ -64,15 +64,22 @@ for the detailed rationale.
 ./test.sh ubuntu test
 ```
 
-1. Build the Docker image (system packages, Node 20, pnpm, Rust toolchain, WebKitGTK build deps).
-2. Mount the workspace into the container and start Xvfb.
-3. `pnpm install --frozen-lockfile`.
-4. `pnpm --filter @wdio/dioxus-service... build` (service + its workspace dependencies).
-5. `pnpm --filter @wdio/dioxus-bridge... build` — the guest-js bundle the bridge crate's
-   `build.rs` bakes into the app binary. Not a service dependency, so step 4 skips it;
-   without it the bundle silently degrades to a no-op and every bridge call times out.
-6. `cargo build` the Dioxus app — this also compiles the embedded driver and the bridge crate into the binary.
-7. `pnpm test` (WebdriverIO against the embedded driver, headless under Xvfb).
+The CI runner (Node 24, full workspace toolchain) builds the packages and packs them
+to tarballs *before* Docker starts; the container receives them via a `/tarballs`
+bind-mount and never runs the workspace toolchain itself — no `pnpm install`, Turbo, or
+`.ts` execution, which is what broke on the container's older Node (#350). Per container:
+
+1. Build the Docker image (system packages, Node 24, Rust toolchain, WebKitGTK build deps).
+2. Mount the workspace at `/workspace` and the packed tarballs at `/tarballs`; start Xvfb.
+3. Verify the bridge guest-js bundle (`packages/dioxus-bridge/dist-js/index.js`) is present —
+   the runner built it, and the bridge crate's `build.rs` bakes it into the app binary at
+   `cargo build` time. Without it the bundle silently degrades to a no-op and every bridge
+   call times out.
+4. Rewrite the fixture's `workspace:*` deps to `file:` tarball paths and `npm install`. The
+   fixture's pnpm `node_modules` (symlinks into the workspace) is cleared first — npm's
+   arborist cannot load a pnpm layout.
+5. `cargo build` the Dioxus app — this also compiles the embedded driver and the bridge crate into the binary.
+6. `npx wdio run` (WebdriverIO against the embedded driver, headless under Xvfb).
 
 There is no separate plugin-build step: unlike Tauri's JS plugin, the Dioxus bridge
 and embedded driver are Rust crates pulled in by the app's `Cargo.toml` and built by `cargo`.

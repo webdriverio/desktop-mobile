@@ -108,7 +108,7 @@ Tests if the Docker image can be built with all system dependencies:
 **What it does:**
 - Pulls base image
 - Installs system packages
-- Installs Node.js, pnpm, Rust
+- Installs Node.js, Rust
 - Installs Tauri runtime dependencies
 - Verifies critical packages are available
 
@@ -120,13 +120,12 @@ Builds the Docker image and runs the complete test suite inside:
 ```
 
 **What it does:**
-1. Build Docker image (same as `build` mode)
-2. Mount workspace into container
-3. Install pnpm workspace dependencies
-4. Build `@wdio/tauri-service` and dependencies
-5. Build `@wdio/tauri-plugin`
-6. Build Tauri example app
-7. Run WebdriverIO tests with Xvfb
+1. On the runner (Node 24, before Docker): build the `@wdio/*` packages and pack them to tarballs
+2. Build Docker image (same as `build` mode)
+3. Mount workspace at `/workspace` + tarballs at `/tarballs` into container
+4. Rewrite the fixture's `workspace:*` deps to `file:` tarball paths and `npm install` (the fixture's pnpm `node_modules` is cleared first — npm's arborist cannot load a pnpm layout)
+5. Build the Tauri example app (`build-web.ts` + `tauri build --debug`)
+6. Run WebdriverIO tests with Xvfb
 
 ### Debug Mode
 Build with verbose output and no caching:
@@ -150,9 +149,8 @@ FROM <base-image>
 # 1. Basic Requirements
 RUN <install curl, git, build-essential, xvfb>
 
-# 2. Node.js & pnpm
-RUN <install nodejs 20.x>
-RUN npm install -g pnpm
+# 2. Node.js
+RUN <install nodejs 24.x>
 
 # 3. Rust Toolchain
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
@@ -294,12 +292,11 @@ All distributions are tested using Docker containers with:
 - Official base image from distribution
 - All required development packages
 - Rust toolchain (latest stable)
-- Node.js 20.x + pnpm
+- Node.js 24.x
 
 **Build Testing:**
-- Full workspace dependency installation
-- Tauri service package build
-- Tauri example app build from source
+- Install the runner-packed `@wdio/*` tarballs with npm (no in-container workspace build)
+- Tauri example app build (web assets + `tauri build --debug`)
 - WebdriverIO test execution with Xvfb
 
 **Pass Criteria:**
