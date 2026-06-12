@@ -49,7 +49,10 @@ cd /workspace/fixtures/package-tests/tauri-app
 
 # Rewrite workspace:* entries in package.json to file:/tarballs/<tarball>.
 # npm understands file: protocol; pnpm workspace: protocol is workspace-only.
-PATCHED_PKG=$(node - << 'JS_EOF'
+# `set -e` does NOT abort on a failed `VAR=$(cmd)` assignment, so guard the patch
+# step explicitly -- otherwise a missing-tarball exit(1) falls through and
+# resurfaces as an opaque `npm install` error instead of this clear one.
+if ! PATCHED_PKG=$(node - << 'JS_EOF'
 const fs = require('fs');
 const pkg = JSON.parse(fs.readFileSync('package.json', 'utf8'));
 const tarballs = fs.readdirSync('/tarballs').filter(f => f.endsWith('.tgz'));
@@ -89,7 +92,10 @@ delete pkg.overrides;
 
 process.stdout.write(JSON.stringify(pkg, null, 2) + '\n');
 JS_EOF
-)
+); then
+  echo 'ERROR: failed to rewrite package.json deps to /tarballs paths (see node error above).'
+  exit 1
+fi
 echo "$PATCHED_PKG" > package.json.patched
 mv package.json package.json.orig
 mv package.json.patched package.json
