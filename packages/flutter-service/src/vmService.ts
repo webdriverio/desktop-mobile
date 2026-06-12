@@ -145,7 +145,7 @@ export class VmServiceClient {
     });
   }
 
-  getVM(): Promise<{ isolates: Array<{ id: string }> }> {
+  getVM(): Promise<{ isolates: Array<{ id: string; name?: string }> }> {
     return this.rpc('getVM');
   }
 
@@ -155,10 +155,12 @@ export class VmServiceClient {
       return this.#cachedIsolateId;
     }
     const vm = await this.getVM();
-    // isolates[0] is the main/root isolate for a standard Flutter app (it runs the UI + the
-    // app's code). An app spawning extra isolates (compute()/Isolate.spawn) still lists the
-    // root first, so this heuristic holds for the realistic cases execute/mock target.
-    const id = vm.isolates[0]?.id;
+    // Prefer the isolate the VM names 'main' (the root isolate running the UI + app code); fall
+    // back to the first listed. getVM's isolate order isn't spec-guaranteed, but the root is
+    // conventionally named 'main' and listed first — extra compute()/Isolate.spawn isolates don't
+    // run the app code execute/mock target, so name-match then positional covers the realistic cases.
+    const isolates = vm.isolates ?? [];
+    const id = (isolates.find((isolate) => isolate.name === 'main') ?? isolates[0])?.id;
     if (!id) {
       throw new Error('No Dart isolate found on the VM Service');
     }

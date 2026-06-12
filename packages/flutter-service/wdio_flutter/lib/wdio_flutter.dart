@@ -35,6 +35,11 @@ class WdioEventBus {
   Stream<Map<String, dynamic>> get stream => _controller.stream;
 
   void emit(String name, dynamic payload) => _controller.add({'name': name, 'payload': payload});
+
+  /// Close the underlying controller. The [wdioEvents] singleton normally lives for the whole app
+  /// run (the OS reclaims it on exit), so this is only needed when a host tears the bus down
+  /// explicitly — e.g. a widget test — to avoid leaving the broadcast controller open.
+  Future<void> dispose() => _controller.close();
 }
 
 /// The single event-bus instance the app subscribes to.

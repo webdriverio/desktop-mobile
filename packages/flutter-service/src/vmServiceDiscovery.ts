@@ -113,6 +113,13 @@ export async function discoverVmServiceUrl(
       log.debug(`Using Dart VM Service URL from appium-flutter-driver: ${driverUrl}`);
       return driverUrl;
     }
+    // The command resolved but returned no usable URL (an older driver yields undefined, or a
+    // non-ws value) — log why we fall through to pin/scrape rather than dropping it silently.
+    log.debug(
+      `flutter:getVMServiceUrl returned no usable URL (${
+        typeof driverUrl === 'string' ? driverUrl : typeof driverUrl
+      }); falling back to pin/scrape`,
+    );
   } catch (error) {
     log.debug(`flutter:getVMServiceUrl unavailable (${(error as Error).message}); falling back to pin/scrape`);
   }

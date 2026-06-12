@@ -90,6 +90,19 @@ describe('VmServiceClient', () => {
     expect(await p).toBe('iso-9');
   });
 
+  it('getMainIsolateId should prefer the isolate named main over positional order', async () => {
+    const client = new VmServiceClient('ws://x/ws');
+    await client.connect();
+    const p = client.getMainIsolateId();
+    await answerRpc(instances[0], 0, {
+      isolates: [
+        { id: 'iso-worker', name: 'worker' },
+        { id: 'iso-main', name: 'main' },
+      ],
+    });
+    expect(await p).toBe('iso-main');
+  });
+
   it('resolveRootLibrary should chain getVM + getIsolate', async () => {
     const client = new VmServiceClient('ws://x/ws');
     await client.connect();
