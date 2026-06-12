@@ -11,6 +11,7 @@ import { createLogger } from '@wdio/native-utils';
 import {
   clearAllMocks,
   isMockFunction as isMockFunctionUtil,
+  prefixCovers,
   resetAllMocks,
   restoreAllMocks,
 } from './commands/allMocks.js';
@@ -216,10 +217,13 @@ export default class FlutterWorkerService {
     // work the next op immediately discards (e.g. reset then restore on the same scope).
     const { clearMocks, resetMocks, restoreMocks, clearMocksPrefix, resetMocksPrefix, restoreMocksPrefix } =
       this.options;
+    // Skip a lower-precedence op when a higher one runs on a scope that already *covers* it —
+    // containment, not just an exact-prefix match: a restore-all (or reset of 'Foo') also makes a
+    // clear of 'Foo.Bar' redundant.
     const clearRedundant =
-      (resetMocks && clearMocksPrefix === resetMocksPrefix) ||
-      (restoreMocks && clearMocksPrefix === restoreMocksPrefix);
-    const resetRedundant = restoreMocks && resetMocksPrefix === restoreMocksPrefix;
+      (resetMocks && prefixCovers(resetMocksPrefix, clearMocksPrefix)) ||
+      (restoreMocks && prefixCovers(restoreMocksPrefix, clearMocksPrefix));
+    const resetRedundant = restoreMocks && prefixCovers(restoreMocksPrefix, resetMocksPrefix);
     if (clearMocks && !clearRedundant) {
       await clearAllMocks(store, clearMocksPrefix);
     }

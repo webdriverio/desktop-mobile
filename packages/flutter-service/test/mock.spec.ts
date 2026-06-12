@@ -70,6 +70,32 @@ describe('createFlutterMock', () => {
     expect(mock.mock.calls.length).toBe(0); // the clear wins; stale data not resurrected
   });
 
+  it('should keep the outer in sync with the un-cleared inner when the inner mockClear fails (no resurrection)', async () => {
+    const { client } = makeClient();
+    const mock = await createFlutterMock('Svc.m', () => Promise.resolve(client), new FlutterMockStore());
+    await mock.update(); // outer now mirrors the inner's one call
+    expect(mock.mock.calls.length).toBe(1);
+    (client.callServiceExtension as ReturnType<typeof vi.fn>).mockImplementation((method: string) => {
+      if (method === 'ext.wdio.clearMock') {
+        return Promise.reject(new Error('socket drop'));
+      }
+      if (method === 'ext.wdio.getCalls') {
+        return Promise.resolve({
+          calls: [['x']],
+          results: [{ type: 'return', value: 'mocked' }],
+          invocationCallOrder: [0],
+        });
+      }
+      return Promise.resolve({ ok: true });
+    });
+    await expect(mock.mockClear()).rejects.toThrow('socket drop');
+    // Inner clear failed → the outer must NOT have been cleared (it still mirrors the inner)…
+    expect(mock.mock.calls.length).toBe(1);
+    // …and a later update() reads back consistently rather than resurrecting "cleared" data.
+    await mock.update();
+    expect(mock.mock.calls).toEqual([['x']]);
+  });
+
   it('should register in the store', async () => {
     const { client } = makeClient();
     const store = new FlutterMockStore();

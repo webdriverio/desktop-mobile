@@ -1,6 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from '../src/commands/allMocks.js';
+import {
+  clearAllMocks,
+  isMockFunction,
+  prefixCovers,
+  resetAllMocks,
+  restoreAllMocks,
+} from '../src/commands/allMocks.js';
 import { FlutterMockStore } from '../src/mockStore.js';
 
 const makeMock = (over: Record<string, unknown> = {}) =>
@@ -77,5 +83,30 @@ describe('isMockFunction', () => {
 
   it('should be false for a plain value', () => {
     expect(isMockFunction(123, new FlutterMockStore())).toBe(false);
+  });
+});
+
+describe('prefixCovers', () => {
+  it('should treat an empty/undefined broader prefix (all targets) as covering any narrower scope', () => {
+    expect(prefixCovers(undefined, 'Foo.Bar')).toBe(true);
+    expect(prefixCovers('', 'Foo')).toBe(true);
+    expect(prefixCovers(undefined, undefined)).toBe(true);
+  });
+
+  it('should cover an equal prefix (the old exact-match case)', () => {
+    expect(prefixCovers('Foo', 'Foo')).toBe(true);
+    expect(prefixCovers('Foo.', 'Foo')).toBe(true); // trailing dot normalised
+  });
+
+  it('should cover a descendant scope from an ancestor prefix (the false-negative the exact match missed)', () => {
+    expect(prefixCovers('Foo', 'Foo.Bar')).toBe(true);
+    expect(prefixCovers('Foo', 'Foo.Bar.Baz')).toBe(true);
+  });
+
+  it('should not cover a broader or sibling scope, nor a same-stem-different-segment target', () => {
+    expect(prefixCovers('Foo.Bar', 'Foo')).toBe(false); // narrower can't cover broader
+    expect(prefixCovers('Foo', '')).toBe(false); // 'Foo' can't cover clear-all
+    expect(prefixCovers('Foo', 'Bar')).toBe(false); // siblings
+    expect(prefixCovers('Foo', 'FooBar')).toBe(false); // segment-aware, not raw startsWith
   });
 });

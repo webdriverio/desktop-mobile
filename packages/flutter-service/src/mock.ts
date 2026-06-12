@@ -145,22 +145,21 @@ export async function createFlutterMock(
   mock.mockReturnThis = () => Promise.reject(notSupported(target, 'mockReturnThis'));
 
   mock.mockClear = async () => {
-    try {
-      await ext('ext.wdio.clearMock');
-    } finally {
-      outerClear();
-    }
+    // Mirror the clear to the outer mock only after the inner VM clear succeeds. If the inner call
+    // fails, clearing the outer + bumping the epoch anyway would diverge from the (still-populated)
+    // inner, and a later update() would read the stale calls straight back in — a "resurrection".
+    await ext('ext.wdio.clearMock');
+    outerClear();
     return mock;
   };
 
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
-    try {
-      await ext('ext.wdio.resetMock');
-    } finally {
-      outerClear();
-      outerMock.mockName(currentName);
-    }
+    // Success-only, for the same reason as mockClear: don't clear/epoch-bump the outer when the
+    // inner reset failed, or a later update() resurrects the stale calls.
+    await ext('ext.wdio.resetMock');
+    outerClear();
+    outerMock.mockName(currentName);
     return mock;
   };
 

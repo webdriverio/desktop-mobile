@@ -17,6 +17,21 @@ function matchesPrefix(target: string, prefix?: string): boolean {
   return target === base || target.startsWith(`${base}.`);
 }
 
+/**
+ * Does `broaderPrefix`'s scope contain `narrowerPrefix`'s scope — i.e. would a bulk op at
+ * `broaderPrefix` already touch every target `narrowerPrefix` would? Uses the same segment-aware
+ * semantics as {@link matchesPrefix} (an empty/undefined `broaderPrefix` = all targets), so it
+ * recognises containment, not just an exact-prefix match (`''`/`'Foo'` covers `'Foo.Bar'`).
+ */
+export function prefixCovers(broaderPrefix: string | undefined, narrowerPrefix: string | undefined): boolean {
+  const narrowerBase = !narrowerPrefix
+    ? ''
+    : narrowerPrefix.endsWith('.')
+      ? narrowerPrefix.slice(0, -1)
+      : narrowerPrefix;
+  return matchesPrefix(narrowerBase, broaderPrefix);
+}
+
 async function forEachMock(
   store: FlutterMockStore,
   prefix: string | undefined,
