@@ -24,13 +24,33 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - name: Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: '24'
+
+      - name: Build packages
+        run: pnpm turbo run build --filter=@wdio/tauri-service... --filter=@wdio/tauri-plugin
+
+      # Pack workspace packages to tarballs so the container only receives pre-built
+      # artefacts and does not need the full workspace toolchain (Node >=23.6 .ts
+      # execution, Turbo, etc.) -- root cause of the Node-version breakage (#350).
+      - name: Pack tarballs
+        run: |
+          mkdir -p dist/tarballs
+          for pkg in tauri-service tauri-plugin native-core native-spy native-types native-utils; do
+            pnpm pack -C packages/$pkg --pack-destination "$(pwd)/dist/tarballs"
+          done
+          echo "Packed tarballs:"
+          ls -lh dist/tarballs/
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
       - name: Run tests using test.sh
         run: |
           cd fixtures/package-tests/tauri-app/docker
-          ./test.sh ${{ inputs.distro }} test
+          TARBALLS_DIR="$(pwd)/../../../../dist/tarballs" ./test.sh ${{ inputs.distro }} test
 
       - name: Copy logs to workspace
         if: always()
