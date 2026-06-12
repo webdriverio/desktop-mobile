@@ -1,0 +1,406 @@
+/// WebdriverIO Flutter service contract.
+///
+/// The app-side half of `browser.flutter.mock.*`. Dart has no runtime monkeypatch, so
+/// mocking is cooperative: the app routes its DI seams through [wdioRegistry] and calls
+/// [enableWdioMocking] once at startup. `@wdio/flutter-service` then drives the registry
+/// over the Dart VM Service via the `ext.wdio.*` service extensions.
+///
+/// ```dart
+/// void main() {
+///   enableFlutterDriverExtension(); // initializes the binding
+///   enableWdioMocking();            // register ext.wdio.* (call AFTER, before runApp)
+///   runApp(const MyApp());
+/// }
+///
+/// class GreetingService {
+///   Future<String> greet(String name) =>
+///       wdioRegistry.interceptAsync('GreetingService.greet', [name], () async => 'hello $name');
+/// }
+/// ```
+library;
+
+import 'dart:async';
+import 'dart:convert';
+import 'dart:developer' as developer;
+
+int _invocationCounter = 0;
+
+/// Broadcast bus backing `browser.flutter.emitEvent`. The app opts in by listening to
+/// [wdioEvents].stream (e.g. to drive navigation or feature flags from a test); if nothing
+/// listens, emitted events are simply dropped.
+class WdioEventBus {
+  final StreamController<Map<String, dynamic>> _controller = StreamController.broadcast();
+
+  /// Events emitted by the test, as `{ 'name': String, 'payload': dynamic }`.
+  Stream<Map<String, dynamic>> get stream => _controller.stream;
+
+  void emit(String name, dynamic payload) => _controller.add({'name': name, 'payload': payload});
+
+  /// Close the underlying controller. The [wdioEvents] singleton normally lives for the whole app
+  /// run (the OS reclaims it on exit), so this is only needed when a host tears the bus down
+  /// explicitly — e.g. a widget test — to avoid leaving the broadcast controller open.
+  Future<void> dispose() => _controller.close();
+}
+
+/// The single event-bus instance the app subscribes to.
+final WdioEventBus wdioEvents = WdioEventBus();
+
+/// Cast a JSON-decoded mock value to the seam's return type `T`.
+///
+/// - null: returned only if `T` is nullable; for a non-nullable `T` (e.g. mockReturnValue(undefined)
+///   on a `String`-returning seam) throw a clear ArgumentError instead of the cryptic
+///   "Null check operator used on a null value" the bare `null as T` would raise.
+/// - numbers: coerce between int/double first — `jsonDecode` yields `int` for whole numbers, so a
+///   `double`-typed seam would otherwise hit `int as double` (throws in Dart).
+/// - everything else: a plain cast.
+T _castMockValue<T>(dynamic value) {
+  if (value == null) {
+    if (null is T) return null as T;
+    throw ArgumentError(
+      "wdio_flutter: a null mock value can't satisfy non-nullable return type '$T' — "
+      'mockReturnValue(undefined)/null was used on a non-nullable seam; mock a concrete value.',
+    );
+  }
+  if (value is num) {
+    // JSON has no int/double distinction (mockReturnValue(3.0) serialises as 3), so coerce to
+    // whatever numeric type T expects. Test assignability with `is T` rather than `T == double`,
+    // which is false for the NULLABLE types double?/int? and would let `3 as double?` crash.
+    // The explicit `as T` is required: `x is T` does NOT statically promote a `double`/`int` local
+    // to the type variable T, so a bare `return asDouble` fails to compile — the cast is runtime-
+    // checked but safe here, since the `is T` guard just confirmed the type matches.
+    if (value is T) return value as T; // already the right numeric type (incl. num / num?)
+    final asDouble = value.toDouble();
+    if (asDouble is T) return asDouble as T; // double / double?
+    final asInt = value.toInt();
+    if (asInt is T) return asInt as T; // int / int?
+  }
+  return value as T;
+}
+
+class _MockEntry {
+  /// Default mocked value (`{kind, value}`), or null when not mocked.
+  Map<String, dynamic>? value;
+
+  /// Queued one-shot values (FIFO), consumed before the default.
+  final List<Map<String, dynamic>> onceQueue = [];
+
+  final List<List<dynamic>> calls = [];
+  final List<Map<String, dynamic>> results = [];
+  final List<int> invocationCallOrder = [];
+
+  /// Bumped by every clearMock/resetMock. An interceptAsync slot snapshots this when reserved; a
+  /// changed generation at write-back time means the buffers were cycled mid-flight, so the slot
+  /// now belongs to a different lifecycle (possibly a fresh call) and the stale result is dropped.
+  int generation = 0;
+
+  /// Take the active mock spec for the next call (a queued once-value wins), or null.
+  Map<String, dynamic>? takeValue() {
+    if (onceQueue.isNotEmpty) {
+      return onceQueue.removeAt(0);
+    }
+    return value;
+  }
+
+  bool get isMocked => value != null || onceQueue.isNotEmpty;
+}
+
+/// The registry the app's seams route through, and the service drives over `ext.wdio.*`.
+class WdioMockRegistry {
+  final Map<String, _MockEntry> _entries = {};
+
+  _MockEntry _entry(String target) => _entries.putIfAbsent(target, () => _MockEntry());
+
+  void _record(_MockEntry entry, List<dynamic> args) {
+    entry.calls.add(args);
+    entry.invocationCallOrder.add(_invocationCounter++);
+  }
+
+  /// Route a synchronous seam: records the call, returns the mocked value if one is set
+  /// (`return` kind; `reject` throws), else the real implementation.
+  T intercept<T>(String target, List<dynamic> args, T Function() real) {
+    final entry = _entry(target);
+    _record(entry, args);
+    final spec = entry.takeValue();
+    if (spec == null) {
+      // Record a 'throw' result too if the real impl raises, so calls/results stay 1:1
+      // (the WDIO outer mock's update() relies on that invariant).
+      try {
+        final value = real();
+        entry.results.add({'type': 'return', 'value': value});
+        return value;
+      } catch (error) {
+        entry.results.add({'type': 'throw', 'value': error.toString()});
+        rethrow;
+      }
+    }
+    if (spec['kind'] == 'reject') {
+      entry.results.add({'type': 'throw', 'value': spec['value']});
+      throw _WdioMockException(spec['value']);
+    }
+    final value = _castMockValue<T>(spec['value']);
+    entry.results.add({'type': 'return', 'value': value});
+    return value;
+  }
+
+  /// Write an interceptAsync result back by its reserved index, but only if the entry hasn't been
+  /// cycled since the slot was reserved (`generation`). A bare bounds check alone is insufficient:
+  /// after a clearMock empties the buffers, a NEW call to the same seam re-reserves index 0, so the
+  /// old call's late write-back would pass `index < length` and clobber the new call's slot —
+  /// leaving calls[0] (new args) misaligned with results[0] (old result). The generation guard drops
+  /// any write-back whose lifecycle ended, which also covers the shrunk-buffer RangeError case.
+  void _writeResult(_MockEntry entry, int index, int generation, Map<String, dynamic> result) {
+    if (entry.generation == generation && index < entry.results.length) {
+      entry.results[index] = result;
+    }
+  }
+
+  /// Route an asynchronous (Future-returning) seam: supports `return`, `resolve`, `reject`.
+  Future<T> interceptAsync<T>(String target, List<dynamic> args, Future<T> Function() real) async {
+    final entry = _entry(target);
+    // Reserve this call's slot synchronously (before any await) so concurrent calls to the same
+    // seam keep calls[i] ↔ results[i] aligned even if their futures complete out of order — the
+    // result is written back by index, not appended on completion.
+    final index = entry.calls.length;
+    // Snapshot the lifecycle: if a clearMock/resetMock cycles the entry while real() is awaited,
+    // this slot is invalidated and the late write-back must be dropped (see _writeResult).
+    final generation = entry.generation;
+    entry.calls.add(args);
+    entry.invocationCallOrder.add(_invocationCounter++);
+    // 'incomplete' is the Vitest-compatible marker for an in-flight call: if update() reads
+    // getCalls before this future settles, the outer mock surfaces it as `{ type: 'incomplete' }`
+    // (matching Vitest), then it's overwritten with the settled result by index below.
+    entry.results.add({'type': 'incomplete', 'value': null});
+    final spec = entry.takeValue();
+    if (spec == null) {
+      try {
+        final value = await real();
+        _writeResult(entry, index, generation, {'type': 'return', 'value': value});
+        return value;
+      } catch (error) {
+        _writeResult(entry, index, generation, {'type': 'throw', 'value': error.toString()});
+        rethrow;
+      }
+    }
+    if (spec['kind'] == 'reject') {
+      _writeResult(entry, index, generation, {'type': 'throw', 'value': spec['value']});
+      throw _WdioMockException(spec['value']);
+    }
+    final value = _castMockValue<T>(spec['value']);
+    _writeResult(entry, index, generation, {'type': 'return', 'value': value});
+    return value;
+  }
+
+  /// Set a mocked value for `target`. `spec` is `{kind, value, once}` from the service.
+  void setMock(String target, Map<String, dynamic> spec) {
+    final entry = _entry(target);
+    if (spec['once'] == true) {
+      entry.onceQueue.add(spec);
+    } else {
+      entry.value = spec;
+    }
+  }
+
+  /// Read the recorded call data for `target` (for the outer mock's update()).
+  Map<String, dynamic> getCalls(String target) {
+    final entry = _entries[target];
+    if (entry == null) {
+      return {'calls': [], 'results': [], 'invocationCallOrder': []};
+    }
+    return {
+      'calls': entry.calls,
+      'results': entry.results,
+      'invocationCallOrder': entry.invocationCallOrder,
+    };
+  }
+
+  /// Clear the recorded call data for `target` (mockClear) — keep the mocked value.
+  void clearMock(String target) {
+    final entry = _entries[target];
+    if (entry == null) return;
+    // Bump first: any interceptAsync awaiting real() snapshotted the old generation, so its late
+    // write-back is now recognised as stale and dropped instead of clobbering a fresh call's slot.
+    entry.generation++;
+    entry.calls.clear();
+    entry.results.clear();
+    entry.invocationCallOrder.clear();
+  }
+
+  /// Clear value + call data for `target` (mockReset).
+  void resetMock(String target) {
+    final entry = _entries[target];
+    if (entry == null) return;
+    entry.value = null;
+    entry.onceQueue.clear();
+    clearMock(target);
+  }
+
+  /// Remove `target` from the registry entirely (mockRestore).
+  void restoreMock(String target) {
+    _entries.remove(target);
+  }
+}
+
+class _WdioMockException implements Exception {
+  _WdioMockException(this.value);
+  final dynamic value;
+  @override
+  String toString() => 'WdioMockException: $value';
+}
+
+/// The single registry instance the app wires its seams to.
+final WdioMockRegistry wdioRegistry = WdioMockRegistry();
+
+/// The registry backing `browser.flutter.execute`. Dart is AOT-compiled, so there's no runtime
+/// source eval under a bare Appium launch — instead the app registers named handlers here and the
+/// test invokes them by name (`browser.flutter.execute('<name>', ...args)`), the same cooperative
+/// model as mocking. Arbitrary Dart-expression eval is an opt-in path (attach a Dart compiler);
+/// see the package README.
+///
+/// ```dart
+/// wdioHandlers.register('readCounter', () => counter);
+/// wdioHandlers.register('add', (int a, int b) => a + b);
+/// ```
+class WdioHandlerRegistry {
+  final Map<String, Function> _handlers = {};
+
+  /// Register a named handler, invokable via `browser.flutter.execute('<name>', ...args)`. The
+  /// handler may be sync or async (return a `Future`); positional args arrive JSON-decoded.
+  ///
+  /// Args are matched positionally with no type coercion, so the parameter types must accept the
+  /// JSON-decoded values. JSON numbers decode to Dart `int` unless fractional (`2` → `int`,
+  /// `2.0` → `double`) — type numeric params as `num` to accept either form.
+  void register(String name, Function handler) => _handlers[name] = handler;
+
+  /// Remove a registered handler.
+  void unregister(String name) => _handlers.remove(name);
+
+  /// Whether a handler is registered for `name`.
+  bool has(String name) => _handlers.containsKey(name);
+
+  /// The names of all registered handlers — surfaced in a "no handler" error's suggestions.
+  List<String> get names => _handlers.keys.toList();
+
+  /// Invoke the handler for `name` with JSON-decoded positional `args`, awaiting a `Future` result.
+  Future<dynamic> invoke(String name, List<dynamic> args) async {
+    final handler = _handlers[name];
+    if (handler == null) {
+      throw ArgumentError("wdio_flutter: no execute handler registered for '$name'");
+    }
+    final dynamic result;
+    try {
+      result = Function.apply(handler, args);
+    } on NoSuchMethodError {
+      // Wrong positional arity — Function.apply's raw NoSuchMethodError is opaque, so name the cause.
+      throw ArgumentError(
+        "wdio_flutter: execute handler '$name' could not be called with ${args.length} arg(s) — "
+        'check its parameter count.',
+      );
+    } on TypeError {
+      // Arg types don't match the handler's parameters. The usual culprit is numeric: JSON numbers
+      // decode to Dart int unless fractional (2 → int, 2.0 → double) — type numeric params as `num`.
+      throw ArgumentError(
+        "wdio_flutter: execute handler '$name' rejected the arg types — JSON numbers arrive as Dart "
+        'int unless fractional (2 → int, 2.0 → double); type numeric params as `num` to accept both.',
+      );
+    }
+    return result is Future ? await result : result;
+  }
+}
+
+/// The single execute-handler registry instance the app registers handlers on.
+final WdioHandlerRegistry wdioHandlers = WdioHandlerRegistry();
+
+bool _enabled = false;
+
+/// Register the `ext.wdio.*` Dart VM service extensions.
+///
+/// Call once at startup, AFTER `enableFlutterDriverExtension()` (which initializes the
+/// binding) and BEFORE `runApp()`. Idempotent.
+void enableWdioMocking() {
+  if (_enabled) return;
+  _enabled = true;
+
+  developer.registerExtension('ext.wdio.setMock', (method, params) async {
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    final spec = jsonDecode(params['value'] ?? '{}') as Map<String, dynamic>;
+    wdioRegistry.setMock(target, spec);
+    return _ok();
+  });
+
+  developer.registerExtension('ext.wdio.getCalls', (method, params) async {
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    // toEncodable: a seam's real return value (recorded in results) or a call arg may be a
+    // non-JSON object (a custom class instance); fall back to its toString so getCalls never
+    // throws JsonUnsupportedObjectError. Such values aren't deep-comparable test-side, but the
+    // call is still recorded — mock assertions target serialisable values.
+    return developer.ServiceExtensionResponse.result(
+      jsonEncode(wdioRegistry.getCalls(target), toEncodable: (Object? o) => o.toString()),
+    );
+  });
+
+  developer.registerExtension('ext.wdio.emitEvent', (method, params) async {
+    final name = params['name'];
+    if (name == null) return _missingParam('name');
+    final payload = params['payload'] != null ? jsonDecode(params['payload']!) : null;
+    wdioEvents.emit(name, payload);
+    return _ok();
+  });
+
+  developer.registerExtension('ext.wdio.clearMock', (method, params) async {
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    wdioRegistry.clearMock(target);
+    return _ok();
+  });
+
+  developer.registerExtension('ext.wdio.resetMock', (method, params) async {
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    wdioRegistry.resetMock(target);
+    return _ok();
+  });
+
+  developer.registerExtension('ext.wdio.restoreMock', (method, params) async {
+    final target = params['target'];
+    if (target == null) return _missingParam('target');
+    wdioRegistry.restoreMock(target);
+    return _ok();
+  });
+
+  developer.registerExtension('ext.wdio.invoke', (method, params) async {
+    final name = params['name'];
+    if (name == null) return _missingParam('name');
+    // Signal not-registered as `{found: false}` (not an error), with the registered names so the
+    // service's "no handler" error can list them (catching typos / a forgotten register()).
+    if (!wdioHandlers.has(name)) {
+      return developer.ServiceExtensionResponse.result(
+        jsonEncode({'found': false, 'registered': wdioHandlers.names}),
+      );
+    }
+    final args = params['args'] != null ? jsonDecode(params['args']!) as List<dynamic> : <dynamic>[];
+    try {
+      final value = await wdioHandlers.invoke(name, args);
+      // toEncodable: a handler may return a non-JSON object; fall back to toString (as getCalls does)
+      // so invoke never throws JsonUnsupportedObjectError — such values aren't deep-comparable
+      // test-side, but assertions target serialisable values.
+      return developer.ServiceExtensionResponse.result(
+        jsonEncode({'found': true, 'value': value}, toEncodable: (Object? o) => o.toString()),
+      );
+    } catch (error) {
+      return developer.ServiceExtensionResponse.result(
+        jsonEncode({'found': true, 'error': error.toString()}),
+      );
+    }
+  });
+}
+
+developer.ServiceExtensionResponse _ok() =>
+    developer.ServiceExtensionResponse.result(jsonEncode({'ok': true}));
+
+developer.ServiceExtensionResponse _missingParam(String name) =>
+    developer.ServiceExtensionResponse.error(
+      developer.ServiceExtensionResponse.invalidParams,
+      jsonEncode({'error': "missing required param '$name'"}),
+    );

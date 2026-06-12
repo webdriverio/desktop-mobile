@@ -1,0 +1,112 @@
+// E2E fixture app for @wdio/flutter-service.
+//
+// Exercises the full convergent surface the e2e specs drive (PR4 Android / PR5 iOS):
+//   - find/tap        : ValueKey('increment') button + ValueKey('counter') text
+//   - mock            : GreetingService.greet routed through wdioRegistry (Tier-2 seam)
+//   - execute         : named handlers registered on wdioHandlers (cooperative, compile-free)
+//   - emitEvent       : listens on wdioEvents.stream and reflects the last event into the UI
+//
+// Startup order matters: enableFlutterDriverExtension() (initialise the binding) then
+// enableWdioMocking() (register ext.wdio.*) BEFORE runApp().
+
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_driver/driver_extension.dart';
+import 'package:wdio_flutter/wdio_flutter.dart';
+
+/// Returned by the `marker` execute handler.
+const String fixtureMarker = 'wdio-flutter-fixture';
+
+void main() {
+  enableFlutterDriverExtension();
+  enableWdioMocking();
+  // execute handlers exercised by execute.spec.ts — sync (value/args/bool) + async.
+  wdioHandlers.register('marker', () => fixtureMarker);
+  wdioHandlers.register('add', (int a, int b) => a + b);
+  wdioHandlers.register('bindingReady', () => WidgetsBinding.instance.toString().isNotEmpty);
+  wdioHandlers.register('greetAsync', (String name) async => 'hi $name');
+  runApp(const WdioFixtureApp());
+}
+
+/// A mockable seam: the app calls it through the registry, so `browser.flutter.mock(...)`
+/// can override its return value without the app knowing.
+class GreetingService {
+  Future<String> greet(String name) =>
+      wdioRegistry.interceptAsync('GreetingService.greet', [name], () async => 'Hello, $name!');
+}
+
+class WdioFixtureApp extends StatelessWidget {
+  const WdioFixtureApp({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const MaterialApp(
+      title: 'WDIO Flutter Fixture',
+      home: HomeScreen(),
+    );
+  }
+}
+
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  final GreetingService _greeting = GreetingService();
+  int _counter = 0;
+  String _greetingText = '';
+  String _lastEvent = '';
+  StreamSubscription<Map<String, dynamic>>? _eventSub;
+
+  @override
+  void initState() {
+    super.initState();
+    // emitEvent target: reflect the last event into the UI. jsonEncode the payload so object
+    // payloads render deterministically (e.g. {"path":"/x"}) for stable E2E assertions, rather
+    // than Dart's Map.toString ({path: /x}).
+    _eventSub = wdioEvents.stream.listen((event) {
+      setState(() => _lastEvent = '${event['name']}:${jsonEncode(event['payload'])}');
+    });
+  }
+
+  @override
+  void dispose() {
+    _eventSub?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _increment() async {
+    final greeting = await _greeting.greet('WDIO');
+    setState(() {
+      _counter += 1;
+      _greetingText = greeting;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('WDIO Flutter Fixture')),
+      body: Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: <Widget>[
+            Text('$_counter', key: const ValueKey('counter')),
+            Text(_greetingText, key: const ValueKey('greeting')),
+            Text(_lastEvent, key: const ValueKey('lastEvent')),
+          ],
+        ),
+      ),
+      floatingActionButton: FloatingActionButton(
+        key: const ValueKey('increment'),
+        onPressed: _increment,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+}

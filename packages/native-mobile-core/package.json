@@ -1,0 +1,78 @@
+{
+  "name": "@wdio/native-mobile-core",
+  "version": "1.0.0",
+  "description": "Shared Appium-mobile launcher, device pool, capability prep, contexts, deeplink, and device-log capture for WebdriverIO native mobile services (React Native, Flutter)",
+  "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/native-mobile-core",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": [
+      {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/cjs/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        }
+      },
+      "./dist/cjs/index.js"
+    ]
+  },
+  "engines": {
+    "node": "^18.12.0 || ^20.9.0 || >=22.11.0"
+  },
+  "scripts": {
+    "clean": "shx rm -rf dist coverage .turbo",
+    "build": "node ../../scripts/build-package.ts",
+    "build:watch": "node ../../scripts/build-package.ts --watch",
+    "dev": "pnpm run build:watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "test": "vitest run",
+    "test:unit": "vitest run --config vitest.config.ts",
+    "test:coverage": "vitest run --coverage",
+    "test:watch": "vitest",
+    "lint": "biome check --linter-enabled=true --formatter-enabled=false src/",
+    "lint:fix": "biome check --write --linter-enabled=true --formatter-enabled=false src/"
+  },
+  "dependencies": {
+    "@wdio/native-core": "workspace:*",
+    "@wdio/native-types": "workspace:*",
+    "@wdio/native-utils": "workspace:*",
+    "@wdio/types": "catalog:default",
+    "tslib": "^2.8.1",
+    "webdriverio": "catalog:default"
+  },
+  "devDependencies": {
+    "@types/node": "^25.9.1",
+    "@vitest/coverage-v8": "^4.1.7",
+    "shx": "^0.4.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.7"
+  },
+  "files": [
+    "dist",
+    "LICENSE",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/webdriverio/desktop-mobile.git",
+    "directory": "packages/native-mobile-core"
+  },
+  "keywords": [
+    "webdriverio",
+    "wdio",
+    "appium",
+    "mobile",
+    "internal"
+  ]
+}

@@ -1,0 +1,193 @@
+name: E2E Tests - Flutter (Android)
+# Description: Android-emulator E2E for @wdio/flutter-service.
+#
+# Unlike React Native there's no Metro coupling — a Flutter debug build is self-contained and
+# exposes the Dart VM Service in-app, which @wdio/flutter-service discovers from logcat and
+# reaches via `adb forward`. So this scaffolds the platform project (`flutter create`), builds a
+# debug APK, boots the emulator, and runs the suite — no JS bundle server. The iOS simulator leg
+# lands as a fast-follow (PR5).
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Runner OS (ubuntu-latest)'
+        required: true
+        type: string
+      node-version:
+        description: 'Node.js version'
+        required: true
+        type: string
+      test-type:
+        description: 'Test scenario (standard)'
+        type: string
+        default: 'standard'
+      api-level:
+        description: 'Android API level for the emulator'
+        type: string
+        default: '35'
+      flutter-version:
+        description: 'Flutter SDK version to build the fixture with'
+        type: string
+        default: '3.35.6'
+      build_id:
+        type: string
+        required: false
+      artifact_size:
+        type: string
+        required: false
+      cache_key:
+        type: string
+        required: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+  FIXTURE_DIR: ${{ github.workspace }}/fixtures/e2e-apps/flutter
+
+jobs:
+  e2e:
+    name: Run
+    runs-on: ${{ inputs.os }}
+    # Cap a stuck Flutter build / emulator boot / hung session rather than holding a runner for
+    # the 6h default. Generous enough for a cold Flutter SDK + APK build + emulator boot + suite.
+    timeout-minutes: 60
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      # Reclaim disk before the SDK/emulator/gradle footprint lands — but DO NOT remove
+      # /usr/local/lib/android: this job needs the Android SDK (the electron job removes it).
+      - name: 🧹 Free Disk Space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet || true
+          sudo rm -rf /opt/ghc /usr/local/.ghcup || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL || true
+          sudo rm -rf /usr/share/swift || true
+          sudo rm -rf /usr/local/share/powershell || true
+          sudo rm -rf /usr/local/share/boost || true
+          sudo rm -rf /usr/local/graalvm || true
+          sudo apt-get clean || true
+          sudo docker image prune --all --force || true
+          df -h /
+
+      # KVM acceleration for the x86_64 emulator (ubuntu-latest runners expose /dev/kvm).
+      - name: ⚡ Enable KVM
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # The e2e link-deps resolve against the prebuilt package dist from the build job.
+      - name: 📦 Download Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      # Flutter 3.35 targets JDK 17 (Gradle 8.x) for the Android build.
+      - name: ☕ Setup JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+
+      # Third-party action with secret access (secrets: inherit) → pinned to a full commit SHA,
+      # not a floating tag (matches the android-emulator-runner pin). Bump deliberately.
+      - name: 🐦 Setup Flutter
+        uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2 # v2.23.0
+        with:
+          flutter-version: ${{ inputs.flutter-version }}
+          channel: stable
+          cache: true
+
+      # Scaffold the Android platform project over the source-only fixture, then restore our
+      # lib/main.dart + pubspec.yaml (flutter create can overwrite them) and build a debug APK.
+      # A debug build exposes the Dart VM Service the service attaches to for execute/mock.
+      - name: 🏗️ Scaffold + build debug APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "$FIXTURE_DIR"
+          flutter create --org com.wdio --project-name wdio_flutter_fixture --platforms=android .
+          git checkout -- lib/main.dart pubspec.yaml
+          # The fixture has no native (C/C++) code, so it doesn't need the NDK. flutter create still
+          # writes `ndkVersion = flutter.ndkVersion`, which makes Gradle auto-download the NDK (~1GB)
+          # at build time — a flaky fetch that fails configuration with "Archive is not a ZIP archive"
+          # on a truncated download. Strip the line so no NDK is required.
+          find android -name 'build.gradle*' -exec sed -i '/ndkVersion/d' {} +
+          flutter pub get
+          flutter build apk --debug --target-platform android-x64
+          echo "FLUTTER_APP_PATH=$FIXTURE_DIR/build/app/outputs/flutter-apk/app-debug.apk" >> "$GITHUB_ENV"
+
+      - name: 🔌 Use the goosewobbler appium-flutter-driver fork (getVMServiceUrl)
+        shell: bash
+        # @repo/e2e depends on appium-flutter-driver (node_modules), and `appium driver list
+        # --installed` detects node_modules drivers — so appium loads THAT, not an APPIUM_HOME
+        # install. `appium driver install --source=local/git` therefore can't replace it (and the
+        # fork's driver/ subdir has no root package.json for a git dep). So build the fork and
+        # overwrite the node_modules driver's build/ in place — appium then loads the fork's code
+        # (the getVMServiceUrl command). Interim until getVMServiceUrl is upstreamed/published.
+        run: |
+          set -euo pipefail
+          git clone --depth 1 -b feat/android-vm-service-port \
+            https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
+          ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
+          AFD=$( cd "$GITHUB_WORKSPACE/e2e" && node -e 'process.stdout.write(require("path").dirname(require.resolve("appium-flutter-driver/package.json")))' )
+          echo "Overwriting node_modules appium-flutter-driver at: $AFD"
+          rm -rf "$AFD/build"
+          cp -R "$RUNNER_TEMP/afd/driver/build" "$AFD/build"
+          if grep -q getVMServiceUrl "$AFD/build/lib/commands/execute.js"; then
+            echo "✓ fork getVMServiceUrl present in the loaded driver"
+          else
+            echo "✗ fork overwrite failed — getVMServiceUrl not found"
+            exit 1
+          fi
+
+      - name: 🤖 Run E2E on Android emulator
+        # Third-party action (non-GitHub-owned) → pin to a full commit SHA, not a floating
+        # tag, since secrets: inherit gives this job secret access. Bump deliberately.
+        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        with:
+          api-level: ${{ inputs.api-level }}
+          arch: x86_64
+          target: google_apis
+          profile: pixel_6
+          ram-size: 4096M
+          disable-animations: true
+          emulator-options: -no-snapshot -no-window -gpu swiftshader_indirect -noaudio -no-boot-anim
+          # android-emulator-runner runs this with /usr/bin/sh (dash) — use POSIX-safe `set -eu`,
+          # not `set -euo pipefail` (no pipefail in dash → aborts the script).
+          script: |
+            set -eu
+            pnpm --filter @repo/e2e run test:e2e:flutter
+
+      - name: 📦 Upload Test Logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: e2e-logs-flutter-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
+          path: |
+            e2e/logs/**/*.log
+          retention-days: 30
+          if-no-files-found: warn

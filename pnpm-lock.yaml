@@ -61,7 +61,7 @@ importers:
         version: 22.0.1
       '@releasekit/release':
         specifier: ^0.23.0
-        version: 0.23.0(conventional-commits-parser@6.4.0)(ws@8.21.0)
+        version: 0.23.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
@@ -112,7 +112,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -121,10 +121,10 @@ importers:
     dependencies:
       '@wdio/appium-service':
         specifier: 9.27.1
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/cli':
         specifier: catalog:default
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/dioxus-service':
         specifier: link:../packages/dioxus-service
         version: link:../packages/dioxus-service
@@ -134,12 +134,15 @@ importers:
       '@wdio/electron-service':
         specifier: link:../packages/electron-service
         version: link:../packages/electron-service
+      '@wdio/flutter-service':
+        specifier: link:../packages/flutter-service
+        version: link:../packages/flutter-service
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: catalog:default
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: catalog:default
         version: 9.27.1
@@ -154,7 +157,7 @@ importers:
         version: link:../packages/tauri-service
       '@wdio/visual-service':
         specifier: ^9.2.2
-        version: 9.2.2(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.2.2(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/xvfb':
         specifier: catalog:default
         version: 9.27.1
@@ -166,7 +169,7 @@ importers:
         version: 4.22.4
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
     devDependencies:
       '@crabnebula/tauri-driver':
         specifier: ^2.0.9
@@ -194,13 +197,16 @@ importers:
         version: 9.27.1
       appium:
         specifier: ^3.5.0
-        version: 3.5.0
+        version: 3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      appium-flutter-driver:
+        specifier: ^3.7.0
+        version: 3.7.1(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       appium-uiautomator2-driver:
         specifier: ^7.6.0
-        version: 7.6.0(appium@3.5.0)
+        version: 7.6.0(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       appium-xcuitest-driver:
         specifier: ^11.9.0
-        version: 11.9.0(appium@3.5.0)
+        version: 11.9.0(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -239,13 +245,13 @@ importers:
         version: 25.9.1
       '@wdio/cli':
         specifier: catalog:default
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: catalog:default
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: catalog:default
         version: 9.27.1
@@ -263,7 +269,7 @@ importers:
         version: 5.9.3
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
 
   fixtures/e2e-apps/electron-forge:
     devDependencies:
@@ -275,13 +281,13 @@ importers:
         version: 25.9.1
       '@wdio/cli':
         specifier: catalog:default
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: catalog:default
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: catalog:default
         version: 9.27.1
@@ -296,7 +302,7 @@ importers:
         version: 5.9.3
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
 
   fixtures/e2e-apps/electron-script:
     devDependencies:
@@ -305,13 +311,13 @@ importers:
         version: 25.9.1
       '@wdio/cli':
         specifier: catalog:default
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: catalog:default
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: catalog:default
         version: 9.27.1
@@ -326,7 +332,7 @@ importers:
         version: 5.9.3
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
 
   fixtures/e2e-apps/tauri:
     dependencies:
@@ -351,10 +357,10 @@ importers:
         version: 2.11.2
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.3)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.3)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -375,16 +381,16 @@ importers:
     devDependencies:
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/dioxus-service':
         specifier: workspace:*
         version: link:../../../packages/dioxus-service
       '@wdio/globals':
         specifier: ^9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -412,16 +418,16 @@ importers:
         version: 10.0.10
       '@wdio/cli':
         specifier: 9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/electrobun-service':
         specifier: workspace:*
         version: link:../../../packages/electrobun-service
       '@wdio/globals':
         specifier: 9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: 9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: 9.27.1
         version: 9.27.1
@@ -442,16 +448,16 @@ importers:
         version: 25.9.1
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
       '@wdio/globals':
         specifier: ^9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -481,16 +487,16 @@ importers:
         version: 25.9.1
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
       '@wdio/globals':
         specifier: ^9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -535,16 +541,16 @@ importers:
         version: 25.9.1
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
       '@wdio/globals':
         specifier: ^9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -592,16 +598,16 @@ importers:
         version: 25.9.1
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
       '@wdio/globals':
         specifier: ^9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -637,16 +643,16 @@ importers:
         version: 7.7.1
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
       '@wdio/globals':
         specifier: ^9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -679,16 +685,16 @@ importers:
         version: 7.7.1
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
       '@wdio/globals':
         specifier: ^9.27.1
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -728,10 +734,10 @@ importers:
         version: 2.11.2
       '@wdio/cli':
         specifier: ^9.27.1
-        version: 9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)
+        version: 9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       '@wdio/local-runner':
         specifier: ^9.27.1
-        version: 9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/mocha-framework':
         specifier: ^9.27.1
         version: 9.27.1
@@ -758,7 +764,7 @@ importers:
         version: 14.0.3
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       find-up-simple:
         specifier: ^1.0.1
         version: 1.0.1
@@ -792,7 +798,7 @@ importers:
         version: 4.22.4
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/dioxus-bridge:
     devDependencies:
@@ -807,7 +813,7 @@ importers:
         version: 0.28.0
       happy-dom:
         specifier: ^20.9.0
-        version: 20.9.0
+        version: 20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
@@ -816,13 +822,13 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/dioxus-service:
     dependencies:
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/logger':
         specifier: catalog:default
         version: 9.18.0
@@ -846,7 +852,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -855,7 +861,7 @@ importers:
         version: 2.8.1
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
     devDependencies:
       '@types/debug':
         specifier: ^4.1.12
@@ -874,13 +880,13 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/electrobun-service:
     dependencies:
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/logger':
         specifier: catalog:default
         version: 9.18.0
@@ -907,7 +913,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -916,7 +922,7 @@ importers:
         version: 2.8.1
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
     devDependencies:
       '@types/debug':
         specifier: ^4.1.12
@@ -935,7 +941,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/electron-cdp-bridge:
     dependencies:
@@ -947,7 +953,7 @@ importers:
         version: 1.1.0
       ws:
         specifier: ^8.21.0
-        version: 8.21.0
+        version: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     devDependencies:
       '@types/node':
         specifier: ^25.9.1
@@ -981,7 +987,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/electron-service:
     dependencies:
@@ -999,7 +1005,7 @@ importers:
         version: link:../electron-cdp-bridge
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/logger':
         specifier: catalog:default
         version: 9.18.0
@@ -1017,7 +1023,7 @@ importers:
         version: 6.1.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       deepmerge-ts:
         specifier: ^7.1.5
         version: 7.1.5
@@ -1035,13 +1041,13 @@ importers:
         version: 7.2.0
       puppeteer-core:
         specifier: ^25.1.0
-        version: 25.1.0
+        version: 25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       recast:
         specifier: ^0.23.9
         version: 0.23.11
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       yaml:
         specifier: ^2.9.0
         version: 2.9.0
@@ -1096,7 +1102,59 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/flutter-service:
+    dependencies:
+      '@wdio/native-core':
+        specifier: workspace:*
+        version: link:../native-core
+      '@wdio/native-mobile-core':
+        specifier: workspace:*
+        version: link:../native-mobile-core
+      '@wdio/native-spy':
+        specifier: workspace:*
+        version: link:../native-spy
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../native-types
+      '@wdio/native-utils':
+        specifier: workspace:*
+        version: link:../native-utils
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.27.1
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
+      webdriverio:
+        specifier: catalog:default
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
+      ws:
+        specifier: ^8.21.0
+        version: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.3
+      '@types/ws':
+        specifier: ^8.18.1
+        version: 8.18.1
+      '@vitest/coverage-v8':
+        specifier: ^4.1.7
+        version: 4.1.7(vitest@4.1.7)
+      shx:
+        specifier: ^0.4.0
+        version: 0.4.0
+      tsx:
+        specifier: ^4.22.3
+        version: 4.22.4
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@25.9.3)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.3)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/native-cdp-bridge:
     dependencies:
@@ -1108,7 +1166,7 @@ importers:
         version: 1.1.0
       ws:
         specifier: ^8.21.0
-        version: 8.21.0
+        version: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     devDependencies:
       '@types/node':
         specifier: ^25.9.1
@@ -1142,7 +1200,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/native-core:
     dependencies:
@@ -1157,7 +1215,7 @@ importers:
         version: link:../native-utils
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -1182,7 +1240,44 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+
+  packages/native-mobile-core:
+    dependencies:
+      '@wdio/native-core':
+        specifier: workspace:*
+        version: link:../native-core
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../native-types
+      '@wdio/native-utils':
+        specifier: workspace:*
+        version: link:../native-utils
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.27.1
+      tslib:
+        specifier: ^2.8.1
+        version: 2.8.1
+      webdriverio:
+        specifier: catalog:default
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
+    devDependencies:
+      '@types/node':
+        specifier: ^25.9.1
+        version: 25.9.3
+      '@vitest/coverage-v8':
+        specifier: ^4.1.7
+        version: 4.1.7(vitest@4.1.7)
+      shx:
+        specifier: ^0.4.0
+        version: 0.4.0
+      typescript:
+        specifier: ^5.9.3
+        version: 5.9.3
+      vitest:
+        specifier: ^4.1.7
+        version: 4.1.7(@types/node@25.9.3)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.3)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/native-spy:
     devDependencies:
@@ -1200,7 +1295,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/native-types:
     devDependencies:
@@ -1215,7 +1310,7 @@ importers:
         version: 25.9.1
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/native-spy':
         specifier: workspace:*
         version: link:../native-spy
@@ -1236,7 +1331,7 @@ importers:
         version: 5.9.3
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
 
   packages/native-utils:
     dependencies:
@@ -1245,7 +1340,7 @@ importers:
         version: 9.18.0
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
@@ -1285,7 +1380,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/react-native-service:
     dependencies:
@@ -1295,6 +1390,9 @@ importers:
       '@wdio/native-core':
         specifier: workspace:*
         version: link:../native-core
+      '@wdio/native-mobile-core':
+        specifier: workspace:*
+        version: link:../native-mobile-core
       '@wdio/native-spy':
         specifier: workspace:*
         version: link:../native-spy
@@ -1312,7 +1410,7 @@ importers:
         version: 2.8.1
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
     devDependencies:
       '@types/node':
         specifier: ^25.9.1
@@ -1331,7 +1429,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/tauri-plugin:
     dependencies:
@@ -1365,13 +1463,13 @@ importers:
         version: 5.9.3
       vitest:
         specifier: 4.1.7
-        version: 4.1.7(@types/node@25.9.3)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.3)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.3)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.3)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   packages/tauri-service:
     dependencies:
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+        version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/logger':
         specifier: catalog:default
         version: 9.18.0
@@ -1395,7 +1493,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -1404,7 +1502,7 @@ importers:
         version: 2.8.1
       webdriverio:
         specifier: catalog:default
-        version: 9.27.1(puppeteer-core@25.1.0)
+        version: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
     devDependencies:
       '@babel/parser':
         specifier: ^7.29.7
@@ -1429,7 +1527,7 @@ importers:
         version: 5.9.3
       vitest:
         specifier: ^4.1.7
-        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+        version: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
 packages:
 
@@ -3633,6 +3731,9 @@ packages:
   '@standard-schema/spec@1.1.0':
     resolution: {integrity: sha512-l2aFy5jALhniG5HgqrD6jXLi/rUWrKvqN/qJx6yoJsgKhblVd+iqqU4RCXavm/jPityDo5TCvKMnpjKnOriy0w==}
 
+  '@swc/helpers@0.5.23':
+    resolution: {integrity: sha512-5lSsMOTXURePglDfvuAQUqkGek9Hg2kksOYay2m0+XR++b2NWYL/4sWyuvVBIs8oKnJaxkdi9whaL/sqN13afw==}
+
   '@szmarczak/http-timer@4.0.6':
     resolution: {integrity: sha512-4BAffykYOgO+5nzBWYwE3W90sBgLJoUPRWWcL8wlyiM8IB8ipJz3UMJ9KXQd1RKQXpKp8Tutn80HZtWsu2u76w==}
     engines: {node: '>=10'}
@@ -4310,8 +4411,25 @@ packages:
     resolution: {integrity: sha512-wSt8iBNMvyB5tz7bsxNjcp74RMmsNN3/o6qOafda7PcuFzhby88It1NwRyvXaSlLJFFi2Hnu25MwhD+Lmwj96g==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
 
+  appium-flutter-driver@3.7.1:
+    resolution: {integrity: sha512-9y2WrDPu1j3gM4JWKyqdaR8ihiQqPC6q5opTi7+fcT5xEe5Hy4UAD3YMwjhYLfEVKNsKfjG85JuGLKwSNVOqOQ==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
+    peerDependencies:
+      appium: ^3.0.0
+
+  appium-flutter-finder@0.2.0:
+    resolution: {integrity: sha512-klwh74phzhU6OhSf/arHVHP7AF6fyQGZ2GgzX/wO+gPKIS+rNWOQgizPPimki3H4goB7wB0TaicamN/DCqLmRA==}
+
+  appium-idb@2.0.10:
+    resolution: {integrity: sha512-k25bH3dWbir75iU51e4qMwN6UURcX/KY7zz7e8mZ5ESOVdwfeX4Tp7XxbvnIweHFPsbGPPBf7EmazBYC5a+/FQ==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
+
   appium-ios-device@3.1.14:
     resolution: {integrity: sha512-fjqh1oPYQ2C4v96OLhom3HCK6j2NRO0TYOgZXtT9vEEjug/Z25NAjxlLnQLBe7aAHxR2c0V/SyFmLTEBs/Ih5A==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
+
+  appium-ios-remotexpc@0.45.2:
+    resolution: {integrity: sha512-ff0cWRGHbamv6vXN3zuLYhWayebF6JIyc0fBctNes+81fFgnpt1bW7dFCRCbvCjh/iLvR5Kq13UZAmO/fYZ20Q==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
 
   appium-ios-remotexpc@2.3.0:
@@ -4340,6 +4458,10 @@ packages:
     resolution: {integrity: sha512-2ggpibmF0IJLUFOmTo4K9MlcAQLEkNevMJ3wahJHVP/qg28hX73V+tD3tLY6vwynpPNaUCXClqS+Q5gv+5UicQ==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
 
+  appium-webdriveragent@11.4.3:
+    resolution: {integrity: sha512-yjNow/So/nVXbdhuFSRkV+bMXnmmqKc/v6AcEWbBEZ4RuAPYvoD+T4FnEL4eEVfLcJmP8QKeQ6xz8O57HFeIGw==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
+
   appium-webdriveragent@13.2.3:
     resolution: {integrity: sha512-vHt6sZJF0XalsNIAOsGEU4ClUhxE8rfwN9+TT1WAzelD+ML6+t2xK2lYJUN6CC2Z7sawcghuR3UgZA4lqm9TZg==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
@@ -4347,6 +4469,12 @@ packages:
   appium-xcode@6.2.2:
     resolution: {integrity: sha512-THnFNNPW2M680OzSdyHHcvF46CusrvW+/t+zCvVA+MK/sO1AE22GIHoUScbl8HeRxVI9gf1SsXravNSh8OoNaA==}
     engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
+
+  appium-xcuitest-driver@10.43.1:
+    resolution: {integrity: sha512-MCUSesaNaa2rXP9xLbQmMFV9XmZH2LUK5TO/fD9kiSqQJzT31lxtN+U0elpUgfnu6ZIGkug+MB+x84RQud7Ahg==}
+    engines: {node: ^20.19.0 || ^22.12.0 || >=24.0.0, npm: '>=10'}
+    peerDependencies:
+      appium: ^3.0.0-rc.2
 
   appium-xcuitest-driver@11.9.0:
     resolution: {integrity: sha512-kTs8CJAld8LHZxwAkPTZOoU42m8xY/lfc/2mlHXsAI+jtLWVJpKVC4JbPWtiKRMsLf0A2P8dFe7+yJtn/x8fHA==}
@@ -4592,6 +4720,10 @@ packages:
 
   buffer@6.0.3:
     resolution: {integrity: sha512-FTiCpNxtwiZZHEZbcbTIcZjERVICn9yq/pDFkTl95/AxzD1naBctN7YO68riM/gLSDY7sdrMby8hofADYuuqOA==}
+
+  bufferutil@4.1.0:
+    resolution: {integrity: sha512-ZMANVnAixE6AWWnPzlW2KpUrxhm9woycYvPOo67jWHyFowASTEd9s+QN1EIMsSDtwhIxN4sWE1jotpuDUIgyIw==}
+    engines: {node: '>=6.14.2'}
 
   builder-util-runtime@9.5.1:
     resolution: {integrity: sha512-qt41tMfgHTllhResqM5DcnHyDIWNgzHvuY2jDcYP9iaGpkWxTUzV6GQjDeLnlR1/DtdlcsWQbA7sByMpmJFTLQ==}
@@ -5107,6 +5239,10 @@ packages:
     resolution: {integrity: sha512-ZdzmqwKmECOWJpqefloC5OJy1+WZBBse5+MR88z9g9Zn4VY+WYUkAyojmhzJckH5YbbZGcYIuGAkY5/Ys5OM2Q==}
     engines: {node: '>=8'}
     os: [darwin]
+    hasBin: true
+
+  dnssd@0.4.1:
+    resolution: {integrity: sha512-mEz5Ii+o+k3kYHTXY6fTLOjCwraX8TQowIgUySAbEYuGqtSMbfBc/tvDZ8wGPywnmlLE6/XeXi6qPcAKVTvPUQ==}
     hasBin: true
 
   dom-serializer@2.0.0:
@@ -7506,6 +7642,10 @@ packages:
     resolution: {integrity: sha512-nLTrUKm2UyiL7rlhapu/Zl45FwNgkZGaCpZbIHajDYgwlJCOzLSk+cIPAnsEqV955GjILJnKbdQC1nVPz+gAYQ==}
     engines: {node: '>= 18'}
 
+  rpc-websockets@10.0.1:
+    resolution: {integrity: sha512-hLG078kUh3g6ZDS13pttUGnlTxl6zP5MtWIAJxVb+8lwjDYART7b6zjecDQuAfw8r4gJbPvN+KiVAByMfBZYyQ==}
+    engines: {node: '>=18'}
+
   run-async@4.0.6:
     resolution: {integrity: sha512-IoDlSLTs3Yq593mb3ZoKWKXMNu3UpObxhgA/Xuid5p4bbfi2jdY1Hj0m1K+0/tEuQTxIGMhQDqGjKb7RuxGpAQ==}
     engines: {node: '>=0.12.0'}
@@ -8286,6 +8426,10 @@ packages:
     resolution: {integrity: sha512-PCKbdWw85JsYMvmCv5GH3kXmM66rCd9m1hBEDutPNv94b/pqCMT4NtcKyeWYvLFiE8b+ha1Jdl8XAaUdPn5QTg==}
     engines: {node: '>=8'}
 
+  utf-8-validate@6.0.6:
+    resolution: {integrity: sha512-q3l3P9UtEEiAHcsgsqTgf9PPjctrDWoIXW3NpOHFdRDbLvu4DLIcxHangJ4RLrWkBcKjmcs/6NkerI8T/rE4LA==}
+    engines: {node: '>=6.14.2'}
+
   utf8-byte-length@1.0.5:
     resolution: {integrity: sha512-Xn0w3MtiQ6zoz2vFyUVruaCL53O/DwUvkEeOvj+uulMm0BkUGYWmBYVyElqZaSLhY6ZD0ulfU3aBra2aVT4xfA==}
 
@@ -8985,7 +9129,7 @@ snapshots:
     dependencies:
       '@simple-libs/child-process-utils': 1.0.2
       '@simple-libs/stream-utils': 1.2.0
-      semver: 7.8.2
+      semver: 7.8.4
     optionalDependencies:
       conventional-commits-filter: 5.0.0
       conventional-commits-parser: 6.4.0
@@ -9384,7 +9528,7 @@ snapshots:
       make-fetch-happen: 10.2.1
       nopt: 6.0.0
       proc-log: 2.0.1
-      semver: 7.8.2
+      semver: 7.8.4
       tar: 6.2.1
       which: 2.0.2
     transitivePeerDependencies:
@@ -10386,7 +10530,7 @@ snapshots:
 
   '@jest/pattern@30.0.1':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-regex-util: 30.0.1
 
   '@jest/schemas@30.0.5':
@@ -10399,7 +10543,7 @@ snapshots:
       '@jest/schemas': 30.0.5
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -10723,11 +10867,11 @@ snapshots:
   '@npmcli/fs@2.1.2':
     dependencies:
       '@gar/promisify': 1.1.3
-      semver: 7.8.2
+      semver: 7.8.4
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.4
 
   '@npmcli/move-file@2.0.1':
     dependencies:
@@ -10847,7 +10991,7 @@ snapshots:
       modern-tar: 0.7.6
       yargs: 17.7.2
 
-  '@releasekit/notes@0.23.0(ws@8.21.0)':
+  '@releasekit/notes@0.23.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@anthropic-ai/sdk': 0.95.2(zod@4.4.3)
       '@octokit/request-error': 7.1.0
@@ -10858,7 +11002,7 @@ snapshots:
       handlebars: 4.7.9
       liquidjs: 10.27.0
       minimatch: 10.2.5
-      openai: 6.39.0(ws@8.21.0)(zod@4.4.3)
+      openai: 6.39.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.4.3)
       smol-toml: 1.6.1
       zod: 4.4.3
     transitivePeerDependencies:
@@ -10873,11 +11017,11 @@ snapshots:
       smol-toml: 1.6.1
       zod: 4.4.3
 
-  '@releasekit/release@0.23.0(conventional-commits-parser@6.4.0)(ws@8.21.0)':
+  '@releasekit/release@0.23.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@octokit/rest': 22.0.1
-      '@releasekit/notes': 0.23.0(ws@8.21.0)
+      '@releasekit/notes': 0.23.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@releasekit/publish': 0.23.0
       '@releasekit/version': 0.23.0(conventional-commits-parser@6.4.0)
       chalk: 5.6.2
@@ -11117,6 +11261,10 @@ snapshots:
 
   '@standard-schema/spec@1.1.0': {}
 
+  '@swc/helpers@0.5.23':
+    dependencies:
+      tslib: 2.8.1
+
   '@szmarczak/http-timer@4.0.6':
     dependencies:
       defer-to-connect: 2.0.1
@@ -11223,7 +11371,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.2.0
       '@types/keyv': 3.1.4
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       '@types/responselike': 1.0.3
 
   '@types/chai@5.2.3':
@@ -11247,7 +11395,7 @@ snapshots:
 
   '@types/fs-extra@9.0.13':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/http-cache-semantics@4.2.0': {}
 
@@ -11265,7 +11413,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/minimatch@5.1.2': {}
 
@@ -11275,7 +11423,7 @@ snapshots:
 
   '@types/mute-stream@0.0.4':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/node@16.9.1': {}
 
@@ -11309,7 +11457,7 @@ snapshots:
 
   '@types/plist@3.0.5':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       xmlbuilder: 15.1.1
     optional: true
 
@@ -11317,7 +11465,7 @@ snapshots:
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/semver@7.7.1': {}
 
@@ -11343,7 +11491,7 @@ snapshots:
 
   '@types/ws@8.18.1':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
 
   '@types/yargs-parser@21.0.3': {}
 
@@ -11353,7 +11501,7 @@ snapshots:
 
   '@types/yauzl@2.10.3':
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
     optional: true
 
   '@typescript-eslint/parser@8.59.4(eslint@10.4.0(jiti@2.7.0))(typescript@5.9.3)':
@@ -11431,7 +11579,7 @@ snapshots:
       obug: 2.1.1
       std-env: 4.1.0
       tinyrainbow: 3.1.0
-      vitest: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
 
   '@vitest/eslint-plugin@1.6.17(eslint@10.4.0(jiti@2.7.0))(typescript@5.9.3)(vitest@4.1.7)':
     dependencies:
@@ -11440,7 +11588,7 @@ snapshots:
       eslint: 10.4.0(jiti@2.7.0)
     optionalDependencies:
       typescript: 5.9.3
-      vitest: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
+      vitest: 4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
     transitivePeerDependencies:
       - supports-color
 
@@ -11522,7 +11670,7 @@ snapshots:
 
   '@vscode/sudo-prompt@9.3.2': {}
 
-  '@wdio/appium-service@9.27.1(puppeteer-core@25.1.0)':
+  '@wdio/appium-service@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)':
     dependencies:
       '@wdio/config': 9.27.1
       '@wdio/logger': 9.18.0
@@ -11534,7 +11682,7 @@ snapshots:
       get-port: 7.2.0
       import-meta-resolve: 4.2.0
       tree-kill: 1.2.2
-      webdriverio: 9.27.1(puppeteer-core@25.1.0)
+      webdriverio: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       xpath: 0.0.34
     transitivePeerDependencies:
       - bare-abort-controller
@@ -11545,11 +11693,11 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@wdio/cli@9.27.1(@types/node@25.9.1)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)':
+  '@wdio/cli@9.27.1(@types/node@25.9.1)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)':
     dependencies:
       '@vitest/snapshot': 2.1.9
       '@wdio/config': 9.27.1
-      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/logger': 9.18.0
       '@wdio/protocols': 9.27.1
       '@wdio/types': 9.27.1
@@ -11565,7 +11713,7 @@ snapshots:
       lodash.union: 4.6.0
       read-pkg-up: 10.1.0
       tsx: 4.22.4
-      webdriverio: 9.27.1(puppeteer-core@25.1.0)
+      webdriverio: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       yargs: 17.7.2
     transitivePeerDependencies:
       - '@types/node'
@@ -11578,11 +11726,11 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@wdio/cli@9.27.1(@types/node@25.9.3)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0)':
+  '@wdio/cli@9.27.1(@types/node@25.9.3)(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)':
     dependencies:
       '@vitest/snapshot': 2.1.9
       '@wdio/config': 9.27.1
-      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/logger': 9.18.0
       '@wdio/protocols': 9.27.1
       '@wdio/types': 9.27.1
@@ -11598,7 +11746,7 @@ snapshots:
       lodash.union: 4.6.0
       read-pkg-up: 10.1.0
       tsx: 4.22.4
-      webdriverio: 9.27.1(puppeteer-core@25.1.0)
+      webdriverio: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
       yargs: 17.7.2
     transitivePeerDependencies:
       - '@types/node'
@@ -11632,10 +11780,10 @@ snapshots:
       '@wdio/types': 9.27.1
       chalk: 5.6.2
 
-  '@wdio/globals@9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))':
+  '@wdio/globals@9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))':
     dependencies:
-      expect-webdriverio: 5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(puppeteer-core@25.1.0))
-      webdriverio: 9.27.1(puppeteer-core@25.1.0)
+      expect-webdriverio: 5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
+      webdriverio: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
 
   '@wdio/image-comparison-core@1.2.2':
     dependencies:
@@ -11645,16 +11793,16 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@wdio/local-runner@9.27.1(@wdio/globals@9.27.1)(webdriverio@9.27.1(puppeteer-core@25.1.0))':
+  '@wdio/local-runner@9.27.1(@wdio/globals@9.27.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))':
     dependencies:
       '@types/node': 20.19.41
       '@wdio/logger': 9.18.0
       '@wdio/repl': 9.16.2
-      '@wdio/runner': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+      '@wdio/runner': 9.27.1(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/types': 9.27.1
       '@wdio/xvfb': 9.27.1
       exit-hook: 4.0.0
-      expect-webdriverio: 5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+      expect-webdriverio: 5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       split2: 4.2.0
       stream-buffers: 3.0.3
     transitivePeerDependencies:
@@ -11693,7 +11841,7 @@ snapshots:
 
   '@wdio/repl@9.16.2':
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 20.19.43
 
   '@wdio/reporter@9.27.1':
     dependencies:
@@ -11703,19 +11851,19 @@ snapshots:
       diff: 8.0.4
       object-inspect: 1.13.4
 
-  '@wdio/runner@9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))':
+  '@wdio/runner@9.27.1(bufferutil@4.1.0)(expect-webdriverio@5.6.5)(utf-8-validate@6.0.6)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))':
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 20.19.43
       '@wdio/config': 9.27.1
       '@wdio/dot-reporter': 9.27.1
-      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/logger': 9.18.0
       '@wdio/types': 9.27.1
       '@wdio/utils': 9.27.1
       deepmerge-ts: 7.1.5
-      expect-webdriverio: 5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(puppeteer-core@25.1.0))
-      webdriver: 9.27.1
-      webdriverio: 9.27.1(puppeteer-core@25.1.0)
+      expect-webdriverio: 5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
+      webdriver: 9.27.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      webdriverio: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -11734,7 +11882,7 @@ snapshots:
 
   '@wdio/types@9.27.1':
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 20.19.43
 
   '@wdio/utils@9.27.1':
     dependencies:
@@ -11758,13 +11906,13 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  '@wdio/visual-service@9.2.2(webdriverio@9.27.1(puppeteer-core@25.1.0))':
+  '@wdio/visual-service@9.2.2(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))':
     dependencies:
-      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/image-comparison-core': 1.2.2
       '@wdio/logger': 9.18.0
       '@wdio/types': 9.27.1
-      expect-webdriverio: 5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+      expect-webdriverio: 5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
     transitivePeerDependencies:
       - supports-color
       - webdriverio
@@ -12029,11 +12177,11 @@ snapshots:
       - debug
       - react-native-b4a
 
-  appium-android-driver@13.2.3(appium@3.5.0):
+  appium-android-driver@13.2.3(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       '@appium/support': 7.2.3
       '@colors/colors': 1.6.0
-      appium: 3.5.0
+      appium: 3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       appium-adb: 15.0.0
       appium-chromedriver: 8.4.5
       asyncbox: 6.3.0
@@ -12046,7 +12194,7 @@ snapshots:
       portscanner: 2.2.0
       semver: 7.8.2
       teen_process: 4.1.3
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -12075,6 +12223,43 @@ snapshots:
       - react-native-b4a
       - supports-color
 
+  appium-flutter-driver@3.7.1(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+    dependencies:
+      appium: 3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      appium-android-driver: 13.2.3(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      appium-flutter-finder: 0.2.0
+      appium-ios-device: 3.1.14
+      appium-uiautomator2-driver: 7.6.0(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      appium-xcuitest-driver: 10.43.1(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      asyncbox: 6.3.0
+      bluebird: 3.7.2
+      lodash: 4.18.1
+      portscanner: 2.2.0
+      rpc-websockets: 10.0.1
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - bufferutil
+      - debug
+      - react-native-b4a
+      - supports-color
+      - utf-8-validate
+
+  appium-flutter-finder@0.2.0: {}
+
+  appium-idb@2.0.10:
+    dependencies:
+      '@appium/support': 7.2.3
+      asyncbox: 6.3.0
+      bluebird: 3.7.2
+      lodash: 4.18.1
+      teen_process: 4.1.3
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - debug
+      - react-native-b4a
+
   appium-ios-device@3.1.14:
     dependencies:
       '@appium/support': 7.2.3
@@ -12090,6 +12275,28 @@ snapshots:
       - debug
       - react-native-b4a
       - supports-color
+
+  appium-ios-remotexpc@0.45.2:
+    dependencies:
+      '@appium/strongbox': 1.1.1
+      '@appium/support': 7.2.3
+      '@types/node': 25.9.3
+      '@xmldom/xmldom': 0.9.10
+      appium-ios-tuntap: 0.4.2
+      axios: 1.17.0
+      commander: 14.0.3
+      dnssd: 0.4.1
+      minimatch: 10.2.5
+      node-devicectl: 1.4.0
+      npm-run-all2: 8.0.4
+      path-to-regexp: 8.4.2
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - debug
+      - react-native-b4a
+      - supports-color
+    optional: true
 
   appium-ios-remotexpc@2.3.0:
     dependencies:
@@ -12159,11 +12366,11 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  appium-uiautomator2-driver@7.6.0(appium@3.5.0):
+  appium-uiautomator2-driver@7.6.0(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
-      appium: 3.5.0
+      appium: 3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       appium-adb: 15.0.0
-      appium-android-driver: 13.2.3(appium@3.5.0)
+      appium-android-driver: 13.2.3(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       appium-uiautomator2-server: 10.2.1
       asyncbox: 6.3.0
       axios: 1.17.0
@@ -12181,6 +12388,26 @@ snapshots:
       - utf-8-validate
 
   appium-uiautomator2-server@10.2.1: {}
+
+  appium-webdriveragent@11.4.3:
+    dependencies:
+      '@appium/base-driver': 10.6.0
+      '@appium/strongbox': 1.1.1
+      '@appium/support': 7.2.3
+      appium-ios-device: 3.1.14
+      appium-ios-simulator: 8.1.3
+      async-lock: 1.4.1
+      asyncbox: 6.3.0
+      axios: 1.17.0
+      bluebird: 3.7.2
+      lodash: 4.18.1
+      teen_process: 4.1.3
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - debug
+      - react-native-b4a
+      - supports-color
 
   appium-webdriveragent@13.2.3:
     dependencies:
@@ -12211,11 +12438,51 @@ snapshots:
       - debug
       - react-native-b4a
 
-  appium-xcuitest-driver@11.9.0(appium@3.5.0):
+  appium-xcuitest-driver@10.43.1(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       '@appium/strongbox': 1.1.1
       '@colors/colors': 1.6.0
-      appium: 3.5.0
+      appium: 3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      appium-idb: 2.0.10
+      appium-ios-device: 3.1.14
+      appium-ios-simulator: 8.1.3
+      appium-remote-debugger: 15.10.3
+      appium-webdriveragent: 11.4.3
+      appium-xcode: 6.2.2
+      async-lock: 1.4.1
+      asyncbox: 6.3.0
+      axios: 1.17.0
+      bluebird: 3.7.2
+      commander: 14.0.3
+      css-selector-parser: 3.3.0
+      js2xmlparser2: 0.2.0
+      lodash: 4.18.1
+      lru-cache: 11.5.0
+      moment: 2.30.1
+      moment-timezone: 0.6.2
+      node-devicectl: 1.4.0
+      node-simctl: 8.2.3
+      portscanner: 2.2.0
+      semver: 7.8.4
+      teen_process: 4.1.3
+      winston: 3.19.0
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    optionalDependencies:
+      appium-ios-remotexpc: 0.45.2
+    transitivePeerDependencies:
+      - bare-abort-controller
+      - bare-buffer
+      - bufferutil
+      - debug
+      - react-native-b4a
+      - supports-color
+      - utf-8-validate
+
+  appium-xcuitest-driver@11.9.0(appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+    dependencies:
+      '@appium/strongbox': 1.1.1
+      '@colors/colors': 1.6.0
+      appium: 3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       appium-ios-device: 3.1.14
       appium-ios-simulator: 8.1.3
       appium-remote-debugger: 15.10.3
@@ -12236,7 +12503,7 @@ snapshots:
       semver: 7.8.1
       teen_process: 4.1.3
       winston: 3.17.0
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     optionalDependencies:
       appium-ios-remotexpc: 2.3.0
     transitivePeerDependencies:
@@ -12248,7 +12515,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  appium@3.5.0:
+  appium@3.5.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       '@appium/base-driver': 10.6.0
       '@appium/base-plugin': 3.3.0
@@ -12273,7 +12540,7 @@ snapshots:
       teen_process: 4.1.3
       type-fest: 5.6.0
       winston: 3.19.0
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       yaml: 2.9.0
     transitivePeerDependencies:
       - bare-abort-controller
@@ -12542,6 +12809,11 @@ snapshots:
       base64-js: 1.5.1
       ieee754: 1.2.1
 
+  bufferutil@4.1.0:
+    dependencies:
+      node-gyp-build: 4.8.4
+    optional: true
+
   builder-util-runtime@9.5.1:
     dependencies:
       debug: 4.4.3
@@ -12677,7 +12949,7 @@ snapshots:
       parse5: 7.3.0
       parse5-htmlparser2-tree-adapter: 7.1.0
       parse5-parser-stream: 7.1.2
-      undici: 7.25.0
+      undici: 7.27.2
       whatwg-mimetype: 4.0.0
 
   chokidar@3.6.0:
@@ -13123,6 +13395,9 @@ snapshots:
       plist: 3.1.0
       smart-buffer: 4.2.0
       verror: 1.10.1
+    optional: true
+
+  dnssd@0.4.1:
     optional: true
 
   dom-serializer@2.0.0:
@@ -13649,15 +13924,15 @@ snapshots:
 
   expect-type@1.3.0: {}
 
-  expect-webdriverio@5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(puppeteer-core@25.1.0)):
+  expect-webdriverio@5.6.5(@wdio/globals@9.27.1)(@wdio/logger@9.18.0)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)):
     dependencies:
       '@vitest/snapshot': 4.1.4
-      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(puppeteer-core@25.1.0))
+      '@wdio/globals': 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
       '@wdio/logger': 9.18.0
       deep-eql: 5.0.2
       expect: 30.3.0
       jest-matcher-utils: 30.3.0
-      webdriverio: 9.27.1(puppeteer-core@25.1.0)
+      webdriverio: 9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6)
 
   expect@30.3.0:
     dependencies:
@@ -14136,14 +14411,14 @@ snapshots:
     optionalDependencies:
       uglify-js: 3.19.3
 
-  happy-dom@20.9.0:
+  happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       '@types/node': 25.9.1
       '@types/whatwg-mimetype': 3.0.2
       '@types/ws': 8.18.1
       entities: 7.0.1
       whatwg-mimetype: 3.0.0
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
@@ -14500,7 +14775,7 @@ snapshots:
   jest-mock@30.3.0:
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       jest-util: 30.3.0
 
   jest-regex-util@30.0.1: {}
@@ -14508,7 +14783,7 @@ snapshots:
   jest-util@30.3.0:
     dependencies:
       '@jest/types': 30.3.0
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
@@ -14516,7 +14791,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 25.9.1
+      '@types/node': 25.9.3
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -15113,11 +15388,11 @@ snapshots:
 
   node-abi@3.92.0:
     dependencies:
-      semver: 7.8.2
+      semver: 7.8.4
 
   node-abi@4.28.0:
     dependencies:
-      semver: 7.7.4
+      semver: 7.8.4
 
   node-addon-api@1.7.2:
     optional: true
@@ -15127,7 +15402,7 @@ snapshots:
 
   node-api-version@0.2.1:
     dependencies:
-      semver: 7.8.2
+      semver: 7.8.4
 
   node-devicectl@1.4.0:
     dependencies:
@@ -15151,7 +15426,7 @@ snapshots:
       make-fetch-happen: 14.0.3
       nopt: 8.1.0
       proc-log: 5.0.0
-      semver: 7.7.4
+      semver: 7.8.4
       tar: 7.5.13
       tinyglobby: 0.2.16
       which: 5.0.0
@@ -15276,9 +15551,9 @@ snapshots:
     dependencies:
       mimic-function: 5.0.1
 
-  openai@6.39.0(ws@8.21.0)(zod@4.4.3):
+  openai@6.39.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.4.3):
     optionalDependencies:
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       zod: 4.4.3
 
   optionator@0.9.4:
@@ -15622,14 +15897,14 @@ snapshots:
 
   punycode@2.3.1: {}
 
-  puppeteer-core@25.1.0:
+  puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
       '@puppeteer/browsers': 3.0.4
       chromium-bidi: 16.0.1(devtools-protocol@0.0.1624250)
       devtools-protocol: 0.0.1624250
       typed-query-selector: 2.12.2
       webdriver-bidi-protocol: 0.4.2
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bufferutil
       - proxy-agent
@@ -15927,6 +16202,17 @@ snapshots:
       path-to-regexp: 8.4.2
     transitivePeerDependencies:
       - supports-color
+
+  rpc-websockets@10.0.1:
+    dependencies:
+      '@swc/helpers': 0.5.23
+      '@types/ws': 8.18.1
+      buffer: 6.0.3
+      eventemitter3: 5.0.4
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    optionalDependencies:
+      bufferutil: 4.1.0
+      utf-8-validate: 6.0.6
 
   run-async@4.0.6: {}
 
@@ -16632,8 +16918,7 @@ snapshots:
 
   undici@7.25.0: {}
 
-  undici@7.27.2:
-    optional: true
+  undici@7.27.2: {}
 
   unicorn-magic@0.3.0: {}
 
@@ -16683,6 +16968,11 @@ snapshots:
     dependencies:
       execa: 1.0.0
       mem: 4.3.0
+
+  utf-8-validate@6.0.6:
+    dependencies:
+      node-gyp-build: 4.8.4
+    optional: true
 
   utf8-byte-length@1.0.5: {}
 
@@ -16740,7 +17030,7 @@ snapshots:
       tsx: 4.22.4
       yaml: 2.9.0
 
-  vitest@4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)):
+  vitest@4.1.7(@types/node@25.9.1)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.7
       '@vitest/mocker': 4.1.7(vite@7.3.2(@types/node@25.9.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -16765,12 +17055,12 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.9.1
       '@vitest/coverage-v8': 4.1.7(vitest@4.1.7)
-      happy-dom: 20.9.0
+      happy-dom: 20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       jsdom: 29.1.1
     transitivePeerDependencies:
       - msw
 
-  vitest@4.1.7(@types/node@25.9.3)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0)(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.3)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)):
+  vitest@4.1.7(@types/node@25.9.3)(@vitest/coverage-v8@4.1.7)(happy-dom@20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@29.1.1)(vite@7.3.2(@types/node@25.9.3)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0)):
     dependencies:
       '@vitest/expect': 4.1.7
       '@vitest/mocker': 4.1.7(vite@7.3.2(@types/node@25.9.3)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -16795,7 +17085,7 @@ snapshots:
     optionalDependencies:
       '@types/node': 25.9.3
       '@vitest/coverage-v8': 4.1.7(vitest@4.1.7)
-      happy-dom: 20.9.0
+      happy-dom: 20.9.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       jsdom: 29.1.1
     transitivePeerDependencies:
       - msw
@@ -16841,9 +17131,9 @@ snapshots:
 
   webdriver-bidi-protocol@0.4.2: {}
 
-  webdriver@9.27.1:
+  webdriver@9.27.1(bufferutil@4.1.0)(utf-8-validate@6.0.6):
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 20.19.43
       '@types/ws': 8.18.1
       '@wdio/config': 9.27.1
       '@wdio/logger': 9.18.0
@@ -16853,7 +17143,7 @@ snapshots:
       deepmerge-ts: 7.1.5
       https-proxy-agent: 7.0.6
       undici: 6.25.0
-      ws: 8.21.0
+      ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -16862,9 +17152,9 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  webdriverio@9.27.1(puppeteer-core@25.1.0):
+  webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6):
     dependencies:
-      '@types/node': 20.19.41
+      '@types/node': 20.19.43
       '@types/sinonjs__fake-timers': 8.1.5
       '@wdio/config': 9.27.1
       '@wdio/logger': 9.18.0
@@ -16888,9 +17178,9 @@ snapshots:
       rgb2hex: 0.2.5
       serialize-error: 12.0.0
       urlpattern-polyfill: 10.1.0
-      webdriver: 9.27.1
+      webdriver: 9.27.1(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     optionalDependencies:
-      puppeteer-core: 25.1.0
+      puppeteer-core: 25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     transitivePeerDependencies:
       - bare-abort-controller
       - bare-buffer
@@ -17060,7 +17350,10 @@ snapshots:
 
   wrappy@1.0.2: {}
 
-  ws@8.21.0: {}
+  ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+    optionalDependencies:
+      bufferutil: 4.1.0
+      utf-8-validate: 6.0.6
 
   xml-name-validator@5.0.0: {}
 

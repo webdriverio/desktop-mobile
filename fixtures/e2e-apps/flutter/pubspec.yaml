@@ -1,0 +1,23 @@
+name: wdio_flutter_fixture
+description: E2E fixture app for @wdio/flutter-service (find/tap, mock seam, execute, emitEvent).
+publish_to: none
+version: 1.0.0
+
+environment:
+  sdk: ^3.5.0
+
+dependencies:
+  flutter:
+    sdk: flutter
+  # enableFlutterDriverExtension() — required for the FLUTTER context (appium-flutter-driver).
+  flutter_driver:
+    sdk: flutter
+  # The app-side contract. Path-linked here; consumers depend on the published pub.dev package.
+  wdio_flutter:
+    path: ../../../packages/flutter-service/wdio_flutter
+
+dev_dependencies:
+  flutter_lints: ^4.0.0
+
+flutter:
+  uses-material-design: true

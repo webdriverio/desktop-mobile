@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "Release scope (electron, tauri, dioxus, electrobun, react-native, utils, types, spy, core, cdp-bridge, shared)"
+        description: "Release scope (electron, tauri, dioxus, electrobun, react-native, flutter, native-mobile-core, utils, types, spy, core, cdp-bridge, shared)"
         required: true
         type: choice
         options:
@@ -18,11 +18,13 @@ on:
           - spy
           - core
           - cdp-bridge
+          - native-mobile-core
           - electron
           - tauri
           - dioxus
           - electrobun
           - react-native
+          - flutter
         default: shared
       bump:
         description: "Version increment"
