@@ -45,3 +45,29 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - 'area:dependencies'
+  # Rust crates + Tauri/Dioxus fixture apps. Cargo.lock is committed, so drift now
+  # arrives as a gated, reviewable PR instead of an ambient CI break.
+  - package-ecosystem: 'cargo'
+    directories:
+      - '/packages/dioxus-bridge'
+      - '/packages/dioxus-driver'
+      - '/packages/dioxus-embedded-driver'
+      - '/packages/tauri-plugin'
+      - '/packages/tauri-plugin-webdriver'
+      - '/fixtures/e2e-apps/dioxus'
+      - '/fixtures/e2e-apps/tauri'
+      - '/fixtures/package-tests/dioxus-app'
+      - '/fixtures/package-tests/tauri-app'
+    schedule:
+      interval: 'weekly'
+    open-pull-requests-limit: 10
+    labels:
+      - 'area:dependencies'
+    groups:
+      cargo-dependencies:
+        patterns:
+          - '*'
+    ignore:
+      # Ignore major updates (mirrors the npm policy above)
+      - dependency-name: '*'
+        update-types: ['version-update:semver-major']
