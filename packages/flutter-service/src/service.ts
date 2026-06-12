@@ -24,6 +24,7 @@ import {
   SERVICE_NAME,
   VM_SERVICE_CONNECT_INTERVAL_MS,
   VM_SERVICE_CONNECT_RETRIES,
+  VM_SERVICE_PREWARM_RETRIES,
 } from './constants.js';
 import { createFlutterMock } from './mock.js';
 import { FlutterMockStore } from './mockStore.js';
@@ -69,14 +70,17 @@ export default class FlutterWorkerService {
     this.store = new FlutterMockStore();
     const store = this.store;
 
-    const discover = () =>
+    // `retries` is parameterised so the best-effort pre-warm can use a short budget (a 60-retry
+    // scrape there would block worker setup for ~60s on a release build / any unpinned non-fork run);
+    // the lazy on-demand path keeps the full budget.
+    const discover = (retries = VM_SERVICE_CONNECT_RETRIES) =>
       discoverVmServiceUrl(browser, {
         platform,
         udid,
         // Honour the documented CI-pinning options: skip the log scrape when set.
         pinnedPort: pinnedVmServicePort,
         host: this.options.vmServiceHost,
-        retries: VM_SERVICE_CONNECT_RETRIES,
+        retries,
         intervalMs: VM_SERVICE_CONNECT_INTERVAL_MS,
       });
 
@@ -143,7 +147,12 @@ export default class FlutterWorkerService {
         // surface the right command in the message.
         throw new Error(
           `browser.flutter.${command}: Dart VM Service is not connected (${(error as Error).message}). ` +
-            'Ensure the app is a debug/profile build with `enableFlutterDriverExtension()` and is foregrounded.',
+            'Ensure the app is a debug/profile build with `enableFlutterDriverExtension()` and is foregrounded.' +
+            // A pinned port builds a tokenless ws:// URL, which only connects when the VM service
+            // carries no per-launch auth code — surface that requirement on failure.
+            (pinnedVmServicePort
+              ? ' A pinned VM-service port also requires launching the app with `--disable-service-auth-codes`.'
+              : ''),
         );
       }
     };
@@ -195,10 +204,11 @@ export default class FlutterWorkerService {
     // the first execute/mock), by which point that startup line has scrolled out and the one-shot
     // getLogs scrape finds nothing (appium-flutter-driver catches it only because it streams the
     // log from session start). Discovering here, right after launch, captures it; a later relaunch
-    // re-scrapes its fresh line via the reconnect path. Best-effort — a miss falls back to the
-    // lazy retry (e.g. a release build with no VM service, which then fails fast on first use).
+    // re-scrapes its fresh line via the reconnect path. Best-effort with a SHORT budget so it never
+    // blocks worker setup: a release build (no VM service) or any unpinned non-fork run misses fast
+    // and falls through to the lazy retry, which keeps the full budget for genuine on-demand use.
     if (platform) {
-      this.vmServiceUrl = (await discover().catch(() => undefined)) ?? this.vmServiceUrl;
+      this.vmServiceUrl = (await discover(VM_SERVICE_PREWARM_RETRIES).catch(() => undefined)) ?? this.vmServiceUrl;
     }
   }
 

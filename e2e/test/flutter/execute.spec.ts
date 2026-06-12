@@ -24,4 +24,10 @@ describe('browser.flutter.execute', () => {
     // registered ones (no arbitrary-expression eval unless a compiler is attached — see #389).
     await expect(browser.flutter.execute('fixtureMarker')).rejects.toThrow(/no handler 'fixtureMarker' is registered/);
   });
+
+  it('should surface a clear error when the handler arg types mismatch', async () => {
+    // 'add' is (int, int); args are matched with no coercion, so strings hit the type boundary —
+    // expect the actionable "arg types" message, not a cryptic Function.apply NoSuchMethodError.
+    await expect(browser.flutter.execute('add', 'x', 'y')).rejects.toThrow(/arg types|parameter|num/i);
+  });
 });

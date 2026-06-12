@@ -24,6 +24,7 @@ vi.mock('../src/vmService.js', () => ({
   }),
 }));
 
+import { VM_SERVICE_PREWARM_RETRIES } from '../src/constants.js';
 import FlutterWorkerService from '../src/service.js';
 import type { FlutterCapabilities } from '../src/types.js';
 
@@ -230,5 +231,32 @@ describe('FlutterWorkerService', () => {
     // The scrape runs at session start — while the "listening on …" line is still in the log
     // buffer — not lazily on the first execute/mock (by when it has scrolled out).
     expect(discoverVmServiceUrl).toHaveBeenCalledTimes(1);
+  });
+
+  it('pre-warm uses the short discovery budget, not the full scrape (cannot block worker setup)', async () => {
+    const { discoverVmServiceUrl } = (await import('../src/vmServiceDiscovery.js')) as unknown as {
+      discoverVmServiceUrl: ReturnType<typeof vi.fn>;
+    };
+    discoverVmServiceUrl.mockClear();
+    const browser = {} as WebdriverIO.Browser;
+    const service = new FlutterWorkerService({}, cap);
+    await service.before(cap, [], browser);
+    // A release build / unpinned non-fork run would otherwise burn the full ~60s scrape here.
+    expect(discoverVmServiceUrl).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({ retries: VM_SERVICE_PREWARM_RETRIES }),
+    );
+  });
+
+  it('hints at --disable-service-auth-codes in the connect failure when a VM-service port is pinned', async () => {
+    const { discoverVmServiceUrl } = (await import('../src/vmServiceDiscovery.js')) as unknown as {
+      discoverVmServiceUrl: ReturnType<typeof vi.fn>;
+    };
+    discoverVmServiceUrl.mockRejectedValue(new Error('no vm service'));
+    const browser = {} as WebdriverIO.Browser & { flutter?: { execute: (s: string) => Promise<unknown> } };
+    const service = new FlutterWorkerService({ vmServicePort: 12345 }, cap);
+    await service.before(cap, [], browser); // pre-warm rejects → swallowed (best-effort)
+    await expect(browser.flutter?.execute('a')).rejects.toThrow(/--disable-service-auth-codes/);
+    discoverVmServiceUrl.mockResolvedValue('ws://host/ws'); // restore for any later tests
   });
 });

@@ -246,6 +246,10 @@ class WdioHandlerRegistry {
 
   /// Register a named handler, invokable via `browser.flutter.execute('<name>', ...args)`. The
   /// handler may be sync or async (return a `Future`); positional args arrive JSON-decoded.
+  ///
+  /// Args are matched positionally with no type coercion, so the parameter types must accept the
+  /// JSON-decoded values. JSON numbers decode to Dart `int` unless fractional (`2` → `int`,
+  /// `2.0` → `double`) — type numeric params as `num` to accept either form.
   void register(String name, Function handler) => _handlers[name] = handler;
 
   /// Remove a registered handler.
@@ -263,7 +267,23 @@ class WdioHandlerRegistry {
     if (handler == null) {
       throw ArgumentError("wdio_flutter: no execute handler registered for '$name'");
     }
-    final result = Function.apply(handler, args);
+    final dynamic result;
+    try {
+      result = Function.apply(handler, args);
+    } on NoSuchMethodError {
+      // Wrong positional arity — Function.apply's raw NoSuchMethodError is opaque, so name the cause.
+      throw ArgumentError(
+        "wdio_flutter: execute handler '$name' could not be called with ${args.length} arg(s) — "
+        'check its parameter count.',
+      );
+    } on TypeError {
+      // Arg types don't match the handler's parameters. The usual culprit is numeric: JSON numbers
+      // decode to Dart int unless fractional (2 → int, 2.0 → double) — type numeric params as `num`.
+      throw ArgumentError(
+        "wdio_flutter: execute handler '$name' rejected the arg types — JSON numbers arrive as Dart "
+        'int unless fractional (2 → int, 2.0 → double); type numeric params as `num` to accept both.',
+      );
+    }
     return result is Future ? await result : result;
   }
 }

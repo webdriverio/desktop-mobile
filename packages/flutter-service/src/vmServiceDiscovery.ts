@@ -128,7 +128,13 @@ export async function discoverVmServiceUrl(
       }
     }
     const host = options.host ?? 'localhost';
-    log.debug(`Using pinned Dart VM Service port ${options.pinnedPort} on ${host}`);
+    // The pinned fast-path builds a TOKENLESS URL — it only connects if the app was launched with
+    // `--disable-service-auth-codes`. Note that here so a connect failure against this URL is
+    // diagnosable (the auth code, if present, lives in a path segment a bare port can't supply).
+    log.debug(
+      `Using pinned Dart VM Service port ${options.pinnedPort} on ${host} (tokenless URL — requires ` +
+        '--disable-service-auth-codes)',
+    );
     return `ws://${host}:${options.pinnedPort}/ws`;
   }
 
