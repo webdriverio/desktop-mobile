@@ -11,18 +11,6 @@ on:
         description: 'OS of runner'
         required: true
         type: string
-      build_id:
-        description: 'Build ID from the main build job'
-        type: string
-        required: false
-      artifact_size:
-        description: 'Size of the build artifact in bytes'
-        type: string
-        required: false
-      cache_key:
-        description: 'Cache key to use for downloading artifacts'
-        type: string
-        required: false
     outputs:
       build_id:
         description: 'Unique identifier for this build'
@@ -61,17 +49,6 @@ jobs:
         uses: ./.github/workflows/actions/setup-workspace
         with:
           node-version: '24'
-
-      # Download the pre-built packages from the main build job
-      # This ensures workspace dependencies (e.g. @wdio/native-spy dist/) are available
-      - name: 📦 Download Package Build Artifacts
-        uses: ./.github/workflows/actions/download-archive
-        with:
-          name: wdio-desktop-mobile
-          path: wdio-desktop-mobile-build
-          filename: artifact.zip
-          cache_key_prefix: wdio-desktop-build
-          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
 
       - name: 🦀 Install Rust Toolchain
         shell: bash
@@ -304,8 +281,11 @@ jobs:
             echo "gen directory does not exist, nothing to clean"
           fi
 
+      # No --only: the main build artifact is no longer downloaded (this job now starts off
+      # detect-changes, in parallel with build), so let Turbo build the app's workspace deps
+      # from source (remote-cache backed) instead of relying on the downloaded dist/.
       - name: 🏗️ Build Tauri Package Test App
-        run: pnpm exec turbo run build --filter=tauri-app-example --only
+        run: pnpm exec turbo run build --filter=tauri-app-example
         shell: bash
 
       # Debug: Check if ACL manifest was generated after build
