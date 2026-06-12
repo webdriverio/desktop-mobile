@@ -1,9 +1,9 @@
 # Phase -1 spike (Dioxus automation API check) — throwaway code, do not commit
 /spike/
 
-# Rust build artefacts
+# Rust build artefacts (Cargo.lock IS tracked -- committed for reproducible builds,
+# consistent with pnpm-lock.yaml; only build output is ignored)
 packages/*/target/
-packages/*/Cargo.lock
 
 # Logs
 logs
@@ -82,10 +82,6 @@ fixtures/e2e-apps/tauri/target/
 **/src-dioxus/target/*
 fixtures/package-tests/dioxus-app/target/
 fixtures/e2e-apps/dioxus/target/
-
-# Fixture Cargo.lock files are not tracked — fixtures are ephemerally
-# built in CI and shouldn't pin dependency graphs across the workspace.
-fixtures/**/Cargo.lock
 
 # Bundler fixtures (auto-generated rollup config)
 fixtures/build-*/**/rollup.config.js
