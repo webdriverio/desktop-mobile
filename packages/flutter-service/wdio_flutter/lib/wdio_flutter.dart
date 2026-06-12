@@ -231,6 +231,43 @@ class _WdioMockException implements Exception {
 /// The single registry instance the app wires its seams to.
 final WdioMockRegistry wdioRegistry = WdioMockRegistry();
 
+/// The registry backing `browser.flutter.execute`. Dart is AOT-compiled, so there's no runtime
+/// source eval under a bare Appium launch — instead the app registers named handlers here and the
+/// test invokes them by name (`browser.flutter.execute('<name>', ...args)`), the same cooperative
+/// model as mocking. Arbitrary Dart-expression eval is an opt-in path (attach a Dart compiler);
+/// see the package README.
+///
+/// ```dart
+/// wdioHandlers.register('readCounter', () => counter);
+/// wdioHandlers.register('add', (int a, int b) => a + b);
+/// ```
+class WdioHandlerRegistry {
+  final Map<String, Function> _handlers = {};
+
+  /// Register a named handler, invokable via `browser.flutter.execute('<name>', ...args)`. The
+  /// handler may be sync or async (return a `Future`); positional args arrive JSON-decoded.
+  void register(String name, Function handler) => _handlers[name] = handler;
+
+  /// Remove a registered handler.
+  void unregister(String name) => _handlers.remove(name);
+
+  /// Whether a handler is registered for `name`.
+  bool has(String name) => _handlers.containsKey(name);
+
+  /// Invoke the handler for `name` with JSON-decoded positional `args`, awaiting a `Future` result.
+  Future<dynamic> invoke(String name, List<dynamic> args) async {
+    final handler = _handlers[name];
+    if (handler == null) {
+      throw ArgumentError("wdio_flutter: no execute handler registered for '$name'");
+    }
+    final result = Function.apply(handler, args);
+    return result is Future ? await result : result;
+  }
+}
+
+/// The single execute-handler registry instance the app registers handlers on.
+final WdioHandlerRegistry wdioHandlers = WdioHandlerRegistry();
+
 bool _enabled = false;
 
 /// Register the `ext.wdio.*` Dart VM service extensions.
@@ -288,6 +325,30 @@ void enableWdioMocking() {
     if (target == null) return _missingParam('target');
     wdioRegistry.restoreMock(target);
     return _ok();
+  });
+
+  developer.registerExtension('ext.wdio.invoke', (method, params) async {
+    final name = params['name'];
+    if (name == null) return _missingParam('name');
+    // Signal not-registered as `{found: false}` (not an error) so the service can fall back to
+    // arbitrary-expression eval and surface clear guidance if no compiler is attached.
+    if (!wdioHandlers.has(name)) {
+      return developer.ServiceExtensionResponse.result(jsonEncode({'found': false}));
+    }
+    final args = params['args'] != null ? jsonDecode(params['args']!) as List<dynamic> : <dynamic>[];
+    try {
+      final value = await wdioHandlers.invoke(name, args);
+      // toEncodable: a handler may return a non-JSON object; fall back to toString (as getCalls does)
+      // so invoke never throws JsonUnsupportedObjectError — such values aren't deep-comparable
+      // test-side, but assertions target serialisable values.
+      return developer.ServiceExtensionResponse.result(
+        jsonEncode({'found': true, 'value': value}, toEncodable: (Object? o) => o.toString()),
+      );
+    } catch (error) {
+      return developer.ServiceExtensionResponse.result(
+        jsonEncode({'found': true, 'error': error.toString()}),
+      );
+    }
   });
 }
 

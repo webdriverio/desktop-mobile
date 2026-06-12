@@ -3,7 +3,7 @@
 // Exercises the full convergent surface the e2e specs drive (PR4 Android / PR5 iOS):
 //   - find/tap        : ValueKey('increment') button + ValueKey('counter') text
 //   - mock            : GreetingService.greet routed through wdioRegistry (Tier-2 seam)
-//   - execute         : top-level `fixtureMarker` + the counter is read via a Dart expression
+//   - execute         : named handlers registered on wdioHandlers (cooperative, compile-free)
 //   - emitEvent       : listens on wdioEvents.stream and reflects the last event into the UI
 //
 // Startup order matters: enableFlutterDriverExtension() (initialise the binding) then
@@ -16,12 +16,17 @@ import 'package:flutter/material.dart';
 import 'package:flutter_driver/driver_extension.dart';
 import 'package:wdio_flutter/wdio_flutter.dart';
 
-/// Read by a `browser.flutter.execute('fixtureMarker')` smoke check.
+/// Returned by the `marker` execute handler.
 const String fixtureMarker = 'wdio-flutter-fixture';
 
 void main() {
   enableFlutterDriverExtension();
   enableWdioMocking();
+  // execute handlers exercised by execute.spec.ts — sync (value/args/bool) + async.
+  wdioHandlers.register('marker', () => fixtureMarker);
+  wdioHandlers.register('add', (int a, int b) => a + b);
+  wdioHandlers.register('bindingReady', () => WidgetsBinding.instance.toString().isNotEmpty);
+  wdioHandlers.register('greetAsync', (String name) async => 'hi $name');
   runApp(const WdioFixtureApp());
 }
 

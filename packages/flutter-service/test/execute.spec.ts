@@ -26,21 +26,54 @@ describe('coerceInstance', () => {
   });
 });
 
-const makeClient = (evalResult: unknown): VmServiceClient =>
+const makeClient = (overrides: Partial<Record<keyof VmServiceClient, unknown>> = {}): VmServiceClient =>
   ({
+    getMainIsolateId: vi.fn().mockResolvedValue('i'),
+    callServiceExtension: vi.fn().mockResolvedValue({ found: false }),
     resolveRootLibrary: vi.fn().mockResolvedValue({ isolateId: 'i', rootLibraryId: 'r' }),
-    evaluate: vi.fn().mockResolvedValue(evalResult),
+    evaluate: vi.fn().mockResolvedValue({ kind: 'Null' }),
+    ...overrides,
   }) as unknown as VmServiceClient;
 
 describe('executeScript', () => {
-  it('should evaluate against the root library and coerce the result', async () => {
-    const client = makeClient({ kind: 'Bool', valueAsString: 'true' });
+  it('should invoke a registered handler with JSON args and return its value', async () => {
+    const client = makeClient({ callServiceExtension: vi.fn().mockResolvedValue({ found: true, value: 5 }) });
+    expect(await executeScript(client, 'add', [2, 3])).toBe(5);
+    expect(client.callServiceExtension).toHaveBeenCalledWith('ext.wdio.invoke', {
+      isolateId: 'i',
+      name: 'add',
+      args: JSON.stringify([2, 3]),
+    });
+    expect(client.evaluate).not.toHaveBeenCalled();
+  });
+
+  it('should throw when a registered handler itself throws', async () => {
+    const client = makeClient({ callServiceExtension: vi.fn().mockResolvedValue({ found: true, error: 'boom' }) });
+    await expect(executeScript(client, 'bad')).rejects.toThrow(/boom/);
+  });
+
+  it('should fall back to evaluating the name as a Dart expression when no handler matches', async () => {
+    const client = makeClient({
+      callServiceExtension: vi.fn().mockResolvedValue({ found: false }),
+      evaluate: vi.fn().mockResolvedValue({ kind: 'Bool', valueAsString: 'true' }),
+    });
     expect(await executeScript(client, 'WidgetsBinding.instance != null')).toBe(true);
     expect(client.evaluate).toHaveBeenCalledWith('i', 'r', 'WidgetsBinding.instance != null');
   });
 
-  it('should throw on a Dart error result', async () => {
-    const client = makeClient({ type: '@Error', valueAsString: 'Bad state' });
-    await expect(executeScript(client, 'throw StateError("x")')).rejects.toThrow(/Bad state/);
+  it('should throw clear guidance when no handler matches and no compiler is attached', async () => {
+    const client = makeClient({
+      callServiceExtension: vi.fn().mockResolvedValue({ found: false }),
+      evaluate: vi.fn().mockRejectedValue(new Error('Expression compilation error: No compilation service available')),
+    });
+    await expect(executeScript(client, '1 + 1')).rejects.toThrow(/no handler '1 \+ 1' is registered/);
+  });
+
+  it('should surface a Dart runtime error from the eval fallback', async () => {
+    const client = makeClient({
+      callServiceExtension: vi.fn().mockResolvedValue({ found: false }),
+      evaluate: vi.fn().mockResolvedValue({ type: '@Error', valueAsString: 'Bad state' }),
+    });
+    await expect(executeScript(client, 'throw StateError("x")')).rejects.toThrow(/raised a Dart error.*Bad state/);
   });
 });

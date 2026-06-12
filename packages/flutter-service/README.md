@@ -78,10 +78,10 @@ export const config = {
 ```
 
 ```ts
-// a spec
-it('should evaluate a Dart expression', async () => {
-  const isFlutter = await browser.flutter.execute<boolean>('WidgetsBinding.instance != null');
-  expect(isFlutter).toBe(true);
+// a spec — execute invokes a handler the app registered (e.g. wdioHandlers.register('add', ...))
+it('should invoke a Dart handler', async () => {
+  const sum = await browser.flutter.execute<number>('add', 2, 3);
+  expect(sum).toBe(5);
 });
 
 it('should tap a widget by ValueKey and read text', async () => {
@@ -164,17 +164,34 @@ interface FlutterServiceOptions {
 
 ## API (`browser.flutter.*`)
 
-### `execute(script)`
+### `execute(name, ...args)`
 
-Evaluate a **Dart expression** in the app's root isolate via the VM Service.
+Invoke a Dart **handler your app registered** with `wdio_flutter`, by name, with positional args.
 
-> **API divergence:** unlike the other services, `script` is a **Dart expression string**, not a
-> JavaScript function — Flutter has no JS realm. The expression is evaluated against the app's
-> root library.
+> **Two modes — handlers (default) + raw eval (opt-in).** Flutter is ahead-of-time compiled, so —
+> unlike the JS-runtime services — there's no built-in way to run an arbitrary code string in the
+> app. Instead `execute` is cooperative (the same model as [`mock`](#mocktarget)): you expose the
+> operations you want to drive as named handlers, then call them by name. This works everywhere —
+> CI, parallel sessions, no extra tooling.
+
+```dart
+// app — register handlers up front, alongside enableWdioMocking()
+wdioHandlers.register('readCounter', () => counter);
+wdioHandlers.register('add', (int a, int b) => a + b);
+```
 
 ```ts
-const counter = await browser.flutter.execute<int>('myAppState.counter');
+// test
+const count = await browser.flutter.execute<number>('readCounter');
+const sum = await browser.flutter.execute<number>('add', 2, 3); // → 5
 ```
+
+> **Advanced — evaluating arbitrary Dart expressions (opt-in).** To evaluate an expression you
+> didn't pre-register (handy when debugging), attach a Dart compiler: run
+> `flutter attach --debug-url <vm-service-url>` against the running app, and a name that isn't a
+> registered handler is evaluated as Dart source — e.g. `execute('1 + 1')` → `2`. This needs the
+> Flutter SDK and your project where the tests run, so it's for local/ad-hoc use, not CI or parallel
+> runs. Without it, `execute` resolves registered handlers only (and says so if a name isn't found).
 
 ### `mock(target)`
 
@@ -282,7 +299,7 @@ const browser = await startWdioSession({
   'appium:app': '/path/to/app-debug.apk',
 });
 try {
-  console.log(await browser.flutter.execute('1 + 1'));
+  console.log(await browser.flutter.execute('readCounter'));
 } finally {
   await cleanupWdioSession(browser);
 }

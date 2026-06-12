@@ -55,20 +55,25 @@ export interface FlutterMock<TArgs extends unknown[] = unknown[], TReturns = unk
  */
 export interface FlutterServiceAPI {
   /**
-   * Evaluate a Dart expression in the app's root isolate via the Dart VM Service.
+   * Invoke a Dart handler the app registered with `wdio_flutter`, by name, with positional args.
    *
-   * Requires a debug/profile build with the VM Service reachable and
-   * `enableFlutterDriverExtension()` called before `runApp()`.
+   * Dart is ahead-of-time compiled, so — unlike the JS-runtime services — there's no runtime
+   * source eval. Instead `execute` is cooperative (the same model as {@link FlutterServiceAPI.mock}):
+   * the app registers handlers up front (`wdioHandlers.register('add', (a, b) => a + b)`) and the
+   * test invokes them by name. Args are JSON-serialised; the result is returned as-is.
    *
    * @example
    * ```js
-   * const isFlutter = await browser.flutter.execute('WidgetsBinding.instance != null');
+   * // app: wdioHandlers.register('readCounter', () => counter);
+   * const count = await browser.flutter.execute('readCounter');
+   * const sum = await browser.flutter.execute('add', 2, 3); // → 5
    * ```
    *
-   * (Positional args / a Dart `scope` binding are a planned enhancement; v1 evaluates the
-   * expression as written.)
+   * Advanced (opt-in): if no handler matches `name`, it's evaluated as a Dart expression — but that
+   * only works when a Dart compiler is attached (`flutter run` / `flutter attach`); otherwise it
+   * throws guidance. See the package README for arbitrary-expression eval.
    */
-  execute<ReturnValue = unknown>(script: string): Promise<ReturnValue>;
+  execute<ReturnValue = unknown>(name: string, ...args: unknown[]): Promise<ReturnValue>;
 
   /**
    * Mock a Dart seam the app exposed through the `wdio_flutter` contract (by target id).

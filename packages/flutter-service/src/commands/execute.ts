@@ -1,12 +1,15 @@
 // browser.flutter.execute implementation.
 //
-// Flutter has no JS realm — `execute` evaluates a **Dart expression string** in the app's
-// root library via the Dart VM Service `evaluate` RPC (the documented divergence from the
-// JS-realm services). Primitive results are coerced to JS by their Dart kind; richer
-// objects come back as their Dart `toString()`.
+// Dart is AOT-compiled, so there's no runtime source eval under a bare Appium (`am start`) launch —
+// the VM's compileExpression service is only registered by `flutter run` / `flutter attach`. So
+// `execute` is cooperative, the same model as `mock`: the app registers named handlers via
+// wdio_flutter's `wdioHandlers`, and `execute('<name>', ...args)` invokes one by name over the
+// `ext.wdio.invoke` VM-service extension (args JSON-serialised, result JSON).
 //
-// (Positional args / a `scope` binding are a planned enhancement — v1 evaluates the
-// expression as written.)
+// If no handler matches the name, it falls back to evaluating the name as a Dart expression (the
+// `evaluate` RPC) — which works only when a Dart compiler is attached (you ran `flutter run` /
+// `flutter attach`); otherwise it throws clear guidance. Arbitrary-expression eval is the opt-in
+// advanced path (see the @wdio/flutter-service README / issue #389).
 
 import type { VmInstanceRef, VmServiceClient } from '../vmService.js';
 
@@ -31,19 +34,61 @@ export function coerceInstance(ref: VmInstanceRef | undefined): unknown {
   }
 }
 
+/** The `ext.wdio.invoke` response: a registered handler ran (`found`), else fall back to eval. */
+interface InvokeResult {
+  found?: boolean;
+  value?: unknown;
+  error?: string;
+}
+
+function noHandlerError(name: string, detail: string): Error {
+  return new Error(
+    `browser.flutter.execute: no handler '${name}' is registered, and evaluating it as a Dart ` +
+      `expression failed (${detail}). Register a handler in the app — wdioHandlers.register('${name}', ` +
+      '...) — or, for arbitrary-expression eval, attach a Dart compiler by running `flutter attach` ' +
+      'against the app (see the @wdio/flutter-service README).',
+  );
+}
+
 /**
- * Evaluate a Dart expression in the app's root isolate and return its (coerced) value.
+ * Run a `browser.flutter.execute` call. Default path: invoke an app-registered handler `name` with
+ * `args` (compile-free, over `ext.wdio.invoke`). Fallback: if no handler matches, evaluate `name`
+ * as a Dart expression — only works with a compiler attached, else throws clear guidance.
  *
- * @throws if the expression raises a Dart error or the VM Service rejects the RPC.
+ * @throws if the handler throws, or — on the eval fallback — no handler exists and no compiler is attached.
  */
 export async function executeScript<ReturnValue = unknown>(
   client: VmServiceClient,
-  script: string,
+  name: string,
+  args: unknown[] = [],
 ): Promise<ReturnValue> {
-  const { isolateId, rootLibraryId } = await client.resolveRootLibrary();
-  const result = await client.evaluate(isolateId, rootLibraryId, script);
+  const isolateId = await client.getMainIsolateId();
+  const invoked = (await client.callServiceExtension('ext.wdio.invoke', {
+    isolateId,
+    name,
+    args: JSON.stringify(args),
+  })) as InvokeResult;
+
+  if (invoked?.found) {
+    if (invoked.error != null) {
+      throw new Error(`browser.flutter.execute('${name}') threw: ${invoked.error}`);
+    }
+    return invoked.value as ReturnValue;
+  }
+
+  // No registered handler — fall back to evaluating `name` as a Dart expression (the opt-in path).
+  const { rootLibraryId } = await client.resolveRootLibrary();
+  let result: VmInstanceRef;
+  try {
+    result = await client.evaluate(isolateId, rootLibraryId, name);
+  } catch (error) {
+    // The common case: no compiler attached → RPC 113 "No compilation service available" (also any
+    // other compile/RPC failure). Guide the user toward a handler or attaching a compiler.
+    throw noHandlerError(name, (error as Error).message);
+  }
   if (result.type === '@Error' || result.kind === 'Error') {
-    throw new Error(`browser.flutter.execute failed: ${result.valueAsString ?? 'unknown Dart error'}`);
+    // The expression compiled (a compiler is attached) but raised a Dart error at runtime.
+    throw new Error(`browser.flutter.execute('${name}') raised a Dart error: ${result.valueAsString ?? 'unknown'}`);
   }
   return coerceInstance(result) as ReturnValue;
 }

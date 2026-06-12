@@ -1,13 +1,14 @@
 # wdio_flutter
 
 The app-side contract for [`@wdio/flutter-service`](https://www.npmjs.com/package/@wdio/flutter-service)
-— the Dart half of `browser.flutter.mock.*`.
+— the Dart half of `browser.flutter.mock.*` and `browser.flutter.execute`.
 
-Dart has no runtime monkeypatch, so mocking is **cooperative**: your app routes its DI seams
-through `wdioRegistry` and calls `enableWdioMocking()` once at startup. The WebdriverIO Flutter
-service then drives the registry over the Dart VM Service via `ext.wdio.*` service extensions —
-your test controls mocked values and reads call data through the converged `browser.flutter.mock.*`
-surface.
+Dart is ahead-of-time compiled with no runtime monkeypatch, so both are **cooperative**: your app
+routes its DI seams through `wdioRegistry` (for mocking) and registers named handlers on
+`wdioHandlers` (for `execute`), then calls `enableWdioMocking()` once at startup. The WebdriverIO
+Flutter service drives these over the Dart VM Service via `ext.wdio.*` service extensions — your
+test controls mocked values, reads call data, and invokes handlers through the converged
+`browser.flutter.*` surface.
 
 This is pure Dart (`dart:developer` only) — no Flutter dependency — so it works in any Flutter app.
 
@@ -63,3 +64,33 @@ arbitrary internals — Dart can't replace a function in place at runtime.
 > non-JSON-serializable Dart object (a custom class instance) is encoded as its `toString()` rather
 > than throwing — the call is still recorded, but assert against serializable values
 > (`String`/`num`/`bool`/`List`/`Map`) for deep equality.
+
+## Registering execute handlers
+
+`browser.flutter.execute` follows the same cooperative model. Dart is ahead-of-time compiled, so
+there's no runtime source eval — instead your app registers named handlers, and the test invokes
+them by name. Register them alongside `enableWdioMocking()`:
+
+```dart
+void main() {
+  enableFlutterDriverExtension();
+  enableWdioMocking();
+  wdioHandlers.register('readCounter', () => counter);   // sync
+  wdioHandlers.register('add', (int a, int b) => a + b);  // positional args
+  wdioHandlers.register('loadUser', (String id) async => fetchUser(id)); // async (Future)
+  runApp(const MyApp());
+}
+```
+
+```js
+// test — args are JSON-serialised, the result is returned as-is
+await browser.flutter.execute('readCounter');     // → 0
+await browser.flutter.execute('add', 2, 3);       // → 5
+await browser.flutter.execute('loadUser', 'u1');  // awaits the Future
+```
+
+> **Advanced — arbitrary Dart expressions (opt-in).** A name that isn't a registered handler is
+> evaluated as a Dart expression, which works only when a Dart compiler is attached: run
+> `flutter attach --debug-url <vm-service-url>` against the app, then `execute('1 + 1')` → `2`. This
+> needs the Flutter SDK + your project where the tests run (local/ad-hoc, not CI). Without it,
+> `execute` resolves registered handlers only.

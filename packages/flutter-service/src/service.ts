@@ -148,9 +148,9 @@ export default class FlutterWorkerService {
     };
 
     const api: FlutterServiceAPI = {
-      execute: (async (script: string) => {
+      execute: (async (name: string, ...args: unknown[]) => {
         const client = await ensureVmService('execute');
-        return executeScript(client, script);
+        return executeScript(client, name, args);
       }) as FlutterServiceAPI['execute'],
 
       mock: async (target: string) => {
