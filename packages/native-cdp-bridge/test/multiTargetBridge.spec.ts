@@ -446,6 +446,29 @@ describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)'
     expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
   });
 
+  it('should remove the listener via off() after a disconnect so reconnect does not replay it', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+
+    // Unexpected disconnect of the active target clears activeLabel but deliberately
+    // keeps the #cdpListeners entry for replay. off() must still remove it while
+    // disconnected, or the listener resurrects on the next reconnect.
+    h.disconnectHandlers.get(wsA)!();
+    expect(bridge.activeLabel).toBeUndefined();
+    bridge.off('Runtime.consoleAPICalled', listener);
+
+    // Reconnect must NOT replay the off'd listener.
+    await bridge.switchTarget('main');
+    expect(bridge.activeLabel).toBe('main');
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
+  });
+
   it('should route off(cdp:disconnect) to super.off, not the connection', () => {
     const bridge = makeBridge();
     const listener = vi.fn();

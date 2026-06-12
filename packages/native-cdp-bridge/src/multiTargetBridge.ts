@@ -227,22 +227,25 @@ export class MultiTargetCdpBridge extends EventEmitter {
     if (event === CDP_DISCONNECT_EVENT) {
       return super.off(event, listener);
     }
-    // Remove from the active target's per-URL registry.
-    if (this.#activeLabel) {
-      const url = this.#activeUrl();
-      const targetListeners = this.#cdpListeners.get(url);
-      if (targetListeners) {
-        const set = targetListeners.get(event);
-        if (set) {
-          set.delete(listener);
-          if (set.size === 0) {
-            targetListeners.delete(event);
-          }
-        }
-        if (targetListeners.size === 0) {
-          this.#cdpListeners.delete(url);
-        }
+    // Registry removal is unconditional: an unexpected disconnect clears #activeLabel
+    // but keeps the #cdpListeners entry so the listener replays on reconnect -- gating
+    // removal on #activeLabel made off() a no-op while disconnected, resurrecting the
+    // listener on the next reconnect. Scan all targets (no #activeUrl(), which throws
+    // with no active target); a listener instance only lives under the URL it was added on.
+    for (const [url, targetListeners] of this.#cdpListeners) {
+      const set = targetListeners.get(event);
+      if (!set?.delete(listener)) {
+        continue;
       }
+      if (set.size === 0) {
+        targetListeners.delete(event);
+      }
+      if (targetListeners.size === 0) {
+        this.#cdpListeners.delete(url);
+      }
+    }
+    // Detach from the live active connection (none while disconnected -- nothing to do).
+    if (this.#activeLabel) {
       this.#connections.get(this.#activeLabel)?.off(event, listener);
     }
     return this;
