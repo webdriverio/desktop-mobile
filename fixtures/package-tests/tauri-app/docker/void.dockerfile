@@ -24,9 +24,6 @@ RUN xbps-install -Syu xbps && \
         xorg-server-xvfb && \
     xbps-remove -O
 
-# Install pnpm globally
-RUN npm install -g pnpm
-
 # Install Rust toolchain (needed for tauri-driver)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"

@@ -23,9 +23,6 @@ RUN apt-get update -qq && \
 RUN curl -fsSL https://deb.nodesource.com/setup_24.x | bash - && \
     apt-get install -y nodejs
 
-# Install pnpm globally as root
-RUN npm install -g pnpm
-
 # Rust toolchain — compiles the Dioxus app, the embedded WebDriver and the
 # bridge crate into the binary
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y

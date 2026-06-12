@@ -27,9 +27,6 @@ RUN xbps-install -Syu xbps && \
         xorg-server-xvfb && \
     xbps-remove -O
 
-# Install pnpm globally
-RUN npm install -g pnpm
-
 # Rust toolchain — compiles the Dioxus app, the embedded WebDriver and the
 # bridge crate into the binary
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y

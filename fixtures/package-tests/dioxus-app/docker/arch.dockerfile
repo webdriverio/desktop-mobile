@@ -27,9 +27,6 @@ RUN NODE_VERSION="24.11.0" && \
     rm /tmp/node.tar.xz && \
     node --version && npm --version
 
-# Install pnpm globally
-RUN npm install -g pnpm
-
 # Rust toolchain — compiles the Dioxus app, the embedded WebDriver and the
 # bridge crate into the binary
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
