@@ -156,9 +156,12 @@ jobs:
           echo "Overwriting node_modules appium-flutter-driver at: $AFD"
           rm -rf "$AFD/build"
           cp -R "$RUNNER_TEMP/afd/driver/build" "$AFD/build"
-          grep -q getVMServiceUrl "$AFD/build/lib/commands/execute.js" \
-            && echo "✓ fork getVMServiceUrl present in the loaded driver" \
-            || { echo "✗ fork overwrite failed — getVMServiceUrl not found"; exit 1; }
+          if grep -q getVMServiceUrl "$AFD/build/lib/commands/execute.js"; then
+            echo "✓ fork getVMServiceUrl present in the loaded driver"
+          else
+            echo "✗ fork overwrite failed — getVMServiceUrl not found"
+            exit 1
+          fi
 
       - name: 🤖 Run E2E on Android emulator
         # Third-party action (non-GitHub-owned) → pin to a full commit SHA, not a floating
