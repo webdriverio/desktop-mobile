@@ -1,9 +1,11 @@
+import EventEmitter from 'node:events';
 import { createLogger } from '@wdio/native-utils';
 
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping.js';
 
 import { Connection } from './connection.js';
 import {
+  CDP_DISCONNECT_EVENT,
   DEFAULT_HOSTNAME,
   DEFAULT_MAX_RETRY_COUNT,
   DEFAULT_PORT,
@@ -47,7 +49,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  * **Invariant: never issues `Page.navigate`.** Attaching/switching only enables
  * the Runtime domain on the live target; reloading would destroy app state.
  */
-export class MultiTargetCdpBridge {
+export class MultiTargetCdpBridge extends EventEmitter {
   #options: Required<Omit<MultiTargetCdpBridgeOptions, 'origin' | 'headers' | 'classifyTarget'>>;
   #origin: string | undefined;
   #headers: Record<string, string> | undefined;
@@ -57,13 +59,21 @@ export class MultiTargetCdpBridge {
   #targets: TargetRegistryEntry[] = [];
   #activeLabel: string | undefined;
   #closed = false;
+  // Per-target CDP method listener registry.
+  // Outer key: webSocketDebuggerUrl. Inner key: event name. Value: listener set.
+  // Keyed by URL so #ensureConnection can detect reconnects (same URL, previously
+  // had listeners) vs first-time connects (URL absent => nothing to replay).
+  // Entries for permanently-closed targets are removed in refresh() to prevent
+  // unbounded accumulation; unexpected disconnects keep their entry so replay works.
+  #cdpListeners = new Map<string, Map<string, Set<(...args: unknown[]) => void>>>();
 
   constructor(options: MultiTargetCdpBridgeOptions) {
+    super();
     // Per-field `??` rather than Object.assign: a caller passing an explicit
     // `undefined` (e.g. an unset service option) must fall back to the default, not
     // overwrite it. Object.assign copies undefined values, which left `timeout`
-    // undefined (so waitPort never actually waited → immediate-fail hammering) and
-    // `connectionRetryCount` undefined (so `retries >= undefined` never capped →
+    // undefined (so waitPort never actually waited => immediate-fail hammering) and
+    // `connectionRetryCount` undefined (so `retries >= undefined` never capped =>
     // effectively unbounded retries).
     this.#options = {
       host: options.host ?? DEFAULT_HOSTNAME,
@@ -126,6 +136,18 @@ export class MultiTargetCdpBridge {
       }
     }
     await Promise.allSettled(closePromises);
+    // Prune the listener registry for every target that's gone, keyed by URL against the
+    // live target list -- NOT by #connections. A target that dropped *before* this refresh()
+    // was already removed from #connections (its #cdpListeners entry is deliberately kept
+    // across a disconnect so it replays on reconnect), so a connection-keyed sweep would leak
+    // it once the window is gone for good. Reconciling against live URLs also covers targets
+    // pruned while still connected, so it subsumes the per-connection cleanup.
+    const liveUrls = new Set(this.#targets.map((target) => target.webSocketDebuggerUrl));
+    for (const url of [...this.#cdpListeners.keys()]) {
+      if (!liveUrls.has(url)) {
+        this.#cdpListeners.delete(url);
+      }
+    }
     // If the active target was pruned (its window closed), auto-advance to the
     // first surviving target so subsequent send()/on() don't throw an opaque
     // NOT_CONNECTED — callers can still switchTarget() explicitly. The survivor
@@ -183,8 +205,67 @@ export class MultiTargetCdpBridge {
   }
 
   /** Subscribe to a CDP event on the active target. */
-  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
-    this.#active().on(event, listener);
+  on(event: typeof CDP_DISCONNECT_EVENT, listener: () => void): this;
+  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this;
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    if (event === CDP_DISCONNECT_EVENT) {
+      return super.on(event, listener);
+    }
+    // Resolve the active connection FIRST: #active() throws NOT_CONNECTED when the active
+    // target has no live connection (e.g. after a failed auto-advance, where #activeLabel is
+    // set but #connections has no entry). Mutating the registry before that check would leave
+    // a listener that silently replays on the next reconnect, behind a caller who saw the
+    // throw and believed the subscription never happened.
+    const connection = this.#active();
+    // Store under the active target's URL so #ensureConnection replays only this target's
+    // listeners on reconnect — not spill them onto other targets.
+    const url = this.#activeUrl();
+    let targetListeners = this.#cdpListeners.get(url);
+    if (!targetListeners) {
+      targetListeners = new Map();
+      this.#cdpListeners.set(url, targetListeners);
+    }
+    let set = targetListeners.get(event);
+    if (!set) {
+      set = new Set();
+      targetListeners.set(event, set);
+    }
+    set.add(listener);
+    connection.on(event as Events, listener as (param: unknown) => void);
+    return this;
+  }
+
+  /** Unsubscribe from a CDP event or the disconnect lifecycle event. */
+  off(event: typeof CDP_DISCONNECT_EVENT, listener: () => void): this;
+  off<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this;
+  off(event: string, listener: (...args: unknown[]) => void): this {
+    if (event === CDP_DISCONNECT_EVENT) {
+      return super.off(event, listener);
+    }
+    // Removal is keyed by the URL the listener was registered under -- never #activeLabel.
+    // on() stores the listener on whichever target was active at the time, so it may live
+    // on a now-inactive (but still open) connection, and an unexpected disconnect clears
+    // #activeLabel while deliberately keeping the #cdpListeners entry for replay. Gating on
+    // #activeLabel therefore both let an off()'d listener resurrect on reconnect *and* left
+    // it firing on its owning connection when off() ran while a different target was active.
+    // So scan the registry and, for each matching URL, detach from that URL's own
+    // connection (a no-op while that target is disconnected -- nothing live to detach).
+    for (const [url, targetListeners] of this.#cdpListeners) {
+      const set = targetListeners.get(event);
+      if (!set?.delete(listener)) {
+        continue;
+      }
+      if (set.size === 0) {
+        targetListeners.delete(event);
+      }
+      if (targetListeners.size === 0) {
+        this.#cdpListeners.delete(url);
+      }
+      const ownerLabel = this.#targets.find((target) => target.webSocketDebuggerUrl === url)?.label;
+      if (ownerLabel) {
+        this.#connections.get(ownerLabel)?.off(event, listener);
+      }
+    }
     return this;
   }
 
@@ -263,6 +344,29 @@ export class MultiTargetCdpBridge {
       await connection.close().catch(() => {});
       return winner;
     }
+    connection.on(CDP_DISCONNECT_EVENT, () => {
+      // The WebSocket for this target dropped unexpectedly. Remove it from the map
+      // so #ensureConnection re-opens it on the next access, clear #activeLabel if
+      // it was the active target, then forward the event so consumers can react.
+      // #cdpListeners entry is kept intentionally so listeners are replayed on reconnect.
+      this.#connections.delete(label);
+      if (this.#activeLabel === label) {
+        this.#activeLabel = undefined;
+      }
+      this.emit(CDP_DISCONNECT_EVENT);
+    });
+    // Replay CDP method listeners registered via on() for this specific target URL.
+    // Only fires on a reconnect (when #cdpListeners already has an entry for this URL).
+    // First-time connects have no entry yet, so nothing is replayed — preventing
+    // listeners registered on one target from spilling onto a freshly connected one.
+    const savedListeners = this.#cdpListeners.get(target.webSocketDebuggerUrl);
+    if (savedListeners) {
+      for (const [event, listeners] of savedListeners) {
+        for (const listener of listeners) {
+          connection.on(event as Events, listener as (param: unknown) => void);
+        }
+      }
+    }
     this.#connections.set(label, connection);
     return connection;
   }
@@ -276,5 +380,16 @@ export class MultiTargetCdpBridge {
       throw new Error(ERROR_MESSAGE.NOT_CONNECTED);
     }
     return connection;
+  }
+
+  #activeUrl(): string {
+    if (!this.#activeLabel) {
+      throw new Error(ERROR_MESSAGE.NOT_CONNECTED);
+    }
+    const target = this.#targets.find((entry) => entry.label === this.#activeLabel);
+    if (!target) {
+      throw new Error(ERROR_MESSAGE.NOT_CONNECTED);
+    }
+    return target.webSocketDebuggerUrl;
   }
 }

@@ -4,7 +4,7 @@ import { createLogger } from '@wdio/native-utils';
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping.js';
 import WebSocket from 'ws';
 
-import { ERROR_MESSAGE, REQUEST_TIMEOUT } from './constants.js';
+import { CDP_DISCONNECT_EVENT, ERROR_MESSAGE, REQUEST_TIMEOUT } from './constants.js';
 
 const log = createLogger('cdp-bridge', 'bridge');
 
@@ -68,6 +68,9 @@ export class Connection extends EventEmitter {
   #promises = new Map<number, PromiseHandlers>();
   #commandId = CONNECT_PROMISE_ID;
   #closeReason: Error | undefined;
+  // Set to true by the explicit close() path so the 'close' handler knows the
+  // drop was intentional and must not emit cdp:disconnect.
+  #intentionalClose = false;
 
   constructor(webSocketDebuggerUrl: string, options?: ConnectionOptions) {
     super();
@@ -106,7 +109,9 @@ export class Connection extends EventEmitter {
     });
   }
 
-  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
+  on(event: typeof CDP_DISCONNECT_EVENT, listener: () => void): this;
+  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this;
+  on(event: string, listener: (...args: unknown[]) => void): this {
     return super.on(event, listener);
   }
 
@@ -155,8 +160,13 @@ export class Connection extends EventEmitter {
     ws.on('close', () => {
       log.trace(ERROR_MESSAGE.CONNECTION_CLOSED);
       this.#rejectAllPromises(this.#closeReason);
+      const wasIntentional = this.#intentionalClose;
       this.#closeReason = undefined;
+      this.#intentionalClose = false;
       this.#ws = null;
+      if (!wasIntentional) {
+        this.emit(CDP_DISCONNECT_EVENT);
+      }
     });
   }
 
@@ -203,6 +213,7 @@ export class Connection extends EventEmitter {
         // avoids rejecting them here AND again in the handler. First reason
         // wins: a racing plain close() must not blank an error-path reason.
         this.#closeReason ??= error as Error | undefined;
+        this.#intentionalClose = true;
         this.#ws.once('close', () => {
           this.#ws = null;
           resolve();

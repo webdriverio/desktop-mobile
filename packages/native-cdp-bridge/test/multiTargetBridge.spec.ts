@@ -11,6 +11,13 @@ const h = vi.hoisted(() => ({
   closed: 0,
   connectGate: undefined as Promise<void> | undefined,
   listGate: undefined as Promise<void> | undefined,
+  // Maps webSocketDebuggerUrl → the cdp:disconnect handler registered by the bridge,
+  // so tests can simulate an unexpected socket drop on a specific target.
+  disconnectHandlers: new Map<string, () => void>(),
+  // Maps webSocketDebuggerUrl → the CDP method listeners registered on that connection.
+  cdpMethodListeners: new Map<string, Map<string, Set<(...args: unknown[]) => void>>>(),
+  // Maps webSocketDebuggerUrl → listeners removed via off().
+  removedListeners: new Map<string, Array<{ event: string; listener: (...args: unknown[]) => void }>>(),
 }));
 
 vi.mock('../src/devTool.js', () => ({
@@ -25,31 +32,56 @@ vi.mock('../src/devTool.js', () => ({
   },
 }));
 
-vi.mock('../src/connection.js', () => ({
-  Connection: class {
-    webSocketDebuggerUrl: string;
-    constructor(url: string) {
-      this.webSocketDebuggerUrl = url;
-    }
-    connect = async () => {
-      if (h.connectGate) {
-        await h.connectGate;
+vi.mock('../src/connection.js', async () => {
+  const { CDP_DISCONNECT_EVENT } = await import('../src/constants.js');
+  return {
+    Connection: class {
+      webSocketDebuggerUrl: string;
+      #methodListeners = new Map<string, Set<(...args: unknown[]) => void>>();
+      #removed: Array<{ event: string; listener: (...args: unknown[]) => void }> = [];
+      constructor(url: string) {
+        this.webSocketDebuggerUrl = url;
+        h.cdpMethodListeners.set(url, this.#methodListeners);
+        h.removedListeners.set(url, this.#removed);
       }
-    };
-    send = async (method: string) => {
-      h.sent.push(method);
-      if (h.failEnable && method === 'Runtime.enable') {
-        throw new Error('Runtime.enable failed');
-      }
-      return {};
-    };
-    on = () => this;
-    close = async () => {
-      h.closed++;
-    };
-  },
-}));
+      connect = async () => {
+        if (h.connectGate) {
+          await h.connectGate;
+        }
+      };
+      send = async (method: string) => {
+        h.sent.push(method);
+        if (h.failEnable && method === 'Runtime.enable') {
+          throw new Error('Runtime.enable failed');
+        }
+        return {};
+      };
+      on = (event: string, listener: (...args: unknown[]) => void) => {
+        if (event === CDP_DISCONNECT_EVENT) {
+          h.disconnectHandlers.set(this.webSocketDebuggerUrl, listener as () => void);
+        } else {
+          let set = this.#methodListeners.get(event);
+          if (!set) {
+            set = new Set();
+            this.#methodListeners.set(event, set);
+          }
+          set.add(listener);
+        }
+        return this;
+      };
+      off = (event: string, listener: (...args: unknown[]) => void) => {
+        this.#removed.push({ event, listener });
+        this.#methodListeners.get(event)?.delete(listener);
+        return this;
+      };
+      close = async () => {
+        h.closed++;
+      };
+    },
+  };
+});
 
+import { CDP_DISCONNECT_EVENT } from '../src/constants.js';
 import { MultiTargetCdpBridge, type MultiTargetCdpBridgeOptions } from '../src/multiTargetBridge.js';
 
 const classify: ClassifyTarget = (t) => {
@@ -85,6 +117,9 @@ beforeEach(() => {
   h.closed = 0;
   h.connectGate = undefined;
   h.listGate = undefined;
+  h.disconnectHandlers.clear();
+  h.cdpMethodListeners.clear();
+  h.removedListeners.clear();
 });
 
 describe('MultiTargetCdpBridge multi-target routing', () => {
@@ -299,5 +334,285 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     await bridge.refresh();
 
     expect(bridge.activeLabel).toBeUndefined();
+  });
+});
+
+describe('MultiTargetCdpBridge cdp:disconnect event and self-healing', () => {
+  it('should emit cdp:disconnect on the bridge when any Connection drops unexpectedly', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const disconnectHandler = vi.fn();
+    bridge.on(CDP_DISCONNECT_EVENT, disconnectHandler);
+
+    // Simulate the active Connection emitting cdp:disconnect.
+    const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
+    expect(handler).toBeDefined();
+    handler!();
+
+    expect(disconnectHandler).toHaveBeenCalledTimes(1);
+  });
+
+  it('should remove the dropped connection from the map on disconnect', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
+    handler!();
+
+    // The dropped connection is gone; activeLabel is cleared so the next send() throws
+    // NOT_CONNECTED (safe) rather than routing to a dead socket.
+    expect(bridge.activeLabel).toBeUndefined();
+  });
+
+  it('should clear activeLabel when the active target disconnects unexpectedly', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+    expect(bridge.activeLabel).toBe('main');
+
+    const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
+    handler!();
+
+    // Active target dropped → label cleared so consumers know to call switchTarget()
+    // or wait for a refresh before sending again.
+    expect(bridge.activeLabel).toBeUndefined();
+  });
+
+  it('should preserve activeLabel when a non-active target disconnects unexpectedly', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+    // Connect window-1 so it has a disconnect handler too.
+    await bridge.switchTarget('window-1');
+    await bridge.switchTarget('main');
+    expect(bridge.activeLabel).toBe('main');
+
+    // Fire disconnect on the non-active window-1.
+    const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/B');
+    handler!();
+
+    // Active label (main) should be unaffected.
+    expect(bridge.activeLabel).toBe('main');
+  });
+
+  it('should allow subscribing to cdp:disconnect before connect()', () => {
+    const bridge = makeBridge();
+    expect(() => bridge.on(CDP_DISCONNECT_EVENT, () => {})).not.toThrow();
+  });
+});
+
+describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)', () => {
+  it('should replay CDP method listeners onto the reconnected active target', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBe(true);
+
+    // Simulate unexpected disconnect of the active target. The consumer reconnects
+    // via switchTarget() — #ensureConnection replays #cdpListeners onto the new socket.
+    h.disconnectHandlers.get(wsA)!();
+    await bridge.switchTarget('main');
+
+    expect(bridge.activeLabel).toBe('main');
+    // The listener was replayed onto the new connection.
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBe(true);
+  });
+
+  it('should remove CDP listener from registry and active connection when off() is called', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+    bridge.off('Runtime.consoleAPICalled', listener);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    // Removed from the active connection.
+    expect(h.removedListeners.get(wsA)).toContainEqual({ event: 'Runtime.consoleAPICalled', listener });
+
+    // Reconnect must not replay the off'd listener.
+    h.disconnectHandlers.get(wsA)!();
+    await bridge.switchTarget('main');
+    expect(bridge.activeLabel).toBe('main');
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
+  });
+
+  it('should remove the listener via off() after a disconnect so reconnect does not replay it', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+
+    // Unexpected disconnect of the active target clears activeLabel but deliberately
+    // keeps the #cdpListeners entry for replay. off() must still remove it while
+    // disconnected, or the listener resurrects on the next reconnect.
+    h.disconnectHandlers.get(wsA)!();
+    expect(bridge.activeLabel).toBeUndefined();
+    bridge.off('Runtime.consoleAPICalled', listener);
+
+    // Reconnect must NOT replay the off'd listener.
+    await bridge.switchTarget('main');
+    expect(bridge.activeLabel).toBe('main');
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
+  });
+
+  it('should route off(cdp:disconnect) to super.off, not the connection', () => {
+    const bridge = makeBridge();
+    const listener = vi.fn();
+    bridge.on(CDP_DISCONNECT_EVENT, listener);
+    expect(() => bridge.off(CDP_DISCONNECT_EVENT, listener)).not.toThrow();
+  });
+
+  it('should be a no-op to call off() for a CDP event when not connected', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+    await bridge.close();
+    // activeLabel is undefined after close() — off() must not throw.
+    expect(() => bridge.off('Runtime.consoleAPICalled', () => {})).not.toThrow();
+  });
+
+  it('should prune the listener registry for a target that refresh() removes after it disconnected', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const fn = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', fn); // registered on A (main)
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+
+    // A drops unexpectedly: removed from #connections, but its #cdpListeners entry is kept
+    // for replay. refresh() with A gone must still prune it — a connection-keyed sweep can't,
+    // because A is no longer in #connections.
+    h.disconnectHandlers.get(wsA)!();
+    h.targets = [target('B', 'views://secondview/index.html')];
+    await bridge.refresh();
+
+    // Prove the entry was pruned: when a target with wsA later reconnects, fn must NOT replay.
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    await bridge.refresh();
+    const aLabel = bridge.listTargets().find((entry) => entry.webSocketDebuggerUrl === wsA)!.label;
+    await bridge.switchTarget(aLabel);
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(fn)).toBeFalsy();
+  });
+
+  it('should not store a CDP listener when on() throws because the active target has no connection', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const wsB = 'ws://localhost:9222/devtools/page/B';
+
+    // Force the auto-advanced target's connection to fail, leaving activeLabel set
+    // (window-1) but no entry in #connections.
+    h.failEnable = true;
+    h.targets = [target('B', 'views://secondview/index.html')];
+    await bridge.refresh();
+    expect(bridge.activeLabel).toBe('window-1');
+
+    // on() must throw (no live connection) WITHOUT silently storing the listener.
+    const fn = vi.fn();
+    expect(() => bridge.on('Runtime.consoleAPICalled', fn)).toThrow();
+
+    // Recover the connection; the listener must NOT replay — it was never stored.
+    h.failEnable = false;
+    await bridge.switchTarget('window-1');
+    expect(h.cdpMethodListeners.get(wsB)?.get('Runtime.consoleAPICalled')?.has(fn)).toBeFalsy();
+  });
+});
+
+describe('MultiTargetCdpBridge per-target listener isolation', () => {
+  it('should not spill listeners from target A onto target B when switching', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    const wsB = 'ws://localhost:9222/devtools/page/B';
+
+    // Listener must be on A's connection.
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBe(true);
+
+    // Switch to B — #ensureConnection for B must NOT replay A's listeners.
+    await bridge.switchTarget('window-1');
+
+    expect(h.cdpMethodListeners.get(wsB)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
+  });
+
+  it('should remove the listener only from the active target when off() is called', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const fnA = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', fnA);
+
+    await bridge.switchTarget('window-1');
+    const fnB = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', fnB);
+
+    // Switch back to A and unsubscribe fnA.
+    await bridge.switchTarget('main');
+    bridge.off('Runtime.consoleAPICalled', fnA);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    const wsB = 'ws://localhost:9222/devtools/page/B';
+
+    // fnA removed from A's connection.
+    expect(h.removedListeners.get(wsA)).toContainEqual({ event: 'Runtime.consoleAPICalled', listener: fnA });
+    // fnB still on B's connection (off() only touched the active target).
+    expect(h.cdpMethodListeners.get(wsB)?.get('Runtime.consoleAPICalled')?.has(fnB)).toBe(true);
+  });
+
+  it('should detach the listener from its owning connection when off() runs while another target is active', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    // fn is registered while A (main) is active, so it lives on A's connection.
+    const fn = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', fn);
+
+    // Switch to B and unsubscribe WITHOUT switching back: A's connection is still open
+    // but no longer active. off() must detach fn from A (its owner), not from active B.
+    await bridge.switchTarget('window-1');
+    bridge.off('Runtime.consoleAPICalled', fn);
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    expect(h.removedListeners.get(wsA)).toContainEqual({ event: 'Runtime.consoleAPICalled', listener: fn });
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(fn)).toBeFalsy();
+  });
+
+  it('should remove the per-target listener entry from the registry when all listeners are off()d', async () => {
+    h.targets = [target('A', 'views://mainview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const listener = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', listener);
+    bridge.off('Runtime.consoleAPICalled', listener);
+
+    // No entry for A's URL remains — reconnect will not replay the removed listener.
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+    h.disconnectHandlers.get(wsA)!();
+    await bridge.switchTarget('main');
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
   });
 });

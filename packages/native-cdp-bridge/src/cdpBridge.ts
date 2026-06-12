@@ -1,9 +1,11 @@
+import EventEmitter from 'node:events';
 import { createLogger } from '@wdio/native-utils';
 
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping.js';
 
 import { Connection } from './connection.js';
 import {
+  CDP_DISCONNECT_EVENT,
   DEFAULT_HOSTNAME,
   DEFAULT_MAX_RETRY_COUNT,
   DEFAULT_PORT,
@@ -52,7 +54,7 @@ const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
  *
  * **Invariant: never issues `Page.navigate`** — attach is observation/input only.
  */
-export class CdpBridge {
+export class CdpBridge extends EventEmitter {
   #options: Required<DevToolOptions> & { waitInterval: number; connectionRetryCount: number };
   #origin: string | undefined;
   #headers: Record<string, string> | undefined;
@@ -60,8 +62,13 @@ export class CdpBridge {
   #devTool: DevTool;
   #connection: Connection | null = null;
   #closed = false;
+  // Side-channel registry for CDP method listeners (e.g. 'Runtime.consoleAPICalled').
+  // Listeners on the active Connection are lost when it drops and a new one is created;
+  // this map lets connect() replay them onto the replacement socket.
+  #cdpListeners = new Map<string, Set<(...args: unknown[]) => void>>();
 
   constructor(options?: CdpBridgeOptions) {
+    super();
     // Per-field `??` (not Object.assign): an explicit `undefined` must fall back to
     // the default, not overwrite it (a stray `undefined` left waitPort never waiting
     // and retries effectively unbounded — see the multi-target bridge note).
@@ -94,7 +101,15 @@ export class CdpBridge {
     return this.#devTool.version();
   }
 
-  /** Discover targets, pick one via `selectTarget`, and connect. Retries discovery. */
+  /**
+   * Discover targets, pick one via `selectTarget`, and open a CDP WebSocket. Retries discovery.
+   *
+   * After a `cdp:disconnect` event, call this to reconnect — the bridge nulls the dead
+   * connection on an unexpected drop so this re-establishes rather than no-op'ing. CDP method
+   * listeners registered via `on()` are replayed onto the new socket automatically; the caller
+   * is responsible for deciding *when* to reconnect (e.g. after a backoff, or only when the
+   * target is expected to return).
+   */
   async connect(): Promise<void> {
     // #closed before the #connection early-return: close() sets #closed synchronously
     // but awaits the WebSocket handshake before nulling #connection. A connect() in that
@@ -133,6 +148,20 @@ export class CdpBridge {
             await connection.close().catch(() => {});
             return;
           }
+          connection.on(CDP_DISCONNECT_EVENT, () => {
+            // The WebSocket dropped unexpectedly. Null out the dead connection so
+            // the next connect() call re-establishes rather than no-op'ing on it,
+            // then forward the event so consumers can trigger their own reconnect.
+            // connect() will replay #cdpListeners onto the new socket.
+            this.#connection = null;
+            this.emit(CDP_DISCONNECT_EVENT);
+          });
+          // Replay any CDP method listeners registered before this connection was created.
+          for (const [event, listeners] of this.#cdpListeners) {
+            for (const listener of listeners) {
+              connection.on(event as Events, listener as (param: unknown) => void);
+            }
+          }
           this.#connection = connection;
           return;
         }
@@ -158,17 +187,44 @@ export class CdpBridge {
     return this.#connection.send(method, ...params);
   }
 
-  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
+  on(event: typeof CDP_DISCONNECT_EVENT, listener: () => void): this;
+  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this;
+  on(event: string, listener: (...args: unknown[]) => void): this {
+    // CDP method events are forwarded from the underlying Connection — subscribe
+    // directly to the Connection when connected, fall through to the inherited
+    // EventEmitter for the cdp:disconnect lifecycle event (emitted on this instance).
+    if (event === CDP_DISCONNECT_EVENT) {
+      return super.on(event, listener);
+    }
     if (!this.#connection) {
       throw new Error(ERROR_MESSAGE.NOT_CONNECTED);
     }
-    this.#connection.on(event, listener);
+    // Store in the side-channel registry so reconnect can replay onto the new socket.
+    let set = this.#cdpListeners.get(event);
+    if (!set) {
+      set = new Set();
+      this.#cdpListeners.set(event, set);
+    }
+    set.add(listener);
+    this.#connection.on(event as Events, listener as (param: unknown) => void);
     return this;
   }
 
-  off<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
-    // No-op when not connected: there is no listener registry to remove from, and a
-    // closed/never-opened bridge has nothing to detach.
+  off(event: typeof CDP_DISCONNECT_EVENT, listener: () => void): this;
+  off<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this;
+  off(event: string, listener: (...args: unknown[]) => void): this {
+    if (event === CDP_DISCONNECT_EVENT) {
+      return super.off(event, listener);
+    }
+    // Remove from the registry so reconnect no longer replays this listener.
+    const set = this.#cdpListeners.get(event);
+    if (set) {
+      set.delete(listener);
+      if (set.size === 0) {
+        this.#cdpListeners.delete(event);
+      }
+    }
+    // No-op when not connected: there is no active connection to remove from.
     this.#connection?.off(event, listener);
     return this;
   }
