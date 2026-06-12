@@ -69,9 +69,9 @@ export interface FlutterServiceAPI {
    * const sum = await browser.flutter.execute('add', 2, 3); // → 5
    * ```
    *
-   * Advanced (opt-in): if no handler matches `name`, it's evaluated as a Dart expression — but that
-   * only works when a Dart compiler is attached (`flutter run` / `flutter attach`); otherwise it
-   * throws guidance. See the package README for arbitrary-expression eval.
+   * Handler-only: an unknown `name` throws an error listing the registered handlers (a typo or a
+   * forgotten `register()` is obvious). Arbitrary Dart-expression eval is a planned opt-in (needs an
+   * attached compiler) — see the package README.
    */
   execute<ReturnValue = unknown>(name: string, ...args: unknown[]): Promise<ReturnValue>;
 

@@ -19,9 +19,9 @@ describe('browser.flutter.execute', () => {
     expect(await browser.flutter.execute('greetAsync', 'WDIO')).toBe('hi WDIO');
   });
 
-  it('should throw clear guidance for an unregistered name with no compiler attached', async () => {
-    // No handler 'fixtureMarker' and no compiler attached under bare Appium → the eval fallback
-    // fails; the error should point at registering a handler / attaching a compiler.
-    await expect(browser.flutter.execute('fixtureMarker')).rejects.toThrow(/no handler|compiler/i);
+  it('should throw a listing error for an unregistered handler name', async () => {
+    // execute is handler-only: an unknown name reports as a missing handler and lists the
+    // registered ones (no arbitrary-expression eval unless a compiler is attached — see #389).
+    await expect(browser.flutter.execute('fixtureMarker')).rejects.toThrow(/no handler 'fixtureMarker' is registered/);
   });
 });

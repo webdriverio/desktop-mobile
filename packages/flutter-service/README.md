@@ -186,12 +186,16 @@ const count = await browser.flutter.execute<number>('readCounter');
 const sum = await browser.flutter.execute<number>('add', 2, 3); // → 5
 ```
 
-> **Advanced — evaluating arbitrary Dart expressions (opt-in).** To evaluate an expression you
-> didn't pre-register (handy when debugging), attach a Dart compiler: run
-> `flutter attach --debug-url <vm-service-url>` against the running app, and a name that isn't a
-> registered handler is evaluated as Dart source — e.g. `execute('1 + 1')` → `2`. This needs the
-> Flutter SDK and your project where the tests run, so it's for local/ad-hoc use, not CI or parallel
-> runs. Without it, `execute` resolves registered handlers only (and says so if a name isn't found).
+`execute` is **handler-only**: a name with no registered handler throws an error that lists the
+registered handlers (so a typo or a forgotten `register()` is obvious) — it does **not** silently
+try to evaluate the name as Dart.
+
+> **Planned — arbitrary Dart-expression eval (opt-in).** Evaluating an expression you didn't
+> pre-register (e.g. `execute('1 + 1')`) needs an attached Dart compiler, since Dart has no built-in
+> runtime eval. That's a planned opt-in
+> ([#389](https://github.com/webdriverio/desktop-mobile/issues/389)) — when enabled it attaches a
+> compiler (`flutter attach`) for local/ad-hoc use (Flutter SDK + project required; not for CI or
+> parallel runs).
 
 ### `mock(target)`
 

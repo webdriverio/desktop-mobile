@@ -254,6 +254,9 @@ class WdioHandlerRegistry {
   /// Whether a handler is registered for `name`.
   bool has(String name) => _handlers.containsKey(name);
 
+  /// The names of all registered handlers — surfaced in a "no handler" error's suggestions.
+  List<String> get names => _handlers.keys.toList();
+
   /// Invoke the handler for `name` with JSON-decoded positional `args`, awaiting a `Future` result.
   Future<dynamic> invoke(String name, List<dynamic> args) async {
     final handler = _handlers[name];
@@ -330,10 +333,12 @@ void enableWdioMocking() {
   developer.registerExtension('ext.wdio.invoke', (method, params) async {
     final name = params['name'];
     if (name == null) return _missingParam('name');
-    // Signal not-registered as `{found: false}` (not an error) so the service can fall back to
-    // arbitrary-expression eval and surface clear guidance if no compiler is attached.
+    // Signal not-registered as `{found: false}` (not an error), with the registered names so the
+    // service's "no handler" error can list them (catching typos / a forgotten register()).
     if (!wdioHandlers.has(name)) {
-      return developer.ServiceExtensionResponse.result(jsonEncode({'found': false}));
+      return developer.ServiceExtensionResponse.result(
+        jsonEncode({'found': false, 'registered': wdioHandlers.names}),
+      );
     }
     final args = params['args'] != null ? jsonDecode(params['args']!) as List<dynamic> : <dynamic>[];
     try {

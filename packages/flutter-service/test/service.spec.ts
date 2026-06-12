@@ -11,7 +11,12 @@ const fakeClient = () => ({
   resolveRootLibrary: vi.fn().mockResolvedValue({ isolateId: 'i', rootLibraryId: 'r' }),
   evaluate: vi.fn().mockResolvedValue({ kind: 'Bool', valueAsString: 'true' }),
   getMainIsolateId: vi.fn().mockResolvedValue('i'),
-  callServiceExtension: vi.fn().mockResolvedValue({ ok: true }),
+  // execute → ext.wdio.invoke expects a {found, value} envelope; the mock/emit extensions ignore it.
+  callServiceExtension: vi
+    .fn()
+    .mockImplementation((method: string) =>
+      Promise.resolve(method === 'ext.wdio.invoke' ? { found: true, value: true } : { ok: true }),
+    ),
 });
 vi.mock('../src/vmService.js', () => ({
   VmServiceClient: vi.fn().mockImplementation(function (this: Record<string, unknown>) {
@@ -35,11 +40,11 @@ describe('FlutterWorkerService', () => {
     expect(typeof browser.flutter?.switchContext).toBe('function');
   });
 
-  it('execute should evaluate via the VM Service and coerce the result', async () => {
+  it('execute should invoke a handler via the VM Service and return its value', async () => {
     const browser = {} as WebdriverIO.Browser & { flutter?: { execute: (s: string) => Promise<unknown> } };
     const service = new FlutterWorkerService({}, cap);
     await service.before(cap, [], browser);
-    expect(await browser.flutter?.execute('WidgetsBinding.instance != null')).toBe(true);
+    expect(await browser.flutter?.execute('isFlutter')).toBe(true);
   });
 
   it('after() should tear down without throwing', async () => {

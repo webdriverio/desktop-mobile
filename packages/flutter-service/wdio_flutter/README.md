@@ -89,8 +89,10 @@ await browser.flutter.execute('add', 2, 3);       // → 5
 await browser.flutter.execute('loadUser', 'u1');  // awaits the Future
 ```
 
-> **Advanced — arbitrary Dart expressions (opt-in).** A name that isn't a registered handler is
-> evaluated as a Dart expression, which works only when a Dart compiler is attached: run
-> `flutter attach --debug-url <vm-service-url>` against the app, then `execute('1 + 1')` → `2`. This
-> needs the Flutter SDK + your project where the tests run (local/ad-hoc, not CI). Without it,
-> `execute` resolves registered handlers only.
+`execute` is **handler-only**: an unknown name throws an error listing the registered handlers (it
+does not silently evaluate the name as Dart).
+
+> **Planned — arbitrary Dart-expression eval (opt-in).** Evaluating an unregistered expression
+> (e.g. `execute('1 + 1')`) needs an attached Dart compiler — a planned opt-in
+> ([#389](https://github.com/webdriverio/desktop-mobile/issues/389)). Until then, register a handler
+> for anything you want to drive.
