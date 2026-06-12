@@ -133,12 +133,21 @@ export class MultiTargetCdpBridge extends EventEmitter {
       if (!live.has(label)) {
         closePromises.push(connection.close());
         this.#connections.delete(label);
-        // Permanently remove this target's listener entry — the window is gone and will
-        // not reconnect, so its listeners would never be replayed.
-        this.#cdpListeners.delete(connection.webSocketDebuggerUrl);
       }
     }
     await Promise.allSettled(closePromises);
+    // Prune the listener registry for every target that's gone, keyed by URL against the
+    // live target list -- NOT by #connections. A target that dropped *before* this refresh()
+    // was already removed from #connections (its #cdpListeners entry is deliberately kept
+    // across a disconnect so it replays on reconnect), so a connection-keyed sweep would leak
+    // it once the window is gone for good. Reconciling against live URLs also covers targets
+    // pruned while still connected, so it subsumes the per-connection cleanup.
+    const liveUrls = new Set(this.#targets.map((target) => target.webSocketDebuggerUrl));
+    for (const url of [...this.#cdpListeners.keys()]) {
+      if (!liveUrls.has(url)) {
+        this.#cdpListeners.delete(url);
+      }
+    }
     // If the active target was pruned (its window closed), auto-advance to the
     // first surviving target so subsequent send()/on() don't throw an opaque
     // NOT_CONNECTED — callers can still switchTarget() explicitly. The survivor

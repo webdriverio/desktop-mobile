@@ -484,6 +484,31 @@ describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)'
     // activeLabel is undefined after close() — off() must not throw.
     expect(() => bridge.off('Runtime.consoleAPICalled', () => {})).not.toThrow();
   });
+
+  it('should prune the listener registry for a target that refresh() removes after it disconnected', async () => {
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+
+    const fn = vi.fn();
+    bridge.on('Runtime.consoleAPICalled', fn); // registered on A (main)
+
+    const wsA = 'ws://localhost:9222/devtools/page/A';
+
+    // A drops unexpectedly: removed from #connections, but its #cdpListeners entry is kept
+    // for replay. refresh() with A gone must still prune it — a connection-keyed sweep can't,
+    // because A is no longer in #connections.
+    h.disconnectHandlers.get(wsA)!();
+    h.targets = [target('B', 'views://secondview/index.html')];
+    await bridge.refresh();
+
+    // Prove the entry was pruned: when a target with wsA later reconnects, fn must NOT replay.
+    h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
+    await bridge.refresh();
+    const aLabel = bridge.listTargets().find((entry) => entry.webSocketDebuggerUrl === wsA)!.label;
+    await bridge.switchTarget(aLabel);
+    expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(fn)).toBeFalsy();
+  });
 });
 
 describe('MultiTargetCdpBridge per-target listener isolation', () => {
