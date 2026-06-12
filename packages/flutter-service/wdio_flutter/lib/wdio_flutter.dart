@@ -88,6 +88,11 @@ class _MockEntry {
   final List<Map<String, dynamic>> results = [];
   final List<int> invocationCallOrder = [];
 
+  /// Bumped by every clearMock/resetMock. An interceptAsync slot snapshots this when reserved; a
+  /// changed generation at write-back time means the buffers were cycled mid-flight, so the slot
+  /// now belongs to a different lifecycle (possibly a fresh call) and the stale result is dropped.
+  int generation = 0;
+
   /// Take the active mock spec for the next call (a queued once-value wins), or null.
   Map<String, dynamic>? takeValue() {
     if (onceQueue.isNotEmpty) {
@@ -137,12 +142,14 @@ class WdioMockRegistry {
     return value;
   }
 
-  /// Write an interceptAsync result back by its reserved index, tolerating a clearMock/reset that
-  /// shrank the buffer while real() was awaited — the bare `results[index] = …` would otherwise
-  /// throw a RangeError. A clear means the call was intentionally discarded, so dropping the late
-  /// write-back is the correct outcome.
-  void _writeResult(_MockEntry entry, int index, Map<String, dynamic> result) {
-    if (index < entry.results.length) {
+  /// Write an interceptAsync result back by its reserved index, but only if the entry hasn't been
+  /// cycled since the slot was reserved (`generation`). A bare bounds check alone is insufficient:
+  /// after a clearMock empties the buffers, a NEW call to the same seam re-reserves index 0, so the
+  /// old call's late write-back would pass `index < length` and clobber the new call's slot —
+  /// leaving calls[0] (new args) misaligned with results[0] (old result). The generation guard drops
+  /// any write-back whose lifecycle ended, which also covers the shrunk-buffer RangeError case.
+  void _writeResult(_MockEntry entry, int index, int generation, Map<String, dynamic> result) {
+    if (entry.generation == generation && index < entry.results.length) {
       entry.results[index] = result;
     }
   }
@@ -154,6 +161,9 @@ class WdioMockRegistry {
     // seam keep calls[i] ↔ results[i] aligned even if their futures complete out of order — the
     // result is written back by index, not appended on completion.
     final index = entry.calls.length;
+    // Snapshot the lifecycle: if a clearMock/resetMock cycles the entry while real() is awaited,
+    // this slot is invalidated and the late write-back must be dropped (see _writeResult).
+    final generation = entry.generation;
     entry.calls.add(args);
     entry.invocationCallOrder.add(_invocationCounter++);
     // 'incomplete' is the Vitest-compatible marker for an in-flight call: if update() reads
@@ -164,19 +174,19 @@ class WdioMockRegistry {
     if (spec == null) {
       try {
         final value = await real();
-        _writeResult(entry, index, {'type': 'return', 'value': value});
+        _writeResult(entry, index, generation, {'type': 'return', 'value': value});
         return value;
       } catch (error) {
-        _writeResult(entry, index, {'type': 'throw', 'value': error.toString()});
+        _writeResult(entry, index, generation, {'type': 'throw', 'value': error.toString()});
         rethrow;
       }
     }
     if (spec['kind'] == 'reject') {
-      _writeResult(entry, index, {'type': 'throw', 'value': spec['value']});
+      _writeResult(entry, index, generation, {'type': 'throw', 'value': spec['value']});
       throw _WdioMockException(spec['value']);
     }
     final value = _castMockValue<T>(spec['value']);
-    _writeResult(entry, index, {'type': 'return', 'value': value});
+    _writeResult(entry, index, generation, {'type': 'return', 'value': value});
     return value;
   }
 
@@ -206,9 +216,13 @@ class WdioMockRegistry {
   /// Clear the recorded call data for `target` (mockClear) — keep the mocked value.
   void clearMock(String target) {
     final entry = _entries[target];
-    entry?.calls.clear();
-    entry?.results.clear();
-    entry?.invocationCallOrder.clear();
+    if (entry == null) return;
+    // Bump first: any interceptAsync awaiting real() snapshotted the old generation, so its late
+    // write-back is now recognised as stale and dropped instead of clobbering a fresh call's slot.
+    entry.generation++;
+    entry.calls.clear();
+    entry.results.clear();
+    entry.invocationCallOrder.clear();
   }
 
   /// Clear value + call data for `target` (mockReset).
