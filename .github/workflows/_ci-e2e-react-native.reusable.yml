@@ -185,6 +185,15 @@ jobs:
             # unpinned `npx --yes`) so a breaking release can't silently break the readiness check.
             pnpm --filter @repo/e2e exec wait-on tcp:8081 --timeout 120000
             pnpm --filter @repo/e2e run test:e2e:react-native
+            # Package-install smoke (#387): validate the PACKED @wdio/react-native-service tarball
+            # installs + composes against THIS already-booted emulator + Metro + APK — the cheap
+            # "reuse the e2e device" approach (no second emulator). test-package.ts packs the service
+            # (+ native-mobile-core/cdp-bridge/types), installs it into the isolated fixture, and runs
+            # its smoke spec; the uiautomator2 driver in APPIUM_HOME and RN_APP_PATH are reused.
+            # Gated to the new-arch leg so it runs once per service (packaging is arch-independent).
+            if [ "${{ inputs.new-arch }}" = "true" ]; then
+              RN_PLATFORM=android pnpm test:package:react-native
+            fi
 
       - name: 🐛 Show Metro log on failure
         if: failure()

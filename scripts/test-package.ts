@@ -79,7 +79,7 @@ function readWorkspaceOverrides(): Record<string, string> {
 interface TestOptions {
   package?: string;
   skipBuild?: boolean;
-  service?: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'all';
+  service?: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter' | 'all';
   moduleType?: 'cjs' | 'esm' | 'both';
   /** 'native' runs the existing app-launch tests. 'browser' starts a static
    * HTTP server against the fixture's `browser/` directory and runs the
@@ -136,16 +136,20 @@ function execCommand(command: string, cwd: string, description: string) {
 }
 
 async function buildAndPackService(
-  service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'all' = 'all',
+  service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter' | 'all' = 'all',
 ): Promise<{
   electronServicePath?: string;
   tauriServicePath?: string;
   dioxusServicePath?: string;
   electrobunServicePath?: string;
   reactNativeServicePath?: string;
+  flutterServicePath?: string;
   utilsPath: string;
   spyPath: string;
   corePath: string;
+  // Shared mobile launcher/runtime layer — a workspace dep of both react-native and
+  // flutter services, so it must be packed + overridden alongside them.
+  mobileCorePath?: string;
   typesPath?: string;
   // Holds the electron-cdp-bridge tarball for `electron`, or the shared cdp-bridge
   // tarball for `electrobun`/`react-native` — these services never pack together (they are not
@@ -158,13 +162,15 @@ async function buildAndPackService(
     // Build only the packages required for the requested service. Each
     // service depends on @wdio/native-core (extracted in the Dioxus
     // foundation work), so include it in every filter set.
-    const buildFilters: Record<'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'all', string> = {
+    const buildFilters: Record<'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter' | 'all', string> = {
       electron: '--filter=@wdio/electron-service --filter=@wdio/native-spy --filter=@wdio/native-core',
       tauri: '--filter=@wdio/tauri-service --filter=@wdio/native-core',
       dioxus: '--filter=@wdio/dioxus-service --filter=@wdio/native-core',
       electrobun: '--filter=@wdio/electrobun-service --filter=@wdio/native-spy --filter=@wdio/native-core',
       'react-native': '--filter=@wdio/react-native-service --filter=@wdio/native-spy --filter=@wdio/native-core',
-      // `all` builds every package; it does NOT include electrobun/react-native fixtures —
+      flutter:
+        '--filter=@wdio/flutter-service --filter=@wdio/native-spy --filter=@wdio/native-core --filter=@wdio/native-mobile-core',
+      // `all` builds every package; it does NOT include electrobun/react-native/flutter fixtures —
       // those are device-gated and always run via their own `--service=` jobs.
       all: '--filter=./packages/*',
     };
@@ -211,9 +217,11 @@ async function buildAndPackService(
       dioxusServicePath?: string;
       electrobunServicePath?: string;
       reactNativeServicePath?: string;
+      flutterServicePath?: string;
       utilsPath: string;
       spyPath: string;
       corePath: string;
+      mobileCorePath?: string;
       typesPath?: string;
       cdpBridgePath?: string;
     } = { utilsPath, spyPath, corePath };
@@ -300,6 +308,7 @@ async function buildAndPackService(
       const rnServiceDir = normalize(join(rootDir, 'packages', 'react-native-service'));
       const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
       const cdpBridgeDir = normalize(join(rootDir, 'packages', 'native-cdp-bridge'));
+      const mobileCoreDir = normalize(join(rootDir, 'packages', 'native-mobile-core'));
       if (!existsSync(rnServiceDir)) {
         throw new Error(`React Native service directory does not exist: ${rnServiceDir}`);
       }
@@ -308,10 +317,30 @@ async function buildAndPackService(
       }
       execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
       execCommand('pnpm pack', cdpBridgeDir, 'Packing @wdio/native-cdp-bridge');
+      execCommand('pnpm pack', mobileCoreDir, 'Packing @wdio/native-mobile-core');
       execCommand('pnpm pack', rnServiceDir, 'Packing @wdio/react-native-service');
       result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
       result.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-native-cdp-bridge-');
+      result.mobileCorePath = findTgzFile(mobileCoreDir, 'wdio-native-mobile-core-');
       result.reactNativeServicePath = findTgzFile(rnServiceDir, 'wdio-react-native-service-');
+    }
+
+    // Pack Flutter service if needed (Dart-VM archetype: service + native-types +
+    // native-mobile-core; no cdp-bridge — Flutter drives the Dart VM Service, not CDP).
+    // Never part of `all` — requires Appium + device.
+    if (service === 'flutter') {
+      const flutterServiceDir = normalize(join(rootDir, 'packages', 'flutter-service'));
+      const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+      const mobileCoreDir = normalize(join(rootDir, 'packages', 'native-mobile-core'));
+      if (!existsSync(flutterServiceDir)) {
+        throw new Error(`Flutter service directory does not exist: ${flutterServiceDir}`);
+      }
+      execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
+      execCommand('pnpm pack', mobileCoreDir, 'Packing @wdio/native-mobile-core');
+      execCommand('pnpm pack', flutterServiceDir, 'Packing @wdio/flutter-service');
+      result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+      result.mobileCorePath = findTgzFile(mobileCoreDir, 'wdio-native-mobile-core-');
+      result.flutterServicePath = findTgzFile(flutterServiceDir, 'wdio-flutter-service-');
     }
 
     log(`📦 Packages packed:`);
@@ -417,13 +446,15 @@ async function testExample(
     dioxusServicePath?: string;
     electrobunServicePath?: string;
     reactNativeServicePath?: string;
+    flutterServicePath?: string;
     utilsPath: string;
     spyPath: string;
     corePath: string;
+    mobileCorePath?: string;
     typesPath?: string;
     cdpBridgePath?: string;
   },
-  service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native',
+  service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter',
   skipBuild: boolean,
   mode: 'native' | 'browser' = 'native',
 ) {
@@ -532,13 +563,32 @@ async function testExample(
       overrides['@wdio/native-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
       packagesToInstall.push(packages.typesPath, packages.cdpBridgePath, packages.electrobunServicePath);
     } else if (service === 'react-native') {
-      if (!packages.reactNativeServicePath || !packages.typesPath || !packages.cdpBridgePath) {
+      if (
+        !packages.reactNativeServicePath ||
+        !packages.typesPath ||
+        !packages.cdpBridgePath ||
+        !packages.mobileCorePath
+      ) {
         throw new Error('React Native service packages not available');
       }
       overrides['@wdio/react-native-service'] = `file:${packages.reactNativeServicePath}`;
       overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
       overrides['@wdio/native-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
-      packagesToInstall.push(packages.typesPath, packages.cdpBridgePath, packages.reactNativeServicePath);
+      overrides['@wdio/native-mobile-core'] = `file:${packages.mobileCorePath}`;
+      packagesToInstall.push(
+        packages.typesPath,
+        packages.cdpBridgePath,
+        packages.mobileCorePath,
+        packages.reactNativeServicePath,
+      );
+    } else if (service === 'flutter') {
+      if (!packages.flutterServicePath || !packages.typesPath || !packages.mobileCorePath) {
+        throw new Error('Flutter service packages not available');
+      }
+      overrides['@wdio/flutter-service'] = `file:${packages.flutterServicePath}`;
+      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
+      overrides['@wdio/native-mobile-core'] = `file:${packages.mobileCorePath}`;
+      packagesToInstall.push(packages.typesPath, packages.mobileCorePath, packages.flutterServicePath);
     }
 
     packageJson.pnpm = {
@@ -952,7 +1002,7 @@ async function main() {
     const serviceArg = args.find((arg) => arg.startsWith('--service='))?.split('=')[1];
 
     // Validate service argument if provided, default to 'all' if not provided
-    let service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'all' = 'all';
+    let service: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter' | 'all' = 'all';
     if (serviceArg) {
       if (
         serviceArg === 'electron' ||
@@ -1005,9 +1055,11 @@ async function main() {
       dioxusServicePath?: string;
       electrobunServicePath?: string;
       reactNativeServicePath?: string;
+      flutterServicePath?: string;
       utilsPath: string;
       spyPath: string;
       corePath: string;
+      mobileCorePath?: string;
       typesPath?: string;
       cdpBridgePath?: string;
     };
@@ -1067,9 +1119,20 @@ async function main() {
         const rnServiceDir = normalize(join(rootDir, 'packages', 'react-native-service'));
         const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
         const cdpBridgeDir = normalize(join(rootDir, 'packages', 'native-cdp-bridge'));
+        const mobileCoreDir = normalize(join(rootDir, 'packages', 'native-mobile-core'));
         packages.reactNativeServicePath = findTgzFile(rnServiceDir, 'wdio-react-native-service-');
         packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
         packages.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-native-cdp-bridge-');
+        packages.mobileCorePath = findTgzFile(mobileCoreDir, 'wdio-native-mobile-core-');
+      }
+
+      if (options.service === 'flutter') {
+        const flutterServiceDir = normalize(join(rootDir, 'packages', 'flutter-service'));
+        const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
+        const mobileCoreDir = normalize(join(rootDir, 'packages', 'native-mobile-core'));
+        packages.flutterServicePath = findTgzFile(flutterServiceDir, 'wdio-flutter-service-');
+        packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
+        packages.mobileCorePath = findTgzFile(mobileCoreDir, 'wdio-native-mobile-core-');
       }
 
       log(`📦 Using existing packages:`);
@@ -1122,14 +1185,18 @@ async function main() {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('electrobun-'));
     } else if (options.service === 'react-native') {
       filteredDirs = packageTestDirs.filter((name) => name.startsWith('react-native-'));
+    } else if (options.service === 'flutter') {
+      filteredDirs = packageTestDirs.filter((name) => name.startsWith('flutter-'));
     } else {
       // 'all' = electron + tauri + dioxus (the services sharing the cross-OS matrix).
-      // Electrobun and react-native are NEVER part of 'all' — they are platform/device-gated
-      // and buildAndPackService('all') doesn't pack their tarballs, so their fixtures must be
-      // excluded or a bare `pnpm test:package` would try to test them without a packed service
-      // and throw. Run them explicitly via `--service=electrobun` / `--service=react-native`.
+      // Electrobun, react-native and flutter are NEVER part of 'all' — they are
+      // platform/device-gated and buildAndPackService('all') doesn't pack their tarballs, so
+      // their fixtures must be excluded or a bare `pnpm test:package` would try to test them
+      // without a packed service and throw. Run them explicitly via `--service=electrobun` /
+      // `--service=react-native` / `--service=flutter`.
       filteredDirs = packageTestDirs.filter(
-        (name) => !name.startsWith('electrobun-') && !name.startsWith('react-native-'),
+        (name) =>
+          !name.startsWith('electrobun-') && !name.startsWith('react-native-') && !name.startsWith('flutter-'),
       );
     }
 
