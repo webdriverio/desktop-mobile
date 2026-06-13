@@ -191,9 +191,9 @@ jobs:
             # (+ native-mobile-core/cdp-bridge/types), installs it into the isolated fixture, and runs
             # its smoke spec; the uiautomator2 driver in APPIUM_HOME and RN_APP_PATH are reused.
             # Gated to the new-arch leg so it runs once per service (packaging is arch-independent).
-            if [ "${{ inputs.new-arch }}" = "true" ]; then
-              RN_PLATFORM=android pnpm test:package:react-native
-            fi
+            # Single line: android-emulator-runner runs the script line-by-line (each its own
+            # `sh -c`), so a multi-line if/then/fi splits and the `if` executes without its `fi`.
+            if [ "${{ inputs.new-arch }}" = "true" ]; then RN_PLATFORM=android pnpm test:package:react-native; fi
 
       - name: 🐛 Show Metro log on failure
         if: failure()

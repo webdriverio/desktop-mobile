@@ -162,12 +162,16 @@ async function buildAndPackService(
     // Build only the packages required for the requested service. Each
     // service depends on @wdio/native-core (extracted in the Dioxus
     // foundation work), so include it in every filter set.
-    const buildFilters: Record<'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter' | 'all', string> = {
+    const buildFilters: Record<
+      'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter' | 'all',
+      string
+    > = {
       electron: '--filter=@wdio/electron-service --filter=@wdio/native-spy --filter=@wdio/native-core',
       tauri: '--filter=@wdio/tauri-service --filter=@wdio/native-core',
       dioxus: '--filter=@wdio/dioxus-service --filter=@wdio/native-core',
       electrobun: '--filter=@wdio/electrobun-service --filter=@wdio/native-spy --filter=@wdio/native-core',
-      'react-native': '--filter=@wdio/react-native-service --filter=@wdio/native-spy --filter=@wdio/native-core',
+      'react-native':
+        '--filter=@wdio/react-native-service --filter=@wdio/native-spy --filter=@wdio/native-core --filter=@wdio/native-mobile-core',
       flutter:
         '--filter=@wdio/flutter-service --filter=@wdio/native-spy --filter=@wdio/native-core --filter=@wdio/native-mobile-core',
       // `all` builds every package; it does NOT include electrobun/react-native/flutter fixtures —
@@ -1010,12 +1014,13 @@ async function main() {
         serviceArg === 'dioxus' ||
         serviceArg === 'electrobun' ||
         serviceArg === 'react-native' ||
+        serviceArg === 'flutter' ||
         serviceArg === 'all'
       ) {
         service = serviceArg;
       } else {
         throw new Error(
-          `Invalid service value: ${serviceArg}. Must be 'electron', 'tauri', 'dioxus', 'electrobun', 'react-native', or 'all'`,
+          `Invalid service value: ${serviceArg}. Must be 'electron', 'tauri', 'dioxus', 'electrobun', 'react-native', 'flutter', or 'all'`,
         );
       }
     }
@@ -1195,8 +1200,7 @@ async function main() {
       // without a packed service and throw. Run them explicitly via `--service=electrobun` /
       // `--service=react-native` / `--service=flutter`.
       filteredDirs = packageTestDirs.filter(
-        (name) =>
-          !name.startsWith('electrobun-') && !name.startsWith('react-native-') && !name.startsWith('flutter-'),
+        (name) => !name.startsWith('electrobun-') && !name.startsWith('react-native-') && !name.startsWith('flutter-'),
       );
     }
 
