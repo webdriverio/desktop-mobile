@@ -10,6 +10,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## @wdio/native-core@1.0.0 - 2026-06-13
+
+### New
+- **@wdio/dioxus-service**: Added new @wdio/dioxus-service package for Dioxus integration.
+
+### Fixed
+- Fixed WKWebView throttling issue on macOS ARM platforms.
+
+### Changed
+- **Dependencies**: Updated 9 production dependencies to their latest versions.
+
+### Developer
+- **Tooling**: Scripts now run on bare Node instead of tsx for improved consistency. (#345)
+
 ## [@wdio/native-types@2.3.1] - 2026-06-05
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-types@v2.3.0...2.3.1)
