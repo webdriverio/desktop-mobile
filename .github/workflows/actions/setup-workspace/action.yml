@@ -18,9 +18,13 @@ runs:
       uses: actions/setup-node@v6
       with:
         node-version: ${{ inputs.node-version }}
-        # Temporarily disable cache to ensure fresh tarball is used
-        # cache: 'pnpm'
-        # cache-dependency-path: '**/pnpm-lock.yaml'
+        # Store cache keyed on the lockfile. Safe w.r.t. the electron-builder fixtures'
+        # @wdio/utils `file:` tarball override: pnpm honors overrides only at the workspace
+        # root (which has none), so the root lockfile never references the mutable tarball —
+        # that's confined to the isolated package-test install (test-package.ts), which this
+        # cache doesn't touch.
+        cache: 'pnpm'
+        cache-dependency-path: '**/pnpm-lock.yaml'
 
     - name: 📦 Install Project Dependencies
       shell: bash
