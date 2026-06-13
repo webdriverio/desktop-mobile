@@ -6,104 +6,55 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [@wdio/tauri-plugin@1.1.0-next.0] - 2026-06-13
 
-
-
-
-
-## @wdio/native-core@1.0.0 - 2026-06-13
-
-### New
-- **@wdio/dioxus-service**: Added new @wdio/dioxus-service package for Dioxus integration.
-
-### Fixed
-- Fixed WKWebView throttling issue on macOS ARM platforms.
+[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-tauri-plugin@v1.0.0...1.1.0-next.0)
 
 ### Changed
-- **Dependencies**: Updated 9 production dependencies to their latest versions.
+- **Build System**: Added Cargo.lock to the repository to ensure reproducible Rust builds.
+**Dependencies**:
+- Updated 9 production dependencies in the main directory.
+- Refreshed dependencies to resolve WKWebView throttling on macOS ARM.
 
-### Developer
-- **Tooling**: Scripts now run on bare Node instead of tsx for improved consistency. (#345)
+### Documentation
+- Added release notes for Tauri v1.0.0.
 
-## [@wdio/native-types@2.3.1] - 2026-06-05
+## [@wdio/tauri-service@1.1.0-next.0] - 2026-06-13
 
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-types@v2.3.0...2.3.1)
-
-### Fixed
-- Fixed type bugs with mock-instance in service modules. (#339)
-
-## [@wdio/native-spy@1.1.0] - 2026-06-05
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-spy@v1.0.10...1.1.0)
+[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-tauri-service@v1.0.0...1.1.0-next.0)
 
 ### New
-- **@wdio/dioxus-service**: Added @wdio/dioxus-service for Dioxus integration testing.
-- **Browser mode**: Implemented browser mode phase 3 with expanded browser testing capabilities.
+- **@wdio/dioxus-service**: Introduced @wdio/dioxus-service package for Dioxus integration testing support.
+- **Browser mode phase 3**: Implemented browser mode Phase 3 with expanded platform support and improved configuration handling.
 - **Browser-only test mode**: Added browser-only test mode (Phase 2) for running tests exclusively in browser environments.
-- **Browser mode (Tauri)**: Implemented browser mode in TauriLaunchService for Tauri application testing.
-- **Interceptor framework**: Implemented an interceptor framework for Tauri and Electron testing.
+- **Browser mode in TauriLaunchService**: Implemented browser mode in TauriLaunchService for launching tests in embedded browser contexts.
+- **Interceptor framework**: Added interceptor framework for spying on native operations in Tauri and Electron environments.
+- **Early exit handling**: Added early exit handling for the embedded WebDriver server to improve shutdown behavior.
 
 ### Fixed
-- Improved script handling in execute commands for better serialization.
+- Fixed type inference for `isMockFunction` to properly detect mock functions across Electron, Tauri, Dioxus, and Electrobun targets.
+- Fixed type errors with mock-instance in service modules for native-type integration. (#339)
+- Fixed Tauri service to properly honor `appBinaryPath` and trust existing binary paths.
+- Fixed deferred lifecycle and log-parsing issues introduced in the Dioxus integration.
+- Increased default `startTimeout` from 30s to 60s in Tauri session configuration to accommodate slower environments.
 
 ### Changed
-- **Dependencies**: Refreshed dependencies and fixed Dioxus macOS-ARM WKWebView throttling issue.
-- Improved formatting and organization in configuration files.
+- Resolved Dioxus macOS ARM WKWebView throttling issues and refreshed dependencies.
+- Reduced log verbosity by demoting per-instance INFO logs to debug level in Tauri service.
 
-## [@wdio/native-utils@2.4.0] - 2026-06-05
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-utils@v2.3.0...2.4.0)
-
-### New
-- **Dioxus service**: Introduced @wdio/dioxus-service for Dioxus integration in WebdriverIO.
-
-### Fixed
-- Fixed a crash or hang during Windows session teardown when encountering benign errors.
-
-### Changed
-- **Dependencies**: Refreshed project dependencies and resolved a throttling issue affecting Dioxus on macOS ARM with WKWebView.
-- Reduced logging volume and consolidated diagnostic summaries for clearer output.
-- **Code Quality**: Improved formatting and organization in configuration files.
-
-## [@wdio/native-types@2.3.0] - 2026-06-05
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-types@v2.2.0...2.3.0)
-
-### New
-- **Electrobun service**: Added Electrobun desktop testing support via @wdio/electrobun-service. (#322)
-- **Dioxus service**: Added @wdio/dioxus-service for Dioxus integration.
-- **Browser mode**: Implemented browser mode phase 3.
-- **Browser-only test mode**: Implemented browser-only test mode (Phase 2).
-- **Browser mode**: Implemented browser mode in TauriLaunchService.
-- **Multi-window support**: Enhanced multi-window support in Tauri.
-
-### Fixed
-- Refreshed dependencies and fixed Dioxus macOS-ARM WKWebView throttling issue.
-- Improved script handling in execute commands for better serialization.
-
-### Changed
-- Updated release configuration.
+### Documentation
+- Added video recording guide and overhauled the visual testing documentation.
+- Added v1.0.0 release notes documenting Tauri plugin changes and migration guide.
+- Added visual regression testing guide covering setup, configuration, and best practices.
 
 ### Developer
-- **Code Quality**: Improved formatting and organization in configuration files.
+- **Tooling**: Switched repository scripts to run directly with Node.js instead of tsx for improved compatibility. (#345)
+- **Dependencies**: Updated 9 production dependencies across the project for improved stability and compatibility.
 
-## [@wdio/tauri-plugin@1.0.0] - 2026-05-03
+## [tauri-plugin-wdio-webdriver@1.1.0-next.0] - 2026-06-13
 
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-tauri-plugin@v1.0.0-next.6...1.0.0)
+### Documentation
+- Added v1.0.0 release notes
 
-### Changed
-- streamline permissions and command handling in tauri-plugin
-- release updates (#250)
-
-## [@wdio/tauri-service@1.0.0] - 2026-05-03
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-tauri-service@v1.0.0-next.6...1.0.0)
-
-### Changed
-- update plugin-setup documentation to reflect changes in permissions
-- release updates (#250)
-
-## [tauri-plugin-wdio-webdriver@1.0.0] - 2026-05-03
-
-### Changed
-- release updates (#250)
+### Developer
+- **CI**: Committed Cargo.lock to enable reproducible builds and fix Rust CI
