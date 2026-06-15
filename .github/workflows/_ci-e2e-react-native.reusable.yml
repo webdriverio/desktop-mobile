@@ -188,8 +188,9 @@ jobs:
             # Package-install smoke (#387): validate the PACKED @wdio/react-native-service tarball
             # installs + composes against THIS already-booted emulator + Metro + APK — the cheap
             # "reuse the e2e device" approach (no second emulator). test-package.ts packs the service
-            # (+ native-mobile-core/cdp-bridge/types), installs it into the isolated fixture, and runs
-            # its smoke spec; the uiautomator2 driver in APPIUM_HOME and RN_APP_PATH are reused.
+            # (+ native-mobile-core/cdp-bridge/types) and installs it into the isolated fixture, whose
+            # own devDeps provide appium + the uiautomator2 driver (Appium detects drivers from
+            # node_modules, not APPIUM_HOME); the running emulator + Metro + RN_APP_PATH are reused.
             # Gated to the new-arch leg so it runs once per service (packaging is arch-independent).
             # Single line: android-emulator-runner runs the script line-by-line (each its own
             # `sh -c`), so a multi-line if/then/fi splits and the `if` executes without its `fi`.

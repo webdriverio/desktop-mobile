@@ -17,6 +17,8 @@
     "@wdio/native-types": "workspace:*",
     "@wdio/flutter-service": "workspace:*",
     "@wdio/spec-reporter": "9.27.1",
+    "appium": "^3.5.0",
+    "appium-flutter-driver": "^3.7.0",
     "typescript": "5.9.3"
   }
 }
