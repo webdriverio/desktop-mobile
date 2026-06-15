@@ -38,6 +38,17 @@ const capabilities: ReactNativeCapabilities[] = [
         'appium:platformVersion': process.env.RN_PLATFORM_VERSION ?? '18.0',
         'appium:app': appPath,
         'appium:noReset': true,
+        // CI reuses an already-booted simulator + prebuilt WebDriverAgent: pin the exact sim
+        // (RN_IOS_UDID) and reuse the WDA build (RN_WDA_DD) so a session neither re-boots a sim nor
+        // rebuilds WDA. Both are unset locally, where Appium resolves by name and builds WDA itself.
+        ...(process.env.RN_IOS_UDID ? { 'appium:udid': process.env.RN_IOS_UDID } : {}),
+        ...(process.env.RN_WDA_DD
+          ? {
+              'appium:derivedDataPath': process.env.RN_WDA_DD,
+              'appium:usePrebuiltWDA': true,
+              'appium:wdaLaunchTimeout': 180000,
+            }
+          : {}),
         'wdio:reactNativeServiceOptions': rnServiceOptions,
       }
     : {
@@ -60,7 +71,8 @@ export const config = {
   bail: 0,
   baseUrl: '',
   waitforTimeout: 30000,
-  connectionRetryTimeout: 180000,
+  // iOS session-create (XCUITest/WDA attach) is slower than Android's, so allow more headroom there.
+  connectionRetryTimeout: platform === 'ios' ? 420000 : 180000,
   connectionRetryCount: 3,
   outputDir: join(__dirname, 'logs'),
   services: [
