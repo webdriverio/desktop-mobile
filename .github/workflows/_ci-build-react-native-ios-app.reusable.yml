@@ -139,6 +139,6 @@ jobs:
           # never re-uploaded. overwrite handles a full re-run that does rebuild.
           name: rn-ios-app-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ github.run_id }}
           path: rn-ios-app.tar.gz
-          retention-days: 1
+          retention-days: 3
           if-no-files-found: error
           overwrite: true

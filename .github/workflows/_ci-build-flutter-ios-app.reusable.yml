@@ -82,6 +82,6 @@ jobs:
           # The tarball, not the raw .app dir, so symlinks/exec bits survive. overwrite handles a
           # full re-run that rebuilds (the run_id-only name otherwise collides).
           path: flutter-ios-app.tar.gz
-          retention-days: 1
+          retention-days: 3
           if-no-files-found: error
           overwrite: true
