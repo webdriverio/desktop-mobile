@@ -152,6 +152,10 @@ jobs:
               echo "packages=@wdio/native-utils,@wdio/native-types,@wdio/native-spy,@wdio/native-core,@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
               ;;
             all)
+              if [[ -z "${{ inputs.standing_pr_number }}" ]]; then
+                echo "::error::scope=all requires standing_pr_number; use a specific scope for a direct release"
+                exit 1
+              fi
               # standing-pr publish resolves its package set from the merged PR's manifest
               echo "packages=" >> "$GITHUB_OUTPUT"
               ;;
