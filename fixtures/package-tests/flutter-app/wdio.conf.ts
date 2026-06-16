@@ -34,6 +34,16 @@ const capabilities: FlutterCapabilities[] = [
     'appium:automationName': 'Flutter',
     'appium:deviceName': process.env.FLUTTER_DEVICE_NAME ?? (platform === 'ios' ? 'iPhone 16' : 'emulator-5554'),
     'appium:app': appPath,
+    // iOS in CI reuses an already-booted simulator's prebuilt WebDriverAgent (FLUTTER_WDA_DD) so a
+    // session doesn't rebuild WDA. Unset locally, where Appium builds WDA itself.
+    ...(platform === 'ios' && process.env.FLUTTER_WDA_DD
+      ? {
+          'appium:derivedDataPath': process.env.FLUTTER_WDA_DD,
+          'appium:usePrebuiltWDA': true,
+          'appium:wdaLaunchTimeout': 180000,
+          'appium:simulatorStartupTimeout': 240000,
+        }
+      : {}),
     'wdio:flutterServiceOptions': flutterServiceOptions,
   },
 ];
@@ -48,7 +58,8 @@ export const config = {
   bail: 0,
   baseUrl: '',
   waitforTimeout: 30000,
-  connectionRetryTimeout: 180000,
+  // iOS session-create (XCUITest/WDA attach under appium-flutter-driver) is slower than Android's.
+  connectionRetryTimeout: platform === 'ios' ? 420000 : 180000,
   connectionRetryCount: 3,
   outputDir: join(__dirname, 'logs'),
   services: [

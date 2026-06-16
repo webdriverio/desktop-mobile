@@ -172,6 +172,12 @@ jobs:
         run: |
           set -euo pipefail
           pnpm --filter @repo/e2e run test:e2e:flutter:ios
+          # Package-install smoke (#387): packed @wdio/flutter-service against THIS booted sim,
+          # reusing the prebuilt WDA (FLUTTER_WDA_DD, read by the fixture config). test-package.ts
+          # overwrites the isolated fixture's appium-flutter-driver with the getVMServiceUrl fork
+          # (AFD_FORK_BUILD_DIR, built above) — the published driver can't reach the Dart VM.
+          FLUTTER_PLATFORM=ios FLUTTER_DEVICE_NAME="$FLUTTER_IOS_DEVICE" \
+            AFD_FORK_BUILD_DIR="$RUNNER_TEMP/afd/driver/build" pnpm test:package:flutter
 
       - name: 📦 Upload Test Logs
         if: always()
