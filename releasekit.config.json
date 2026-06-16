@@ -56,8 +56,8 @@
       "scope:spy": "@wdio/native-spy",
       "scope:core": "@wdio/native-core",
       "scope:cdp-bridge": "@wdio/native-cdp-bridge",
-      "scope:tauri": "@wdio/tauri-*",
-      "scope:dioxus": "@wdio/dioxus-*",
+      "scope:tauri": "@wdio/tauri-*,tauri-plugin-wdio*",
+      "scope:dioxus": "@wdio/dioxus-*,wdio-dioxus-*",
       "scope:electron": "@wdio/electron-*",
       "scope:electrobun": "@wdio/electrobun-*",
       "scope:react-native": "@wdio/react-native-*"
