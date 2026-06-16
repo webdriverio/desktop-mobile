@@ -102,5 +102,5 @@ jobs:
         with:
           name: electrobun-e2e-bundle-${{ runner.os }}-${{ runner.arch }}
           path: ${{ runner.temp }}/electrobun-e2e-bundle.tgz
-          retention-days: 1
+          retention-days: 3
           if-no-files-found: error

@@ -98,5 +98,5 @@ jobs:
         with:
           name: electrobun-package-app-${{ runner.os }}-${{ runner.arch }}
           path: ${{ runner.temp }}/electrobun-package-app.tgz
-          retention-days: 1
+          retention-days: 3
           if-no-files-found: error
