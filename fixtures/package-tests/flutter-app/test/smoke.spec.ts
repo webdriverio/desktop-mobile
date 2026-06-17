@@ -15,7 +15,7 @@ describe('@wdio/flutter-service package install', () => {
     expect(typeof browser.flutter.restoreAllMocks).toBe('function');
     expect(typeof browser.flutter.isMockFunction).toBe('function');
     expect(typeof browser.flutter.triggerDeeplink).toBe('function');
-    expect(typeof browser.flutter.switchWindow).toBe('function');
+    expect(typeof browser.flutter.switchContext).toBe('function');
     expect(typeof browser.flutter.emitEvent).toBe('function');
     expect(typeof browser.flutter.byValueKey).toBe('function');
     expect(typeof browser.flutter.byText).toBe('function');
