@@ -128,6 +128,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      pull-requests: write
     with:
       target_branch: main
       bump: ${{ needs.gate.outputs.bump }}
@@ -165,6 +166,7 @@ jobs:
     permissions:
       contents: write
       id-token: write
+      pull-requests: write
     with:
       target_branch: ${{ inputs.target_branch }}
       bump: ${{ inputs.bump }}
