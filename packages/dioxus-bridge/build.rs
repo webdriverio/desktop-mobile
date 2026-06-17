@@ -1,8 +1,8 @@
-// Build-time helper: copy the bundled guest-js into OUT_DIR so lib.rs can
-// embed it via include_str!. If the bundle hasn't been built yet (e.g.
-// `cargo check` runs before `pnpm build:js`), emit a no-op placeholder so
-// the crate still compiles — the bridge just won't inject anything until
-// the bundle is rebuilt.
+// Build-time helper: copy the committed guest-js bundle into OUT_DIR so lib.rs
+// can embed it via include_str!. The bundle (dist-js/index.js) is committed to
+// git specifically so downstream git/crates.io consumers receive it; if it is
+// missing we fail the build loudly rather than embedding a silent no-op (see
+// the panic below for why).
 
 use std::env;
 use std::fs;
@@ -12,35 +12,31 @@ fn main() {
   let out_dir = env::var_os("OUT_DIR").expect("OUT_DIR is set by cargo");
   let out_path = PathBuf::from(&out_dir).join("guest_js_bundle.js");
 
-  // Try the npm-package output path first (dist-js/index.js, written by
-  // `pnpm --filter @wdio/dioxus-bridge build`). Fall back to the legacy
-  // guest-js/dist-js path for backwards-compat with any existing local
-  // builds, then emit a no-op placeholder so the crate still compiles
-  // when neither has been built yet.
-  let candidates = [
-    PathBuf::from("dist-js/index.js"),
-    PathBuf::from("guest-js/dist-js/index.js"),
-  ];
+  // The guest-js bundle, written by `pnpm --filter @wdio/dioxus-bridge build`
+  // and committed to git so that git/crates.io consumers receive it.
+  let bundle_path = PathBuf::from("dist-js/index.js");
 
-  let bundle = candidates
-    .iter()
-    .find(|p| p.exists())
-    .map(|p| fs::read_to_string(p).expect("read guest-js bundle"))
-    .unwrap_or_else(|| {
-      // Loud, because the degraded binary looks healthy: the app renders,
-      // but every bridge round-trip times out with no error anywhere.
-      println!(
-        "cargo:warning=@wdio/dioxus-bridge guest-js bundle not found — embedding a no-op placeholder. \
-         Bridge invoke/mock/log-capture will silently time out at runtime. \
-         Run `pnpm --filter @wdio/dioxus-bridge build` before `cargo build`."
-      );
-      String::from("/* @wdio/dioxus-bridge guest-js not built yet; run `pnpm --filter @wdio/dioxus-bridge build` */")
-    });
+  // The bundle is committed to git (and shipped to npm via `files`), so a
+  // normal checkout always has it. If it's genuinely absent, embedding a no-op
+  // placeholder would yield a binary that *looks* healthy — the app renders —
+  // but every bridge round-trip silently times out at runtime with no error
+  // anywhere. That's invisible to a consumer because cargo suppresses
+  // build-script `cargo:warning` output for non-path (git / crates.io)
+  // dependencies. So fail the build loudly instead of shipping a
+  // silently-broken bridge.
+  let bundle = fs::read_to_string(&bundle_path).unwrap_or_else(|_| {
+    panic!(
+      "@wdio/dioxus-bridge guest-js bundle not found at `dist-js/index.js`. This file is \
+       committed to git so that downstream git/crates.io consumers receive it. If you are \
+       building from a workspace checkout, run `pnpm --filter @wdio/dioxus-bridge build` first. \
+       Without the bundle the bridge injects nothing and every round-trip times out silently at \
+       runtime."
+    )
+  });
 
   fs::write(&out_path, bundle).expect("write OUT_DIR/guest_js_bundle.js");
 
   println!("cargo:rerun-if-changed=dist-js/index.js");
-  println!("cargo:rerun-if-changed=guest-js/dist-js/index.js");
   println!("cargo:rerun-if-changed=guest-js/index.ts");
   println!("cargo:rerun-if-changed=package.json");
   println!("cargo:rerun-if-changed=build.rs");

@@ -51,6 +51,17 @@ dist-electron
 out
 build
 
+# Exception: the wdio-dioxus-bridge Rust crate embeds dist-js/index.js at
+# build time (build.rs + include_str!). git/crates.io consumers of the crate
+# only receive committed files, so this one bundle must be checked in — without
+# it build.rs has nothing to embed and every bridge round-trip silently times
+# out at runtime. npm consumers get it via the package `files` allowlist; this
+# exception covers the Rust side. Track only index.js; keep the generated
+# index.d.ts and any sourcemaps ignored.
+!/packages/dioxus-bridge/dist-js/
+/packages/dioxus-bridge/dist-js/*
+!/packages/dioxus-bridge/dist-js/index.js
+
 # Turbo files
 .turbo
 

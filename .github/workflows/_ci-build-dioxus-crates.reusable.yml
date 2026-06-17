@@ -73,6 +73,19 @@ jobs:
       - name: Build dioxus-bridge guest-js
         run: pnpm --filter @wdio/dioxus-bridge build
 
+      # The bridge crate embeds dist-js/index.js (build.rs + include_str!) and
+      # it is committed to git so downstream git/crates.io consumers receive a
+      # working bridge. Rebuilding from guest-js/index.ts above must not change
+      # it — a diff here means the committed bundle is stale and consumers would
+      # get out-of-date (or, on a clean regen, broken) injection.
+      - name: Verify committed guest-js bundle is up to date
+        shell: bash
+        run: |
+          if ! git diff --exit-code -- packages/dioxus-bridge/dist-js/index.js; then
+            echo "::error file=packages/dioxus-bridge/dist-js/index.js::Committed guest-js bundle is stale. Run 'pnpm --filter @wdio/dioxus-bridge build' and commit packages/dioxus-bridge/dist-js/index.js."
+            exit 1
+          fi
+
       - name: cargo check (wdio-dioxus-bridge)
         run: cargo check
         working-directory: packages/dioxus-bridge
