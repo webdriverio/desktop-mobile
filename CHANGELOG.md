@@ -6,21 +6,63 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
-## [@wdio/tauri-plugin@1.1.0] - 2026-06-13
+## @wdio/dioxus-bridge@1.0.0-next.0 - 2026-06-17
 
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-tauri-plugin@v1.1.0-next.0...1.1.0)
+_First release of @wdio/dioxus-bridge._
 
-### Changed
-- Project version updated to 1.1.0.
-
-## [@wdio/tauri-service@1.1.0] - 2026-06-13
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-tauri-service@v1.1.0-next.0...1.1.0)
+### New
+- **@wdio/dioxus-service**: Introduced @wdio/dioxus-service for Dioxus integration.
 
 ### Changed
-- Updated version to 1.1.0
+**Dependencies**:
+- Updated cargo dependencies across 4 directories with 4 new versions.
+- Updated production dependencies across 1 directory with 9 new versions.
+- Refreshed dependencies and resolved a throttling issue with WKWebView on macOS ARM.
+- **Build System**: Added Cargo.lock to version control to ensure reproducible Rust builds and stabilize CI.
+- **CI**: Added a Docker-based test matrix to verify compatibility across Linux distributions.
 
-## [tauri-plugin-wdio-webdriver@1.1.0] - 2026-06-13
+## @wdio/dioxus-service@1.0.0-next.0 - 2026-06-17
+
+_First release of @wdio/dioxus-service._
+
+### New
+- **@wdio/dioxus-service**: Introduced @wdio/dioxus-service package for Dioxus integration.
+
+### Fixed
+- Converged isMockFunction type-guard to handle overloaded types consistently across electron, tauri, dioxus, and electrobun integrations.
+- Hardened Windows session teardown to prevent crashes and hangs from benign errors.
 
 ### Changed
-- Updated version to 1.1.0
+- Refreshed dependencies and resolved Dioxus WKWebView throttling issues on macOS ARM.
+
+### Documentation
+- Added a video recording guide and reworked the visual-testing documentation.
+
+### Developer
+- **Tooling**: Switched repository scripts to run on bare Node instead of tsx for simpler execution. (#345)
+- **Dependencies**: Bumped 9 production dependencies across the workspace.
+
+## wdio-dioxus-driver@1.0.0-rc.0 - 2026-06-17
+
+_First release of wdio-dioxus-driver._
+
+### New
+- **@wdio/dioxus-service**: Introduced @wdio/dioxus-service package for Dioxus integration support.
+
+### Developer
+- **Dependencies**: Bumped cargo dependencies across multiple directories for improved stability and compatibility.
+- **CI**: Added Cargo.lock to the repository to ensure reproducible Rust builds and resolve CI failures.
+
+## wdio-dioxus-embedded-driver@1.0.0-rc.0 - 2026-06-17
+
+_First release of wdio-dioxus-embedded-driver._
+
+### New
+- **@wdio/dioxus-service**: Added new @wdio/dioxus-service package for Dioxus integration testing support.
+
+### Fixed
+- Fixed WKWebView throttling on macOS ARM platforms and refreshed dependencies.
+
+### Changed
+- **Dependencies**: Updated cargo dependencies across multiple directories for improved stability and compatibility.
+- **CI**: Committed Cargo.lock file to enable reproducible builds and fix Rust CI pipeline.
