@@ -49,6 +49,9 @@ const capabilities: ReactNativeCapabilities[] = [
               // Tight per-attempt ceiling (prebuilt WDA just launches) so the startup retries fit
               // inside connectionRetryTimeout below.
               'appium:wdaLaunchTimeout': 120000,
+              // Safety margin for appium's sim-boot monitor on a cold/slow runner (matches the
+              // Flutter fixture + the e2e confs).
+              'appium:simulatorStartupTimeout': 240000,
               // WDA on CI sims often fails to come up on the first attempt (ECONNREFUSED 8100 /
               // session timeout); appium's default is only 2 startup retries — bump it.
               'appium:wdaStartupRetries': 5,
