@@ -65,9 +65,18 @@ pub async fn get_title(
   State(state): State<Arc<AppState>>,
   Path(session_id): Path<String>,
 ) -> WebDriverResult {
-  let timeout = script_timeout(&state, &session_id).await?;
-  let result = eval("return document.title".to_string(), timeout).await?;
-  Ok(WebDriverResponse::success(result))
+  // Dioxus apps set the OS window title via document::Title / WindowBuilder::with_title,
+  // never touching document.title. Read from the bridge's window-state registry instead.
+  let current_window = state.sessions.read().await.get(&session_id)?.current_window.clone();
+  let states = wdio_dioxus_bridge::window_state::get_window_states();
+  let title = states
+    .iter()
+    .find(|w| w.label == current_window)
+    .or_else(|| states.iter().find(|w| w.is_focused))
+    .or_else(|| states.first())
+    .map(|w| w.title.as_str())
+    .unwrap_or_default();
+  Ok(WebDriverResponse::success(serde_json::json!(title)))
 }
 
 /// POST `/session/{session_id}/back`
