@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { markAsEmbedded } from '../src/commands/execute.js';
 import { createMock } from '../src/mock.js';
 import mockStore from '../src/mockStore.js';
 
 function makeBrowser(): WebdriverIO.Browser {
-  return { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+  const browser = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+  markAsEmbedded(browser);
+  return browser;
 }
 
 describe('createMock', () => {

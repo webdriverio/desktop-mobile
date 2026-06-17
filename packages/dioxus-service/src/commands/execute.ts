@@ -20,6 +20,21 @@
 
 import type { DioxusAPIs } from '@wdio/native-types';
 
+// Tracks which browser instances are using the embedded driver so that
+// unwrapEmbeddedResult is only applied on that path. External WebDriver
+// results are raw JS values and must not be treated as envelopes.
+const embeddedBrowsers = new WeakSet<WebdriverIO.Browser>();
+
+/**
+ * Mark a browser session as using the embedded driver. Called by the worker
+ * service during `before()` when `driverProvider === 'embedded'`. Once
+ * marked, execute() and runInterceptorScript() unwrap the __wdio_value__
+ * envelope that the embedded polling loop adds to every result.
+ */
+export function markAsEmbedded(browser: WebdriverIO.Browser): void {
+  embeddedBrowsers.add(browser);
+}
+
 export async function execute<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   browser: WebdriverIO.Browser,
   script: string | ((dx: DioxusAPIs, ...args: InnerArguments) => ReturnValue),
@@ -76,11 +91,11 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
       });
     `;
     const raw = await browser.execute(wrapped);
-    return unwrapEmbeddedResult<ReturnValue>(raw);
+    return embeddedBrowsers.has(browser) ? unwrapEmbeddedResult<ReturnValue>(raw) : (raw as ReturnValue);
   }
 
   const raw = await browser.execute(script, ...args);
-  return unwrapEmbeddedResult<ReturnValue>(raw);
+  return embeddedBrowsers.has(browser) ? unwrapEmbeddedResult<ReturnValue>(raw) : (raw as ReturnValue);
 }
 
 /**
@@ -93,7 +108,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
  */
 export async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
   const raw = await browser.execute(`return (${script})()`);
-  return unwrapEmbeddedResult<T>(raw);
+  return embeddedBrowsers.has(browser) ? unwrapEmbeddedResult<T>(raw) : (raw as T);
 }
 
 // The embedded polling loop wraps results in { __wdio_value__: result } so
