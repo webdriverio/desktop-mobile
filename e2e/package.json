@@ -60,7 +60,7 @@
     "protocol-install:electron-forge": "../fixtures/e2e-apps/electron-forge/scripts/protocol-install.sh"
   },
   "dependencies": {
-    "@wdio/appium-service": "9.27.1",
+    "@wdio/appium-service": "9.28.0",
     "@wdio/cli": "catalog:default",
     "@wdio/dioxus-service": "link:../packages/dioxus-service",
     "@wdio/electrobun-service": "link:../packages/electrobun-service",
@@ -72,7 +72,7 @@
     "@wdio/native-utils": "workspace:*",
     "@wdio/react-native-service": "link:../packages/react-native-service",
     "@wdio/tauri-service": "link:../packages/tauri-service",
-    "@wdio/visual-service": "^9.2.2",
+    "@wdio/visual-service": "^9.2.3",
     "@wdio/xvfb": "catalog:default",
     "electron": "catalog:default",
     "tsx": "^4.22.4",
