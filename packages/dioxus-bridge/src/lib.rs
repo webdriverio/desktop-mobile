@@ -58,11 +58,13 @@ use serde_json::{json, Value};
 pub use invoke::CommandRegistry;
 pub use log_bridge::FRONTEND_MARKER;
 
-/// The bundled `@wdio/dioxus-bridge` guest-js — populated at build time by
-/// `build.rs` from `guest-js/dist-js/index.js`. When the bundle hasn't been
-/// built yet, the placeholder is a no-op comment and the bridge silently
-/// degrades to "no JS injected"; rerun `pnpm --filter @wdio/dioxus-bridge
-/// build` to repopulate.
+/// The bundled `@wdio/dioxus-bridge` guest-js — embedded at build time by
+/// `build.rs` from the committed `dist-js/index.js`. The bundle is checked
+/// into git (and shipped to npm via the package `files` allowlist) so that
+/// git/crates.io consumers of this crate receive it; without it the bridge
+/// injects nothing and every round-trip silently times out at runtime, so
+/// `build.rs` fails the build loudly when it is missing. Rebuild with
+/// `pnpm --filter @wdio/dioxus-bridge build` after editing `guest-js/`.
 const GUEST_JS_BUNDLE: &str = include_str!(concat!(env!("OUT_DIR"), "/guest_js_bundle.js"));
 
 /// Install the WDIO bridge into a Dioxus [`Config`]:
