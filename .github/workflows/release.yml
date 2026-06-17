@@ -81,6 +81,7 @@ permissions:
   contents: read
   actions: read
   id-token: write
+  pull-requests: write
 
 jobs:
   # Under ci.releaseStrategy: standing-pr the gate is the immediate-release evaluator:
