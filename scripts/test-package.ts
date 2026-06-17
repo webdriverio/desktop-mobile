@@ -1297,8 +1297,9 @@ async function main() {
         ['dioxus-', 'dioxus'],
         ['electrobun-', 'electrobun'],
         ['react-native-', 'react-native'],
+        ['flutter-', 'flutter'],
       ] as const;
-      const detectedService: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' =
+      const detectedService: 'electron' | 'tauri' | 'dioxus' | 'electrobun' | 'react-native' | 'flutter' =
         servicePrefixes.find(([prefix]) => packageName.startsWith(prefix))?.[1] ?? 'electron';
 
       // Log module type for Electron packages
