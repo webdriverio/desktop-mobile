@@ -15,7 +15,7 @@
     "clean:dist": "node ../../../scripts/clean-dist.ts ./dist ./dist-electron"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.3",
     "@wdio/cli": "catalog:default",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",

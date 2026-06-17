@@ -82,14 +82,14 @@
   },
   "devDependencies": {
     "@electron-forge/shared-types": "^7.11.2",
-    "@puppeteer/browsers": "^3.0.3",
+    "@puppeteer/browsers": "^3.0.4",
     "@types/debug": "^4.1.12",
     "@types/electron-to-chromium": "^1.5.0",
-    "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@types/node": "^25.9.3",
+    "@vitest/coverage-v8": "^4.1.9",
     "@wdio/native-spy": "workspace:*",
     "@wdio/types": "catalog:default",
-    "builder-util": "^26.8.0",
+    "builder-util": "^26.15.3",
     "electron": "catalog:default",
     "jsdom": "^29.1.1",
     "nock": "^14.0.15",
@@ -97,7 +97,7 @@
     "tinyspy": "^4.0.4",
     "tslib": "^2.8.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.9"
   },
   "files": [
     "dist",
