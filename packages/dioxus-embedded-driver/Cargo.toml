@@ -1,6 +1,6 @@
 [package]
 name = "wdio-dioxus-embedded-driver"
-version = "1.0.0-rc.0"
+version = "1.0.0-next.0"
 authors = [ "WebdriverIO Community" ]
 categories = [ "development-tools::testing", "gui" ]
 license = "Apache-2.0 OR MIT"
@@ -24,7 +24,7 @@ tracing = "0.1"
 
 [dependencies.wdio-dioxus-bridge]
 path = "../dioxus-bridge"
-version = "1.0.0-rc.0"
+version = "1.0.0-next.0"
 
 [dependencies.serde]
 version = "1"

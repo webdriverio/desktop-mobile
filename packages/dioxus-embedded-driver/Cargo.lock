@@ -4640,7 +4640,7 @@ dependencies = [
 
 [[package]]
 name = "wdio-dioxus-bridge"
-version = "1.0.0-rc.0"
+version = "1.0.0-next.0"
 dependencies = [
  "dioxus-desktop",
  "serde",
@@ -4651,7 +4651,7 @@ dependencies = [
 
 [[package]]
 name = "wdio-dioxus-embedded-driver"
-version = "1.0.0-rc.0"
+version = "1.0.0-next.0"
 dependencies = [
  "axum",
  "dioxus-desktop",
