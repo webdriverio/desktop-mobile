@@ -1,6 +1,6 @@
 [package]
 name = "wdio-dioxus-embedded-driver"
-version = "1.0.0-next.1"
+version = "1.0.0-next.2"
 authors = [ "WebdriverIO Community" ]
 categories = [ "development-tools::testing", "gui" ]
 license = "Apache-2.0 OR MIT"
