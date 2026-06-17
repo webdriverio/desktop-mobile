@@ -6,6 +6,27 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## @wdio/electrobun-service@0.1.0 - 2026-06-17
+
+_First release of @wdio/electrobun-service._
+
+### New
+- **Windows WebView2 CDP support**: Added Windows WebView2 CDP support for non-CEF browser testing.
+- **@wdio/electrobun-service**: Added @wdio/electrobun-service for desktop application testing support. (#322)
+
+### Fixed
+- Fixed type-guard for isMockFunction to properly handle all framework variants.
+- Pinned msedgedriver to WebView2 runtime version to fix Windows test flakiness.
+
+### Changed
+- Set electrobun-service version to 0.1.0 for first stable release.
+- **@wdio/native-cdp-bridge**: Extracted shared @wdio/native-cdp-bridge module and reworked electrobun to use it. (#333)
+
+### Developer
+- **Tooling**: Switched repo scripts to run on bare node instead of tsx. (#345)
+- **Dependencies**: Bumped 9 production dependencies across the repository.
+
 ## @wdio/dioxus-bridge@1.0.0-next.0 - 2026-06-17
 
 _First release of @wdio/dioxus-bridge._
