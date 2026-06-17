@@ -106,6 +106,8 @@ type ReactNativeCapability = {
   'appium:simulatorStartupTimeout'?: number;
   'appium:derivedDataPath'?: string;
   'appium:usePrebuiltWDA'?: boolean;
+  'appium:wdaStartupRetries'?: number;
+  'appium:wdaStartupRetryInterval'?: number;
   'appium:isHeadless'?: boolean;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
@@ -141,6 +143,10 @@ const capabilities: ReactNativeCapability[] = [
           // Safety margin for appium's boot monitor on a cold/slow runner; with isHeadless above
           // the redundant restart is gone, so this ceiling should no longer be approached in CI.
           'appium:simulatorStartupTimeout': 240000,
+          // WDA on GitHub-Actions sims often fails to come up on the first attempt (ECONNREFUSED
+          // 8100 / session-create timeout); appium's default is only 2 startup retries — bump it.
+          'appium:wdaStartupRetries': 5,
+          'appium:wdaStartupRetryInterval': 20000,
           // CI pre-builds WDA into RN_WDA_DD; reuse it (no per-session xcodebuild → no long
           // POST /session → no UND_ERR_SOCKET). Omitted locally so appium builds WDA as usual.
           ...(process.env.RN_WDA_DD
@@ -164,11 +170,12 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // One spec retry to absorb transient mobile-CI flake (emulator/simulator boot, first-session
-  // attach). NOTE: iOS also has an intermittent appium-sim "unknown to FrontBoard" session-create
-  // flake that in-run retries CAN'T clear (same sim) — re-run the leg to clear it. Tracked in #359;
-  // neither noReset nor fullReset fixed it (see that issue).
-  specFileRetries: 1,
+  // Two spec retries to absorb transient mobile-CI flake (emulator/simulator boot, first-session
+  // attach, WDA-not-up). Each retry is a fresh session, which together with the in-session
+  // wdaStartupRetries above clears the WDA ECONNREFUSED / session-create flakes. NOTE: iOS also has
+  // an intermittent appium-sim "unknown to FrontBoard" flake that in-run retries CAN'T clear (same
+  // sim) — re-run the leg to clear it. Tracked in #359; neither noReset nor fullReset fixed it.
+  specFileRetries: 2,
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,

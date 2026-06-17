@@ -87,6 +87,8 @@ type FlutterCapability = {
   'appium:simulatorStartupTimeout'?: number;
   'appium:derivedDataPath'?: string;
   'appium:usePrebuiltWDA'?: boolean;
+  'appium:wdaStartupRetries'?: number;
+  'appium:wdaStartupRetryInterval'?: number;
   'wdio:flutterServiceOptions': FlutterServiceOptions;
 };
 
@@ -108,6 +110,10 @@ const capabilities: FlutterCapability[] = [
           'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 16',
           'appium:simulatorStartupTimeout': 240000,
           'appium:wdaLaunchTimeout': process.env.FLUTTER_WDA_DD ? 180000 : 720000,
+          // WDA on GitHub-Actions sims often fails to come up on the first attempt (ECONNREFUSED
+          // 8100 / session-create timeout). appium's default is only 2 startup retries — bump it.
+          'appium:wdaStartupRetries': 5,
+          'appium:wdaStartupRetryInterval': 20000,
           ...(process.env.FLUTTER_WDA_DD
             ? { 'appium:derivedDataPath': process.env.FLUTTER_WDA_DD, 'appium:usePrebuiltWDA': true }
             : {}),
@@ -132,8 +138,10 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // One spec retry to absorb transient mobile-CI flake (emulator boot, first-session attach).
-  specFileRetries: 1,
+  // Two spec retries: each retry is a fresh session, which (with the in-session wdaStartupRetries
+  // above) clears transient WDA/boot/attach flakes. The sticky iOS "unknown to FrontBoard" race
+  // can't be cleared in-run (same sim) — re-run the leg for that; see the RN conf / #359.
+  specFileRetries: 2,
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
