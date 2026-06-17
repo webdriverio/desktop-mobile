@@ -11,6 +11,7 @@ const ROOT = join(__dirname, '..');
 
 const WORKFLOW_FILES = [
   join(ROOT, '.github/workflows/_release.reusable.yml'),
+  join(ROOT, '.github/workflows/_standing-pr-update.reusable.yml'),
   join(ROOT, '.github/workflows/release-preview.yml'),
   join(ROOT, '.github/workflows/release.yml'),
 ];

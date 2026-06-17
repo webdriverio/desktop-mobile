@@ -74,7 +74,16 @@ Mobile has no driver providers; instead it splits **per platform** (the per-plat
 
 ## Release pipeline
 
-Releases run through **ReleaseKit** (`goosewobbler/releasekit`), driven by a **scope**. Two entry points in `release.yml`: auto (on successful CI push to `main`, gated by a ReleaseKit `gate` job) and manual (`workflow_dispatch` with `scope` / `bump` / `release_type` / `dry_run`).
+Releases run through **ReleaseKit** (`goosewobbler/releasekit`) under the **standing-PR strategy**: merges to `main` accumulate in a standing release PR (`release/next`, maintained by `standing-pr.yml`); merging it publishes everything queued. Two bypass paths in `release.yml`: immediate (merge labelled `release:immediate` + scope/bump — CI-gated by the ReleaseKit `gate` job) and manual (`workflow_dispatch` with `scope` / `bump` / `release_type` / `dry_run`).
+
+### First release: npm packages must be created by the wdio npm admin
+
+npm OIDC trusted publishing **cannot create packages** — a trusted-publisher entry only attaches to an existing package. Before a new service's first release run, the wdio npm admin must, for each new `@wdio/*` package (service, bridge, any new shared package):
+
+1. Do an initial publish to create the package under the `@wdio` scope
+2. Configure the trusted publisher: repo `webdriverio/desktop-mobile`, workflow `release.yml`
+
+File this as an issue **early in the Ship phase** (example: #328) — a release run that includes an uncreated package fails at its publish step. crates.io is NOT affected: the account is controlled by us, so the pipeline's `CRATES_IO_TOKEN` creates a crate on its first `cargo publish` — new Rust crates need no pre-creation.
 
 The pipeline has **two layers that must both be updated and kept in lock-step** — ReleaseKit's config *and* the GitHub Actions wrapper around it. Updating only one ships broken in a way every *other* CI check passes, so it's easy to miss (React Native did — see the warning below).
 
