@@ -132,7 +132,9 @@ const capabilities: ReactNativeCapability[] = [
           // via usePrebuiltWDA below) so the first session just launches it — fast, a tight ceiling
           // is fine. Without a prebuilt WDA (local) appium compiles it on the first session (several
           // minutes), so the wait must stay generous. connectionRetryTimeout below tracks this.
-          'appium:wdaLaunchTimeout': process.env.RN_WDA_DD ? 180000 : 720000,
+          // Prebuilt WDA just launches (no compile), so a tight per-attempt ceiling lets several
+          // startup retries fit inside connectionRetryTimeout below.
+          'appium:wdaLaunchTimeout': process.env.RN_WDA_DD ? 120000 : 720000,
           // CI boots the sim headless (simctl). Without isHeadless, XCUITest restarts it on
           // session-create "with the Simulator window visible" — a ~225s GUI re-boot on a
           // display-less runner that raced the 240s ceiling below and was the proven root cause
@@ -179,11 +181,11 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS: must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session before WDA is ready.
-  // With a prebuilt WDA (CI) the session is fast, so a tighter 7-min ceiling surfaces a flaky
-  // first-session (sim boot / socket / "unknown to FrontBoard", #359) in ~7 min instead of dragging
-  // to 15; without a prebuilt WDA (local build) it stays generous. Android stays tight.
-  connectionRetryTimeout: isIos ? (process.env.RN_WDA_DD ? 420000 : 900000) : 180000,
+  // iOS: must exceed the whole WDA startup-retry budget (wdaStartupRetries × (wdaLaunchTimeout +
+  // wdaStartupRetryInterval) ≈ 5×140s) so WDIO doesn't abort POST /session mid-retry on a cold
+  // session — the prior 7-min ceiling cut the retries short. The sticky "unknown to FrontBoard"
+  // (#359) still needs a leg re-run. Without a prebuilt WDA (local) it stays generous; Android tight.
+  connectionRetryTimeout: isIos ? (process.env.RN_WDA_DD ? 780000 : 900000) : 180000,
   // 0: a failed iOS session-create otherwise retries the full timeout, ballooning runtime; the
   // deferred specFileRetry above is the recovery path instead.
   connectionRetryCount: 0,

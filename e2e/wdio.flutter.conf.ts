@@ -109,7 +109,10 @@ const capabilities: FlutterCapability[] = [
       ? {
           'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 16',
           'appium:simulatorStartupTimeout': 240000,
-          'appium:wdaLaunchTimeout': process.env.FLUTTER_WDA_DD ? 180000 : 720000,
+          // Prebuilt WDA just launches (no compile), so a tight per-attempt ceiling lets several
+          // startup retries fit inside connectionRetryTimeout below; non-prebuilt (local) must
+          // allow the multi-minute compile.
+          'appium:wdaLaunchTimeout': process.env.FLUTTER_WDA_DD ? 120000 : 720000,
           // WDA on GitHub-Actions sims often fails to come up on the first attempt (ECONNREFUSED
           // 8100 / session-create timeout). appium's default is only 2 startup retries — bump it.
           'appium:wdaStartupRetries': 5,
@@ -145,10 +148,10 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session before WDA is ready;
-  // with a prebuilt WDA (CI) the session is fast, so a tighter 7-min ceiling surfaces a flaky
-  // first session quickly. Android stays tight.
-  connectionRetryTimeout: isIos ? (process.env.FLUTTER_WDA_DD ? 420000 : 900000) : 180000,
+  // iOS must exceed the whole WDA startup-retry budget (wdaStartupRetries × (wdaLaunchTimeout +
+  // wdaStartupRetryInterval) ≈ 5×140s) so WDIO doesn't abort POST /session mid-retry on a cold
+  // first session — the prior 7-min ceiling cut the retries short. Android stays tight.
+  connectionRetryTimeout: isIos ? (process.env.FLUTTER_WDA_DD ? 780000 : 900000) : 180000,
   connectionRetryCount: 0,
   // @wdio/appium-service boots Appium; @wdio/flutter-service prepares the capability
   // (automationName Flutter) and attaches the Dart VM Service for execute/mock.

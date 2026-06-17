@@ -40,7 +40,9 @@ const capabilities: FlutterCapabilities[] = [
       ? {
           'appium:derivedDataPath': process.env.FLUTTER_WDA_DD,
           'appium:usePrebuiltWDA': true,
-          'appium:wdaLaunchTimeout': 180000,
+          // Tight per-attempt ceiling (prebuilt WDA just launches) so the startup retries below fit
+          // inside connectionRetryTimeout.
+          'appium:wdaLaunchTimeout': 120000,
           'appium:simulatorStartupTimeout': 240000,
           // WDA on CI sims often fails to come up on the first attempt (ECONNREFUSED 8100 /
           // session timeout); appium's default is only 2 startup retries — bump it.
@@ -62,9 +64,12 @@ export const config = {
   bail: 0,
   baseUrl: '',
   waitforTimeout: 30000,
-  // iOS session-create (XCUITest/WDA attach under appium-flutter-driver) is slower than Android's.
-  connectionRetryTimeout: platform === 'ios' ? 420000 : 180000,
-  connectionRetryCount: 3,
+  // iOS must exceed the WDA startup-retry budget (wdaStartupRetries × (wdaLaunchTimeout +
+  // interval) ≈ 5×140s) so WDIO doesn't abort the cold session-create mid-retry.
+  connectionRetryTimeout: platform === 'ios' ? 780000 : 180000,
+  // 0 (not 3): a failed iOS session-create otherwise retries the full 13-min timeout 3× — use the
+  // spec retry below (fresh session) instead.
+  connectionRetryCount: 0,
   // Retry the smoke once on a transient mobile-CI session flake (WDA/boot/attach) — a fresh session
   // with the wdaStartupRetries above usually clears it. (The sticky iOS "unknown to FrontBoard"
   // race needs a leg re-run; see e2e/wdio.flutter.conf.ts.)
