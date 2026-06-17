@@ -112,6 +112,26 @@ jobs:
           fi
           xcrun simctl bootstatus "$FLUTTER_IOS_DEVICE" -b || { echo "::error::Simulator '$FLUTTER_IOS_DEVICE' did not reach Booted state"; exit 1; }
 
+      # Prime logd before Appium's first session. The first `simctl … log stream` on a freshly
+      # booted sim routinely exceeds appium-xcuitest's 10s start window ("process did not start
+      # within 10000ms"), which it silently swallows ("Continuing without capturing device logs") —
+      # disabling the syslog the Flutter driver reads the (random, auth-coded) VM-service URL from →
+      # the first session fails with "mandatory syslog service must be running" while warmed-up later
+      # sessions pass. Running one stream now (with a generous window) absorbs that cold start; the
+      # fork's startLogCapture retry is the backstop for any residual transient.
+      - name: 🔥 Warm up simulator logd
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "Warming up the simulator log stream..."
+          ( xcrun simctl spawn booted log stream --style compact > /tmp/logwarm.out 2>&1 & echo $! > /tmp/logwarm.pid )
+          for i in $(seq 1 30); do
+            if [ -s /tmp/logwarm.out ]; then echo "logd streaming after ${i}s"; break; fi
+            sleep 1
+          done
+          kill "$(cat /tmp/logwarm.pid)" 2>/dev/null || true
+          [ -s /tmp/logwarm.out ] || echo "::warning::logd did not emit within 30s during warm-up (continuing; fork retry is the backstop)"
+
       - name: 🔌 Install XCUITest + use the appium-flutter-driver fork (getVMServiceUrl)
         shell: bash
         # XCUITest installs normally. For Flutter: @repo/e2e depends on appium-flutter-driver
