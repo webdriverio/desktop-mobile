@@ -58,7 +58,7 @@ if (typeof window.__WDIO_EMBEDDED_PORT === "number" && !window.__WDIO_EMBEDDED_R
             error = e instanceof Error ? `${e.name}: ${e.message}` : String(e);
           }
           try {
-            await invoke("__embedded_result", { id: cmd.id, result: error ? null : { __wdio_value__: result }, error });
+            await invoke("__embedded_result", { id: cmd.id, result: result ?? null, error });
           } catch {
             try {
               await invoke("__embedded_result", {

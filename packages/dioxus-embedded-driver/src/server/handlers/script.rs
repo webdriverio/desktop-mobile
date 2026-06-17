@@ -96,10 +96,15 @@ pub async fn execute_sync(
     let param_names: Vec<String> = (0..pass_through.len()).map(|i| format!("__arg{i}")).collect();
     let param_list = param_names.join(", ");
     let call_list = call_args.join(", ");
+    // Wrap the result in {__wdio_value__: ...} so the service layer can
+    // distinguish undefined (key absent after JSON.stringify) from null (key
+    // present with null value). Only user execute calls use this envelope;
+    // internal evals (getTitle, getUrl, …) go through navigation::eval()
+    // directly without wrapping.
     let call_expr = if call_list.is_empty() {
-      format!("return (function() {{ {} }})()", request.script)
+      format!("return {{ __wdio_value__: (function() {{ {} }})() }}", request.script)
     } else {
-      format!("return (function({param_list}) {{ {} }})({call_list})", request.script)
+      format!("return {{ __wdio_value__: (function({param_list}) {{ {} }})({call_list}) }}", request.script)
     };
 
     (session.timeouts.script_ms, call_expr, pass_through)
@@ -145,7 +150,7 @@ pub async fn execute_async(
     let wrapped = format!(
       r#"return (function() {{
         return new Promise(function(resolve, reject) {{
-          var __done = function(result) {{ resolve(result); }};
+          var __done = function(result) {{ resolve({{ __wdio_value__: result }}); }};
           try {{ (function({param_list}) {{ {script} }})({call_list}); }}
           catch (e) {{ reject(e); }}
         }});
