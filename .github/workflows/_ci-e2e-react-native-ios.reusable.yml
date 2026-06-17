@@ -58,8 +58,9 @@ env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
   RN_BUILD_DIR: ${{ github.workspace }}/rn-build
-  # Explicit, shared DerivedData for the prebuilt WebDriverAgent: the pre-build step writes here
-  # and the graded run reads it (appium:derivedDataPath), so the cached WDA is reused, not rebuilt.
+  # Explicit, shared DerivedData for the prebuilt WebDriverAgent: the pre-build step writes here and
+  # the run reads the Runner.app under it (appium:prebuiltWDAPath), so the cached WDA is reused, not
+  # rebuilt.
   RN_WDA_DD: ${{ github.workspace }}/wda_dd
 
 jobs:
@@ -198,9 +199,9 @@ jobs:
       # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
       # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (several
       # minutes) on the first graded session, and under WDIO's undici client that long POST /session
-      # dropped the socket (UND_ERR_SOCKET) and failed the first spec. Building here into an explicit,
-      # shared derivedDataPath that the graded run reads (appium:derivedDataPath + usePrebuiltWDA)
-      # means the graded sessions skip the build and are fast.
+      # dropped the socket (UND_ERR_SOCKET) and failed the first spec. Building here, then launching
+      # the Runner.app via appium:usePreinstalledWDA + prebuiltWDAPath (simctl install/launch, no
+      # in-session xcodebuild), means the graded sessions skip the build and are fast.
       - name: 🏎️ Pre-build WebDriverAgent
         if: steps.wda-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -218,6 +219,21 @@ jobs:
           RUNNER_APP="$RN_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
           test -d "$RUNNER_APP" || { echo "::error::prebuilt WDA runner not found at $RUNNER_APP"; find "$RN_WDA_DD/Build/Products" 2>/dev/null | head -40; exit 1; }
           echo "✅ WDA prebuilt at $RUNNER_APP"
+
+      # The wdio configs use appium:usePreinstalledWDA + prebuiltWDAPath to simctl-install + launch
+      # this prebuilt Runner.app WITHOUT xcodebuild at session time — keeping POST /session short
+      # (the long in-session xcodebuild WDA launch otherwise overran undici's ~300s socket timeout →
+      # UND_ERR_SOCKET on the cold session). On iOS 17+ the embedded XCTest frameworks must be
+      # removed so WDA references the simulator's local ones (appium-xcuitest run-preinstalled-wda
+      # guide). Runs every time (cache hit or fresh build) and is idempotent.
+      - name: ✂️ Strip XCTest frameworks from prebuilt WDA (usePreinstalledWDA, iOS 17+)
+        shell: bash
+        run: |
+          set -euo pipefail
+          APP="$RN_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
+          test -d "$APP" || { echo "::error::prebuilt WDA Runner.app not found at $APP"; exit 1; }
+          rm -rf "$APP"/Frameworks/XC* || true
+          echo "Stripped XC* frameworks from $APP"
 
       - name: 🧪 Run E2E on iOS simulator
         shell: bash

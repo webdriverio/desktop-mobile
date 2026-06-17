@@ -104,8 +104,8 @@ type ReactNativeCapability = {
   'appium:udid'?: string;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
-  'appium:derivedDataPath'?: string;
-  'appium:usePrebuiltWDA'?: boolean;
+  'appium:usePreinstalledWDA'?: boolean;
+  'appium:prebuiltWDAPath'?: string;
   'appium:wdaStartupRetries'?: number;
   'appium:wdaStartupRetryInterval'?: number;
   'appium:isHeadless'?: boolean;
@@ -129,9 +129,10 @@ const capabilities: ReactNativeCapability[] = [
           // exports RN_IOS_UDID from the boot step; omitted locally (appium resolves by name).
           ...(process.env.RN_IOS_UDID ? { 'appium:udid': process.env.RN_IOS_UDID } : {}),
           // wdaLaunchTimeout is a ceiling, not a delay. CI pre-builds WDA into RN_WDA_DD (reused
-          // via usePrebuiltWDA below) so the first session just launches it — fast, a tight ceiling
-          // is fine. Without a prebuilt WDA (local) appium compiles it on the first session (several
-          // minutes), so the wait must stay generous. connectionRetryTimeout below tracks this.
+          // via usePreinstalledWDA below — simctl install/launch) so the first session just launches
+          // it — fast, a tight ceiling is fine. Without a prebuilt WDA (local) appium compiles it on
+          // the first session (several minutes), so the wait must stay generous. connectionRetryTimeout
+          // below tracks this.
           // Prebuilt WDA just launches (no compile), so a tight per-attempt ceiling lets several
           // startup retries fit inside connectionRetryTimeout below.
           'appium:wdaLaunchTimeout': process.env.RN_WDA_DD ? 120000 : 720000,
@@ -149,10 +150,15 @@ const capabilities: ReactNativeCapability[] = [
           // 8100 / session-create timeout); appium's default is only 2 startup retries — bump it.
           'appium:wdaStartupRetries': 5,
           'appium:wdaStartupRetryInterval': 20000,
-          // CI pre-builds WDA into RN_WDA_DD; reuse it (no per-session xcodebuild → no long
-          // POST /session → no UND_ERR_SOCKET). Omitted locally so appium builds WDA as usual.
+          // CI pre-builds WDA into RN_WDA_DD; simctl-install + launch it via usePreinstalledWDA (no
+          // per-session xcodebuild → short POST /session → no UND_ERR_SOCKET). usePrebuiltWDA still
+          // shells out to `xcodebuild test`, which overran undici's ~300s socket cap. The reusable
+          // strips the runner's embedded XCTest frameworks. Omitted locally so appium builds WDA.
           ...(process.env.RN_WDA_DD
-            ? { 'appium:derivedDataPath': process.env.RN_WDA_DD, 'appium:usePrebuiltWDA': true }
+            ? {
+                'appium:usePreinstalledWDA': true,
+                'appium:prebuiltWDAPath': `${process.env.RN_WDA_DD}/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app`,
+              }
             : {}),
         }
       : {}),
@@ -181,11 +187,12 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS: must exceed the whole WDA startup-retry budget (wdaStartupRetries × (wdaLaunchTimeout +
-  // wdaStartupRetryInterval) ≈ 5×140s) so WDIO doesn't abort POST /session mid-retry on a cold
-  // session — the prior 7-min ceiling cut the retries short. The sticky "unknown to FrontBoard"
-  // (#359) still needs a leg re-run. Without a prebuilt WDA (local) it stays generous; Android tight.
-  connectionRetryTimeout: isIos ? (process.env.RN_WDA_DD ? 780000 : 900000) : 180000,
+  // iOS: generous per-command ceiling, but kept below the inflated value that fed cold
+  // session-create — with usePreinstalledWDA there's no in-session xcodebuild, so POST /session
+  // lands inside undici's ~300s socket cap and doesn't need the WDA-compile budget. The sticky
+  // "unknown to FrontBoard" (#359) still needs a leg re-run. Without a prebuilt WDA (local) it
+  // stays generous; Android tight.
+  connectionRetryTimeout: isIos ? (process.env.RN_WDA_DD ? 420000 : 900000) : 180000,
   // 0: a failed iOS session-create otherwise retries the full timeout, ballooning runtime; the
   // deferred specFileRetry above is the recovery path instead.
   connectionRetryCount: 0,

@@ -85,8 +85,8 @@ type FlutterCapability = {
   'appium:dartVmServicePort'?: number;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
-  'appium:derivedDataPath'?: string;
-  'appium:usePrebuiltWDA'?: boolean;
+  'appium:usePreinstalledWDA'?: boolean;
+  'appium:prebuiltWDAPath'?: string;
   'appium:wdaStartupRetries'?: number;
   'appium:wdaStartupRetryInterval'?: number;
   'wdio:flutterServiceOptions': FlutterServiceOptions;
@@ -102,9 +102,10 @@ const capabilities: FlutterCapability[] = [
     // random, auth-coded port), so @wdio/flutter-service discovers the VM Service by asking the
     // driver for the URL it already connected to (flutter:getVMServiceUrl) rather than pinning.
     // iOS: appium-flutter-driver wraps appium-xcuitest, which launches WebDriverAgent. CI
-    // pre-builds WDA into FLUTTER_WDA_DD; reuse it (usePrebuiltWDA) so the first session just
-    // launches it — fast, no per-session compile (which under WDIO's undici client dropped the
-    // POST /session socket on the RN leg). Generous sim-boot ceiling for cold/slow runners.
+    // pre-builds WDA into FLUTTER_WDA_DD; reuse it (usePreinstalledWDA — simctl install/launch) so
+    // the first session just launches it — fast, no per-session xcodebuild (which under WDIO's
+    // undici client dropped the POST /session socket on the RN leg). Generous sim-boot ceiling for
+    // cold/slow runners.
     ...(isIos
       ? {
           'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 16',
@@ -117,8 +118,16 @@ const capabilities: FlutterCapability[] = [
           // 8100 / session-create timeout). appium's default is only 2 startup retries — bump it.
           'appium:wdaStartupRetries': 5,
           'appium:wdaStartupRetryInterval': 20000,
+          // usePreinstalledWDA simctl-installs + launches the CI-prebuilt Runner.app WITHOUT any
+          // xcodebuild at session time (the reusable strips its embedded XCTest frameworks). That
+          // keeps POST /session short — usePrebuiltWDA still shells out to `xcodebuild test`, whose
+          // multi-minute first launch overran undici's ~300s socket cap → UND_ERR_SOCKET on cold
+          // sessions. Path is the prebuilt runner the workflow leaves under FLUTTER_WDA_DD.
           ...(process.env.FLUTTER_WDA_DD
-            ? { 'appium:derivedDataPath': process.env.FLUTTER_WDA_DD, 'appium:usePrebuiltWDA': true }
+            ? {
+                'appium:usePreinstalledWDA': true,
+                'appium:prebuiltWDAPath': `${process.env.FLUTTER_WDA_DD}/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app`,
+              }
             : {}),
         }
       : {}),
@@ -148,10 +157,11 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS must exceed the whole WDA startup-retry budget (wdaStartupRetries × (wdaLaunchTimeout +
-  // wdaStartupRetryInterval) ≈ 5×140s) so WDIO doesn't abort POST /session mid-retry on a cold
-  // first session — the prior 7-min ceiling cut the retries short. Android stays tight.
-  connectionRetryTimeout: isIos ? (process.env.FLUTTER_WDA_DD ? 780000 : 900000) : 180000,
+  // iOS: generous per-command ceiling, but kept below the inflated value that fed cold
+  // session-create — with usePreinstalledWDA there's no in-session xcodebuild, so POST /session
+  // lands inside undici's ~300s socket cap and doesn't need the WDA-compile budget. Without a
+  // prebuilt WDA (local) it stays generous; Android tight.
+  connectionRetryTimeout: isIos ? (process.env.FLUTTER_WDA_DD ? 420000 : 900000) : 180000,
   connectionRetryCount: 0,
   // @wdio/appium-service boots Appium; @wdio/flutter-service prepares the capability
   // (automationName Flutter) and attaches the Dart VM Service for execute/mock.
