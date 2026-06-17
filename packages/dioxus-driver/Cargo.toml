@@ -1,6 +1,6 @@
 [package]
 name = "wdio-dioxus-driver"
-version = "1.0.0-next.0"
+version = "1.0.0-next.1"
 authors = [ "WebdriverIO Community" ]
 categories = [ "gui", "web-programming" ]
 license = "Apache-2.0 OR MIT"
@@ -10,12 +10,6 @@ description = "WebDriver intermediary node for Dioxus desktop applications (fork
 readme = "README.md"
 edition = "2021"
 rust-version = "1.77.2"
-
-# Forked from tauri-driver 2.0.6 (Tauri Programme within The Commons Conservancy,
-# Apache-2.0 OR MIT). Diff: crate/binary renamed to wdio-dioxus-driver; capability
-# namespace tauri:options → dioxus:options; env var TAURI_WEBVIEW_AUTOMATION →
-# DIOXUS_WEBVIEW_AUTOMATION; legacy TAURI_AUTOMATION dropped. See README for the
-# upstream-sync policy.
 
 [[bin]]
 name = "wdio-dioxus-driver"
