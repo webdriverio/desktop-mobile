@@ -75,10 +75,12 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
         }
       });
     `;
-    return (await browser.execute(wrapped)) as ReturnValue;
+    const raw = await browser.execute(wrapped);
+    return unwrapEmbeddedResult<ReturnValue>(raw);
   }
 
-  return (await browser.execute(script, ...args)) as ReturnValue;
+  const raw = await browser.execute(script, ...args);
+  return unwrapEmbeddedResult<ReturnValue>(raw);
 }
 
 /**
@@ -90,5 +92,24 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
  * Not exported from the package's public surface — only consumed by mock.ts.
  */
 export async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
-  return browser.execute(`return (${script})()`) as Promise<T>;
+  const raw = await browser.execute(`return (${script})()`);
+  return unwrapEmbeddedResult<T>(raw);
+}
+
+// The embedded polling loop wraps results in { __wdio_value__: result } so
+// undefined can be distinguished from null across the JSON boundary.
+// JSON.stringify omits undefined object properties, so:
+//   undefined result → { __wdio_value__: undefined } → "{}" (key absent)
+//   null result     → { __wdio_value__: null }      → '{"__wdio_value__":null}' (key present)
+// This mirrors the pattern in @wdio/tauri-service.
+function unwrapEmbeddedResult<T>(raw: unknown): T {
+  if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
+    const envelope = raw as Record<string, unknown>;
+    if ('__wdio_value__' in envelope) {
+      return envelope['__wdio_value__'] as T;
+    }
+    // Key absent: JSON.stringify omitted it because the JS result was undefined
+    return undefined as unknown as T;
+  }
+  return raw as T;
 }

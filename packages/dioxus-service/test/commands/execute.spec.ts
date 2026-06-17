@@ -50,8 +50,18 @@ describe('execute command', () => {
   });
 
   it('should return the value produced by browser.execute', async () => {
-    const browser = browserStub({ hello: 'world' });
+    const browser = browserStub({ __wdio_value__: { hello: 'world' } });
     await expect(execute(browser, 'return {}')).resolves.toEqual({ hello: 'world' });
+  });
+
+  it('should return undefined when the embedded driver returns the empty envelope (undefined result)', async () => {
+    const browser = browserStub({});
+    await expect(execute(browser, 'return undefined')).resolves.toBeUndefined();
+  });
+
+  it('should return null when the embedded driver returns a null-valued envelope', async () => {
+    const browser = browserStub({ __wdio_value__: null });
+    await expect(execute(browser, 'return null')).resolves.toBeNull();
   });
 
   it('should inline multiple positional args as JSON into the wrapper', async () => {
@@ -96,8 +106,13 @@ describe('runInterceptorScript', () => {
   });
 
   it('should return the value produced by browser.execute', async () => {
-    const browser = browserStub({ calls: [['a']], results: [], invocationCallOrder: [1] });
+    const browser = browserStub({ __wdio_value__: { calls: [['a']], results: [], invocationCallOrder: [1] } });
     const result = await runInterceptorScript(browser, '(_dx) => ({ calls: [["a"]] })');
     expect(result).toEqual({ calls: [['a']], results: [], invocationCallOrder: [1] });
+  });
+
+  it('should return undefined when the embedded driver returns the empty envelope', async () => {
+    const browser = browserStub({});
+    await expect(runInterceptorScript(browser, '() => undefined')).resolves.toBeUndefined();
   });
 });
