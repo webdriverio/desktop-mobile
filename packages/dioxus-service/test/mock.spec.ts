@@ -118,9 +118,11 @@ describe('createMock', () => {
     vi.mocked(browser.execute)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
-        calls: [['arg1']],
-        results: [{ type: 'return', value: 42 }],
-        invocationCallOrder: [1],
+        __wdio_value__: {
+          calls: [['arg1']],
+          results: [{ type: 'return', value: 42 }],
+          invocationCallOrder: [1],
+        },
       });
 
     const m = await createMock('greet', browser);
@@ -136,18 +138,22 @@ describe('createMock', () => {
       .mockResolvedValueOnce(undefined)
       // First update: two calls.
       .mockResolvedValueOnce({
-        calls: [['a'], ['b']],
-        results: [
-          { type: 'return', value: 1 },
-          { type: 'return', value: 2 },
-        ],
-        invocationCallOrder: [1, 2],
+        __wdio_value__: {
+          calls: [['a'], ['b']],
+          results: [
+            { type: 'return', value: 1 },
+            { type: 'return', value: 2 },
+          ],
+          invocationCallOrder: [1, 2],
+        },
       })
       // Second update: inner cleared, only one call now.
       .mockResolvedValueOnce({
-        calls: [['c']],
-        results: [{ type: 'return', value: 3 }],
-        invocationCallOrder: [3],
+        __wdio_value__: {
+          calls: [['c']],
+          results: [{ type: 'return', value: 3 }],
+          invocationCallOrder: [3],
+        },
       });
 
     const m = await createMock('greet', browser);
