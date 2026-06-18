@@ -964,7 +964,21 @@ describe('Electron Worker Service', () => {
       browserModeBrowser = {
         url: vi.fn().mockResolvedValue(undefined),
         execute: vi.fn().mockResolvedValue(undefined),
-        overwriteCommand: vi.fn(),
+        // Mirror webdriverio's overwriteCommand: wire the override onto the named command so
+        // a later browser.url(...) runs through it (with `this` bound to the browser). Commands
+        // the mock doesn't define (click/doubleClick/…) are recorded but not wired.
+        overwriteCommand: vi.fn((name: string, fn: (...a: unknown[]) => unknown) => {
+          const b = browserModeBrowser as unknown as Record<string, unknown>;
+          const original = b[name];
+          if (typeof original === 'function') {
+            b[name] = (...args: unknown[]) =>
+              (fn as (...a: unknown[]) => unknown).call(
+                browserModeBrowser,
+                (original as (...a: unknown[]) => unknown).bind(browserModeBrowser),
+                ...args,
+              );
+          }
+        }),
         electron: {},
       } as unknown as WebdriverIO.Browser;
     });
@@ -1101,7 +1115,7 @@ describe('Electron Worker Service', () => {
         expect((firefoxBrowser.url as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
       });
 
-      it('should re-inject only into Electron instances when root url() is called after navigation', async () => {
+      it('should re-inject only into the Electron session a navigation fires on (flag-guarded)', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
 
         const electronBrowser = {
@@ -1122,27 +1136,45 @@ describe('Electron Worker Service', () => {
           electron: {},
         } as unknown as WebdriverIO.Browser;
 
+        const rootOverwriteCommand = vi.fn();
         const rootBrowser = {
           instances: ['app1', 'ff1'],
           getInstance: (name: string) => (name === 'app1' ? electronBrowser : firefoxBrowser),
           execute: vi.fn().mockResolvedValue(undefined),
           url: vi.fn().mockResolvedValue(undefined),
-          overwriteCommand: vi.fn(),
+          overwriteCommand: rootOverwriteCommand,
           isMultiremote: true,
           electron: {},
         } as unknown as WebdriverIO.MultiRemoteBrowser;
 
         await instance.before({}, [], rootBrowser);
 
-        // Navigate via root browser (simulates user calling mrBrowser.url('...'))
+        // The url override is registered once on the root; webdriverio propagates it to every
+        // instance, where it fires with `this` bound to that instance. Re-injection is gated on
+        // __wdioElectronBrowserMode__, set during before() on Electron instances only.
+        const urlOverride = rootOverwriteCommand.mock.calls.find((c) => c[0] === 'url')?.[1] as (
+          this: WebdriverIO.Browser,
+          originalUrl: (href?: string) => Promise<unknown>,
+          href?: string,
+        ) => Promise<unknown>;
+        expect(urlOverride).toBeTypeOf('function');
+
+        // Fires on the Electron instance (flag set) → re-injects.
         const electronExecuteBefore = (electronBrowser.execute as ReturnType<typeof vi.fn>).mock.calls.length;
-        const firefoxExecuteBefore = (firefoxBrowser.execute as ReturnType<typeof vi.fn>).mock.calls.length;
-
-        await (rootBrowser as unknown as WebdriverIO.Browser).url('http://localhost:5173/new-page');
-
-        // Only the Electron instance gets the re-injection execute call
+        await urlOverride.call(
+          electronBrowser,
+          electronBrowser.url as unknown as (href?: string) => Promise<unknown>,
+          'http://localhost:5173/new-page',
+        );
         expect((electronBrowser.execute as ReturnType<typeof vi.fn>).mock.calls.length).toBe(electronExecuteBefore + 1);
-        // Firefox instance gets no additional execute calls
+
+        // Fires on the non-Electron instance (no flag) → no re-injection.
+        const firefoxExecuteBefore = (firefoxBrowser.execute as ReturnType<typeof vi.fn>).mock.calls.length;
+        await urlOverride.call(
+          firefoxBrowser,
+          firefoxBrowser.url as unknown as (href?: string) => Promise<unknown>,
+          'http://localhost:5173/new-page',
+        );
         expect((firefoxBrowser.execute as ReturnType<typeof vi.fn>).mock.calls.length).toBe(firefoxExecuteBefore);
       });
 

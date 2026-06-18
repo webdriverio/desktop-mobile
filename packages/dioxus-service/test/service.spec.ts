@@ -6,6 +6,21 @@ function makeBrowser(): WebdriverIO.Browser {
   return { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
 }
 
+// Mock browser whose overwriteCommand mirrors webdriverio: it wires the override onto the
+// named command so a later browser.url(...) runs through it, with `this` bound to the browser.
+// (browser.url is a read-only command property in real wdio, hence overwriteCommand.)
+function makeBrowserModeBrowser(): WebdriverIO.Browser & { url: ReturnType<typeof vi.fn> } {
+  const browser: Record<string, unknown> = {
+    execute: vi.fn().mockResolvedValue(undefined),
+    url: vi.fn().mockResolvedValue(undefined),
+    overwriteCommand(name: string, fn: (original: (...a: unknown[]) => unknown, ...a: unknown[]) => unknown) {
+      const original = browser[name] as (...a: unknown[]) => unknown;
+      browser[name] = (...args: unknown[]) => fn.call(browser, original.bind(browser), ...args);
+    },
+  };
+  return browser as unknown as WebdriverIO.Browser & { url: ReturnType<typeof vi.fn> };
+}
+
 type Installed = {
   dioxus: {
     execute: (s: string) => Promise<unknown>;
@@ -199,11 +214,10 @@ describe('DioxusWorkerService', () => {
 
   describe('browser mode (mode: "browser")', () => {
     it('should navigate to devServerUrl in before()', async () => {
-      const urlSpy = vi.fn().mockResolvedValue(undefined);
-      const browser = {
-        execute: vi.fn().mockResolvedValue(undefined),
-        url: urlSpy,
-      } as unknown as WebdriverIO.Browser;
+      const browser = makeBrowserModeBrowser();
+      // Capture the original url spy before overwriteCommand replaces it; the initial
+      // navigation in before() runs against the original.
+      const urlSpy = browser.url;
 
       const service = new DioxusWorkerService(
         { mode: 'browser', devServerUrl: 'http://localhost:3000' } as unknown,
@@ -211,16 +225,11 @@ describe('DioxusWorkerService', () => {
       );
       await service.before({}, [], browser);
 
-      // urlSpy is the original mock — before() replaces browser.url with a
-      // patched wrapper, but the original spy captured the initial navigation.
       expect(urlSpy).toHaveBeenCalledWith('http://localhost:3000');
     });
 
     it('should still install browser.dioxus in browser mode', async () => {
-      const browser = {
-        execute: vi.fn().mockResolvedValue(undefined),
-        url: vi.fn().mockResolvedValue(undefined),
-      } as unknown as WebdriverIO.Browser;
+      const browser = makeBrowserModeBrowser();
 
       const service = new DioxusWorkerService(
         { mode: 'browser', devServerUrl: 'http://localhost:3000' } as unknown,
@@ -232,11 +241,8 @@ describe('DioxusWorkerService', () => {
     });
 
     it('should read devServerUrl from capability-level wdio:dioxusServiceOptions', async () => {
-      const urlSpy = vi.fn().mockResolvedValue(undefined);
-      const browser = {
-        execute: vi.fn().mockResolvedValue(undefined),
-        url: urlSpy,
-      } as unknown as WebdriverIO.Browser;
+      const browser = makeBrowserModeBrowser();
+      const urlSpy = browser.url;
 
       const service = new DioxusWorkerService({} as unknown, {
         'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:4000' },
@@ -246,11 +252,8 @@ describe('DioxusWorkerService', () => {
       expect(urlSpy).toHaveBeenCalledWith('http://localhost:4000');
     });
 
-    it('should patch browser.url to re-inject spy after navigation', async () => {
-      const browser = {
-        execute: vi.fn().mockResolvedValue(undefined),
-        url: vi.fn().mockResolvedValue(undefined),
-      } as unknown as WebdriverIO.Browser;
+    it('should override browser.url to re-inject spy after navigation', async () => {
+      const browser = makeBrowserModeBrowser();
 
       const service = new DioxusWorkerService(
         { mode: 'browser', devServerUrl: 'http://localhost:3000' } as unknown,
@@ -261,7 +264,7 @@ describe('DioxusWorkerService', () => {
       const callsBefore = vi.mocked(browser.execute).mock.calls.length;
       await (browser as unknown as { url: (u?: string) => Promise<void> }).url('http://localhost:3000/page2');
 
-      // After patched url(), execute should have been called again with the injection script
+      // After the overridden url(), execute should have been called again with the injection script
       expect(vi.mocked(browser.execute).mock.calls.length).toBeGreaterThan(callsBefore);
     });
   });

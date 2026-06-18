@@ -205,19 +205,28 @@ export default class DioxusWorkerService {
 
     await this.injectSpy(browser);
 
-    // Re-inject spy on every navigation so the mock infrastructure
-    // survives page loads within the same test session.
-    const originalUrl = (browser.url as unknown as (u?: string) => Promise<unknown>).bind(browser);
+    // Re-inject the spy after every navigation so the mock infrastructure survives page
+    // loads within the same test session. Uses overwriteCommand rather than reassigning
+    // browser.url, which is a read-only command property on webdriverio (>=9.27) — direct
+    // assignment throws "Cannot assign to read only property 'url'".
     const injectSpy = this.injectSpy.bind(this);
-    (browser as unknown as { url: (u?: string) => Promise<unknown> }).url = async (url?: string) => {
-      const result = url !== undefined ? await originalUrl(url) : await originalUrl();
-      if (url !== undefined) {
-        await injectSpy(browser).catch((err) => {
-          log.warn('Failed to re-inject spy after navigation:', err);
-        });
-      }
-      return result;
-    };
+    browser.overwriteCommand(
+      'url',
+      async function (
+        this: WebdriverIO.Browser,
+        originalUrl: (u?: string) => Promise<unknown>,
+        url?: string,
+      ): Promise<unknown> {
+        const result = await Reflect.apply(originalUrl, this, [url]);
+        if (url !== undefined) {
+          await injectSpy(this).catch((err) => {
+            log.warn('Failed to re-inject spy after navigation:', err);
+          });
+        }
+        return result;
+      } as Parameters<typeof browser.overwriteCommand>[1],
+      false,
+    );
 
     this.addDioxusApi(browser);
   }

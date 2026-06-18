@@ -365,8 +365,6 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       (browser as unknown as Record<string, boolean>).__wdioElectronBrowserMode__ = true;
 
-      const electronInstances: WebdriverIO.Browser[] = [];
-
       for (const instanceName of mrBrowser.instances) {
         const instance = mrBrowser.getInstance(instanceName);
         const caps =
@@ -389,8 +387,6 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         await instance.execute(injectionScript);
         (instance as unknown as Record<string, boolean>).__wdioElectronBrowserMode__ = true;
         instance.electron = this.getElectronBrowserModeAPI(instance);
-        this.patchBrowserUrl(instance, injectionScript);
-        electronInstances.push(instance);
       }
 
       // WDIO's multiremote overwriteCommand wrapper forwards the call to origOverwriteCommand
@@ -399,7 +395,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       // mrBrowser.$('btn').click() and mrBrowser.getInstance('a').$('btn').click() go through
       // the override. Calling it on each instance separately would double-wrap element commands.
       browser.electron = this.getElectronBrowserModeAPI(browser);
-      this.patchBrowserUrl(browser, injectionScript, electronInstances);
+      this.patchBrowserUrl(browser, injectionScript);
       this.installCommandOverrides(browser as unknown as WebdriverIO.Browser);
     } else {
       const devServerUrl = this.globalOptions.devServerUrl;
@@ -417,37 +413,38 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   /**
-   * Patch browser.url() so the IPC injection script is re-applied after every
+   * Override browser.url() so the IPC injection script is re-applied after every
    * navigation. A page load wipes window state, losing __wdio_mocks__ and the
    * ipcRenderer patch.
    *
-   * When called for the root multiremote browser, `electronInstances` must be
-   * provided so re-injection targets only those browsers — root `execute()` would
-   * otherwise broadcast to every session, including non-Electron ones.
+   * Uses overwriteCommand rather than reassigning browser.url, which is a
+   * read-only command property on webdriverio (>=9.27) — direct assignment throws
+   * "Cannot assign to read only property 'url'". For multiremote the override
+   * registers across all instances; the __wdioElectronBrowserMode__ guard skips
+   * sessions not in Electron browser mode, and re-injection runs on the session
+   * the navigation fired on (`this`).
    */
-  private patchBrowserUrl(
-    browser: WebdriverIO.Browser,
-    injectionScript: string,
-    electronInstances?: WebdriverIO.Browser[],
-  ): void {
-    type UrlFn = (href?: string) => Promise<string | void>;
-    const originalUrl = (browser.url as unknown as UrlFn).bind(browser);
-    (browser as unknown as { url: UrlFn }).url = async (href?: string): Promise<string | void> => {
-      const result = await originalUrl(href);
-      if (href !== undefined) {
-        try {
-          if (electronInstances) {
-            await Promise.all(electronInstances.map((inst) => inst.execute(injectionScript)));
-          } else {
-            await browser.execute(injectionScript);
+  private patchBrowserUrl(browser: WebdriverIO.Browser, injectionScript: string): void {
+    browser.overwriteCommand(
+      'url',
+      async function (
+        this: WebdriverIO.Browser,
+        originalUrl: (href?: string) => Promise<string | void>,
+        href?: string,
+      ): Promise<string | void> {
+        const result = await Reflect.apply(originalUrl, this, [href]);
+        if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioElectronBrowserMode__) {
+          try {
+            await this.execute(injectionScript);
+          } catch (error) {
+            log.warn('Failed to re-inject IPC script after navigation:', error);
+            throw error;
           }
-        } catch (error) {
-          log.warn('Failed to re-inject IPC script after navigation:', error);
-          throw error;
         }
-      }
-      return result;
-    };
+        return result;
+      } as Parameters<typeof browser.overwriteCommand>[1],
+      false,
+    );
   }
 
   /**

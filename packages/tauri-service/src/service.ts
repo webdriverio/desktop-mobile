@@ -335,7 +335,6 @@ export default class TauriWorkerService {
         const instance = mrBrowser.getInstance(instanceName);
         (instance as unknown as Record<string, boolean>).__wdioBrowserMode__ = true;
         this.addTauriApi(instance, true);
-        this.patchBrowserUrl(instance, injectionScript);
       }
     }
     this.addTauriApi(browser, true);
@@ -345,26 +344,39 @@ export default class TauriWorkerService {
   }
 
   /**
-   * Patch browser.url() so the IPC injection script is re-applied after every
+   * Override browser.url() so the IPC injection script is re-applied after every
    * navigation. A page load wipes window state, so without this any browser.url()
    * call inside a test would silently remove __TAURI_INTERNALS__ patching and
    * __wdio_mocks__, breaking all mocks registered for that test.
+   *
+   * Uses overwriteCommand rather than reassigning browser.url, which is a
+   * read-only command property on webdriverio (>=9.27) — direct assignment throws
+   * "Cannot assign to read only property 'url'". For multiremote the override
+   * registers across all instances; the __wdioBrowserMode__ guard skips sessions
+   * not in browser mode, and re-injection runs on the session the navigation
+   * fired on (`this`).
    */
   private patchBrowserUrl(browser: WebdriverIO.Browser, injectionScript: string): void {
-    type UrlFn = (href?: string) => Promise<string | void>;
-    const originalUrl = (browser.url as unknown as UrlFn).bind(browser);
-    (browser as unknown as { url: UrlFn }).url = async (href?: string): Promise<string | void> => {
-      const result = await originalUrl(href);
-      if (href !== undefined) {
-        try {
-          await browser.execute(injectionScript);
-        } catch (error) {
-          log.warn('Failed to re-inject IPC script after navigation:', error);
-          throw error;
+    browser.overwriteCommand(
+      'url',
+      async function (
+        this: WebdriverIO.Browser,
+        originalUrl: (href?: string) => Promise<string | void>,
+        href?: string,
+      ): Promise<string | void> {
+        const result = await Reflect.apply(originalUrl, this, [href]);
+        if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioBrowserMode__) {
+          try {
+            await this.execute(injectionScript);
+          } catch (error) {
+            log.warn('Failed to re-inject IPC script after navigation:', error);
+            throw error;
+          }
         }
-      }
-      return result;
-    };
+        return result;
+      } as Parameters<typeof browser.overwriteCommand>[1],
+      false,
+    );
   }
 
   /**
