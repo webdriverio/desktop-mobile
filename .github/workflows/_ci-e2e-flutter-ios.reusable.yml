@@ -112,6 +112,26 @@ jobs:
           fi
           xcrun simctl bootstatus "$FLUTTER_IOS_DEVICE" -b || { echo "::error::Simulator '$FLUTTER_IOS_DEVICE' did not reach Booted state"; exit 1; }
 
+      # Prime logd before Appium's first session. The first `simctl … log stream` on a freshly
+      # booted sim routinely exceeds appium-xcuitest's 10s start window ("process did not start
+      # within 10000ms"), which it silently swallows ("Continuing without capturing device logs") —
+      # disabling the syslog the Flutter driver reads the (random, auth-coded) VM-service URL from →
+      # the first session fails with "mandatory syslog service must be running" while warmed-up later
+      # sessions pass. Running one stream now (with a generous window) absorbs that cold start; the
+      # fork's startLogCapture retry is the backstop for any residual transient.
+      - name: 🔥 Warm up simulator logd
+        shell: bash
+        run: |
+          set -uo pipefail
+          echo "Warming up the simulator log stream..."
+          ( xcrun simctl spawn booted log stream --style compact > /tmp/logwarm.out 2>&1 & echo $! > /tmp/logwarm.pid )
+          for i in $(seq 1 30); do
+            if [ -s /tmp/logwarm.out ]; then echo "logd streaming after ${i}s"; break; fi
+            sleep 1
+          done
+          kill "$(cat /tmp/logwarm.pid)" 2>/dev/null || true
+          [ -s /tmp/logwarm.out ] || echo "::warning::logd did not emit within 30s during warm-up (continuing; fork retry is the backstop)"
+
       - name: 🔌 Install XCUITest + use the appium-flutter-driver fork (getVMServiceUrl)
         shell: bash
         # XCUITest installs normally. For Flutter: @repo/e2e depends on appium-flutter-driver
@@ -143,12 +163,12 @@ jobs:
         uses: actions/cache@v5
         with:
           path: ${{ env.FLUTTER_WDA_DD }}
-          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v1
+          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v2
 
       # Pre-build WebDriverAgent deterministically (no appium session, so no socket fragility).
-      # The graded run reuses it via appium:derivedDataPath + usePrebuiltWDA, skipping the
-      # multi-minute compile on the first session (which under WDIO's undici client dropped the
-      # POST /session socket on the RN leg).
+      # The run consumes it via appium:usePreinstalledWDA + prebuiltWDAPath (simctl install/launch,
+      # no in-session xcodebuild), skipping the multi-minute compile on the first session (which
+      # under WDIO's undici client dropped the POST /session socket on the RN leg).
       - name: 🏎️ Pre-build WebDriverAgent
         if: steps.wda-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -172,6 +192,12 @@ jobs:
         run: |
           set -euo pipefail
           pnpm --filter @repo/e2e run test:e2e:flutter:ios
+          # Package-install smoke (#387): packed @wdio/flutter-service against THIS booted sim,
+          # reusing the prebuilt WDA (FLUTTER_WDA_DD, read by the fixture config). test-package.ts
+          # overwrites the isolated fixture's appium-flutter-driver with the getVMServiceUrl fork
+          # (AFD_FORK_BUILD_DIR, built above) — the published driver can't reach the Dart VM.
+          FLUTTER_PLATFORM=ios FLUTTER_DEVICE_NAME="$FLUTTER_IOS_DEVICE" \
+            AFD_FORK_BUILD_DIR="$RUNNER_TEMP/afd/driver/build" pnpm test:package:flutter
 
       - name: 📦 Upload Test Logs
         if: always()

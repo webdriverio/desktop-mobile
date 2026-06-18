@@ -104,8 +104,10 @@ type ReactNativeCapability = {
   'appium:udid'?: string;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
-  'appium:derivedDataPath'?: string;
-  'appium:usePrebuiltWDA'?: boolean;
+  'appium:usePreinstalledWDA'?: boolean;
+  'appium:prebuiltWDAPath'?: string;
+  'appium:wdaStartupRetries'?: number;
+  'appium:wdaStartupRetryInterval'?: number;
   'appium:isHeadless'?: boolean;
   'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
 };
@@ -127,10 +129,13 @@ const capabilities: ReactNativeCapability[] = [
           // exports RN_IOS_UDID from the boot step; omitted locally (appium resolves by name).
           ...(process.env.RN_IOS_UDID ? { 'appium:udid': process.env.RN_IOS_UDID } : {}),
           // wdaLaunchTimeout is a ceiling, not a delay. CI pre-builds WDA into RN_WDA_DD (reused
-          // via usePrebuiltWDA below) so the first session just launches it — fast, a tight ceiling
-          // is fine. Without a prebuilt WDA (local) appium compiles it on the first session (several
-          // minutes), so the wait must stay generous. connectionRetryTimeout below tracks this.
-          'appium:wdaLaunchTimeout': process.env.RN_WDA_DD ? 180000 : 720000,
+          // via usePreinstalledWDA below — simctl install/launch) so the first session just launches
+          // it — fast, a tight ceiling is fine. Without a prebuilt WDA (local) appium compiles it on
+          // the first session (several minutes), so the wait must stay generous. connectionRetryTimeout
+          // below tracks this.
+          // Prebuilt WDA just launches (no compile), so a tight per-attempt ceiling lets several
+          // startup retries fit inside connectionRetryTimeout below.
+          'appium:wdaLaunchTimeout': process.env.RN_WDA_DD ? 120000 : 720000,
           // CI boots the sim headless (simctl). Without isHeadless, XCUITest restarts it on
           // session-create "with the Simulator window visible" — a ~225s GUI re-boot on a
           // display-less runner that raced the 240s ceiling below and was the proven root cause
@@ -141,10 +146,19 @@ const capabilities: ReactNativeCapability[] = [
           // Safety margin for appium's boot monitor on a cold/slow runner; with isHeadless above
           // the redundant restart is gone, so this ceiling should no longer be approached in CI.
           'appium:simulatorStartupTimeout': 240000,
-          // CI pre-builds WDA into RN_WDA_DD; reuse it (no per-session xcodebuild → no long
-          // POST /session → no UND_ERR_SOCKET). Omitted locally so appium builds WDA as usual.
+          // WDA on GitHub-Actions sims often fails to come up on the first attempt (ECONNREFUSED
+          // 8100 / session-create timeout); appium's default is only 2 startup retries — bump it.
+          'appium:wdaStartupRetries': 5,
+          'appium:wdaStartupRetryInterval': 20000,
+          // CI pre-builds WDA into RN_WDA_DD; simctl-install + launch it via usePreinstalledWDA (no
+          // per-session xcodebuild → short POST /session → no UND_ERR_SOCKET). usePrebuiltWDA still
+          // shells out to `xcodebuild test`, which overran undici's ~300s socket cap. The reusable
+          // strips the runner's embedded XCTest frameworks. Omitted locally so appium builds WDA.
           ...(process.env.RN_WDA_DD
-            ? { 'appium:derivedDataPath': process.env.RN_WDA_DD, 'appium:usePrebuiltWDA': true }
+            ? {
+                'appium:usePreinstalledWDA': true,
+                'appium:prebuiltWDAPath': `${process.env.RN_WDA_DD}/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app`,
+              }
             : {}),
         }
       : {}),
@@ -164,18 +178,20 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // One spec retry to absorb transient mobile-CI flake (emulator/simulator boot, first-session
-  // attach). NOTE: iOS also has an intermittent appium-sim "unknown to FrontBoard" session-create
-  // flake that in-run retries CAN'T clear (same sim) — re-run the leg to clear it. Tracked in #359;
-  // neither noReset nor fullReset fixed it (see that issue).
-  specFileRetries: 1,
+  // Two spec retries to absorb transient mobile-CI flake (emulator/simulator boot, first-session
+  // attach, WDA-not-up). Each retry is a fresh session, which together with the in-session
+  // wdaStartupRetries above clears the WDA ECONNREFUSED / session-create flakes. NOTE: iOS also has
+  // an intermittent appium-sim "unknown to FrontBoard" flake that in-run retries CAN'T clear (same
+  // sim) — re-run the leg to clear it. Tracked in #359; neither noReset nor fullReset fixed it.
+  specFileRetries: 2,
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS: must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session before WDA is ready.
-  // With a prebuilt WDA (CI) the session is fast, so a tighter 7-min ceiling surfaces a flaky
-  // first-session (sim boot / socket / "unknown to FrontBoard", #359) in ~7 min instead of dragging
-  // to 15; without a prebuilt WDA (local build) it stays generous. Android stays tight.
+  // iOS: generous per-command ceiling, but kept below the inflated value that fed cold
+  // session-create — with usePreinstalledWDA there's no in-session xcodebuild, so POST /session
+  // lands inside undici's ~300s socket cap and doesn't need the WDA-compile budget. The sticky
+  // "unknown to FrontBoard" (#359) still needs a leg re-run. Without a prebuilt WDA (local) it
+  // stays generous; Android tight.
   connectionRetryTimeout: isIos ? (process.env.RN_WDA_DD ? 420000 : 900000) : 180000,
   // 0: a failed iOS session-create otherwise retries the full timeout, ballooning runtime; the
   // deferred specFileRetry above is the recovery path instead.

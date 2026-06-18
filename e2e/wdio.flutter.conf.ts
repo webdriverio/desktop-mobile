@@ -85,8 +85,10 @@ type FlutterCapability = {
   'appium:dartVmServicePort'?: number;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
-  'appium:derivedDataPath'?: string;
-  'appium:usePrebuiltWDA'?: boolean;
+  'appium:usePreinstalledWDA'?: boolean;
+  'appium:prebuiltWDAPath'?: string;
+  'appium:wdaStartupRetries'?: number;
+  'appium:wdaStartupRetryInterval'?: number;
   'wdio:flutterServiceOptions': FlutterServiceOptions;
 };
 
@@ -100,16 +102,32 @@ const capabilities: FlutterCapability[] = [
     // random, auth-coded port), so @wdio/flutter-service discovers the VM Service by asking the
     // driver for the URL it already connected to (flutter:getVMServiceUrl) rather than pinning.
     // iOS: appium-flutter-driver wraps appium-xcuitest, which launches WebDriverAgent. CI
-    // pre-builds WDA into FLUTTER_WDA_DD; reuse it (usePrebuiltWDA) so the first session just
-    // launches it — fast, no per-session compile (which under WDIO's undici client dropped the
-    // POST /session socket on the RN leg). Generous sim-boot ceiling for cold/slow runners.
+    // pre-builds WDA into FLUTTER_WDA_DD; reuse it (usePreinstalledWDA — simctl install/launch) so
+    // the first session just launches it — fast, no per-session xcodebuild (which under WDIO's
+    // undici client dropped the POST /session socket on the RN leg). Generous sim-boot ceiling for
+    // cold/slow runners.
     ...(isIos
       ? {
           'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 16',
           'appium:simulatorStartupTimeout': 240000,
-          'appium:wdaLaunchTimeout': process.env.FLUTTER_WDA_DD ? 180000 : 720000,
+          // Prebuilt WDA just launches (no compile), so a tight per-attempt ceiling lets several
+          // startup retries fit inside connectionRetryTimeout below; non-prebuilt (local) must
+          // allow the multi-minute compile.
+          'appium:wdaLaunchTimeout': process.env.FLUTTER_WDA_DD ? 120000 : 720000,
+          // WDA on GitHub-Actions sims often fails to come up on the first attempt (ECONNREFUSED
+          // 8100 / session-create timeout). appium's default is only 2 startup retries — bump it.
+          'appium:wdaStartupRetries': 5,
+          'appium:wdaStartupRetryInterval': 20000,
+          // usePreinstalledWDA simctl-installs + launches the CI-prebuilt Runner.app WITHOUT any
+          // xcodebuild at session time (the reusable strips its embedded XCTest frameworks). That
+          // keeps POST /session short — usePrebuiltWDA still shells out to `xcodebuild test`, whose
+          // multi-minute first launch overran undici's ~300s socket cap → UND_ERR_SOCKET on cold
+          // sessions. Path is the prebuilt runner the workflow leaves under FLUTTER_WDA_DD.
           ...(process.env.FLUTTER_WDA_DD
-            ? { 'appium:derivedDataPath': process.env.FLUTTER_WDA_DD, 'appium:usePrebuiltWDA': true }
+            ? {
+                'appium:usePreinstalledWDA': true,
+                'appium:prebuiltWDAPath': `${process.env.FLUTTER_WDA_DD}/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app`,
+              }
             : {}),
         }
       : {}),
@@ -132,14 +150,18 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // One spec retry to absorb transient mobile-CI flake (emulator boot, first-session attach).
-  specFileRetries: 1,
+  // Two spec retries for transient test-level flakes. NOT a fix for the iOS sim launch-wedge: a
+  // session-create timeout kills the worker in a way specFileRetries does not re-run (verified — a
+  // wedged spec is reported failed with no extra worker run), and deferring made no difference. The
+  // cold-sim launch wedge is handled up front by the warm-up GATE in the iOS reusable instead.
+  specFileRetries: 2,
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
-  // iOS must exceed wdaLaunchTimeout so WDIO doesn't abort POST /session before WDA is ready;
-  // with a prebuilt WDA (CI) the session is fast, so a tighter 7-min ceiling surfaces a flaky
-  // first session quickly. Android stays tight.
+  // iOS: generous per-command ceiling, but kept below the inflated value that fed cold
+  // session-create — with usePreinstalledWDA there's no in-session xcodebuild, so POST /session
+  // lands inside undici's ~300s socket cap and doesn't need the WDA-compile budget. Without a
+  // prebuilt WDA (local) it stays generous; Android tight.
   connectionRetryTimeout: isIos ? (process.env.FLUTTER_WDA_DD ? 420000 : 900000) : 180000,
   connectionRetryCount: 0,
   // @wdio/appium-service boots Appium; @wdio/flutter-service prepares the capability

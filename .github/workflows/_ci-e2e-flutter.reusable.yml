@@ -180,6 +180,12 @@ jobs:
           script: |
             set -eu
             pnpm --filter @repo/e2e run test:e2e:flutter
+            # Package-install smoke (#387): validate the PACKED @wdio/flutter-service tarball against
+            # THIS already-booted emulator. AFD_FORK_BUILD_DIR lets test-package.ts overwrite the
+            # isolated fixture's appium-flutter-driver with the getVMServiceUrl fork built above (the
+            # published driver can't reach the Dart VM). No arch split → runs once. Single line:
+            # android-emulator-runner runs the script line-by-line (each its own `sh -c`).
+            FLUTTER_PLATFORM=android AFD_FORK_BUILD_DIR="$RUNNER_TEMP/afd/driver/build" pnpm test:package:flutter
 
       - name: 📦 Upload Test Logs
         if: always()

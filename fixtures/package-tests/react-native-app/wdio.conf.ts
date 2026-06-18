@@ -38,6 +38,29 @@ const capabilities: ReactNativeCapabilities[] = [
         'appium:platformVersion': process.env.RN_PLATFORM_VERSION ?? '18.0',
         'appium:app': appPath,
         'appium:noReset': true,
+        // CI reuses an already-booted simulator + prebuilt WebDriverAgent: pin the exact sim
+        // (RN_IOS_UDID) and reuse the WDA build (RN_WDA_DD) so a session neither re-boots a sim nor
+        // rebuilds WDA. Both are unset locally, where Appium resolves by name and builds WDA itself.
+        ...(process.env.RN_IOS_UDID ? { 'appium:udid': process.env.RN_IOS_UDID } : {}),
+        ...(process.env.RN_WDA_DD
+          ? {
+              // usePreinstalledWDA simctl-installs + launches the prebuilt Runner.app the workflow
+              // leaves under RN_WDA_DD — no xcodebuild at session time (usePrebuiltWDA still shells
+              // out to `xcodebuild test`, whose first launch overran undici's ~300s POST /session
+              // socket cap → UND_ERR_SOCKET on cold sessions). The reusable strips its embedded
+              // XCTest frameworks so it resolves the simulator's local ones.
+              'appium:usePreinstalledWDA': true,
+              'appium:prebuiltWDAPath': `${process.env.RN_WDA_DD}/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app`,
+              'appium:wdaLaunchTimeout': 120000,
+              // Safety margin for appium's sim-boot monitor on a cold/slow runner (matches the
+              // Flutter fixture + the e2e confs).
+              'appium:simulatorStartupTimeout': 240000,
+              // WDA on CI sims often fails to come up on the first attempt (ECONNREFUSED 8100 /
+              // session timeout); appium's default is only 2 startup retries — bump it.
+              'appium:wdaStartupRetries': 5,
+              'appium:wdaStartupRetryInterval': 20000,
+            }
+          : {}),
         'wdio:reactNativeServiceOptions': rnServiceOptions,
       }
     : {
@@ -60,8 +83,16 @@ export const config = {
   bail: 0,
   baseUrl: '',
   waitforTimeout: 30000,
-  connectionRetryTimeout: 180000,
-  connectionRetryCount: 3,
+  // Generous per-command ceiling for iOS, but kept below the inflated value that fed the cold
+  // session-create timeout: with usePreinstalledWDA there's no in-session xcodebuild, so POST
+  // /session lands well within undici's ~300s socket cap and doesn't need the WDA-compile budget.
+  connectionRetryTimeout: platform === 'ios' ? 420000 : 180000,
+  // 0 (not 3): a failed iOS session-create otherwise retries the full 13-min timeout 3× — use the
+  // spec retry below (fresh session) instead.
+  connectionRetryCount: 0,
+  // Retry the smoke once on a transient mobile-CI session flake (WDA/boot/attach) — a fresh session
+  // with the wdaStartupRetries above usually clears it.
+  specFileRetries: 1,
   outputDir: join(__dirname, 'logs'),
   services: [
     'appium',
