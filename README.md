@@ -60,7 +60,7 @@
 
 ## Planned Support
 
-- **`@wdio/mobile-service`** - Zero-config Appium base for any native app (plain native, NativeScript, MAUI, Capacitor shells); the shared layer React Native & Flutter build on. Targeted ahead of Capacitor, which extends it.
+- **`@wdio/mobile-service`** - Shared Appium base for any native mobile app (plain native, NativeScript, MAUI, Capacitor)
 - **Capacitor** - Ionic's cross-platform mobile framework (extends `@wdio/mobile-service`)
 - **Neutralino** - Lightweight desktop applications
 
