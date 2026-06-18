@@ -495,6 +495,23 @@ describe('TauriWorkerService', () => {
       expect(args).toEqual(['foo', { x: 1 }, undefined]);
     });
 
+    it('should activate browser mode when mode is set only at the capability level', async () => {
+      // Real configs use services: ['tauri'] + capability-level wdio:tauriServiceOptions, so the
+      // worker must read options from the capability (not just service-level), or before() falls
+      // back to the native binary path. Regression for the browser-mode package test.
+      const mockUrl = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ url: mockUrl });
+      const service = new TauriWorkerService({} as never, {
+        'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:5173' },
+      } as never);
+
+      await service.before({} as never, [], mockBrowser);
+
+      // Browser mode navigates to the dev server; the native path never would.
+      expect(mockUrl).toHaveBeenCalledWith('http://localhost:5173');
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('url', expect.any(Function), false);
+    });
+
     it('should pass the target through in browser mode', async () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ execute: mockExecute });

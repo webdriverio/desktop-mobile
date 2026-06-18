@@ -41,17 +41,27 @@ export default class TauriWorkerService {
   private mode?: string;
   private devServerUrl?: string;
 
-  constructor(options: TauriServiceOptions & TauriServiceGlobalOptions, _capabilities: TauriCapabilities) {
-    this.clearMocks = options.clearMocks ?? false;
-    this.clearMocksPrefix = options.clearMocksPrefix;
-    this.resetMocks = options.resetMocks ?? false;
-    this.resetMocksPrefix = options.resetMocksPrefix;
-    this.restoreMocks = options.restoreMocks ?? false;
-    this.restoreMocksPrefix = options.restoreMocksPrefix;
-    this.driverProvider = options.driverProvider;
-    this.windowLabel = options.windowLabel || getDefaultWindowLabel();
-    this.mode = options.mode;
-    this.devServerUrl = options.devServerUrl;
+  constructor(options: TauriServiceOptions & TauriServiceGlobalOptions, capabilities: TauriCapabilities) {
+    // Options may be supplied service-level (services: [['tauri', {...}]]) or capability-level
+    // (wdio:tauriServiceOptions). The launcher merges both; the worker must too, or a
+    // capability-only config (e.g. browser mode) is silently ignored here and before() falls
+    // back to the native binary path. Capability options take precedence, matching the launcher.
+    const capabilityOptions =
+      (capabilities as { 'wdio:tauriServiceOptions'?: TauriServiceOptions })?.['wdio:tauriServiceOptions'] ??
+      (capabilities as { alwaysMatch?: { 'wdio:tauriServiceOptions'?: TauriServiceOptions } })?.alwaysMatch?.[
+        'wdio:tauriServiceOptions'
+      ];
+    const merged = { ...options, ...capabilityOptions };
+    this.clearMocks = merged.clearMocks ?? false;
+    this.clearMocksPrefix = merged.clearMocksPrefix;
+    this.resetMocks = merged.resetMocks ?? false;
+    this.resetMocksPrefix = merged.resetMocksPrefix;
+    this.restoreMocks = merged.restoreMocks ?? false;
+    this.restoreMocksPrefix = merged.restoreMocksPrefix;
+    this.driverProvider = merged.driverProvider;
+    this.windowLabel = merged.windowLabel || getDefaultWindowLabel();
+    this.mode = merged.mode;
+    this.devServerUrl = merged.devServerUrl;
     log.debug('TauriWorkerService initialized');
   }
 
