@@ -17,7 +17,7 @@ import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 
 import { ensureAppiumDriver } from './appiumDriverManager.js';
-import { type DeviceDescriptor, DeviceManager } from './deviceManager.js';
+import { applyBootCapDefaults, type DeviceDescriptor, DeviceManager } from './deviceManager.js';
 import {
   checkAppiumServiceConfigured,
   type DoctorCheck,
@@ -25,6 +25,7 @@ import {
   failFastForMode,
   runDoctor,
 } from './doctor.js';
+import { resolveIosUdid, warmUpXcodeToolchain } from './iosSetup.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 
 /** The option fields the base launcher reads; service options extend this. */
@@ -101,8 +102,14 @@ export abstract class MobileBaseLauncher<
    * Service-specific preflight checks. Override and spread `super.doctorChecks(...)` to keep
    * the shared checks. Runs in the launcher (main process) during `onPrepare`.
    */
-  protected doctorChecks(config: Options.Testrunner, _platforms: Set<'android' | 'ios'>): DoctorCheck[] {
-    return [checkAppiumServiceConfigured(config.services)];
+  protected doctorChecks(config: Options.Testrunner, platforms: Set<'android' | 'ios'>): DoctorCheck[] {
+    const checks: DoctorCheck[] = [checkAppiumServiceConfigured(config.services)];
+    if (platforms.has('ios')) {
+      // Warm the Xcode toolchain (SDK + simctl) so a cold/broken setup fails clearly here
+      // rather than as appium-xcuitest's internal SDK-probe timeout. No-op off macOS.
+      checks.push(() => warmUpXcodeToolchain());
+    }
+    return checks;
   }
 
   async onPrepare(
@@ -179,9 +186,21 @@ export abstract class MobileBaseLauncher<
       );
       const platform = options.platform?.toLowerCase() ?? cap.platformName?.toLowerCase();
 
-      if (device && (platform === 'android' || platform === 'ios')) {
-        DeviceManager.applyToCapability(c, device, platform);
-        this.log.info(`Worker ${cid}: applied device ${JSON.stringify(device)} for ${platform}`);
+      if (platform === 'android' || platform === 'ios') {
+        if (device) {
+          DeviceManager.applyToCapability(c, device, platform);
+          this.log.info(`Worker ${cid}: applied device ${JSON.stringify(device)} for ${platform}`);
+        }
+        // iOS: resolve the exact simulator UDID from deviceName when not already pinned, so a
+        // duplicate device name across runtimes can't boot a different instance than intended.
+        if (platform === 'ios' && c['appium:udid'] === undefined && typeof c['appium:deviceName'] === 'string') {
+          const udid = resolveIosUdid(c['appium:deviceName'] as string, c['appium:platformVersion'] as string | undefined);
+          if (udid) {
+            c['appium:udid'] = udid;
+            this.log.info(`Worker ${cid}: resolved iOS udid ${udid} for '${c['appium:deviceName']}'`);
+          }
+        }
+        applyBootCapDefaults(c, platform);
       }
 
       // Per-cap realm port — one distinct free port per instance, only when the user

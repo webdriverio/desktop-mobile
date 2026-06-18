@@ -20,7 +20,7 @@ export { prepareMobileCapability } from './capabilities.js';
 export type { LogEntry } from './deviceLogs.js';
 export { collectDeviceLogs, forwardDeviceLogs } from './deviceLogs.js';
 export type { DeviceDescriptor } from './deviceManager.js';
-export { DeviceManager } from './deviceManager.js';
+export { applyBootCapDefaults, DeviceManager } from './deviceManager.js';
 export type { DoctorCheck, DoctorMode, DoctorOptions, Severity } from './doctor.js';
 export {
   checkAppiumServiceConfigured,
@@ -31,6 +31,8 @@ export {
   runDoctor,
 } from './doctor.js';
 export { SevereServiceError, unsupportedPlatform } from './errors.js';
+export type { PrebuildWdaOptions } from './iosSetup.js';
+export { pickIosUdid, prebuildWda, resolveIosUdid, resolveWdaProject, warmUpXcodeToolchain } from './iosSetup.js';
 export type { MobileLauncherOptions } from './launcher.js';
 export { flattenCaps, MobileBaseLauncher } from './launcher.js';
 export { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
