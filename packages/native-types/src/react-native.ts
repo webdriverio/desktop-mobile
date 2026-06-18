@@ -286,6 +286,24 @@ export interface ReactNativeServiceOptions extends LogCaptureConfig, MockLifecyc
    */
   metroPort?: number;
   /**
+   * Opt-in: have the launcher own the Metro lifecycle — start `react-native start` as a
+   * long-lived child, wait for readiness, and tear it down on completion. Off by default
+   * since many devs run Metro themselves.
+   * @default false
+   */
+  manageMetro?: boolean;
+  /**
+   * App project root that `react-native start` runs in (only used with `manageMetro`).
+   * @default process.cwd()
+   */
+  metroProjectRoot?: string;
+  /**
+   * With `manageMetro`, pre-bundle (`/index.bundle`) after Metro is ready to warm the
+   * ~60s cold compile so the first spec doesn't land on the "Bundling…" overlay.
+   * @default false
+   */
+  prebundle?: boolean;
+  /**
    * Path to a built app (`.apk` / `.app` / `.ipa`). Convenience that maps onto
    * `appium:app` when the capability doesn't already set a launch target —
    * prefer setting the `appium:*` launch capability directly.

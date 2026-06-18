@@ -85,6 +85,11 @@ For **iOS**: `cd ios && xcodebuild -workspace App.xcworkspace -scheme App -confi
 
 Native find/tap via Appium works with any build (debug or release).
 
+`execute` / `mock` also need **Metro running** so Hermes exposes its inspector target. Start
+it yourself (`npx react-native start`), or set **`manageMetro: true`** to have the service
+start it, wait for readiness, and tear it down on completion (optionally `prebundle: true`
+to warm the first cold compile). The preflight doctor warns if Metro is unreachable.
+
 ## Capabilities
 
 All standard [Appium capabilities](https://appium.io/docs/en/latest/guides/caps/) are
@@ -107,6 +112,15 @@ interface ReactNativeServiceOptions {
   // Metro inspector-proxy connection
   metroHost?: string;           // default: 'localhost'
   metroPort?: number;           // default: 8081
+
+  // Metro lifecycle (opt-in) — the service owns `react-native start` so you don't have to
+  manageMetro?: boolean;        // start/stop Metro for the run (default: false)
+  metroProjectRoot?: string;    // app project root for `react-native start` (default: cwd)
+  prebundle?: boolean;          // warm the cold compile via /index.bundle (default: false)
+
+  // Appium driver auto-install + preflight doctor (shared mobile setup automation)
+  autoInstallDriver?: boolean;  // install uiautomator2 / xcuitest if missing (default: false)
+  doctor?: 'off' | 'warn' | 'strict'; // preflight checks (default: 'warn')
 
   // Convenience — maps onto appium:app if not already set in the capability
   appBinaryPath?: string;

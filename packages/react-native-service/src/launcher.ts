@@ -6,17 +6,24 @@
 // this subclass supplies the one per-framework seam — RN's automation names — via
 // `mutateCapability`.
 
-import { MobileBaseLauncher } from '@wdio/native-mobile-core';
+import { type DoctorCheck, flattenCaps, MobileBaseLauncher, SevereServiceError } from '@wdio/native-mobile-core';
 import type { Options } from '@wdio/types';
 
 import { prepareReactNativeCapability } from './capabilities.js';
-import { CUSTOM_CAPABILITY_NAME, SERVICE_NAME } from './constants.js';
+import { CUSTOM_CAPABILITY_NAME, DEFAULT_METRO_PORT, SERVICE_NAME } from './constants.js';
+import { reactNativeDoctorChecks } from './diagnostics.js';
+import { MetroProcess } from './metroProcess.js';
 import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from './types.js';
 
 export default class ReactNativeLaunchService extends MobileBaseLauncher<
   ReactNativeServiceGlobalOptions,
   ReactNativeCapabilities
 > {
+  // One shared Metro for the whole run, owned by the launcher (main process). Per-worker
+  // Metro would bind-conflict on 8081; workers connect via MetroBridge, which does the
+  // per-device `adb reverse`.
+  #metro: MetroProcess | undefined;
+
   constructor(
     options: ReactNativeServiceGlobalOptions,
     _capabilities: ReactNativeCapabilities,
@@ -40,5 +47,41 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
   // allocated realm port — so there's no capability for the base launcher to stamp.
   protected portCapKey(): string | undefined {
     return undefined;
+  }
+
+  protected doctorChecks(config: Options.Testrunner, platforms: Set<'android' | 'ios'>): DoctorCheck[] {
+    return [
+      ...super.doctorChecks(config, platforms),
+      ...reactNativeDoctorChecks(this.options.metroPort ?? DEFAULT_METRO_PORT),
+    ];
+  }
+
+  async onPrepare(
+    config: Options.Testrunner,
+    capabilities: ReactNativeCapabilities[] | Record<string, { capabilities: ReactNativeCapabilities }>,
+  ): Promise<void> {
+    // Start Metro before super.onPrepare so the Metro-reachable doctor check sees it up.
+    if (this.options.manageMetro) {
+      this.#metro = new MetroProcess();
+      try {
+        const firstPlatform = flattenCaps<ReactNativeCapabilities>(capabilities)[0]?.platformName?.toLowerCase();
+        await this.#metro.start({
+          projectRoot: this.options.metroProjectRoot,
+          port: this.options.metroPort,
+          platform: firstPlatform === 'ios' ? 'ios' : 'android',
+          prebundle: this.options.prebundle,
+        });
+      } catch (error) {
+        throw new SevereServiceError(`Failed to start Metro: ${(error as Error).message}`);
+      }
+    }
+    await super.onPrepare(config, capabilities);
+  }
+
+  async onComplete(): Promise<void> {
+    if (this.#metro) {
+      await this.#metro.stop();
+      this.#metro = undefined;
+    }
   }
 }
