@@ -72,6 +72,9 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
           prebundle: this.options.prebundle,
         });
       } catch (error) {
+        // start() can throw *after* Metro spawned (e.g. readiness timeout) — the child is
+        // live but unready, so stop it before aborting or it orphans port 8081.
+        await this.#stopMetro();
         throw new SevereServiceError(`Failed to start Metro: ${(error as Error).message}`);
       }
     }

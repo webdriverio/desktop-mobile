@@ -86,6 +86,13 @@ describe('ReactNativeLaunchService Metro lifecycle', () => {
     expect(metroStop).toHaveBeenCalledOnce();
   });
 
+  it('should stop Metro if start() itself fails (e.g. readiness timeout)', async () => {
+    metroStart.mockRejectedValueOnce(new Error('did not become ready'));
+    const launcher = make({ manageMetro: true });
+    await expect(launcher.onPrepare(config, [cap({ platformName: 'Android' })])).rejects.toThrow(SevereServiceError);
+    expect(metroStop).toHaveBeenCalledOnce();
+  });
+
   it('should not touch Metro when manageMetro is off', async () => {
     await make().onPrepare(config, [cap({ platformName: 'Android' })]);
     expect(metroStart).not.toHaveBeenCalled();
