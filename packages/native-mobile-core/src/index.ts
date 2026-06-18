@@ -22,13 +22,13 @@ export type { LogEntry } from './deviceLogs.js';
 export { collectDeviceLogs, forwardDeviceLogs } from './deviceLogs.js';
 export type { DeviceDescriptor } from './deviceManager.js';
 export { applyBootCapDefaults, DeviceManager } from './deviceManager.js';
-export type { DoctorCheck, DoctorMode, DoctorOptions, Severity } from './doctor.js';
+export type { DoctorCheck, DoctorConfig, DoctorOptions, Severity } from './doctor.js';
 export {
   checkAppiumServiceConfigured,
   checkBuildIsDebug,
   checkCommandOnPath,
   checkPathExists,
-  failFastForMode,
+  resolveDoctor,
   runDoctor,
 } from './doctor.js';
 export { SevereServiceError, unsupportedPlatform } from './errors.js';

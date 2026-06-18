@@ -21,8 +21,8 @@ import { applyBootCapDefaults, type DeviceDescriptor, DeviceManager } from './de
 import {
   checkAppiumServiceConfigured,
   type DoctorCheck,
-  type DoctorMode,
-  failFastForMode,
+  type DoctorConfig,
+  resolveDoctor,
   runDoctor,
 } from './doctor.js';
 import { resolveIosUdid, warmUpXcodeToolchain } from './iosSetup.js';
@@ -34,8 +34,11 @@ export interface MobileLauncherOptions {
   devices?: DeviceDescriptor[];
   /** Opt-in: auto-install the service's required Appium drivers in `onPrepare`. Default off. */
   autoInstallDriver?: boolean;
-  /** Preflight doctor mode: `'off'` | `'warn'` (default) | `'strict'` (abort on error). */
-  doctor?: DoctorMode;
+  /**
+   * Preflight doctor: `false` skips it, `true`/omitted runs the checks (warn), `{ strict: true }`
+   * aborts the run on an error-level check.
+   */
+  doctor?: DoctorConfig;
 }
 
 /** WDIO hands the launcher one of three capability shapes; normalise to a flat list. */
@@ -150,11 +153,12 @@ export abstract class MobileBaseLauncher<
       }
     }
 
-    // Preflight doctor — fail-fast only under doctor: 'strict'.
-    if (this.options.doctor !== 'off') {
+    // Preflight doctor — fail-fast only under doctor: { strict: true }.
+    const { run: runTheDoctor, failFast } = resolveDoctor(this.options.doctor);
+    if (runTheDoctor) {
       await runDoctor(this.doctorChecks(config, platforms), {
         serviceName: this.logNamespace,
-        failFast: failFastForMode(this.options.doctor),
+        failFast,
       });
     }
   }

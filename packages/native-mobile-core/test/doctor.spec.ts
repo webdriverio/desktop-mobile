@@ -10,7 +10,7 @@ import {
   checkBuildIsDebug,
   checkCommandOnPath,
   checkPathExists,
-  failFastForMode,
+  resolveDoctor,
   runDoctor,
 } from '../src/doctor.js';
 
@@ -84,9 +84,12 @@ describe('runDoctor', () => {
     expect(results[0]).toMatchObject({ status: 'error', message: expect.stringContaining('kaboom') });
   });
 
-  it('should map only strict to failFast true', () => {
-    expect(failFastForMode('strict')).toBe(true);
-    expect(failFastForMode('warn')).toBe(false);
-    expect(failFastForMode(undefined)).toBe(false);
+  it('should resolve doctor config to run/failFast', () => {
+    expect(resolveDoctor(undefined)).toEqual({ run: true, failFast: false });
+    expect(resolveDoctor(true)).toEqual({ run: true, failFast: false });
+    expect(resolveDoctor(false)).toEqual({ run: false, failFast: false });
+    expect(resolveDoctor({})).toEqual({ run: true, failFast: false });
+    expect(resolveDoctor({ strict: false })).toEqual({ run: true, failFast: false });
+    expect(resolveDoctor({ strict: true })).toEqual({ run: true, failFast: true });
   });
 });

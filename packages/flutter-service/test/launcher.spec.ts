@@ -15,9 +15,9 @@ import FlutterLaunchService from '../src/launcher.js';
 import type { FlutterCapabilities, FlutterServiceGlobalOptions } from '../src/types.js';
 
 const config = {} as Options.Testrunner;
-// doctor: 'off' keeps onPrepare hermetic — the iOS doctor path shells out to xcrun.
+// doctor: false keeps onPrepare hermetic — the iOS doctor path shells out to xcrun.
 const make = (options: FlutterServiceGlobalOptions = {}) =>
-  new FlutterLaunchService({ doctor: 'off', ...options }, {} as FlutterCapabilities, config);
+  new FlutterLaunchService({ doctor: false, ...options }, {} as FlutterCapabilities, config);
 const cap = (over: Record<string, unknown> = {}): FlutterCapabilities =>
   ({ platformName: 'Android', ...over }) as FlutterCapabilities;
 

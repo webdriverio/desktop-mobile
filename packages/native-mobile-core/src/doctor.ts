@@ -17,11 +17,14 @@ import { SevereServiceError } from './errors.js';
 /** A single preflight check. May return one or many results, sync or async. */
 export type DoctorCheck = () => DiagnosticResult | DiagnosticResult[] | Promise<DiagnosticResult | DiagnosticResult[]>;
 
-/** Severity assigned to a failing check. `'warn'` logs; `'error'` can abort under `'strict'`. */
+/** Severity assigned to a failing check. `'warn'` logs; `'error'` can abort under strict mode. */
 export type Severity = 'warn' | 'error';
 
-/** `'off'` skips the doctor entirely, `'warn'` logs only, `'strict'` aborts on any error. */
-export type DoctorMode = 'off' | 'warn' | 'strict';
+/**
+ * User-facing doctor config: `false` skips it; `true` (or omitted) runs the checks and logs
+ * warnings; `{ strict: true }` aborts the run (`SevereServiceError`) on any error-level check.
+ */
+export type DoctorConfig = boolean | { strict?: boolean };
 
 const isWindows = process.platform === 'win32';
 
@@ -118,9 +121,20 @@ export interface DoctorOptions {
   failFast?: boolean;
 }
 
-/** Translate a {@link DoctorMode} option into the `failFast` flag (`'off'` → run no checks). */
-export function failFastForMode(mode: DoctorMode | undefined): boolean {
-  return mode === 'strict';
+/**
+ * Resolve a {@link DoctorConfig} into whether to run the checks and whether to fail-fast.
+ *   - `false`            → don't run
+ *   - `true` / undefined → run, warn-only (default)
+ *   - `{ strict }`       → run; abort on an error-level finding when `strict` is true
+ */
+export function resolveDoctor(config: DoctorConfig | undefined): { run: boolean; failFast: boolean } {
+  if (config === false) {
+    return { run: false, failFast: false };
+  }
+  if (config === true || config === undefined) {
+    return { run: true, failFast: false };
+  }
+  return { run: true, failFast: config.strict === true };
 }
 
 /**

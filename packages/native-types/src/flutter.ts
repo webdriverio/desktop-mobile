@@ -189,11 +189,12 @@ export interface FlutterServiceOptions extends LogCaptureConfig, MockLifecycleCo
    */
   autoInstallDriver?: boolean;
   /**
-   * Preflight doctor mode. `'off'` skips checks, `'warn'` logs actionable warnings,
-   * `'strict'` aborts the run (`SevereServiceError`) on any error-level check.
-   * @default 'warn'
+   * Preflight doctor. `false` skips the checks; `true` (the default) runs them and logs
+   * actionable warnings; `{ strict: true }` aborts the run (`SevereServiceError`) on any
+   * error-level check.
+   * @default true
    */
-  doctor?: 'off' | 'warn' | 'strict';
+  doctor?: boolean | { strict?: boolean };
 }
 
 /**

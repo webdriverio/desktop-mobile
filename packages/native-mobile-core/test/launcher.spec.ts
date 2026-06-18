@@ -32,7 +32,7 @@ interface TestOptions {
   platform?: string;
   devices?: Array<{ udid?: string }>;
   autoInstallDriver?: boolean;
-  doctor?: 'off' | 'warn' | 'strict';
+  doctor?: boolean | { strict?: boolean };
 }
 interface TestCap {
   platformName?: string;
@@ -123,16 +123,16 @@ describe('MobileBaseLauncher doctor fail-fast', () => {
     }
   }
 
-  it('should throw under strict mode when a check errors', async () => {
-    await expect(new StrictLauncher({ doctor: 'strict' }).onPrepare(config, [cap()])).rejects.toThrow(/bad/);
+  it('should throw under { strict: true } when a check errors', async () => {
+    await expect(new StrictLauncher({ doctor: { strict: true } }).onPrepare(config, [cap()])).rejects.toThrow(/bad/);
   });
 
-  it('should only log under warn mode', async () => {
-    await expect(new StrictLauncher({ doctor: 'warn' }).onPrepare(config, [cap()])).resolves.toBeUndefined();
+  it('should only log when run without strict (doctor: true)', async () => {
+    await expect(new StrictLauncher({ doctor: true }).onPrepare(config, [cap()])).resolves.toBeUndefined();
   });
 
-  it('should skip checks entirely under off mode', async () => {
-    await expect(new StrictLauncher({ doctor: 'off' }).onPrepare(config, [cap()])).resolves.toBeUndefined();
+  it('should skip checks entirely when doctor: false', async () => {
+    await expect(new StrictLauncher({ doctor: false }).onPrepare(config, [cap()])).resolves.toBeUndefined();
   });
 });
 
