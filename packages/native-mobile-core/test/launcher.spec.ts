@@ -202,6 +202,17 @@ describe('MobileBaseLauncher port seam', () => {
     expect(c['appium:dartVmServicePort']).toBe(5555);
   });
 
+  it('should release every port when onWorkerStart fires twice for one cid (no leak)', async () => {
+    const l = new PortLauncher();
+    const a = cap();
+    const b = cap();
+    await l.onWorkerStart('0-0', a);
+    await l.onWorkerStart('0-0', b);
+    await l.onWorkerEnd('0-0');
+    expect(releaseSpy).toHaveBeenCalledWith(a['appium:dartVmServicePort']);
+    expect(releaseSpy).toHaveBeenCalledWith(b['appium:dartVmServicePort']);
+  });
+
   it('should allocate distinct ports per multiremote instance', async () => {
     const caps = { a: { capabilities: cap() }, b: { capabilities: cap() } };
     await new PortLauncher().onWorkerStart('0-0', caps as unknown as Record<string, unknown>);

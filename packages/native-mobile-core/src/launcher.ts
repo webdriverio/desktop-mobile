@@ -215,7 +215,10 @@ export abstract class MobileBaseLauncher<
     }
 
     if (allocated.length > 0) {
-      this.#allocatedPorts.set(cid, allocated);
+      // Merge (don't overwrite): if onWorkerStart ever fires twice for the same cid, a
+      // replace would drop the earlier ports from the map and leak them past onWorkerEnd.
+      const existing = this.#allocatedPorts.get(cid) ?? [];
+      this.#allocatedPorts.set(cid, [...existing, ...allocated]);
     }
   }
 

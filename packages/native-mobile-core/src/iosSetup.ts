@@ -117,23 +117,40 @@ export function warmUpXcodeToolchain(): DiagnosticResult[] {
   return results;
 }
 
-/** Locate WebDriverAgent.xcodeproj shipped inside appium-xcuitest-driver. */
+/** Locate WebDriverAgent.xcodeproj shipped with appium-xcuitest-driver. */
 export function resolveWdaProject(): string | undefined {
+  // Resolve from the project root (where the driver is installed), not this package's tree.
+  const req = createRequire(join(process.cwd(), 'noop.js'));
+  // Hoisted (npm / Yarn / pnpm-with-hoisting): appium-webdriveragent is lifted to a
+  // node_modules root, so resolve it directly first.
   try {
-    // Resolve from the project root (where the driver is installed), not this package's tree.
-    const req = createRequire(join(process.cwd(), 'noop.js'));
+    const wdaPkg = req.resolve('appium-webdriveragent/package.json');
+    const proj = join(dirname(wdaPkg), 'WebDriverAgent.xcodeproj');
+    if (existsSync(proj)) {
+      return proj;
+    }
+  } catch {
+    // fall through to the nested layout
+  }
+  // Nested (pnpm isolated): under the xcuitest driver's own node_modules.
+  try {
     const pkg = req.resolve('appium-xcuitest-driver/package.json');
     const proj = join(dirname(pkg), 'node_modules', 'appium-webdriveragent', 'WebDriverAgent.xcodeproj');
-    return existsSync(proj) ? proj : undefined;
+    if (existsSync(proj)) {
+      return proj;
+    }
   } catch {
-    return undefined;
+    // not found
   }
+  return undefined;
 }
 
 export interface PrebuildWdaOptions {
   /** DerivedData directory to cache the build into (reused via usePrebuiltWDA). */
   derivedDataPath: string;
   isHeadless?: boolean;
+  /** Hard ceiling on the xcodebuild — killed past this so onPrepare can't hang. Default 15 min. */
+  timeoutMs?: number;
 }
 
 /**
@@ -168,7 +185,9 @@ export async function prebuildWda(opts: PrebuildWdaOptions): Promise<Result<{ de
         opts.derivedDataPath,
         'CODE_SIGNING_ALLOWED=NO',
       ],
-      { stdio: ['ignore', 'pipe', 'pipe'] },
+      // timeout kills xcodebuild past the ceiling (a cold toolchain / stale sim lock / a
+      // permission dialog can otherwise block onPrepare indefinitely).
+      { stdio: ['ignore', 'pipe', 'pipe'], timeout: opts.timeoutMs ?? 900000 },
     );
     proc.stdout?.on('data', (d: Buffer) => log.debug(d.toString().trim()));
     proc.stderr?.on('data', (d: Buffer) => log.debug(d.toString().trim()));
