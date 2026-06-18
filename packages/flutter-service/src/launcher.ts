@@ -36,6 +36,6 @@ export default class FlutterLaunchService extends MobileBaseLauncher<FlutterServ
   }
 
   protected doctorChecks(config: Options.Testrunner, platforms: Set<'android' | 'ios'>): DoctorCheck[] {
-    return [...super.doctorChecks(config, platforms), ...flutterDoctorChecks()];
+    return [...super.doctorChecks(config, platforms), ...flutterDoctorChecks(platforms)];
   }
 }

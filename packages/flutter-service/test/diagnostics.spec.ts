@@ -2,7 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
 vi.mock('node:fs', () => ({ readFileSync: vi.fn() }));
-vi.mock('node:module', () => ({ createRequire: () => ({ resolve: () => '/fake/appium-flutter-driver/package.json' }) }));
+vi.mock('node:module', () => ({
+  createRequire: () => ({ resolve: () => '/fake/appium-flutter-driver/package.json' }),
+}));
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -40,16 +42,22 @@ describe('checkAppiumFlutterDriverFork', () => {
     expect(r.details).toMatch(/goosewobbler/);
   });
 
-  it('should warn when the driver cannot be inspected', async () => {
+  it('should warn (with the fork hint) when the driver cannot be inspected', async () => {
     readMock.mockImplementationOnce(() => {
       throw new Error('ENOENT');
     });
-    expect(await checkAppiumFlutterDriverFork()()).toMatchObject({ status: 'warn' });
+    const r = await checkAppiumFlutterDriverFork()();
+    expect(r.status).toBe('warn');
+    expect(r.details).toMatch(/goosewobbler/);
   });
 });
 
 describe('flutterDoctorChecks', () => {
-  it('should bundle the flutter + fork checks', () => {
-    expect(flutterDoctorChecks()).toHaveLength(2);
+  it('should bundle the flutter + fork checks for an Android run', () => {
+    expect(flutterDoctorChecks(new Set(['android']))).toHaveLength(2);
+  });
+
+  it('should omit the Android-only fork check for an iOS-only run', () => {
+    expect(flutterDoctorChecks(new Set(['ios']))).toHaveLength(1);
   });
 });

@@ -25,9 +25,16 @@ export function checkFlutterOnPath(): DoctorCheck {
  */
 export function checkAppiumFlutterDriverFork(): DoctorCheck {
   return (): DiagnosticResult => {
+    const forkHint =
+      'Android execute/mock need the goosewobbler appium-flutter-driver fork (vm-service-port + ' +
+      'getVMServiceUrl) until it is upstreamed. iOS is unaffected (uses appium:dartVmServicePort directly).';
     try {
       const req = createRequire(join(process.cwd(), 'noop.js'));
       const pkg = req.resolve('appium-flutter-driver/package.json');
+      // The driver's compiled command lives at build/lib/commands/execute.js. This layout is
+      // stable across the versions we target; the check is temporary and retired once the fork
+      // lands upstream, so a future layout change just needs this path (and the catch keeps the
+      // fork hint so a drift still points the right way).
       const execJs = join(dirname(pkg), 'build', 'lib', 'commands', 'execute.js');
       const src = readFileSync(execJs, 'utf8');
       if (src.includes('getVMServiceUrl')) {
@@ -37,21 +44,28 @@ export function checkAppiumFlutterDriverFork(): DoctorCheck {
         category: 'appium-flutter-driver',
         status: 'warn',
         message: 'getVMServiceUrl not found in the installed driver',
-        details:
-          'Android execute/mock need the goosewobbler appium-flutter-driver fork (vm-service-port + ' +
-          'getVMServiceUrl) until it is upstreamed. iOS is unaffected (uses appium:dartVmServicePort directly).',
+        details: forkHint,
       };
     } catch (error) {
       return {
         category: 'appium-flutter-driver',
         status: 'warn',
         message: `could not inspect appium-flutter-driver (${(error as Error).message})`,
+        details: forkHint,
       };
     }
   };
 }
 
-/** The Flutter-specific preflight checks, in the order they should run. */
-export function flutterDoctorChecks(): DoctorCheck[] {
-  return [checkFlutterOnPath(), checkAppiumFlutterDriverFork()];
+/**
+ * The Flutter-specific preflight checks. The fork check is Android-only — the vm-service-port
+ * intent extra + getVMServiceUrl are an Android concern, so it's omitted for an iOS-only run
+ * (iOS pins the port via processArguments and isn't affected by the fork).
+ */
+export function flutterDoctorChecks(platforms: Set<'android' | 'ios'>): DoctorCheck[] {
+  const checks: DoctorCheck[] = [checkFlutterOnPath()];
+  if (platforms.has('android')) {
+    checks.push(checkAppiumFlutterDriverFork());
+  }
+  return checks;
 }
