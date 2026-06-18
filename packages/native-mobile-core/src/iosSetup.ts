@@ -14,7 +14,7 @@ import { createLogger, type DiagnosticResult, Err, Ok, type Result } from '@wdio
 
 const log = createLogger('native-mobile-core', 'launcher');
 
-const isMac = process.platform === 'darwin';
+const isMac = () => process.platform === 'darwin';
 
 interface SimctlDevice {
   udid: string;
@@ -63,7 +63,7 @@ export function pickIosUdid(simctlJson: string, deviceName: string, platformVers
 
 /** Resolve the exact simulator UDID for a device name (macOS only). */
 export function resolveIosUdid(deviceName: string, platformVersion?: string): string | undefined {
-  if (!isMac) {
+  if (!isMac()) {
     return undefined;
   }
   try {
@@ -84,7 +84,7 @@ export function resolveIosUdid(deviceName: string, platformVersion?: string): st
  * toolchain as a clear diagnostic instead of appium-xcuitest's internal SDK-probe timeout.
  */
 export function warmUpXcodeToolchain(): DiagnosticResult[] {
-  if (!isMac) {
+  if (!isMac()) {
     return [];
   }
   const results: DiagnosticResult[] = [];
@@ -143,7 +143,7 @@ export interface PrebuildWdaOptions {
  * normal per-session build.
  */
 export async function prebuildWda(opts: PrebuildWdaOptions): Promise<Result<{ derivedDataPath: string }, Error>> {
-  if (!isMac) {
+  if (!isMac()) {
     return Err(new Error('WDA pre-build is macOS-only'));
   }
   const project = resolveWdaProject();

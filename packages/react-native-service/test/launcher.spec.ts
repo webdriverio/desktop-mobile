@@ -11,8 +11,9 @@ import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from '.
 
 const config = {} as Options.Testrunner;
 
+// doctor: 'off' keeps onPrepare hermetic — the iOS doctor path shells out to xcrun.
 const make = (options: ReactNativeServiceGlobalOptions = {}) =>
-  new ReactNativeLaunchService(options, {} as ReactNativeCapabilities, config);
+  new ReactNativeLaunchService({ doctor: 'off', ...options }, {} as ReactNativeCapabilities, config);
 
 const cap = (over: Record<string, unknown> = {}): ReactNativeCapabilities =>
   ({ platformName: 'Android', ...over }) as ReactNativeCapabilities;

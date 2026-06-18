@@ -2,16 +2,22 @@ import type { Options } from '@wdio/types';
 import { describe, expect, it, vi } from 'vitest';
 import { SevereServiceError } from 'webdriverio';
 
-// BaseLauncher (via native-mobile-core's MobileBaseLauncher) carries port/driver infra
-// Flutter doesn't use — stub it so the launcher is exercised in isolation.
-vi.mock('@wdio/native-core', () => ({ BaseLauncher: class {} }));
+// BaseLauncher (via native-mobile-core's MobileBaseLauncher) carries the PortManager the
+// Flutter launcher uses to allocate a dartVmServicePort — stub it with a minimal allocator.
+vi.mock('@wdio/native-core', () => ({
+  BaseLauncher: class {
+    private _next = 9000;
+    portManager = { allocatePort: async () => this._next++, releasePort: () => {} };
+  },
+}));
 
 import FlutterLaunchService from '../src/launcher.js';
 import type { FlutterCapabilities, FlutterServiceGlobalOptions } from '../src/types.js';
 
 const config = {} as Options.Testrunner;
+// doctor: 'off' keeps onPrepare hermetic — the iOS doctor path shells out to xcrun.
 const make = (options: FlutterServiceGlobalOptions = {}) =>
-  new FlutterLaunchService(options, {} as FlutterCapabilities, config);
+  new FlutterLaunchService({ doctor: 'off', ...options }, {} as FlutterCapabilities, config);
 const cap = (over: Record<string, unknown> = {}): FlutterCapabilities =>
   ({ platformName: 'Android', ...over }) as FlutterCapabilities;
 

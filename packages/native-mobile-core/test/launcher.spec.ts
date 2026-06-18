@@ -1,19 +1,44 @@
 import type { Options } from '@wdio/types';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
-// BaseLauncher carries @wdio/native-core's port/driver infra mobile services don't use — stub it.
-vi.mock('@wdio/native-core', () => ({ BaseLauncher: class {} }));
+// Stub BaseLauncher (native-core's port/driver infra) with a minimal allocating PortManager.
+const releaseSpy = vi.hoisted(() => vi.fn());
+vi.mock('@wdio/native-core', () => ({
+  BaseLauncher: class {
+    private _next = 9000;
+    portManager = {
+      allocatePort: async () => this._next++,
+      releasePort: releaseSpy,
+    };
+  },
+}));
 
+// Keep onPrepare from shelling out to `appium` / `xcrun`.
+const ensureSpy = vi.hoisted(() => vi.fn(async () => ({ ok: true, value: { name: 'x', method: 'skipped' as const } })));
+vi.mock('../src/appiumDriverManager.js', () => ({ ensureAppiumDriver: ensureSpy }));
+vi.mock('../src/iosSetup.js', () => ({
+  resolveIosUdid: vi.fn(() => undefined),
+  warmUpXcodeToolchain: vi.fn(() => []),
+}));
+vi.mock('@wdio/native-utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wdio/native-utils')>();
+  return { ...actual, createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) };
+});
+
+import type { DoctorCheck } from '../src/doctor.js';
 import { flattenCaps, MobileBaseLauncher } from '../src/launcher.js';
 
 interface TestOptions {
   platform?: string;
   devices?: Array<{ udid?: string }>;
+  autoInstallDriver?: boolean;
+  doctor?: 'off' | 'warn' | 'strict';
 }
 interface TestCap {
   platformName?: string;
   'appium:automationName'?: string;
   'appium:udid'?: string;
+  'appium:dartVmServicePort'?: number;
 }
 
 class TestLauncher extends MobileBaseLauncher<TestOptions, TestCap> {
@@ -28,20 +53,33 @@ class TestLauncher extends MobileBaseLauncher<TestOptions, TestCap> {
     cap['appium:automationName'] = p === 'android' ? 'UiAutomator2' : 'XCUITest';
     return p;
   }
+  protected requiredDrivers(platform: 'android' | 'ios'): string[] {
+    return platform === 'android' ? ['uiautomator2'] : ['xcuitest'];
+  }
+  protected portCapKey(): string | undefined {
+    return undefined;
+  }
+}
+
+// A launcher that stamps a per-cap realm port (the Flutter shape).
+class PortLauncher extends TestLauncher {
+  protected portCapKey(): string | undefined {
+    return 'appium:dartVmServicePort';
+  }
 }
 
 const config = {} as Options.Testrunner;
 const cap = (over: Record<string, unknown> = {}): TestCap => ({ platformName: 'Android', ...over });
 
+afterEach(() => vi.clearAllMocks());
+
 describe('flattenCaps', () => {
   it('should pass an array of caps through', () => {
     expect(flattenCaps([cap(), cap()])).toHaveLength(2);
   });
-
   it('should unwrap a multiremote { instance: { capabilities } } object', () => {
     expect(flattenCaps({ phone: { capabilities: cap() } })).toEqual([cap()]);
   });
-
   it('should wrap a single bare capability', () => {
     const c = cap();
     expect(flattenCaps(c as unknown as Record<string, unknown>)).toEqual([c]);
@@ -55,30 +93,56 @@ describe('MobileBaseLauncher.onPrepare', () => {
     expect(caps.map((c) => c['appium:automationName'])).toEqual(['UiAutomator2', 'XCUITest']);
   });
 
-  it('should mutate a multiremote capability object', async () => {
-    const caps = { phone: { capabilities: cap({ platformName: 'Android' }) } };
-    await new TestLauncher().onPrepare(config, caps);
-    expect(caps.phone.capabilities['appium:automationName']).toBe('UiAutomator2');
-  });
-
   it('should reject when the subclass rejects an unsupported platform', async () => {
     await expect(new TestLauncher().onPrepare(config, [cap({ platformName: 'Windows' })])).rejects.toThrow();
   });
+
+  it('should not auto-install drivers by default', async () => {
+    await new TestLauncher().onPrepare(config, [cap()]);
+    expect(ensureSpy).not.toHaveBeenCalled();
+  });
+
+  it('should ensure the union of required drivers once when autoInstallDriver is on', async () => {
+    await new TestLauncher({ autoInstallDriver: true }).onPrepare(config, [
+      cap({ platformName: 'Android' }),
+      cap({ platformName: 'iOS' }),
+    ]);
+    const names = ensureSpy.mock.calls.map((c) => c[0]).sort();
+    expect(names).toEqual(['uiautomator2', 'xcuitest']);
+  });
+
+  it('should not throw under the default warn doctor mode', async () => {
+    await expect(new TestLauncher().onPrepare(config, [cap()])).resolves.toBeUndefined();
+  });
 });
 
-describe('MobileBaseLauncher.onWorkerStart / onWorkerEnd', () => {
+describe('MobileBaseLauncher doctor fail-fast', () => {
+  class StrictLauncher extends TestLauncher {
+    protected doctorChecks(): DoctorCheck[] {
+      return [() => ({ category: 'X', status: 'error', message: 'bad' })];
+    }
+  }
+
+  it('should throw under strict mode when a check errors', async () => {
+    await expect(new StrictLauncher({ doctor: 'strict' }).onPrepare(config, [cap()])).rejects.toThrow(/bad/);
+  });
+
+  it('should only log under warn mode', async () => {
+    await expect(new StrictLauncher({ doctor: 'warn' }).onPrepare(config, [cap()])).resolves.toBeUndefined();
+  });
+
+  it('should skip checks entirely under off mode', async () => {
+    await expect(new StrictLauncher({ doctor: 'off' }).onPrepare(config, [cap()])).resolves.toBeUndefined();
+  });
+});
+
+describe('MobileBaseLauncher device stamping', () => {
   const withDevices = () => new TestLauncher({ devices: [{ udid: 'a' }, { udid: 'b' }] });
 
   it('should stamp the claimed device udid onto a bare capability', async () => {
     const c = cap();
     await withDevices().onWorkerStart('0-0', c);
     expect(c['appium:udid']).toBe('a');
-  });
-
-  it('should stamp onto a multiremote capability object', async () => {
-    const caps = { phone: { capabilities: cap() } };
-    await withDevices().onWorkerStart('0-0', caps as unknown as Record<string, unknown>);
-    expect(caps.phone.capabilities['appium:udid']).toBe('a');
   });
 
   it('should advance the device cursor per worker', async () => {
@@ -100,9 +164,43 @@ describe('MobileBaseLauncher.onWorkerStart / onWorkerEnd', () => {
     await expect(withDevices().onWorkerStart('0-0', undefined)).resolves.toBeUndefined();
   });
 
-  it('should release a claimed device without throwing', async () => {
-    const l = withDevices();
-    await l.onWorkerStart('0-0', cap());
-    expect(() => l.onWorkerEnd('0-0')).not.toThrow();
+  it('should apply Android boot-cap defaults', async () => {
+    const c = cap();
+    await new TestLauncher().onWorkerStart('0-0', c);
+    expect((c as Record<string, unknown>)['appium:autoGrantPermissions']).toBe(true);
+  });
+});
+
+describe('MobileBaseLauncher port seam', () => {
+  it('should stamp a free realm port per cap and release it on worker end', async () => {
+    const l = new PortLauncher();
+    const c = cap();
+    await l.onWorkerStart('0-0', c);
+    const port = c['appium:dartVmServicePort'];
+    expect(typeof port).toBe('number');
+    await l.onWorkerEnd('0-0');
+    expect(releaseSpy).toHaveBeenCalledWith(port);
+  });
+
+  it('should not overwrite a user-pinned port', async () => {
+    const c = cap({ 'appium:dartVmServicePort': 5555 });
+    await new PortLauncher().onWorkerStart('0-0', c);
+    expect(c['appium:dartVmServicePort']).toBe(5555);
+  });
+
+  it('should allocate distinct ports per multiremote instance', async () => {
+    const caps = { a: { capabilities: cap() }, b: { capabilities: cap() } };
+    await new PortLauncher().onWorkerStart('0-0', caps as unknown as Record<string, unknown>);
+    const pa = caps.a.capabilities['appium:dartVmServicePort'];
+    const pb = caps.b.capabilities['appium:dartVmServicePort'];
+    expect(pa).not.toBe(pb);
+  });
+
+  it('should do nothing for a launcher without a port cap key', async () => {
+    const c = cap();
+    const l = new TestLauncher();
+    await l.onWorkerStart('0-0', c);
+    await l.onWorkerEnd('0-0');
+    expect(releaseSpy).not.toHaveBeenCalled();
   });
 });
