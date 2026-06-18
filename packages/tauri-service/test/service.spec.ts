@@ -501,9 +501,12 @@ describe('TauriWorkerService', () => {
       // back to the native binary path. Regression for the browser-mode package test.
       const mockUrl = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ url: mockUrl });
-      const service = new TauriWorkerService({} as never, {
-        'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:5173' },
-      } as never);
+      const service = new TauriWorkerService(
+        {} as never,
+        {
+          'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: 'http://localhost:5173' },
+        } as never,
+      );
 
       await service.before({} as never, [], mockBrowser);
 
