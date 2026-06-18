@@ -58,6 +58,7 @@
     "test": "turbo run test",
     "test:coverage": "turbo run test:coverage",
     "test:integration": "turbo run test:integration",
+    "smoke:autoinstall-driver": "node ./scripts/smoke-appium-autoinstall.ts",
     "test:package": "node ./scripts/test-package.ts",
     "test:package:electron": "pnpx cross-env DEBUG=@wdio/electron-service node ./scripts/test-package.ts --service=electron",
     "test:package:electron:browser": "pnpx cross-env DEBUG=@wdio/electron-service node ./scripts/test-package.ts --service=electron --mode=browser",

@@ -64,6 +64,16 @@ jobs:
     uses: ./.github/workflows/_ci-lint.reusable.yml
     secrets: inherit
 
+  # Verify @wdio/native-mobile-core's autoInstallDriver actually installs an Appium driver.
+  # Only runs when shared mobile infra changes (native-* packages) — the e2e drivers shadow
+  # APPIUM_HOME, so this clean-env job is the only place the real install path runs.
+  setup-automation-smoke:
+    name: Mobile Setup-Automation Smoke
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.has_shared_changes == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-smoke-autoinstall-driver.reusable.yml
+    secrets: inherit
+
   # Run unit tests - skip when only docs changed
   unit-matrix:
     name: Unit [${{ matrix.display-name }}]

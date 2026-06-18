@@ -14,6 +14,7 @@ export {
   installAppiumDriver,
   isAppiumAvailable,
   listInstalledDrivers,
+  resetInstalledCache,
 } from './appiumDriverManager.js';
 export type { MobileCapabilityConfig, MobileCapabilityOptions, MutableMobileCapability } from './capabilities.js';
 export { prepareMobileCapability } from './capabilities.js';
