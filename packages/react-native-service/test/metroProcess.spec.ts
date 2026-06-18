@@ -95,6 +95,15 @@ describe('MetroProcess.start', () => {
     const mp = new MetroProcess({ spawn: vi.fn(() => proc) as never, probe: async () => false });
     await expect(mp.start({ readyTimeoutMs: 1000, pollIntervalMs: 10 })).rejects.toThrow(/exited during startup/);
   });
+
+  it('should fail fast with the spawn error instead of timing out (ENOENT)', async () => {
+    existsMock.mockReturnValue(true);
+    const proc = fakeProc();
+    const mp = new MetroProcess({ spawn: vi.fn(() => proc) as never, probe: async () => false });
+    const starting = mp.start({ readyTimeoutMs: 5000, pollIntervalMs: 20 });
+    proc.emit('error', new Error('spawn react-native ENOENT'));
+    await expect(starting).rejects.toThrow(/ENOENT/);
+  });
 });
 
 describe('MetroProcess.stop', () => {

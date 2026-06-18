@@ -1,10 +1,20 @@
 import type { Options } from '@wdio/types';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { SevereServiceError } from 'webdriverio';
 
 // BaseLauncher carries @wdio/native-core's port/driver infra the launcher doesn't
 // use yet — stub it so onPrepare is exercised in isolation.
 vi.mock('@wdio/native-core', () => ({ BaseLauncher: class {} }));
+
+// Controllable Metro so the manageMetro lifecycle can be exercised without a real process.
+const metroStart = vi.hoisted(() => vi.fn(async () => {}));
+const metroStop = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock('../src/metroProcess.js', () => ({
+  MetroProcess: class {
+    start = metroStart;
+    stop = metroStop;
+  },
+}));
 
 import ReactNativeLaunchService from '../src/launcher.js';
 import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from '../src/types.js';
@@ -58,6 +68,27 @@ describe('ReactNativeLaunchService.onPrepare', () => {
   it('should throw a SevereServiceError for an unsupported platform', async () => {
     const caps = [cap({ platformName: 'Windows' })];
     await expect(make().onPrepare(config, caps)).rejects.toThrow(SevereServiceError);
+  });
+});
+
+describe('ReactNativeLaunchService Metro lifecycle', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('should start Metro before onPrepare when manageMetro is set', async () => {
+    await make({ manageMetro: true }).onPrepare(config, [cap({ platformName: 'Android' })]);
+    expect(metroStart).toHaveBeenCalledOnce();
+  });
+
+  it('should stop Metro if onPrepare fails after Metro started (no orphaned port 8081)', async () => {
+    const launcher = make({ manageMetro: true });
+    await expect(launcher.onPrepare(config, [cap({ platformName: 'Windows' })])).rejects.toThrow();
+    expect(metroStart).toHaveBeenCalledOnce();
+    expect(metroStop).toHaveBeenCalledOnce();
+  });
+
+  it('should not touch Metro when manageMetro is off', async () => {
+    await make().onPrepare(config, [cap({ platformName: 'Android' })]);
+    expect(metroStart).not.toHaveBeenCalled();
   });
 });
 

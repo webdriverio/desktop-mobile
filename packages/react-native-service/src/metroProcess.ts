@@ -86,6 +86,9 @@ const defaultFetchBundle: MetroBundleFetch = (port, platform) =>
 export class MetroProcess {
   #proc?: ChildProcess;
   #port = DEFAULT_METRO_PORT;
+  // A spawn 'error' (e.g. ENOENT — the CLI isn't installed) leaves exitCode/signalCode null,
+  // so the readiness loop would otherwise spin to the full timeout. Capture it to fail fast.
+  #spawnError?: Error;
   readonly #spawn: typeof nodeSpawn;
   readonly #probe: MetroReadyProbe;
   readonly #fetchBundle: MetroBundleFetch;
@@ -115,6 +118,7 @@ export class MetroProcess {
     const projectRoot = options.projectRoot ?? process.cwd();
     const port = options.port ?? DEFAULT_METRO_PORT;
     this.#port = port;
+    this.#spawnError = undefined;
 
     const { cmd, prefixArgs } = resolveReactNativeBin(projectRoot);
     log.info(`Starting Metro on port ${port} (cwd: ${projectRoot})`);
@@ -126,7 +130,10 @@ export class MetroProcess {
     this.#proc = proc;
     proc.stdout?.on('data', (d: Buffer) => log.debug(`[metro] ${d.toString().trim()}`));
     proc.stderr?.on('data', (d: Buffer) => log.debug(`[metro] ${d.toString().trim()}`));
-    proc.on('error', (e) => log.error(`Metro spawn error: ${e.message}`));
+    proc.on('error', (e) => {
+      this.#spawnError = e;
+      log.error(`Metro spawn error: ${e.message}`);
+    });
 
     await this.#waitForReady(port, options);
 
@@ -145,6 +152,9 @@ export class MetroProcess {
     const interval = options.pollIntervalMs ?? 500;
     const start = Date.now();
     while (Date.now() - start < timeout) {
+      if (this.#spawnError) {
+        throw new Error(`Metro failed to start: ${this.#spawnError.message}`);
+      }
       const p = this.#proc;
       if (p && (p.exitCode !== null || p.signalCode !== null)) {
         throw new Error('Metro process exited during startup');

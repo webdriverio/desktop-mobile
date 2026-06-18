@@ -75,10 +75,22 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
         throw new SevereServiceError(`Failed to start Metro: ${(error as Error).message}`);
       }
     }
-    await super.onPrepare(config, capabilities);
+    try {
+      await super.onPrepare(config, capabilities);
+    } catch (error) {
+      // super.onPrepare can throw (e.g. doctor: 'strict' fails a check). WDIO then aborts
+      // without calling onComplete, so stop the Metro we started — otherwise it's orphaned
+      // holding port 8081 and the next run hits EADDRINUSE.
+      await this.#stopMetro();
+      throw error;
+    }
   }
 
   async onComplete(): Promise<void> {
+    await this.#stopMetro();
+  }
+
+  async #stopMetro(): Promise<void> {
     if (this.#metro) {
       await this.#metro.stop();
       this.#metro = undefined;
