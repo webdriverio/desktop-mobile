@@ -103,6 +103,8 @@ describe('MetroProcess.start', () => {
     const starting = mp.start({ readyTimeoutMs: 5000, pollIntervalMs: 20 });
     proc.emit('error', new Error('spawn react-native ENOENT'));
     await expect(starting).rejects.toThrow(/ENOENT/);
+    // A failed-spawn process must not report as running (exitCode/signalCode/killed stay unset).
+    expect(mp.isRunning()).toBe(false);
   });
 
   it('should surface a spawn error even when a pre-existing Metro answers the probe', async () => {

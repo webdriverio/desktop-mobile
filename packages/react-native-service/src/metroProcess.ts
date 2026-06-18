@@ -106,6 +106,11 @@ export class MetroProcess {
   }
 
   isRunning(): boolean {
+    // A failed spawn (ENOENT) fires 'error' but leaves exitCode/signalCode/killed in their
+    // initial "never started" state, so guard on #spawnError before those checks.
+    if (this.#spawnError) {
+      return false;
+    }
     const p = this.#proc;
     if (!p) {
       return false;
