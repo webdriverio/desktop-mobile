@@ -297,6 +297,19 @@ export interface ReactNativeServiceOptions extends LogCaptureConfig, MockLifecyc
    * Omit (or leave empty) for single-device runs — Appium picks the device.
    */
   devices?: Array<{ udid?: string; avd?: string; iOSUdid?: string }>;
+  /**
+   * Opt-in: auto-install the required Appium drivers (`uiautomator2` / `xcuitest`) in the
+   * launcher, at a version known-good for the running Appium server major. Idempotent;
+   * a no-op when the driver is already installed.
+   * @default false
+   */
+  autoInstallDriver?: boolean;
+  /**
+   * Preflight doctor mode. `'off'` skips checks, `'warn'` logs actionable warnings,
+   * `'strict'` aborts the run (`SevereServiceError`) on any error-level check.
+   * @default 'warn'
+   */
+  doctor?: 'off' | 'warn' | 'strict';
 }
 
 /**

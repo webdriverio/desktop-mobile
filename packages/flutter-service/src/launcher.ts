@@ -21,4 +21,16 @@ export default class FlutterLaunchService extends MobileBaseLauncher<FlutterServ
   protected mutateCapability(cap: FlutterCapabilities, options: FlutterServiceGlobalOptions): 'android' | 'ios' {
     return prepareFlutterCapability(cap, options);
   }
+
+  // appium-flutter-driver registers as automationName `Flutter` on both platforms (it wraps
+  // uiautomator2/xcuitest internally), so a single driver covers Android and iOS.
+  protected requiredDrivers(_platform: 'android' | 'ios'): string[] {
+    return ['flutter'];
+  }
+
+  // Stamp a free per-worker Dart VM Service port so execute/mock are zero-config (the worker
+  // reads appium:dartVmServicePort as the discovery fast-path, skipping the log scrape).
+  protected portCapKey(): string | undefined {
+    return 'appium:dartVmServicePort';
+  }
 }

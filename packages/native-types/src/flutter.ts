@@ -181,6 +181,19 @@ export interface FlutterServiceOptions extends LogCaptureConfig, MockLifecycleCo
   appBinaryPath?: string;
   /** Device pool for parallel workers / multiremote. */
   devices?: Array<{ udid?: string; avd?: string; iOSUdid?: string }>;
+  /**
+   * Opt-in: auto-install the `flutter` Appium driver (appium-flutter-driver) in the
+   * launcher, at a version known-good for the running Appium server major. Idempotent;
+   * a no-op when the driver is already installed.
+   * @default false
+   */
+  autoInstallDriver?: boolean;
+  /**
+   * Preflight doctor mode. `'off'` skips checks, `'warn'` logs actionable warnings,
+   * `'strict'` aborts the run (`SevereServiceError`) on any error-level check.
+   * @default 'warn'
+   */
+  doctor?: 'off' | 'warn' | 'strict';
 }
 
 /**
