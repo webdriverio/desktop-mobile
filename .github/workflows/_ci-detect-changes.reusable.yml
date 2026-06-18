@@ -50,14 +50,11 @@ jobs:
     name: Detect Changes
     runs-on: ubuntu-latest
     outputs:
-      # >>> TEMP (#387, revert before merge): narrow CI to the Flutter e2e legs only, to shorten the
-      # feedback loop while iterating on the Flutter-iOS WDA-launch fix. Forces every other service's
-      # e2e/package matrix off. Revert this block to restore the `steps.classify` outputs. <<<
-      run_electron: 'false'
-      run_tauri: 'false'
-      run_dioxus: 'false'
-      run_electrobun: 'false'
-      runs: '{"flutter":true}'
+      run_electron: ${{ steps.classify.outputs.run_electron || 'false' }}
+      run_tauri: ${{ steps.classify.outputs.run_tauri || 'false' }}
+      run_dioxus: ${{ steps.classify.outputs.run_dioxus || 'false' }}
+      run_electrobun: ${{ steps.classify.outputs.run_electrobun || 'false' }}
+      runs: ${{ steps.classify.outputs.runs || '{}' }}
       has_shared_changes: ${{ steps.classify.outputs.has_shared_changes || 'false' }}
       run_lint_only: ${{ steps.classify.outputs.run_lint_only || 'false' }}
 
