@@ -45,6 +45,13 @@ export function createFakeBrowser(): FakeBrowser {
     execute: vi.fn().mockResolvedValue(undefined),
     overwriteCommand: vi.fn((name: string, fn: OverrideFn, _isElement?: boolean) => {
       overrides.set(name, fn);
+      // Mirror webdriverio: overwriting a browser command (e.g. url — read-only in wdio >=9.27,
+      // hence overwriteCommand) replaces it, calling through to the original. Element commands
+      // like click are exercised via triggerCommand instead, so only url needs live wiring here.
+      if (name === 'url') {
+        const original = browser.url as unknown as (...args: readonly unknown[]) => Promise<unknown>;
+        browser.url = vi.fn((...args: readonly unknown[]) => fn.call(browser, original, ...args));
+      }
     }),
     electron: {} as Record<string, unknown>,
     overrides,

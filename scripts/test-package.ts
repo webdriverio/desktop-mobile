@@ -18,7 +18,7 @@
  * node scripts/test-package.ts --package=dioxus-app --skip-build
  */
 
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
@@ -133,6 +133,32 @@ function execCommand(command: string, cwd: string, description: string) {
     }
     throw error;
   }
+}
+
+/**
+ * Async variant of execCommand for browser-mode tests, where the static dev server runs in
+ * THIS process. execSync would block the event loop for the entire wdio run, so the in-process
+ * server could never answer Chrome and the page navigation would time out. spawn keeps the loop
+ * free; we await the child's exit and surface a non-zero code as a throw, matching execCommand.
+ */
+function execCommandAsync(command: string, cwd: string, description: string): Promise<void> {
+  log(`${description}...`);
+  return new Promise((resolvePromise, rejectPromise) => {
+    const child = spawn(command, {
+      cwd: normalize(cwd),
+      stdio: 'inherit',
+      shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
+    });
+    child.on('error', rejectPromise);
+    child.on('close', (code) => {
+      if (code === 0) {
+        log(`✅ ${description} completed`);
+        resolvePromise();
+      } else {
+        rejectPromise(new Error(`${description} failed with exit code ${code}`));
+      }
+    });
+  });
 }
 
 async function buildAndPackService(
@@ -850,7 +876,13 @@ async function testExample(
           : service === 'tauri' && process.platform === 'darwin'
             ? 'pnpm test:embedded'
             : 'pnpm test';
-      execCommand(testScript, packageDir, `Running ${mode} tests for ${packageName}`);
+      // Browser mode serves the dev server from this process, so it must not block the event
+      // loop while wdio runs (see execCommandAsync). Native mode has no in-process server.
+      if (mode === 'browser') {
+        await execCommandAsync(testScript, packageDir, `Running ${mode} tests for ${packageName}`);
+      } else {
+        execCommand(testScript, packageDir, `Running ${mode} tests for ${packageName}`);
+      }
     } finally {
       if (staticServer) {
         // Capture in a const so the closure narrows the type — staticServer
