@@ -185,32 +185,49 @@ jobs:
           test -d "$FLUTTER_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app" \
             || { echo "::error::prebuilt WDA runner not found"; exit 1; }
 
-      # Cold-CoreSimulator mitigation: on a freshly-booted CI sim the first SpringBoard app launch
+      # Cold-CoreSimulator mitigation: on a freshly-booted CI sim the first app launch
       # (FBSOpenApplicationService) intermittently wedges, so appium's first per-session `simctl
       # launch` of the WDA xctrunner hangs the full 600s simctl-exec timeout and overruns
       # session-create — the appium log on a cold run shows both `simctl launch` and `terminate`
-      # blocking 600000ms, with later sessions recovering once SpringBoard is warm. Warm that launch
-      # path here with a lightweight pre-installed system app (Settings) — fast even cold — so the
-      # graded suite's first WDA launch starts warm. Best-effort: never fail the job on warm-up
-      # (each launch is bounded + killed if it wedges).
-      - name: 🔥 Warm up simulator app-launch (SpringBoard)
+      # blocking 600000ms, with later sessions recovering once the sim is warm. Warming with only a
+      # light system app got 4/5 specs green but the first (cold) WDA launch still wedged, so warm
+      # the EXACT heavy path too: launch the WDA xctrunner itself a few times here. Best-effort —
+      # each launch is bounded + killed if it wedges, and even a wedged attempt exercises
+      # FBSOpenApplicationService, so appium's first graded session lands warm. Never fails the job.
+      - name: 🔥 Warm up the WDA launch path (cold-sim mitigation)
         shell: bash
         run: |
           set -uo pipefail
-          APP_ID=com.apple.Preferences
-          for attempt in 1 2 3; do
-            echo "SpringBoard warm-up launch attempt $attempt"
-            xcrun simctl launch booted "$APP_ID" >/dev/null 2>&1 &
-            lp=$!
-            waited=0
+          # 1) Warm SpringBoard generally with a lightweight pre-installed system app.
+          for attempt in 1 2; do
+            xcrun simctl launch booted com.apple.Preferences >/dev/null 2>&1 &
+            lp=$!; waited=0
             while kill -0 "$lp" 2>/dev/null; do
               sleep 3; waited=$((waited + 3))
-              if [ "$waited" -ge 120 ]; then echo "warm-up launch wedged (${waited}s); killing"; kill -9 "$lp" 2>/dev/null || true; break; fi
+              [ "$waited" -ge 90 ] && { kill -9 "$lp" 2>/dev/null || true; break; }
             done
-            xcrun simctl terminate booted "$APP_ID" >/dev/null 2>&1 || true
-            sleep 2
+            xcrun simctl terminate booted com.apple.Preferences >/dev/null 2>&1 || true
           done
-          echo "SpringBoard warm-up done"
+          # 2) Warm the exact heavy WDA xctrunner launch — the one that wedges cold. Install + launch
+          # (USE_PORT, mirroring appium) + poll /status; stop early once it answers (path fully warm).
+          APP="$FLUTTER_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
+          BID="com.facebook.WebDriverAgentRunner.xctrunner"
+          xcrun simctl install booted "$APP" >/dev/null 2>&1 || echo "warm-up: WDA install failed (non-fatal)"
+          for attempt in 1 2 3; do
+            echo "WDA launch warm-up attempt $attempt"
+            SIMCTL_CHILD_USE_PORT=8100 xcrun simctl launch --terminate-running-process booted "$BID" >/dev/null 2>&1 &
+            lp=$!; waited=0
+            while kill -0 "$lp" 2>/dev/null; do
+              sleep 3; waited=$((waited + 3))
+              if [ "$waited" -ge 150 ]; then echo "  WDA launch wedged (${waited}s); killing"; kill -9 "$lp" 2>/dev/null || true; break; fi
+            done
+            if curl -fsS http://127.0.0.1:8100/status 2>/dev/null | grep -q '"ready":true'; then
+              echo "  ✅ WDA responded on :8100 — launch path warm (attempt $attempt)"; break
+            fi
+            echo "  WDA not ready after warm-up attempt $attempt; retrying"
+            xcrun simctl terminate booted "$BID" >/dev/null 2>&1 || true
+          done
+          echo "WDA launch warm-up done (best-effort)"
 
       - name: 🧪 Run E2E on iOS simulator
         shell: bash
