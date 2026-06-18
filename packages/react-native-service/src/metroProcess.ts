@@ -76,7 +76,9 @@ const defaultFetchBundle: MetroBundleFetch = (port, platform) =>
       res.resume();
       res.statusCode === 200 ? resolve() : reject(new Error(`bundle request returned ${res.statusCode}`));
     });
-    req.setTimeout(300000, () => {
+    // Best-effort warm-up: cap at 60s so a slow/stuck bundle can't hold up onPrepare for
+    // the full 5 minutes a cold compile might otherwise allow.
+    req.setTimeout(60000, () => {
       req.destroy();
       reject(new Error('bundle request timeout'));
     });
@@ -160,6 +162,13 @@ export class MetroProcess {
         throw new Error('Metro process exited during startup');
       }
       if (await this.#probe(port)) {
+        // A spawn 'error' may have fired during the probe await; a pre-existing Metro already
+        // on this port would still answer, so re-check before claiming we started it. The
+        // assertion defeats the stale CFA narrowing from the loop-top guard above.
+        const spawnError = this.#spawnError as Error | undefined;
+        if (spawnError) {
+          throw new Error(`Metro failed to start: ${spawnError.message}`);
+        }
         log.info(`Metro ready on port ${port}`);
         return;
       }

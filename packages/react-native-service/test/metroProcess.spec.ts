@@ -105,6 +105,19 @@ describe('MetroProcess.start', () => {
     await expect(starting).rejects.toThrow(/ENOENT/);
   });
 
+  it('should surface a spawn error even when a pre-existing Metro answers the probe', async () => {
+    existsMock.mockReturnValue(true);
+    const proc = fakeProc();
+    // Our spawn errors, but a Metro already on the port answers /status — must not be
+    // mistaken for the one we started.
+    const probe = vi.fn(async () => {
+      proc.emit('error', new Error('spawn react-native ENOENT'));
+      return true;
+    });
+    const mp = new MetroProcess({ spawn: vi.fn(() => proc) as never, probe });
+    await expect(mp.start({ readyTimeoutMs: 1000, pollIntervalMs: 10 })).rejects.toThrow(/ENOENT/);
+  });
+
   it('should stop() immediately after a spawn error without hanging on a never-fired exit', async () => {
     existsMock.mockReturnValue(true);
     const proc = fakeProc();
