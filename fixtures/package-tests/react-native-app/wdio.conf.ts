@@ -33,7 +33,7 @@ const rnServiceOptions: ReactNativeServiceOptions = {
   metroProjectRoot: process.cwd(),
   prebundle: false,
   autoInstallDriver: false,
-  doctor: 'off',
+  doctor: false,
 };
 
 const capabilities: ReactNativeCapabilities[] = [

@@ -120,7 +120,7 @@ interface ReactNativeServiceOptions {
 
   // Appium driver auto-install + preflight doctor (shared mobile setup automation)
   autoInstallDriver?: boolean;  // install uiautomator2 / xcuitest if missing (default: false)
-  doctor?: 'off' | 'warn' | 'strict'; // preflight checks (default: 'warn')
+  doctor?: boolean | { strict?: boolean }; // preflight checks (default: true; { strict: true } aborts on error)
 
   // Convenience — maps onto appium:app if not already set in the capability
   appBinaryPath?: string;
@@ -167,11 +167,11 @@ and may lack network/permissions. Requires `appium` to be resolvable (it comes w
 `doctor` runs fail-fast preflight validation in `onPrepare` so a misconfiguration surfaces
 as a clear message instead of a cryptic Appium timeout:
 
-| Mode | Behaviour |
+| `doctor` | Behaviour |
 |---|---|
-| `'off'` | Skip all checks. |
-| `'warn'` *(default)* | Log actionable warnings; never abort. |
-| `'strict'` | Abort the run (`SevereServiceError`) on any error-level check. |
+| `false` | Skip all checks. |
+| `true` *(default)*, or omitted | Run the checks; log actionable warnings; never abort. |
+| `{ strict: true }` | Run the checks; abort the run (`SevereServiceError`) on any error-level check. |
 
 For React Native it checks: `@wdio/appium-service` is in `services`, Metro is reachable on
 the configured port, and (iOS) the Xcode toolchain is warm. Checks are advisory (`warn`)

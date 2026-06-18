@@ -101,8 +101,8 @@ const reactNativeServiceOptions: ReactNativeServiceOptions = {
     ? { manageMetro: true, metroProjectRoot: process.env.RN_BUILD_DIR, prebundle: true }
     : {}),
   // Exercise the preflight doctor end-to-end (appium-service present, Metro reachable, iOS
-  // toolchain warm). 'strict' makes a regression that breaks the preflight fail CI.
-  doctor: 'strict',
+  // toolchain warm). strict mode makes a regression that breaks the preflight fail CI.
+  doctor: { strict: true },
 };
 
 type ReactNativeCapability = {
