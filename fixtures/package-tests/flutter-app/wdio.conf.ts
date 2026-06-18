@@ -26,6 +26,10 @@ const platform = rawPlatform as 'android' | 'ios';
 
 const flutterServiceOptions: FlutterServiceOptions = {
   captureBackendLogs: true,
+  // Type-level coverage: assert the published package exports/types the setup-automation
+  // options. Values are runtime no-ops so this stays a config-composition smoke test.
+  autoInstallDriver: false,
+  doctor: 'off',
 };
 
 const capabilities: FlutterCapabilities[] = [

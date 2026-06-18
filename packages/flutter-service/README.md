@@ -157,12 +157,60 @@ interface FlutterServiceOptions {
   // Log capture
   captureBackendLogs?: boolean; // forward logcat (Android) / syslog (iOS) to the WDIO output
 
+  // Setup automation (see "Zero-config setup automation" below)
+  autoInstallDriver?: boolean;  // install the flutter Appium driver if missing (default: false)
+  doctor?: 'off' | 'warn' | 'strict'; // preflight checks (default: 'warn')
+
   // Mock lifecycle (run before each test)
   clearMocks?: boolean;         // clear mock call history
   resetMocks?: boolean;         // clear value + call history
   restoreMocks?: boolean;       // remove the mock entirely
 }
 ```
+
+## Zero-config setup automation
+
+Like `@wdio/electron-service` (which auto-manages chromedriver), the service drives as much
+of the Appium setup as is feasible. Everything here is **opt-in and apply-if-unset** — an
+explicit capability or option you set always wins.
+
+### Auto VM-Service port
+
+The launcher **auto-allocates a free `appium:dartVmServicePort` per worker** (see the note
+under [Installation](#installation)), so `execute`/`mock` are zero-config — no manual port,
+no log scrape. Pin `vmServicePort` only to override.
+
+### `autoInstallDriver` — install the Appium driver
+
+`autoInstallDriver: true` installs the `flutter` Appium driver (appium-flutter-driver) if
+it isn't already present, at a version known-good for your Appium **server major** (from a
+maintained matrix). It's **idempotent** and **off by default** (CI usually manages drivers
+explicitly). Note it installs the **stock** driver — on Android, `execute`/`mock` still need
+the goosewobbler fork until it's upstreamed (see [Installation](#installation)); the doctor
+warns when the fork is absent.
+
+### `doctor` — preflight checks
+
+`doctor` runs fail-fast preflight validation in `onPrepare` so a misconfiguration surfaces
+as a clear message instead of a cryptic Appium timeout:
+
+| Mode | Behaviour |
+|---|---|
+| `'off'` | Skip all checks. |
+| `'warn'` *(default)* | Log actionable warnings; never abort. |
+| `'strict'` | Abort the run (`SevereServiceError`) on any error-level check. |
+
+For Flutter it checks: `@wdio/appium-service` is in `services`, `flutter` is on PATH, the
+installed `appium-flutter-driver` carries `getVMServiceUrl` (Android only), and (iOS) the
+Xcode toolchain is warm.
+
+### iOS launch caps — auto-applied
+
+On iOS the service fills in launch caps you didn't set (each only if absent): a generous
+`appium:wdaLaunchTimeout` / `appium:simulatorStartupTimeout`, `appium:isHeadless` under CI,
+and — when you give `appium:deviceName` but no `appium:udid` — it resolves the exact
+simulator UDID (preferring the newest runtime) to avoid booting a duplicate-named device.
+On Android it sets `appium:autoGrantPermissions`. Set any of these yourself to override.
 
 ## API (`browser.flutter.*`)
 
