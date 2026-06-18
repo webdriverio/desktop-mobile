@@ -36,18 +36,20 @@ Native find/tap needs the Appium Flutter driver:
 appium driver install --source=npm appium-flutter-driver
 ```
 
-> **`execute` / `mock` prerequisite — pin the VM Service port.** These connect to the Dart VM
-> Service, which the driver discovers by scraping the device log — a path that isn't exposed to
-> the service. Instead, **set `appium:dartVmServicePort`** (a fixed port) so the driver binds the VM
-> Service to it with auth codes disabled, giving a deterministic `ws://localhost:<port>/ws` the
-> service connects to directly.
+> **`execute` / `mock` and the VM Service port — now zero-config.** These connect to the Dart VM
+> Service on a fixed port (bound with auth codes disabled, giving a deterministic
+> `ws://localhost:<port>/ws`). The launcher **auto-allocates a free `appium:dartVmServicePort` per
+> worker**, so you no longer need to set it by hand — pin it yourself only to override. Without it,
+> find/tap/deeplink/contexts still work; only `execute`/`mock` use it.
 >
-> On **iOS** the published `appium-flutter-driver` (≥ 3.7.1) already pins the port via
-> `processArguments`. On **Android** the equivalent (a `vm-service-port` launch-intent extra) lives
-> in a [fork](https://github.com/goosewobbler/appium-flutter-driver) pending an upstream PR — until
-> it lands, Android `execute`/`mock` need that fork (to be published as
-> `@goosewobbler/appium-flutter-driver`: `appium driver install --source=npm @goosewobbler/appium-flutter-driver`).
-> Without the pin, find/tap/deeplink/contexts still work — only `execute`/`mock` need it.
+> On **iOS** the published `appium-flutter-driver` (≥ 3.7.1) honours the port via `processArguments`.
+> On **Android** the equivalent (a `vm-service-port` launch-intent extra + the `flutter:getVMServiceUrl`
+> command) lives in a [fork](https://github.com/goosewobbler/appium-flutter-driver) pending an upstream
+> PR to `appium/appium-flutter-driver` (the iOS half merged as
+> [#870](https://github.com/appium/appium-flutter-driver/pull/870)) — until it lands, Android
+> `execute`/`mock` need that fork. The preflight doctor warns if the installed driver lacks
+> `getVMServiceUrl`. Set `autoInstallDriver: true` to let the launcher install the `flutter` driver
+> for you, and `doctor: 'strict'` to fail fast on a missing toolchain.
 
 ## Quick start
 
