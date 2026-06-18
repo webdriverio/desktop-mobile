@@ -141,6 +141,50 @@ interface ReactNativeServiceOptions {
 }
 ```
 
+## Zero-config setup automation
+
+Like `@wdio/electron-service` (which auto-manages chromedriver), the service can drive as
+much of the Appium setup as is feasible. Everything here is **opt-in and apply-if-unset** —
+an explicit capability or option you set always wins.
+
+### `manageMetro` — own the Metro lifecycle
+
+Covered under [Build requirement](#build-requirement): `manageMetro: true` starts
+`react-native start` for the run, waits for readiness, optionally pre-bundles, and tears it
+down on completion — so you don't script it yourself.
+
+### `autoInstallDriver` — install the Appium driver
+
+`autoInstallDriver: true` installs the platform's Appium driver (`uiautomator2` on Android,
+`xcuitest` on iOS) if it isn't already present, at a version known-good for your Appium
+**server major** (from a maintained matrix). It's **idempotent** — a no-op when the driver
+is already installed — and **off by default**, because CI usually manages drivers explicitly
+and may lack network/permissions. Requires `appium` to be resolvable (it comes with
+`@wdio/appium-service`).
+
+### `doctor` — preflight checks
+
+`doctor` runs fail-fast preflight validation in `onPrepare` so a misconfiguration surfaces
+as a clear message instead of a cryptic Appium timeout:
+
+| Mode | Behaviour |
+|---|---|
+| `'off'` | Skip all checks. |
+| `'warn'` *(default)* | Log actionable warnings; never abort. |
+| `'strict'` | Abort the run (`SevereServiceError`) on any error-level check. |
+
+For React Native it checks: `@wdio/appium-service` is in `services`, Metro is reachable on
+the configured port, and (iOS) the Xcode toolchain is warm. Checks are advisory (`warn`)
+unless you opt into `'strict'`.
+
+### iOS launch caps — auto-applied
+
+On iOS the service fills in launch caps you didn't set (each only if absent): a generous
+`appium:wdaLaunchTimeout` / `appium:simulatorStartupTimeout`, `appium:isHeadless` under CI,
+and — when you give `appium:deviceName` but no `appium:udid` — it resolves the exact
+simulator UDID (preferring the newest runtime) to avoid booting a duplicate-named device.
+On Android it sets `appium:autoGrantPermissions`. Set any of these yourself to override.
+
 ## API (`browser.reactNative.*`)
 
 ### `execute(fn, ...args)`

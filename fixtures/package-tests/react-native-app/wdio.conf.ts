@@ -27,6 +27,13 @@ const platform = rawPlatform as 'android' | 'ios';
 const rnServiceOptions: ReactNativeServiceOptions = {
   captureBackendLogs: true,
   captureFrontendLogs: true,
+  // Type-level coverage: assert the published package exports/types the setup-automation
+  // options. Values are runtime no-ops so this stays a config-composition smoke test.
+  manageMetro: false,
+  metroProjectRoot: process.cwd(),
+  prebundle: false,
+  autoInstallDriver: false,
+  doctor: 'off',
 };
 
 const capabilities: ReactNativeCapabilities[] = [

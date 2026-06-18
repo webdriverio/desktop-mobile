@@ -93,6 +93,16 @@ const reactNativeServiceOptions: ReactNativeServiceOptions = {
   // frontend = the app's JS/Metro console. The logging spec asserts frontend capture.
   captureBackendLogs: true,
   captureFrontendLogs: true,
+  // Dogfood the service-managed Metro lifecycle: the service starts `react-native start`,
+  // waits for readiness, pre-bundles, and tears it down — replacing the manual CI start/
+  // wait-on/prebundle. Only in CI, where RN_BUILD_DIR points at the scaffolded app; a local
+  // run keeps starting Metro itself. (Android `adb reverse` stays a pre-launch CI step.)
+  ...(process.env.RN_BUILD_DIR
+    ? { manageMetro: true, metroProjectRoot: process.env.RN_BUILD_DIR, prebundle: true }
+    : {}),
+  // Exercise the preflight doctor end-to-end (appium-service present, Metro reachable, iOS
+  // toolchain warm). 'strict' makes a regression that breaks the preflight fail CI.
+  doctor: 'strict',
 };
 
 type ReactNativeCapability = {
