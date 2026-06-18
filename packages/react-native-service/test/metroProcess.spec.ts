@@ -104,6 +104,18 @@ describe('MetroProcess.start', () => {
     proc.emit('error', new Error('spawn react-native ENOENT'));
     await expect(starting).rejects.toThrow(/ENOENT/);
   });
+
+  it('should stop() immediately after a spawn error without hanging on a never-fired exit', async () => {
+    existsMock.mockReturnValue(true);
+    const proc = fakeProc();
+    const mp = new MetroProcess({ spawn: vi.fn(() => proc) as never, probe: async () => false });
+    const starting = mp.start({ readyTimeoutMs: 5000, pollIntervalMs: 20 });
+    proc.emit('error', new Error('spawn react-native ENOENT'));
+    await expect(starting).rejects.toThrow(/ENOENT/);
+    // No 'exit' will fire for a failed spawn — stop() must early-return, not await SIGKILL.
+    await mp.stop();
+    expect(proc.kill).not.toHaveBeenCalled();
+  });
 });
 
 describe('MetroProcess.stop', () => {

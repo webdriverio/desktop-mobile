@@ -173,6 +173,13 @@ export class MetroProcess {
     if (!proc || proc.killed) {
       return;
     }
+    if (this.#spawnError) {
+      // Spawn failed (ENOENT): Node fired 'error' but never will fire 'exit', so
+      // #waitForExit would hang to the SIGKILL grace. There's no live process to kill —
+      // just drop the handle.
+      this.#proc = undefined;
+      return;
+    }
     if (proc.exitCode !== null || proc.signalCode !== null) {
       this.#proc = undefined;
       return;
