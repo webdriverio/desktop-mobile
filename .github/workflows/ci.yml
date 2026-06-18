@@ -1127,6 +1127,7 @@ jobs:
     needs:
       - lint
       - unit-matrix
+      - browser-mode
       - e2e-matrix
       - e2e-electron-window
       - e2e-tauri-linux
