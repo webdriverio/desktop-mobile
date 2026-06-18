@@ -185,49 +185,45 @@ jobs:
           test -d "$FLUTTER_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app" \
             || { echo "::error::prebuilt WDA runner not found"; exit 1; }
 
-      # Cold-CoreSimulator mitigation: on a freshly-booted CI sim the first app launch
-      # (FBSOpenApplicationService) intermittently wedges, so appium's first per-session `simctl
-      # launch` of the WDA xctrunner hangs the full 600s simctl-exec timeout and overruns
-      # session-create — the appium log on a cold run shows both `simctl launch` and `terminate`
-      # blocking 600000ms, with later sessions recovering once the sim is warm. Warming with only a
-      # light system app got 4/5 specs green but the first (cold) WDA launch still wedged, so warm
-      # the EXACT heavy path too: launch the WDA xctrunner itself a few times here. Best-effort —
-      # each launch is bounded + killed if it wedges, and even a wedged attempt exercises
-      # FBSOpenApplicationService, so appium's first graded session lands warm. Never fails the job.
-      - name: 🔥 Warm up the WDA launch path (cold-sim mitigation)
+      # Cold-CoreSimulator GATE: on a freshly-booted CI sim the launch service
+      # (FBSOpenApplicationService) intermittently wedges, so appium's per-session `simctl launch` of
+      # the WDA xctrunner hangs the full 600s simctl-exec timeout and overruns session-create (the
+      # appium log on a bad runner shows `simctl launch`/`terminate` blocking 600000ms on the first
+      # specs, then later specs pass once the sim warms). specFileRetries can't recover that (a
+      # session-create timeout isn't a retryable test failure). So gate grading on a DEMONSTRABLY
+      # warm sim: loop launching a light system app AND the WDA xctrunner, requiring each `simctl
+      # launch` to RETURN quickly (a fast return == the launch service is responsive). Each wedged
+      # attempt is killed at its deadline (and still exercises the path toward warming). Proceed only
+      # once both launch fast, or after a hard cap (best-effort — never fails the job).
+      - name: 🔥 Gate on a warm simulator launch path (cold-sim mitigation)
         shell: bash
         run: |
           set -uo pipefail
-          # 1) Warm SpringBoard generally with a lightweight pre-installed system app.
-          for attempt in 1 2; do
-            xcrun simctl launch booted com.apple.Preferences >/dev/null 2>&1 &
-            lp=$!; waited=0
-            while kill -0 "$lp" 2>/dev/null; do
-              sleep 3; waited=$((waited + 3))
-              [ "$waited" -ge 90 ] && { kill -9 "$lp" 2>/dev/null || true; break; }
-            done
-            xcrun simctl terminate booted com.apple.Preferences >/dev/null 2>&1 || true
-          done
-          # 2) Warm the exact heavy WDA xctrunner launch — the one that wedges cold. Install + launch
-          # (USE_PORT, mirroring appium) + poll /status; stop early once it answers (path fully warm).
+          WDA="com.facebook.WebDriverAgentRunner.xctrunner"
           APP="$FLUTTER_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
-          BID="com.facebook.WebDriverAgentRunner.xctrunner"
-          xcrun simctl install booted "$APP" >/dev/null 2>&1 || echo "warm-up: WDA install failed (non-fatal)"
-          for attempt in 1 2 3; do
-            echo "WDA launch warm-up attempt $attempt"
-            SIMCTL_CHILD_USE_PORT=8100 xcrun simctl launch --terminate-running-process booted "$BID" >/dev/null 2>&1 &
-            lp=$!; waited=0
-            while kill -0 "$lp" 2>/dev/null; do
-              sleep 3; waited=$((waited + 3))
-              if [ "$waited" -ge 150 ]; then echo "  WDA launch wedged (${waited}s); killing"; kill -9 "$lp" 2>/dev/null || true; break; fi
+          xcrun simctl install booted "$APP" >/dev/null 2>&1 || echo "gate: WDA install failed (non-fatal)"
+          # try_launch <bundle-id> <deadline-s>: 0 if `simctl launch` returns within the deadline
+          # (sim warm), 1 if it wedges and gets killed. --terminate-running-process mirrors appium.
+          try_launch() {
+            local bid="$1" deadline="$2" pid waited=0
+            xcrun simctl launch --terminate-running-process booted "$bid" >/dev/null 2>&1 &
+            pid=$!
+            while kill -0 "$pid" 2>/dev/null; do
+              sleep 2; waited=$((waited + 2))
+              if [ "$waited" -ge "$deadline" ]; then kill -9 "$pid" 2>/dev/null || true; return 1; fi
             done
-            if curl -fsS http://127.0.0.1:8100/status 2>/dev/null | grep -q '"ready":true'; then
-              echo "  ✅ WDA responded on :8100 — launch path warm (attempt $attempt)"; break
-            fi
-            echo "  WDA not ready after warm-up attempt $attempt; retrying"
-            xcrun simctl terminate booted "$BID" >/dev/null 2>&1 || true
+            wait "$pid" 2>/dev/null
+          }
+          warm=0
+          for round in $(seq 1 12); do
+            try_launch com.apple.Preferences 25 && pref=1 || pref=0
+            xcrun simctl terminate booted com.apple.Preferences >/dev/null 2>&1 || true
+            try_launch "$WDA" 30 && wda=1 || wda=0
+            xcrun simctl terminate booted "$WDA" >/dev/null 2>&1 || true
+            echo "warm-up round $round: preferences_fast=$pref wda_fast=$wda"
+            if [ "$pref" = 1 ] && [ "$wda" = 1 ]; then warm=1; echo "✅ launch path warm (round $round)"; break; fi
           done
-          echo "WDA launch warm-up done (best-effort)"
+          [ "$warm" = 1 ] || echo "::warning::sim never confirmed a fast launch within the warm-up cap; proceeding (best-effort)"
 
       - name: 🧪 Run E2E on iOS simulator
         shell: bash

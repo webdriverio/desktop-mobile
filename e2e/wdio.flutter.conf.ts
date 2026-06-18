@@ -150,14 +150,12 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // Two spec retries, DEFERRED to the end of the run. The iOS sim intermittently wedges an
-  // app-launch (simctl launching the WDA xctrunner, or WDA launching the app under test — 600s
-  // simctl hang / XCTDaemon "Timed out attempting to launch app") and recovers once warm. Immediate
-  // back-to-back retries all fail inside that same bad patch; deferring them to the end lets the sim
-  // recover first, so a transient launch wedge on any spec self-heals (the WDA-launch warm-up cuts
-  // its frequency, this clears the straggler). Android benefits too (transient emitEvent flake).
+  // Two spec retries for transient test-level flakes. NOT a fix for the iOS sim launch-wedge: a
+  // session-create timeout kills the worker in a way specFileRetries does not re-run (verified — a
+  // wedged spec is reported failed with no extra worker run), and deferring made no difference. The
+  // cold-sim launch wedge is handled up front by the warm-up GATE in the iOS reusable instead.
   specFileRetries: 2,
-  specFileRetriesDeferred: true,
+  specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 15000,
   // iOS: generous per-command ceiling, but kept below the inflated value that fed cold
