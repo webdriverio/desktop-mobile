@@ -1,38 +1,49 @@
 # Roadmap
 
-This document outlines the planned services and their development sequencing for the WebdriverIO Desktop & Mobile Testing project.
+This document outlines the released services and the development sequencing for planned ones in the WebdriverIO Desktop & Mobile Testing project.
 
-## Current Services (Available)
+## Released Services
 
-### [@wdio/electron-service](./packages/electron-service) - v10.x
-**Status:** 🚧 Pre-release (migrated from legacy repo)\
+Published packages, grouped by release maturity. Status reflects the npm dist-tag, not just "exists on npm".
+
+### ✅ Stable (`latest`)
+
+#### [@wdio/electron-service](./packages/electron-service) — v10.x
 **Platforms:** Windows, macOS, Linux\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/electron-service)](https://npmjs.com/package/@wdio/electron-service)
 
-### [@wdio/tauri-service](./packages/tauri-service) - v1.x
-**Status:** 🚧 Pre-release\
+#### [@wdio/tauri-service](./packages/tauri-service) — v1.x
 **Platforms:** Windows, macOS, Linux\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/tauri-service)](https://npmjs.com/package/@wdio/tauri-service)
 
-### [@wdio/dioxus-service](./packages/dioxus-service) - v1.x
-**Status:** 🚧 Pre-release\
-**Platforms:** Windows, macOS, Linux (`'embedded'` provider); Windows only for `'external'` in v1\
+### 🚧 Pre-release (`next`, `1.0.0-next.x`)
+
+> Feature-complete services published on the `next` dist-tag while the API and CI stabilise toward `1.0`.
+
+#### [@wdio/dioxus-service](./packages/dioxus-service) — v1.0.0-next
+**Platforms:** Windows, macOS, Linux (`'embedded'` provider); Windows only for `'external'`\
+**Highlights:** Wry webview → CDP (shared patterns with the Tauri service); `execute`, mocking, log forwarding, browser mode, multiremote, standalone session.\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/dioxus-service)](https://npmjs.com/package/@wdio/dioxus-service)
 
-### [@wdio/electrobun-service](./packages/electrobun-service) - v0.1.x
-**Status:** 🧪 Experimental (`0.x`) — macOS (CEF) + Windows (native WebView2); Linux upstream-blocked\
-**Platforms:** macOS, Windows\
-[![npm downloads](https://img.shields.io/npm/dm/@wdio/electrobun-service)](https://npmjs.com/package/@wdio/electrobun-service)
-
-### [@wdio/react-native-service](./packages/react-native-service) - v1.0.0-next.x
-**Status:** 🧪 Pre-release (`1.0.0-next.x`) — complete feature surface on Android + iOS\
+#### [@wdio/react-native-service](./packages/react-native-service) — v1.0.0-next
 **Platforms:** Android, iOS\
+**Highlights:** native find/tap via Appium (UiAutomator2 / XCUITest); `execute` + `mock` via Hermes CDP (debug/Metro build); deeplink, context switching, log capture, multiremote/DeviceManager. Established the shared `@wdio/native-mobile-core` mobile scaffold.\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/react-native-service)](https://npmjs.com/package/@wdio/react-native-service)
 
-### [@wdio/flutter-service](./packages/flutter-service) - v1.0.0-next.x
-**Status:** 🧪 Pre-release (`1.0.0-next.x`) — complete feature surface on Android + iOS\
+#### [@wdio/flutter-service](./packages/flutter-service) — v1.0.0-next
 **Platforms:** Android, iOS\
+**Highlights:** native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (a Dart expression) + `mock` (the cooperative [`wdio_flutter`](./packages/flutter-service/wdio_flutter) Dart contract) via the Dart VM Service (debug/profile build); deeplink, context switching, log capture, multiremote/DeviceManager. Built on `@wdio/native-mobile-core`.\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/flutter-service)](https://npmjs.com/package/@wdio/flutter-service)
+
+### 🧪 Experimental (`0.x`)
+
+> Feature surface limited by upstream gaps; not yet at parity with the services above.
+
+#### [@wdio/electrobun-service](./packages/electrobun-service) — v0.1.x
+**Platforms:** macOS 14+ (CEF), Windows 11+ (WebView2); Linux blocked upstream\
+**Highlights:** drives two renderers — **macOS via CEF** (CDP) and **Windows via the native WebView2** (Chromium over CDP, no CEF) — the latter also running the multi-window suite that CEF can't on CI.\
+**Caveats:** **Linux** blocked upstream (CEF serves no `/json`; the WebKitGTK renderer needs upstream W3C-WebDriver automation — [electrobun#467](https://github.com/blackboardsh/electrobun/issues/467)); **deeplink on Windows** and **deeplink/multiremote on the macOS CEF path** are upstream-blocked. Each upstream fix re-enables a platform/feature, graduating toward `1.0` at full parity. Tracked in [#317](https://github.com/webdriverio/desktop-mobile/issues/317) (non-CEF) + [#320](https://github.com/webdriverio/desktop-mobile/issues/320) (CEF). See the [package README](./packages/electrobun-service).\
+[![npm downloads](https://img.shields.io/npm/dm/@wdio/electrobun-service)](https://npmjs.com/package/@wdio/electrobun-service)
 
 ---
 
@@ -47,39 +58,52 @@ The roadmap above is scoped to *new framework support*. Capability-level feature
 
 ---
 
+## Shared Mobile Infrastructure
+
+The mobile services (React Native, Flutter, and future Capacitor) share a common Appium layer in `@wdio/native-mobile-core`. Two tracks harden and generalise it.
+
+| Track | Status | Notes |
+|---|---|---|
+| **Zero-config mobile setup** | 📋 Planned | Chromedriver-style auto-management: opt-in Appium driver install + version matrix, per-worker realm-port allocation, cap-default derivation, and a fail-fast preflight doctor. Shared [#378](https://github.com/webdriverio/desktop-mobile/issues/378) + Flutter [#405](https://github.com/webdriverio/desktop-mobile/issues/405) + React Native [#406](https://github.com/webdriverio/desktop-mobile/issues/406). |
+| **Generic `@wdio/mobile-service`** | 📋 Planned | A publishable mobile service for any Appium-drivable app (plain native, NativeScript, MAUI, Capacitor shells): native find/tap, deeplink, context switching, logs, multiremote — without a framework realm. React Native and Flutter converge onto it as thin extensions that add only their JS/Dart `execute`/`mock`. Design: [spec](./agent-os/specs/20260618-mobile-service-convergence/spec.md). |
+
+Composition stays two-entry — `services: ['appium', '<framework>']`; the shared layer is inherited, not listed separately. See the [design spec](./agent-os/specs/20260618-mobile-service-convergence/spec.md) for the full model.
+
+**Sequencing:** the zero-config setup-automation track is in flight now (pre-release hardening of the mobile services). The generic `@wdio/mobile-service` + the React Native / Flutter convergence onto it is targeted **Q4 2026, ahead of Capacitor** — Capacitor is its first consumer and extends it rather than re-implementing the mobile scaffold.
+
+---
+
 ## Framework Compatibility Analysis
 
 The table below quantifies the key factors used to prioritise and sequence planned services. GitHub stars serve as a proxy for ecosystem size and developer interest; automation driver maturity indicates how production-ready the underlying test infrastructure is; and pattern reuse scores how much existing service code can be directly leveraged. Stars are approximate as of early 2026.
 
 | Framework | Type | GitHub Stars | Automation Driver | Driver Maturity | Pattern Reuse vs Existing Services | Key Dependencies | Relative Integration Complexity |
 |---|---|---|---|---|---|---|---|
-| **Electron** *(existing)* | Desktop | ~120k | Chrome DevTools Protocol (CDP) | ✅ Proven | — | Chromium, Node.js | — |
-| **Tauri** *(existing)* | Desktop | ~100k | tauri-driver + CDP | ✅ Proven | — | Wry, Rust toolchain | — |
-| **Dioxus** *(existing)* | Desktop | ~34k | Wry webview → CDP (shared with Tauri) | ✅ Implemented | High — same Wry/CDP patterns as Tauri service | Wry maturity, Dioxus desktop stability | Low–Medium |
-| **React Native** | Mobile | ~121k | Appium (XCUITest / UiAutomator2) | ✅ Proven | Establishes mobile scaffold | Appium server stability, XCUITest / UiAutomator2 | Medium |
-| **Flutter** | Mobile | ~175k | Appium Flutter Driver | ✅ Production-ready | Reuses React Native mobile scaffold | Appium Flutter Driver maintenance, Dart VM | Medium |
+| **Electron** *(released)* | Desktop | ~120k | Chrome DevTools Protocol (CDP) | ✅ Proven | — | Chromium, Node.js | — |
+| **Tauri** *(released)* | Desktop | ~100k | tauri-driver + CDP | ✅ Proven | — | Wry, Rust toolchain | — |
+| **Dioxus** *(released)* | Desktop | ~34k | Wry webview → CDP (shared with Tauri) | ✅ Implemented | High — same Wry/CDP patterns as Tauri service | Wry maturity, Dioxus desktop stability | Low–Medium |
+| **React Native** *(released)* | Mobile | ~121k | Appium (XCUITest / UiAutomator2) | ✅ Proven | Establishes mobile scaffold | Appium server stability, XCUITest / UiAutomator2 | Medium |
+| **Flutter** *(released)* | Mobile | ~175k | Appium Flutter Driver | ✅ Production-ready | Reuses React Native mobile scaffold | Appium Flutter Driver maintenance, Dart VM | Medium |
+| **Electrobun** *(released)* | Desktop | ~11.7k | Native CDP (port 9222 by convention) | 🟡 Emerging | Medium — CDP attach patterns from Electron service; no driver process | Bun runtime, system webviews, OOPIF (per-tab) target routing | Medium |
 | **Ionic / Capacitor** | Mobile | ~52k / ~15k | Appium WebView context switching | ✅ Proven | Reuses mobile scaffold; pure WebView — zero new complexity | Appium server, native WebView availability | Low |
-| **Electrobun** | Desktop | ~11.7k | Native CDP (port 9222 by convention) | 🟡 Emerging | Medium — CDP attach patterns from Electron service; no driver process | Bun runtime, system webviews, OOPIF (per-tab) target routing | Medium |
 | **Neutralino** | Desktop | ~7.9k | System webview → CDP (devtools endpoint) | 🟡 Emerging | Medium — similar endpoint detection to Electron service | System webview (WebView2 / WebKitGTK) | Low |
 | **Dioxus Mobile** | Mobile | *(same repo)* | Cargo Mobile 2 — experimental | 🔴 Early-stage | Reuses mobile scaffold + Dioxus desktop learnings | Cargo Mobile 2 maturity, platform bridge stability | High |
-| **React Native Desktop** | Desktop | *(same repo)* | Less mature than mobile counterpart | 🟡 Emerging | Leverages Phase 2 mobile experience | React Native Desktop renderer maturity | Medium–High |
+| **React Native Desktop** | Desktop | *(same repo)* | Less mature than mobile counterpart | 🟡 Emerging | Leverages React Native mobile experience | React Native Desktop renderer maturity | Medium–High |
 
 ---
 
 ## Planned Services
 
-### Phase 2: React Native Mobile — ✅ Shipped (Android + iOS, `1.0.0-next.x`)
+Forward sequence, ordered by target window. Targets are aspirational (see the disclaimer at the end).
 
-**Platforms:** Android (UiAutomator2), iOS (XCUITest)\
-**Highlights:** native find/tap via Appium; `execute` + `mock` via Hermes CDP (debug/Metro build); deeplink, context switching, log capture, multiremote/DeviceManager. Establishes the mobile scaffold for Phase 3 (Flutter) and Phase 4 (Capacitor).
+### Generic Mobile Service — targeted Q4 2026
+**Priority:** High — unlocks Capacitor and any native / other-framework app
 
-### Phase 3: Flutter Mobile — ✅ Shipped (Android + iOS, `1.0.0-next.x`)
-[`@wdio/flutter-service`](./packages/flutter-service) — see the [package README](./packages/flutter-service/README.md).
+Promote the shared `@wdio/native-mobile-core` layer into a concrete, publishable `@wdio/mobile-service` for any Appium-drivable app (plain native, NativeScript, MAUI, Capacitor shells), and converge React Native + Flutter onto it as thin extensions that add only their JS/Dart realm. See [Shared Mobile Infrastructure](#shared-mobile-infrastructure) and the [design spec](./agent-os/specs/20260618-mobile-service-convergence/spec.md).
 
-**Highlights:** native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (a Dart expression) + `mock` (the cooperative [`wdio_flutter`](./packages/flutter-service/wdio_flutter) Dart contract) via the Dart VM Service (debug/profile build); deeplink, context switching, log capture, multiremote/DeviceManager. Built on the `@wdio/native-mobile-core` layer extracted from React Native — the shared mobile scaffold Phase 4 (Capacitor) will reuse.
-
-### Phase 4: Capacitor Mobile (Q1 2027)
-**Priority:** Medium - Ionic ecosystem coverage
+### Capacitor Mobile — Q1 2027
+**Priority:** Medium — Ionic ecosystem coverage\
+**Prerequisite:** extends the generic [`@wdio/mobile-service`](#shared-mobile-infrastructure) base — Capacitor is its first consumer, not a re-implementation of the mobile scaffold.
 
 **Target Platforms:** iOS, Android
 
@@ -87,43 +111,13 @@ The table below quantifies the key factors used to prioritise and sequence plann
 - Ionic's 1M+ app ecosystem
 - Pure WebView pattern (zero new complexity)
 - Replaces deprecated Cordova/PhoneGap
-- Perfect mobile scaffold consumer
 
 **Technical approach:**
 - Standard Appium WebView context switching
 - appPackage/appActivity capabilities
 
-### Phase 5: Electrobun Desktop — ✅ Shipped — macOS (CEF) + Windows (WebView2)
-**Priority:** Medium - Emerging TypeScript-first desktop framework
-
-> **Status:** `@wdio/electrobun-service` drives two renderers: **macOS via CEF** (CDP) and
-> **Windows via the native WebView2** (Chromium over CDP, no CEF) — the latter also runs the
-> multi-window suite, which CEF can't on CI. **Linux** remains blocked: CEF serves no `/json`
-> there, and the native WebKitGTK renderer needs upstream W3C-WebDriver automation
-> ([blackboardsh/electrobun#467](https://github.com/blackboardsh/electrobun/issues/467)).
-> **Deeplink on Windows** is upstream-blocked (electrobun registers URL schemes + wires
-> `open-url` macOS-only). Pre-1.0 by design — each fix re-enables a platform/feature,
-> graduating to `1.0` at full parity. Tracked in
-> [#317](https://github.com/webdriverio/desktop-mobile/issues/317) (non-CEF) +
-> [#320](https://github.com/webdriverio/desktop-mobile/issues/320) (CEF). The original plan follows.
-
-**Target Platforms:** macOS 14+ (CEF) + Windows 11+ (WebView2) shipped; Linux (Ubuntu 22.04+) blocked upstream
-
-**Why Electrobun:**
-- Growing momentum in the lightweight desktop space (~12MB bundles, sub-50ms startup)
-- TypeScript-first authoring with Bun runtime, no Node.js requirement
-- System webview model aligns with Tauri/Dioxus patterns
-- MIT-licensed; v1 line shipped, APIs still stabilizing
-
-**Technical approach:**
-- Direct CDP attachment via WebSocket on the underlying webview's debugger port (the third-party [agent-electrobun](https://github.com/Ataraxy-Labs/agent-electrobun) CLI defaults to 9222 for Electrobun apps; the WDIO service will define its own override mechanism rather than rely on a built-in Electrobun env var)
-- No external driver process — connect like Electron, not Tauri
-- Multi-target session management for OOPIF webviews (shell vs per-tab CDP targets, classified by URL path)
-- Observation/input-only protocol calls — no `Page.navigate` on attach (would destroy app state)
-- Reuse `@wdio/electron-cdp-bridge` patterns; likely add a sibling bridge with multi-target routing
-
-### Phase 6: Neutralino Desktop (Q3 2027)
-**Priority:** Low - Niche use case
+### Neutralino Desktop — Q3 2027
+**Priority:** Low — Niche use case
 
 **Target Platforms:** Windows, macOS, Linux
 
@@ -138,8 +132,8 @@ The table below quantifies the key factors used to prioritise and sequence plann
 - Electron service patterns (devtools endpoint detection)
 - Standard WebdriverIO parallelization
 
-### Phase 7: Dioxus Mobile Experimental (Q4 2027)
-**Priority:** Low - Experimental platform
+### Dioxus Mobile (Experimental) — Q4 2027
+**Priority:** Low — Experimental platform
 
 **Target Platforms:** iOS, Android (experimental)
 
@@ -148,17 +142,15 @@ The table below quantifies the key factors used to prioritise and sequence plann
 - Reuses established mobile scaffold
 - Completes Rust ecosystem coverage
 
-### Phase 8: React Native Desktop (Q1 2028)
-**Priority:** Low - Desktop expansion
+### React Native Desktop — Q1 2028
+**Priority:** Low — Desktop expansion
 
 **Target Platforms:** Windows, macOS, Linux
 
 **Why later:**
 - Less mature than React Native mobile
 - Lower demand vs mobile priorities
-- Leverages Phase 2 mobile experience
-
-
+- Leverages the React Native mobile experience
 
 ## Not Planned
 
@@ -169,7 +161,7 @@ The following frameworks were evaluated and excluded from the roadmap:
 | NW.js | Declining popularity, overlaps with Electron |
 | Cordova / PhoneGap | Deprecated (2020), replaced by Capacitor |
 | Qt / QML | Native rendering — no WebDriver fit |
-| .NET MAUI | Native UI, platform-specific drivers required |
+| .NET MAUI | No *dedicated* service planned (native UI needs no framework-specific channel) — but native MAUI apps are drivable via the generic [`@wdio/mobile-service`](#shared-mobile-infrastructure) over Appium (UiAutomator2 / XCUITest) |
 | Blazor | Standard web needs no service; Hybrid WebView context switching unreliable |
 | Wails | Go webview, no established automation patterns |
 

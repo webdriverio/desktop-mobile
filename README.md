@@ -60,7 +60,8 @@
 
 ## Planned Support
 
-- **Capacitor** - Ionic's cross-platform mobile framework
+- **`@wdio/mobile-service`** - Zero-config Appium base for any native app (plain native, NativeScript, MAUI, Capacitor shells); the shared layer React Native & Flutter build on. Targeted ahead of Capacitor, which extends it.
+- **Capacitor** - Ionic's cross-platform mobile framework (extends `@wdio/mobile-service`)
 - **Neutralino** - Lightweight desktop applications
 
 See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timelines.
