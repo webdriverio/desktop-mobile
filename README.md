@@ -60,7 +60,7 @@
 
 ## Planned Support
 
-- **Mobile** - Shared Appium base for any native mobile app (plain native, NativeScript, MAUI, Capacitor)
+- **Mobile** - Shared Appium base for any native mobile app (plain native, NativeScript, MAUI)
 - **Capacitor** - Ionic's cross-platform mobile framework (extends `@wdio/mobile-service`)
 - **Neutralino** - Lightweight desktop applications
 
