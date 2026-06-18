@@ -161,7 +161,7 @@ The following frameworks were evaluated and excluded from the roadmap:
 | NW.js | Declining popularity, overlaps with Electron |
 | Cordova / PhoneGap | Deprecated (2020), replaced by Capacitor |
 | Qt / QML | Native rendering — no WebDriver fit |
-| .NET MAUI | Native UI, platform-specific drivers required |
+| .NET MAUI | No *dedicated* service planned (native UI needs no framework-specific channel) — but native MAUI apps are drivable via the generic [`@wdio/mobile-service`](#shared-mobile-infrastructure) over Appium (UiAutomator2 / XCUITest) |
 | Blazor | Standard web needs no service; Hybrid WebView context switching unreliable |
 | Wails | Go webview, no established automation patterns |
 

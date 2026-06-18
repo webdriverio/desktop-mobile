@@ -84,7 +84,8 @@ JS/Dart realm (`execute`/`mock`).
 - A concrete `MobileService` **worker base** wires the shared API once; framework workers extend it
   and install only their realm-backed commands.
 - API-type segregation: `MobileService` exposes native/deeplink/context/log/find APIs; the
-  framework services widen the surface with `execute`/`mock`/`emitEvent`.
+  framework services widen the surface with their realm-backed commands — `execute`, `mock`, and the
+  existing `emitEvent` event-bus command (RN and Flutter already expose all three today).
 - Inheritance is one extra level vs today (core lib → concrete service → framework service). The
   alternative — composition (framework worker holds a `MobileService` instance) — is acceptable if a
   3-level class chain proves awkward; decide during implementation.
@@ -137,6 +138,5 @@ JS/Dart realm (`execute`/`mock`).
 ## Open Questions
 
 - Upstream driver-install/doctor to `@wdio/appium-service`, or keep them in `native-mobile-core`?
-- Does the generic service ship before, alongside, or after the Capacitor service?
 - Versioning: a `@wdio/mobile-service` `1.0` line vs the RN/Flutter `1.0.0-next.x` lines.
 - Inheritance vs composition for the worker base (decide at implementation).
