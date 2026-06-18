@@ -165,10 +165,10 @@ jobs:
           path: ${{ env.FLUTTER_WDA_DD }}
           key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v2
 
-      # Pre-build WebDriverAgent deterministically (no appium session, so no socket fragility), then
-      # launch it once below and attach appium via webDriverAgentUrl — sidestepping the per-session
-      # `simctl launch` of the WDA xctrunner, whose first cold invocation wedges CoreSimulator for the
-      # full 600s simctl-exec timeout and overruns session-create on the Flutter leg.
+      # Pre-build WebDriverAgent deterministically (no appium session, so no socket fragility).
+      # The run consumes it via appium:usePreinstalledWDA + prebuiltWDAPath (simctl install/launch,
+      # no in-session xcodebuild), skipping the multi-minute compile on the first session (which
+      # under WDIO's undici client dropped the POST /session socket on the RN leg).
       - name: 🏎️ Pre-build WebDriverAgent
         if: steps.wda-cache.outputs.cache-hit != 'true'
         shell: bash
@@ -185,38 +185,32 @@ jobs:
           test -d "$FLUTTER_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app" \
             || { echo "::error::prebuilt WDA runner not found"; exit 1; }
 
-      # Launch WDA ONCE here (bound to :8100 via USE_PORT) and leave it resident in the simulator; the
-      # wdio configs set appium:webDriverAgentUrl=http://127.0.0.1:8100 so appium attaches to it and
-      # never runs its own `simctl launch`/`terminate` per session — the command that intermittently
-      # wedges CoreSimulator for 600s on cold sessions. Each launch is bounded (kill if the client
-      # wedges) and gated on the WDA /status endpoint, retrying until it answers ready.
-      - name: 🚀 Launch WebDriverAgent (external, attach via webDriverAgentUrl)
+      # Cold-CoreSimulator mitigation: on a freshly-booted CI sim the first SpringBoard app launch
+      # (FBSOpenApplicationService) intermittently wedges, so appium's first per-session `simctl
+      # launch` of the WDA xctrunner hangs the full 600s simctl-exec timeout and overruns
+      # session-create — the appium log on a cold run shows both `simctl launch` and `terminate`
+      # blocking 600000ms, with later sessions recovering once SpringBoard is warm. Warm that launch
+      # path here with a lightweight pre-installed system app (Settings) — fast even cold — so the
+      # graded suite's first WDA launch starts warm. Best-effort: never fail the job on warm-up
+      # (each launch is bounded + killed if it wedges).
+      - name: 🔥 Warm up simulator app-launch (SpringBoard)
         shell: bash
         run: |
           set -uo pipefail
-          APP="$FLUTTER_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
-          BID="com.facebook.WebDriverAgentRunner.xctrunner"
-          test -d "$APP" || { echo "::error::prebuilt WDA Runner.app not found at $APP"; exit 1; }
-          xcrun simctl install booted "$APP" || { echo "::error::WDA install failed"; exit 1; }
-          ready=0
-          for attempt in 1 2 3 4 5; do
-            echo "WDA launch attempt $attempt"
-            SIMCTL_CHILD_USE_PORT=8100 xcrun simctl launch --terminate-running-process booted "$BID" >/dev/null 2>&1 &
+          APP_ID=com.apple.Preferences
+          for attempt in 1 2 3; do
+            echo "SpringBoard warm-up launch attempt $attempt"
+            xcrun simctl launch booted "$APP_ID" >/dev/null 2>&1 &
             lp=$!
             waited=0
             while kill -0 "$lp" 2>/dev/null; do
-              sleep 2; waited=$((waited + 2))
-              if [ "$waited" -ge 60 ]; then echo "launch client wedged (${waited}s); killing"; kill -9 "$lp" 2>/dev/null || true; break; fi
+              sleep 3; waited=$((waited + 3))
+              if [ "$waited" -ge 120 ]; then echo "warm-up launch wedged (${waited}s); killing"; kill -9 "$lp" 2>/dev/null || true; break; fi
             done
-            for _ in $(seq 1 30); do
-              if curl -fsS http://127.0.0.1:8100/status 2>/dev/null | grep -q '"ready":true'; then ready=1; break; fi
-              sleep 2
-            done
-            if [ "$ready" = 1 ]; then echo "✅ WDA ready on :8100 (attempt $attempt)"; break; fi
-            echo "WDA not ready after attempt $attempt; terminating + retrying"
-            xcrun simctl terminate booted "$BID" >/dev/null 2>&1 || true
+            xcrun simctl terminate booted "$APP_ID" >/dev/null 2>&1 || true
+            sleep 2
           done
-          [ "$ready" = 1 ] || { echo "::error::WDA did not become ready on :8100 after retries"; exit 1; }
+          echo "SpringBoard warm-up done"
 
       - name: 🧪 Run E2E on iOS simulator
         shell: bash

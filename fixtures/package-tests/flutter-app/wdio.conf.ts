@@ -38,12 +38,14 @@ const capabilities: FlutterCapabilities[] = [
     // session doesn't rebuild WDA. Unset locally, where Appium builds WDA itself.
     ...(platform === 'ios' && process.env.FLUTTER_WDA_DD
       ? {
-          // The e2e workflow launches the prebuilt WDA once and leaves it resident on :8100; this
-          // smoke runs in the same job against that same simulator, so attach to it via
-          // webDriverAgentUrl. Appium then never runs its own per-session `simctl launch` of the WDA
-          // xctrunner — the command that intermittently wedges CoreSimulator for the full 600s
-          // simctl-exec timeout on cold sessions and overran session-create.
-          'appium:webDriverAgentUrl': 'http://127.0.0.1:8100',
+          // usePreinstalledWDA simctl-installs + launches the prebuilt Runner.app the workflow
+          // leaves under FLUTTER_WDA_DD — no xcodebuild at session time (usePrebuiltWDA still shells
+          // out to `xcodebuild test`, whose first launch overran undici's ~300s POST /session socket
+          // cap → UND_ERR_SOCKET on cold sessions). The reusable strips its embedded XCTest
+          // frameworks so it resolves the simulator's local ones.
+          'appium:usePreinstalledWDA': true,
+          'appium:prebuiltWDAPath': `${process.env.FLUTTER_WDA_DD}/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app`,
+          'appium:wdaLaunchTimeout': 120000,
           'appium:simulatorStartupTimeout': 240000,
           // WDA on CI sims often fails to come up on the first attempt (ECONNREFUSED 8100 /
           // session timeout); appium's default is only 2 startup retries — bump it.

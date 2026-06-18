@@ -85,7 +85,8 @@ type FlutterCapability = {
   'appium:dartVmServicePort'?: number;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
-  'appium:webDriverAgentUrl'?: string;
+  'appium:usePreinstalledWDA'?: boolean;
+  'appium:prebuiltWDAPath'?: string;
   'appium:wdaStartupRetries'?: number;
   'appium:wdaStartupRetryInterval'?: number;
   'wdio:flutterServiceOptions': FlutterServiceOptions;
@@ -117,12 +118,17 @@ const capabilities: FlutterCapability[] = [
           // 8100 / session-create timeout). appium's default is only 2 startup retries — bump it.
           'appium:wdaStartupRetries': 5,
           'appium:wdaStartupRetryInterval': 20000,
-          // In CI the workflow launches the prebuilt WDA once and leaves it resident; attach to it
-          // via webDriverAgentUrl so appium never runs its own per-session `simctl launch` of the
-          // WDA xctrunner — that command intermittently wedges CoreSimulator for the full 600s
-          // simctl-exec timeout on cold sessions and overran session-create. Unset locally, where
-          // appium builds + launches WDA itself (the wda* caps above govern that path).
-          ...(process.env.FLUTTER_WDA_DD ? { 'appium:webDriverAgentUrl': 'http://127.0.0.1:8100' } : {}),
+          // usePreinstalledWDA simctl-installs + launches the CI-prebuilt Runner.app WITHOUT any
+          // xcodebuild at session time (the reusable strips its embedded XCTest frameworks). That
+          // keeps POST /session short — usePrebuiltWDA still shells out to `xcodebuild test`, whose
+          // multi-minute first launch overran undici's ~300s socket cap → UND_ERR_SOCKET on cold
+          // sessions. Path is the prebuilt runner the workflow leaves under FLUTTER_WDA_DD.
+          ...(process.env.FLUTTER_WDA_DD
+            ? {
+                'appium:usePreinstalledWDA': true,
+                'appium:prebuiltWDAPath': `${process.env.FLUTTER_WDA_DD}/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app`,
+              }
+            : {}),
         }
       : {}),
     'wdio:flutterServiceOptions': flutterServiceOptions,
