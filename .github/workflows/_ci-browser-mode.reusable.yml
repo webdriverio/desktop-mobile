@@ -1,0 +1,125 @@
+name: Browser Mode
+# Description: Runs browser-mode tests — real Chrome against a user-managed dev server,
+# with native IPC mocked at the JS boundary. No native binary, no platform driver, no app
+# build. Covers the Electron browser-mode E2E suite plus the Tauri/Electron/Dioxus
+# browser-mode package tests. Linux only — fast feedback is the whole point of this mode.
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+    inputs:
+      os:
+        description: 'Operating system to run tests on'
+        type: string
+        required: false
+        default: 'ubuntu-latest'
+      node-version:
+        description: 'Node.js version to use for testing'
+        type: string
+        required: false
+        default: '24'
+      build_id:
+        description: 'Build ID from the build job'
+        type: string
+        required: false
+      artifact_size:
+        description: 'Size of the build artifact in bytes'
+        type: string
+        required: false
+      cache_key:
+        description: 'Cache key to use for downloading artifacts'
+        type: string
+        required: false
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  browser-mode:
+    name: Run
+    runs-on: ${{ inputs.os }}
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      # Modest insurance — browser mode is light (no app builds), but pnpm install plus the
+      # restored build artifact still take headroom. Guarded so a missing path is harmless.
+      - name: 🧹 Free Disk Space (Linux)
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc /usr/local/.ghcup || true
+          sudo rm -rf /opt/hostedtoolcache/CodeQL /usr/share/swift /usr/lib/jvm || true
+          sudo apt-get clean || true
+          df -h /
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: ${{ inputs.node-version }}
+
+      # Restore the built package dist (same artifact every other test job consumes). Browser
+      # mode runs against these directly: the E2E suite via the workspace symlinks, and the
+      # package tests via test-package.ts, which packs them into isolated fixture installs.
+      - name: 📦 Download Build Artifacts
+        uses: ./.github/workflows/actions/download-archive
+        with:
+          name: wdio-desktop-mobile
+          path: wdio-desktop-mobile-build
+          filename: artifact.zip
+          cache_key_prefix: wdio-desktop-build
+          exact_cache_key: ${{ inputs.cache_key || github.run_id && format('{0}-{1}-{2}-{3}{4}', 'Linux', 'wdio-desktop-build', 'wdio-desktop-mobile', github.run_id, github.run_attempt > 1 && format('-rerun{0}', github.run_attempt) || '') || '' }}
+
+      - name: 📊 Show Build Information
+        if: inputs.build_id != '' && inputs.artifact_size != ''
+        shell: bash
+        run: |
+          echo "::notice::Build artifact: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
+
+      # The wdio configs force browserName=chrome and set autoXvfb, so WDIO drives the real
+      # Chrome preinstalled on ubuntu-latest under a Xvfb display it starts itself. Each step
+      # runs even if an earlier one failed (!cancelled) so one red tier never masks the others;
+      # any failure still fails the job. The electron-browser E2E conf self-hosts its dev
+      # server (:5174); test-package.ts self-hosts the package fixtures' dev server (:5173).
+      - name: 🧪 Electron browser-mode E2E
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: pnpm e2e:electron-browser
+
+      - name: 🧪 Electron browser-mode package test (ESM + CJS)
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: pnpm run test:package:electron:browser
+
+      - name: 🧪 Tauri browser-mode package test
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: pnpm run test:package:tauri:browser
+
+      - name: 🧪 Dioxus browser-mode package test
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: pnpm run test:package:dioxus:browser
+
+      - name: 🐛 Show E2E Logs on Failure
+        if: failure()
+        shell: bash
+        run: node e2e/scripts/show-logs.ts || true
+
+      - name: 📦 Upload Test Logs
+        if: always()
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-mode-logs-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            e2e/logs/**/*.log
+            logs/package-tests/*.log
+          retention-days: 90
+          if-no-files-found: warn

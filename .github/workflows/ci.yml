@@ -89,6 +89,23 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # Browser-mode tests — real Chrome against a dev server, native IPC mocked at the JS
+  # boundary; no native binary or platform driver. Linux only (the fast-feedback payoff).
+  # Gated like unit tests rather than per-service: browser mode spans electron/tauri/dioxus
+  # plus the shared native-spy/native-types layer, so any non-docs change can affect it.
+  browser-mode:
+    name: Browser Mode [Linux]
+    needs: [detect-changes, build]
+    if: needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-browser-mode.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      node-version: '24'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
   # Build Tauri E2E app binaries - only if Tauri tests will run
   build-tauri-e2e-app-linux:
     name: Build Tauri E2E App [Linux]
