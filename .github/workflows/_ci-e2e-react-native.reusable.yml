@@ -176,13 +176,11 @@ jobs:
           # boot. Use POSIX-safe `set -eu`.
           script: |
             set -eu
-            # Map emulator:8081 → host:8081 so the app's first debug-bundle load reaches Metro
-            # on the runner host (must be in place before the app launches). The Hermes inspector
-            # attach is re-established per-device by MetroBridge.
-            adb reverse tcp:8081 tcp:8081
-            # Metro itself is now service-managed (manageMetro: true) — the @wdio/react-native-service
-            # launcher starts `react-native start`, waits for /status, pre-bundles, and tears it
-            # down. This leg is the direct e2e verification of that lifecycle (replaces the manual
+            # Metro AND the device→host `adb reverse` are now service-managed: the
+            # @wdio/react-native-service launcher starts `react-native start`, waits for /status,
+            # pre-bundles, and tears it down (manageMetro), and maps emulator:8081 → host:8081 in
+            # onWorkerStart — pre-launch, so the app's first bundle load reaches Metro. This leg is
+            # the direct e2e verification of that lifecycle (replaces the manual adb-reverse +
             # start + wait-on previously here).
             pnpm --filter @repo/e2e run test:e2e:react-native
             # Package-install smoke (#387): validate the PACKED @wdio/react-native-service tarball

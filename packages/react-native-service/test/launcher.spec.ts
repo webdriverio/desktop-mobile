@@ -16,6 +16,10 @@ vi.mock('../src/metroProcess.js', () => ({
   },
 }));
 
+// Don't shell out to adb in unit tests — assert the pre-launch reverse is requested.
+const adbReverseMock = vi.hoisted(() => vi.fn(async () => {}));
+vi.mock('../src/adb.js', () => ({ adbReverse: adbReverseMock }));
+
 import ReactNativeLaunchService from '../src/launcher.js';
 import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from '../src/types.js';
 
@@ -101,6 +105,7 @@ describe('ReactNativeLaunchService Metro lifecycle', () => {
 
 describe('ReactNativeLaunchService.onWorkerStart', () => {
   const withDevices = () => make({ devices: [{ udid: 'emulator-5554' }, { udid: 'emulator-5556' }] });
+  afterEach(() => vi.clearAllMocks());
 
   it('should stamp appium:udid onto a single bare capability', async () => {
     const c = cap({ platformName: 'Android' });
@@ -134,5 +139,20 @@ describe('ReactNativeLaunchService.onWorkerStart', () => {
 
   it('should not throw on undefined capabilities', async () => {
     await expect(withDevices().onWorkerStart('0-0', undefined)).resolves.toBeUndefined();
+  });
+
+  it('should adb-reverse the Metro port for an Android worker (pre-launch)', async () => {
+    await make({ metroPort: 8099 }).onWorkerStart('0-0', cap({ platformName: 'Android' }));
+    expect(adbReverseMock).toHaveBeenCalledWith(8099, undefined);
+  });
+
+  it('should target the stamped device udid when a pool is configured', async () => {
+    await withDevices().onWorkerStart('0-0', cap({ platformName: 'Android' }));
+    expect(adbReverseMock).toHaveBeenCalledWith(8081, 'emulator-5554');
+  });
+
+  it('should not adb-reverse for an iOS worker', async () => {
+    await make().onWorkerStart('0-0', cap({ platformName: 'iOS' }));
+    expect(adbReverseMock).not.toHaveBeenCalled();
   });
 });

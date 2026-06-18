@@ -9,6 +9,7 @@
 import { type DoctorCheck, flattenCaps, MobileBaseLauncher, SevereServiceError } from '@wdio/native-mobile-core';
 import type { Options } from '@wdio/types';
 
+import { adbReverse } from './adb.js';
 import { prepareReactNativeCapability } from './capabilities.js';
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_METRO_PORT, SERVICE_NAME } from './constants.js';
 import { reactNativeDoctorChecks } from './diagnostics.js';
@@ -20,8 +21,8 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
   ReactNativeCapabilities
 > {
   // One shared Metro for the whole run, owned by the launcher (main process). Per-worker
-  // Metro would bind-conflict on 8081; workers connect via MetroBridge, which does the
-  // per-device `adb reverse`.
+  // Metro would bind-conflict on 8081. The Android device→host `adb reverse` is set up
+  // per-worker in onWorkerStart (pre-launch); workers then connect via MetroBridge.
   #metro: MetroProcess | undefined;
 
   constructor(
@@ -86,6 +87,28 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
       // holding port 8081 and the next run hits EADDRINUSE.
       await this.#stopMetro();
       throw error;
+    }
+  }
+
+  async onWorkerStart(
+    cid: string,
+    capabilities: ReactNativeCapabilities | ReactNativeCapabilities[] | Record<string, unknown> | undefined,
+  ): Promise<void> {
+    await super.onWorkerStart(cid, capabilities);
+    if (!capabilities) {
+      return;
+    }
+    // This launcher hook runs (and is awaited) BEFORE the worker creates the Appium session,
+    // i.e. before the app launches — the correct point to set up `adb reverse` so the Android
+    // app's first JS-bundle load reaches host Metro. super.onWorkerStart has just stamped the
+    // device udid, so target the exact emulator when several are attached.
+    const port = this.options.metroPort ?? DEFAULT_METRO_PORT;
+    for (const cap of flattenCaps<ReactNativeCapabilities>(capabilities)) {
+      const c = cap as unknown as Record<string, unknown>;
+      const platform = (this.options.platform ?? (c.platformName as string | undefined))?.toLowerCase();
+      if (platform === 'android') {
+        await adbReverse(port, c['appium:udid'] as string | undefined);
+      }
     }
   }
 
