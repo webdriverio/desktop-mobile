@@ -49,7 +49,7 @@ appium driver install --source=npm appium-flutter-driver
 > [#870](https://github.com/appium/appium-flutter-driver/pull/870)) — until it lands, Android
 > `execute`/`mock` need that fork. The preflight doctor warns if the installed driver lacks
 > `getVMServiceUrl`. Set `autoInstallDriver: true` to let the launcher install the `flutter` driver
-> for you, and `doctor: 'strict'` to fail fast on a missing toolchain.
+> for you, and `doctor: { strict: true }` to fail fast on a missing toolchain.
 
 ## Quick start
 
@@ -159,7 +159,7 @@ interface FlutterServiceOptions {
 
   // Setup automation (see "Zero-config setup automation" below)
   autoInstallDriver?: boolean;  // install the flutter Appium driver if missing (default: false)
-  doctor?: 'off' | 'warn' | 'strict'; // preflight checks (default: 'warn')
+  doctor?: boolean | { strict?: boolean }; // preflight checks (default: true; { strict: true } aborts on error)
 
   // Mock lifecycle (run before each test)
   clearMocks?: boolean;         // clear mock call history
@@ -194,11 +194,11 @@ warns when the fork is absent.
 `doctor` runs fail-fast preflight validation in `onPrepare` so a misconfiguration surfaces
 as a clear message instead of a cryptic Appium timeout:
 
-| Mode | Behaviour |
+| `doctor` | Behaviour |
 |---|---|
-| `'off'` | Skip all checks. |
-| `'warn'` *(default)* | Log actionable warnings; never abort. |
-| `'strict'` | Abort the run (`SevereServiceError`) on any error-level check. |
+| `false` | Skip all checks. |
+| `true` *(default)*, or omitted | Run the checks; log actionable warnings; never abort. |
+| `{ strict: true }` | Run the checks; abort the run (`SevereServiceError`) on any error-level check. |
 
 For Flutter it checks: `@wdio/appium-service` is in `services`, `flutter` is on PATH, the
 installed `appium-flutter-driver` carries `getVMServiceUrl` (Android only), and (iOS) the
