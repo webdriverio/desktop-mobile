@@ -3,7 +3,7 @@ import type { DioxusServiceAPI } from '@wdio/native-types';
 import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
-import { execute } from './commands/execute.js';
+import { execute, markAsEmbedded } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
@@ -44,12 +44,14 @@ async function safeDeleteSession(browser: WebdriverIO.Browser, label: string): P
 export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
+  private isEmbedded: boolean;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
       'wdio:dioxusServiceOptions'
     ];
     this.devServerUrl = capOptions?.devServerUrl ?? _options.devServerUrl;
+    this.isEmbedded = (capOptions?.driverProvider ?? _options.driverProvider ?? 'embedded') === 'embedded';
     log.debug('DioxusWorkerService initialised');
   }
 
@@ -169,6 +171,9 @@ export default class DioxusWorkerService {
   }
 
   private addDioxusApi(browser: WebdriverIO.Browser): void {
+    if (this.isEmbedded) {
+      markAsEmbedded(browser);
+    }
     const dioxus: DioxusServiceAPI = {
       execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
         execute<R, A>(browser, script, ...args),

@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
+import { markAsEmbedded } from '../src/commands/execute.js';
 import { createMock } from '../src/mock.js';
 import mockStore from '../src/mockStore.js';
 
 function makeBrowser(): WebdriverIO.Browser {
-  return { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+  const browser = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+  markAsEmbedded(browser);
+  return browser;
 }
 
 describe('createMock', () => {
@@ -118,9 +121,11 @@ describe('createMock', () => {
     vi.mocked(browser.execute)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce({
-        calls: [['arg1']],
-        results: [{ type: 'return', value: 42 }],
-        invocationCallOrder: [1],
+        __wdio_value__: {
+          calls: [['arg1']],
+          results: [{ type: 'return', value: 42 }],
+          invocationCallOrder: [1],
+        },
       });
 
     const m = await createMock('greet', browser);
@@ -136,18 +141,22 @@ describe('createMock', () => {
       .mockResolvedValueOnce(undefined)
       // First update: two calls.
       .mockResolvedValueOnce({
-        calls: [['a'], ['b']],
-        results: [
-          { type: 'return', value: 1 },
-          { type: 'return', value: 2 },
-        ],
-        invocationCallOrder: [1, 2],
+        __wdio_value__: {
+          calls: [['a'], ['b']],
+          results: [
+            { type: 'return', value: 1 },
+            { type: 'return', value: 2 },
+          ],
+          invocationCallOrder: [1, 2],
+        },
       })
       // Second update: inner cleared, only one call now.
       .mockResolvedValueOnce({
-        calls: [['c']],
-        results: [{ type: 'return', value: 3 }],
-        invocationCallOrder: [3],
+        __wdio_value__: {
+          calls: [['c']],
+          results: [{ type: 'return', value: 3 }],
+          invocationCallOrder: [3],
+        },
       });
 
     const m = await createMock('greet', browser);

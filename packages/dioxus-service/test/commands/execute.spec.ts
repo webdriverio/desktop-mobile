@@ -1,10 +1,16 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { execute, runInterceptorScript } from '../../src/commands/execute.js';
+import { execute, markAsEmbedded, runInterceptorScript } from '../../src/commands/execute.js';
 
 function browserStub(returnValue: unknown = undefined): WebdriverIO.Browser {
   const execute = vi.fn().mockResolvedValue(returnValue);
   return { execute } as unknown as WebdriverIO.Browser;
+}
+
+function embeddedBrowserStub(returnValue: unknown = undefined): WebdriverIO.Browser {
+  const browser = browserStub(returnValue);
+  markAsEmbedded(browser);
+  return browser;
 }
 
 describe('execute command', () => {
@@ -49,9 +55,29 @@ describe('execute command', () => {
     expect(wrappedScript).toContain('wdio_dioxus_bridge::install');
   });
 
-  it('should return the value produced by browser.execute', async () => {
+  it('should unwrap the embedded envelope for function-form scripts', async () => {
+    const browser = embeddedBrowserStub({ __wdio_value__: { hello: 'world' } });
+    await expect(execute(browser, (_dx) => ({ hello: 'world' }))).resolves.toEqual({ hello: 'world' });
+  });
+
+  it('should return a plain object as-is on the external driver path (string-form)', async () => {
     const browser = browserStub({ hello: 'world' });
     await expect(execute(browser, 'return {}')).resolves.toEqual({ hello: 'world' });
+  });
+
+  it('should return a plain object as-is on the external driver path (function-form)', async () => {
+    const browser = browserStub({ hello: 'world' });
+    await expect(execute(browser, (_dx) => ({ hello: 'world' }))).resolves.toEqual({ hello: 'world' });
+  });
+
+  it('should return undefined when embedded function-form returns undefined', async () => {
+    const browser = embeddedBrowserStub({});
+    await expect(execute(browser, (_dx) => undefined)).resolves.toBeUndefined();
+  });
+
+  it('should return null when embedded function-form returns null', async () => {
+    const browser = embeddedBrowserStub({ __wdio_value__: null });
+    await expect(execute(browser, (_dx) => null)).resolves.toBeNull();
   });
 
   it('should inline multiple positional args as JSON into the wrapper', async () => {
@@ -85,7 +111,7 @@ describe('execute command', () => {
 });
 
 describe('runInterceptorScript', () => {
-  it('should wrap the script as `return (script)()` so arrow functions actually invoke', async () => {
+  it('should wrap the script as `return (script)()` on the external driver path', async () => {
     const browser = browserStub('ok');
     const adapterScript = '(_dx) => { window.__wdio_mocks__.greet = 42; }';
 
@@ -95,9 +121,24 @@ describe('runInterceptorScript', () => {
     expect(actualScript).toBe(`return (${adapterScript})()`);
   });
 
-  it('should return the value produced by browser.execute', async () => {
-    const browser = browserStub({ calls: [['a']], results: [], invocationCallOrder: [1] });
+  it('should wrap the script with the __wdio_value__ envelope on the embedded driver path', async () => {
+    const browser = embeddedBrowserStub(undefined);
+    const adapterScript = '(_dx) => {}';
+
+    await runInterceptorScript(browser, adapterScript);
+
+    const [actualScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
+    expect(actualScript).toBe(`return { __wdio_value__: (${adapterScript})() }`);
+  });
+
+  it('should return the value produced by browser.execute (embedded driver)', async () => {
+    const browser = embeddedBrowserStub({ __wdio_value__: { calls: [['a']], results: [], invocationCallOrder: [1] } });
     const result = await runInterceptorScript(browser, '(_dx) => ({ calls: [["a"]] })');
     expect(result).toEqual({ calls: [['a']], results: [], invocationCallOrder: [1] });
+  });
+
+  it('should return undefined when the embedded driver returns the empty envelope', async () => {
+    const browser = embeddedBrowserStub({});
+    await expect(runInterceptorScript(browser, '() => undefined')).resolves.toBeUndefined();
   });
 });
