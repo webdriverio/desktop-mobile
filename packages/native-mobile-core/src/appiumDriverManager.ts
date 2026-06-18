@@ -40,7 +40,10 @@ const isWindows = process.platform === 'win32';
  */
 export function resolveAppiumBin(): string {
   const localBins = isWindows
-    ? [join(process.cwd(), 'node_modules', '.bin', 'appium.cmd'), join(process.cwd(), 'node_modules', '.bin', 'appium.exe')]
+    ? [
+        join(process.cwd(), 'node_modules', '.bin', 'appium.cmd'),
+        join(process.cwd(), 'node_modules', '.bin', 'appium.exe'),
+      ]
     : [join(process.cwd(), 'node_modules', '.bin', 'appium')];
   for (const bin of localBins) {
     if (existsSync(bin)) {

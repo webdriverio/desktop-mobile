@@ -180,10 +180,7 @@ export abstract class MobileBaseLauncher<
     // the pool to allocate N devices per cid, which it doesn't do yet.
     for (const cap of caps) {
       const c = cap as unknown as Record<string, unknown>;
-      const options = mergeServiceOptions(
-        this.options,
-        getServiceOptionsFromCapability<TOptions>(c, this.capKey),
-      );
+      const options = mergeServiceOptions(this.options, getServiceOptionsFromCapability<TOptions>(c, this.capKey));
       const platform = options.platform?.toLowerCase() ?? cap.platformName?.toLowerCase();
 
       if (platform === 'android' || platform === 'ios') {
@@ -194,7 +191,10 @@ export abstract class MobileBaseLauncher<
         // iOS: resolve the exact simulator UDID from deviceName when not already pinned, so a
         // duplicate device name across runtimes can't boot a different instance than intended.
         if (platform === 'ios' && c['appium:udid'] === undefined && typeof c['appium:deviceName'] === 'string') {
-          const udid = resolveIosUdid(c['appium:deviceName'] as string, c['appium:platformVersion'] as string | undefined);
+          const udid = resolveIosUdid(
+            c['appium:deviceName'] as string,
+            c['appium:platformVersion'] as string | undefined,
+          );
           if (udid) {
             c['appium:udid'] = udid;
             this.log.info(`Worker ${cid}: resolved iOS udid ${udid} for '${c['appium:deviceName']}'`);

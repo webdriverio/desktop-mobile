@@ -26,7 +26,10 @@ export type DoctorMode = 'off' | 'warn' | 'strict';
 const isWindows = process.platform === 'win32';
 
 /** Check that `cmd` resolves on PATH (`which`/`where`). */
-export function checkCommandOnPath(cmd: string, opts: { category?: string; severity?: Severity; hint?: string } = {}): DoctorCheck {
+export function checkCommandOnPath(
+  cmd: string,
+  opts: { category?: string; severity?: Severity; hint?: string } = {},
+): DoctorCheck {
   const category = opts.category ?? cmd;
   const severity = opts.severity ?? 'error';
   return () => {
