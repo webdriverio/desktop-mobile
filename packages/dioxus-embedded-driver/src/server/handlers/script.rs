@@ -96,15 +96,29 @@ pub async fn execute_sync(
     let param_names: Vec<String> = (0..pass_through.len()).map(|i| format!("__arg{i}")).collect();
     let param_list = param_names.join(", ");
     let call_list = call_args.join(", ");
-    // Wrap the result in {__wdio_value__: ...} so the service layer can
+    // Wrap the result in {__wdio_value__: r} so the service layer can
     // distinguish undefined (key absent after JSON.stringify) from null (key
     // present with null value). Only user execute calls use this envelope;
     // internal evals (getTitle, getUrl, …) go through navigation::eval()
     // directly without wrapping.
+    //
+    // The outer Promise.resolve().then() is required because the TS service
+    // (execute.ts) wraps function scripts in a Promise. Returning
+    // {__wdio_value__: Promise} directly would serialize the unresolved
+    // Promise as {} before it settles. The .then() awaits the inner Promise
+    // first, then wraps the settled value in the envelope.
     let call_expr = if call_list.is_empty() {
-      format!("return {{ __wdio_value__: (function() {{ {} }})() }}", request.script)
+      format!(
+        "return new Promise(function(__wdio_res,__wdio_rej){{Promise.resolve((function(){{{}}})()\
+        ).then(function(__r){{__wdio_res({{__wdio_value__:__r}});}},__wdio_rej);}});",
+        request.script
+      )
     } else {
-      format!("return {{ __wdio_value__: (function({param_list}) {{ {} }})({call_list}) }}", request.script)
+      format!(
+        "return new Promise(function(__wdio_res,__wdio_rej){{Promise.resolve((function({param_list}){{{}}})\
+        ({call_list})).then(function(__r){{__wdio_res({{__wdio_value__:__r}});}},__wdio_rej);}});",
+        request.script
+      )
     };
 
     (session.timeouts.script_ms, call_expr, pass_through)
