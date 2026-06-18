@@ -150,11 +150,14 @@ export const config = {
   capabilities,
   logLevel: 'info',
   bail: 0,
-  // Two spec retries: each retry is a fresh session, which (with the in-session wdaStartupRetries
-  // above) clears transient WDA/boot/attach flakes. The sticky iOS "unknown to FrontBoard" race
-  // can't be cleared in-run (same sim) — re-run the leg for that; see the RN conf / #359.
+  // Two spec retries, DEFERRED to the end of the run. The iOS sim intermittently wedges an
+  // app-launch (simctl launching the WDA xctrunner, or WDA launching the app under test — 600s
+  // simctl hang / XCTDaemon "Timed out attempting to launch app") and recovers once warm. Immediate
+  // back-to-back retries all fail inside that same bad patch; deferring them to the end lets the sim
+  // recover first, so a transient launch wedge on any spec self-heals (the WDA-launch warm-up cuts
+  // its frequency, this clears the straggler). Android benefits too (transient emitEvent flake).
   specFileRetries: 2,
-  specFileRetriesDeferred: false,
+  specFileRetriesDeferred: true,
   baseUrl: '',
   waitforTimeout: 15000,
   // iOS: generous per-command ceiling, but kept below the inflated value that fed cold
