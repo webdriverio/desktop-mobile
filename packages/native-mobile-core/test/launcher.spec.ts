@@ -145,6 +145,20 @@ describe('MobileBaseLauncher device stamping', () => {
     expect(c['appium:udid']).toBe('a');
   });
 
+  it('should stamp the device udid onto a multiremote capability object', async () => {
+    // A multiremote run hands onWorkerStart { instance: { capabilities } }, not an array,
+    // so the device must land on the nested capability — not silently dropped.
+    const caps = { phone: { capabilities: cap() } };
+    await withDevices().onWorkerStart('0-0', caps as unknown as Record<string, unknown>);
+    expect(caps.phone.capabilities['appium:udid']).toBe('a');
+  });
+
+  it('should release a claimed device without throwing on worker end', async () => {
+    const l = withDevices();
+    await l.onWorkerStart('0-0', cap());
+    await expect(l.onWorkerEnd('0-0')).resolves.toBeUndefined();
+  });
+
   it('should advance the device cursor per worker', async () => {
     const l = withDevices();
     const a = cap();

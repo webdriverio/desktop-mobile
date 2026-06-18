@@ -85,9 +85,7 @@ describe('ensureAppiumDriver', () => {
     mockAppium(null, []);
     const r = await ensureAppiumDriver('uiautomator2', { autoInstallDriver: true });
     expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.error.message).toMatch(/appium' CLI is not resolvable/);
-    }
+    expect(r.ok ? '' : r.error.message).toMatch(/appium' CLI is not resolvable/);
   });
 
   it('should be idempotent — found when already installed (no install)', async () => {
@@ -101,9 +99,7 @@ describe('ensureAppiumDriver', () => {
     mockAppium('99.0.0', []);
     const r = await ensureAppiumDriver('uiautomator2', { autoInstallDriver: true });
     expect(r.ok).toBe(false);
-    if (!r.ok) {
-      expect(r.error.message).toMatch(/No known-good version/);
-    }
+    expect(r.ok ? '' : r.error.message).toMatch(/No known-good version/);
   });
 
   it('should install the matrix-pinned driver on success', async () => {

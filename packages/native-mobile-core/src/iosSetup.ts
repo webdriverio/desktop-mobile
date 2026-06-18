@@ -6,7 +6,7 @@
 // All macOS-only; every helper is a no-op / empty result off darwin so it's safe to call
 // unconditionally from the shared launcher.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -45,15 +45,15 @@ export function pickIosUdid(simctlJson: string, deviceName: string, platformVers
   } catch {
     return undefined;
   }
+  // A JS config can set platformVersion as a number (e.g. 17.4), so coerce before string ops.
+  const pv = platformVersion === undefined ? undefined : String(platformVersion);
   const byRuntime = parsed.devices ?? {};
   const runtimes = Object.keys(byRuntime).sort((a, b) => runtimeVersion(b) - runtimeVersion(a));
   for (const runtime of runtimes) {
-    if (platformVersion && !runtime.includes(`iOS-${platformVersion.replace(/\./g, '-')}`)) {
+    if (pv && !runtime.includes(`iOS-${pv.replace(/\./g, '-')}`)) {
       continue;
     }
-    const match = byRuntime[runtime].find(
-      (d) => d.name === deviceName && d.isAvailable !== false,
-    );
+    const match = byRuntime[runtime].find((d) => d.name === deviceName && d.isAvailable !== false);
     if (match) {
       return match.udid;
     }
@@ -151,8 +151,10 @@ export async function prebuildWda(opts: PrebuildWdaOptions): Promise<Result<{ de
     return Err(new Error('Could not locate appium-webdriveragent (is appium-xcuitest-driver installed?)'));
   }
   log.info('Pre-building WebDriverAgent (one-time; cached in derivedDataPath)...');
-  try {
-    execFileSync(
+  // spawn (not execFileSync) so the long xcodebuild doesn't block the event loop — keeps
+  // logging/SIGINT live and lets progress stream.
+  return new Promise((resolve) => {
+    const proc = spawn(
       'xcodebuild',
       [
         'build-for-testing',
@@ -166,10 +168,17 @@ export async function prebuildWda(opts: PrebuildWdaOptions): Promise<Result<{ de
         opts.derivedDataPath,
         'CODE_SIGNING_ALLOWED=NO',
       ],
-      { stdio: 'pipe', timeout: 900000 },
+      { stdio: ['ignore', 'pipe', 'pipe'] },
     );
-    return Ok({ derivedDataPath: opts.derivedDataPath });
-  } catch (error) {
-    return Err(error instanceof Error ? error : new Error(String(error)));
-  }
+    proc.stdout?.on('data', (d: Buffer) => log.debug(d.toString().trim()));
+    proc.stderr?.on('data', (d: Buffer) => log.debug(d.toString().trim()));
+    proc.on('close', (code) => {
+      resolve(
+        code === 0
+          ? Ok({ derivedDataPath: opts.derivedDataPath })
+          : Err(new Error(`xcodebuild exited with code ${code}`)),
+      );
+    });
+    proc.on('error', (error) => resolve(Err(error)));
+  });
 }
