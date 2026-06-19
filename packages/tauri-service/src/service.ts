@@ -545,7 +545,7 @@ export default class TauriWorkerService {
   private overrideElementCommand(commandName: ElementCommands) {
     const browser = this.browser as WebdriverIO.Browser;
     try {
-      const testOverride = async function (
+      const mockSyncOverride = async function (
         this: WebdriverIO.Element,
         originalCommand: (...args: readonly unknown[]) => Promise<unknown>,
         ...args: readonly unknown[]
@@ -555,7 +555,7 @@ export default class TauriWorkerService {
         return result;
       } as Parameters<typeof browser.overwriteCommand>[1];
 
-      browser.overwriteCommand(commandName, testOverride, true);
+      browser.overwriteCommand(commandName, mockSyncOverride, true);
     } catch (error) {
       log.warn(`Failed to override element command '${commandName}':`, error);
     }

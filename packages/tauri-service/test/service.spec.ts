@@ -314,6 +314,34 @@ describe('TauriWorkerService', () => {
       expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('clearValue', expect.any(Function), true);
     });
 
+    it('should run the original command then sync mocks in the override body', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      const mockUpdate = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      // Capture the override WDIO registered for 'click' and invoke it the way
+      // WDIO would (override(originalCommand, ...args)). This guards the override
+      // *body* — not just that it was registered — so dropping updateAllMocks()
+      // would fail here.
+      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
+      expect(clickCall).toBeDefined();
+      const override = clickCall![1] as unknown as (
+        this: unknown,
+        originalCommand: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const originalCommand = vi.fn().mockResolvedValue('ok');
+      const result = await override.call({}, originalCommand);
+
+      expect(originalCommand).toHaveBeenCalledOnce();
+      expect(mockUpdate).toHaveBeenCalledOnce();
+      expect(result).toBe('ok');
+    });
+
     it('should clear stale mocks at session start for embedded driver provider', async () => {
       const mockBrowser = createMockBrowser();
       const originalExecute = mockBrowser.execute as ReturnType<typeof vi.fn>;
