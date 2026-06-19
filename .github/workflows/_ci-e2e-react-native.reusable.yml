@@ -194,11 +194,6 @@ jobs:
             # `sh -c`), so a multi-line if/then/fi splits and the `if` executes without its `fi`.
             if [ "${{ inputs.new-arch }}" = "true" ]; then RN_PLATFORM=android pnpm test:package:react-native; fi
 
-      - name: 🐛 Show Metro log on failure
-        if: failure()
-        shell: bash
-        run: tail -n 200 e2e/metro.log || true
-
       - name: 📦 Upload Test Logs
         if: always()
         continue-on-error: true
@@ -207,6 +202,5 @@ jobs:
           name: e2e-logs-react-native-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: |
             e2e/logs/**/*.log
-            e2e/metro.log
           retention-days: 30
           if-no-files-found: warn

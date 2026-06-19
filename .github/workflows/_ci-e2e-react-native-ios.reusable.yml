@@ -244,11 +244,6 @@ jobs:
             RN_PLATFORM=ios pnpm test:package:react-native
           fi
 
-      - name: 🐛 Show Metro log on failure
-        if: failure()
-        shell: bash
-        run: tail -n 200 e2e/metro.log || true
-
       # The failing session-create (#359) leaves no app/page-source, so the appium debug log is the
       # primary evidence. Surface its tail inline (the session error is near the end) for a quick
       # read without downloading the artifact; the full log ships in Upload Test Logs below.
@@ -265,6 +260,5 @@ jobs:
           name: e2e-logs-react-native-ios-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: |
             e2e/logs/**/*.log
-            e2e/metro.log
           retention-days: 30
           if-no-files-found: warn
