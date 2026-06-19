@@ -131,12 +131,15 @@ export function installAppiumDriver(spec: DriverSpec, timeoutMs: number = DEFAUL
       stderr += d.toString();
       log.debug(d.toString().trim());
     });
-    proc.on('close', (code) => {
+    proc.on('close', (code, signal) => {
       if (code === 0) {
         log.info(`Installed Appium driver '${spec.name}'.`);
         resolve();
       } else {
-        reject(new Error(`appium driver install ${spec.name} failed with code ${code}: ${stderr.trim()}`));
+        // The timeout above kills the spawn by signal, leaving code null — report the signal
+        // so the failure reads as a timeout-kill rather than the opaque "failed with code null".
+        const reason = signal ? `signal ${signal}` : `code ${code}`;
+        reject(new Error(`appium driver install ${spec.name} failed with ${reason}: ${stderr.trim()}`));
       }
     });
     proc.on('error', (error) => reject(new Error(`Failed to spawn appium driver install: ${error.message}`)));

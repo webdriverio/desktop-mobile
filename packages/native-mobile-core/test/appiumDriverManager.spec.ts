@@ -19,8 +19,8 @@ import {
 const execMock = vi.mocked(execFileSync);
 const spawnMock = vi.mocked(spawn);
 
-/** A fake child process that emits `close` with `code` on the next tick. */
-function fakeProc(code = 0, stderr = '') {
+/** A fake child process that emits `close` with `code` (and optional `signal`) on the next tick. */
+function fakeProc(code: number | null = 0, stderr = '', signal?: NodeJS.Signals) {
   const proc = new EventEmitter() as EventEmitter & { stdout: EventEmitter; stderr: EventEmitter };
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
@@ -28,7 +28,7 @@ function fakeProc(code = 0, stderr = '') {
     if (stderr) {
       proc.stderr.emit('data', Buffer.from(stderr));
     }
-    proc.emit('close', code);
+    proc.emit('close', code, signal);
   });
   return proc as unknown as ReturnType<typeof spawn>;
 }
@@ -120,6 +120,15 @@ describe('ensureAppiumDriver', () => {
     spawnMock.mockReturnValueOnce(fakeProc(1, 'boom'));
     const r = await ensureAppiumDriver('xcuitest', { autoInstallDriver: true });
     expect(r.ok).toBe(false);
+  });
+
+  it('should report the kill signal (not "code null") when the install is timed out', async () => {
+    mockAppium('3.5.0', []);
+    // A timeout-kill closes with code null + a signal; the message must name the signal.
+    spawnMock.mockReturnValueOnce(fakeProc(null, '', 'SIGTERM'));
+    const r = await ensureAppiumDriver('xcuitest', { autoInstallDriver: true });
+    expect(r.ok).toBe(false);
+    expect(r.ok ? '' : r.error.message).toMatch(/signal SIGTERM/);
   });
 
   it('should honour a source override for the install spec', async () => {
