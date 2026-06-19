@@ -24,6 +24,10 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
   // Metro would bind-conflict on 8081. The Android device→host `adb reverse` is set up
   // per-worker in onWorkerStart (pre-launch); workers then connect via MetroBridge.
   #metro: MetroProcess | undefined;
+  // The capability-merged options, captured in onPrepare so doctorChecks — invoked inside
+  // super.onPrepare — probes the configured metroHost/metroPort even when set only on the
+  // capability (otherwise it falls back to this.options and would probe the default 8081).
+  #resolvedOptions: ReactNativeServiceGlobalOptions | undefined;
 
   constructor(
     options: ReactNativeServiceGlobalOptions,
@@ -51,9 +55,10 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
   }
 
   protected doctorChecks(config: Options.Testrunner, platforms: Set<'android' | 'ios'>): DoctorCheck[] {
+    const options = this.#resolvedOptions ?? this.options;
     return [
       ...super.doctorChecks(config, platforms),
-      ...reactNativeDoctorChecks(this.options.metroHost ?? '127.0.0.1', this.options.metroPort ?? DEFAULT_METRO_PORT),
+      ...reactNativeDoctorChecks(options.metroHost ?? '127.0.0.1', options.metroPort ?? DEFAULT_METRO_PORT),
     ];
   }
 
@@ -61,19 +66,24 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
     config: Options.Testrunner,
     capabilities: ReactNativeCapabilities[] | Record<string, { capabilities: ReactNativeCapabilities }>,
   ): Promise<void> {
+    // Read launcher options from the global service options merged with the capability —
+    // manageMetro/metroProjectRoot/prebundle work whether configured on the service registration
+    // or on wdio:reactNativeServiceOptions (the common WDIO pattern).
+    const options = this.resolveLauncherOptions(capabilities);
+    this.#resolvedOptions = options; // so doctorChecks (inside super.onPrepare) sees the merged values
     // Start Metro before super.onPrepare so the Metro-reachable doctor check sees it up.
-    if (this.options.manageMetro) {
+    if (options.manageMetro) {
       this.#metro = new MetroProcess();
       try {
         // Resolve platform the same way onWorkerStart does — options.platform wins over the
         // capability, so an options-level iOS run pre-warms the iOS bundle, not Android.
         const firstCap = flattenCaps<ReactNativeCapabilities>(capabilities)[0];
-        const firstPlatform = (this.options.platform ?? firstCap?.platformName)?.toLowerCase();
+        const firstPlatform = (options.platform ?? firstCap?.platformName)?.toLowerCase();
         await this.#metro.start({
-          projectRoot: this.options.metroProjectRoot,
-          port: this.options.metroPort,
+          projectRoot: options.metroProjectRoot,
+          port: options.metroPort,
           platform: firstPlatform === 'ios' ? 'ios' : 'android',
-          prebundle: this.options.prebundle,
+          prebundle: options.prebundle,
         });
       } catch (error) {
         // start() can throw *after* Metro spawned (e.g. readiness timeout) — the child is
@@ -105,10 +115,11 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
     // i.e. before the app launches — the correct point to set up `adb reverse` so the Android
     // app's first JS-bundle load reaches host Metro. super.onWorkerStart has just stamped the
     // device udid, so target the exact emulator when several are attached.
-    const port = this.options.metroPort ?? DEFAULT_METRO_PORT;
+    const options = this.resolveLauncherOptions(capabilities);
+    const port = options.metroPort ?? DEFAULT_METRO_PORT;
     for (const cap of flattenCaps<ReactNativeCapabilities>(capabilities)) {
       const c = cap as unknown as Record<string, unknown>;
-      const platform = (this.options.platform ?? (c.platformName as string | undefined))?.toLowerCase();
+      const platform = (options.platform ?? (c.platformName as string | undefined))?.toLowerCase();
       if (platform === 'android') {
         await adbReverse(port, c['appium:udid'] as string | undefined);
       }

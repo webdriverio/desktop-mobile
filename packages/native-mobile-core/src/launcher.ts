@@ -115,10 +115,30 @@ export abstract class MobileBaseLauncher<
     return checks;
   }
 
+  /**
+   * Effective launcher options: the global service options merged with the per-capability
+   * `wdio:<framework>ServiceOptions` (capability wins, matching the shared precedence). Run-level
+   * decisions — `autoInstallDriver`, `doctor`, and a subclass's Metro options — MUST read this,
+   * not `this.options` alone: configuring the service only on the capability (the idiomatic WDIO
+   * pattern) would otherwise silently no-op those features. For multiremote, later instances'
+   * options win on conflict; run-level options are realistically set in one place.
+   */
+  protected resolveLauncherOptions(capabilities: TCap | TCap[] | Record<string, unknown>): TOptions {
+    return flattenCaps<TCap>(capabilities).reduce<TOptions>(
+      (acc, cap) =>
+        mergeServiceOptions(
+          acc,
+          getServiceOptionsFromCapability<TOptions>(cap as Record<string, unknown>, this.capKey),
+        ),
+      this.options,
+    );
+  }
+
   async onPrepare(
     config: Options.Testrunner,
     capabilities: TCap[] | Record<string, { capabilities: TCap }>,
   ): Promise<void> {
+    const effectiveOptions = this.resolveLauncherOptions(capabilities);
     const platforms = new Set<'android' | 'ios'>();
     for (const cap of flattenCaps<TCap>(capabilities)) {
       const options = mergeServiceOptions(
@@ -135,7 +155,7 @@ export abstract class MobileBaseLauncher<
     }
 
     // Driver auto-install — opt-in, idempotent, once per launcher (not per worker).
-    if (this.options.autoInstallDriver) {
+    if (effectiveOptions.autoInstallDriver) {
       const names = new Set<string>();
       for (const platform of platforms) {
         for (const name of this.requiredDrivers(platform)) {
@@ -154,7 +174,7 @@ export abstract class MobileBaseLauncher<
     }
 
     // Preflight doctor — fail-fast only under doctor: { strict: true }.
-    const { run: runTheDoctor, failFast } = resolveDoctor(this.options.doctor);
+    const { run: runTheDoctor, failFast } = resolveDoctor(effectiveOptions.doctor);
     if (runTheDoctor) {
       await runDoctor(this.doctorChecks(config, platforms), {
         serviceName: this.logNamespace,
