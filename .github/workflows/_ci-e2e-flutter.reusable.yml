@@ -179,13 +179,17 @@ jobs:
           # not `set -euo pipefail` (no pipefail in dash → aborts the script).
           script: |
             set -eu
-            pnpm --filter @repo/e2e run test:e2e:flutter
-            # Package-install smoke (#387): validate the PACKED @wdio/flutter-service tarball against
-            # THIS already-booted emulator. AFD_FORK_BUILD_DIR lets test-package.ts overwrite the
-            # isolated fixture's appium-flutter-driver with the getVMServiceUrl fork built above (the
-            # published driver can't reach the Dart VM). No arch split → runs once. Single line:
-            # android-emulator-runner runs the script line-by-line (each its own `sh -c`).
-            FLUTTER_PLATFORM=android AFD_FORK_BUILD_DIR="$RUNNER_TEMP/afd/driver/build" pnpm test:package:flutter
+            # Run the e2e suite and the package smoke DECOUPLED so a flaky e2e can't mask the smoke's
+            # signal (does the PACKED tarball install + compose?): `|| rc=$?` captures each exit code,
+            # then we fail at the end only if either failed. The smoke validates the PACKED
+            # @wdio/flutter-service against THIS already-booted emulator; AFD_FORK_BUILD_DIR lets
+            # test-package.ts overwrite the isolated fixture's appium-flutter-driver with the
+            # getVMServiceUrl fork built above (the published driver can't reach the Dart VM); no arch
+            # split → runs once.
+            # The WHOLE pipeline MUST be one line: android-emulator-runner runs the script line-by-line,
+            # each in its own `sh -c`, so a var set on one line is gone on the next — split across lines
+            # the final check sees empty e2e_rc/smoke_rc and `[ "" != 0 ]` always exits 1.
+            e2e_rc=0; pnpm --filter @repo/e2e run test:e2e:flutter || e2e_rc=$?; smoke_rc=0; FLUTTER_PLATFORM=android AFD_FORK_BUILD_DIR="$RUNNER_TEMP/afd/driver/build" pnpm test:package:flutter || smoke_rc=$?; if [ "$e2e_rc" != 0 ] || [ "$smoke_rc" != 0 ]; then exit 1; fi
 
       - name: 📦 Upload Test Logs
         if: always()

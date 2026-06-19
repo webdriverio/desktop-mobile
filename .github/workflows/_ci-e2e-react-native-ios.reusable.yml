@@ -232,17 +232,22 @@ jobs:
           # simulator reaches it over the shared host loopback (no adb-reverse needed on iOS). This
           # leg is the direct e2e verification of that lifecycle (replaces the manual
           # start + wait-on + curl-prebundle previously here).
-          pnpm --filter @repo/e2e run test:e2e:react-native:ios
-          # Package-install smoke (#387): validate the PACKED @wdio/react-native-service tarball
-          # against THIS booted simulator + Metro, reusing the prebuilt WDA. test-package.ts installs
-          # it into the isolated fixture, whose own devDeps provide appium + the xcuitest driver
-          # (Appium detects drivers from node_modules). The fixture config reads RN_IOS_UDID +
-          # RN_WDA_DD (already exported) to pin the sim and reuse the WDA. Gated to the new-arch leg
-          # so it runs once per service (packaging is arch-independent). A normal bash step, so a
-          # multi-line if/fi is fine here (unlike the android-emulator-runner line-by-line script).
+          # Run the e2e suite and the package smoke DECOUPLED: capture each exit code with `|| rc=$?`
+          # (so a failed e2e suite doesn't abort the step before the smoke runs) and fail at the end
+          # if either failed. The smoke validates the PACKED tarball — its signal must survive an
+          # (occasionally flaky) e2e failure. It stays second so it runs on a sim+Metro the suite warmed.
+          e2e_rc=0; pnpm --filter @repo/e2e run test:e2e:react-native:ios || e2e_rc=$?
+          # Validate the PACKED @wdio/react-native-service tarball against THIS booted simulator +
+          # Metro, reusing the prebuilt WDA. test-package.ts installs it into the isolated fixture,
+          # whose own devDeps provide appium + the xcuitest driver (Appium detects drivers from
+          # node_modules). The fixture config reads RN_IOS_UDID + RN_WDA_DD (already exported) to pin
+          # the sim and reuse the WDA. Gated to the new-arch leg so it runs once per service
+          # (packaging is arch-independent).
+          smoke_rc=0
           if [ "${{ inputs.new-arch }}" = "true" ]; then
-            RN_PLATFORM=ios pnpm test:package:react-native
+            RN_PLATFORM=ios pnpm test:package:react-native || smoke_rc=$?
           fi
+          if [ "$e2e_rc" != 0 ] || [ "$smoke_rc" != 0 ]; then exit 1; fi
 
       # The failing session-create (#359) leaves no app/page-source, so the appium debug log is the
       # primary evidence. Surface its tail inline (the session error is near the end) for a quick
