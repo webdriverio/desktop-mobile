@@ -110,7 +110,8 @@ describe('ensureAppiumDriver', () => {
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
       ['driver', 'install', '--source=npm', 'appium-flutter-driver@^3.7.0'],
-      expect.any(Object),
+      // a timeout caps the install so a slow registry can't hang onPrepare
+      expect.objectContaining({ timeout: 300000 }),
     );
   });
 

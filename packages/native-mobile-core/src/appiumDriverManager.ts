@@ -29,7 +29,11 @@ export interface EnsureAppiumDriverOptions {
   autoInstallDriver?: boolean;
   /** Escape hatch: override the matrix npm source (e.g. a published fork). */
   source?: string;
+  /** Hard cap on the `appium driver install` spawn — killed past this so onPrepare can't hang. Default 5 min. */
+  timeoutMs?: number;
 }
+
+const DEFAULT_INSTALL_TIMEOUT_MS = 300000;
 
 const isWindows = process.platform === 'win32';
 
@@ -112,12 +116,14 @@ export function resetInstalledCache(): void {
 }
 
 /** Install a driver via `appium driver install --source=npm <source>@<version>`. */
-export function installAppiumDriver(spec: DriverSpec): Promise<void> {
+export function installAppiumDriver(spec: DriverSpec, timeoutMs: number = DEFAULT_INSTALL_TIMEOUT_MS): Promise<void> {
   log.info(`Installing Appium driver '${spec.name}' (${spec.source}@${spec.version})...`);
   return new Promise((resolve, reject) => {
     const proc = spawn(resolveAppiumBin(), ['driver', 'install', '--source=npm', `${spec.source}@${spec.version}`], {
       stdio: ['ignore', 'pipe', 'pipe'],
       env: process.env,
+      // Hard cap: a slow registry / TLS stall would otherwise block onPrepare forever.
+      timeout: timeoutMs,
     });
     let stderr = '';
     proc.stdout?.on('data', (d: Buffer) => log.debug(d.toString().trim()));
@@ -183,7 +189,7 @@ export async function ensureAppiumDriver(
 
   const effectiveSpec = options.source ? { ...spec, source: options.source } : spec;
   try {
-    await installAppiumDriver(effectiveSpec);
+    await installAppiumDriver(effectiveSpec, options.timeoutMs);
     resetInstalledCache();
     return Ok({ name, method: 'installed' });
   } catch (error) {
