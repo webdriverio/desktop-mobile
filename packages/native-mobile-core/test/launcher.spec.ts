@@ -111,6 +111,20 @@ describe('MobileBaseLauncher.onPrepare', () => {
     expect(names).toEqual(['uiautomator2', 'xcuitest']);
   });
 
+  it('should mutate a multiremote object and build platforms from it (driver-ensure not skipped)', async () => {
+    // Integrated multiremote path: a `{ instance: { capabilities } }` shape must unwrap to the
+    // inner caps, so both get mutated AND `platforms` is non-empty (else driver-ensure + doctor
+    // would silently no-op on a multiremote config).
+    const caps = {
+      phone: { capabilities: cap({ platformName: 'Android' }) },
+      tablet: { capabilities: cap({ platformName: 'iOS' }) },
+    };
+    await new TestLauncher({ autoInstallDriver: true }).onPrepare(config, caps);
+    expect(caps.phone.capabilities['appium:automationName']).toBe('UiAutomator2');
+    expect(caps.tablet.capabilities['appium:automationName']).toBe('XCUITest');
+    expect(ensureSpy.mock.calls.map((c) => c[0]).sort()).toEqual(['uiautomator2', 'xcuitest']);
+  });
+
   it('should not throw under the default warn doctor mode', async () => {
     await expect(new TestLauncher().onPrepare(config, [cap()])).resolves.toBeUndefined();
   });
