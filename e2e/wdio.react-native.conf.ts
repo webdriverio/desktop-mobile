@@ -219,7 +219,10 @@ export const config = {
   // the worker channel). Registering bare 'react-native' left this.options empty, so managed
   // Metro silently never started and the doctor never ran. The capability copy below still
   // feeds the worker.
-  services: [['appium', { logPath: logDir, args: { logLevel: 'debug' } }], ['react-native', reactNativeServiceOptions]],
+  services: [
+    ['appium', { logPath: logDir, args: { logLevel: 'debug' } }],
+    ['react-native', reactNativeServiceOptions],
+  ],
   port: 4723,
   framework: 'mocha',
   reporters: ['spec'],
