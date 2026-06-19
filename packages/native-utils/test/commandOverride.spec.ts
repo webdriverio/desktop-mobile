@@ -25,13 +25,13 @@ function captureClickOverride(overwriteCommand: ReturnType<typeof vi.fn>): Overr
 }
 
 describe('installMockSyncOverride', () => {
-  it('registers an element-scoped override for the command', () => {
+  it('should register an element-scoped override for the command', () => {
     const { browser, overwriteCommand } = createBrowser();
     installMockSyncOverride(browser, 'click', async () => {});
     expect(overwriteCommand).toHaveBeenCalledWith('click', expect.any(Function), true);
   });
 
-  it('runs the original command then syncs mocks when there is no user override', async () => {
+  it('should run the original command then sync mocks when there is no user override', async () => {
     const { browser, overwriteCommand } = createBrowser();
     const order: string[] = [];
     const syncMocks = vi.fn(async () => {
@@ -52,7 +52,7 @@ describe('installMockSyncOverride', () => {
     expect(result).toBe('ok');
   });
 
-  it('passes the element the command ran on to syncMocks', async () => {
+  it('should pass the element the command ran on to syncMocks', async () => {
     const { browser, overwriteCommand } = createBrowser();
     const syncMocks = vi.fn(async () => {});
     installMockSyncOverride(browser, 'click', syncMocks);
@@ -67,7 +67,7 @@ describe('installMockSyncOverride', () => {
     expect(syncMocks).toHaveBeenCalledWith(element);
   });
 
-  it('chains a user override so their origCommand runs the original then syncs (#422)', async () => {
+  it('should chain a user override so their origCommand runs the original then syncs', async () => {
     const order: string[] = [];
     // The user's override as WDIO stores it: it receives the original command and
     // calls it. Here we record ordering to prove the service mock-sync is wired
@@ -104,7 +104,7 @@ describe('installMockSyncOverride', () => {
     expect(result).toBe('ok');
   });
 
-  it('falls back to service-only sync when the WDIO internals are absent', async () => {
+  it('should fall back to service-only sync when the WDIO internals are absent', async () => {
     const { browser, overwriteCommand } = createBrowser(); // no __propertiesObject__
     const syncMocks = vi.fn(async () => {});
     installMockSyncOverride(browser, 'click', syncMocks);

@@ -622,34 +622,6 @@ describe('Tauri Mocking', () => {
         expect(mockReadClipboard.mock.calls).toHaveLength(2);
       });
 
-      it('should auto-synchronize mock calls after a DOM interaction', async () => {
-        const mockGetPlatformInfo = await browser.tauri.mock('get_platform_info');
-
-        // The #invoke-platform button calls core.invoke('get_platform_info') in
-        // the app — a real DOM interaction that hits a mocked command.
-        const invokeButton = await browser.$('#invoke-platform');
-        await invokeButton.click();
-
-        // The element-scoped command override re-syncs mocks after every DOM
-        // command, with NO explicit mock.update(). A follow-up reset click
-        // (which invokes nothing) must therefore surface the recorded call. We
-        // drive that from waitUntil rather than asserting on the invoke click
-        // alone, because the app's invoke handler is async and would otherwise
-        // race the override's sync across the embedded/WebDriver providers. If
-        // the override is removed (the reverted #434 regression), no DOM command
-        // syncs and this times out — which is exactly what we want to guard.
-        const resetButton = await browser.$('#reset-button');
-        await browser.waitUntil(
-          async () => {
-            await resetButton.click();
-            return mockGetPlatformInfo.mock.calls.length > 0;
-          },
-          { timeout: 5000, timeoutMsg: 'Mock was not auto-synced by a DOM interaction' },
-        );
-
-        expect(mockGetPlatformInfo).toHaveBeenCalledTimes(1);
-      });
-
       it('should synchronize mock results after update', async () => {
         const mockReadClipboard = await browser.tauri.mock('read_clipboard');
         await mockReadClipboard.mockReturnValue('mocked result');

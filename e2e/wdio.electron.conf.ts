@@ -243,11 +243,14 @@ export const config: WdioElectronConfig = {
   services: ['electron'],
   framework: 'mocha',
   reporters: ['spec'],
-  // #422 regression harness: register a user element-command override BEFORE the
-  // electron service's before() runs (the config `before` precedes it, the
-  // ordering that caused #422). The service must COMPOSE with this rather than
-  // clobber it — asserted in command-override.spec.ts. The passthrough just
-  // flags it ran and chains origClick, so other specs behave identically.
+  // Regression harness for user command-override composition: register a user
+  // element-command override for `click` BEFORE the service's before() runs (the
+  // config `before` precedes it — the ordering that let the service clobber it).
+  // The service must chain this override, not replace it; command-override.spec.ts
+  // asserts the flag. The flag lives on globalThis (shared with the spec in the
+  // same worker process) — an arbitrary WDIO browser property doesn't persist
+  // across every provider. The passthrough chains origClick, so other specs behave
+  // identically.
   before: async () => {
     await browser.overwriteCommand(
       'click',
@@ -256,7 +259,7 @@ export const config: WdioElectronConfig = {
         origClick: (...a: readonly unknown[]) => Promise<unknown>,
         ...args: readonly unknown[]
       ): Promise<unknown> {
-        (browser as unknown as Record<string, unknown>).__userClickOverrideRan = true;
+        (globalThis as unknown as Record<string, unknown>).__userClickOverrideRan = true;
         return origClick(...args);
       } as Parameters<typeof browser.overwriteCommand>[1],
       true,

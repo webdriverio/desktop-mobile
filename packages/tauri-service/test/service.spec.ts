@@ -342,7 +342,7 @@ describe('TauriWorkerService', () => {
       expect(result).toBe('ok');
     });
 
-    it('should chain a user-registered override instead of clobbering it (#422)', async () => {
+    it('should chain a user-registered override instead of clobbering it', async () => {
       const order: string[] = [];
       // A user's own overwriteCommand('click', ...), as WDIO stores it.
       const userOverride = vi.fn(async function (

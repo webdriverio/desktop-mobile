@@ -288,7 +288,7 @@ describe('Electron Worker Service', () => {
       expect(original).toHaveBeenCalled();
     });
 
-    it('should chain a user-registered override instead of clobbering it (#422)', async () => {
+    it('should chain a user-registered override instead of clobbering it', async () => {
       const order: string[] = [];
       // A user's own overwriteCommand('click', ...), as WDIO stores it.
       const userOverride = vi.fn(async function (
@@ -326,7 +326,7 @@ describe('Electron Worker Service', () => {
       await overrideFn?.call({} as unknown as WebdriverIO.Element, original);
 
       // User's override stays the outer wrapper; its origClick ran the original
-      // command AND drove the scheduler mock sync (#422).
+      // command AND drove the scheduler mock sync.
       expect(userOverride).toHaveBeenCalledOnce();
       expect(original).toHaveBeenCalled();
       expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);

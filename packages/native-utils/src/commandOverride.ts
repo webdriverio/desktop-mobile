@@ -24,7 +24,7 @@ type ElementOverrideFn = (
  * WebdriverIO keys element-scoped overrides by command name and they do not
  * stack — the last `overwriteCommand(name, fn, true)` wins. A service's
  * `before()` runs after the user's, so naively registering here discards the
- * user's `overwriteCommand('click', ...)` (webdriverio/desktop-mobile#422).
+ * user's own `overwriteCommand('click', ...)`.
  *
  * Instead we capture any override the user already registered and chain it: the
  * user stays the OUTER wrapper, and the `originalCommand` we hand them runs the
@@ -59,8 +59,8 @@ export function installMockSyncOverride(
 
   // WebdriverIO always initializes this map (to `{}` even with no overrides), so
   // its absence on a single session means the internal shape changed — which
-  // would silently send us back to clobbering user overrides (#422). Surface it
-  // once rather than degrade in silence. Multiremote roots don't carry the map,
+  // would silently send us back to clobbering user overrides. Surface it once
+  // rather than degrade in silence. Multiremote roots don't carry the map,
   // so don't false-alarm on them.
   if (
     !elementOverrides &&
