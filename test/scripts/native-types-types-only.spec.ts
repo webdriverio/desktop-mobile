@@ -1,5 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import ts from 'typescript';
 import { describe, expect, it } from 'vitest';
 
 // Soundness guard for scripts/detect-changes.ts: it classifies `native-types` as a TYPES_ONLY
@@ -12,27 +13,42 @@ import { describe, expect, it } from 'vitest';
 const SRC = new URL('../../packages/native-types/src', import.meta.url).pathname;
 const ALLOWED_RUNTIME_EXPORTS = new Set(['__nativeTypesVersion']);
 
-/** Lines that introduce a runtime (non-erased) binding — everything `export type`/`interface` is erased. */
-function runtimeExportLines(source: string): string[] {
-  const offenders: string[] = [];
-  for (const raw of source.split('\n')) {
-    const line = raw.trim();
-    if (!line.startsWith('export ') && line !== 'export{') continue;
-    if (/^export\s+(type|interface)\b/.test(line)) continue; // `export type …`, `export type { … }`, `export interface …`
-    const named = line.match(/^export\s+(?:default\s+)?(?:async\s+)?(?:const|let|var|function|class|enum)\s+([\w$]+)/);
-    if (named && ALLOWED_RUNTIME_EXPORTS.has(named[1])) continue; // allowlisted inert constant
-    offenders.push(line);
+/**
+ * Transpile a TS source to JS and report the names it still runtime-exports. Using the real
+ * compiler erases every type-only construct exactly — `export type { … }`, the inline
+ * `export { type X }` form, `interface`, `declare global`, type aliases — so only genuine runtime
+ * bindings survive. Far more robust than scanning TS source with regexes.
+ */
+function runtimeExports(source: string): string[] {
+  const js = ts.transpileModule(source, {
+    compilerOptions: { module: ts.ModuleKind.ESNext, target: ts.ScriptTarget.ESNext, isolatedModules: true },
+  }).outputText;
+  const names: string[] = [];
+  for (const m of js.matchAll(/\bexport\s+(?:default\s+)?(?:async\s+)?(?:const|let|var|function|class)\s+([\w$]+)/g)) {
+    names.push(m[1]);
   }
-  return offenders;
+  for (const m of js.matchAll(/\bexport\s*\{([^}]*)\}/g)) {
+    for (const spec of m[1].split(',')) {
+      // exported identifier is the part after `as` (or the bare name when there's no alias)
+      const name = spec
+        .trim()
+        .split(/\s+as\s+/)
+        .pop()
+        ?.trim();
+      if (name) names.push(name);
+    }
+  }
+  if (/\bexport\s+default\b/.test(js)) names.push('default');
+  return names;
 }
 
 describe('native-types stays types-only (detect-changes soundness guard)', () => {
   it('should export no runtime values beyond the allowlisted version constant', () => {
     const offenders: string[] = [];
     for (const file of readdirSync(SRC)) {
-      if (!file.endsWith('.ts')) continue;
-      for (const line of runtimeExportLines(readFileSync(join(SRC, file), 'utf8'))) {
-        offenders.push(`${file}: ${line}`);
+      if (!/\.[cm]?tsx?$/.test(file)) continue; // .ts / .tsx / .mts / .cts
+      for (const name of runtimeExports(readFileSync(join(SRC, file), 'utf8'))) {
+        if (!ALLOWED_RUNTIME_EXPORTS.has(name)) offenders.push(`${file}: ${name}`);
       }
     }
     expect(offenders).toEqual([]);
@@ -40,6 +56,6 @@ describe('native-types stays types-only (detect-changes soundness guard)', () =>
 
   it('should still export the version constant the allowlist expects (keeps the guard honest)', () => {
     const index = readFileSync(join(SRC, 'index.ts'), 'utf8');
-    expect(index).toMatch(/export\s+const\s+__nativeTypesVersion\b/);
+    expect(runtimeExports(index)).toContain('__nativeTypesVersion');
   });
 });
