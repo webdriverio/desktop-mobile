@@ -36,18 +36,20 @@ Native find/tap needs the Appium Flutter driver:
 appium driver install --source=npm appium-flutter-driver
 ```
 
-> **`execute` / `mock` prerequisite — pin the VM Service port.** These connect to the Dart VM
-> Service, which the driver discovers by scraping the device log — a path that isn't exposed to
-> the service. Instead, **set `appium:dartVmServicePort`** (a fixed port) so the driver binds the VM
-> Service to it with auth codes disabled, giving a deterministic `ws://localhost:<port>/ws` the
-> service connects to directly.
+> **`execute` / `mock` and the VM Service port — now zero-config.** These connect to the Dart VM
+> Service on a fixed port (bound with auth codes disabled, giving a deterministic
+> `ws://localhost:<port>/ws`). The launcher **auto-allocates a free `appium:dartVmServicePort` per
+> worker**, so you no longer need to set it by hand — pin it yourself only to override. Without it,
+> find/tap/deeplink/contexts still work; only `execute`/`mock` use it.
 >
-> On **iOS** the published `appium-flutter-driver` (≥ 3.7.1) already pins the port via
-> `processArguments`. On **Android** the equivalent (a `vm-service-port` launch-intent extra) lives
-> in a [fork](https://github.com/goosewobbler/appium-flutter-driver) pending an upstream PR — until
-> it lands, Android `execute`/`mock` need that fork (to be published as
-> `@goosewobbler/appium-flutter-driver`: `appium driver install --source=npm @goosewobbler/appium-flutter-driver`).
-> Without the pin, find/tap/deeplink/contexts still work — only `execute`/`mock` need it.
+> On **iOS** the published `appium-flutter-driver` (≥ 3.7.1) honours the port via `processArguments`.
+> On **Android** the equivalent (a `vm-service-port` launch-intent extra + the `flutter:getVMServiceUrl`
+> command) lives in a [fork](https://github.com/goosewobbler/appium-flutter-driver) pending an upstream
+> PR to `appium/appium-flutter-driver` (the iOS half merged as
+> [#870](https://github.com/appium/appium-flutter-driver/pull/870)) — until it lands, Android
+> `execute`/`mock` need that fork. The preflight doctor warns if the installed driver lacks
+> `getVMServiceUrl`. Set `autoInstallDriver: true` to let the launcher install the `flutter` driver
+> for you, and `doctor: { strict: true }` to fail fast on a missing toolchain.
 
 ## Quick start
 
@@ -155,12 +157,60 @@ interface FlutterServiceOptions {
   // Log capture
   captureBackendLogs?: boolean; // forward logcat (Android) / syslog (iOS) to the WDIO output
 
+  // Setup automation (see "Zero-config setup automation" below)
+  autoInstallDriver?: boolean;  // install the flutter Appium driver if missing (default: false)
+  doctor?: boolean | { strict?: boolean }; // preflight checks (default: true; { strict: true } aborts on error)
+
   // Mock lifecycle (run before each test)
   clearMocks?: boolean;         // clear mock call history
   resetMocks?: boolean;         // clear value + call history
   restoreMocks?: boolean;       // remove the mock entirely
 }
 ```
+
+## Zero-config setup automation
+
+Like `@wdio/electron-service` (which auto-manages chromedriver), the service drives as much
+of the Appium setup as is feasible. Everything here is **opt-in and apply-if-unset** — an
+explicit capability or option you set always wins.
+
+### Auto VM-Service port
+
+The launcher **auto-allocates a free `appium:dartVmServicePort` per worker** (see the note
+under [Installation](#installation)), so `execute`/`mock` are zero-config — no manual port,
+no log scrape. Pin `vmServicePort` only to override.
+
+### `autoInstallDriver` — install the Appium driver
+
+`autoInstallDriver: true` installs the `flutter` Appium driver (appium-flutter-driver) if
+it isn't already present, at a version known-good for your Appium **server major** (from a
+maintained matrix). It's **idempotent** and **off by default** (CI usually manages drivers
+explicitly). Note it installs the **stock** driver — on Android, `execute`/`mock` still need
+the goosewobbler fork until it's upstreamed (see [Installation](#installation)); the doctor
+warns when the fork is absent.
+
+### `doctor` — preflight checks
+
+`doctor` runs fail-fast preflight validation in `onPrepare` so a misconfiguration surfaces
+as a clear message instead of a cryptic Appium timeout:
+
+| `doctor` | Behaviour |
+|---|---|
+| `false` | Skip all checks. |
+| `true` *(default)*, or omitted | Run the checks; log actionable warnings; never abort. |
+| `{ strict: true }` | Run the checks; abort the run (`SevereServiceError`) on any error-level check. |
+
+For Flutter it checks: `@wdio/appium-service` is in `services`, `flutter` is on PATH, the
+installed `appium-flutter-driver` carries `getVMServiceUrl` (Android only), and (iOS) the
+Xcode toolchain is warm.
+
+### iOS launch caps — auto-applied
+
+On iOS the service fills in launch caps you didn't set (each only if absent): a generous
+`appium:wdaLaunchTimeout` / `appium:simulatorStartupTimeout`, `appium:isHeadless` under CI,
+and — when you give `appium:deviceName` but no `appium:udid` — it resolves the exact
+simulator UDID (preferring the newest runtime) to avoid booting a duplicate-named device.
+On Android it sets `appium:autoGrantPermissions`. Set any of these yourself to override.
 
 ## API (`browser.flutter.*`)
 

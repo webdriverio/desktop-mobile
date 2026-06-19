@@ -6,11 +6,12 @@
 // `MobileBaseLauncher`; this subclass supplies the one per-framework seam —
 // Flutter's automation name — via `mutateCapability`.
 
-import { MobileBaseLauncher } from '@wdio/native-mobile-core';
+import { type DoctorCheck, MobileBaseLauncher } from '@wdio/native-mobile-core';
 import type { Options } from '@wdio/types';
 
 import { prepareFlutterCapability } from './capabilities.js';
 import { CUSTOM_CAPABILITY_NAME, SERVICE_NAME } from './constants.js';
+import { flutterDoctorChecks } from './diagnostics.js';
 import type { FlutterCapabilities, FlutterServiceGlobalOptions } from './types.js';
 
 export default class FlutterLaunchService extends MobileBaseLauncher<FlutterServiceGlobalOptions, FlutterCapabilities> {
@@ -32,5 +33,9 @@ export default class FlutterLaunchService extends MobileBaseLauncher<FlutterServ
   // reads appium:dartVmServicePort as the discovery fast-path, skipping the log scrape).
   protected portCapKey(): string | undefined {
     return 'appium:dartVmServicePort';
+  }
+
+  protected doctorChecks(config: Options.Testrunner, platforms: Set<'android' | 'ios'>): DoctorCheck[] {
+    return [...super.doctorChecks(config, platforms), ...flutterDoctorChecks(platforms)];
   }
 }
