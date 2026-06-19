@@ -9,7 +9,7 @@ import { mockAll } from '../src/commands/mockAll.js';
 import { resetAllMocks } from '../src/commands/resetAllMocks.js';
 import { restoreAllMocks } from '../src/commands/restoreAllMocks.js';
 import mockStore from '../src/mockStore.js';
-import ElectronWorkerService from '../src/service.js';
+import ElectronWorkerService, { browserModeStoreKey } from '../src/service.js';
 import { clearPuppeteerSessions, ensureActiveWindowFocus } from '../src/window.js';
 import { mockProcessProperty } from './helpers.js';
 
@@ -263,8 +263,11 @@ describe('Electron Worker Service', () => {
       await instance.before({}, [], browser);
 
       const storeModule = (await import('../src/mockStore.js')) as any;
-      const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
-      storeModule.default.getMocks.mockReturnValueOnce([['id', mockObj]]);
+      const mockObj = {
+        __accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+        __applyCalls: vi.fn(),
+      };
+      storeModule.default.getMocks.mockReturnValueOnce([['electron.app.getName', mockObj]]);
 
       const oc = vi.mocked((browser as any).overwriteCommand);
       const clickCall = oc.mock.calls.find((c: unknown[]) => c[0] === 'click');
@@ -278,8 +281,232 @@ describe('Electron Worker Service', () => {
       const original = vi.fn().mockResolvedValue('ok');
       await overrideFn?.call({} as unknown as WebdriverIO.Element, original);
 
-      expect(mockObj.update).toHaveBeenCalledTimes(1);
+      // Batched scheduler hands the read-back call data to __applyCalls; this
+      // proves the override still drives mock sync after the per-mock update()
+      // path was retired.
+      expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
       expect(original).toHaveBeenCalled();
+    });
+
+    it('should batch updates for ≥2 mocks into a single browser.electron.execute call', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const executeMock = vi.mocked(await import('../src/commands/executeCdp.js')).execute;
+      executeMock.mockClear();
+      executeMock.mockResolvedValue({});
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockA = {
+        __accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+        __applyCalls: vi.fn(),
+      };
+      const mockB = {
+        __accessor: { kind: 'prototype', className: 'Tray', methodName: 'setImage' },
+        __applyCalls: vi.fn(),
+      };
+      const mockC = {
+        __accessor: { kind: 'constructor', className: 'Tray' },
+        __applyCalls: vi.fn(),
+      };
+      storeModule.default.getMocks.mockReturnValueOnce([
+        ['electron.app.getName', mockA],
+        ['electron.Tray.setImage', mockB],
+        ['electron.Tray.__constructor', mockC],
+      ]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+
+      // Acceptance criteria: one CDP round-trip regardless of mock count.
+      expect(executeMock).toHaveBeenCalledTimes(1);
+      // Every registered mock still receives its slice via __applyCalls.
+      expect(mockA.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockB.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockC.__applyCalls).toHaveBeenCalledTimes(1);
+    });
+
+    it('should isolate per-reader failures in the browser-mode batch', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const keyA = browserModeStoreKey(browser, 'ipc-a');
+      const keyB = browserModeStoreKey(browser, 'ipc-b');
+      const mockA = {
+        __accessor: { kind: 'browser', channel: 'ipc-a' },
+        __applyCalls: vi.fn(),
+      };
+      const mockB = {
+        __accessor: { kind: 'browser', channel: 'ipc-b' },
+        __applyCalls: vi.fn(),
+      };
+
+      // Simulate the inner wrapper's per-reader try/catch: ipc-a returns real
+      // data while ipc-b's reader threw. The healthy mock should still apply
+      // its slice, and the failing one should still receive a slice (empty +
+      // __error stripped by parseCallData) so the scheduler doesn't stall.
+      const browserExecute = browser.execute as unknown as ReturnType<typeof vi.fn>;
+      browserExecute.mockReset();
+      browserExecute.mockResolvedValue({
+        [keyA]: { calls: [['x']], results: [{ type: 'return', value: undefined }], invocationCallOrder: [1] },
+        [keyB]: { calls: [], results: [], invocationCallOrder: [], __error: 'reader threw' },
+      });
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      storeModule.default.getMocks.mockReturnValueOnce([
+        [keyA, mockA],
+        [keyB, mockB],
+      ]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      await overrideFn.call({} as unknown as WebdriverIO.Element, vi.fn().mockResolvedValue('ok'));
+
+      // Healthy mock still receives its data — one bad reader doesn't tank the batch.
+      expect(mockA.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockA.__applyCalls.mock.calls[0][0]).toMatchObject({ calls: [['x']] });
+      // Failing mock still gets a call (with empty calls from parseCallData) so the
+      // scheduler completes cleanly.
+      expect(mockB.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockB.__applyCalls.mock.calls[0][0]).toMatchObject({ calls: [] });
+    });
+
+    it('should propagate per-mock __error markers from native batch to __applyCalls', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const executeMock = vi.mocked(await import('../src/commands/executeCdp.js')).execute;
+      executeMock.mockClear();
+      // Simulate the inner script catching a per-mock failure and emitting
+      // an __error marker. The outer code log.warns it and still forwards the
+      // slice to __applyCalls so the scheduler doesn't stall — empty calls
+      // reaching the outer mock are the observable signal that the read failed.
+      executeMock.mockResolvedValue({
+        'electron.app.getName': { calls: [], results: [], __error: 'boom: app undefined' },
+      });
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockObj = {
+        __accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+        __applyCalls: vi.fn(),
+      };
+      storeModule.default.getMocks.mockReturnValueOnce([['electron.app.getName', mockObj]]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      await overrideFn.call({} as unknown as WebdriverIO.Element, vi.fn().mockResolvedValue('ok'));
+
+      expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockObj.__applyCalls).toHaveBeenCalledWith(
+        expect.objectContaining({ calls: [], __error: 'boom: app undefined' }),
+      );
+    });
+
+    it('should batch updates for ≥2 browser-mode mocks into a single browser.execute call', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const keyA = browserModeStoreKey(browser, 'ipc-a');
+      const keyB = browserModeStoreKey(browser, 'ipc-b');
+      const mockA = {
+        __accessor: { kind: 'browser', channel: 'ipc-a' },
+        __applyCalls: vi.fn(),
+      };
+      const mockB = {
+        __accessor: { kind: 'browser', channel: 'ipc-b' },
+        __applyCalls: vi.fn(),
+      };
+
+      // browser.execute is the transport for browser-mode batch reads. The
+      // default `(fn) => fn()` impl from beforeEach would try to invoke our
+      // return-script string as a function — swap in a resolver that yields a
+      // parseable {[mockStoreKey]: {calls, results, invocationCallOrder}} map.
+      const browserExecute = browser.execute as unknown as ReturnType<typeof vi.fn>;
+      browserExecute.mockReset();
+      browserExecute.mockResolvedValue({
+        [keyA]: { calls: [['x']], results: [{ type: 'return', value: undefined }], invocationCallOrder: [1] },
+        [keyB]: { calls: [['y']], results: [{ type: 'return', value: undefined }], invocationCallOrder: [2] },
+      });
+      storeModule.default.getMocks.mockReturnValueOnce([
+        [keyA, mockA],
+        [keyB, mockB],
+      ]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+
+      expect(browserExecute).toHaveBeenCalledTimes(1);
+      expect(mockA.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(mockB.__applyCalls).toHaveBeenCalledTimes(1);
+      // parseCallData should have round-tripped the calls payload intact.
+      expect(mockA.__applyCalls.mock.calls[0][0]).toMatchObject({ calls: [['x']] });
+      expect(mockB.__applyCalls.mock.calls[0][0]).toMatchObject({ calls: [['y']] });
+    });
+
+    it('should split native and browser-mode mocks across exactly two round-trips', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const executeMock = vi.mocked(await import('../src/commands/executeCdp.js')).execute;
+      executeMock.mockClear();
+      executeMock.mockResolvedValue({});
+
+      const browserExecute = browser.execute as unknown as ReturnType<typeof vi.fn>;
+      browserExecute.mockReset();
+      browserExecute.mockResolvedValue({});
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const nativeMock = {
+        __accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+        __applyCalls: vi.fn(),
+      };
+      const browserMock = {
+        __accessor: { kind: 'browser', channel: 'ipc-x' },
+        __applyCalls: vi.fn(),
+      };
+      storeModule.default.getMocks.mockReturnValueOnce([
+        ['electron.app.getName', nativeMock],
+        [browserModeStoreKey(browser, 'ipc-x'), browserMock],
+      ]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+
+      // Mixed registration: one CDP call for native, one renderer call for browser-mode.
+      expect(executeMock).toHaveBeenCalledTimes(1);
+      expect(browserExecute).toHaveBeenCalledTimes(1);
+      expect(nativeMock.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(browserMock.__applyCalls).toHaveBeenCalledTimes(1);
     });
 
     it('should run two scheduler batches when two overrides fire concurrently', async () => {

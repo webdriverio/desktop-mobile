@@ -5,6 +5,8 @@ import type {
   BrowserExtension,
   ElectronFunctionMock,
   ElectronInterface,
+  ElectronMock,
+  ElectronMockReadAccessor,
   ElectronServiceGlobalOptions,
   ElectronType,
   ExecuteOpts,
@@ -111,18 +113,192 @@ class MockUpdateScheduler {
     log.debug(`Found ${mocks.length} mocks to update`);
     if (mocks.length === 0) return;
 
+    // Split mocks by accessor kind so we can route each subset through the
+    // right transport in exactly one round-trip: native mocks ride
+    // browser.electron.execute() over CDP, browser-mode mocks ride a plain
+    // browser.execute() against window.__wdio_mocks__. Mocks without an
+    // accessor (legacy test doubles) fall back to per-mock update().
+    const native: Array<[string, ElectronMock]> = [];
+    const browserMode: Array<[string, ElectronMock]> = [];
+    const legacy: Array<[string, ElectronMock]> = [];
+    for (const entry of mocks) {
+      const [, m] = entry;
+      const acc = (m as { __accessor?: ElectronMockReadAccessor }).__accessor;
+      if (acc?.kind === 'browser') {
+        browserMode.push(entry);
+      } else if (acc && typeof (m as { __applyCalls?: unknown }).__applyCalls === 'function') {
+        native.push(entry);
+      } else {
+        legacy.push(entry);
+      }
+    }
+
     try {
-      await Promise.all(
-        mocks.map(async ([mockId, mock]) => {
-          log.debug(`Updating mock: ${mockId}`);
-          await mock.update();
-          log.debug(`Mock update completed: ${mockId}`);
+      await Promise.all([
+        batchUpdateNativeMocks(this.#browser, native),
+        batchUpdateBrowserModeMocks(this.#browser, browserMode),
+        ...legacy.map(async ([mockId, m]) => {
+          log.debug(`Updating legacy mock (no accessor): ${mockId}`);
+          await m.update?.();
         }),
-      );
+      ]);
       log.debug('All mock updates completed successfully');
     } catch (error) {
       log.warn('Mock update batch failed:', error);
     }
+  }
+}
+
+/**
+ * Walk every registered native mock through a single browser.electron.execute()
+ * round-trip. The inner script discriminates by accessor kind (api / prototype /
+ * constructor), returns a map keyed by mockId, and each mock applies its own
+ * slice locally via __applyCalls (no further I/O).
+ */
+async function batchUpdateNativeMocks(
+  browser: WebdriverIO.Browser,
+  entries: Array<[string, ElectronMock]>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const items: Array<[string, ElectronMockReadAccessor]> = entries.map(([id, m]) => [
+    id,
+    (m as { __accessor: ElectronMockReadAccessor }).__accessor,
+  ]);
+
+  type NativeSlice = {
+    calls: unknown[][];
+    results: Array<{ type: string; value: unknown }>;
+    __error?: string;
+  };
+
+  const data =
+    (await browser.electron.execute<
+      Record<string, NativeSlice>,
+      [Array<[string, ElectronMockReadAccessor]>, ExecuteOpts]
+    >(
+      (electron, items) => {
+        const out: Record<string, NativeSlice> = {};
+        for (const item of items) {
+          const id = item[0];
+          const acc = item[1];
+          try {
+            let target:
+              | { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }
+              | undefined;
+            if (acc.kind === 'api') {
+              const api = electron[acc.apiName as keyof typeof electron] as unknown as
+                | Record<string, { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }>
+                | undefined;
+              target = api?.[acc.funcName];
+            } else if (acc.kind === 'prototype') {
+              const cls = electron[acc.className as keyof typeof electron] as unknown as
+                | {
+                    prototype?: Record<
+                      string,
+                      { mock?: { calls?: unknown[][]; results?: Array<{ type: string; value: unknown }> } }
+                    >;
+                  }
+                | undefined;
+              target = cls?.prototype?.[acc.methodName];
+            } else if (acc.kind === 'constructor') {
+              target = electron[acc.className as keyof typeof electron] as unknown as typeof target;
+            }
+            if (target?.mock) {
+              out[id] = {
+                calls: target.mock.calls ? JSON.parse(JSON.stringify(target.mock.calls)) : [],
+                results: target.mock.results ? JSON.parse(JSON.stringify(target.mock.results)) : [],
+              };
+            } else {
+              out[id] = { calls: [], results: [] };
+            }
+          } catch (e) {
+            // Surface the error to the WDIO worker — empty calls would
+            // otherwise let assertions pass vacuously.
+            out[id] = { calls: [], results: [], __error: e instanceof Error ? e.message : String(e) };
+          }
+        }
+        return out;
+      },
+      items,
+      { internal: true },
+    )) ?? {};
+
+  for (const [id, m] of entries) {
+    const slice = data[id] ?? { calls: [], results: [] };
+    if (slice.__error) {
+      log.warn(`Native batch read failed for mock "${id}": ${slice.__error}`);
+    }
+    (
+      m as { __applyCalls?: (d: { calls: unknown[][]; results?: Array<{ type: string; value: unknown }> }) => void }
+    ).__applyCalls?.(slice);
+  }
+}
+
+/**
+ * Walk every registered browser-mode mock through a single browser.execute()
+ * round-trip against window.__wdio_mocks__. Each channel's read script is
+ * built by the interceptor (same serialisation contract as per-mock update()),
+ * then the batch wrapper invokes them inside one round-trip. Ids and scripts
+ * are passed as WebDriver args so null-byte mockStore keys don't ride a
+ * source-string boundary. Raw payloads run through parseCallData() per mock
+ * to reconstruct Error markers, then go to __applyCalls.
+ */
+async function batchUpdateBrowserModeMocks(
+  browser: WebdriverIO.Browser,
+  entries: Array<[string, ElectronMock]>,
+): Promise<void> {
+  if (entries.length === 0) return;
+  const ids = entries.map(([id]) => id);
+  const channels = entries.map(([, m]) => {
+    const acc = (m as { __accessor: ElectronMockReadAccessor }).__accessor;
+    return acc.kind === 'browser' ? acc.channel : '';
+  });
+  // One script per channel — same source the per-mock update() path uses, so
+  // both paths share a single Error-serialisation contract.
+  const perChannelScripts = channels.map((ch) => browserInterceptor.buildCallDataReadScript(ch));
+
+  const raw = (await browser.execute(
+    (innerIds: string[], innerScripts: string[]) => {
+      const out: Record<string, unknown> = {};
+      for (let i = 0; i < innerScripts.length; i++) {
+        try {
+          // biome-ignore lint/security/noGlobalEval: interceptor-built script wrapper
+          const reader = new Function(`return (${innerScripts[i]});`)() as (...a: unknown[]) => unknown;
+          out[innerIds[i]] = reader();
+        } catch (e) {
+          // Isolate per-reader failures so one bad channel doesn't tank the
+          // whole batch — mirrors batchUpdateNativeMocks. The outer loop
+          // surfaces __error via log.warn before forwarding to __applyCalls.
+          out[innerIds[i]] = {
+            calls: [],
+            results: [],
+            invocationCallOrder: [],
+            __error: e instanceof Error ? e.message : String(e),
+          };
+        }
+      }
+      return out;
+    },
+    ids,
+    perChannelScripts,
+  )) as Record<string, unknown> | null;
+  const data = raw && typeof raw === 'object' ? raw : {};
+
+  for (const [id, m] of entries) {
+    const slice = data[id] as { __error?: string } | undefined;
+    if (slice?.__error) {
+      log.warn(`Browser-mode batch read failed for mock "${id}": ${slice.__error}`);
+    }
+    const parsed = browserInterceptor.parseCallData(slice ?? null);
+    (
+      m as {
+        __applyCalls?: (d: {
+          calls: unknown[][];
+          results?: Array<{ type: string; value: unknown }>;
+          invocationCallOrder?: number[];
+        }) => void;
+      }
+    ).__applyCalls?.(parsed);
   }
 }
 

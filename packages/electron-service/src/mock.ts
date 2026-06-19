@@ -9,7 +9,7 @@ import type {
   ExecuteOpts,
 } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
-import { buildMockMethods } from './mockFactory.js';
+import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 
 const log = createLogger('electron-service', 'mock');
 const browserInterceptor = createIpcInterceptor('electron');
@@ -109,6 +109,27 @@ export async function createMock(
     { internal: true },
   );
 
+  // Local diff-and-apply used by both the batched scheduler and mock.update().
+  // No I/O — safe to call synchronously with already-fetched call data.
+  const applyCalls = (data: MockApplyData) => {
+    const calls = data.calls ?? [];
+    // Load-bearing for diagnosing mock-sync races: shows inner/outer call counts
+    // at the moment new calls are applied so empty-mock.calls assertions can be traced.
+    if (originalMock.calls.length < calls.length) {
+      log.debug(
+        `[${apiName}.${funcName}] applying ${calls.length - originalMock.calls.length} new calls (inner=${calls.length}, outer=${originalMock.calls.length})`,
+      );
+      calls.forEach((call: unknown[], index: number) => {
+        if (!originalMock.calls[index]) {
+          mock?.apply(mock, call);
+        }
+      });
+    }
+  };
+
+  mock.__accessor = { kind: 'api', apiName, funcName } satisfies MockReadAccessor;
+  mock.__applyCalls = applyCalls;
+
   mock.update = async () => {
     const calls =
       (await browserToUse.electron.execute<unknown[][], [string, string, ExecuteOpts]>(
@@ -123,18 +144,7 @@ export async function createMock(
         { internal: true },
       )) ?? [];
 
-    // Load-bearing for diagnosing mock-sync races: shows inner/outer call counts
-    // at the moment update() runs so empty-mock.calls assertions can be traced.
-    if (originalMock.calls.length < calls.length) {
-      log.debug(
-        `[${apiName}.${funcName}] mock.update: applying ${calls.length - originalMock.calls.length} new calls (inner=${calls.length}, outer=${originalMock.calls.length})`,
-      );
-      calls.forEach((call: unknown[], index: number) => {
-        if (!originalMock.calls[index]) {
-          mock?.apply(mock, call);
-        }
-      });
-    }
+    applyCalls({ calls });
 
     return mock;
   };
@@ -169,6 +179,8 @@ export async function createMock(
   wrapperMock.update = mock.update.bind(mock);
 
   wrapperMock.__isElectronMock = true;
+  wrapperMock.__accessor = mock.__accessor;
+  wrapperMock.__applyCalls = mock.__applyCalls.bind(mock);
 
   return wrapperMock;
 }
@@ -205,22 +217,31 @@ export async function createElectronBrowserModeMock(
 
   await runInterceptorScript<void>(browser, browserInterceptor.buildRegistrationScript(channel));
 
-  mock.update = async () => {
-    const raw = await runInterceptorScript<unknown>(browser, browserInterceptor.buildCallDataReadScript(channel));
-    const syncData = browserInterceptor.parseCallData(raw);
-
+  const applyCalls = (data: MockApplyData) => {
+    const calls = data.calls ?? [];
+    const results = data.results ?? [];
+    const invocationCallOrder = data.invocationCallOrder ?? [];
     (originalMock.calls as unknown[][]).length = 0;
     (originalMock.results as { type: string; value: unknown }[]).length = 0;
     (originalMock.invocationCallOrder as number[]).length = 0;
-    for (let i = 0; i < syncData.calls.length; i++) {
-      (originalMock.calls as unknown[][]).push(syncData.calls[i]);
+    for (let i = 0; i < calls.length; i++) {
+      (originalMock.calls as unknown[][]).push(calls[i]);
       (originalMock.results as { type: string; value: unknown }[]).push(
-        syncData.results[i] ?? { type: 'return', value: undefined },
+        results[i] ?? { type: 'return', value: undefined },
       );
       (originalMock.invocationCallOrder as number[]).push(
-        syncData.invocationCallOrder[i] ?? originalMock.invocationCallOrder.length,
+        invocationCallOrder[i] ?? originalMock.invocationCallOrder.length,
       );
     }
+  };
+
+  mock.__accessor = { kind: 'browser', channel } satisfies MockReadAccessor;
+  mock.__applyCalls = applyCalls;
+
+  mock.update = async () => {
+    const raw = await runInterceptorScript<unknown>(browser, browserInterceptor.buildCallDataReadScript(channel));
+    const syncData = browserInterceptor.parseCallData(raw);
+    applyCalls(syncData);
     return mock;
   };
 
