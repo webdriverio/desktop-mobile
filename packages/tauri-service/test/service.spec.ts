@@ -302,21 +302,19 @@ describe('TauriWorkerService', () => {
       await expect(service.before({} as any, [], mockBrowser)).resolves.not.toThrow();
     });
 
-    it('should not register element command overrides (preserves user overrides)', async () => {
+    it('should install command overrides after initialization', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
 
       await service.before({} as any, [], mockBrowser);
 
-      // Element-scoped overrides are keyed by command name and do not chain, so
-      // registering these would clobber a user's overwriteCommand('click', ...).
-      expect(mockBrowser.overwriteCommand).not.toHaveBeenCalledWith('click', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).not.toHaveBeenCalledWith('doubleClick', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).not.toHaveBeenCalledWith('setValue', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).not.toHaveBeenCalledWith('clearValue', expect.any(Function), true);
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('click', expect.any(Function), true);
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('doubleClick', expect.any(Function), true);
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('setValue', expect.any(Function), true);
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('clearValue', expect.any(Function), true);
     });
 
-    it('should update mocks via afterCommand for DOM-mutating commands', async () => {
+    it('should run the original command then sync mocks in the override body', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       await service.before({} as any, [], mockBrowser);
@@ -324,26 +322,24 @@ describe('TauriWorkerService', () => {
       const mockUpdate = vi.fn().mockResolvedValue(undefined);
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
 
-      for (const command of ['click', 'doubleClick', 'setValue', 'clearValue']) {
-        mockUpdate.mockClear();
-        await service.afterCommand(command, [], undefined, undefined);
-        expect(mockUpdate).toHaveBeenCalledOnce();
-      }
-    });
+      // Capture the override WDIO registered for 'click' and invoke it the way
+      // WDIO would (override(originalCommand, ...args)). This guards the override
+      // *body* — not just that it was registered — so dropping updateAllMocks()
+      // would fail here.
+      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
+      expect(clickCall).toBeDefined();
+      const override = clickCall![1] as unknown as (
+        this: unknown,
+        originalCommand: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
 
-    it('should not update mocks via afterCommand for unrelated commands or on error', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
+      const originalCommand = vi.fn().mockResolvedValue('ok');
+      const result = await override.call({}, originalCommand);
 
-      const mockUpdate = vi.fn().mockResolvedValue(undefined);
-      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
-
-      await service.afterCommand('getText', [], 'text', undefined);
-      expect(mockUpdate).not.toHaveBeenCalled();
-
-      await service.afterCommand('click', [], undefined, new Error('click failed'));
-      expect(mockUpdate).not.toHaveBeenCalled();
+      expect(originalCommand).toHaveBeenCalledOnce();
+      expect(mockUpdate).toHaveBeenCalledOnce();
+      expect(result).toBe('ok');
     });
 
     it('should clear stale mocks at session start for embedded driver provider', async () => {
