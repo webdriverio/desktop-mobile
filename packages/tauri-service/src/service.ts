@@ -23,12 +23,11 @@ const log = createLogger('tauri-service', 'service');
 const EXECUTE_PATCHED = Symbol('wdio-tauri-execute-patched');
 const browserInterceptor = createIpcInterceptor('tauri');
 
-/** Element commands whose completion should re-sync mocks from the app context. */
-const MOCK_UPDATE_COMMANDS = new Set<string>(['click', 'doubleClick', 'setValue', 'clearValue']);
-
 /**
  * Tauri worker service
  */
+type ElementCommands = 'click' | 'doubleClick' | 'setValue' | 'clearValue';
+
 export default class TauriWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private clearMocks: boolean;
@@ -195,6 +194,9 @@ export default class TauriWorkerService {
         }
       }
 
+      // Install command overrides to trigger mock updates after DOM interactions
+      stage = 'installCommandOverrides';
+      this.installCommandOverrides();
       log.info('before() complete');
     } catch (error) {
       log.error(
@@ -231,20 +233,6 @@ export default class TauriWorkerService {
     } catch (error) {
       log.warn('Failed to ensure window focus before command:', error);
     }
-  }
-
-  /**
-   * Re-sync mocks after element commands that mutate the DOM. Implemented as an
-   * afterCommand hook rather than browser.overwriteCommand: element-scoped
-   * overrides are keyed by command name and do not chain, so re-registering
-   * click/setValue/etc. silently clobbered any user-defined override of the same
-   * command. afterCommand leaves the user's command chain untouched.
-   */
-  async afterCommand(commandName: string, _args: unknown[], _result: unknown, error?: Error): Promise<void> {
-    if (error || !MOCK_UPDATE_COMMANDS.has(commandName)) {
-      return;
-    }
-    await updateAllMocks();
   }
 
   async afterTest(_test: unknown, _context: unknown, _results: unknown): Promise<void> {
@@ -361,6 +349,7 @@ export default class TauriWorkerService {
     }
     this.addTauriApi(browser, true);
     this.patchBrowserUrl(browser, injectionScript);
+    this.installCommandOverrides();
     log.debug('Browser-only mode initialized');
   }
 
@@ -538,6 +527,38 @@ export default class TauriWorkerService {
         await updateAllMocks();
       },
     };
+  }
+
+  /**
+   * Install command overrides to trigger mock updates after DOM interactions
+   */
+  private installCommandOverrides() {
+    const commandsToOverride: ElementCommands[] = ['click', 'doubleClick', 'setValue', 'clearValue'];
+    commandsToOverride.forEach((commandName) => {
+      this.overrideElementCommand(commandName);
+    });
+  }
+
+  /**
+   * Override an element-level command to add mock update after execution
+   */
+  private overrideElementCommand(commandName: ElementCommands) {
+    const browser = this.browser as WebdriverIO.Browser;
+    try {
+      const testOverride = async function (
+        this: WebdriverIO.Element,
+        originalCommand: (...args: readonly unknown[]) => Promise<unknown>,
+        ...args: readonly unknown[]
+      ): Promise<unknown> {
+        const result = await Reflect.apply(originalCommand, this, args as unknown[]);
+        await updateAllMocks();
+        return result;
+      } as Parameters<typeof browser.overwriteCommand>[1];
+
+      browser.overwriteCommand(commandName, testOverride, true);
+    } catch (error) {
+      log.warn(`Failed to override element command '${commandName}':`, error);
+    }
   }
 
   /**
