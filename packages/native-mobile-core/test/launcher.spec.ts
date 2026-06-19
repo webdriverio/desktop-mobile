@@ -17,8 +17,8 @@ vi.mock('@wdio/native-core', () => ({
 const ensureSpy = vi.hoisted(() => vi.fn(async () => ({ ok: true, value: { name: 'x', method: 'skipped' as const } })));
 vi.mock('../src/appiumDriverManager.js', () => ({ ensureAppiumDriver: ensureSpy }));
 vi.mock('../src/iosSetup.js', () => ({
-  resolveIosUdid: vi.fn(() => undefined),
-  warmUpXcodeToolchain: vi.fn(() => []),
+  resolveIosUdid: vi.fn(async () => undefined),
+  warmUpXcodeToolchain: vi.fn(async () => []),
 }));
 vi.mock('@wdio/native-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@wdio/native-utils')>();

@@ -6,7 +6,7 @@
 // All macOS-only; every helper is a no-op / empty result off darwin so it's safe to call
 // unconditionally from the shared launcher.
 
-import { execFileSync, spawn } from 'node:child_process';
+import { execFile, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { dirname, join } from 'node:path';
@@ -61,17 +61,30 @@ export function pickIosUdid(simctlJson: string, deviceName: string, platformVers
   return undefined;
 }
 
+/**
+ * Promise wrapper around `execFile('xcrun', …)` — async (not `execFileSync`) so a cold or
+ * stalled toolchain probe can't block the event loop for up to the 30s timeout while the
+ * launcher is preparing other capabilities. Mirrors `prebuildWda`'s spawn-based style.
+ */
+function runXcrun(args: string[], timeoutMs = 30000): Promise<string> {
+  return new Promise((resolve, reject) => {
+    execFile('xcrun', args, { encoding: 'utf8', timeout: timeoutMs }, (error, stdout) => {
+      if (error) {
+        reject(error);
+      } else {
+        resolve(stdout);
+      }
+    });
+  });
+}
+
 /** Resolve the exact simulator UDID for a device name (macOS only). */
-export function resolveIosUdid(deviceName: string, platformVersion?: string): string | undefined {
+export async function resolveIosUdid(deviceName: string, platformVersion?: string): Promise<string | undefined> {
   if (!isMac()) {
     return undefined;
   }
   try {
-    const json = execFileSync('xcrun', ['simctl', 'list', 'devices', 'available', '--json'], {
-      encoding: 'utf8',
-      stdio: 'pipe',
-      timeout: 30000,
-    });
+    const json = await runXcrun(['simctl', 'list', 'devices', 'available', '--json']);
     return pickIosUdid(json, deviceName, platformVersion);
   } catch (error) {
     log.debug(`resolveIosUdid failed: ${(error as Error).message}`);
@@ -83,17 +96,13 @@ export function resolveIosUdid(deviceName: string, platformVersion?: string): st
  * Pre-resolve the Xcode SDK and simulator list before the session, surfacing a broken/cold
  * toolchain as a clear diagnostic instead of appium-xcuitest's internal SDK-probe timeout.
  */
-export function warmUpXcodeToolchain(): DiagnosticResult[] {
+export async function warmUpXcodeToolchain(): Promise<DiagnosticResult[]> {
   if (!isMac()) {
     return [];
   }
   const results: DiagnosticResult[] = [];
   try {
-    const sdk = execFileSync('xcrun', ['--sdk', 'iphonesimulator', '--show-sdk-version'], {
-      encoding: 'utf8',
-      stdio: 'pipe',
-      timeout: 30000,
-    }).trim();
+    const sdk = (await runXcrun(['--sdk', 'iphonesimulator', '--show-sdk-version'])).trim();
     results.push({ category: 'iOS SDK', status: 'ok', message: `iphonesimulator ${sdk}` });
   } catch (error) {
     results.push({
@@ -104,7 +113,7 @@ export function warmUpXcodeToolchain(): DiagnosticResult[] {
     });
   }
   try {
-    execFileSync('xcrun', ['simctl', 'list', 'devices'], { stdio: 'ignore', timeout: 30000 });
+    await runXcrun(['simctl', 'list', 'devices']);
     results.push({ category: 'iOS Simulators', status: 'ok', message: 'simctl reachable' });
   } catch (error) {
     results.push({
