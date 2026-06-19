@@ -224,17 +224,22 @@ pub async fn perform<R: Runtime + 'static>(
                             // A primary press + release on the same spot is a
                             // click; emit the click event the browser would
                             // synthesize for real input so element handlers fire.
-                            if *button == 0 && primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
-                                executor
-                                    .dispatch_pointer_event(
-                                        PointerEventType::Click,
-                                        pointer_state.x,
-                                        pointer_state.y,
-                                        *button,
-                                    )
-                                    .await?;
+                            // Only the primary button's release consumes/clears
+                            // the press state — a non-primary release in between
+                            // must not drop it.
+                            if *button == 0 {
+                                if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
+                                    executor
+                                        .dispatch_pointer_event(
+                                            PointerEventType::Click,
+                                            pointer_state.x,
+                                            pointer_state.y,
+                                            *button,
+                                        )
+                                        .await?;
+                                }
+                                primary_down_pos = None;
                             }
-                            primary_down_pos = None;
                             // Remove from tracked buttons
                             let mut sessions = state.sessions.write().await;
                             if let Ok(session) = sessions.get_mut(&session_id) {
