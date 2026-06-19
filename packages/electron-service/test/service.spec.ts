@@ -240,25 +240,22 @@ describe('Electron Worker Service', () => {
       await expect(instance.before({}, [], browser)).rejects.toThrow('Window not found');
     });
 
-    it('should install element command overrides with overwriteCommand', async () => {
+    it('should not register element command overrides (preserves user overrides)', async () => {
       instance = new ElectronWorkerService({}, {});
 
       await instance.before({}, [], browser);
 
+      // Element-scoped overrides are keyed by command name and do not chain, so
+      // registering these would clobber a user's overwriteCommand('click', ...).
       const oc = vi.mocked((browser as any).overwriteCommand);
-      const calls = oc.mock.calls;
-      const overridden = calls.map((c: unknown[]) => ({ name: c[0], isElement: c[2] }));
-      expect(overridden).toEqual(
-        expect.arrayContaining([
-          expect.objectContaining({ name: 'click', isElement: true }),
-          expect.objectContaining({ name: 'doubleClick', isElement: true }),
-          expect.objectContaining({ name: 'setValue', isElement: true }),
-          expect.objectContaining({ name: 'clearValue', isElement: true }),
-        ]),
-      );
+      const overridden = oc.mock.calls.map((c: unknown[]) => c[0]);
+      expect(overridden).not.toContain('click');
+      expect(overridden).not.toContain('doubleClick');
+      expect(overridden).not.toContain('setValue');
+      expect(overridden).not.toContain('clearValue');
     });
 
-    it('should update mocks after overridden element command executes', async () => {
+    it('should update mocks after a DOM-mutating command via afterCommand', async () => {
       instance = new ElectronWorkerService({}, {});
       await instance.before({}, [], browser);
 
@@ -269,23 +266,30 @@ describe('Electron Worker Service', () => {
       };
       storeModule.default.getMocks.mockReturnValueOnce([['electron.app.getName', mockObj]]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
-      const clickCall = oc.mock.calls.find((c: unknown[]) => c[0] === 'click');
-      expect(clickCall).toBeDefined();
-      const overrideFn = clickCall?.[1] as unknown as (
-        this: WebdriverIO.Element,
-        original: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-
-      const original = vi.fn().mockResolvedValue('ok');
-      await overrideFn?.call({} as unknown as WebdriverIO.Element, original);
+      await instance.afterCommand('click', [], undefined, undefined);
 
       // Batched scheduler hands the read-back call data to __applyCalls; this
-      // proves the override still drives mock sync after the per-mock update()
-      // path was retired.
+      // proves afterCommand drives mock sync after the per-mock update() path
+      // was retired.
       expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
-      expect(original).toHaveBeenCalled();
+    });
+
+    it('should not update mocks via afterCommand for unrelated commands or on error', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockObj = {
+        __accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+        __applyCalls: vi.fn(),
+      };
+      storeModule.default.getMocks.mockReturnValue([['electron.app.getName', mockObj]]);
+
+      await instance.afterCommand('getText', [], 'text', undefined);
+      expect(mockObj.__applyCalls).not.toHaveBeenCalled();
+
+      await instance.afterCommand('click', [], undefined, new Error('click failed'));
+      expect(mockObj.__applyCalls).not.toHaveBeenCalled();
     });
 
     it('should batch updates for ≥2 mocks into a single browser.electron.execute call', async () => {
@@ -315,15 +319,7 @@ describe('Electron Worker Service', () => {
         ['electron.Tray.__constructor', mockC],
       ]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
-      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
-        this: WebdriverIO.Element,
-        original: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-
-      const original = vi.fn().mockResolvedValue('ok');
-      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      await instance.afterCommand('click', [], undefined, undefined);
 
       // Acceptance criteria: one CDP round-trip regardless of mock count.
       expect(executeMock).toHaveBeenCalledTimes(1);
@@ -365,13 +361,7 @@ describe('Electron Worker Service', () => {
         [keyB, mockB],
       ]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
-      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
-        this: WebdriverIO.Element,
-        original: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-      await overrideFn.call({} as unknown as WebdriverIO.Element, vi.fn().mockResolvedValue('ok'));
+      await instance.afterCommand('click', [], undefined, undefined);
 
       // Healthy mock still receives its data — one bad reader doesn't tank the batch.
       expect(mockA.__applyCalls).toHaveBeenCalledTimes(1);
@@ -403,13 +393,7 @@ describe('Electron Worker Service', () => {
       };
       storeModule.default.getMocks.mockReturnValueOnce([['electron.app.getName', mockObj]]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
-      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
-        this: WebdriverIO.Element,
-        original: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-      await overrideFn.call({} as unknown as WebdriverIO.Element, vi.fn().mockResolvedValue('ok'));
+      await instance.afterCommand('click', [], undefined, undefined);
 
       expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
       expect(mockObj.__applyCalls).toHaveBeenCalledWith(
@@ -448,15 +432,7 @@ describe('Electron Worker Service', () => {
         [keyB, mockB],
       ]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
-      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
-        this: WebdriverIO.Element,
-        original: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-
-      const original = vi.fn().mockResolvedValue('ok');
-      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      await instance.afterCommand('click', [], undefined, undefined);
 
       expect(browserExecute).toHaveBeenCalledTimes(1);
       expect(mockA.__applyCalls).toHaveBeenCalledTimes(1);
@@ -492,15 +468,7 @@ describe('Electron Worker Service', () => {
         [browserModeStoreKey(browser, 'ipc-x'), browserMock],
       ]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
-      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
-        this: WebdriverIO.Element,
-        original: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-
-      const original = vi.fn().mockResolvedValue('ok');
-      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      await instance.afterCommand('click', [], undefined, undefined);
 
       // Mixed registration: one CDP call for native, one renderer call for browser-mode.
       expect(executeMock).toHaveBeenCalledTimes(1);
@@ -517,16 +485,8 @@ describe('Electron Worker Service', () => {
       const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
       storeModule.default.getMocks.mockReturnValue([['id', mockObj]]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
-      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
-        this: WebdriverIO.Element,
-        original: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-
-      const original = vi.fn().mockResolvedValue('ok');
-      const p1 = overrideFn.call({} as unknown as WebdriverIO.Element, original);
-      const p2 = overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      const p1 = instance.afterCommand('click', [], undefined, undefined);
+      const p2 = instance.afterCommand('click', [], undefined, undefined);
       await Promise.all([p1, p2]);
 
       expect(mockObj.update).toHaveBeenCalledTimes(2);
@@ -541,16 +501,8 @@ describe('Electron Worker Service', () => {
       (mockObj.update as ReturnType<typeof vi.fn>).mockRejectedValueOnce(new Error('boom'));
       storeModule.default.getMocks.mockReturnValue([['id', mockObj]]);
 
-      const oc = vi.mocked((browser as any).overwriteCommand);
-      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
-        this: WebdriverIO.Element,
-        original: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-
-      const original = vi.fn().mockResolvedValue('ok');
-      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
-      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      await instance.afterCommand('click', [], undefined, undefined);
+      await instance.afterCommand('click', [], undefined, undefined);
 
       expect(mockObj.update).toHaveBeenCalledTimes(2);
     });
@@ -1231,20 +1183,16 @@ describe('Electron Worker Service', () => {
         await expect(browserModeBrowser.url('http://localhost:5173/settings')).resolves.toBeUndefined();
       });
 
-      it('should install element command overrides in browser mode', async () => {
+      it('should not register element command overrides in browser mode', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
         await instance.before({}, [], browserModeBrowser);
 
         const oc = vi.mocked((browserModeBrowser as any).overwriteCommand);
-        const overridden = oc.mock.calls.map((c: unknown[]) => ({ name: c[0], isElement: c[2] }));
-        expect(overridden).toEqual(
-          expect.arrayContaining([
-            expect.objectContaining({ name: 'click', isElement: true }),
-            expect.objectContaining({ name: 'doubleClick', isElement: true }),
-            expect.objectContaining({ name: 'setValue', isElement: true }),
-            expect.objectContaining({ name: 'clearValue', isElement: true }),
-          ]),
-        );
+        const overridden = oc.mock.calls.map((c: unknown[]) => c[0]);
+        expect(overridden).not.toContain('click');
+        expect(overridden).not.toContain('doubleClick');
+        expect(overridden).not.toContain('setValue');
+        expect(overridden).not.toContain('clearValue');
       });
 
       it('should route emitEvent through browser.execute in browser mode', async () => {
@@ -1405,7 +1353,7 @@ describe('Electron Worker Service', () => {
         expect((firefoxBrowser.execute as ReturnType<typeof vi.fn>).mock.calls.length).toBe(firefoxExecuteBefore);
       });
 
-      it('should install command overrides only on the root browser, not on individual Electron instances', async () => {
+      it('should not register element overrides and drives per-instance mock updates via afterCommand', async () => {
         instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
 
         const electronBrowser = {
@@ -1430,12 +1378,19 @@ describe('Electron Worker Service', () => {
 
         await instance.before({}, [], rootBrowser);
 
-        // Root browser gets overwriteCommand calls (for click, doubleClick, setValue, clearValue)
-        expect((rootBrowser.overwriteCommand as ReturnType<typeof vi.fn>).mock.calls.length).toBeGreaterThan(0);
-        // Per-instance browser gets no direct overwriteCommand call: WDIO's multiremote
-        // overwriteCommand wrapper propagates to all instances' __elementOverrides__ internally,
-        // so a separate call on each instance would double-wrap element commands.
+        // No element command overrides on root or instances (would clobber user overrides).
+        // The url override (browser mode) may still be registered on the root.
+        const elementCmds = ['click', 'doubleClick', 'setValue', 'clearValue'];
+        const rootOverridden = (rootBrowser.overwriteCommand as ReturnType<typeof vi.fn>).mock.calls.map((c) => c[0]);
+        expect(rootOverridden.filter((n) => elementCmds.includes(n as string))).toHaveLength(0);
         expect((electronBrowser.overwriteCommand as ReturnType<typeof vi.fn>).mock.calls.length).toBe(0);
+
+        // afterCommand fans out the mock-update batch to each instance's scheduler.
+        const storeModule = (await import('../src/mockStore.js')) as any;
+        const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
+        storeModule.default.getMocks.mockReturnValue([['id', mockObj]]);
+        await instance.afterCommand('click', [], undefined, undefined);
+        expect(mockObj.update).toHaveBeenCalled();
       });
     });
 

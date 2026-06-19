@@ -313,7 +313,8 @@ function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateSchedul
 
 const log = createLogger('electron-service', 'service');
 
-type ElementCommands = 'click' | 'doubleClick' | 'setValue' | 'clearValue';
+/** Element commands whose completion should re-sync mocks from the app context. */
+const MOCK_UPDATE_COMMANDS = new Set<string>(['click', 'doubleClick', 'setValue', 'clearValue']);
 
 export default class ElectronWorkerService extends ServiceConfig implements Services.ServiceInstance {
   private logCaptureManager?: LogCaptureManager;
@@ -369,12 +370,6 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         browser?.electron && typeof browser.electron.execute === 'function' && cdpBridge !== undefined;
 
       const hasElectronApi = isElectronApiAvailable(this.browser, cdpBridge);
-
-      // Install command overrides if the electron API is available
-      if (hasElectronApi) {
-        stage = 'installCommandOverrides';
-        this.installCommandOverrides();
-      }
 
       if (isMultiremote(instance)) {
         const mrBrowser = instance;
@@ -494,6 +489,34 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     await ensureActiveWindowFocus(this.browser, commandName);
   }
 
+  /**
+   * Re-sync mocks after element commands that mutate the DOM. Implemented as an
+   * afterCommand hook rather than browser.overwriteCommand: element-scoped
+   * overrides are keyed by command name and do not chain, so re-registering
+   * click/setValue/etc. silently clobbered any user-defined override of the same
+   * command. afterCommand leaves the user's command chain untouched.
+   *
+   * afterCommand exposes only the root browser, not the multiremote instance a
+   * command ran on, so for multiremote we schedule every instance's batch. Each
+   * scheduler filters to native mocks (shared) plus its own browser-mode mocks,
+   * so all affected mocks update without needing to know which instance fired.
+   */
+  async afterCommand(commandName: string, _args: unknown[], _result: unknown, error?: Error): Promise<void> {
+    const browser = this.browser;
+    if (error || !browser || !MOCK_UPDATE_COMMANDS.has(commandName)) {
+      return;
+    }
+    if (isMultiremote(browser)) {
+      await Promise.all(
+        browser.instances.map((instanceName) =>
+          getMockUpdateScheduler(browser.getInstance(instanceName) as WebdriverIO.Browser).schedule(),
+        ),
+      );
+      return;
+    }
+    await getMockUpdateScheduler(browser).schedule();
+  }
+
   after() {
     this.logCaptureManager?.stopCapture();
     clearPuppeteerSessions();
@@ -565,14 +588,8 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         instance.electron = this.getElectronBrowserModeAPI(instance);
       }
 
-      // WDIO's multiremote overwriteCommand wrapper forwards the call to origOverwriteCommand
-      // with all per-instance browsers as the `instances` argument. The underlying implementation
-      // then registers the override on every instance's __elementOverrides__ directly, so both
-      // mrBrowser.$('btn').click() and mrBrowser.getInstance('a').$('btn').click() go through
-      // the override. Calling it on each instance separately would double-wrap element commands.
       browser.electron = this.getElectronBrowserModeAPI(browser);
       this.patchBrowserUrl(browser, injectionScript);
-      this.installCommandOverrides(browser as unknown as WebdriverIO.Browser);
     } else {
       const devServerUrl = this.globalOptions.devServerUrl;
       if (!devServerUrl) {
@@ -583,7 +600,6 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       (browser as unknown as Record<string, boolean>).__wdioElectronBrowserMode__ = true;
       browser.electron = this.getElectronBrowserModeAPI(browser);
       this.patchBrowserUrl(browser, injectionScript);
-      this.installCommandOverrides();
     }
     log.debug('Electron browser mode initialised');
   }
@@ -732,45 +748,6 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         await getMockUpdateScheduler(browser).schedule();
       },
     } as unknown as BrowserExtension['electron'];
-  }
-
-  /**
-   * Install command overrides to trigger mock updates after DOM interactions
-   */
-  private installCommandOverrides(targetBrowser?: WebdriverIO.Browser) {
-    const commandsToOverride = ['click', 'doubleClick', 'setValue', 'clearValue'];
-    commandsToOverride.forEach((commandName) => {
-      this.overrideElementCommand(commandName as ElementCommands, targetBrowser);
-    });
-  }
-
-  /**
-   * Override an element-level command to add mock update after execution
-   */
-  private overrideElementCommand(commandName: ElementCommands, targetBrowser?: WebdriverIO.Browser) {
-    const browser = (targetBrowser ?? this.browser) as WebdriverIO.Browser;
-    try {
-      const testOverride = async function (
-        this: WebdriverIO.Element,
-        originalCommand: (...args: readonly unknown[]) => Promise<unknown>,
-        ...args: readonly unknown[]
-      ): Promise<unknown> {
-        // Use Reflect.apply to safely call the original command with the correct 'this' context
-        // This avoids TypeScript's strict function signature checking while maintaining runtime safety
-        const result = await Reflect.apply(originalCommand, this, args as unknown[]);
-        // In multiremote, the override is registered on the root but fires per
-        // instance — this.browser is the per-instance owning session. Route
-        // through that browser's scheduler so per-instance mock keys match;
-        // otherwise the root scheduler filters everything out.
-        const ownerBrowser = (this as { browser?: WebdriverIO.Browser }).browser ?? browser;
-        await getMockUpdateScheduler(ownerBrowser).schedule();
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1];
-
-      browser.overwriteCommand(commandName, testOverride, true);
-    } catch (error) {
-      log.warn(`Failed to override element command '${commandName}':`, error);
-    }
   }
 
   /**
