@@ -16,7 +16,7 @@
   },
   "devDependencies": {
     "@electron-forge/cli": "catalog:default",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.4",
     "@wdio/cli": "catalog:default",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",
