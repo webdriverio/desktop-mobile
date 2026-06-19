@@ -47,6 +47,7 @@ pub enum PointerEventType {
     Down,
     Up,
     Move,
+    Click,
 }
 
 /// Cookie data
@@ -1389,6 +1390,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
             PointerEventType::Down => "mousedown",
             PointerEventType::Up => "mouseup",
             PointerEventType::Move => "mousemove",
+            // Manually dispatched mousedown/mouseup do NOT make the browser
+            // synthesize a click, so element click handlers never fire. The
+            // actions handler emits this explicitly after a same-spot down+up.
+            PointerEventType::Click => "click",
         };
 
         let buttons = if matches!(event_type, PointerEventType::Down) {

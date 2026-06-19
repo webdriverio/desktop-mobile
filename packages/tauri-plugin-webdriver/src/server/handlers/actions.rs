@@ -146,6 +146,9 @@ pub async fn perform<R: Runtime + 'static>(
         x: pointer_position.0,
         y: pointer_position.1,
     };
+    // Position of the last primary-button press, used to synthesize a `click`
+    // when the matching release lands on the same spot (a click, not a drag).
+    let mut primary_down_pos: Option<(i32, i32)> = None;
     let mut modifier_state = ModifierState::default();
 
     for action_seq in &request.actions {
@@ -195,6 +198,9 @@ pub async fn perform<R: Runtime + 'static>(
                                     *button,
                                 )
                                 .await?;
+                            if *button == 0 {
+                                primary_down_pos = Some((pointer_state.x, pointer_state.y));
+                            }
                             // Track pressed button
                             let mut sessions = state.sessions.write().await;
                             if let Ok(session) = sessions.get_mut(&session_id) {
@@ -215,6 +221,20 @@ pub async fn perform<R: Runtime + 'static>(
                                     *button,
                                 )
                                 .await?;
+                            // A primary press + release on the same spot is a
+                            // click; emit the click event the browser would
+                            // synthesize for real input so element handlers fire.
+                            if *button == 0 && primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
+                                executor
+                                    .dispatch_pointer_event(
+                                        PointerEventType::Click,
+                                        pointer_state.x,
+                                        pointer_state.y,
+                                        *button,
+                                    )
+                                    .await?;
+                            }
+                            primary_down_pos = None;
                             // Remove from tracked buttons
                             let mut sessions = state.sessions.write().await;
                             if let Ok(session) = sessions.get_mut(&session_id) {
