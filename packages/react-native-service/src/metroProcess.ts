@@ -77,10 +77,11 @@ const defaultFetchBundle: MetroBundleFetch = (port, platform) =>
       res.statusCode === 200 ? resolve() : reject(new Error(`bundle request returned ${res.statusCode}`));
     });
     // Best-effort warm-up: cap at 60s so a slow/stuck bundle can't hold up onPrepare for
-    // the full 5 minutes a cold compile might otherwise allow.
+    // the full 5 minutes a cold compile might otherwise allow. Pass the reason to destroy()
+    // so the single 'error' settle wins with our message — a bare destroy() can emit a
+    // synthetic "socket hang up" that would otherwise mask the timeout in the warning log.
     req.setTimeout(60000, () => {
-      req.destroy();
-      reject(new Error('bundle request timeout'));
+      req.destroy(new Error('bundle request timeout'));
     });
     req.on('error', reject);
   });
