@@ -447,6 +447,43 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         Ok(ElementRect::default())
     }
 
+    /// Get an element's in-view center point in **client (viewport)** coordinates,
+    /// scrolling it into view first. Unlike [`Executor::get_element_rect`], this
+    /// does not add scroll offsets: pointer events dispatch against viewport
+    /// coordinates (`clientX`/`clientY`), so the center must be viewport-relative.
+    async fn get_element_center(&self, js_var: &str) -> Result<(i32, i32), WebDriverErrorResponse> {
+        let script = format!(
+            r"(function() {{
+                var el = window.{js_var};
+                if (!el || !el.isConnected) {{
+                    throw new Error('stale element reference');
+                }}
+                el.scrollIntoView({{ block: 'center', inline: 'center' }});
+                var r = el.getBoundingClientRect();
+                return {{
+                    x: Math.round(r.left + r.width / 2),
+                    y: Math.round(r.top + r.height / 2)
+                }};
+            }})()"
+        );
+        let result = self.evaluate_js(&script).await?;
+
+        let value = result
+            .get("value")
+            .cloned()
+            .ok_or_else(|| WebDriverErrorResponse::unknown_error("element center script returned no value"))?;
+
+        #[derive(serde::Deserialize)]
+        struct Center {
+            x: i32,
+            y: i32,
+        }
+        let center: Center = serde_json::from_value(value).map_err(|err| {
+            WebDriverErrorResponse::unknown_error(&format!("could not read element center: {err}"))
+        })?;
+        Ok((center.x, center.y))
+    }
+
     /// Check if element is displayed
     async fn is_element_displayed(&self, js_var: &str) -> Result<bool, WebDriverErrorResponse> {
         let script = format!(
