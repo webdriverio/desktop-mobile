@@ -257,12 +257,19 @@ pub async fn perform<R: Runtime + 'static>(
                             origin,
                         } => {
                             let (target_x, target_y) = match origin {
-                                // No origin or "viewport": x/y are absolute viewport coords.
+                                // No origin (the default) or "viewport": x/y are absolute viewport coords.
                                 None => (*x, *y),
+                                Some(Origin::Named(name)) if name == "viewport" => (*x, *y),
                                 Some(Origin::Named(name)) if name == "pointer" => {
                                     (pointer_state.x + *x, pointer_state.y + *y)
                                 }
-                                Some(Origin::Named(_)) => (*x, *y),
+                                // The spec defines only "viewport" and "pointer" as named origins;
+                                // reject anything else rather than silently treating it as viewport.
+                                Some(Origin::Named(name)) => {
+                                    return Err(WebDriverErrorResponse::invalid_argument(&format!(
+                                        "pointerMove origin '{name}' is not a recognised named origin (expected 'viewport' or 'pointer')"
+                                    )));
+                                }
                                 Some(Origin::Element(refs)) => {
                                     let element_id = refs.get(ELEMENT_KEY).ok_or_else(|| {
                                         WebDriverErrorResponse::invalid_argument(
