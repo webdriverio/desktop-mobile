@@ -314,6 +314,81 @@ describe('TauriWorkerService', () => {
       expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('clearValue', expect.any(Function), true);
     });
 
+    it('should update mocks after overridden element command executes', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
+      vi.mocked(mockStore.getMocks).mockReturnValueOnce([['tauri.cmd', mockObj as any]]);
+
+      const oc = vi.mocked(mockBrowser.overwriteCommand);
+      const clickCall = oc.mock.calls.find((c: unknown[]) => c[0] === 'click');
+      expect(clickCall).toBeDefined();
+      const overrideFn = clickCall?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      await overrideFn?.call({} as unknown as WebdriverIO.Element, original);
+
+      expect(mockObj.update).toHaveBeenCalledTimes(1);
+      expect(original).toHaveBeenCalled();
+    });
+
+    it('should run two scheduler batches when two overrides fire concurrently', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', mockObj as any]]);
+
+      const oc = vi.mocked(mockBrowser.overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      const p1 = overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      const p2 = overrideFn.call({} as unknown as WebdriverIO.Element, original);
+      await Promise.all([p1, p2]);
+
+      expect(mockObj.update).toHaveBeenCalledTimes(2);
+    });
+
+    it('should recover the scheduler after a batch update rejects', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      const mockObj = { update: vi.fn() };
+      // First batch: both update attempts fail (initial + retry)
+      (mockObj.update as ReturnType<typeof vi.fn>)
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValue(undefined);
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', mockObj as any]]);
+
+      const oc = vi.mocked(mockBrowser.overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn().mockResolvedValue('ok');
+      await overrideFn.call({} as unknown as WebdriverIO.Element, original).catch(() => undefined);
+      await overrideFn.call({} as unknown as WebdriverIO.Element, original);
+
+      // 2 from the failed batch (initial + retry) + 1 from the recovered batch
+      expect(mockObj.update).toHaveBeenCalledTimes(3);
+    });
+
     it('should clear stale mocks at session start for embedded driver provider', async () => {
       const mockBrowser = createMockBrowser();
       const originalExecute = mockBrowser.execute as ReturnType<typeof vi.fn>;
