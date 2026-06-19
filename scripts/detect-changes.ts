@@ -44,6 +44,7 @@ interface Classification {
   lintOnly: boolean;
   triggersAll: string[];
   unknownFiles: string[];
+  sharedDetail: Array<{ file: string; pkg: string; services: string[]; typesOnly: boolean }>;
   perFile: Array<{ file: string; verdict: Verdict }>;
 }
 
@@ -86,6 +87,12 @@ const LINT_ONLY_FILES = new Set(['biome.jsonc', 'eslint.config.js']);
 const SHARED_PACKAGE_PREFIXES = ['native-'];
 const SHARED_PACKAGES = new Set(['bundler']);
 
+// Types-only packages ship nothing but type declarations (erased at compile time), so a change
+// to one can only break COMPILATION — caught by the always-on build + unit jobs — never a
+// service's runtime. They therefore need no per-service E2E. Guarded by
+// test/scripts/native-types-types-only.spec.ts, which fails if real runtime code ever lands here.
+const TYPES_ONLY_PACKAGES = new Set(['native-types']);
+
 export function discoverServices(repoRoot: string): string[] {
   const packagesDir = path.join(repoRoot, 'packages');
   return fs
@@ -93,6 +100,52 @@ export function discoverServices(repoRoot: string): string[] {
     .filter((name) => name.endsWith('-service'))
     .map((name) => name.slice(0, -'-service'.length))
     .sort();
+}
+
+/**
+ * Map each shared package dir → the service names that transitively depend on it, derived from
+ * the `@wdio/*` deps in every package's `package.json`. A shared code change can then run only
+ * the services it can actually affect at runtime (e.g. native-mobile-core → react-native +
+ * flutter) instead of all of them. Reads package.json only — no install — so it still runs on the
+ * bare-node detect job. Convention-driven: derived from real deps, never a hand-maintained map.
+ */
+export function buildServiceDependents(repoRoot: string, services: string[]): Record<string, string[]> {
+  const packagesDir = path.join(repoRoot, 'packages');
+  const dirByName: Record<string, string> = {};
+  const wdioDepsByDir: Record<string, string[]> = {};
+  for (const dir of fs.readdirSync(packagesDir)) {
+    const pkgPath = path.join(packagesDir, dir, 'package.json');
+    if (!fs.existsSync(pkgPath)) continue;
+    let pkg: { name?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
+    try {
+      pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
+    } catch {
+      continue;
+    }
+    if (pkg.name) dirByName[pkg.name] = dir;
+    const deps = { ...pkg.dependencies, ...pkg.devDependencies };
+    wdioDepsByDir[dir] = Object.keys(deps).filter((d) => d.startsWith('@wdio/'));
+  }
+  // Transitive set of workspace package dirs a given dir depends on.
+  const closure = (dir: string, seen: Set<string>): Set<string> => {
+    for (const depName of wdioDepsByDir[dir] ?? []) {
+      const depDir = dirByName[depName];
+      if (depDir && !seen.has(depDir)) {
+        seen.add(depDir);
+        closure(depDir, seen);
+      }
+    }
+    return seen;
+  };
+  const dependents: Record<string, string[]> = {};
+  for (const svc of services) {
+    for (const sharedDir of closure(`${svc}-service`, new Set<string>())) {
+      if (!dependents[sharedDir]) dependents[sharedDir] = [];
+      dependents[sharedDir].push(svc);
+    }
+  }
+  for (const dir of Object.keys(dependents)) dependents[dir].sort();
+  return dependents;
 }
 
 function serviceForDir(dir: string, services: string[]): string | undefined {
@@ -159,7 +212,11 @@ export function classifyFile(file: string, services: string[]): Verdict {
   return 'none';
 }
 
-export function classifyChanges(files: string[], services: string[], { forceAll = false } = {}): Classification {
+export function classifyChanges(
+  files: string[],
+  services: string[],
+  { forceAll = false, dependents = {} as Record<string, string[]> } = {},
+): Classification {
   const runs: Record<string, boolean> = Object.fromEntries(services.map((svc) => [svc, false]));
   let sharedChanges = false;
   // Deliberate run-everything verdicts (core infra, cross-service scripts, shared e2e)
@@ -167,10 +224,11 @@ export function classifyChanges(files: string[], services: string[], { forceAll 
   // latter signal naming-convention drift.
   const triggersAll: string[] = [];
   const unknownFiles: string[] = [];
+  const sharedDetail: Array<{ file: string; pkg: string; services: string[]; typesOnly: boolean }> = [];
 
   if (forceAll) {
     for (const svc of services) runs[svc] = true;
-    return { runs, sharedChanges: true, lintOnly: false, triggersAll, unknownFiles, perFile: [] };
+    return { runs, sharedChanges: true, lintOnly: false, triggersAll, unknownFiles, sharedDetail, perFile: [] };
   }
 
   const perFile: Array<{ file: string; verdict: Verdict }> = [];
@@ -178,9 +236,27 @@ export function classifyChanges(files: string[], services: string[], { forceAll 
     const verdict = classifyFile(file, services);
     perFile.push({ file, verdict });
     if (verdict === 'none') continue;
-    if (verdict === 'shared' || verdict === 'all' || verdict === 'unknown') {
-      if (verdict === 'shared') sharedChanges = true;
-      else if (verdict === 'all') triggersAll.push(file);
+    if (verdict === 'shared') {
+      // A shared-package change always needs build/unit (sharedChanges keeps it off the lint-only
+      // path below), but only the services it can affect at RUNTIME need E2E: none for a
+      // types-only package (compile-time-only — build/unit already cover it), otherwise the
+      // transitive dependents from the dep graph. Fall back to every service when a shared
+      // package has no known dependents — an infra/build-tool package like `bundler`, or a new
+      // shared package — so we over-run rather than ever silently under-run.
+      sharedChanges = true;
+      const dir = (file.match(/^packages\/([^/]+)\//) as RegExpMatchArray)[1];
+      const typesOnly = TYPES_ONLY_PACKAGES.has(dir);
+      const affected = typesOnly
+        ? [] // erased at compile time — build/unit already cover it
+        : SHARED_PACKAGES.has(dir)
+          ? services // build tool (bundler) — changes every package's build output → all E2E
+          : dependents[dir]?.length
+            ? dependents[dir] // shared code → only the services that transitively depend on it
+            : services; // new/unknown shared package with no known dependents → defensive all
+      for (const svc of affected) runs[svc] = true;
+      sharedDetail.push({ file, pkg: dir, services: affected, typesOnly });
+    } else if (verdict === 'all' || verdict === 'unknown') {
+      if (verdict === 'all') triggersAll.push(file);
       else unknownFiles.push(file);
       for (const svc of services) runs[svc] = true;
     } else {
@@ -188,8 +264,11 @@ export function classifyChanges(files: string[], services: string[], { forceAll 
     }
   }
 
-  const lintOnly = services.every((svc) => !runs[svc]);
-  return { runs, sharedChanges, lintOnly, triggersAll, unknownFiles, perFile };
+  // Lint-only = nothing needs build: no service runs AND no shared (compile-affecting) change.
+  // A types-only shared change runs no service yet must still build/typecheck, so the
+  // sharedChanges term keeps it off this path (build + unit gate on `run_lint_only != true`).
+  const lintOnly = services.every((svc) => !runs[svc]) && !sharedChanges;
+  return { runs, sharedChanges, lintOnly, triggersAll, unknownFiles, sharedDetail, perFile };
 }
 
 function appendFile(envVar: string, content: string): void {
@@ -201,10 +280,13 @@ function main(): void {
   const files: string[] = JSON.parse(process.env.CHANGED_FILES || '[]');
   const forceAll = process.env.FORCE_ALL === 'true';
   const services = discoverServices(process.cwd());
+  const dependents = buildServiceDependents(process.cwd(), services);
 
-  const { runs, sharedChanges, lintOnly, triggersAll, unknownFiles, perFile } = classifyChanges(files, services, {
-    forceAll,
-  });
+  const { runs, sharedChanges, lintOnly, triggersAll, unknownFiles, sharedDetail, perFile } = classifyChanges(
+    files,
+    services,
+    { forceAll, dependents },
+  );
 
   let output = '';
   for (const [svc, run] of Object.entries(runs)) output += `run_${svc}=${run}\n`;
@@ -218,6 +300,14 @@ function main(): void {
   summary += '| Service | Run |\n|---------|-----|\n';
   for (const [svc, run] of Object.entries(runs)) summary += `| ${svc} | ${run} |\n`;
   summary += `\n- Shared package changes: ${sharedChanges}\n- Lint only: ${lintOnly}\n`;
+  if (sharedDetail.length > 0) {
+    summary += '\n### Shared package changes (narrowed to runtime dependents)\n\n';
+    summary += 'build + unit run regardless; E2E runs only for the services a shared change can affect:\n\n';
+    for (const { file, pkg, services: svcs, typesOnly } of sharedDetail) {
+      const target = typesOnly ? 'types-only → typecheck/build only, no E2E' : svcs.join(', ') || 'all';
+      summary += `- \`${file}\` (${pkg}) → ${target}\n`;
+    }
+  }
   if (triggersAll.length > 0) {
     summary += '\n### Core infra / cross-service changes (run all pipelines)\n\n';
     for (const file of triggersAll) summary += `- \`${file}\`\n`;
