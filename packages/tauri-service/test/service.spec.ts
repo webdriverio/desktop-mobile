@@ -302,16 +302,48 @@ describe('TauriWorkerService', () => {
       await expect(service.before({} as any, [], mockBrowser)).resolves.not.toThrow();
     });
 
-    it('should install command overrides after initialization', async () => {
+    it('should not register element command overrides (preserves user overrides)', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
 
       await service.before({} as any, [], mockBrowser);
 
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('click', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('doubleClick', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('setValue', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('clearValue', expect.any(Function), true);
+      // Element-scoped overrides are keyed by command name and do not chain, so
+      // registering these would clobber a user's overwriteCommand('click', ...).
+      expect(mockBrowser.overwriteCommand).not.toHaveBeenCalledWith('click', expect.any(Function), true);
+      expect(mockBrowser.overwriteCommand).not.toHaveBeenCalledWith('doubleClick', expect.any(Function), true);
+      expect(mockBrowser.overwriteCommand).not.toHaveBeenCalledWith('setValue', expect.any(Function), true);
+      expect(mockBrowser.overwriteCommand).not.toHaveBeenCalledWith('clearValue', expect.any(Function), true);
+    });
+
+    it('should update mocks via afterCommand for DOM-mutating commands', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      const mockUpdate = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      for (const command of ['click', 'doubleClick', 'setValue', 'clearValue']) {
+        mockUpdate.mockClear();
+        await service.afterCommand(command, [], undefined, undefined);
+        expect(mockUpdate).toHaveBeenCalledOnce();
+      }
+    });
+
+    it('should not update mocks via afterCommand for unrelated commands or on error', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      const mockUpdate = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      await service.afterCommand('getText', [], 'text', undefined);
+      expect(mockUpdate).not.toHaveBeenCalled();
+
+      await service.afterCommand('click', [], undefined, new Error('click failed'));
+      expect(mockUpdate).not.toHaveBeenCalled();
     });
 
     it('should clear stale mocks at session start for embedded driver provider', async () => {
