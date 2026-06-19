@@ -1,3 +1,11 @@
+import { createLogger } from './log.js';
+
+const log = createLogger('native-utils', 'mock');
+
+// Warn at most once per process if WDIO's element-override internals aren't where
+// we expect — see installMockSyncOverride.
+let warnedMissingInternals = false;
+
 /**
  * Shape of an element-scoped command override as WebdriverIO invokes it: the
  * first argument is the original command, followed by the command's own args.
@@ -28,8 +36,9 @@ type ElementOverrideFn = (
  * the command-hook machinery once (an extra `beforeCommand`/`afterCommand`).
  * That's benign for the services here (an extra window-focus check) and only
  * observable if the user also defines config-level command hooks. The internals
- * access is optional-chained: if WDIO's shape ever changes, `existing` is
- * undefined and this degrades to the previous behaviour (service override only).
+ * access is optional-chained: if WDIO's shape ever changes it degrades to the
+ * previous behaviour (service override only) and logs a one-time warning instead
+ * of failing silently.
  *
  * @param browser - the browser (or multiremote instance) to register on
  * @param commandName - the element command to override (e.g. `'click'`)
@@ -40,13 +49,32 @@ export function installMockSyncOverride(
   commandName: string,
   syncMocks: (element: WebdriverIO.Element) => Promise<void>,
 ): void {
-  const existing = (
+  const elementOverrides = (
     browser as unknown as {
       __propertiesObject__?: {
         __elementOverrides__?: { value?: Record<string, ElementOverrideFn | undefined> };
       };
     }
-  ).__propertiesObject__?.__elementOverrides__?.value?.[commandName];
+  ).__propertiesObject__?.__elementOverrides__?.value;
+
+  // WebdriverIO always initializes this map (to `{}` even with no overrides), so
+  // its absence on a single session means the internal shape changed — which
+  // would silently send us back to clobbering user overrides (#422). Surface it
+  // once rather than degrade in silence. Multiremote roots don't carry the map,
+  // so don't false-alarm on them.
+  if (
+    !elementOverrides &&
+    !(browser as unknown as { isMultiremote?: boolean }).isMultiremote &&
+    !warnedMissingInternals
+  ) {
+    warnedMissingInternals = true;
+    log.warn(
+      `Could not read WebdriverIO's element-override map while installing the '${commandName}' override; ` +
+        'a user override of this command may be clobbered. The WebdriverIO internals this relies on may have changed.',
+    );
+  }
+
+  const existing = elementOverrides?.[commandName];
 
   const override = async function (
     this: WebdriverIO.Element,

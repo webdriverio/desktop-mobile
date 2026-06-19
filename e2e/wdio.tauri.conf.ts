@@ -287,6 +287,26 @@ export const config = {
   ],
   framework: 'mocha',
   reporters: ['spec'],
+  // #422 regression harness: register a user element-command override BEFORE the
+  // worker service's before() runs (the config `before` precedes it, which is
+  // exactly the ordering that caused #422). The service must COMPOSE with this
+  // rather than clobber it — asserted in command-override.spec.ts. The override
+  // is a passthrough that just flags it ran and chains origClick, so every other
+  // spec's clicks behave identically (and now exercise the compose chain).
+  before: async () => {
+    await browser.overwriteCommand(
+      'click',
+      async function (
+        this: WebdriverIO.Element,
+        origClick: (...a: readonly unknown[]) => Promise<unknown>,
+        ...args: readonly unknown[]
+      ): Promise<unknown> {
+        (browser as unknown as Record<string, unknown>).__userClickOverrideRan = true;
+        return origClick(...args);
+      } as Parameters<typeof browser.overwriteCommand>[1],
+      true,
+    );
+  },
   mochaOpts: {
     ui: 'bdd',
     timeout: 60000,
