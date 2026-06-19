@@ -130,18 +130,22 @@ pub async fn perform<R: Runtime + 'static>(
     Json(request): Json<ActionsRequest>,
 ) -> WebDriverResult {
     // Get session info and executor first
-    let (current_window, timeouts, frame_context) = {
+    let (current_window, timeouts, frame_context, pointer_position) = {
         let sessions = state.sessions.read().await;
         let session = sessions.get(&session_id)?;
         (
             session.current_window.clone(),
             session.timeouts.clone(),
             session.frame_context.clone(),
+            session.action_state.pointer_position,
         )
     };
 
     let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
-    let mut pointer_state = PointerState { x: 0, y: 0 };
+    let mut pointer_state = PointerState {
+        x: pointer_position.0,
+        y: pointer_position.1,
+    };
     let mut modifier_state = ModifierState::default();
 
     for action_seq in &request.actions {
@@ -319,6 +323,15 @@ pub async fn perform<R: Runtime + 'static>(
         }
     }
 
+    // Persist the final pointer position so a later performActions call with
+    // origin: "pointer" resolves relative to it instead of (0, 0).
+    {
+        let mut sessions = state.sessions.write().await;
+        if let Ok(session) = sessions.get_mut(&session_id) {
+            session.action_state.pointer_position = (pointer_state.x, pointer_state.y);
+        }
+    }
+
     Ok(WebDriverResponse::null())
 }
 
@@ -333,6 +346,7 @@ pub async fn release<R: Runtime + 'static>(
         let session = sessions.get_mut(&session_id)?;
         let pressed_keys: Vec<String> = session.action_state.pressed_keys.drain().collect();
         let pressed_buttons = std::mem::take(&mut session.action_state.pressed_buttons);
+        session.action_state.pointer_position = (0, 0);
         (
             session.current_window.clone(),
             session.timeouts.clone(),

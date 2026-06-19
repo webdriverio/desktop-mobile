@@ -14,6 +14,10 @@ pub struct ActionState {
     pub pressed_keys: HashSet<String>,
     /// Currently pressed pointer buttons by source ID
     pub pressed_buttons: HashMap<String, HashSet<u32>>,
+    /// Last pointer position in viewport coordinates. Persisted across
+    /// `performActions` calls so an `origin: "pointer"` move resolves relative to
+    /// where the pointer actually is, not (0, 0) at the start of every call.
+    pub pointer_position: (i32, i32),
 }
 
 /// Session timeouts configuration
