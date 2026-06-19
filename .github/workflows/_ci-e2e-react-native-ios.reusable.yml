@@ -226,18 +226,12 @@ jobs:
           RN_IOS_DEVICE: ${{ inputs.ios-device }}
         run: |
           set -euo pipefail
-          # Metro serves the JS bundle + Hermes inspector; the simulator reaches it over
-          # the shared host loopback (no adb-reverse equivalent needed on iOS).
-          ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
-          # wait-on is a pinned e2e devDependency — run the workspace-local binary (not an
-          # unpinned `npx --yes`) so a breaking release can't silently break the readiness check.
-          pnpm --filter @repo/e2e exec wait-on tcp:8081 --timeout 120000
-          # Pre-bundle: Metro compiles the JS bundle lazily on first request (~60s cold). Without
-          # this, the first app launch lands on Metro's "Bundling…" overlay with an empty native
-          # tree, and the earliest specs fail finding elements before bundling completes. Force the
-          # compile now (best-effort — the specs surface a real bundling error more clearly).
-          curl -fsS --max-time 300 "http://localhost:8081/index.bundle?platform=ios&dev=true&minify=false" -o /dev/null \
-            && echo "Metro bundle pre-built" || echo "::warning::Metro pre-bundle request failed (continuing)"
+          # Metro is now service-managed (manageMetro + prebundle): the @wdio/react-native-service
+          # launcher starts `react-native start`, waits for /status, force-compiles the JS bundle
+          # (so the first launch doesn't land on the "Bundling…" overlay), and tears it down. The
+          # simulator reaches it over the shared host loopback (no adb-reverse needed on iOS). This
+          # leg is the direct e2e verification of that lifecycle (replaces the manual
+          # start + wait-on + curl-prebundle previously here).
           pnpm --filter @repo/e2e run test:e2e:react-native:ios
           # Package-install smoke (#387): validate the PACKED @wdio/react-native-service tarball
           # against THIS booted simulator + Metro, reusing the prebuilt WDA. test-package.ts installs
@@ -249,11 +243,6 @@ jobs:
           if [ "${{ inputs.new-arch }}" = "true" ]; then
             RN_PLATFORM=ios pnpm test:package:react-native
           fi
-
-      - name: 🐛 Show Metro log on failure
-        if: failure()
-        shell: bash
-        run: tail -n 200 e2e/metro.log || true
 
       # The failing session-create (#359) leaves no app/page-source, so the appium debug log is the
       # primary evidence. Surface its tail inline (the session error is near the end) for a quick
@@ -271,6 +260,5 @@ jobs:
           name: e2e-logs-react-native-ios-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: |
             e2e/logs/**/*.log
-            e2e/metro.log
           retention-days: 30
           if-no-files-found: warn

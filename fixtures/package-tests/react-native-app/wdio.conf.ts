@@ -27,6 +27,16 @@ const platform = rawPlatform as 'android' | 'ios';
 const rnServiceOptions: ReactNativeServiceOptions = {
   captureBackendLogs: true,
   captureFrontendLogs: true,
+  // The execute smoke needs Metro. In CI (RN_BUILD_DIR = the scaffolded RN app the APK was built
+  // from) the packed service manages its OWN Metro: the main e2e run owns + tears down its Metro
+  // in onComplete before this separate run starts, so there's no shared Metro left to reuse. This
+  // also dogfoods managed Metro from the packed tarball. Locally (no RN_BUILD_DIR) it stays a
+  // no-op config-composition smoke — run your own Metro.
+  ...(process.env.RN_BUILD_DIR
+    ? { manageMetro: true, metroProjectRoot: process.env.RN_BUILD_DIR, prebundle: true }
+    : { manageMetro: false, metroProjectRoot: process.cwd(), prebundle: false }),
+  autoInstallDriver: false,
+  doctor: false,
 };
 
 const capabilities: ReactNativeCapabilities[] = [

@@ -176,14 +176,12 @@ jobs:
           # boot. Use POSIX-safe `set -eu`.
           script: |
             set -eu
-            # Map emulator:8081 → host:8081 so both the debug bundle load and the Hermes
-            # inspector attach reach Metro running on the runner host.
-            adb reverse tcp:8081 tcp:8081
-            # Start Metro from the scaffolded project (serves the JS bundle + Hermes inspector).
-            ( cd "$RN_BUILD_DIR" && npx react-native start --port 8081 > "$GITHUB_WORKSPACE/e2e/metro.log" 2>&1 & )
-            # wait-on is a pinned e2e devDependency — run the workspace-local binary (not an
-            # unpinned `npx --yes`) so a breaking release can't silently break the readiness check.
-            pnpm --filter @repo/e2e exec wait-on tcp:8081 --timeout 120000
+            # Metro AND the device→host `adb reverse` are now service-managed: the
+            # @wdio/react-native-service launcher starts `react-native start`, waits for /status,
+            # pre-bundles, and tears it down (manageMetro), and maps emulator:8081 → host:8081 in
+            # onWorkerStart — pre-launch, so the app's first bundle load reaches Metro. This leg is
+            # the direct e2e verification of that lifecycle (replaces the manual adb-reverse +
+            # start + wait-on previously here).
             pnpm --filter @repo/e2e run test:e2e:react-native
             # Package-install smoke (#387): validate the PACKED @wdio/react-native-service tarball
             # installs + composes against THIS already-booted emulator + Metro + APK — the cheap
@@ -196,11 +194,6 @@ jobs:
             # `sh -c`), so a multi-line if/then/fi splits and the `if` executes without its `fi`.
             if [ "${{ inputs.new-arch }}" = "true" ]; then RN_PLATFORM=android pnpm test:package:react-native; fi
 
-      - name: 🐛 Show Metro log on failure
-        if: failure()
-        shell: bash
-        run: tail -n 200 e2e/metro.log || true
-
       - name: 📦 Upload Test Logs
         if: always()
         continue-on-error: true
@@ -209,6 +202,5 @@ jobs:
           name: e2e-logs-react-native-${{ inputs.new-arch && 'new' || 'old' }}-arch-${{ inputs.os }}-${{ github.run_id }}-${{ github.run_attempt }}-${{ inputs.test-type }}
           path: |
             e2e/logs/**/*.log
-            e2e/metro.log
           retention-days: 30
           if-no-files-found: warn
