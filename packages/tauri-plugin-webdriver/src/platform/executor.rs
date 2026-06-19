@@ -458,11 +458,11 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 if (!el || !el.isConnected) {{
                     throw new Error('stale element reference');
                 }}
-                el.scrollIntoView({{ block: 'center', inline: 'center' }});
+                el.scrollIntoView({{ behavior: 'instant', block: 'center', inline: 'center' }});
                 var r = el.getBoundingClientRect();
                 return {{
-                    x: Math.round(r.left + r.width / 2),
-                    y: Math.round(r.top + r.height / 2)
+                    x: Math.floor(r.left + r.width / 2),
+                    y: Math.floor(r.top + r.height / 2)
                 }};
             }})()"
         );
