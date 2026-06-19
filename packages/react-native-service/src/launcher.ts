@@ -53,7 +53,7 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
   protected doctorChecks(config: Options.Testrunner, platforms: Set<'android' | 'ios'>): DoctorCheck[] {
     return [
       ...super.doctorChecks(config, platforms),
-      ...reactNativeDoctorChecks(this.options.metroPort ?? DEFAULT_METRO_PORT),
+      ...reactNativeDoctorChecks(this.options.metroHost ?? '127.0.0.1', this.options.metroPort ?? DEFAULT_METRO_PORT),
     ];
   }
 

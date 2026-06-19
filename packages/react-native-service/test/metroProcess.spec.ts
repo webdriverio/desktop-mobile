@@ -96,6 +96,19 @@ describe('MetroProcess.start', () => {
     await expect(mp.start({ readyTimeoutMs: 1000, pollIntervalMs: 10 })).rejects.toThrow(/exited during startup/);
   });
 
+  it('should surface captured Metro stderr in a startup-failure error', async () => {
+    existsMock.mockReturnValue(true);
+    const proc = fakeProc();
+    // Emit a stderr line, then mark the process exited — the failure must carry the stderr tail
+    // so the root cause is visible even at the default `info` log level.
+    queueMicrotask(() => {
+      proc.stderr.emit('data', Buffer.from('error: listen EADDRINUSE: address already in use :::8081'));
+      proc.exitCode = 1;
+    });
+    const mp = new MetroProcess({ spawn: vi.fn(() => proc) as never, probe: async () => false });
+    await expect(mp.start({ readyTimeoutMs: 1000, pollIntervalMs: 10 })).rejects.toThrow(/EADDRINUSE/);
+  });
+
   it('should fail fast with the spawn error instead of timing out (ENOENT)', async () => {
     existsMock.mockReturnValue(true);
     const proc = fakeProc();

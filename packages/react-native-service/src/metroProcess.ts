@@ -37,7 +37,7 @@ export interface MetroStartOptions {
 }
 
 /** A one-shot readiness probe — resolves true when Metro answers `/status`. */
-export type MetroReadyProbe = (port: number) => Promise<boolean>;
+export type MetroReadyProbe = (port: number, host?: string) => Promise<boolean>;
 /** A best-effort pre-bundle fetch. */
 export type MetroBundleFetch = (port: number, platform: 'android' | 'ios') => Promise<void>;
 
@@ -56,9 +56,9 @@ export function resolveReactNativeBin(projectRoot: string): { cmd: string; prefi
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /** Default readiness probe: Metro answers `GET /status` with 200 once the bundler is up. */
-export const probeMetroStatus: MetroReadyProbe = (port) =>
+export const probeMetroStatus: MetroReadyProbe = (port, host = '127.0.0.1') =>
   new Promise((resolve) => {
-    const req = http.get(`http://127.0.0.1:${port}/status`, (res) => {
+    const req = http.get(`http://${host}:${port}/status`, (res) => {
       res.resume();
       resolve(res.statusCode === 200);
     });
@@ -92,6 +92,10 @@ export class MetroProcess {
   // A spawn 'error' (e.g. ENOENT — the CLI isn't installed) leaves exitCode/signalCode null,
   // so the readiness loop would otherwise spin to the full timeout. Capture it to fail fast.
   #spawnError?: Error;
+  // Last few stderr lines, so a startup failure (EADDRINUSE on 8081, a bad metro.config.js, a
+  // missing peer dep) surfaces its actual cause in the thrown error — Metro's stderr is otherwise
+  // only at `debug` level and invisible in a default `info` WDIO run.
+  #stderrTail: string[] = [];
   readonly #spawn: typeof nodeSpawn;
   readonly #probe: MetroReadyProbe;
   readonly #fetchBundle: MetroBundleFetch;
@@ -127,6 +131,7 @@ export class MetroProcess {
     const port = options.port ?? DEFAULT_METRO_PORT;
     this.#port = port;
     this.#spawnError = undefined;
+    this.#stderrTail = [];
 
     const { cmd, prefixArgs } = resolveReactNativeBin(projectRoot);
     log.info(`Starting Metro on port ${port} (cwd: ${projectRoot})`);
@@ -137,7 +142,16 @@ export class MetroProcess {
     });
     this.#proc = proc;
     proc.stdout?.on('data', (d: Buffer) => log.debug(`[metro] ${d.toString().trim()}`));
-    proc.stderr?.on('data', (d: Buffer) => log.debug(`[metro] ${d.toString().trim()}`));
+    proc.stderr?.on('data', (d: Buffer) => {
+      const line = d.toString().trim();
+      log.debug(`[metro] ${line}`);
+      if (line) {
+        this.#stderrTail.push(line);
+        if (this.#stderrTail.length > 20) {
+          this.#stderrTail.shift();
+        }
+      }
+    });
     proc.on('error', (e) => {
       this.#spawnError = e;
       log.error(`Metro spawn error: ${e.message}`);
@@ -165,7 +179,7 @@ export class MetroProcess {
       }
       const p = this.#proc;
       if (p && (p.exitCode !== null || p.signalCode !== null)) {
-        throw new Error('Metro process exited during startup');
+        throw new Error(this.#withStderr('Metro process exited during startup'));
       }
       if (await this.#probe(port)) {
         // A spawn 'error' may have fired during the probe await; a pre-existing Metro already
@@ -180,7 +194,12 @@ export class MetroProcess {
       }
       await delay(interval);
     }
-    throw new Error(`Metro did not become ready within ${timeout}ms on port ${port}`);
+    throw new Error(this.#withStderr(`Metro did not become ready within ${timeout}ms on port ${port}`));
+  }
+
+  /** Append the buffered Metro stderr tail to a startup-failure message so the cause is visible. */
+  #withStderr(message: string): string {
+    return this.#stderrTail.length > 0 ? `${message}\nMetro stderr:\n${this.#stderrTail.join('\n')}` : message;
   }
 
   async stop(): Promise<void> {

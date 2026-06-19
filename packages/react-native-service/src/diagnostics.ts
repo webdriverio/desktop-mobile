@@ -7,25 +7,27 @@ import type { DiagnosticResult } from '@wdio/native-utils';
 import { probeMetroStatus } from './metroProcess.js';
 
 /**
- * Verify Metro is reachable on the configured port. When the service doesn't manage Metro
+ * Verify Metro is reachable on the configured host/port. When the service doesn't manage Metro
  * (the default), a down server is the most common cause of a cryptic "no Hermes target"
- * failure — surface it here as an actionable warning instead.
+ * failure — surface it here as an actionable warning instead. Probes `metroHost` (not a hardcoded
+ * localhost) so a remote-Metro setup doesn't get a spurious "not reachable" warning.
  */
-export function checkMetroReachable(port: number): DoctorCheck {
+export function checkMetroReachable(host: string, port: number): DoctorCheck {
   return async (): Promise<DiagnosticResult> => {
-    const reachable = await probeMetroStatus(port);
+    const reachable = await probeMetroStatus(port, host);
+    const where = `${host}:${port}`;
     return reachable
-      ? { category: 'Metro', status: 'ok', message: `reachable on port ${port}` }
+      ? { category: 'Metro', status: 'ok', message: `reachable on ${where}` }
       : {
           category: 'Metro',
           status: 'warn',
-          message: `not reachable on port ${port}`,
+          message: `not reachable on ${where}`,
           details: 'Start Metro (`react-native start`) or set manageMetro: true to have the service own it.',
         };
   };
 }
 
 /** The React Native-specific preflight checks. */
-export function reactNativeDoctorChecks(metroPort: number): DoctorCheck[] {
-  return [checkMetroReachable(metroPort)];
+export function reactNativeDoctorChecks(metroHost: string, metroPort: number): DoctorCheck[] {
+  return [checkMetroReachable(metroHost, metroPort)];
 }
