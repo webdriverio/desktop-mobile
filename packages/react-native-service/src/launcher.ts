@@ -65,7 +65,10 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
     if (this.options.manageMetro) {
       this.#metro = new MetroProcess();
       try {
-        const firstPlatform = flattenCaps<ReactNativeCapabilities>(capabilities)[0]?.platformName?.toLowerCase();
+        // Resolve platform the same way onWorkerStart does — options.platform wins over the
+        // capability, so an options-level iOS run pre-warms the iOS bundle, not Android.
+        const firstCap = flattenCaps<ReactNativeCapabilities>(capabilities)[0];
+        const firstPlatform = (this.options.platform ?? firstCap?.platformName)?.toLowerCase();
         await this.#metro.start({
           projectRoot: this.options.metroProjectRoot,
           port: this.options.metroPort,

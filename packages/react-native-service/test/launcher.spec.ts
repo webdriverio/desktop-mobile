@@ -101,6 +101,15 @@ describe('ReactNativeLaunchService Metro lifecycle', () => {
     await make().onPrepare(config, [cap({ platformName: 'Android' })]);
     expect(metroStart).not.toHaveBeenCalled();
   });
+
+  it('should prebundle for the options.platform when platformName is unset (not default android)', async () => {
+    // Match onWorkerStart's precedence: options.platform wins, so an options-level iOS run
+    // pre-warms the iOS bundle rather than silently warming android.
+    await make({ manageMetro: true, prebundle: true, platform: 'iOS' }).onPrepare(config, [
+      cap({ platformName: undefined }),
+    ]);
+    expect(metroStart).toHaveBeenCalledWith(expect.objectContaining({ platform: 'ios', prebundle: true }));
+  });
 });
 
 describe('ReactNativeLaunchService.onWorkerStart', () => {
