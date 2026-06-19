@@ -212,6 +212,19 @@ export function classifyFile(file: string, services: string[]): Verdict {
   return 'none';
 }
 
+/**
+ * Services whose E2E a shared-package change must run. A types-only package needs none — its
+ * change is erased at compile time, so build/unit already cover it. The `bundler` build tool
+ * changes every package's build output, so all. Otherwise: the transitive dependents from the dep
+ * graph, falling back to every service for a new/unknown shared package with no known dependents
+ * (over-run, never silently under-run).
+ */
+function affectedServices(dir: string, services: string[], dependents: Record<string, string[]>): string[] {
+  if (TYPES_ONLY_PACKAGES.has(dir)) return [];
+  if (SHARED_PACKAGES.has(dir)) return services;
+  return dependents[dir]?.length ? dependents[dir] : services;
+}
+
 export function classifyChanges(
   files: string[],
   services: string[],
@@ -238,23 +251,12 @@ export function classifyChanges(
     if (verdict === 'none') continue;
     if (verdict === 'shared') {
       // A shared-package change always needs build/unit (sharedChanges keeps it off the lint-only
-      // path below), but only the services it can affect at RUNTIME need E2E: none for a
-      // types-only package (compile-time-only — build/unit already cover it), otherwise the
-      // transitive dependents from the dep graph. Fall back to every service when a shared
-      // package has no known dependents — an infra/build-tool package like `bundler`, or a new
-      // shared package — so we over-run rather than ever silently under-run.
+      // path below); affectedServices decides which services' E2E it can actually affect at runtime.
       sharedChanges = true;
       const dir = (file.match(/^packages\/([^/]+)\//) as RegExpMatchArray)[1];
-      const typesOnly = TYPES_ONLY_PACKAGES.has(dir);
-      const affected = typesOnly
-        ? [] // erased at compile time — build/unit already cover it
-        : SHARED_PACKAGES.has(dir)
-          ? services // build tool (bundler) — changes every package's build output → all E2E
-          : dependents[dir]?.length
-            ? dependents[dir] // shared code → only the services that transitively depend on it
-            : services; // new/unknown shared package with no known dependents → defensive all
+      const affected = affectedServices(dir, services, dependents);
       for (const svc of affected) runs[svc] = true;
-      sharedDetail.push({ file, pkg: dir, services: affected, typesOnly });
+      sharedDetail.push({ file, pkg: dir, services: affected, typesOnly: TYPES_ONLY_PACKAGES.has(dir) });
     } else if (verdict === 'all' || verdict === 'unknown') {
       if (verdict === 'all') triggersAll.push(file);
       else unknownFiles.push(file);
