@@ -207,7 +207,7 @@
       // Invokes a real Tauri command on click so e2e can verify that mocks
       // auto-sync after a DOM interaction (not just after browser.tauri.execute).
       const invokePlatformButton = document.getElementById('invoke-platform');
-      invokePlatformButton.addEventListener('click', async () => {
+      invokePlatformButton?.addEventListener('click', async () => {
         try {
           await window.__TAURI__.core.invoke('get_platform_info');
           updateStatus('Platform info invoked');
