@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use axum::extract::{Path, State};
@@ -6,7 +7,7 @@ use serde::Deserialize;
 use tauri::Runtime;
 
 use crate::platform::{ModifierState, PointerEventType};
-use crate::server::response::{WebDriverResponse, WebDriverResult};
+use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 
 #[derive(Debug, Deserialize)]
@@ -65,9 +66,29 @@ pub enum PointerAction {
         x: i32,
         y: i32,
         duration: Option<u64>,
+        #[serde(default)]
+        origin: Option<Origin>,
     },
     #[serde(rename = "pause")]
     Pause { duration: Option<u64> },
+}
+
+/// W3C JSON key identifying a web element reference.
+const ELEMENT_KEY: &str = "element-6066-11e4-a52e-4f735466cecf";
+
+/// Coordinate origin for a `pointerMove`. Per the WebDriver Actions spec the
+/// `origin` is either the string `"viewport"` (the default — x/y are absolute
+/// viewport coordinates) or `"pointer"` (x/y are relative to the current pointer
+/// position), or an element reference object
+/// `{ "element-6066-11e4-a52e-4f735466cecf": "<id>" }` (x/y are offsets from the
+/// element's in-view center point). WebdriverIO sends the element form for
+/// `element.click(options)` with x/y defaulting to 0, so this must resolve to the
+/// element's center rather than viewport (0,0).
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+pub enum Origin {
+    Named(String),
+    Element(HashMap<String, String>),
 }
 
 #[derive(Debug, Deserialize)]
@@ -109,18 +130,25 @@ pub async fn perform<R: Runtime + 'static>(
     Json(request): Json<ActionsRequest>,
 ) -> WebDriverResult {
     // Get session info and executor first
-    let (current_window, timeouts, frame_context) = {
+    let (current_window, timeouts, frame_context, pointer_position) = {
         let sessions = state.sessions.read().await;
         let session = sessions.get(&session_id)?;
         (
             session.current_window.clone(),
             session.timeouts.clone(),
             session.frame_context.clone(),
+            session.action_state.pointer_position,
         )
     };
 
     let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
-    let mut pointer_state = PointerState { x: 0, y: 0 };
+    let mut pointer_state = PointerState {
+        x: pointer_position.0,
+        y: pointer_position.1,
+    };
+    // Position of the last primary-button press, used to synthesize a `click`
+    // when the matching release lands on the same spot (a click, not a drag).
+    let mut primary_down_pos: Option<(i32, i32)> = None;
     let mut modifier_state = ModifierState::default();
 
     for action_seq in &request.actions {
@@ -170,6 +198,9 @@ pub async fn perform<R: Runtime + 'static>(
                                     *button,
                                 )
                                 .await?;
+                            if *button == 0 {
+                                primary_down_pos = Some((pointer_state.x, pointer_state.y));
+                            }
                             // Track pressed button
                             let mut sessions = state.sessions.write().await;
                             if let Ok(session) = sessions.get_mut(&session_id) {
@@ -190,6 +221,25 @@ pub async fn perform<R: Runtime + 'static>(
                                     *button,
                                 )
                                 .await?;
+                            // A primary press + release on the same spot is a
+                            // click; emit the click event the browser would
+                            // synthesize for real input so element handlers fire.
+                            // Only the primary button's release consumes/clears
+                            // the press state — a non-primary release in between
+                            // must not drop it.
+                            if *button == 0 {
+                                if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
+                                    executor
+                                        .dispatch_pointer_event(
+                                            PointerEventType::Click,
+                                            pointer_state.x,
+                                            pointer_state.y,
+                                            *button,
+                                        )
+                                        .await?;
+                                }
+                                primary_down_pos = None;
+                            }
                             // Remove from tracked buttons
                             let mut sessions = state.sessions.write().await;
                             if let Ok(session) = sessions.get_mut(&session_id) {
@@ -200,9 +250,48 @@ pub async fn perform<R: Runtime + 'static>(
                                 }
                             }
                         }
-                        PointerAction::PointerMove { x, y, duration } => {
-                            pointer_state.x = *x;
-                            pointer_state.y = *y;
+                        PointerAction::PointerMove {
+                            x,
+                            y,
+                            duration,
+                            origin,
+                        } => {
+                            let (target_x, target_y) = match origin {
+                                // No origin (the default) or "viewport": x/y are absolute viewport coords.
+                                None => (*x, *y),
+                                Some(Origin::Named(name)) if name == "viewport" => (*x, *y),
+                                Some(Origin::Named(name)) if name == "pointer" => {
+                                    (pointer_state.x + *x, pointer_state.y + *y)
+                                }
+                                // The spec defines only "viewport" and "pointer" as named origins;
+                                // reject anything else rather than silently treating it as viewport.
+                                Some(Origin::Named(name)) => {
+                                    return Err(WebDriverErrorResponse::invalid_argument(&format!(
+                                        "pointerMove origin '{name}' is not a recognised named origin (expected 'viewport' or 'pointer')"
+                                    )));
+                                }
+                                Some(Origin::Element(refs)) => {
+                                    let element_id = refs.get(ELEMENT_KEY).ok_or_else(|| {
+                                        WebDriverErrorResponse::invalid_argument(
+                                            "pointerMove origin is missing a web element reference",
+                                        )
+                                    })?;
+                                    let js_var = {
+                                        let sessions = state.sessions.read().await;
+                                        let session = sessions.get(&session_id)?;
+                                        session
+                                            .elements
+                                            .get(element_id)
+                                            .ok_or_else(WebDriverErrorResponse::no_such_element)?
+                                            .js_ref
+                                            .clone()
+                                    };
+                                    let (cx, cy) = executor.get_element_center(&js_var).await?;
+                                    (cx + *x, cy + *y)
+                                }
+                            };
+                            pointer_state.x = target_x;
+                            pointer_state.y = target_y;
                             if let Some(ms) = duration {
                                 if *ms > 0 {
                                     tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
@@ -266,6 +355,15 @@ pub async fn perform<R: Runtime + 'static>(
         }
     }
 
+    // Persist the final pointer position so a later performActions call with
+    // origin: "pointer" resolves relative to it instead of (0, 0).
+    {
+        let mut sessions = state.sessions.write().await;
+        if let Ok(session) = sessions.get_mut(&session_id) {
+            session.action_state.pointer_position = (pointer_state.x, pointer_state.y);
+        }
+    }
+
     Ok(WebDriverResponse::null())
 }
 
@@ -280,6 +378,7 @@ pub async fn release<R: Runtime + 'static>(
         let session = sessions.get_mut(&session_id)?;
         let pressed_keys: Vec<String> = session.action_state.pressed_keys.drain().collect();
         let pressed_buttons = std::mem::take(&mut session.action_state.pressed_buttons);
+        session.action_state.pointer_position = (0, 0);
         (
             session.current_window.clone(),
             session.timeouts.clone(),

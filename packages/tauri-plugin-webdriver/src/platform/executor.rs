@@ -47,6 +47,7 @@ pub enum PointerEventType {
     Down,
     Up,
     Move,
+    Click,
 }
 
 /// Cookie data
@@ -445,6 +446,43 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
             });
         }
         Ok(ElementRect::default())
+    }
+
+    /// Get an element's in-view center point in **client (viewport)** coordinates,
+    /// scrolling it into view first. Unlike [`Executor::get_element_rect`], this
+    /// does not add scroll offsets: pointer events dispatch against viewport
+    /// coordinates (`clientX`/`clientY`), so the center must be viewport-relative.
+    async fn get_element_center(&self, js_var: &str) -> Result<(i32, i32), WebDriverErrorResponse> {
+        let script = format!(
+            r"(function() {{
+                var el = window.{js_var};
+                if (!el || !el.isConnected) {{
+                    throw new Error('stale element reference');
+                }}
+                el.scrollIntoView({{ behavior: 'instant', block: 'center', inline: 'center' }});
+                var r = el.getBoundingClientRect();
+                return {{
+                    x: Math.floor(r.left + r.width / 2),
+                    y: Math.floor(r.top + r.height / 2)
+                }};
+            }})()"
+        );
+        let result = self.evaluate_js(&script).await?;
+
+        let value = result
+            .get("value")
+            .cloned()
+            .ok_or_else(|| WebDriverErrorResponse::unknown_error("element center script returned no value"))?;
+
+        #[derive(serde::Deserialize)]
+        struct Center {
+            x: i32,
+            y: i32,
+        }
+        let center: Center = serde_json::from_value(value).map_err(|err| {
+            WebDriverErrorResponse::unknown_error(&format!("could not read element center: {err}"))
+        })?;
+        Ok((center.x, center.y))
     }
 
     /// Check if element is displayed
@@ -1352,6 +1390,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
             PointerEventType::Down => "mousedown",
             PointerEventType::Up => "mouseup",
             PointerEventType::Move => "mousemove",
+            // Manually dispatched mousedown/mouseup do NOT make the browser
+            // synthesize a click, so element click handlers never fire. The
+            // actions handler emits this explicitly after a same-spot down+up.
+            PointerEventType::Click => "click",
         };
 
         let buttons = if matches!(event_type, PointerEventType::Down) {
