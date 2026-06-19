@@ -497,9 +497,11 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * command. afterCommand leaves the user's command chain untouched.
    *
    * afterCommand exposes only the root browser, not the multiremote instance a
-   * command ran on, so for multiremote we schedule every instance's batch. Each
-   * scheduler filters to native mocks (shared) plus its own browser-mode mocks,
-   * so all affected mocks update without needing to know which instance fired.
+   * command ran on, so for multiremote we schedule each Electron instance's batch.
+   * Non-Electron instances are skipped — they have no mock surface and no
+   * browser.electron to drive a native update, so scheduling them would just warn.
+   * Each scheduler filters to native mocks (shared) plus its own browser-mode
+   * mocks, so all affected mocks update without knowing which instance fired.
    */
   async afterCommand(commandName: string, _args: unknown[], _result: unknown, error?: Error): Promise<void> {
     const browser = this.browser;
@@ -508,9 +510,10 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     }
     if (isMultiremote(browser)) {
       await Promise.all(
-        browser.instances.map((instanceName) =>
-          getMockUpdateScheduler(browser.getInstance(instanceName) as WebdriverIO.Browser).schedule(),
-        ),
+        browser.instances
+          .map((instanceName) => browser.getInstance(instanceName) as WebdriverIO.Browser)
+          .filter(isElectronInstance)
+          .map((instance) => getMockUpdateScheduler(instance).schedule()),
       );
       return;
     }
@@ -812,6 +815,18 @@ function isMultiremote(
   browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
 ): browser is WebdriverIO.MultiRemoteBrowser {
   return browser.isMultiremote;
+}
+
+/**
+ * A multiremote instance is an Electron session when it carries the service's
+ * custom capability; other instances (Firefox, Chrome, …) have no mock surface.
+ */
+function isElectronInstance(browser: WebdriverIO.Browser): boolean {
+  const caps =
+    (browser.requestedCapabilities as Capabilities.W3CCapabilities)?.alwaysMatch ||
+    (browser.requestedCapabilities as WebdriverIO.Capabilities) ||
+    {};
+  return Boolean(caps[CUSTOM_CAPABILITY_NAME]);
 }
 
 async function initCdpBridge(

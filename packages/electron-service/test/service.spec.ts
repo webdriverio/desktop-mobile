@@ -1392,6 +1392,48 @@ describe('Electron Worker Service', () => {
         await instance.afterCommand('click', [], undefined, undefined);
         expect(mockObj.update).toHaveBeenCalled();
       });
+
+      it('should only schedule Electron instances, skipping non-Electron ones', async () => {
+        instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
+
+        const electronBrowser = {
+          url: vi.fn().mockResolvedValue(undefined),
+          execute: vi.fn().mockResolvedValue(undefined),
+          overwriteCommand: vi.fn(),
+          requestedCapabilities: {
+            alwaysMatch: { browserName: 'electron', 'wdio:electronServiceOptions': {} },
+          },
+          electron: {},
+        } as unknown as WebdriverIO.Browser;
+
+        const firefoxBrowser = {
+          url: vi.fn().mockResolvedValue(undefined),
+          execute: vi.fn().mockResolvedValue(undefined),
+          overwriteCommand: vi.fn(),
+          requestedCapabilities: { alwaysMatch: { browserName: 'firefox' } },
+        } as unknown as WebdriverIO.Browser;
+
+        const rootBrowser = {
+          instances: ['app1', 'ff1'],
+          getInstance: (name: string) => (name === 'app1' ? electronBrowser : firefoxBrowser),
+          execute: vi.fn().mockResolvedValue(undefined),
+          url: vi.fn().mockResolvedValue(undefined),
+          overwriteCommand: vi.fn(),
+          isMultiremote: true,
+          electron: {},
+        } as unknown as WebdriverIO.MultiRemoteBrowser;
+
+        await instance.before({}, [], rootBrowser);
+
+        const storeModule = (await import('../src/mockStore.js')) as any;
+        const mockObj = { update: vi.fn().mockResolvedValue(undefined) };
+        storeModule.default.getMocks.mockReturnValue([['id', mockObj]]);
+        await instance.afterCommand('click', [], undefined, undefined);
+
+        // Only the Electron instance is scheduled, so the shared native mock is
+        // updated once — not once per instance — and Firefox is left untouched.
+        expect(mockObj.update).toHaveBeenCalledTimes(1);
+      });
     });
 
     describe('root multiremote browser.electron.mock()', () => {
