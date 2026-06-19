@@ -622,6 +622,25 @@ describe('Tauri Mocking', () => {
         expect(mockReadClipboard.mock.calls).toHaveLength(2);
       });
 
+      it('should auto-synchronize mock calls after a DOM interaction', async () => {
+        const mockGetPlatformInfo = await browser.tauri.mock('get_platform_info');
+
+        // The #invoke-platform button invokes get_platform_info via core.invoke.
+        // The element-scoped command override must auto-sync the outer mock after
+        // the real click — with NO explicit update(). This guards the regression
+        // that was invisible to tauri's CI before (reverted in #439): tauri's
+        // other mock tests all sync via browser.tauri.execute or update().
+        const invokeButton = await browser.$('#invoke-platform');
+        await invokeButton.click();
+
+        await browser.waitUntil(async () => mockGetPlatformInfo.mock.calls.length > 0, {
+          timeout: 5000,
+          timeoutMsg: 'Mock was not auto-synced after DOM interaction',
+        });
+
+        expect(mockGetPlatformInfo).toHaveBeenCalledTimes(1);
+      });
+
       it('should synchronize mock results after update', async () => {
         const mockReadClipboard = await browser.tauri.mock('read_clipboard');
         await mockReadClipboard.mockReturnValue('mocked result');

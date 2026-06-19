@@ -1,6 +1,11 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
-import { createLogger, hasSemicolonOutsideQuotes, waitUntilWindowAvailable } from '@wdio/native-utils';
+import {
+  createLogger,
+  hasSemicolonOutsideQuotes,
+  installMockSyncOverride,
+  waitUntilWindowAvailable,
+} from '@wdio/native-utils';
 import { execute } from './commands/execute.js';
 import { clearAllMocks, isMockFunction, mock, resetAllMocks, restoreAllMocks } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
@@ -545,17 +550,7 @@ export default class TauriWorkerService {
   private overrideElementCommand(commandName: ElementCommands) {
     const browser = this.browser as WebdriverIO.Browser;
     try {
-      const mockSyncOverride = async function (
-        this: WebdriverIO.Element,
-        originalCommand: (...args: readonly unknown[]) => Promise<unknown>,
-        ...args: readonly unknown[]
-      ): Promise<unknown> {
-        const result = await Reflect.apply(originalCommand, this, args as unknown[]);
-        await updateAllMocks();
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1];
-
-      browser.overwriteCommand(commandName, mockSyncOverride, true);
+      installMockSyncOverride(browser, commandName, () => updateAllMocks());
     } catch (error) {
       log.warn(`Failed to override element command '${commandName}':`, error);
     }

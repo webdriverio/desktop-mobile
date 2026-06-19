@@ -11,7 +11,8 @@ import {
   flushMicrotasks,
 } from './helpers.js';
 
-vi.mock('@wdio/native-utils', () => ({
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
   createLogger: vi.fn(() => ({
     info: vi.fn(),
     debug: vi.fn(),

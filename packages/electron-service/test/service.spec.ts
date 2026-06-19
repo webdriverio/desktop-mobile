@@ -288,6 +288,51 @@ describe('Electron Worker Service', () => {
       expect(original).toHaveBeenCalled();
     });
 
+    it('should chain a user-registered override instead of clobbering it (#422)', async () => {
+      const order: string[] = [];
+      // A user's own overwriteCommand('click', ...), as WDIO stores it.
+      const userOverride = vi.fn(async function (
+        this: unknown,
+        origCommand: (...a: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) {
+        order.push('user');
+        return origCommand(...args);
+      });
+      (browser as any).__propertiesObject__ = { __elementOverrides__: { value: { click: userOverride } } };
+
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockObj = {
+        __accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+        __applyCalls: vi.fn(),
+      };
+      storeModule.default.getMocks.mockReturnValueOnce([['electron.app.getName', mockObj]]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const clickCall = oc.mock.calls.find((c: unknown[]) => c[0] === 'click');
+      const overrideFn = clickCall?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const original = vi.fn(async () => {
+        order.push('original');
+        return 'ok';
+      });
+      await overrideFn?.call({} as unknown as WebdriverIO.Element, original);
+
+      // User's override stays the outer wrapper; its origClick ran the original
+      // command AND drove the scheduler mock sync (#422).
+      expect(userOverride).toHaveBeenCalledOnce();
+      expect(original).toHaveBeenCalled();
+      expect(mockObj.__applyCalls).toHaveBeenCalledTimes(1);
+      expect(order).toEqual(['user', 'original']);
+    });
+
     it('should batch updates for ≥2 mocks into a single browser.electron.execute call', async () => {
       instance = new ElectronWorkerService({}, {});
       await instance.before({}, [], browser);

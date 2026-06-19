@@ -89,6 +89,7 @@
         <button type="button" id="increment-button">Increment</button>
         <button type="button" id="decrement-button">Decrement</button>
         <button type="button" id="reset-button">Reset</button>
+        <button type="button" id="invoke-platform">Get Platform Info</button>
       </div>
 
       <div class="info-section">
@@ -201,6 +202,18 @@
       resetButton.addEventListener('click', () => {
         count = 0;
         updateCounter();
+      });
+
+      // Invokes a real Tauri command on click so e2e can verify that mocks
+      // auto-sync after a DOM interaction (not just after browser.tauri.execute).
+      const invokePlatformButton = document.getElementById('invoke-platform');
+      invokePlatformButton.addEventListener('click', async () => {
+        try {
+          await window.__TAURI__.core.invoke('get_platform_info');
+          updateStatus('Platform info invoked');
+        } catch (error) {
+          console.error('[App] get_platform_info invoke failed:', error);
+        }
       });
 
       // Initialize

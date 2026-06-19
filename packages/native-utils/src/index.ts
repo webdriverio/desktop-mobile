@@ -1,5 +1,6 @@
 import { createLogger } from './log.js';
 
+export { installMockSyncOverride } from './commandOverride.js';
 export { readConfig } from './config/read.js';
 export {
   type DiagnosticResult,
