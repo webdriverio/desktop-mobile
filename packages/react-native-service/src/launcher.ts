@@ -31,4 +31,14 @@ export default class ReactNativeLaunchService extends MobileBaseLauncher<
   ): 'android' | 'ios' {
     return prepareReactNativeCapability(cap, options);
   }
+
+  protected requiredDrivers(platform: 'android' | 'ios'): string[] {
+    return platform === 'android' ? ['uiautomator2'] : ['xcuitest'];
+  }
+
+  // RN connects to a single shared Metro on a fixed port (default 8081), not a per-cap
+  // allocated realm port — so there's no capability for the base launcher to stamp.
+  protected portCapKey(): string | undefined {
+    return undefined;
+  }
 }

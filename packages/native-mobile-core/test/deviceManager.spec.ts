@@ -6,7 +6,8 @@ vi.mock('@wdio/native-utils', async (importOriginal) => {
   return { ...actual, createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn, error: vi.fn() }) };
 });
 
-import { DeviceManager } from '../src/deviceManager.js';
+import { afterEach } from 'vitest';
+import { applyBootCapDefaults, DeviceManager } from '../src/deviceManager.js';
 
 describe('DeviceManager', () => {
   it('should return undefined when the pool is empty', () => {
@@ -52,5 +53,56 @@ describe('DeviceManager', () => {
     const cap: Record<string, unknown> = {};
     DeviceManager.applyToCapability(cap, { iOSUdid: 'ABC-123' }, 'ios');
     expect(cap['appium:udid']).toBe('ABC-123');
+  });
+});
+
+describe('applyBootCapDefaults', () => {
+  const origCI = process.env.CI;
+  afterEach(() => {
+    if (origCI === undefined) {
+      delete process.env.CI;
+    } else {
+      process.env.CI = origCI;
+    }
+  });
+
+  it('should set autoGrantPermissions for Android', () => {
+    const cap: Record<string, unknown> = {};
+    applyBootCapDefaults(cap, 'android');
+    expect(cap['appium:autoGrantPermissions']).toBe(true);
+  });
+
+  it('should set the iOS WDA/sim timeout defaults', () => {
+    const cap: Record<string, unknown> = {};
+    applyBootCapDefaults(cap, 'ios');
+    expect(cap['appium:wdaLaunchTimeout']).toBe(720000);
+    expect(cap['appium:simulatorStartupTimeout']).toBe(240000);
+  });
+
+  it('should set isHeadless only in CI', () => {
+    process.env.CI = 'true';
+    const ci: Record<string, unknown> = {};
+    applyBootCapDefaults(ci, 'ios');
+    expect(ci['appium:isHeadless']).toBe(true);
+
+    delete process.env.CI;
+    const local: Record<string, unknown> = {};
+    applyBootCapDefaults(local, 'ios');
+    expect(local['appium:isHeadless']).toBeUndefined();
+  });
+
+  it('should never override an explicit user cap', () => {
+    const cap: Record<string, unknown> = { 'appium:wdaLaunchTimeout': 1, 'appium:autoGrantPermissions': false };
+    applyBootCapDefaults(cap, 'ios');
+    applyBootCapDefaults(cap, 'android');
+    expect(cap['appium:wdaLaunchTimeout']).toBe(1);
+    expect(cap['appium:autoGrantPermissions']).toBe(false);
+  });
+
+  it('should not set noReset (left to the user)', () => {
+    const cap: Record<string, unknown> = {};
+    applyBootCapDefaults(cap, 'android');
+    applyBootCapDefaults(cap, 'ios');
+    expect(cap['appium:noReset']).toBeUndefined();
   });
 });

@@ -1,0 +1,42 @@
+name: Mobile Setup-Automation Smoke
+# Description: Verifies @wdio/native-mobile-core's `autoInstallDriver` actually installs an
+# Appium driver. The e2e/package-test envs carry the drivers as node_modules deps (which
+# Appium loads ahead of APPIUM_HOME), so `ensureAppiumDriver` no-ops there — this job is the
+# only place the real install path runs. The script builds a clean dir with appium only +
+# a fresh APPIUM_HOME, then asserts the driver is installed (issue #378).
+
+permissions:
+  contents: read
+
+on:
+  workflow_call:
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
+
+jobs:
+  smoke:
+    name: autoInstallDriver
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v6
+        with:
+          ssh-key: ${{ secrets.DEPLOY_KEY }}
+
+      - name: 🛠️ Setup Development Environment
+        uses: ./.github/workflows/actions/setup-workspace
+        with:
+          node-version: '24'
+
+      # The smoke imports the built dist of @wdio/native-mobile-core.
+      - name: 🏗️ Build @wdio/native-mobile-core
+        run: pnpm turbo run build --filter=@wdio/native-mobile-core
+        shell: bash
+
+      - name: 🔌 Smoke autoInstallDriver
+        run: pnpm run smoke:autoinstall-driver
+        shell: bash

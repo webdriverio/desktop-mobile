@@ -86,3 +86,35 @@ export class DeviceManager {
     }
   }
 }
+
+/**
+ * Apply robustness + iOS-launch cap defaults, **only when the user hasn't set them** (an
+ * explicit cap always wins — same contract as `applyToCapability`). The iOS timeout/headless
+ * values mirror the proven e2e config: without them a real user hits the exact cryptic
+ * appium-xcuitest timeout this exists to kill.
+ *
+ * Deliberately omits `appium:noReset`: its value trades app-state isolation for speed in a
+ * way that should be the user's explicit choice, and the repo's e2e suite doesn't rely on it.
+ */
+export function applyBootCapDefaults(capability: Record<string, unknown>, platform: 'android' | 'ios'): void {
+  const setIfUnset = (key: string, value: unknown) => {
+    if (capability[key] === undefined) {
+      capability[key] = value;
+    }
+  };
+
+  if (platform === 'android') {
+    // Auto-dismiss runtime-permission dialogs that otherwise block the UI tree.
+    setIfUnset('appium:autoGrantPermissions', true);
+    return;
+  }
+
+  // iOS: generous ceilings for a cold WDA build / slow sim boot; tighten by pinning a
+  // prebuilt WDA (derivedDataPath + usePrebuiltWDA) yourself. isHeadless only in CI —
+  // a local run wants the visible Simulator window.
+  setIfUnset('appium:wdaLaunchTimeout', 720000);
+  setIfUnset('appium:simulatorStartupTimeout', 240000);
+  if (process.env.CI) {
+    setIfUnset('appium:isHeadless', true);
+  }
+}
