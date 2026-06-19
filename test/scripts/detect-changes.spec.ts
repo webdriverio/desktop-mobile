@@ -1,15 +1,35 @@
 import { describe, expect, it } from 'vitest';
-import { classifyChanges, classifyFile, discoverServices } from '../../scripts/detect-changes.ts';
+import {
+  buildServiceDependents,
+  classifyChanges,
+  classifyFile,
+  discoverServices,
+} from '../../scripts/detect-changes.ts';
 
 const SERVICES = ['dioxus', 'electrobun', 'electron', 'flutter', 'react-native', 'tauri'];
+const REPO_ROOT = new URL('../..', import.meta.url).pathname;
+// Use the REAL workspace dependency graph so the narrowing tests reflect production exactly (and
+// double as a guard: if a service's native-* deps change, the asserted closures below shift).
+const DEPENDENTS = buildServiceDependents(REPO_ROOT, SERVICES);
 
 function decide(files: string[], forceAll = false) {
-  return classifyChanges(files, SERVICES, { forceAll });
+  return classifyChanges(files, SERVICES, { forceAll, dependents: DEPENDENTS });
 }
 
 describe('discoverServices', () => {
   it('should derive the service list from packages/*-service', () => {
     expect(discoverServices(new URL('../..', import.meta.url).pathname)).toEqual(SERVICES);
+  });
+});
+
+describe('buildServiceDependents', () => {
+  it('should map each shared package to the services that transitively depend on it', () => {
+    // The narrowing wins: mobile-core is mobile-only; the CDP bridge is electrobun + RN.
+    expect(DEPENDENTS['native-mobile-core']).toEqual(['flutter', 'react-native']);
+    expect(DEPENDENTS['native-cdp-bridge']).toEqual(['electrobun', 'react-native']);
+    // Universally-depended-on packages still map to every service.
+    expect(DEPENDENTS['native-utils']).toEqual([...SERVICES].sort());
+    expect(DEPENDENTS['native-core']).toEqual([...SERVICES].sort());
   });
 });
 
@@ -31,7 +51,12 @@ describe('classifyFile', () => {
     ['packages/dioxus-embedded-driver/src/lib.rs', 'dioxus'],
     ['packages/native-utils/src/teardown.ts', 'shared'],
     ['packages/native-core/src/index.ts', 'shared'],
+    ['packages/native-mobile-core/src/launcher.ts', 'shared'],
     ['packages/bundler/src/index.ts', 'shared'],
+    // native-types is 'shared' at the file level too — the runtime-dependent narrowing
+    // (incl. types-only → no E2E) is applied in classifyChanges, not classifyFile.
+    ['packages/native-types/src/react-native.ts', 'shared'],
+    ['packages/native-types/src/shared.ts', 'shared'],
     ['packages/some-new-thing/src/index.ts', 'unknown'],
     // e2e
     ['e2e/test/electron/api.spec.ts', 'electron'],
@@ -178,11 +203,68 @@ describe('classifyChanges decisions', () => {
     expect(d.triggersAll).toEqual(['scripts/test-package.ts']);
   });
 
-  it('should run everything and flag shared for a shared package change', () => {
+  it('should run everything and flag shared for a universal shared package change', () => {
     const d = decide(['packages/native-utils/src/teardown.ts']);
     expect(Object.values(d.runs).every(Boolean)).toBe(true);
     expect(d.sharedChanges).toBe(true);
     expect(d.triggersAll).toEqual([]);
+  });
+
+  it('should narrow a native-mobile-core change to the mobile services only (no desktop E2E)', () => {
+    const d = decide(['packages/native-mobile-core/src/launcher.ts']);
+    expect(d.runs).toEqual({
+      dioxus: false,
+      electrobun: false,
+      electron: false,
+      flutter: true,
+      'react-native': true,
+      tauri: false,
+    });
+    expect(d.sharedChanges).toBe(true);
+    expect(d.lintOnly).toBe(false);
+  });
+
+  it('should narrow a native-cdp-bridge change to electrobun + react-native', () => {
+    const d = decide(['packages/native-cdp-bridge/src/connection.ts']);
+    expect(d.runs).toEqual({
+      dioxus: false,
+      electrobun: true,
+      electron: false,
+      flutter: false,
+      'react-native': true,
+      tauri: false,
+    });
+    expect(d.sharedChanges).toBe(true);
+  });
+
+  it('should run typecheck/build but NO per-service E2E for a types-only native-types change', () => {
+    const d = decide(['packages/native-types/src/react-native.ts']);
+    // No service E2E — a type change is erased at compile time, build + unit cover it.
+    expect(Object.values(d.runs).every((v) => v === false)).toBe(true);
+    // …but it is NOT lint-only: sharedChanges keeps build + unit running.
+    expect(d.sharedChanges).toBe(true);
+    expect(d.lintOnly).toBe(false);
+    expect(d.sharedDetail[0]).toMatchObject({ pkg: 'native-types', typesOnly: true, services: [] });
+  });
+
+  it('should treat native-types/src/shared.ts as types-only too (runtime axis, not "shared" name)', () => {
+    const d = decide(['packages/native-types/src/shared.ts']);
+    expect(Object.values(d.runs).every((v) => v === false)).toBe(true);
+    expect(d.lintOnly).toBe(false);
+  });
+
+  it('should run every service for a bundler (build-tool) change', () => {
+    const d = decide(['packages/bundler/src/index.ts']);
+    expect(Object.values(d.runs).every(Boolean)).toBe(true);
+    expect(d.sharedChanges).toBe(true);
+  });
+
+  it('should union narrowed shared + a service change (mobile-core + electron src)', () => {
+    const d = decide(['packages/native-mobile-core/src/launcher.ts', 'packages/electron-service/src/x.ts']);
+    expect(d.runs.flutter).toBe(true);
+    expect(d.runs['react-native']).toBe(true);
+    expect(d.runs.electron).toBe(true); // its own file triggers it independently
+    expect(d.runs.tauri).toBe(false);
   });
 
   it('should run only electron for mixed md + electron src, not lint-only', () => {
