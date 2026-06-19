@@ -91,6 +91,26 @@ describe('warmUpXcodeToolchain', () => {
     const results = await warmUpXcodeToolchain();
     expect(results.find((r) => r.category === 'iOS SDK')).toMatchObject({ status: 'error' });
   });
+
+  it('should report both probes ok on a healthy toolchain', async () => {
+    setPlatform('darwin');
+    xcrunResolves('17.5\n'); // --show-sdk-version (trimmed into the message)
+    xcrunResolves(''); // simctl list devices
+    const results = await warmUpXcodeToolchain();
+    expect(results.find((r) => r.category === 'iOS SDK')).toMatchObject({
+      status: 'ok',
+      message: 'iphonesimulator 17.5',
+    });
+    expect(results.find((r) => r.category === 'iOS Simulators')).toMatchObject({ status: 'ok' });
+  });
+
+  it('should warn (not error) when the simctl probe fails', async () => {
+    setPlatform('darwin');
+    xcrunResolves('17.5'); // SDK ok
+    xcrunRejects('simctl boom'); // simctl list devices fails
+    const results = await warmUpXcodeToolchain();
+    expect(results.find((r) => r.category === 'iOS Simulators')).toMatchObject({ status: 'warn' });
+  });
 });
 
 describe('prebuildWda', () => {
