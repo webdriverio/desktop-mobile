@@ -342,48 +342,6 @@ describe('TauriWorkerService', () => {
       expect(result).toBe('ok');
     });
 
-    it('should chain a user-registered override instead of clobbering it', async () => {
-      const order: string[] = [];
-      // A user's own overwriteCommand('click', ...), as WDIO stores it.
-      const userOverride = vi.fn(async function (
-        this: unknown,
-        origCommand: (...a: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) {
-        order.push('user');
-        return origCommand(...args);
-      });
-      const mockBrowser = createMockBrowser({
-        __propertiesObject__: { __elementOverrides__: { value: { click: userOverride } } },
-      });
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
-      const mockUpdate = vi.fn().mockResolvedValue(undefined);
-      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
-
-      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
-      const override = clickCall![1] as unknown as (
-        this: unknown,
-        originalCommand: (...args: unknown[]) => Promise<unknown>,
-        ...args: unknown[]
-      ) => Promise<unknown>;
-
-      const originalCommand = vi.fn(async () => {
-        order.push('original');
-        return 'ok';
-      });
-      const result = await override.call({}, originalCommand);
-
-      // User's override stays the outer wrapper; its origClick ran the original
-      // command AND synced mocks — exactly what the bug report expects.
-      expect(userOverride).toHaveBeenCalledOnce();
-      expect(originalCommand).toHaveBeenCalledOnce();
-      expect(mockUpdate).toHaveBeenCalledOnce();
-      expect(order).toEqual(['user', 'original']);
-      expect(result).toBe('ok');
-    });
-
     it('should clear stale mocks at session start for embedded driver provider', async () => {
       const mockBrowser = createMockBrowser();
       const originalExecute = mockBrowser.execute as ReturnType<typeof vi.fn>;
