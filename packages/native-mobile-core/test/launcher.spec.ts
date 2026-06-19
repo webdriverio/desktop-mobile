@@ -128,6 +128,14 @@ describe('MobileBaseLauncher.onPrepare', () => {
   it('should not throw under the default warn doctor mode', async () => {
     await expect(new TestLauncher().onPrepare(config, [cap()])).resolves.toBeUndefined();
   });
+
+  it('should honour autoInstallDriver set on the capability, not only the service', async () => {
+    // The idiomatic WDIO pattern puts service options on the capability; run-level decisions
+    // must read the merged options, not this.options alone (else they silently no-op).
+    const c = { ...cap(), 'wdio:testServiceOptions': { autoInstallDriver: true } } as TestCap;
+    await new TestLauncher().onPrepare(config, [c]);
+    expect(ensureSpy).toHaveBeenCalledWith('uiautomator2', { autoInstallDriver: true });
+  });
 });
 
 describe('MobileBaseLauncher doctor fail-fast', () => {
@@ -139,6 +147,11 @@ describe('MobileBaseLauncher doctor fail-fast', () => {
 
   it('should throw under { strict: true } when a check errors', async () => {
     await expect(new StrictLauncher({ doctor: { strict: true } }).onPrepare(config, [cap()])).rejects.toThrow(/bad/);
+  });
+
+  it('should fail-fast when { strict: true } is set on the capability, not the service', async () => {
+    const c = { ...cap(), 'wdio:testServiceOptions': { doctor: { strict: true } } } as TestCap;
+    await expect(new StrictLauncher().onPrepare(config, [c])).rejects.toThrow(/bad/);
   });
 
   it('should only log when run without strict (doctor: true)', async () => {

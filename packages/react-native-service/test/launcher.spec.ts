@@ -20,6 +20,11 @@ vi.mock('../src/metroProcess.js', () => ({
 const adbReverseMock = vi.hoisted(() => vi.fn(async () => {}));
 vi.mock('../src/adb.js', () => ({ adbReverse: adbReverseMock }));
 
+// Capture the host/port the doctor would probe (and avoid the real probe, since the metroProcess
+// mock above doesn't export probeMetroStatus).
+const rnDoctorChecks = vi.hoisted(() => vi.fn(() => []));
+vi.mock('../src/diagnostics.js', () => ({ reactNativeDoctorChecks: rnDoctorChecks }));
+
 import ReactNativeLaunchService from '../src/launcher.js';
 import type { ReactNativeCapabilities, ReactNativeServiceGlobalOptions } from '../src/types.js';
 
@@ -80,6 +85,14 @@ describe('ReactNativeLaunchService Metro lifecycle', () => {
 
   it('should start Metro before onPrepare when manageMetro is set', async () => {
     await make({ manageMetro: true }).onPrepare(config, [cap({ platformName: 'Android' })]);
+    expect(metroStart).toHaveBeenCalledOnce();
+  });
+
+  it('should start Metro when manageMetro is set on the capability, not the service', async () => {
+    // Regression for the dogfooding-conf footgun: launcher options set only on
+    // wdio:reactNativeServiceOptions must still start managed Metro.
+    const c = cap({ platformName: 'Android', 'wdio:reactNativeServiceOptions': { manageMetro: true } });
+    await make().onPrepare(config, [c]);
     expect(metroStart).toHaveBeenCalledOnce();
   });
 
@@ -163,5 +176,17 @@ describe('ReactNativeLaunchService.onWorkerStart', () => {
   it('should not adb-reverse for an iOS worker', async () => {
     await make().onWorkerStart('0-0', cap({ platformName: 'iOS' }));
     expect(adbReverseMock).not.toHaveBeenCalled();
+  });
+});
+
+describe('ReactNativeLaunchService doctor', () => {
+  afterEach(() => vi.clearAllMocks());
+
+  it('should probe the capability-level metroPort in the Metro doctor check', async () => {
+    // doctor runs (default) with metroPort set only on the capability — the resolved value must
+    // reach the Metro doctor check, not the default 8081.
+    const c = cap({ 'wdio:reactNativeServiceOptions': { metroPort: 9999 } });
+    await new ReactNativeLaunchService({}, {} as ReactNativeCapabilities, config).onPrepare(config, [c]);
+    expect(rnDoctorChecks).toHaveBeenCalledWith('127.0.0.1', 9999);
   });
 });

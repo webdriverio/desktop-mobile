@@ -213,12 +213,9 @@ export const config = {
   // sim-boot/WDA/FrontBoard trace, which is the only place the #359 session-create flake is
   // diagnosable (the failing session has no app/page-source to capture).
   //
-  // Pass reactNativeServiceOptions to the SERVICE registration (not only the capability):
-  // launcher-level options — manageMetro/metroProjectRoot/prebundle/doctor — are read from
-  // the service's own options in onPrepare, NOT from wdio:reactNativeServiceOptions (which is
-  // the worker channel). Registering bare 'react-native' left this.options empty, so managed
-  // Metro silently never started and the doctor never ran. The capability copy below still
-  // feeds the worker.
+  // reactNativeServiceOptions is set on both the service registration and the capability: the
+  // launcher merges the two (resolveLauncherOptions) for run-level options like manageMetro and
+  // doctor, and the worker reads its own copy from wdio:reactNativeServiceOptions.
   services: [
     ['appium', { logPath: logDir, args: { logLevel: 'debug' } }],
     ['react-native', reactNativeServiceOptions],
