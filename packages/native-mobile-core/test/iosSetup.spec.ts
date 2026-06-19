@@ -1,16 +1,24 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
-vi.mock('node:child_process', () => ({ execFileSync: vi.fn() }));
+vi.mock('node:child_process', () => ({ execFile: vi.fn(), spawn: vi.fn() }));
 vi.mock('node:fs', () => ({ existsSync: vi.fn() }));
 vi.mock('@wdio/native-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@wdio/native-utils')>();
   return { ...actual, createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() }) };
 });
 
-import { execFileSync } from 'node:child_process';
+import { execFile } from 'node:child_process';
 import { pickIosUdid, prebuildWda, resolveIosUdid, warmUpXcodeToolchain } from '../src/iosSetup.js';
 
-const execMock = vi.mocked(execFileSync);
+const execMock = vi.mocked(execFile);
+
+// The code wraps execFile in a promise; the helper resolves/rejects the (file, args, opts, cb)
+// callback so a test can stand in for one `xcrun` invocation.
+type ExecCb = (error: Error | null, stdout: string, stderr: string) => void;
+const xcrunOnce = (impl: (cb: ExecCb) => void) =>
+  execMock.mockImplementationOnce(((_file: string, _args: string[], _opts: unknown, cb: ExecCb) => impl(cb)) as never);
+const xcrunResolves = (stdout: string) => xcrunOnce((cb) => cb(null, stdout, ''));
+const xcrunRejects = (message: string) => xcrunOnce((cb) => cb(new Error(message), '', ''));
 const origPlatform = process.platform;
 const setPlatform = (p: NodeJS.Platform) =>
   Object.defineProperty(process, 'platform', { value: p, configurable: true });
@@ -51,41 +59,36 @@ describe('pickIosUdid', () => {
 });
 
 describe('resolveIosUdid', () => {
-  it('should return undefined off macOS without shelling out', () => {
+  it('should return undefined off macOS without shelling out', async () => {
     setPlatform('linux');
-    expect(resolveIosUdid('iPhone 16')).toBeUndefined();
+    expect(await resolveIosUdid('iPhone 16')).toBeUndefined();
     expect(execMock).not.toHaveBeenCalled();
   });
 
-  it('should resolve via simctl on macOS', () => {
+  it('should resolve via simctl on macOS', async () => {
     setPlatform('darwin');
-    execMock.mockReturnValueOnce(simctl);
-    expect(resolveIosUdid('iPhone 16')).toBe('NEW');
+    xcrunResolves(simctl);
+    expect(await resolveIosUdid('iPhone 16')).toBe('NEW');
   });
 
-  it('should return undefined when simctl throws', () => {
+  it('should return undefined when simctl throws', async () => {
     setPlatform('darwin');
-    execMock.mockImplementationOnce(() => {
-      throw new Error('xcrun missing');
-    });
-    expect(resolveIosUdid('iPhone 16')).toBeUndefined();
+    xcrunRejects('xcrun missing');
+    expect(await resolveIosUdid('iPhone 16')).toBeUndefined();
   });
 });
 
 describe('warmUpXcodeToolchain', () => {
-  it('should be empty off macOS', () => {
+  it('should be empty off macOS', async () => {
     setPlatform('linux');
-    expect(warmUpXcodeToolchain()).toEqual([]);
+    expect(await warmUpXcodeToolchain()).toEqual([]);
   });
 
-  it('should report an error result when the SDK probe fails', () => {
+  it('should report an error result when the SDK probe fails', async () => {
     setPlatform('darwin');
-    execMock
-      .mockImplementationOnce(() => {
-        throw new Error('no sdk');
-      })
-      .mockReturnValueOnce('' as never);
-    const results = warmUpXcodeToolchain();
+    xcrunRejects('no sdk'); // --show-sdk-version
+    xcrunResolves(''); // simctl list devices
+    const results = await warmUpXcodeToolchain();
     expect(results.find((r) => r.category === 'iOS SDK')).toMatchObject({ status: 'error' });
   });
 });

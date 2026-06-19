@@ -195,7 +195,7 @@ export abstract class MobileBaseLauncher<
         // iOS: resolve the exact simulator UDID from deviceName when not already pinned, so a
         // duplicate device name across runtimes can't boot a different instance than intended.
         if (platform === 'ios' && c['appium:udid'] === undefined && typeof c['appium:deviceName'] === 'string') {
-          const udid = resolveIosUdid(
+          const udid = await resolveIosUdid(
             c['appium:deviceName'] as string,
             c['appium:platformVersion'] as string | undefined,
           );
