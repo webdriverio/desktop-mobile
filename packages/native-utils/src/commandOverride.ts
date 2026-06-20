@@ -76,11 +76,31 @@ export function installMockSyncOverride(
 
   const existing = elementOverrides?.[commandName];
 
+  // DIAGNOSTIC (#422, temporary): record what the helper sees at install time so
+  // we can compare tauri (clobbers) vs electron (composes) in CI.
+  if (commandName === 'click') {
+    ((globalThis as unknown as { __mockSyncDiag?: unknown[] }).__mockSyncDiag ??= []).push({
+      phase: 'install',
+      hasProps: !!(browser as unknown as { __propertiesObject__?: unknown }).__propertiesObject__,
+      mapKeys: elementOverrides ? Object.keys(elementOverrides) : null,
+      hasExisting: !!existing,
+    });
+  }
+
   const override = async function (
     this: WebdriverIO.Element,
     originalCommand: (...args: readonly unknown[]) => Promise<unknown>,
     ...args: readonly unknown[]
   ): Promise<unknown> {
+    // DIAGNOSTIC (#422, temporary): did the element override fire at all, and is
+    // it chaining a captured user override?
+    if (commandName === 'click') {
+      ((globalThis as unknown as { __mockSyncDiag?: unknown[] }).__mockSyncDiag ??= []).push({
+        phase: 'fire',
+        chaining: !!existing,
+      });
+    }
+
     const serviceCommand = async (...innerArgs: readonly unknown[]): Promise<unknown> => {
       const result = await Reflect.apply(originalCommand, this, innerArgs);
       await syncMocks(this);
