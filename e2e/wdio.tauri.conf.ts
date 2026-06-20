@@ -308,6 +308,18 @@ export const config = {
       } as Parameters<typeof browser.overwriteCommand>[1],
       true,
     );
+    // DIAGNOSTIC (#422, temporary): record that the user override landed + on which
+    // session, so we can tell if the official provider reconnects (resetting the map)
+    // between this hook and the service's install.
+    const b = browser as unknown as {
+      sessionId?: string;
+      __propertiesObject__?: { __elementOverrides__?: { value?: Record<string, unknown> } };
+    };
+    ((globalThis as unknown as { __mockSyncDiag?: unknown[] }).__mockSyncDiag ??= []).push({
+      phase: 'userInstall',
+      sid: b.sessionId,
+      mapAfter: Object.keys(b.__propertiesObject__?.__elementOverrides__?.value ?? {}),
+    });
   },
   mochaOpts: {
     ui: 'bdd',

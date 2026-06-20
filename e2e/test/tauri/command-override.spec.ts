@@ -24,8 +24,10 @@ describe('Tauri user command override composition', () => {
     await (await browser.$('#reset-button')).click();
 
     const diag = (globalThis as unknown as { __mockSyncDiag?: { phase: string }[] }).__mockSyncDiag ?? [];
+    console.log('[DIAG422] userInstalls:', JSON.stringify(diag.filter((d) => d.phase === 'userInstall')));
     console.log('[DIAG422] installs:', JSON.stringify(diag.filter((d) => d.phase === 'install')));
     console.log('[DIAG422] firesThisClick:', JSON.stringify(diag.slice(diagBefore)));
+    console.log('[DIAG422] clickSid:', (browser as unknown as { sessionId?: string }).sessionId);
     console.log('[DIAG422] flag:', (globalThis as unknown as Record<string, unknown>).__userClickOverrideRan);
 
     expect((globalThis as unknown as Record<string, unknown>).__userClickOverrideRan).toBe(true);

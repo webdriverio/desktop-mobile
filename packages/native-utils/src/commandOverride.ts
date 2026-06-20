@@ -81,6 +81,7 @@ export function installMockSyncOverride(
   if (commandName === 'click') {
     ((globalThis as unknown as { __mockSyncDiag?: unknown[] }).__mockSyncDiag ??= []).push({
       phase: 'install',
+      sid: (browser as unknown as { sessionId?: string }).sessionId,
       hasProps: !!(browser as unknown as { __propertiesObject__?: unknown }).__propertiesObject__,
       mapKeys: elementOverrides ? Object.keys(elementOverrides) : null,
       hasExisting: !!existing,
