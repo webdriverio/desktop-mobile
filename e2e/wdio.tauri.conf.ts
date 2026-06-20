@@ -296,30 +296,42 @@ export const config = {
   // across every provider. The passthrough chains origClick, so every other spec's
   // clicks behave identically and now exercise the compose chain.
   before: async () => {
-    await browser.overwriteCommand(
-      'click',
-      async function (
-        this: WebdriverIO.Element,
-        origClick: (...a: readonly unknown[]) => Promise<unknown>,
-        ...args: readonly unknown[]
-      ): Promise<unknown> {
-        (globalThis as unknown as Record<string, unknown>).__userClickOverrideRan = true;
-        return origClick(...args);
-      } as Parameters<typeof browser.overwriteCommand>[1],
-      true,
-    );
-    // DIAGNOSTIC (#422, temporary): record that the user override landed + on which
-    // session, so we can tell if the official provider reconnects (resetting the map)
-    // between this hook and the service's install.
+    const diag = (globalThis as unknown as { __mockSyncDiag?: unknown[] }).__mockSyncDiag ??= [];
+    const hasBrowser = typeof browser !== 'undefined' && browser !== null;
     const b = browser as unknown as {
       sessionId?: string;
+      overwriteCommand?: unknown;
       __propertiesObject__?: { __elementOverrides__?: { value?: Record<string, unknown> } };
     };
-    ((globalThis as unknown as { __mockSyncDiag?: unknown[] }).__mockSyncDiag ??= []).push({
-      phase: 'userInstall',
-      sid: b.sessionId,
-      mapAfter: Object.keys(b.__propertiesObject__?.__elementOverrides__?.value ?? {}),
+    // DIAGNOSTIC (#422, temporary): probe BEFORE overwriteCommand — does this hook
+    // even run on official, and is browser/overwriteCommand available?
+    diag.push({
+      phase: 'userEnter',
+      hasBrowser,
+      sid: hasBrowser ? b.sessionId : null,
+      owcType: hasBrowser ? typeof b.overwriteCommand : 'no-browser',
     });
+    try {
+      await browser.overwriteCommand(
+        'click',
+        async function (
+          this: WebdriverIO.Element,
+          origClick: (...a: readonly unknown[]) => Promise<unknown>,
+          ...args: readonly unknown[]
+        ): Promise<unknown> {
+          (globalThis as unknown as Record<string, unknown>).__userClickOverrideRan = true;
+          return origClick(...args);
+        } as Parameters<typeof browser.overwriteCommand>[1],
+        true,
+      );
+      diag.push({
+        phase: 'userInstall',
+        sid: b.sessionId,
+        mapAfter: Object.keys(b.__propertiesObject__?.__elementOverrides__?.value ?? {}),
+      });
+    } catch (err) {
+      diag.push({ phase: 'userError', sid: hasBrowser ? b.sessionId : null, err: String((err as Error)?.message ?? err) });
+    }
   },
   mochaOpts: {
     ui: 'bdd',
