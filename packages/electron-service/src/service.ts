@@ -14,6 +14,7 @@ import type {
 import {
   createLogger,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
+  installMockSyncOverride,
   isBenignTeardownError,
   runBounded,
   waitUntilWindowAvailable,
@@ -750,24 +751,14 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   private overrideElementCommand(commandName: ElementCommands, targetBrowser?: WebdriverIO.Browser) {
     const browser = (targetBrowser ?? this.browser) as WebdriverIO.Browser;
     try {
-      const testOverride = async function (
-        this: WebdriverIO.Element,
-        originalCommand: (...args: readonly unknown[]) => Promise<unknown>,
-        ...args: readonly unknown[]
-      ): Promise<unknown> {
-        // Use Reflect.apply to safely call the original command with the correct 'this' context
-        // This avoids TypeScript's strict function signature checking while maintaining runtime safety
-        const result = await Reflect.apply(originalCommand, this, args as unknown[]);
-        // In multiremote, the override is registered on the root but fires per
-        // instance — this.browser is the per-instance owning session. Route
-        // through that browser's scheduler so per-instance mock keys match;
-        // otherwise the root scheduler filters everything out.
-        const ownerBrowser = (this as { browser?: WebdriverIO.Browser }).browser ?? browser;
-        await getMockUpdateScheduler(ownerBrowser).schedule();
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1];
-
-      browser.overwriteCommand(commandName, testOverride, true);
+      // In multiremote, the override is registered on the root but fires per
+      // instance — element.browser is the per-instance owning session. Route
+      // through that browser's scheduler so per-instance mock keys match;
+      // otherwise the root scheduler filters everything out.
+      installMockSyncOverride(browser, commandName, (element) => {
+        const ownerBrowser = (element as { browser?: WebdriverIO.Browser }).browser ?? browser;
+        return getMockUpdateScheduler(ownerBrowser).schedule();
+      });
     } catch (error) {
       log.warn(`Failed to override element command '${commandName}':`, error);
     }

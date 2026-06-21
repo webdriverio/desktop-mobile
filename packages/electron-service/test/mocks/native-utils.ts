@@ -44,6 +44,9 @@ export const wrapAsync = vi.fn();
 export const selectExecutable = vi.fn();
 export const validateBinaryPaths = vi.fn();
 
+// The command-override composer is load-bearing for the mock-sync override tests
+// (they capture and invoke the registered override) — re-export the real source.
+export { installMockSyncOverride } from '../../../native-utils/src/commandOverride.js';
 // Teardown helpers are pure utilities the service depends on for real behavior
 // (bounded timeout, benign-error matching) — re-export the actual source rather
 // than stub them, so afterSession() tests exercise the real logic.
