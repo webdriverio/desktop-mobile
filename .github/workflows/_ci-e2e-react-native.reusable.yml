@@ -182,17 +182,18 @@ jobs:
             # onWorkerStart — pre-launch, so the app's first bundle load reaches Metro. This leg is
             # the direct e2e verification of that lifecycle (replaces the manual adb-reverse +
             # start + wait-on previously here).
-            pnpm --filter @repo/e2e run test:e2e:react-native
-            # Package-install smoke (#387): validate the PACKED @wdio/react-native-service tarball
-            # installs + composes against THIS already-booted emulator + Metro + APK — the cheap
-            # "reuse the e2e device" approach (no second emulator). test-package.ts packs the service
-            # (+ native-mobile-core/cdp-bridge/types) and installs it into the isolated fixture, whose
-            # own devDeps provide appium + the uiautomator2 driver (Appium detects drivers from
-            # node_modules, not APPIUM_HOME); the running emulator + Metro + RN_APP_PATH are reused.
-            # Gated to the new-arch leg so it runs once per service (packaging is arch-independent).
-            # Single line: android-emulator-runner runs the script line-by-line (each its own
-            # `sh -c`), so a multi-line if/then/fi splits and the `if` executes without its `fi`.
-            if [ "${{ inputs.new-arch }}" = "true" ]; then RN_PLATFORM=android pnpm test:package:react-native; fi
+            # Run the e2e suite and the package smoke DECOUPLED so a flaky e2e can't mask the smoke's
+            # signal (does the PACKED tarball install + compose?): `|| rc=$?` captures each exit code,
+            # then we fail at the end only if either failed. The smoke validates the PACKED
+            # @wdio/react-native-service against THIS already-booted emulator + Metro + APK — the cheap
+            # "reuse the e2e device" approach (no second emulator); test-package.ts packs the service
+            # (+ native-mobile-core/cdp-bridge/types) into the isolated fixture, whose own devDeps
+            # provide appium + the uiautomator2 driver (detected from node_modules), gated to the
+            # new-arch leg so it runs once per service (packaging is arch-independent).
+            # The WHOLE pipeline MUST be one line: android-emulator-runner runs the script line-by-line,
+            # each in its own `sh -c`, so a var set on one line is gone on the next — split across lines
+            # the final check sees empty e2e_rc/smoke_rc and `[ "" != 0 ]` always exits 1.
+            e2e_rc=0; pnpm --filter @repo/e2e run test:e2e:react-native || e2e_rc=$?; smoke_rc=0; if [ "${{ inputs.new-arch }}" = "true" ]; then RN_PLATFORM=android pnpm test:package:react-native || smoke_rc=$?; fi; if [ "$e2e_rc" != 0 ] || [ "$smoke_rc" != 0 ]; then exit 1; fi
 
       - name: 📦 Upload Test Logs
         if: always()

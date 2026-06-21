@@ -191,13 +191,19 @@ jobs:
           FLUTTER_IOS_DEVICE: ${{ inputs.ios-device }}
         run: |
           set -euo pipefail
-          pnpm --filter @repo/e2e run test:e2e:flutter:ios
-          # Package-install smoke (#387): packed @wdio/flutter-service against THIS booted sim,
-          # reusing the prebuilt WDA (FLUTTER_WDA_DD, read by the fixture config). test-package.ts
-          # overwrites the isolated fixture's appium-flutter-driver with the getVMServiceUrl fork
-          # (AFD_FORK_BUILD_DIR, built above) — the published driver can't reach the Dart VM.
+          # Run the e2e suite and the package smoke DECOUPLED: capture each exit code with `|| rc=$?`
+          # (so a failed e2e suite doesn't abort the step before the smoke runs) and fail at the end
+          # if either failed. The smoke validates the PACKED tarball — its signal must survive an
+          # (occasionally flaky) e2e failure. It stays second so it runs on a sim the suite warmed.
+          e2e_rc=0; pnpm --filter @repo/e2e run test:e2e:flutter:ios || e2e_rc=$?
+          # Packed @wdio/flutter-service against THIS booted sim, reusing the prebuilt WDA
+          # (FLUTTER_WDA_DD, read by the fixture config). test-package.ts overwrites the isolated
+          # fixture's appium-flutter-driver with the getVMServiceUrl fork (AFD_FORK_BUILD_DIR, built
+          # above) — the published driver can't reach the Dart VM.
+          smoke_rc=0
           FLUTTER_PLATFORM=ios FLUTTER_DEVICE_NAME="$FLUTTER_IOS_DEVICE" \
-            AFD_FORK_BUILD_DIR="$RUNNER_TEMP/afd/driver/build" pnpm test:package:flutter
+            AFD_FORK_BUILD_DIR="$RUNNER_TEMP/afd/driver/build" pnpm test:package:flutter || smoke_rc=$?
+          if [ "$e2e_rc" != 0 ] || [ "$smoke_rc" != 0 ]; then exit 1; fi
 
       - name: 📦 Upload Test Logs
         if: always()
