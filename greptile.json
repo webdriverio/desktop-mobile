@@ -1,0 +1,8 @@
+{
+  "disabledLabels": [
+    "release"
+  ],
+  "excludeAuthors": [
+    "github-actions[bot]"
+  ]
+}
