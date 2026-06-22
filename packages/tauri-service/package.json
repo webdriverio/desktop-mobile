@@ -66,12 +66,12 @@
   "devDependencies": {
     "@babel/parser": "^7.29.7",
     "@types/debug": "^4.1.12",
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.4",
     "recast": "^0.23.11",
     "shx": "^0.4.0",
     "terser": "^5.48.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "webdriverio": "^9.0.0"
