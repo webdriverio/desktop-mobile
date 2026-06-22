@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## @wdio/native-cdp-bridge@1.0.0 - 2026-06-22
+
+_First release of @wdio/native-cdp-bridge._
+
+### New
+- **@wdio/react-native-service**: Added @wdio/react-native-service for testing React Native mobile applications (#361)
+
+### Fixed
+- **WebSocket self-healing**: Fixed WebSocket disconnection handling to emit disconnect events and self-heal connections
+- Pinned msedgedriver to the WebView2 runtime version to fix Windows test flakiness
+
+### Changed
+- Staged native-cdp-bridge and native-mobile-core packages to version 1.0.0-next.0
+- **Tooling**: Switched to running repo scripts on bare node instead of tsx (#345)
+- **Code Quality**: Extracted shared @wdio/native-cdp-bridge package and reworked electrobun to use it (#333)
+
 ## [@wdio/dioxus-bridge@1.0.0-next.3] - 2026-06-18
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-dioxus-bridge@v1.0.0-next.2...wdio-dioxus-bridge@v1.0.0-next.3)
