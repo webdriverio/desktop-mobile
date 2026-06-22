@@ -9,6 +9,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-types@2.4.0] - 2026-06-22
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-types@v2.3.1...wdio-native-types@v2.4.0)
+
+### New
+- **React Native service**: Added React Native service with Metro lifecycle management and zero-config Hermes setup.
+- **Mobile setup automation**: Added shared mobile setup automation with chromedriver-style zero-config developer experience.
+- **Flutter service**: Added Flutter mobile service package (@wdio/flutter-service).
+- **React Native service**: Added React Native mobile service package (@wdio/react-native-service). (#361)
+
+### Fixed
+- Deprecated inline returnValue in mock() — use chained .mockReturnValue() instead.
+- Fixed type consistency for isMockFunction across electron, tauri, dioxus, and electrobun.
+
+### Changed
+- Optimized mock updates to batch all calls into a single CDP round-trip. (#268)
+
+### Documentation
+- Completed BrowserExtension JSDoc API documentation lists. (#342)
+
+### Developer
+- **Tooling**: Switched repo scripts to run on bare node instead of tsx. (#345)
+
 ## @wdio/react-native-service@1.0.0-next.0 - 2026-06-22
 
 _First release of @wdio/react-native-service._
