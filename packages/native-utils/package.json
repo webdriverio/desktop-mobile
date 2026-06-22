@@ -50,10 +50,10 @@
   "dependencies": {
     "@wdio/logger": "catalog:default",
     "debug": "^4.4.3",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "find-up-simple": "^1.0.1",
     "json5": "^2.2.3",
-    "smol-toml": "^1.6.0",
+    "smol-toml": "^1.7.0",
     "yaml": "^2.9.0"
   },
   "peerDependencies": {

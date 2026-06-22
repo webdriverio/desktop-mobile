@@ -71,11 +71,11 @@
     "compare-versions": "^6.1.1",
     "debug": "^4.4.3",
     "deepmerge-ts": "^7.1.5",
-    "electron-to-chromium": "^1.5.371",
+    "electron-to-chromium": "^1.5.376",
     "fast-copy": "^4.0.2",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
-    "puppeteer-core": "^25.1.0",
+    "puppeteer-core": "^25.2.0",
     "recast": "^0.23.9",
     "webdriverio": "catalog:default",
     "yaml": "^2.9.0"
