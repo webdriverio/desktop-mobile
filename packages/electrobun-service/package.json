@@ -65,11 +65,11 @@
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
-    "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@types/node": "^25.9.4",
+    "@vitest/coverage-v8": "^4.1.9",
     "shx": "^0.4.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "webdriverio": "^9.0.0"
