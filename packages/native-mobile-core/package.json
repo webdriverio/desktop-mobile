@@ -1,6 +1,6 @@
 {
   "name": "@wdio/native-mobile-core",
-  "version": "1.0.0",
+  "version": "1.0.0-next.0",
   "description": "Shared Appium-mobile launcher, device pool, capability prep, contexts, deeplink, and device-log capture for WebdriverIO native mobile services (React Native, Flutter)",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/native-mobile-core",
   "license": "MIT",

@@ -1,6 +1,6 @@
 {
   "name": "@wdio/native-cdp-bridge",
-  "version": "0.1.0-next.0",
+  "version": "1.0.0-next.0",
   "description": "Shared single- and multi-target CDP bridge for WebdriverIO native-app services",
   "author": "WebdriverIO Community",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/native-cdp-bridge",
