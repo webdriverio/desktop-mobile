@@ -7,6 +7,16 @@
   "version": {
     "preset": "angular",
     "sync": false,
+    "groups": {
+      "tauri": {
+        "packages": [
+          "@wdio/tauri-service",
+          "@wdio/tauri-plugin",
+          "tauri-plugin-wdio-webdriver"
+        ],
+        "sync": "independent"
+      }
+    },
     "versionPrefix": "v",
     "tagTemplate": "${packageName}@v${version}",
     "commitMessage": "chore: release ${packageName}@${version} [skip ci]",
