@@ -7,6 +7,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## @wdio/native-mobile-core@1.0.0 - 2026-06-22
+
+_First release of @wdio/native-mobile-core._
+
+### New
+- **Mobile setup automation**: Added shared mobile setup automation for a chromedriver-style zero-config developer experience
+- **@wdio/flutter-service**: Added @wdio/flutter-service for Flutter mobile testing support
+
+### Fixed
+- Launcher options specified at the capability level are now properly honored
+
+### Changed
+- Staged native-cdp-bridge and native-mobile-core packages at version 1.0.0-next.0
+- **Performance**: iOS toolchain probes now run asynchronously without blocking the event loop
+
 ## @wdio/native-cdp-bridge@1.0.0 - 2026-06-22
 
 _First release of @wdio/native-cdp-bridge._
