@@ -8,6 +8,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## @wdio/react-native-service@1.0.0-next.0 - 2026-06-22
+
+_First release of @wdio/react-native-service._
+
+### New
+- **Metro/Hermes lifecycle management**: Added automatic Metro lifecycle management with zero-config Hermes support.
+- **Mobile setup automation**: Added shared mobile setup automation providing chromedriver-style zero-config developer experience.
+- **Flutter service**: Added `@wdio/flutter-service` for Flutter mobile testing support.
+- **React Native service**: Added `@wdio/react-native-service` for React Native mobile testing support. (#361)
+
+### Fixed
+- Fixed launcher options not being honored when specified at the capability level.
+- Fixed mock spies not re-attaching after React Native fast-refresh displaces the target.
+
+### Changed
+- Bootstrap react-native and flutter services to 0.0.1 for first prerelease.
+
 ## @wdio/native-mobile-core@1.0.0 - 2026-06-22
 
 _First release of @wdio/native-mobile-core._
