@@ -366,6 +366,17 @@ For scoped releases without labels or for dry runs:
 3. Select scope, version type, and dry run option (leave `standing_pr_number` blank; enable `reconcile_after` to rebuild the standing PR afterwards)
 4. Monitor the workflow execution
 
+### First Release of a New Package
+
+A brand-new package has no tag yet, so ReleaseKit treats its `package.json` version as the floor and bumps **up** from it. Stage the manifest deliberately so the first publish lands where you intend:
+
+- **User-facing service on a `1.0.0-next` prerelease line** (a new `@wdio/*-service`): set `version` to `0.0.1`, then run a **Manual Release** with version type **prerelease** and bump **`major`** → publishes `1.0.0-next.0`. (Bump **`prerelease`** would give `1.0.0-next.1` — it only increments an existing counter.)
+- **Shared/internal package going straight to stable `1.0.0`** (a new `@wdio/native-*`): set `version` to `1.0.0-next.0`, then release with version type **stable** → ReleaseKit graduates it to `1.0.0`, ignoring the bump. (A bare `1.0.0` overshoots — a `major` bump publishes `2.0.0`.)
+
+After the first publish the new tag drives every later version and the manifest floor stops mattering: further prereleases increment (`next.1`, `next.2`, …) and `release:stable` graduates the line to `1.0.0`.
+
+See ReleaseKit's [versioning docs](https://github.com/goosewobbler/releasekit/blob/main/packages/version/docs/versioning.md#first-releases-no-prior-tag) for the underlying rules.
+
 ### Labels
 
 | Label | Effect |
