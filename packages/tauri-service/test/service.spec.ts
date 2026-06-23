@@ -384,7 +384,7 @@ describe('TauriWorkerService', () => {
       expect(result).toBe('ok');
     });
 
-    it('should coalesce concurrent overrides into two scheduler batches', async () => {
+    it('should coalesce concurrent overrides into at most two scheduler batches', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       await service.before({} as any, [], mockBrowser);
@@ -400,12 +400,15 @@ describe('TauriWorkerService', () => {
       ) => Promise<unknown>;
 
       const originalCommand = vi.fn().mockResolvedValue('ok');
-      // Two interactions fire before the first sync settles. The scheduler runs the
-      // first batch immediately and shares one queued slot for the rest, so update
-      // runs exactly twice (current + queued) rather than once per interaction.
+      // Three interactions fire before the first sync settles. The scheduler runs the
+      // first batch immediately; every caller after that shares one queued slot, so
+      // update runs exactly twice (current + queued) — not once per interaction. Three
+      // callers (rather than two) is what proves the shared slot: a broken queued-slot
+      // branch would let the third caller spawn its own batch and update would run 3x.
       const p1 = override.call({}, originalCommand);
       const p2 = override.call({}, originalCommand);
-      await Promise.all([p1, p2]);
+      const p3 = override.call({}, originalCommand);
+      await Promise.all([p1, p2, p3]);
 
       expect(mockUpdate).toHaveBeenCalledTimes(2);
     });
