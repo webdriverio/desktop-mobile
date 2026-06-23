@@ -60,7 +60,6 @@
       "mergeMethod": "squash"
     },
     "scopeLabels": {
-      "scope:shared": "@wdio/native-*",
       "scope:native-utils": "@wdio/native-utils",
       "scope:native-types": "@wdio/native-types",
       "scope:native-spy": "@wdio/native-spy",

@@ -348,13 +348,12 @@ Releases are automated via GitHub Actions using a **standing release PR** (Relea
 
 For changes that must publish on merge without waiting for the standing PR:
 
-1. Add `release:immediate` to your PR, plus a scope label (`scope:tauri`, `scope:shared`, …) and a bump label (`bump:patch`, `bump:minor`, `bump:major`)
+1. Add `release:immediate` to your PR, plus a scope label (`scope:tauri`, `scope:electron`, …) and a bump label (`bump:patch`, `bump:minor`, `bump:major`)
 2. After CI passes on the merge, the gate dispatches a direct scoped release
 3. The standing PR is reconciled afterwards so it no longer contains the just-released changes
 
 **Examples:**
 - `release:immediate` + `scope:electron` + `bump:major` → Electron packages at major bump
-- `release:immediate` + `scope:shared` + `bump:patch` → Shared packages at patch bump
 - Add `release:prerelease` to publish the immediate release as a prerelease (e.g., 11.0.0-next.0)
 
 ### Manual Release
@@ -381,7 +380,7 @@ See ReleaseKit's [versioning docs](https://github.com/goosewobbler/releasekit/bl
 
 | Label | Effect |
 |-------|--------|
-| Scope labels — `scope:<framework>` (`electron`, `tauri`, `dioxus`, `electrobun`, `react-native`, `flutter`) for a framework's whole package family; `scope:native-<pkg>` (`native-utils`, `native-types`, `native-spy`, `native-core`, `native-cdp-bridge`, `native-mobile-core`) for a single shared package; `scope:shared` for all `@wdio/native-*` | Package set (immediate release, or scope override on the standing PR) |
+| Scope labels — `scope:<framework>` (`electron`, `tauri`, `dioxus`, `electrobun`, `react-native`, `flutter`) for a framework's whole package family; `scope:native-<pkg>` (`native-utils`, `native-types`, `native-spy`, `native-core`, `native-cdp-bridge`, `native-mobile-core`) for a single shared package | Package set (immediate release, or scope override on the standing PR) |
 | `bump:patch` / `bump:minor` / `bump:major` | Version bump (immediate release, or bump override on the standing PR) |
 | `release:immediate` | Bypass the standing PR — direct release on merge (requires scope + bump labels) |
 | `release:prerelease` | Prerelease modifier (use with bump labels) |

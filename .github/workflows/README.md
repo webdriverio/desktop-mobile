@@ -33,7 +33,6 @@ Automated releases trigger when CI completes on `main` with release labels on me
 - **Scope labels** (prefix `scope:`):
   - `scope:electron` - Release Electron packages
   - `scope:tauri` - Release Tauri packages
-  - `scope:shared` - Release shared packages
 
 - **Bump labels** (prefix `bump:`):
   - `bump:patch`, `bump:minor`, `bump:major`
@@ -45,10 +44,8 @@ Automated releases trigger when CI completes on `main` with release labels on me
 **Examples:**
 - `scope:electron` + `bump:major` → Electron packages at major bump
 - `scope:tauri` + `bump:minor` → Tauri packages at minor bump
-- `scope:shared` only → Shared packages at minor bump (default)
-- `bump:major` only → Shared packages at major bump
 
-**Default behavior:** If only scope is specified, uses `minor` bump. If only version is specified, uses `shared` scope.
+**Default behavior:** If only scope is specified, uses `minor` bump.
 
 **Preview workflow:** When a PR has release labels, the `release-preview.yml` workflow shows what packages would be released and their new versions.
 
