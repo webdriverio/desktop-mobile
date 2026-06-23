@@ -381,7 +381,7 @@ See ReleaseKit's [versioning docs](https://github.com/goosewobbler/releasekit/bl
 
 | Label | Effect |
 |-------|--------|
-| `scope:electron` / `scope:tauri` / `scope:dioxus` / `scope:electrobun` / `scope:shared` | Package set (immediate release, or scope override on the standing PR) |
+| Scope labels — `scope:<framework>` (`electron`, `tauri`, `dioxus`, `electrobun`, `react-native`, `flutter`) for a framework's whole package family; `scope:native-<pkg>` (`native-utils`, `native-types`, `native-spy`, `native-core`, `native-cdp-bridge`, `native-mobile-core`) for a single shared package; `scope:shared` for all `@wdio/native-*` | Package set (immediate release, or scope override on the standing PR) |
 | `bump:patch` / `bump:minor` / `bump:major` | Version bump (immediate release, or bump override on the standing PR) |
 | `release:immediate` | Bypass the standing PR — direct release on merge (requires scope + bump labels) |
 | `release:prerelease` | Prerelease modifier (use with bump labels) |
