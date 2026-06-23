@@ -1129,11 +1129,17 @@ jobs:
 
           echo "✅ Universal binary verified: $ARCHS"
 
-  # Single status check gate - use this as the sole required check in branch protection
-  # Avoids needing to update branch protection rules when CI jobs are added/removed
+  # Aggregates every required job and publishes the `ci/required` commit status to the PR
+  # head. That status — not this job's auto check-run — is the sole required check in branch
+  # protection (stable as jobs are added/removed). A commit status also lets the label-
+  # dispatched Dependabot run (a workflow_dispatch, not PR-associated) land its result on the
+  # PR merge box; see dependabot-ci.yml.
   ci-status:
     name: CI Status
     if: always()
+    permissions:
+      contents: read
+      statuses: write
     needs:
       - lint
       - unit-matrix
@@ -1227,3 +1233,33 @@ jobs:
             fi
           done
           echo "All CI jobs passed or were skipped"
+      - name: Publish ci/required commit status
+        # Skip Dependabot's own pull_request run: its token is read-only and we want
+        # ci/required to stay unreported there so the PR blocks until the label-dispatched
+        # workflow_dispatch run (no pull_request context) publishes it.
+        if: always() && github.event.pull_request.user.login != 'dependabot[bot]'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          # On pull_request events github.sha is the ephemeral merge commit; post to the PR
+          # head so the status lands on the commit branch protection evaluates. On
+          # workflow_dispatch / push, github.sha is already the right commit.
+          SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+          RESULTS: ${{ join(needs.*.result, ' ') }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          state=success
+          description='All required CI jobs passed'
+          for result in $RESULTS; do
+            if [ "$result" = 'failure' ] || [ "$result" = 'cancelled' ]; then
+              state=failure
+              description='One or more required CI jobs failed'
+              break
+            fi
+          done
+          echo "Publishing ci/required=$state to $SHA"
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state="$state" \
+            -f context='ci/required' \
+            -f description="$description" \
+            -f target_url="$RUN_URL"
