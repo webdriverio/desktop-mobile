@@ -1,6 +1,6 @@
 {
   "name": "@wdio/electron-cdp-bridge",
-  "version": "10.0.0",
+  "version": "10.1.0",
   "description": "CDP Bridge for WebdriverIO Electron Service",
   "author": "Sam Maister <goosewobbler@protonmail.com>",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/electron-cdp-bridge",

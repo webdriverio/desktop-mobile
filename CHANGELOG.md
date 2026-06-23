@@ -6,101 +6,47 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [@wdio/electron-cdp-bridge@10.1.0] - 2026-06-23
 
-
-
-
-## [@wdio/native-types@2.4.0] - 2026-06-22
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-native-types@v2.3.1...wdio-native-types@v2.4.0)
-
-### New
-- **React Native service**: Added React Native service with Metro lifecycle management and zero-config Hermes setup.
-- **Mobile setup automation**: Added shared mobile setup automation with chromedriver-style zero-config developer experience.
-- **Flutter service**: Added Flutter mobile service package (@wdio/flutter-service).
-- **React Native service**: Added React Native mobile service package (@wdio/react-native-service). (#361)
-
-### Fixed
-- Deprecated inline returnValue in mock() — use chained .mockReturnValue() instead.
-- Fixed type consistency for isMockFunction across electron, tauri, dioxus, and electrobun.
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-cdp-bridge@v10.0.0...wdio-electron-cdp-bridge@v10.1.0)
 
 ### Changed
-- Optimized mock updates to batch all calls into a single CDP round-trip. (#268)
+- **Tooling**: Switched repository scripts to run directly with Node.js instead of tsx, simplifying the development environment. (#345)
+- **Dependencies**: Updated project dependencies and resolved a throttling issue with WKWebView on macOS ARM devices.
+
+## [@wdio/electron-service@10.1.0] - 2026-06-23
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v10.0.0...wdio-electron-service@v10.1.0)
+
+### New
+- **@wdio/dioxus-service**: Added @wdio/dioxus-service integration branch.
+- **Browser mode**: Implemented browser mode phase 3.
+- **Browser-only test mode**: Implemented browser-only test mode (Phase 2).
+
+### Fixed
+- Fixed user command overrides being overwritten instead of composed in electron-service and tauri-service. (#422, #432, #432, #422)
+- Fixed mock-instance type bugs in native-types service modules. (#339)
+- Switched to WeakMap for standalone activeLaunchers to prevent memory leaks in electron-service.
+- Hardened Windows session teardown to prevent crash or hang on benign errors.
+- Addressed deferred lifecycle and log-parsing issues from Dioxus pull request.
+- Fixed pure Rust publishing for Tauri.
+
+### Changed
+- Batched updateAllMocks calls into a single CDP round-trip for improved performance in electron-service. (#268)
+- Added legacy-package downloads badge (≤ v9) to electron downloads.
+- Refreshed dependencies and fixed Dioxus macOS-ARM WKWebView throttling issues.
+- Reduced log volume and consolidated diagnostics summary in electron-service.
+- Added video recording guide and reworked visual-testing documentation.
+- Updated logger name in electron service launcher for improved clarity.
 
 ### Documentation
-- Completed BrowserExtension JSDoc API documentation lists. (#342)
+- Added visual regression testing guide documentation.
+- Updated release management documentation to clarify GitHub release notes policy.
 
 ### Developer
-- **Tooling**: Switched repo scripts to run on bare node instead of tsx. (#345)
-
-## @wdio/react-native-service@1.0.0-next.0 - 2026-06-22
-
-_First release of @wdio/react-native-service._
-
-### New
-- **Metro/Hermes lifecycle management**: Added automatic Metro lifecycle management with zero-config Hermes support.
-- **Mobile setup automation**: Added shared mobile setup automation providing chromedriver-style zero-config developer experience.
-- **Flutter service**: Added `@wdio/flutter-service` for Flutter mobile testing support.
-- **React Native service**: Added `@wdio/react-native-service` for React Native mobile testing support. (#361)
-
-### Fixed
-- Fixed launcher options not being honored when specified at the capability level.
-- Fixed mock spies not re-attaching after React Native fast-refresh displaces the target.
-
-### Changed
-- Bootstrap react-native and flutter services to 0.0.1 for first prerelease.
-
-## @wdio/native-mobile-core@1.0.0 - 2026-06-22
-
-_First release of @wdio/native-mobile-core._
-
-### New
-- **Mobile setup automation**: Added shared mobile setup automation for a chromedriver-style zero-config developer experience
-- **@wdio/flutter-service**: Added @wdio/flutter-service for Flutter mobile testing support
-
-### Fixed
-- Launcher options specified at the capability level are now properly honored
-
-### Changed
-- Staged native-cdp-bridge and native-mobile-core packages at version 1.0.0-next.0
-- **Performance**: iOS toolchain probes now run asynchronously without blocking the event loop
-
-## @wdio/native-cdp-bridge@1.0.0 - 2026-06-22
-
-_First release of @wdio/native-cdp-bridge._
-
-### New
-- **@wdio/react-native-service**: Added @wdio/react-native-service for testing React Native mobile applications (#361)
-
-### Fixed
-- **WebSocket self-healing**: Fixed WebSocket disconnection handling to emit disconnect events and self-heal connections
-- Pinned msedgedriver to the WebView2 runtime version to fix Windows test flakiness
-
-### Changed
-- Staged native-cdp-bridge and native-mobile-core packages to version 1.0.0-next.0
-- **Tooling**: Switched to running repo scripts on bare node instead of tsx (#345)
-- **Code Quality**: Extracted shared @wdio/native-cdp-bridge package and reworked electrobun to use it (#333)
-
-## [@wdio/dioxus-bridge@1.0.0-next.3] - 2026-06-18
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-dioxus-bridge@v1.0.0-next.2...wdio-dioxus-bridge@v1.0.0-next.3)
-
-### Developer
-- **Build System**: Updated project version to 1.0.0-next.3
-
-## [@wdio/dioxus-service@1.0.0-next.3] - 2026-06-18
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile.git/compare/wdio-dioxus-service@v1.0.0-next.2...wdio-dioxus-service@v1.0.0-next.3)
-
-### Fixed
-- Fixed preservation of undefined values in execute() calls. (#409)
-
-## [wdio-dioxus-driver@1.0.0-next.3] - 2026-06-18
-
-### Changed
-- Updated version to 1.0.0-next.3
-
-## [wdio-dioxus-embedded-driver@1.0.0-next.3] - 2026-06-18
-
-### Fixed
-- Fixed `getTitle` to read `document.title` instead of the OS window title.
+- **CI**: Integrated browser-mode E2E and package tests into CI pipeline. (#420)
+**Dependencies**:
+- Updated 3 production dependencies.
+- Updated 9 production dependencies.
+- **Tooling**: Changed repository scripts to run on bare Node instead of tsx. (#345)
+- **Infrastructure**: Updated release management process.
