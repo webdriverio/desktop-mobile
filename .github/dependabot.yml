@@ -14,6 +14,12 @@ updates:
           - '@wdio/*'
           - 'webdriver'
           - 'webdriverio'
+      # Keep CrabNebula bumps in their own PR: a new @crabnebula/test-runner-backend release is the
+      # trigger to re-check #179 (Tauri logging via CrabNebula on macOS). logging.crabnebula-tripwire
+      # flips that PR's tauri e2e leg red if the new version forwards app stdout/stderr.
+      crabnebula:
+        patterns:
+          - '@crabnebula/*'
       production-dependencies:
         dependency-type: 'production'
         patterns:
@@ -22,6 +28,7 @@ updates:
           - '@wdio/*'
           - 'webdriver'
           - 'webdriverio'
+          - '@crabnebula/*'
       development-dependencies:
         dependency-type: 'development'
         patterns:
@@ -30,6 +37,7 @@ updates:
           - '@wdio/*'
           - 'webdriver'
           - 'webdriverio'
+          - '@crabnebula/*'
     ignore:
       # For all packages, ignore major updates
       - dependency-name: '*'
