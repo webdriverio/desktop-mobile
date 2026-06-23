@@ -314,7 +314,7 @@ and off by default:
 `*LogLevel` is the minimum level captured — e.g. `frontendLogLevel: 'warn'` drops
 `console.log`/`console.info`. (`console.log` is treated as `info`.)
 
-## Multiremote / parallel workers
+## Parallel workers
 
 Set `devices` in the service options to pool descriptors across workers:
 
@@ -336,6 +336,11 @@ const config = {
 
 Each worker claims a device round-robin. Omit `devices` for a single-device run —
 Appium picks whatever is connected.
+
+> **Multiremote** — one session driving several devices at once (a capabilities object plus
+> `multiremotebrowser.getInstance(...)`) — is **not yet supported**: the `devices` pool gives each
+> *worker* one device, not each *instance*. Tracked in
+> [webdriverio/desktop-mobile#446](https://github.com/webdriverio/desktop-mobile/issues/446).
 
 ## Standalone / session mode
 
@@ -367,7 +372,8 @@ try {
 | `execute` / `mock` | ✅ supported — **debug / Metro build only** (Hermes inspector present only when `HERMES_ENABLE_DEBUGGER` is set) |
 | Android | ✅ full support |
 | iOS | ✅ full support |
-| multiremote | ✅ via the `devices` pool |
+| parallel workers | ✅ N workers → N devices via the `devices` pool |
+| multiremote (one session, N devices) | ❌ not yet — [#446](https://github.com/webdriverio/desktop-mobile/issues/446) |
 | context switching (`NATIVE_APP` ↔ `WEBVIEW_*`) | ✅ |
 | deeplink | ✅ via `mobile: deepLink` |
 | log capture | ✅ logcat / syslog + Metro console |

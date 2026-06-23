@@ -149,7 +149,7 @@ export const config = {
   runner: 'local',
   specs,
   exclude,
-  // One emulator/sim per CI job; multiremote is exercised by unit tests, not here.
+  // One emulator/sim per CI job; multiremote is unimplemented (see #446) — unit tests cover only capability-shape parsing.
   maxInstances: 1,
   capabilities,
   logLevel: 'info',

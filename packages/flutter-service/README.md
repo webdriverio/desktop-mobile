@@ -321,7 +321,7 @@ available via `browser.$(<json-finder>)` once in the `FLUTTER` context.
 The service collects **logcat** (Android) / **syslog** (iOS) and forwards them to the WDIO test
 output. Enable via `captureBackendLogs`.
 
-## Multiremote / parallel workers
+## Parallel workers
 
 Set `devices` in the service options to pool descriptors across workers:
 
@@ -339,6 +339,11 @@ const config = {
 
 Each worker claims a device round-robin (and its own `adb forward` tunnel). Omit `devices` for a
 single-device run.
+
+> **Multiremote** — one session driving several devices at once (a capabilities object plus
+> `multiremotebrowser.getInstance(...)`) — is **not yet supported**: the `devices` pool gives each
+> *worker* one device, not each *instance*. Tracked in
+> [webdriverio/desktop-mobile#446](https://github.com/webdriverio/desktop-mobile/issues/446).
 
 ## Standalone / session mode
 
@@ -368,7 +373,8 @@ try {
 | Android | ✅ full support |
 | iOS | ✅ full support |
 | find/tap (`byValueKey` / `byText`) | ✅ via appium-flutter-driver |
-| multiremote | ✅ via the `devices` pool |
+| parallel workers | ✅ N workers → N devices via the `devices` pool |
+| multiremote (one session, N devices) | ❌ not yet — [#446](https://github.com/webdriverio/desktop-mobile/issues/446) |
 | context switching (`NATIVE_APP` ↔ `FLUTTER`) | ✅ |
 | deeplink | ✅ via `mobile: deepLink` |
 | log capture | ✅ logcat / syslog |
