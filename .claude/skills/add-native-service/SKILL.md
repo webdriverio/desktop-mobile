@@ -1,5 +1,5 @@
 ---
-name: Add Native Service
+name: add-native-service
 description: Runbook for adding a new native-app testing service to this WebdriverIO monorepo. Covers every shipped architecture — desktop (Electron's CDP attach, Tauri's external WebDriver driver, Dioxus's in-process embedded driver + bridge crate) and mobile (React Native's Appium-driven native UI + Hermes/Metro JS-realm channel) — abstracted to apply to any new desktop or mobile framework. Use this skill when asked to add support for a new framework (desktop or mobile, e.g. Flutter/Capacitor), to bootstrap a new @wdio/<framework>-service package, to extend the supported-frameworks list in ROADMAP.md, or when shipping/refactoring any existing service along the shared pattern.
 ---
 
