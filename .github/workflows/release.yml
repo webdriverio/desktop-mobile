@@ -16,16 +16,16 @@ on:
   workflow_dispatch:
     inputs:
       scope:
-        description: "Release scope (electron, tauri, dioxus, electrobun, react-native, flutter, native-mobile-core, utils, types, spy, core, cdp-bridge, shared)"
+        description: "Release scope (electron, tauri, dioxus, electrobun, react-native, flutter, native-mobile-core, native-utils, native-types, native-spy, native-core, native-cdp-bridge, shared)"
         required: true
         type: choice
         options:
           - shared
-          - utils
-          - types
-          - spy
-          - core
-          - cdp-bridge
+          - native-utils
+          - native-types
+          - native-spy
+          - native-core
+          - native-cdp-bridge
           - native-mobile-core
           - electron
           - tauri

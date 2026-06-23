@@ -27,7 +27,7 @@ on:
         type: boolean
         default: false
       scope:
-        description: 'Release scope (electron, tauri, dioxus, electrobun, react-native, flutter, native-mobile-core, utils, types, spy, core, cdp-bridge, shared) — controls build and toolchain steps'
+        description: 'Release scope (electron, tauri, dioxus, electrobun, react-native, flutter, native-mobile-core, native-utils, native-types, native-spy, native-core, native-cdp-bridge, shared) — controls build and toolchain steps'
         required: true
         type: string
       standing_pr_number:
@@ -127,19 +127,19 @@ jobs:
             react-native)
               echo "packages=@wdio/react-native-service" >> "$GITHUB_OUTPUT"
               ;;
-            utils)
+            native-utils)
               echo "packages=@wdio/native-utils" >> "$GITHUB_OUTPUT"
               ;;
-            types)
+            native-types)
               echo "packages=@wdio/native-types" >> "$GITHUB_OUTPUT"
               ;;
-            spy)
+            native-spy)
               echo "packages=@wdio/native-spy" >> "$GITHUB_OUTPUT"
               ;;
-            core)
+            native-core)
               echo "packages=@wdio/native-core" >> "$GITHUB_OUTPUT"
               ;;
-            cdp-bridge)
+            native-cdp-bridge)
               echo "packages=@wdio/native-cdp-bridge" >> "$GITHUB_OUTPUT"
               ;;
             native-mobile-core)
@@ -234,19 +234,19 @@ jobs:
                 --filter='@wdio/react-native-service...' \
                 --filter='@wdio/bundler...'
               ;;
-            utils)
+            native-utils)
               pnpm turbo run build --filter='@wdio/native-utils...'
               ;;
-            types)
+            native-types)
               pnpm turbo run build --filter='@wdio/native-types...'
               ;;
-            spy)
+            native-spy)
               pnpm turbo run build --filter='@wdio/native-spy...'
               ;;
-            core)
+            native-core)
               pnpm turbo run build --filter='@wdio/native-core...'
               ;;
-            cdp-bridge)
+            native-cdp-bridge)
               pnpm turbo run build --filter='@wdio/native-cdp-bridge...'
               ;;
             native-mobile-core)
@@ -279,7 +279,7 @@ jobs:
           scope="${{ inputs.scope }}"
           scope="${scope#scope:}"
           case "$scope" in
-            spy)
+            native-spy)
               echo "Verifying @wdio/native-spy package contents..."
               cd packages/native-spy
               ls -la dist/

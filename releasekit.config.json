@@ -61,16 +61,18 @@
     },
     "scopeLabels": {
       "scope:shared": "@wdio/native-*",
-      "scope:utils": "@wdio/native-utils",
-      "scope:types": "@wdio/native-types",
-      "scope:spy": "@wdio/native-spy",
-      "scope:core": "@wdio/native-core",
-      "scope:cdp-bridge": "@wdio/native-cdp-bridge",
+      "scope:native-utils": "@wdio/native-utils",
+      "scope:native-types": "@wdio/native-types",
+      "scope:native-spy": "@wdio/native-spy",
+      "scope:native-core": "@wdio/native-core",
+      "scope:native-cdp-bridge": "@wdio/native-cdp-bridge",
+      "scope:native-mobile-core": "@wdio/native-mobile-core",
       "scope:tauri": "@wdio/tauri-*,tauri-plugin-wdio*",
       "scope:dioxus": "@wdio/dioxus-*,wdio-dioxus-*",
       "scope:electron": "@wdio/electron-*",
       "scope:electrobun": "@wdio/electrobun-*",
-      "scope:react-native": "@wdio/react-native-*"
+      "scope:react-native": "@wdio/react-native-*",
+      "scope:flutter": "@wdio/flutter-*"
     }
   },
   "notes": {
