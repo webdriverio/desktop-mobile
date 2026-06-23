@@ -692,7 +692,13 @@ class MockUpdateScheduler {
       if (this.#queued) {
         const promoted = this.#queued;
         this.#queued = null;
-        this.#running = this.#wrapRun(promoted);
+        // The queued batch's callers hold `promoted` and observe its rejection there.
+        // This wrapper is held only by #running and is never awaited externally, so
+        // swallow its rejection — otherwise a failing queued batch surfaces as an
+        // unhandled rejection (a worker crash under Node's default throw policy).
+        const nextRunning = this.#wrapRun(promoted);
+        nextRunning.catch(() => undefined);
+        this.#running = nextRunning;
       } else {
         this.#running = null;
       }

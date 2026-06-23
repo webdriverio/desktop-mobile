@@ -443,6 +443,44 @@ describe('TauriWorkerService', () => {
       expect(mockUpdate).toHaveBeenCalledTimes(3);
     });
 
+    it('should not leak an unhandled rejection when a queued batch fails', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      // Every attempt (initial + retry) fails, so both the running batch and the
+      // promoted queued batch reject. The promoted batch's internal wrapper is held
+      // only by the scheduler, so its rejection must be swallowed — otherwise it
+      // surfaces as an unhandled rejection that crashes the worker.
+      const mockUpdate = vi.fn().mockRejectedValue(new Error('boom'));
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
+      const override = clickCall![1] as unknown as (
+        this: unknown,
+        originalCommand: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      const originalCommand = vi.fn().mockResolvedValue('ok');
+
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on('unhandledRejection', onUnhandled);
+      try {
+        // Two concurrent interactions: the second is queued then promoted; both reject.
+        // Callers observe their own rejections; only the orphaned wrapper would leak.
+        const p1 = override.call({}, originalCommand).catch(() => undefined);
+        const p2 = override.call({}, originalCommand).catch(() => undefined);
+        await Promise.all([p1, p2]);
+        // Let the promoted wrapper settle so Node can flag any unhandled rejection.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+
+      expect(unhandled).toEqual([]);
+    });
+
     it('should clear stale mocks at session start for embedded driver provider', async () => {
       const mockBrowser = createMockBrowser();
       const originalExecute = mockBrowser.execute as ReturnType<typeof vi.fn>;
