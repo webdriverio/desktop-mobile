@@ -24,7 +24,6 @@
 
 - [ ] `scope:electron` - Electron service and CDP bridge
 - [ ] `scope:tauri` - Tauri service and plugin
-- [ ] `scope:shared` - Shared utilities and infrastructure
 
 ## Checklist
 
