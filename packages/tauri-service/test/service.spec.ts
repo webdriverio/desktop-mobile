@@ -384,6 +384,103 @@ describe('TauriWorkerService', () => {
       expect(result).toBe('ok');
     });
 
+    it('should coalesce concurrent overrides into at most two scheduler batches', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      const mockUpdate = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
+      const override = clickCall![1] as unknown as (
+        this: unknown,
+        originalCommand: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const originalCommand = vi.fn().mockResolvedValue('ok');
+      // Three interactions fire before the first sync settles. The scheduler runs the
+      // first batch immediately; every caller after that shares one queued slot, so
+      // update runs exactly twice (current + queued) — not once per interaction. Three
+      // callers (rather than two) is what proves the shared slot: a broken queued-slot
+      // branch would let the third caller spawn its own batch and update would run 3x.
+      const p1 = override.call({}, originalCommand);
+      const p2 = override.call({}, originalCommand);
+      const p3 = override.call({}, originalCommand);
+      await Promise.all([p1, p2, p3]);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should recover the scheduler after a batch update rejects', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      // First batch: both the initial attempt and its 50ms retry fail; a later
+      // interaction must still get a fresh batch (the scheduler must not wedge on
+      // the rejected slot).
+      const mockUpdate = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValue(undefined);
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
+      const override = clickCall![1] as unknown as (
+        this: unknown,
+        originalCommand: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const originalCommand = vi.fn().mockResolvedValue('ok');
+      await override.call({}, originalCommand).catch(() => undefined);
+      await override.call({}, originalCommand);
+
+      // 2 from the failed batch (initial + retry) + 1 from the recovered batch.
+      expect(mockUpdate).toHaveBeenCalledTimes(3);
+    });
+
+    it('should not leak an unhandled rejection when a queued batch fails', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      // Every attempt (initial + retry) fails, so both the running batch and the
+      // promoted queued batch reject. The promoted batch's internal wrapper is held
+      // only by the scheduler, so its rejection must be swallowed — otherwise it
+      // surfaces as an unhandled rejection that crashes the worker.
+      const mockUpdate = vi.fn().mockRejectedValue(new Error('boom'));
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
+      const override = clickCall![1] as unknown as (
+        this: unknown,
+        originalCommand: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      const originalCommand = vi.fn().mockResolvedValue('ok');
+
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on('unhandledRejection', onUnhandled);
+      try {
+        // Two concurrent interactions: the second is queued then promoted; both reject.
+        // Callers observe their own rejections; only the orphaned wrapper would leak.
+        const p1 = override.call({}, originalCommand).catch(() => undefined);
+        const p2 = override.call({}, originalCommand).catch(() => undefined);
+        await Promise.all([p1, p2]);
+        // Let the promoted wrapper settle so Node can flag any unhandled rejection.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+
+      expect(unhandled).toEqual([]);
+    });
+
     it('should clear stale mocks at session start for embedded driver provider', async () => {
       const mockBrowser = createMockBrowser();
       const originalExecute = mockBrowser.execute as ReturnType<typeof vi.fn>;

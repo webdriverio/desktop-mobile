@@ -418,7 +418,7 @@ export default class TauriWorkerService {
           );
         }
         const result = await execute<ReturnValue, InnerArguments>(browser, script, ...args);
-        await updateAllMocks();
+        await getMockUpdateScheduler(browser).schedule();
         return result;
       },
 
@@ -529,7 +529,7 @@ export default class TauriWorkerService {
             target,
           );
         }
-        await updateAllMocks();
+        await getMockUpdateScheduler(browser).schedule();
       },
     };
   }
@@ -550,7 +550,7 @@ export default class TauriWorkerService {
   private overrideElementCommand(commandName: ElementCommands) {
     const browser = this.browser as WebdriverIO.Browser;
     try {
-      installMockSyncOverride(browser, commandName, () => updateAllMocks());
+      installMockSyncOverride(browser, commandName, () => getMockUpdateScheduler(browser).schedule());
     } catch (error) {
       log.warn(`Failed to override element command '${commandName}':`, error);
     }
@@ -653,59 +653,113 @@ function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+// One scheduler per browser session — keyed weakly so GC can claim finished sessions.
+const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
+
 /**
- * Update all existing mocks by syncing inner (browser) mock state to outer (test) mocks.
- * On Windows, updates run sequentially to avoid saturating WebView2 with concurrent
- * ExecuteScript calls. Each update is retried once (after 50 ms) before failing hard.
- * Silent swallow of mock-update errors leads to empty mock.calls assertions, which is
- * harder to diagnose than an explicit AggregateError.
+ * Coalesces mock-update round-trips so N concurrent DOM interactions don't each fire
+ * one browser.execute() per registered mock. At most two batches run at any moment
+ * (current + one queued); callers arriving while a batch runs share the queued slot,
+ * so N interactions produce <= 2 batches instead of N. Each batch syncs inner (browser)
+ * mock state to outer (test) mocks. On Windows, updates within a batch run sequentially
+ * to avoid saturating WebView2 with concurrent ExecuteScript calls. Each update is
+ * retried once (after 50 ms) before failing hard — silent swallow of mock-update errors
+ * leads to empty mock.calls assertions, which is harder to diagnose than an AggregateError.
  */
-async function updateAllMocks(): Promise<void> {
-  const mocks = mockStore.getMocks();
-  if (mocks.length === 0) {
-    return;
+class MockUpdateScheduler {
+  #running: Promise<void> | null = null;
+  #queued: Promise<void> | null = null;
+
+  schedule(): Promise<void> {
+    if (!this.#running) {
+      const p = this.#wrapRun(this.#runOnce());
+      this.#running = p;
+      return p;
+    }
+    if (!this.#queued) {
+      this.#queued = this.#running.catch(() => undefined).then(() => this.#runOnce());
+    }
+    return this.#queued;
   }
 
-  const tryUpdate = async (
-    mockId: string,
-    mockInstance: ReturnType<typeof mockStore.getMocks>[0][1],
-  ): Promise<void> => {
-    try {
-      await mockInstance.update();
-    } catch (firstError) {
-      log.debug(`Mock update failed for ${mockId}, retrying in 50ms:`, firstError);
-      await sleep(50);
-      await mockInstance.update();
-    }
-  };
+  // Atomically promotes the queued batch into the running slot once the current
+  // batch settles (resolved or rejected), preventing a third concurrent batch
+  // from racing between the two.
+  #wrapRun(run: Promise<void>): Promise<void> {
+    let wrapped!: Promise<void>;
+    wrapped = run.finally(() => {
+      if (this.#running !== wrapped) return;
+      if (this.#queued) {
+        const promoted = this.#queued;
+        this.#queued = null;
+        // The queued batch's callers hold `promoted` and observe its rejection there.
+        // This wrapper is held only by #running and is never awaited externally, so
+        // swallow its rejection — otherwise a failing queued batch surfaces as an
+        // unhandled rejection (a worker crash under Node's default throw policy).
+        const nextRunning = this.#wrapRun(promoted);
+        nextRunning.catch(() => undefined);
+        this.#running = nextRunning;
+      } else {
+        this.#running = null;
+      }
+    });
+    return wrapped;
+  }
 
-  if (process.platform === 'win32') {
-    const errors: Array<{ mockId: string; error: unknown }> = [];
-    for (const [mockId, mockInstance] of mocks) {
+  async #runOnce(): Promise<void> {
+    const mocks = mockStore.getMocks();
+    if (mocks.length === 0) return;
+
+    const tryUpdate = async (
+      mockId: string,
+      mockInstance: ReturnType<typeof mockStore.getMocks>[0][1],
+    ): Promise<void> => {
       try {
-        await tryUpdate(mockId, mockInstance);
-      } catch (error) {
-        errors.push({ mockId, error });
+        await mockInstance.update();
+      } catch (firstError) {
+        log.debug(`Mock update failed for ${mockId}, retrying in 50ms:`, firstError);
+        await sleep(50);
+        await mockInstance.update();
+      }
+    };
+
+    if (process.platform === 'win32') {
+      const errors: Array<{ mockId: string; error: unknown }> = [];
+      for (const [mockId, mockInstance] of mocks) {
+        try {
+          await tryUpdate(mockId, mockInstance);
+        } catch (error) {
+          errors.push({ mockId, error });
+        }
+      }
+      if (errors.length > 0) {
+        throw new AggregateError(
+          errors.map((e) => e.error),
+          `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
+        );
+      }
+    } else {
+      const results = await Promise.allSettled(mocks.map(([mockId, mockInstance]) => tryUpdate(mockId, mockInstance)));
+      const failures = results
+        .map((result, i) => ({ result, mockId: mocks[i][0] }))
+        .filter(
+          (entry): entry is { result: PromiseRejectedResult; mockId: string } => entry.result.status === 'rejected',
+        );
+      if (failures.length > 0) {
+        throw new AggregateError(
+          failures.map((f) => f.result.reason),
+          `Mock updates failed for: ${failures.map((f) => f.mockId).join(', ')}`,
+        );
       }
     }
-    if (errors.length > 0) {
-      throw new AggregateError(
-        errors.map((e) => e.error),
-        `Mock updates failed for: ${errors.map((e) => e.mockId).join(', ')}`,
-      );
-    }
-  } else {
-    const results = await Promise.allSettled(mocks.map(([mockId, mockInstance]) => tryUpdate(mockId, mockInstance)));
-    const failures = results
-      .map((result, i) => ({ result, mockId: mocks[i][0] }))
-      .filter(
-        (entry): entry is { result: PromiseRejectedResult; mockId: string } => entry.result.status === 'rejected',
-      );
-    if (failures.length > 0) {
-      throw new AggregateError(
-        failures.map((f) => f.result.reason),
-        `Mock updates failed for: ${failures.map((f) => f.mockId).join(', ')}`,
-      );
-    }
   }
+}
+
+function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateScheduler {
+  let scheduler = mockUpdateSchedulers.get(browser);
+  if (!scheduler) {
+    scheduler = new MockUpdateScheduler();
+    mockUpdateSchedulers.set(browser, scheduler);
+  }
+  return scheduler;
 }
