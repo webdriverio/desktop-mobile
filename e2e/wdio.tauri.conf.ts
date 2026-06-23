@@ -122,13 +122,11 @@ switch (envContext.testType) {
     break;
 }
 
-// CrabNebula: exclude logging specs (test-runner-backend doesn't forward app stderr)
+// CrabNebula: logging.spec.ts is deliberately NOT excluded for this PROBE (#179) — run it under
+// crabnebula to see whether test-runner-backend 0.2.8 now forwards the app's stdout/stderr.
+// (tauri-driver console + multiremote logging stay excluded to isolate the #179 signal.)
 if (envContext.driverProvider === 'crabnebula') {
-  exclude.push(
-    './test/tauri/logging.spec.ts',
-    './test/tauri/logging.tauri-driver.spec.ts',
-    './test/tauri/multiremote/logging.spec.ts',
-  );
+  exclude.push('./test/tauri/logging.tauri-driver.spec.ts', './test/tauri/multiremote/logging.spec.ts');
 }
 
 // Configure capabilities
