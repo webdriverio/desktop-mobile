@@ -384,6 +384,62 @@ describe('TauriWorkerService', () => {
       expect(result).toBe('ok');
     });
 
+    it('should coalesce concurrent overrides into two scheduler batches', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      const mockUpdate = vi.fn().mockResolvedValue(undefined);
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
+      const override = clickCall![1] as unknown as (
+        this: unknown,
+        originalCommand: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const originalCommand = vi.fn().mockResolvedValue('ok');
+      // Two interactions fire before the first sync settles. The scheduler runs the
+      // first batch immediately and shares one queued slot for the rest, so update
+      // runs exactly twice (current + queued) rather than once per interaction.
+      const p1 = override.call({}, originalCommand);
+      const p2 = override.call({}, originalCommand);
+      await Promise.all([p1, p2]);
+
+      expect(mockUpdate).toHaveBeenCalledTimes(2);
+    });
+
+    it('should recover the scheduler after a batch update rejects', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as any, [], mockBrowser);
+
+      // First batch: both the initial attempt and its 50ms retry fail; a later
+      // interaction must still get a fresh batch (the scheduler must not wedge on
+      // the rejected slot).
+      const mockUpdate = vi
+        .fn()
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValue(undefined);
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
+
+      const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
+      const override = clickCall![1] as unknown as (
+        this: unknown,
+        originalCommand: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+
+      const originalCommand = vi.fn().mockResolvedValue('ok');
+      await override.call({}, originalCommand).catch(() => undefined);
+      await override.call({}, originalCommand);
+
+      // 2 from the failed batch (initial + retry) + 1 from the recovered batch.
+      expect(mockUpdate).toHaveBeenCalledTimes(3);
+    });
+
     it('should clear stale mocks at session start for embedded driver provider', async () => {
       const mockBrowser = createMockBrowser();
       const originalExecute = mockBrowser.execute as ReturnType<typeof vi.fn>;
