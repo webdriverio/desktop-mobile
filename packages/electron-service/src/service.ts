@@ -59,6 +59,16 @@ export function browserModeStoreKey(browser: WebdriverIO.Browser, channel: strin
 const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
 const pendingRegistrations = new WeakMap<WebdriverIO.Browser, Map<string, Promise<void>>>();
 
+/**
+ * Coalesces mock-update round-trips so N concurrent DOM interactions don't each fire
+ * one update per registered mock. At most two batches run at any moment (current +
+ * one queued); callers arriving while a batch runs share the queued slot, so N
+ * interactions produce <= 2 batches instead of N. Each batch syncs inner (app) mock
+ * state to outer (test) mocks over a single CDP round-trip per transport lane. Each
+ * lane is retried once (after 50 ms) before failing hard — silent swallow of
+ * mock-update errors leaves mock.calls empty, which is harder to diagnose than an
+ * AggregateError.
+ */
 class MockUpdateScheduler {
   #running: Promise<void> | null = null;
   #queued: Promise<void> | null = null;
@@ -94,7 +104,13 @@ class MockUpdateScheduler {
       if (this.#queued) {
         const promoted = this.#queued;
         this.#queued = null;
-        this.#running = this.#wrapRun(promoted);
+        // The queued batch's callers hold `promoted` and observe its rejection there.
+        // This wrapper is held only by #running and is never awaited externally, so
+        // swallow its rejection — otherwise a failing queued batch surfaces as an
+        // unhandled rejection (a worker crash under Node's default throw policy).
+        const nextRunning = this.#wrapRun(promoted);
+        nextRunning.catch(() => undefined);
+        this.#running = nextRunning;
       } else {
         this.#running = null;
       }
@@ -134,20 +150,47 @@ class MockUpdateScheduler {
       }
     }
 
-    try {
-      await Promise.all([
-        batchUpdateNativeMocks(this.#browser, native),
-        batchUpdateBrowserModeMocks(this.#browser, browserMode),
-        ...legacy.map(async ([mockId, m]) => {
+    // Each lane is retried once (after 50 ms) before failing hard. Silently
+    // swallowing a mock-update failure leaves mock.calls empty downstream, which
+    // is harder to diagnose than an AggregateError surfaced at the call site.
+    const tryUpdate = async (label: string, run: () => Promise<void>): Promise<void> => {
+      try {
+        await run();
+      } catch (firstError) {
+        log.debug(`Mock update lane "${label}" failed, retrying in 50ms:`, firstError);
+        await sleep(50);
+        await run();
+      }
+    };
+
+    const lanes: Array<{ label: string; run: () => Promise<void> }> = [
+      { label: 'native', run: () => batchUpdateNativeMocks(this.#browser, native) },
+      { label: 'browser', run: () => batchUpdateBrowserModeMocks(this.#browser, browserMode) },
+      ...legacy.map(([mockId, m]) => ({
+        label: `legacy:${mockId}`,
+        run: async () => {
           log.debug(`Updating legacy mock (no accessor): ${mockId}`);
           await m.update?.();
-        }),
-      ]);
-      log.debug('All mock updates completed successfully');
-    } catch (error) {
-      log.warn('Mock update batch failed:', error);
+        },
+      })),
+    ];
+
+    const results = await Promise.allSettled(lanes.map(({ label, run }) => tryUpdate(label, run)));
+    const failures = results
+      .map((result, i) => ({ result, label: lanes[i].label }))
+      .filter((entry): entry is { result: PromiseRejectedResult; label: string } => entry.result.status === 'rejected');
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures.map((f) => f.result.reason),
+        `Mock updates failed for: ${failures.map((f) => f.label).join(', ')}`,
+      );
     }
+    log.debug('All mock updates completed successfully');
   }
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 /**

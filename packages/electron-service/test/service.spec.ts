@@ -101,6 +101,11 @@ beforeEach(() => {
   vi.resetModules();
   vi.clearAllMocks();
 
+  // clearAllMocks() resets call records but not return values, so a test that
+  // points getMocks at a failing mock would leak into the next; re-establish the
+  // empty default each test (the scheduler now throws on a failed update).
+  vi.mocked(mockStore.getMocks).mockReturnValue([]);
+
   vi.mocked(waitUntilWindowAvailable).mockImplementation(async () => Promise.resolve());
 });
 
@@ -594,10 +599,50 @@ describe('Electron Worker Service', () => {
       ) => Promise<unknown>;
 
       const original = vi.fn().mockResolvedValue('ok');
+      // First batch's only update rejects once, then the retry succeeds (2 calls);
+      // the second batch succeeds on the first try (1 call).
       await overrideFn.call({} as unknown as WebdriverIO.Element, original);
       await overrideFn.call({} as unknown as WebdriverIO.Element, original);
 
-      expect(mockObj.update).toHaveBeenCalledTimes(2);
+      expect(mockObj.update).toHaveBeenCalledTimes(3);
+    });
+
+    it('should not leak an unhandled rejection when a queued batch fails', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      // Every attempt (initial + retry) fails, so both the running batch and the
+      // promoted queued batch reject. The promoted batch's internal wrapper is held
+      // only by the scheduler, so its rejection must be swallowed — otherwise it
+      // surfaces as an unhandled rejection that crashes the worker.
+      const storeModule = (await import('../src/mockStore.js')) as any;
+      const mockObj = { update: vi.fn().mockRejectedValue(new Error('boom')) };
+      storeModule.default.getMocks.mockReturnValue([['id', mockObj]]);
+
+      const oc = vi.mocked((browser as any).overwriteCommand);
+      const overrideFn = oc.mock.calls.find((c: unknown[]) => c[0] === 'click')?.[1] as unknown as (
+        this: WebdriverIO.Element,
+        original: (...args: unknown[]) => Promise<unknown>,
+        ...args: unknown[]
+      ) => Promise<unknown>;
+      const original = vi.fn().mockResolvedValue('ok');
+
+      const unhandled: unknown[] = [];
+      const onUnhandled = (reason: unknown) => unhandled.push(reason);
+      process.on('unhandledRejection', onUnhandled);
+      try {
+        // Two concurrent interactions: the second is queued then promoted; both reject.
+        // Callers observe their own rejections; only the orphaned wrapper would leak.
+        const p1 = overrideFn.call({} as unknown as WebdriverIO.Element, original).catch(() => undefined);
+        const p2 = overrideFn.call({} as unknown as WebdriverIO.Element, original).catch(() => undefined);
+        await Promise.all([p1, p2]);
+        // Let the promoted wrapper settle so Node can flag any unhandled rejection.
+        await new Promise((resolve) => setTimeout(resolve, 0));
+      } finally {
+        process.off('unhandledRejection', onUnhandled);
+      }
+
+      expect(unhandled).toEqual([]);
     });
 
     it('should copy original api', async () => {
