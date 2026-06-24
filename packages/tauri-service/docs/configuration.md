@@ -422,7 +422,7 @@ Port for the embedded WebDriver server. Only used when `driverProvider: 'embedde
 
 - The service spawns your Tauri app with this port
 - Each worker instance gets a unique port (basePort + workerIndex)
-- Can also be set via the `TAURI_WEBDRIVER_PORT` or `WDIO_EMBEDDED_PORT` environment variable. Setting either env var also serves as the auto-detection signal that opts you into the embedded provider on Windows/Linux.
+- Can also be set via the `TAURI_WEBDRIVER_PORT` or `WDIO_EMBEDDED_PORT` environment variable.
 
 **Example:**
 ```typescript

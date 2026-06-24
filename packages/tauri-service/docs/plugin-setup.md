@@ -29,7 +29,7 @@ There are two Tauri plugins for WebdriverIO testing:
   - Provides built-in WebDriver HTTP server
   - Eliminates need for external tauri-driver
   - Enables native macOS testing without CrabNebula
-  - Auto-detected on macOS; signal via `TAURI_WEBDRIVER_PORT` on Windows/Linux
+  - Used whenever the `embedded` provider is active — the default on every platform when `driverProvider` is unset
 
 ## Why Is It Required?
 
@@ -424,7 +424,7 @@ This plugin embeds a W3C WebDriver HTTP server directly in your Tauri applicatio
 ### Requirements
 
 - Tauri v2.0+
-- Embedded provider selected (auto-detected on macOS, or set `driverProvider: 'embedded'` / `TAURI_WEBDRIVER_PORT`)
+- The `embedded` provider in use (the default; or set `driverProvider: 'embedded'` explicitly)
 
 ### Installation
 
@@ -478,7 +478,7 @@ services: [['@wdio/tauri-service', {
 }]]
 ```
 
-Or via environment variable (also triggers auto-detection on Windows/Linux):
+Or set the port via environment variable:
 ```bash
 TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
 ```

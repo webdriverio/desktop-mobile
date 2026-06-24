@@ -407,7 +407,7 @@ See [Platform Support](./platform-support.md) for per-platform details.
 
 ### macOS: Embedded WebDriver Not Ready
 
-On macOS the embedded provider is auto-detected, but if the plugin is not installed the service will time out waiting for the WebDriver server.
+macOS has no external WebDriver driver, so the `embedded` provider (the default) or `crabnebula` is your only option there. If `tauri-plugin-wdio-webdriver` isn't installed, the embedded server never starts and the service times out waiting for it.
 
 **Solution:** Ensure `tauri-plugin-wdio-webdriver` is installed and registered:
 
