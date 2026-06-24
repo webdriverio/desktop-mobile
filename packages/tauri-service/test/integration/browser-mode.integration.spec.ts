@@ -32,6 +32,14 @@ function isInjectionScript(arg: unknown): boolean {
   return typeof arg === 'string' && arg.includes('__TAURI_INTERNALS__') && arg.includes('__wdio_emit_tauri_event__');
 }
 
+// Tauri keys mocks globally (`tauri.<command>`), not per-browser like Electron, so
+// there's no store key to thread through — the scheduler reads the whole store.
+function seedMock(channel: string): FakeMock {
+  const fake = createFakeMock(`tauri.${channel}`);
+  mockStore.setMock(fake.mock);
+  return fake;
+}
+
 describe('browser mode — MockUpdateScheduler', () => {
   let service: TauriWorkerService;
   let browser: FakeBrowser;
@@ -46,14 +54,6 @@ describe('browser mode — MockUpdateScheduler', () => {
   afterEach(() => {
     mockStore.clear();
   });
-
-  // Tauri keys mocks globally (`tauri.<command>`), not per-browser like Electron, so
-  // there's no store key to thread through — the scheduler reads the whole store.
-  function seedMock(channel: string): FakeMock {
-    const fake = createFakeMock(`tauri.${channel}`);
-    mockStore.setMock(fake.mock);
-    return fake;
-  }
 
   it('should trigger two update batches when two concurrent clicks fire', async () => {
     const fake = seedMock('greet');
@@ -127,12 +127,6 @@ describe('browser mode — scheduler error handling', () => {
     mockStore.clear();
   });
 
-  function seedMock(channel: string): FakeMock {
-    const fake = createFakeMock(`tauri.${channel}`);
-    mockStore.setMock(fake.mock);
-    return fake;
-  }
-
   it('should retry a transient mock-update failure once and still settle the batch', async () => {
     const fake = seedMock('greet');
     // One rejection is recoverable: the scheduler retries update() once after 50ms.
@@ -172,12 +166,6 @@ describe('browser mode — navigation lifecycle', () => {
   afterEach(() => {
     mockStore.clear();
   });
-
-  function seedMock(channel: string): FakeMock {
-    const fake = createFakeMock(`tauri.${channel}`);
-    mockStore.setMock(fake.mock);
-    return fake;
-  }
 
   it('should re-inject the IPC script after a navigation', async () => {
     browser.execute.mockClear();
