@@ -88,16 +88,18 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 
 | Platform | Supported | Driver Providers | Notes |
 |----------|-----------|------------------|-------|
-| **Windows** | ✅ Yes | `official`, `crabnebula`, `embedded` | Edge WebDriver auto-managed |
-| **Linux** | ✅ Yes | `official`, `crabnebula`, `embedded` | Requires `webkit2gtk-driver` |
+| **Windows** | ✅ Yes | `embedded`, `external`, `crabnebula` | `external` auto-manages the Edge WebDriver |
+| **Linux** | ✅ Yes | `embedded`, `external`, `crabnebula` | `external` requires `webkit2gtk-driver` |
 | **macOS** | ✅ Yes | `embedded`, `crabnebula` | Native via embedded, or CrabNebula |
 
 See [Platform Support](./docs/platform-support.md) for detailed information including distribution support and troubleshooting.
 
-> **Choosing a driver provider:**
-> - **`embedded`** (recommended) — Native support on all platforms, no external driver needed
-> - **`official`** — Community driver, Windows/Linux only
-> - **`crabnebula`** — All platforms, requires subscription (CN_API_KEY for macOS)
+> **Choosing a driver provider** (see [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md) for the naming):
+> - **`embedded`** (default, all platforms) — WebDriver runs inside your app; no external driver needed
+> - **`external`** — a separate `tauri-driver` process; Windows/Linux only
+> - **`crabnebula`** — CrabNebula's cross-platform driver; requires a subscription (CN_API_KEY for macOS)
+>
+> `driverProvider: 'official'` is a deprecated alias for `'external'` and will be removed in v2.
 
 ## Example Projects
 

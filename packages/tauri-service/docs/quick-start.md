@@ -241,8 +241,8 @@ export const config = {
   // Tauri service configuration
   services: [['@wdio/tauri-service', {
     appBinaryPath: './src-tauri/target/release/my-app.exe', // Adjust for your OS/app name
-    driverProvider: 'embedded',  // Use embedded WebDriver (recommended, no external drivers needed)
-    // driverProvider: 'official',  // Use external tauri-driver (explicit opt-in)
+    driverProvider: 'embedded',  // Default — embedded WebDriver, no external drivers needed
+    // driverProvider: 'external',  // Use external tauri-driver (explicit opt-in)
     // driverProvider: 'crabnebula',  // Use CrabNebula (requires paid API key)
   }]],
 
@@ -357,16 +357,16 @@ The service couldn't determine which driver to use, or couldn't find tauri-drive
    ```typescript
    driverProvider: 'embedded'
    ```
-   Requires `tauri-plugin-wdio-webdriver` in your Tauri app. On macOS this is auto-detected.
+   Requires `tauri-plugin-wdio-webdriver` in your Tauri app. It is the default on every platform when `driverProvider` is unset.
 
-2. **Install tauri-driver manually** (if using `driverProvider: 'official'`):
+2. **Install tauri-driver manually** (if using `driverProvider: 'external'`):
    ```bash
    cargo install tauri-driver
    ```
 
 3. **Or enable auto-install** in `wdio.conf.ts`:
    ```typescript
-   driverProvider: 'official',
+   driverProvider: 'external',
    autoInstallTauriDriver: true
    ```
 

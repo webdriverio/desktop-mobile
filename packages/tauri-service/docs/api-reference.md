@@ -564,7 +564,7 @@ interface TauriServiceOptions {
   captureFrontendLogs?: boolean;
   backendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
   frontendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
-  driverProvider?: 'official' | 'crabnebula' | 'embedded';
+  driverProvider?: 'embedded' | 'external' | 'crabnebula'; // 'official' is a deprecated alias for 'external'
   embeddedPort?: number;
   statusPollTimeout?: number;
   crabnebulaDriverPath?: string;

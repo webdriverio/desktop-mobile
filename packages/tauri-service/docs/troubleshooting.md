@@ -376,36 +376,29 @@ Get-Process -Id (Get-NetTCPConnection -LocalPort 4444).OwningProcess | Stop-Proc
 
 ## Platform Issues
 
-### "No driverProvider configured and no embedded WebDriver server detected"
+### Embedded WebDriver server never becomes ready
 
-The service cannot determine which driver provider to use.
+`'embedded'` is the default provider on every platform, and it requires `tauri-plugin-wdio-webdriver` in your app. If the plugin is missing or not registered, the embedded server never starts and the session times out waiting for it.
 
-**Why this happens:** On Windows and Linux, the service does not default to any driver provider automatically. It auto-detects the embedded provider only when either:
-- `TAURI_WEBDRIVER_PORT` environment variable is set, or
-- You are on macOS
-
-**Solution 1: Use embedded provider (recommended)**
+**Solution 1: Add the embedded plugin (recommended)**
 
 1. Install `tauri-plugin-wdio-webdriver` in your Tauri app:
    ```bash
    cd src-tauri && cargo add tauri-plugin-wdio-webdriver
    ```
-2. Register it in your Rust code and set `TAURI_WEBDRIVER_PORT` or configure `driverProvider: 'embedded'`:
+2. Register it in your Rust code (debug builds) and keep the default embedded provider:
    ```typescript
    services: [['@wdio/tauri-service', {
      driverProvider: 'embedded',
    }]]
    ```
-   Or signal via environment variable:
-   ```bash
-   TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
-   ```
+   The embedded server listens on port 4445 by default; override it with the `embeddedPort` option or the `TAURI_WEBDRIVER_PORT` env var if needed.
 
-**Solution 2: Use official tauri-driver**
+**Solution 2: Use the external tauri-driver instead**
 
 ```typescript
 services: [['@wdio/tauri-service', {
-  driverProvider: 'official',
+  driverProvider: 'external',
   autoInstallTauriDriver: true,
 }]]
 ```
@@ -414,7 +407,7 @@ See [Platform Support](./platform-support.md) for per-platform details.
 
 ### macOS: Embedded WebDriver Not Ready
 
-On macOS the embedded provider is auto-detected, but if the plugin is not installed the service will time out waiting for the WebDriver server.
+macOS has no external WebDriver driver, so the `embedded` provider (the default) or `crabnebula` is your only option there. If `tauri-plugin-wdio-webdriver` isn't installed, the embedded server never starts and the service times out waiting for it.
 
 **Solution:** Ensure `tauri-plugin-wdio-webdriver` is installed and registered:
 
