@@ -492,7 +492,7 @@ TAURI_WEBDRIVER_PORT=4445 npx wdio run wdio.conf.ts
 
 ### Differences from External Driver
 
-| Aspect | External Driver (official/crabnebula) | Embedded Server |
+| Aspect | External Driver (external/crabnebula) | Embedded Server |
 |--------|--------------------------------------|-----------------|
 | Architecture | Separate driver process | HTTP server in-app |
 | macOS support | Requires CrabNebula | Native |

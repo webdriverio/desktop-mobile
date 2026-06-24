@@ -176,7 +176,7 @@ Timeout in milliseconds for the Tauri app to start and become ready.
 startTimeout: 60000  // 60 seconds
 ```
 
-**Default:** `30000` for the `'official'` and `'crabnebula'` providers, `60000` for the `'embedded'` provider (the embedded WebDriver server takes longer to come up, especially on Windows CI).
+**Default:** `30000` for the `'external'` and `'crabnebula'` providers, `60000` for the `'embedded'` provider (the embedded WebDriver server takes longer to come up, especially on Windows CI).
 
 ---
 
@@ -372,35 +372,29 @@ If set, only mocks whose command name starts with this prefix are restored. Only
 
 ---
 
-### `driverProvider` ('official' | 'crabnebula' | 'embedded', optional)
+### `driverProvider` ('embedded' | 'external' | 'crabnebula', optional)
 
 Select which driver provider to use for WebDriver communication.
 
-- `'embedded'`: Use embedded WebDriver server via tauri-plugin-wdio-webdriver (no external driver needed, works on all platforms)
-- `'official'`: Use the cargo-installed tauri-driver (supports Windows/Linux)
+- `'embedded'`: Use the embedded WebDriver server via tauri-plugin-wdio-webdriver (no external driver needed, works on all platforms)
+- `'external'`: Use the cargo-installed tauri-driver (supports Windows/Linux)
 - `'crabnebula'`: Use @crabnebula/tauri-driver from npm (supports Windows/Linux/macOS; CN_API_KEY required for macOS only)
 
-**Auto-detection (no explicit config needed):**
+**Default:** `'embedded'` on every platform when `driverProvider` is unset. The embedded provider requires `tauri-plugin-wdio-webdriver` in your app — if the plugin is missing, the embedded server never comes up and the session times out, so add the plugin or select another provider explicitly.
 
-The service automatically selects `'embedded'` when either of the following signals is present:
-- `TAURI_WEBDRIVER_PORT` environment variable is set (you've configured the plugin's port)
-- Running on macOS (WKWebView requires the embedded approach)
-
-If neither signal is present on Windows or Linux, the service throws an immediate error with instructions.
+> `driverProvider: 'official'` is a deprecated alias for `'external'`. It still works but logs a warning and will be removed in v2. See [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md) for the naming.
 
 **Example:**
 ```typescript
-// Auto-detected on macOS, or when TAURI_WEBDRIVER_PORT is set — no config needed
-// driverProvider: 'embedded'  (set this explicitly to be unambiguous)
+// Default — the embedded WebDriver server (requires tauri-plugin-wdio-webdriver)
+// driverProvider: 'embedded'
 
 // Use CrabNebula — all platforms; CN_API_KEY required for macOS
 driverProvider: 'crabnebula'
 
-// Use official tauri-driver — opt out of embedded provider
-driverProvider: 'official'
+// Drive the external tauri-driver instead of the embedded server
+driverProvider: 'external'
 ```
-
-**Default:** Auto-detected (see above). Set explicitly to override.
 
 **Note:** Install `tauri-plugin-wdio-webdriver` in your Tauri app to use the embedded provider. See [Plugin Setup](./plugin-setup.md) for details.
 
@@ -410,15 +404,15 @@ driverProvider: 'official'
 
 | Provider | Platform Support | External driver required | Notes |
 |----------|-----------------|--------------------------|-------|
-| `'embedded'` | Windows, Linux, macOS | No | No external deps; auto-detected on macOS or via `TAURI_WEBDRIVER_PORT` |
-| `'official'` | Windows, Linux | Yes (tauri-driver + platform driver) | Explicit opt-in; cargo-installed |
-| `'crabnebula'` | Windows, Linux, macOS | Yes (platform driver; CN_API_KEY for macOS) | Fork of official driver; good fit if already on CrabNebula platform |
+| `'embedded'` | Windows, Linux, macOS | No | Default; no external deps; requires `tauri-plugin-wdio-webdriver` |
+| `'external'` | Windows, Linux | Yes (tauri-driver + platform driver) | Explicit opt-in; cargo-installed |
+| `'crabnebula'` | Windows, Linux, macOS | Yes (platform driver; CN_API_KEY for macOS) | Fork of the upstream tauri-driver; good fit if already on CrabNebula platform |
 
 **Recommendation:**
 
-- **`'embedded'`** — simplest setup: no external driver installation, works on all three platforms
+- **`'embedded'`** — the default and simplest setup: no external driver installation, works on all three platforms
 - **`'crabnebula'`** — best if you are already using CrabNebula Cloud or want a single driver config across all platforms; macOS testing requires a CrabNebula subscription
-- **`'official'`** — explicit opt-in for Windows/Linux if you have `tauri-driver` already installed
+- **`'external'`** — explicit opt-in for Windows/Linux if you have `tauri-driver` already installed
 
 ---
 

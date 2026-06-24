@@ -6,9 +6,11 @@ Complete guide to platform-specific requirements, limitations, and WebDriver set
 
 | Platform | Supported | WebDriver | Driver Provider | Setup |
 |----------|-----------|-----------|----------------|-------|
-| **Windows** | ✅ Yes | Microsoft Edge WebDriver | All (official, crabnebula, embedded) | Auto-managed |
-| **Linux** | ✅ Yes | WebKitWebDriver | All (official, crabnebula, embedded) | Manual install |
+| **Windows** | ✅ Yes | Microsoft Edge WebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` auto-manages the Edge WebDriver |
+| **Linux** | ✅ Yes | WebKitWebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` needs `webkit2gtk-driver` |
 | **macOS** | ✅ Yes | Built-in | `'embedded'`, `'crabnebula'` | No external driver needed |
+
+> `'embedded'` is the default on every platform when `driverProvider` is unset. `driverProvider: 'official'` is a deprecated alias for `'external'`. See [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md).
 
 ## Windows
 
@@ -80,17 +82,17 @@ Version mismatch between driver and WebView2. Solutions:
 
 3. Add to PATH or disable auto-download and specify manually
 
-### Alternative Driver Providers on Windows
+### Driver Providers on Windows
 
-The default Windows setup uses `tauri-driver` + MSEdgeDriver (the `'official'` provider), but both other providers also work on Windows:
+`'embedded'` is the default. All three providers work on Windows:
 
 | Provider | Notes |
 |----------|-------|
-| `'official'` | Default — uses tauri-driver + MSEdgeDriver, auto-managed |
-| `'embedded'` | Requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
+| `'embedded'` | Default — requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
+| `'external'` | Uses `tauri-driver` + MSEdgeDriver; the Edge WebDriver is auto-managed |
 | `'crabnebula'` | Requires a paid CrabNebula API key; cross-platform alternative |
 
-Use `'embedded'` if you want a consistent setup across Windows, Linux, and macOS without managing external drivers. Use `'crabnebula'` if you already have a CrabNebula subscription.
+Use `'embedded'` for a consistent setup across Windows, Linux, and macOS without managing external drivers, `'external'` to drive `tauri-driver` directly, or `'crabnebula'` if you already have a CrabNebula subscription.
 
 ### Windows-Specific Features
 
@@ -270,17 +272,17 @@ Use `sudo` for package installation:
 sudo apt-get install webkit2gtk-driver
 ```
 
-### Alternative Driver Providers on Linux
+### Driver Providers on Linux
 
-The default Linux setup uses `tauri-driver` + WebKitWebDriver (the `'official'` provider), but both other providers also work on Linux:
+`'embedded'` is the default. All three providers work on Linux:
 
 | Provider | Notes |
 |----------|-------|
-| `'official'` | Default — uses tauri-driver + WebKitWebDriver, requires manual install |
-| `'embedded'` | Requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
+| `'embedded'` | Default — requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
+| `'external'` | Uses `tauri-driver` + WebKitWebDriver; requires `webkit2gtk-driver` (see above) |
 | `'crabnebula'` | Requires a paid CrabNebula API key; cross-platform alternative |
 
-Use `'embedded'` if you want a consistent setup across Windows, Linux, and macOS without managing external drivers. Use `'crabnebula'` if you already have a CrabNebula subscription.
+Use `'embedded'` for a consistent setup across Windows, Linux, and macOS without managing external drivers, `'external'` to drive `tauri-driver` directly, or `'crabnebula'` if you already have a CrabNebula subscription.
 
 ### Linux-Specific Features
 
@@ -295,7 +297,7 @@ Use `'embedded'` if you want a consistent setup across Windows, Linux, and macOS
 
 ### Requirements
 
-- **WebKitGTK development libraries** (webkit2gtk-driver) — only needed for `'official'` provider
+- **WebKitGTK development libraries** (webkit2gtk-driver) — only needed for the `'external'` provider
 - **Xvfb** (optional, for headless testing)
 - **Rust toolchain** (for building Tauri apps)
 - **Node.js 18+**

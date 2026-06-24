@@ -440,7 +440,7 @@ Or conditionally use different providers:
 
 ```typescript
 const driverProvider = process.env.DRIVER_PROVIDER || 
-  (process.platform === 'darwin' ? 'embedded' : 'official');
+  (process.platform === 'darwin' ? 'embedded' : 'external');
 
 export const config = {
   services: [['@wdio/tauri-service', {
@@ -451,7 +451,7 @@ export const config = {
 
 ## Comparison: Driver Providers
 
-| Feature | `official` | `crabnebula` | `embedded` |
+| Feature | `external` | `crabnebula` | `embedded` |
 |---------|-----------|--------------|------------|
 | Windows | ✅ | ✅ | ✅ |
 | Linux | ✅ | ✅ | ✅ |
