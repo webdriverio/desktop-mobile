@@ -163,7 +163,7 @@
       "noVerify": true
     },
     "pub": {
-      "enabled": true
+      "enabled": false
     },
     "git": {
       "push": true,
