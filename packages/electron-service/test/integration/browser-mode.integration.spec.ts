@@ -68,13 +68,16 @@ describe('browser mode — MockUpdateScheduler', () => {
 
   it('should not poison the next batch when a previous batch rejects', async () => {
     const fake = seedMock('appInfo:get');
-    fake.update.mockRejectedValueOnce(new Error('boom'));
+    // Fail both the initial attempt and its one retry so the lane genuinely rejects
+    // (a single rejection would be recovered by tryUpdate's retry and never surface).
+    fake.update.mockRejectedValueOnce(new Error('boom')).mockRejectedValueOnce(new Error('boom-retry'));
 
-    await browser.triggerCommand('click');
-    expect(fake.update).toHaveBeenCalledTimes(1);
-
-    await browser.triggerCommand('click');
+    await expect(browser.triggerCommand('click')).rejects.toThrow();
     expect(fake.update).toHaveBeenCalledTimes(2);
+
+    // A failed batch must not poison the scheduler — the next click recovers.
+    await browser.triggerCommand('click');
+    expect(fake.update).toHaveBeenCalledTimes(3);
   });
 
   it('should run two browser instances independently without cross-blocking', async () => {
