@@ -177,9 +177,9 @@ async function buildAndPackService(
   // flutter services, so it must be packed + overridden alongside them.
   mobileCorePath?: string;
   typesPath?: string;
-  // Holds the electron-cdp-bridge tarball for `electron`, or the shared cdp-bridge
-  // tarball for `electrobun`/`react-native` — these services never pack together (they are not
-  // part of `all`), so one field is unambiguous per run.
+  // Holds the shared @wdio/native-cdp-bridge tarball for `electron`/`electrobun`/`react-native` —
+  // these services never pack together (they are not part of `all`), so one field is unambiguous
+  // per run.
   cdpBridgePath?: string;
 }> {
   log(`Building and packing services and dependencies (service: ${service})...`);
@@ -260,7 +260,7 @@ async function buildAndPackService(
     if (service === 'electron' || service === 'all') {
       const electronServiceDir = normalize(join(rootDir, 'packages', 'electron-service'));
       const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
-      const cdpBridgeDir = normalize(join(rootDir, 'packages', 'electron-cdp-bridge'));
+      const cdpBridgeDir = normalize(join(rootDir, 'packages', 'native-cdp-bridge'));
 
       if (!existsSync(typesDir)) {
         throw new Error(`Types directory does not exist: ${typesDir}`);
@@ -270,12 +270,12 @@ async function buildAndPackService(
       }
 
       execCommand('pnpm pack', typesDir, 'Packing @wdio/native-types');
-      execCommand('pnpm pack', cdpBridgeDir, 'Packing @wdio/electron-cdp-bridge');
+      execCommand('pnpm pack', cdpBridgeDir, 'Packing @wdio/native-cdp-bridge');
       execCommand('pnpm pack', electronServiceDir, 'Packing @wdio/electron-service');
 
       result.electronServicePath = findTgzFile(electronServiceDir, 'wdio-electron-service-');
       result.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
-      result.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-electron-cdp-bridge-');
+      result.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-native-cdp-bridge-');
     }
 
     // Pack Tauri service if needed
@@ -568,7 +568,7 @@ async function testExample(
       }
       overrides['@wdio/electron-service'] = `file:${packages.electronServicePath}`;
       overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
-      overrides['@wdio/electron-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
+      overrides['@wdio/native-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
       packagesToInstall.push(packages.typesPath, packages.cdpBridgePath, packages.electronServicePath);
     } else if (service === 'tauri') {
       if (!packages.tauriServicePath || !packages.typesPath) {
@@ -1139,10 +1139,10 @@ async function main() {
       if (options.service === 'electron' || options.service === 'all') {
         const electronServiceDir = normalize(join(rootDir, 'packages', 'electron-service'));
         const typesDir = normalize(join(rootDir, 'packages', 'native-types'));
-        const cdpBridgeDir = normalize(join(rootDir, 'packages', 'electron-cdp-bridge'));
+        const cdpBridgeDir = normalize(join(rootDir, 'packages', 'native-cdp-bridge'));
         packages.electronServicePath = findTgzFile(electronServiceDir, 'wdio-electron-service-');
         packages.typesPath = findTgzFile(typesDir, 'wdio-native-types-');
-        packages.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-electron-cdp-bridge-');
+        packages.cdpBridgePath = findTgzFile(cdpBridgeDir, 'wdio-native-cdp-bridge-');
       }
 
       if (options.service === 'tauri' || options.service === 'all') {

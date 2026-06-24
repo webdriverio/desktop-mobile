@@ -104,9 +104,8 @@ For a **self-rendered** framework, find/tap (sub-axis 1) and `execute`/`mock` (s
 @wdio/native-types       — type-only; framework types + module augmentation
 @wdio/native-utils       — generic primitives (logger, Result, config readers)
 @wdio/native-spy         — mock framework + per-framework interceptor adapters
-@wdio/native-cdp-bridge  — shared CDP transport (single + multi-target): Electrobun, React Native
-                            (Hermes); Electron next. Electron's own @wdio/electron-cdp-bridge is
-                            the legacy per-framework instance.
+@wdio/native-cdp-bridge  — shared CDP transport (single + multi-target): Electron, Electrobun,
+                            React Native (Hermes).
 @wdio/native-core        — shared launcher infra (PortManager, DriverPool, DriverProcess,
                             BaseLauncher, logWriter, OS-protocol deeplink helpers, logLevel)
 @wdio/native-mobile-core — shared Appium layer: caps, device pool, contexts, mobile deeplink,
@@ -345,7 +344,7 @@ Don't introduce a new per-framework gradient or container style — pick `.conta
 | npm service package | `@wdio/<framework>-service` | `@wdio/react-native-service` | all |
 | WDIO service options key | `wdio:<framework>ServiceOptions` | `wdio:reactNativeServiceOptions` | all |
 | Browser API surface | `browser.<framework>.*` | `browser.reactNative.execute(...)` | all |
-| Shared CDP bridge | `@wdio/native-cdp-bridge` (shared; electron's `@wdio/electron-cdp-bridge` is the legacy per-framework instance) | — | CDP + Mobile/Hermes |
+| Shared CDP bridge | `@wdio/native-cdp-bridge` (shared by Electron, Electrobun, React Native) | — | CDP + Mobile/Hermes |
 | Capability key | `<framework>:options` | `dioxus:options` | Wry |
 | Automation toggle env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION` | `DIOXUS_WEBVIEW_AUTOMATION` | Wry |
 | Embedded-driver port env var | `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` | `DIOXUS_WEBVIEW_AUTOMATION_PORT` | Wry/embedded |
@@ -436,7 +435,7 @@ The 6-PR split, mirroring the tables above:
 
 ## Reference implementations (worked examples by archetype)
 
-- **CDP** — `packages/electron-service/` + `packages/electron-cdp-bridge/`. The reference for any new CDP-based service.
+- **CDP** — `packages/electron-service/` + the shared `packages/native-cdp-bridge/`. The reference for any new CDP-based service.
 - **Wry / plugin system** — `packages/tauri-service/` + `packages/tauri-plugin/` (execute/mock) + `packages/tauri-plugin-webdriver/` (`tauri-plugin-wdio-webdriver`, embedded server). Mature; all providers (external, embedded, CrabNebula), multiremote, browser mode. The reference for the **plugin-route embedded provider**.
 - **Wry / no plugin system (bridge)** — `packages/dioxus-service/` + `dioxus-bridge` / `dioxus-embedded-driver` / `dioxus-driver`. The reference for the **bridge-route embedded provider** and for frameworks without a plugin system.
 - **Mobile / Appium** — `packages/react-native-service/` + `e2e/wdio.react-native.conf.ts` + the two `.github/workflows/_ci-e2e-react-native*.reusable.yml`. The reference for any Appium-driven mobile service; the worked example of the **Hermes-CDP Tier-1** JS-realm sub-axis (caps mutation, device pool, contexts, `mobile: deepLink`, dual-arch E2E). Types: `packages/native-types/src/react-native.ts`.

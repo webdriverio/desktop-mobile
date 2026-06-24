@@ -154,9 +154,9 @@ jobs:
           scope="${scope#scope:}"
           case "$scope" in
             electron)
+              # `@wdio/electron-service...` pulls in @wdio/native-cdp-bridge via its deps.
               pnpm turbo run build \
                 --filter='@wdio/electron-service...' \
-                --filter='@wdio/electron-cdp-bridge...' \
                 --filter='@wdio/bundler...'
               ;;
             tauri)

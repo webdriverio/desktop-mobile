@@ -24,9 +24,10 @@ describe('discoverServices', () => {
 
 describe('buildServiceDependents', () => {
   it('should map each shared package to the services that transitively depend on it', () => {
-    // The narrowing wins: mobile-core is mobile-only; the CDP bridge is electrobun + RN.
+    // The narrowing wins: mobile-core is mobile-only; the CDP bridge is electron + electrobun + RN
+    // (sorted lexicographically, so 'electrobun' precedes 'electron').
     expect(DEPENDENTS['native-mobile-core']).toEqual(['flutter', 'react-native']);
-    expect(DEPENDENTS['native-cdp-bridge']).toEqual(['electrobun', 'react-native']);
+    expect(DEPENDENTS['native-cdp-bridge']).toEqual(['electrobun', 'electron', 'react-native']);
     // Universally-depended-on packages still map to every service.
     expect(DEPENDENTS['native-utils']).toEqual([...SERVICES].sort());
     expect(DEPENDENTS['native-core']).toEqual([...SERVICES].sort());
@@ -43,7 +44,6 @@ describe('classifyFile', () => {
     ['agent-os/specs/foo/spec.md', 'none'],
     // packages → service / shared / unknown→all
     ['packages/electron-service/src/session.ts', 'electron'],
-    ['packages/electron-cdp-bridge/src/bridge.ts', 'electron'],
     ['packages/native-cdp-bridge/src/connection.ts', 'shared'],
     ['packages/tauri-plugin/src/index.ts', 'tauri'],
     ['packages/tauri-plugin-webdriver/Cargo.toml', 'tauri'],
@@ -224,12 +224,12 @@ describe('classifyChanges decisions', () => {
     expect(d.lintOnly).toBe(false);
   });
 
-  it('should narrow a native-cdp-bridge change to electrobun + react-native', () => {
+  it('should narrow a native-cdp-bridge change to electron + electrobun + react-native', () => {
     const d = decide(['packages/native-cdp-bridge/src/connection.ts']);
     expect(d.runs).toEqual({
       dioxus: false,
       electrobun: true,
-      electron: false,
+      electron: true,
       flutter: false,
       'react-native': true,
       tauri: false,

@@ -10,7 +10,6 @@ The monorepo publishes several packages to npm, but GitHub release notes are onl
 |---|---|
 | `@wdio/electron-service` | Yes |
 | `@wdio/tauri-service` | Yes |
-| `@wdio/electron-cdp-bridge` | No — internal implementation detail of the Electron service |
 | `@wdio/native-utils` | No — shared internal utilities |
 | `@wdio/native-spy` | No — shared internal mock implementation |
 | `@wdio/native-types` | No — shared internal type definitions |

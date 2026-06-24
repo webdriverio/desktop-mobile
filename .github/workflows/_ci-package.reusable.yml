@@ -206,8 +206,8 @@ jobs:
 
           # Pack Electron service and dependencies if needed
           if [ "$SERVICE" == "electron" ] || [ "$SERVICE" == "all" ]; then
-            if [ -d "packages/electron-cdp-bridge/dist" ]; then
-              (cd packages/electron-cdp-bridge && pnpm pack)
+            if [ -d "packages/native-cdp-bridge/dist" ]; then
+              (cd packages/native-cdp-bridge && pnpm pack)
             fi
             if [ -d "packages/electron-service/dist" ]; then
               (cd packages/electron-service && pnpm pack)

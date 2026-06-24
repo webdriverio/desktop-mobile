@@ -23,7 +23,7 @@ jobs:
             const scopeLabels = [
               { patterns: ['Electron Service', '@wdio/electron-service'], label: 'scope:electron' },
               { patterns: ['Tauri Service', '@wdio/tauri-service'], label: 'scope:tauri' },
-              { patterns: ['Electron CDP Bridge', '@wdio/electron-cdp-bridge'], label: 'scope:electron' },
+              { patterns: ['CDP Bridge', '@wdio/native-cdp-bridge'], label: 'scope:native-cdp-bridge' },
               { patterns: ['Tauri Plugin', '@wdio/tauri-plugin'], label: 'scope:tauri' },
               { patterns: ['Documentation'], label: 'area:documentation' }
             ];

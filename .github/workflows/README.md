@@ -8,7 +8,7 @@ The `release.yml` workflow handles both manual and automated releases using the 
 
 ### Scopes
 
-- **`electron`** - Releases `@wdio/electron-service`, `@wdio/electron-cdp-bridge`
+- **`electron`** - Releases `@wdio/electron-service`
 - **`tauri`** - Releases `@wdio/tauri-service`, `@wdio/tauri-plugin` (NPM + crates.io)
 - **`shared`** - Releases `@wdio/native-types`, `@wdio/native-utils` independently
 

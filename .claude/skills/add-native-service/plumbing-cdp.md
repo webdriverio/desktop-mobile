@@ -13,26 +13,29 @@ There is **no** automation env var, no `<framework>:options` capability, no `wdi
 
 ## CDP transport — reuse the shared `@wdio/native-cdp-bridge`
 
-The CDP transport is a **shared package** (`packages/native-cdp-bridge/`), used by Electrobun and React Native (Hermes) and slated to absorb Electron next. A new CDP service **reuses it** — don't author a per-framework bridge. `@wdio/electron-cdp-bridge` (`packages/electron-cdp-bridge/`) is the **legacy per-framework instance** that predates the shared extraction; treat it as historical, not a template.
+The CDP transport is a **shared package** (`packages/native-cdp-bridge/`), used by Electron, Electrobun and React Native (Hermes). A new CDP service **reuses it** — don't author a per-framework bridge.
 
 `@wdio/native-cdp-bridge` exports the pieces a new service needs: `CdpBridge` (single-target), `MultiTargetCdpBridge` (multi-window/target), a `DevTool` endpoint-discovery client, a `SelectTarget` hook for picking the right target, and an `origin` option (a custom CSRF header — e.g. React Native's Fusebox `Origin`). Construct it against the runtime's debugger host/port; supply a `selectTarget` if the runtime exposes several targets.
 
-The legacy `electron-cdp-bridge` shows the underlying shape (mirror it only if you ever must fork the transport):
+The transport's internal shape (`packages/native-cdp-bridge/src/`) — for reference if you ever must fork it:
 
 ```
 src/
-├── index.ts      barrel re-export (bridge + devTool + types)
-├── bridge.ts     CdpBridge: EventEmitter wrapping a ws connection; typed send()/on() over devtools-protocol
-├── devTool.ts    discovers the debugger WebSocket URL from the runtime's /json endpoint
-├── constants.ts  default host/port, retry interval, timeouts
+├── index.ts             barrel re-export (bridge + connection + devTool + constants + types)
+├── cdpBridge.ts         CdpBridge: single-target client; typed send()/on() over devtools-protocol
+├── connection.ts        wraps one ws connection (in-flight command promise map, disconnect event)
+├── multiTargetBridge.ts MultiTargetCdpBridge: one connection per window/target
+├── targetRegistry.ts    tracks discovered targets by label / injected classification
+├── devTool.ts           discovers the debugger WebSocket URL from the runtime's /json endpoint
+├── constants.ts         default host/port, retry interval, timeouts
 └── types.ts
 ```
 
-Key points from `electron-cdp-bridge/src/bridge.ts` (the shared `native-cdp-bridge` follows the same model):
+Key points from `native-cdp-bridge/src/cdpBridge.ts`:
 
-- Wrap `ws` in an `EventEmitter`. Type `send()` against `devtools-protocol/types/protocol-mapping.js` so command params/returns are checked.
-- Maintain a `Map<commandId, {resolve, reject}>`; the connect promise uses id `0`.
-- `CdpBridgeOptions` extends `DevToolOptions` with `waitInterval` + `connectionRetryCount`; `devTool.ts` polls the `/json`-style endpoint until the debugger URL is available, then `bridge.ts` connects.
+- The `Connection` wraps `ws` in an `EventEmitter`. Type `send()` against `devtools-protocol/types/protocol-mapping.js` so command params/returns are checked.
+- The `Connection` maintains a `Map<commandId, {resolve, reject}>` for in-flight requests.
+- `CdpBridgeOptions` extends `DevToolOptions` with `waitInterval` + `connectionRetryCount`; `devTool.ts` polls the `/json`-style endpoint until the debugger URL is available, then `cdpBridge.ts` opens the connection.
 
 ## Service launcher (CDP)
 

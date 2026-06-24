@@ -50,7 +50,6 @@ This difference is intentional and reflects:
 | @wdio/tauri-service | Pre-release | ✅ Active |
 | @wdio/native-utils | Stable | ✅ Active |
 | @wdio/native-types | Stable | ✅ Active |
-| @wdio/electron-cdp-bridge | Pre-release | ✅ Active |
 | @wdio/tauri-plugin | Pre-release | ✅ Active |
 
 Check npm or each package's `package.json` for current version numbers.

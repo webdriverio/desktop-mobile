@@ -1,4 +1,4 @@
-import type { CdpBridgeOptions } from '@wdio/electron-cdp-bridge';
+import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
 
 import type { ElectronServiceGlobalOptions } from '@wdio/native-types';
 import { CUSTOM_CAPABILITY_NAME } from './constants.js';
