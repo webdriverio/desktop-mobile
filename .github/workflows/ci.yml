@@ -1134,9 +1134,16 @@ jobs:
   # protection (stable as jobs are added/removed). A commit status also lets the label-
   # dispatched Dependabot run (a workflow_dispatch, not PR-associated) land its result on the
   # PR merge box; see dependabot-ci.yml.
+  #
+  # Skipped on Dependabot `pull_request` runs: detect-changes (and so every other job) is
+  # already gated off for Dependabot, leaving nothing to summarise. Running it would post a
+  # misleading result — the old `exit 1` left a red check that the later `ci:run` manual run
+  # (a separate, non-PR-associated workflow_dispatch) can never clear. The PR is gated instead
+  # by `CI / Required` staying ABSENT until that dispatched run publishes it. A manual run has
+  # no pull_request context, so this condition lets it through.
   ci-status:
     name: CI Summary
-    if: always()
+    if: always() && github.event.pull_request.user.login != 'dependabot[bot]'
     permissions:
       contents: read
       statuses: write
@@ -1213,15 +1220,6 @@ jobs:
       - package-electron-mac-universal
     runs-on: ubuntu-latest
     steps:
-      # CI is gated off for Dependabot (see detect-changes), which leaves every job skipped
-      # and would otherwise report this required check green. Fail instead so branch
-      # protection blocks the merge until CI is run manually. A manual run arrives as a
-      # workflow_dispatch (no pull_request context), so this step steps aside there.
-      - name: Require a manual run for Dependabot PRs
-        if: github.event.pull_request.user.login == 'dependabot[bot]'
-        run: |
-          echo "::error::CI is skipped for Dependabot PRs by default. Add the 'ci:run' label, or run Actions → CI → Run workflow on this branch, before merging."
-          exit 1
       - name: Check CI results
         run: |
           results="${{ join(needs.*.result, ' ') }}"
@@ -1234,10 +1232,10 @@ jobs:
           done
           echo "All CI jobs passed or were skipped"
       - name: Publish CI / Required commit status
-        # Skip Dependabot's own pull_request run: its token is read-only and we want
-        # CI / Required to stay unreported there so the PR blocks until the label-dispatched
-        # workflow_dispatch run (no pull_request context) publishes it.
-        if: always() && github.event.pull_request.user.login != 'dependabot[bot]'
+        # The job already skips Dependabot pull_request runs (see the job-level `if`), so this
+        # only ever runs where publishing is wanted: normal PRs, pushes, and the ci:run-
+        # dispatched workflow_dispatch run. `always()` so a failure still posts a red status.
+        if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
