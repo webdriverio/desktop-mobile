@@ -14,7 +14,7 @@
           "@wdio/tauri-plugin",
           "tauri-plugin-wdio-webdriver"
         ],
-        "sync": "independent"
+        "sync": "linked"
       }
     },
     "versionPrefix": "v",
