@@ -4,6 +4,7 @@ import TauriWorkerService from '../../src/service.js';
 import {
   createFakeBrowser,
   createFakeMock,
+  createFakeMultiremoteBrowser,
   defer,
   type FakeBrowser,
   type FakeMock,
@@ -207,5 +208,125 @@ describe('browser mode — navigation lifecycle', () => {
 
     await browser.triggerCommand('click');
     expect(fake.update).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('browser mode — BiDi preload interceptor (#259)', () => {
+  function newService(): TauriWorkerService {
+    return new TauriWorkerService({ mode: 'browser', devServerUrl: DEV_SERVER }, {} as never);
+  }
+
+  beforeEach(() => mockStore.clear());
+  afterEach(() => mockStore.clear());
+
+  it('should register the IPC injection script as a BiDi preload before the first navigation', async () => {
+    const browser = createFakeBrowser({ isBidi: true });
+    const seq: string[] = [];
+    browser.scriptAddPreloadScript.mockImplementation(async () => {
+      seq.push('preload');
+      return { script: 'preload-id' };
+    });
+    browser.url.mockImplementation(async () => {
+      seq.push('url');
+    });
+
+    await newService().before({} as never, [], browser as unknown as WebdriverIO.Browser);
+
+    expect(browser.scriptAddPreloadScript).toHaveBeenCalledTimes(1);
+    const { functionDeclaration } = browser.scriptAddPreloadScript.mock.calls[0][0] as { functionDeclaration: string };
+    // Wrapped as an arrow the BiDi agent invokes per realm, carrying the same IPC shim markers.
+    expect(functionDeclaration.startsWith('() => {')).toBe(true);
+    expect(isInjectionScript(functionDeclaration)).toBe(true);
+    // Preload must be registered before any navigation, or the first page load runs unpatched.
+    expect(seq[0]).toBe('preload');
+    expect(seq.indexOf('preload')).toBeLessThan(seq.indexOf('url'));
+  });
+
+  it('should skip the preload on a classic (non-BiDi) session and still inject post-load', async () => {
+    const browser = createFakeBrowser({ isBidi: false });
+
+    await newService().before({} as never, [], browser as unknown as WebdriverIO.Browser);
+
+    expect(browser.scriptAddPreloadScript).not.toHaveBeenCalled();
+    // Fallback path is unchanged: the post-load execute() inject still runs.
+    expect(browser.execute.mock.calls.some((c) => isInjectionScript(c[0]))).toBe(true);
+  });
+
+  it('should fall back to post-load injection when the preload call fails', async () => {
+    const browser = createFakeBrowser({ isBidi: true });
+    browser.scriptAddPreloadScript.mockRejectedValueOnce(new Error('bidi unavailable'));
+
+    await expect(
+      newService().before({} as never, [], browser as unknown as WebdriverIO.Browser),
+    ).resolves.not.toThrow();
+
+    expect(browser.execute.mock.calls.some((c) => isInjectionScript(c[0]))).toBe(true);
+  });
+
+  it('should not fail init when the post-load inject throws but the preload already succeeded', async () => {
+    const browser = createFakeBrowser({ isBidi: true });
+    // Preload succeeds (default mock), so the post-load execute() is belt-and-suspenders —
+    // a transient failure there must not break initialisation.
+    browser.execute.mockRejectedValueOnce(new Error('transient execute failure'));
+
+    await expect(
+      newService().before({} as never, [], browser as unknown as WebdriverIO.Browser),
+    ).resolves.not.toThrow();
+
+    expect(browser.scriptAddPreloadScript).toHaveBeenCalledTimes(1);
+  });
+
+  it('should fail init when the post-load inject throws on a classic (non-BiDi) session', async () => {
+    const browser = createFakeBrowser({ isBidi: false });
+    // No preload is active, so the post-load execute() is the only injection path and must
+    // stay load-bearing.
+    browser.execute.mockRejectedValueOnce(new Error('inject failed'));
+
+    await expect(newService().before({} as never, [], browser as unknown as WebdriverIO.Browser)).rejects.toThrow(
+      'inject failed',
+    );
+
+    expect(browser.scriptAddPreloadScript).not.toHaveBeenCalled();
+  });
+
+  it('should register a preload on every multiremote instance before navigating', async () => {
+    const { root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB'], { isBidi: true });
+    const seq: string[] = [];
+    for (const [name, instance] of instances) {
+      instance.scriptAddPreloadScript.mockImplementation(async () => {
+        seq.push(`preload:${name}`);
+        return { script: `preload-${name}` };
+      });
+    }
+    root.url.mockImplementation(async () => {
+      seq.push('url');
+    });
+
+    await newService().before({} as never, [], root as unknown as WebdriverIO.Browser);
+
+    for (const instance of instances.values()) {
+      expect(instance.scriptAddPreloadScript).toHaveBeenCalledTimes(1);
+      const { functionDeclaration } = instance.scriptAddPreloadScript.mock.calls[0][0] as {
+        functionDeclaration: string;
+      };
+      expect(isInjectionScript(functionDeclaration)).toBe(true);
+    }
+    // The root drives navigation/fan-out; only the per-instance sessions own a preload.
+    expect(root.scriptAddPreloadScript).not.toHaveBeenCalled();
+    expect(seq).toEqual(['preload:browserA', 'preload:browserB', 'url']);
+  });
+
+  it('should rely on the BiDi preload and not re-inject via execute() after a navigation', async () => {
+    // On a BiDi session the preload re-runs on every navigation in the main world, so
+    // patchBrowserUrl must NOT also re-inject — rethrowing that redundant execute() would
+    // make it load-bearing. The classic re-inject path stays covered by the navigation
+    // lifecycle suite above (which runs on the default non-BiDi fake browser).
+    const browser = createFakeBrowser({ isBidi: true });
+    await newService().before({} as never, [], browser as unknown as WebdriverIO.Browser);
+
+    browser.execute.mockClear();
+    await browser.url(`${DEV_SERVER}/page2`);
+
+    expect(browser.execute.mock.calls.filter((c) => isInjectionScript(c[0]))).toHaveLength(0);
   });
 });

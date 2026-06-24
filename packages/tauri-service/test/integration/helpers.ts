@@ -27,6 +27,10 @@ export interface FakeBrowser {
   url: ReturnType<typeof vi.fn>;
   execute: ReturnType<typeof vi.fn>;
   overwriteCommand: ReturnType<typeof vi.fn>;
+  /** Mirrors webdriverio's browser.isBidi — gates the BiDi preload path in browser mode. */
+  isBidi: boolean;
+  /** Mirrors the BiDi script.addPreloadScript command; resolves with a fake preload id. */
+  scriptAddPreloadScript: ReturnType<typeof vi.fn>;
   tauri: Record<string, unknown>;
   overrides: Map<string, OverrideFn>;
   /**
@@ -38,11 +42,13 @@ export interface FakeBrowser {
   triggerCommand: (name: string, ownerBrowser?: WebdriverIO.Browser) => Promise<unknown>;
 }
 
-export function createFakeBrowser(): FakeBrowser {
+export function createFakeBrowser({ isBidi = false }: { isBidi?: boolean } = {}): FakeBrowser {
   const overrides = new Map<string, OverrideFn>();
   const browser = {
     url: vi.fn().mockResolvedValue(undefined),
     execute: vi.fn().mockResolvedValue(undefined),
+    isBidi,
+    scriptAddPreloadScript: vi.fn().mockResolvedValue({ script: 'preload-id' }),
     overwriteCommand: vi.fn((name: string, fn: OverrideFn, _isElement?: boolean) => {
       overrides.set(name, fn);
       // Mirror webdriverio: overwriting a browser command (e.g. url — read-only in wdio >=9.27,
@@ -66,6 +72,40 @@ export function createFakeBrowser(): FakeBrowser {
     },
   };
   return browser;
+}
+
+export interface FakeMultiremoteBrowser extends FakeBrowser {
+  isMultiremote: true;
+  instances: string[];
+  getInstance: (name: string) => FakeBrowser;
+}
+
+/**
+ * Build a minimal multiremote fake: a root browser (what the service drives) plus one
+ * FakeBrowser per named instance, returned in a map so tests can assert per-instance
+ * behaviour (e.g. each instance's scriptAddPreloadScript). browser.url()/execute() on the
+ * root model webdriverio's fan-out; the service registers the preload per instance.
+ */
+export function createFakeMultiremoteBrowser(
+  instanceNames: string[],
+  { isBidi = false }: { isBidi?: boolean } = {},
+): { root: FakeMultiremoteBrowser; instances: Map<string, FakeBrowser> } {
+  const instances = new Map<string, FakeBrowser>();
+  for (const name of instanceNames) {
+    instances.set(name, createFakeBrowser({ isBidi }));
+  }
+  const root = Object.assign(createFakeBrowser({ isBidi }), {
+    isMultiremote: true as const,
+    instances: instanceNames,
+    getInstance: (name: string) => {
+      const instance = instances.get(name);
+      if (!instance) {
+        throw new Error(`No multiremote instance "${name}"`);
+      }
+      return instance;
+    },
+  });
+  return { root, instances };
 }
 
 export interface FakeMock {

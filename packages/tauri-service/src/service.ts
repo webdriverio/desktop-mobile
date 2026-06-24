@@ -324,16 +324,17 @@ export default class TauriWorkerService {
   }
 
   /**
-   * Initialize browser-only mode: navigate to dev server, inject IPC layer, expose API.
+   * Initialize browser-only mode: register the IPC interceptor as a BiDi preload (so it
+   * runs in the main world before any page script — capturing invoke() calls the app
+   * makes on startup, issue #259), navigate to the dev server, re-inject post-load as a
+   * fallback, then expose the API.
    *
-   * Timing note: the IPC interceptor is injected after browser.url() resolves
-   * (i.e. after readyState === "complete"). Any invoke() calls the app makes
-   * during module init, DOMContentLoaded, or onload handlers will therefore
-   * run against the real (unpatched) __TAURI_INTERNALS__ and be missed by mocks.
-   * In practice this is only a problem for apps that call invoke() on startup
-   * before any user interaction. If your app does this, structure tests so that
-   * all mocks are created before the first navigation, or use a Vite plugin to
-   * import the injection script as a top-level module in your dev build.
+   * When the session isn't BiDi (e.g. wdio:enforceWebDriverClassic, or a non-Chrome
+   * browser) the preload is skipped: invoke() calls fired during module init /
+   * DOMContentLoaded / onload — before browser.url() resolves — then run against the
+   * real (unpatched) __TAURI_INTERNALS__ and are missed by mocks, as before. Browser
+   * mode forces browserName: 'chrome', for which WDIO enables BiDi by default, so the
+   * preload path is the norm.
    */
   private async initBrowserMode(browser: WebdriverIO.Browser): Promise<void> {
     log.debug('Initializing browser-only mode');
@@ -341,8 +342,37 @@ export default class TauriWorkerService {
       throw new Error('devServerUrl is required for browser mode but was not set');
     }
     const injectionScript = browserInterceptor.buildBrowserIpcInjectionScript();
+
+    // Register the preload before the first navigation. browser.url() on a multiremote
+    // fans out to every instance, so each instance's own BiDi session must be primed first.
+    // preloadActive is true only when the interceptor is already installed pre-navigation on
+    // every relevant session, which decides whether the post-load execute() below is the
+    // primary injection path or merely belt-and-suspenders.
+    let preloadActive: boolean;
+    if ((browser as unknown as { isMultiremote?: boolean }).isMultiremote) {
+      const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+      const registered: boolean[] = [];
+      for (const instanceName of mrBrowser.instances) {
+        registered.push(await this.registerBidiPreload(mrBrowser.getInstance(instanceName), injectionScript));
+      }
+      preloadActive = registered.length > 0 && registered.every(Boolean);
+    } else {
+      preloadActive = await this.registerBidiPreload(browser, injectionScript);
+    }
+
     await browser.url(this.devServerUrl);
-    await browser.execute(injectionScript);
+    try {
+      await browser.execute(injectionScript);
+    } catch (error) {
+      // When the preload already injected before page scripts, this post-load re-inject is
+      // redundant — don't fail init for a transient hiccup. When no preload is active (classic
+      // session, or preload registration failed) this is the only injection path, so a failure
+      // is fatal, exactly as before.
+      if (!preloadActive) {
+        throw error;
+      }
+      log.warn('Post-load IPC re-inject failed; preload already covered injection on this session:', error);
+    }
     (browser as unknown as Record<string, boolean>).__wdioBrowserMode__ = true;
     if ((browser as unknown as { isMultiremote?: boolean }).isMultiremote) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
@@ -359,10 +389,47 @@ export default class TauriWorkerService {
   }
 
   /**
+   * Register the IPC injection script as a WebDriver BiDi preload so it runs in the main
+   * world before any page script. This is what lets mocks capture invoke() calls fired
+   * during the app's startup (module init / DOMContentLoaded), which the post-load
+   * execute() inject misses (issue #259). The preload also re-runs automatically on every
+   * navigation, so it subsumes patchBrowserUrl's re-injection when BiDi is active.
+   *
+   * No-ops when the session isn't BiDi (e.g. wdio:enforceWebDriverClassic), and swallows
+   * failures, leaving the post-load inject + patchBrowserUrl as the classic fallback — so
+   * a non-BiDi session behaves exactly as before. Returns true only when a preload was
+   * actually installed, so callers can tell whether the interceptor is already present
+   * before navigation.
+   */
+  private async registerBidiPreload(browser: WebdriverIO.Browser, injectionScript: string): Promise<boolean> {
+    if (!browser.isBidi) {
+      return false;
+    }
+    try {
+      // buildBrowserIpcInjectionScript() returns an idempotent IIFE; wrap it as a function
+      // declaration the BiDi agent invokes on each new realm. Omitting `sandbox` runs it in
+      // the main world, so it patches the same window the page's own scripts see.
+      await browser.scriptAddPreloadScript({ functionDeclaration: `() => {\n${injectionScript}\n}` });
+      log.debug('Registered BiDi preload IPC interceptor');
+      return true;
+    } catch (error) {
+      log.warn('Failed to register BiDi preload script — falling back to post-load injection:', error);
+      return false;
+    }
+  }
+
+  /**
    * Override browser.url() so the IPC injection script is re-applied after every
    * navigation. A page load wipes window state, so without this any browser.url()
    * call inside a test would silently remove __TAURI_INTERNALS__ patching and
    * __wdio_mocks__, breaking all mocks registered for that test.
+   *
+   * Skipped on BiDi sessions: the preload (registerBidiPreload) already re-runs in the
+   * main world on every navigation, so this execute()-based re-inject is redundant there.
+   * Crucially it must not run on BiDi — rethrowing its (best-effort) failure would make
+   * the redundant call load-bearing, contradicting the layered fallback design. The check
+   * is per-session (`this.isBidi`), so a mixed multiremote keeps re-injecting on any
+   * classic instance.
    *
    * Uses overwriteCommand rather than reassigning browser.url, which is a
    * read-only command property on webdriverio (>=9.27) — direct assignment throws
@@ -380,7 +447,7 @@ export default class TauriWorkerService {
         href?: string,
       ): Promise<string | void> {
         const result = await Reflect.apply(originalUrl, this, [href]);
-        if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioBrowserMode__) {
+        if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioBrowserMode__ && !this.isBidi) {
           try {
             await this.execute(injectionScript);
           } catch (error) {
