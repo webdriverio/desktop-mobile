@@ -1,0 +1,6 @@
+{
+  "name": "tauri-browser-e2e-fixture",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Static HTML fixture served as a dev server for Tauri browser-mode E2E tests"
+}
