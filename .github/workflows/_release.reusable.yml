@@ -91,6 +91,14 @@ jobs:
         shell: bash
         run: rustup update stable && rustup default stable
 
+      - name: Setup Dart
+        # pub.dev publishing for the wdio_flutter contract — ubuntu-latest ships no Dart CLI, and
+        # releasekit provisions no toolchains itself (Rust is set up above, by the same token).
+        # setup-dart also performs the OIDC token exchange for `dart pub publish` (this job grants
+        # id-token: write), which is how automated pub.dev publishing authenticates.
+        if: ${{ contains(inputs.scope, 'flutter') || inputs.scope == 'all' }}
+        uses: dart-lang/setup-dart@v1
+
       - name: Install GTK development libraries
         if: ${{ contains(inputs.scope, 'tauri') || contains(inputs.scope, 'dioxus') || inputs.scope == 'all' }}
         run: |
