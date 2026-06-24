@@ -85,12 +85,18 @@ jobs:
       # The wdio configs force browserName=chrome and set autoXvfb, so WDIO drives the real
       # Chrome preinstalled on ubuntu-latest under a Xvfb display it starts itself. Each step
       # runs even if an earlier one failed (!cancelled) so one red tier never masks the others;
-      # any failure still fails the job. The electron-browser E2E conf self-hosts its dev
-      # server (:5174); test-package.ts self-hosts the package fixtures' dev server (:5173).
+      # any failure still fails the job. The browser-mode E2E confs self-host their dev servers
+      # (electron-browser :5174, tauri-browser :1421); test-package.ts self-hosts the package
+      # fixtures' dev server (:5173).
       - name: 🧪 Electron browser-mode E2E
         if: ${{ !cancelled() }}
         shell: bash
         run: pnpm e2e:electron-browser
+
+      - name: 🧪 Tauri browser-mode E2E
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: pnpm e2e:tauri-browser
 
       - name: 🧪 Electron browser-mode package test (ESM + CJS)
         if: ${{ !cancelled() }}
