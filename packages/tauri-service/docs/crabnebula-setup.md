@@ -436,11 +436,13 @@ export const config = {
 };
 ```
 
-Or conditionally use different providers:
+Or conditionally use different external drivers — CrabNebula on macOS, the standard
+`external` tauri-driver where you already have it. (If you'd rather not run an external
+driver at all, `embedded` works on every platform and is the simplest default.)
 
 ```typescript
-const driverProvider = process.env.DRIVER_PROVIDER || 
-  (process.platform === 'darwin' ? 'embedded' : 'external');
+const driverProvider = process.env.DRIVER_PROVIDER ||
+  (process.platform === 'darwin' ? 'crabnebula' : 'external');
 
 export const config = {
   services: [['@wdio/tauri-service', {
