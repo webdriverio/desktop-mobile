@@ -150,22 +150,15 @@ class MockUpdateScheduler {
       }
     }
 
-    // Each lane is retried once (after 50 ms) before failing hard. Silently
-    // swallowing a mock-update failure leaves mock.calls empty downstream, which
-    // is harder to diagnose than an AggregateError surfaced at the call site.
-    const tryUpdate = async (label: string, run: () => Promise<void>): Promise<void> => {
-      try {
-        await run();
-      } catch (firstError) {
-        log.debug(`Mock update lane "${label}" failed, retrying in 50ms:`, firstError);
-        await sleep(50);
-        await run();
-      }
-    };
-
+    // Each lane is retried once (after 50 ms) before failing hard (see tryUpdate). Silently
+    // swallowing a mock-update failure leaves mock.calls empty downstream, which is harder to
+    // diagnose than an AggregateError surfaced at the call site. Empty native/browser lanes are
+    // omitted — their batch helpers early-return, so including them only adds no-op scaffold.
     const lanes: Array<{ label: string; run: () => Promise<void> }> = [
-      { label: 'native', run: () => batchUpdateNativeMocks(this.#browser, native) },
-      { label: 'browser', run: () => batchUpdateBrowserModeMocks(this.#browser, browserMode) },
+      ...(native.length > 0 ? [{ label: 'native', run: () => batchUpdateNativeMocks(this.#browser, native) }] : []),
+      ...(browserMode.length > 0
+        ? [{ label: 'browser', run: () => batchUpdateBrowserModeMocks(this.#browser, browserMode) }]
+        : []),
       ...legacy.map(([mockId, m]) => ({
         label: `legacy:${mockId}`,
         run: async () => {
@@ -191,6 +184,19 @@ class MockUpdateScheduler {
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+// Run a single mock-update lane, retrying once after 50 ms before letting the failure
+// propagate. Module-level so it isn't reallocated per batch — it closes over nothing but the
+// module-level log/sleep.
+async function tryUpdate(label: string, run: () => Promise<void>): Promise<void> {
+  try {
+    await run();
+  } catch (firstError) {
+    log.debug(`Mock update lane "${label}" failed, retrying in 50ms:`, firstError);
+    await sleep(50);
+    await run();
+  }
 }
 
 /**
