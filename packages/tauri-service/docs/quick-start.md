@@ -357,7 +357,7 @@ The service couldn't determine which driver to use, or couldn't find tauri-drive
    ```typescript
    driverProvider: 'embedded'
    ```
-   Requires `tauri-plugin-wdio-webdriver` in your Tauri app. On macOS this is auto-detected.
+   Requires `tauri-plugin-wdio-webdriver` in your Tauri app. It is the default on every platform when `driverProvider` is unset.
 
 2. **Install tauri-driver manually** (if using `driverProvider: 'external'`):
    ```bash
