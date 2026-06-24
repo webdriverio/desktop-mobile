@@ -15,6 +15,13 @@
           "tauri-plugin-wdio-webdriver"
         ],
         "sync": "linked"
+      },
+      "flutter": {
+        "packages": [
+          "@wdio/flutter-service",
+          "wdio_flutter"
+        ],
+        "sync": "linked"
       }
     },
     "versionPrefix": "v",
@@ -25,6 +32,12 @@
     "mismatchStrategy": "prefer-package",
     "cargo": {
       "enabled": true
+    },
+    "pub": {
+      "enabled": true,
+      "paths": [
+        "packages/flutter-service/wdio_flutter"
+      ]
     },
     "skip": [
       "@repo/e2e",
@@ -71,7 +84,7 @@
       "scope:electron": "@wdio/electron-*",
       "scope:electrobun": "@wdio/electrobun-*",
       "scope:react-native": "@wdio/react-native-*",
-      "scope:flutter": "@wdio/flutter-*"
+      "scope:flutter": "@wdio/flutter-*,wdio_flutter"
     }
   },
   "notes": {
@@ -148,6 +161,9 @@
     "cargo": {
       "enabled": true,
       "noVerify": true
+    },
+    "pub": {
+      "enabled": true
     },
     "git": {
       "push": true,
