@@ -57,7 +57,7 @@ jobs:
       # Shared with the E2E job so the re-scaffold gets a cache hit and skips the npm
       # download entirely — the tarball content is identical for the same pinned version.
       - name: 💾 Restore npm download cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ~/.npm
           key: npm-rn-${{ inputs.rn-version }}-v1
@@ -81,7 +81,7 @@ jobs:
 
       - name: 💾 Restore CocoaPods cache
         id: pods-cache
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: ${{ env.RN_BUILD_DIR }}/ios/Pods
           key: rn-cocoapods-${{ inputs.rn-version }}-${{ inputs.new-arch && 'new' || 'old' }}-arch-v1
