@@ -1,0 +1,37 @@
+name: Dependabot CI Prompt
+
+# Dependabot PRs run no CI by default (see dependabot-ci.yml), so the required `CI / Required`
+# status is never reported and the merge box shows a bare, unexplained "Expected". This posts a
+# pending `CI / Required` with an actionable description — "Add the ci:run label to run CI" — so
+# the merge box itself tells a maintainer how to unblock it. Re-fires on `synchronize` so a
+# Dependabot rebase (new head SHA) gets the hint again instead of reverting to a blank "Expected".
+#
+# Why pull_request_target: a `pull_request` run on a Dependabot PR gets a read-only token with no
+# `statuses` scope, so it can't post a status. pull_request_target runs in the BASE-repo context
+# with a writable token. This job NEVER checks out or runs PR code — it only calls the status API —
+# so the elevated token carries no code-execution risk.
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize]
+
+permissions:
+  statuses: write
+
+jobs:
+  prompt:
+    # Only Dependabot PRs; human PRs get their real CI / Required from ci.yml.
+    if: github.event.pull_request.user.login == 'dependabot[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post pending CI / Required with a run-CI hint
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state=pending \
+            -f context='CI / Required' \
+            -f description='Add the ci:run label to run CI' \
+            -f target_url="$PR_URL"
