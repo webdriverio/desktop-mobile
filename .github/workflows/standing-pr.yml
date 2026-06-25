@@ -38,7 +38,7 @@ jobs:
       # Sparse checkout of just the config file — avoids cloning the whole repo while
       # letting the branch name come from a single source of truth (ci.standingPr.branch).
       - name: Checkout config
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           sparse-checkout: releasekit.config.json
           sparse-checkout-cone-mode: false
