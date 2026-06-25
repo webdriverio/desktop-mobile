@@ -105,8 +105,8 @@ export async function discoverVmServiceUrl(
   // Primary: ask appium-flutter-driver for the observatory URL it already discovered, forwarded, and
   // connected to (ws://host:port/[auth-code]/ws). The driver does the heavy lifting — log scrape +
   // adb forward — so we just attach our own client to the same VM Service. This sidesteps both the
-  // unsupported getLogs scrape and the port-pin (which the engine ignores). Needs the fork's
-  // flutter:getVMServiceUrl command; on an older driver that lacks it, fall through to pin/scrape.
+  // unsupported getLogs scrape and the port-pin (which the engine ignores). Needs the driver's
+  // flutter:getVMServiceUrl command (≥ 3.8.0); on an older driver that lacks it, fall through to pin/scrape.
   try {
     const driverUrl = (await browser.execute('flutter:getVMServiceUrl')) as unknown;
     if (typeof driverUrl === 'string' && /^wss?:\/\//.test(driverUrl)) {

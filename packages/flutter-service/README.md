@@ -42,14 +42,12 @@ appium driver install --source=npm appium-flutter-driver
 > worker**, so you no longer need to set it by hand — pin it yourself only to override. Without it,
 > find/tap/deeplink/contexts still work; only `execute`/`mock` use it.
 >
-> On **iOS** the published `appium-flutter-driver` (≥ 3.7.1) honours the port via `processArguments`.
-> On **Android** the equivalent (a `vm-service-port` launch-intent extra + the `flutter:getVMServiceUrl`
-> command) lives in a [fork](https://github.com/goosewobbler/appium-flutter-driver) pending an upstream
-> PR to `appium/appium-flutter-driver` (the iOS half merged as
-> [#870](https://github.com/appium/appium-flutter-driver/pull/870)) — until it lands, Android
-> `execute`/`mock` need that fork. The preflight doctor warns if the installed driver lacks
-> `getVMServiceUrl`. Set `autoInstallDriver: true` to let the launcher install the `flutter` driver
-> for you, and `doctor: { strict: true }` to fail fast on a missing toolchain.
+> The port pin is honoured by the published `appium-flutter-driver` on both platforms: **iOS** from
+> ≥ 3.7.1 ([#870](https://github.com/appium/appium-flutter-driver/pull/870), via `processArguments`)
+> and **Android** from ≥ 3.8.0 ([#880](https://github.com/appium/appium-flutter-driver/pull/880), via
+> a `vm-service-port` launch-intent extra + the `flutter:getVMServiceUrl` command). The preflight
+> doctor warns if the installed driver is older. Set `autoInstallDriver: true` to let the launcher
+> install the `flutter` driver for you, and `doctor: { strict: true }` to fail fast on a missing toolchain.
 
 ## Quick start
 
@@ -185,9 +183,8 @@ no log scrape. Pin `vmServicePort` only to override.
 `autoInstallDriver: true` installs the `flutter` Appium driver (appium-flutter-driver) if
 it isn't already present, at a version known-good for your Appium **server major** (from a
 maintained matrix). It's **idempotent** and **off by default** (CI usually manages drivers
-explicitly). Note it installs the **stock** driver — on Android, `execute`/`mock` still need
-the goosewobbler fork until it's upstreamed (see [Installation](#installation)); the doctor
-warns when the fork is absent.
+explicitly). It installs `appium-flutter-driver` ≥ 3.8.0 — the version Android `execute`/`mock`
+need (see [Installation](#installation)); the doctor warns when an older driver is present.
 
 ### `doctor` — preflight checks
 
@@ -201,8 +198,7 @@ as a clear message instead of a cryptic Appium timeout:
 | `{ strict: true }` | Run the checks; abort the run (`SevereServiceError`) on any error-level check. |
 
 For Flutter it checks: `@wdio/appium-service` is in `services`, `flutter` is on PATH, the
-installed `appium-flutter-driver` carries `getVMServiceUrl` (Android only), and (iOS) the
-Xcode toolchain is warm.
+installed `appium-flutter-driver` is ≥ 3.8.0 (Android only), and (iOS) the Xcode toolchain is warm.
 
 ### iOS launch caps — auto-applied
 
