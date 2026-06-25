@@ -42,7 +42,7 @@ jobs:
       cache_key: ${{ steps.upload-archive.outputs.cache_key }}
     steps:
       - name: Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           ssh-key: ${{ secrets.DEPLOY_KEY }}
 

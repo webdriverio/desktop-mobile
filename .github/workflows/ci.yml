@@ -1049,7 +1049,7 @@ jobs:
     runs-on: macos-latest
     steps:
       - name: 👷 Checkout Repository
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
