@@ -24,7 +24,7 @@ body:
         - Electron Service (@wdio/electron-service)
         - Tauri Service (@wdio/tauri-service)
         - Shared Utilities (@wdio/native-utils, @wdio/native-types)
-        - Electron CDP Bridge (@wdio/electron-cdp-bridge)
+        - CDP Bridge (@wdio/native-cdp-bridge)
         - Tauri Plugin (@wdio/tauri-plugin)
         - Documentation
         - Other

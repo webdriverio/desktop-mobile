@@ -1,4 +1,4 @@
-import type { CdpBridgeOptions } from '@wdio/electron-cdp-bridge';
+import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,

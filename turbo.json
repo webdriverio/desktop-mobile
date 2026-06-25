@@ -240,18 +240,9 @@
         "dist/**"
       ]
     },
-    "@wdio/electron-cdp-bridge#build": {
-      "dependsOn": [
-        "@wdio/native-utils#build",
-        "typecheck"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
-    },
     "@wdio/electron-service#build": {
       "dependsOn": [
-        "@wdio/electron-cdp-bridge#build"
+        "@wdio/native-cdp-bridge#build"
       ],
       "outputs": [
         "dist/**"

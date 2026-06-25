@@ -174,7 +174,6 @@
       "draft": true,
       "body": "auto",
       "skipPackages": [
-        "@wdio/electron-cdp-bridge",
         "@wdio/native-cdp-bridge",
         "@wdio/native-utils",
         "@wdio/native-spy",

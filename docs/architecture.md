@@ -57,7 +57,6 @@ This document describes the architecture of the WebdriverIO Desktop & Mobile mon
 
 | Package | Responsibility |
 |---------|---------------|
-| `@wdio/electron-cdp-bridge` | CDP client for the Electron main-process debugger (single target) |
 | `@wdio/native-cdp-bridge` | Shared CDP bridge: single-target (`CdpBridge`) + multi-target (`MultiTargetCdpBridge`, one connection per window), with target classification injected per service |
 | `@wdio/tauri-plugin` | Tauri v2 plugin for backend command invocation |
 | `wdio-dioxus-bridge` | Dioxus bridge crate — IPC channel, mock dispatch, log forwarding, embedded driver wiring |

@@ -132,7 +132,7 @@ desktop-mobile/
 │   ├── dioxus-bridge/          # Dioxus bridge crate (Rust)
 │   ├── dioxus-embedded-driver/ # Dioxus embedded WebDriver server (Rust)
 │   ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows)
-│   ├── electron-cdp-bridge/    # Chrome DevTools Protocol bridge
+│   ├── native-cdp-bridge/      # Shared Chrome DevTools Protocol bridge (single + multi-target)
 │   ├── native-utils/           # Cross-platform utilities
 │   ├── native-types/           # Shared TypeScript type definitions
 │   ├── native-spy/             # Spy utilities for mocking

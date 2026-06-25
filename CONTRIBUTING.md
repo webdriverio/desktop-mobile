@@ -392,7 +392,7 @@ GitHub release notes are published per **user-installed** package — not per in
 
 | Framework | Packages with release notes | Skipped (internal only) |
 |-----------|-----------------------------|-------------------------|
-| Electron  | `@wdio/electron-service` | `@wdio/electron-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-core` |
+| Electron  | `@wdio/electron-service` | `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-core` |
 | Tauri     | `@wdio/tauri-service`, `tauri-plugin`, `tauri-plugin-webdriver` | — |
 | Dioxus    | `@wdio/dioxus-service` | `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver` |
 | Electrobun | `@wdio/electrobun-service` | `@wdio/native-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types` |

@@ -1,8 +1,16 @@
 import os from 'node:os';
-import { CdpBridge } from '@wdio/electron-cdp-bridge';
+import { CdpBridge, type CdpBridgeOptions, REQUEST_TIMEOUT } from '@wdio/native-cdp-bridge';
 import { createLogger } from '@wdio/native-utils';
 
+import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping.js';
+
 const log = createLogger('electron-service', 'bridge');
+
+type Methods = keyof ProtocolMapping.Commands;
+type Events = keyof ProtocolMapping.Events;
+type MethodParams<T extends Methods> = ProtocolMapping.Commands[T]['paramsType'];
+type MethodReturn<T extends Methods> = ProtocolMapping.Commands[T]['returnType'];
+type SendParams<T extends Methods> = MethodParams<T> extends [] ? [] : [MethodParams<T>[number]];
 
 export const getDebuggerEndpoint = (capabilities: WebdriverIO.Capabilities) => {
   log.trace('Try to detect the node debugger endpoint');
@@ -24,18 +32,49 @@ export const getDebuggerEndpoint = (capabilities: WebdriverIO.Capabilities) => {
   return result;
 };
 
-export class ElectronCdpBridge extends CdpBridge {
+/**
+ * Electron-domain wrapper over the shared single-target {@link CdpBridge}. Composes the transport
+ * (rather than extending it) so it depends only on the bridge's public API — the bridge keeps its
+ * options private. On top of the raw connect it runs the Electron setup: enable the Runtime domain,
+ * resolve the main-world execution context, and inject the bootstrap script.
+ */
+export class ElectronCdpBridge {
+  #bridge: CdpBridge;
+  #options: CdpBridgeOptions;
+  // Mirrors the bridge's effective request timeout (same `?? REQUEST_TIMEOUT` default), reused as
+  // the deadline for resolving the execution context — the bridge no longer exposes its options.
+  #timeout: number;
   #contextId: number = 0;
+
+  constructor(options?: CdpBridgeOptions) {
+    this.#bridge = new CdpBridge(options);
+    this.#options = options ?? {};
+    this.#timeout = options?.timeout ?? REQUEST_TIMEOUT;
+  }
 
   get contextId() {
     return this.#contextId;
   }
 
+  send<T extends Methods>(method: T, ...params: SendParams<T>): Promise<MethodReturn<T>> {
+    return this.#bridge.send(method, ...params);
+  }
+
+  on<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
+    this.#bridge.on(event, listener);
+    return this;
+  }
+
+  off<T extends Events>(event: T, listener: (param: ProtocolMapping.Events[T][number]) => void): this {
+    this.#bridge.off(event, listener);
+    return this;
+  }
+
   async connect(): Promise<void> {
     const startTime = Date.now();
-    log.debug('CdpBridge options:', this.options);
+    log.debug('CdpBridge options:', this.#options);
 
-    await super.connect();
+    await this.#bridge.connect();
     log.debug(`[+${Date.now() - startTime}ms] CDP connection established, setting up context handler`);
 
     const t2 = Date.now();
@@ -80,9 +119,7 @@ export class ElectronCdpBridge extends CdpBridge {
   #getContextIdHandler() {
     return new Promise<number>((resolve, reject) => {
       const handlerStartTime = Date.now();
-      log.debug(
-        `[Handler +0ms] Setting up Runtime.executionContextCreated listener (timeout: ${this.options.timeout}ms)`,
-      );
+      log.debug(`[Handler +0ms] Setting up Runtime.executionContextCreated listener (timeout: ${this.#timeout}ms)`);
       let eventCount = 0;
       let firstContextId: number | null = null;
       let resolved = false;
@@ -125,7 +162,7 @@ export class ElectronCdpBridge extends CdpBridge {
       this.on('Runtime.executionContextCreated', onContextCreated);
 
       log.debug(
-        `[Handler +${Date.now() - handlerStartTime}ms] Listener registered, setting ${this.options.timeout}ms timeout`,
+        `[Handler +${Date.now() - handlerStartTime}ms] Listener registered, setting ${this.#timeout}ms timeout`,
       );
 
       const timeoutId = setTimeout(() => {
@@ -143,17 +180,17 @@ export class ElectronCdpBridge extends CdpBridge {
 
         if (firstContextId !== null) {
           log.warn(
-            `[Handler +${timeoutTime}ms] No default context found after ${this.options.timeout}ms, using first context ID: ${firstContextId} (received ${eventCount} context events)`,
+            `[Handler +${timeoutTime}ms] No default context found after ${this.#timeout}ms, using first context ID: ${firstContextId} (received ${eventCount} context events)`,
           );
           resolve(firstContextId);
         } else {
           const err = new Error(
-            `Timeout exceeded to get the ContextId after ${this.options.timeout}ms (received ${eventCount} context events)`,
+            `Timeout exceeded to get the ContextId after ${this.#timeout}ms (received ${eventCount} context events)`,
           );
           log.error(`[Handler +${timeoutTime}ms] ${err.message}`);
           reject(err);
         }
-      }, this.options.timeout);
+      }, this.#timeout);
     });
   }
 }
