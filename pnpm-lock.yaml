@@ -60,8 +60,8 @@ importers:
         specifier: ^22.0.1
         version: 22.0.1
       '@releasekit/release':
-        specifier: ^0.32.1
-        version: 0.32.1(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+        specifier: ^0.33.0
+        version: 0.33.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
@@ -3324,23 +3324,23 @@ packages:
       proxy-agent:
         optional: true
 
-  '@releasekit/notes@0.32.1':
-    resolution: {integrity: sha512-AFxf52RQAktDJ5AVFcME7P/WaAF9S+1Z8yW+qu/Qbeap5Aw25fdolUTr2/ab7reF4btvHX2YvfCHa/dfh8Ij4w==}
+  '@releasekit/notes@0.33.0':
+    resolution: {integrity: sha512-hfYzcz/iLtQqWwbAGGFkEv9Ya7VXpl+C2gUlPelDVtn76FRgblDuAW6Xo70MrQCifUaGVAihRkQeNs3SMQq3/g==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/publish@0.32.1':
-    resolution: {integrity: sha512-0+jskxylZsvGJrveGj2lpQxjYpechhNf6x1qXyBdjq3E9cmz5eXV3oe8Pl2HTKVruaCzwuACOKNfbY263ZXAIA==}
+  '@releasekit/publish@0.33.0':
+    resolution: {integrity: sha512-+BI81NleiLVX2RpLIPqYcSKMJ3i+ZgOtJ6hLSlJHSYzjFQQnaj3LW/u3t1nYMmtL42nI+uSoHRiyZ84vT06+LA==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/release@0.32.1':
-    resolution: {integrity: sha512-uN8f6auJmSrk1A2f46of4Fq5u9v7oL4JjhaKnZho/3UO7P2eptF17sznWlpLhoKI9ft7NYo++UUJyEieRza5lg==}
+  '@releasekit/release@0.33.0':
+    resolution: {integrity: sha512-xxztDWijbhGy5+pQlEEym0+F3ualZWL5UIfVIjHuNRlZF8K0RiUeb+CEdarDuya2ut7phy1IWgSuvppZQe2jNQ==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/version@0.32.1':
-    resolution: {integrity: sha512-u4I213RNnLYJaF6VYN5wYk/nnlg6XWyv/6qyet1m948MOhrGDn/1GyqGGgnzLaCGrkMVfqY4VTjQs+qMY/twMQ==}
+  '@releasekit/version@0.33.0':
+    resolution: {integrity: sha512-icjNW+hCF+Rh0nG6HmtP6Kbd45J0tDXM7R5Epp2h6K3m8J7lEjMRWhqFsIS18aaoUW1RhPITlxIAD8oLX2SO8Q==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -10959,7 +10959,7 @@ snapshots:
       modern-tar: 0.7.6
       yargs: 17.7.2
 
-  '@releasekit/notes@0.32.1(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/notes@0.33.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@anthropic-ai/sdk': 0.105.0(zod@4.4.3)
       '@octokit/rest': 22.0.1
@@ -10977,7 +10977,7 @@ snapshots:
     transitivePeerDependencies:
       - ws
 
-  '@releasekit/publish@0.32.1':
+  '@releasekit/publish@0.33.0':
     dependencies:
       chalk: 5.6.2
       commander: 14.0.3
@@ -10988,13 +10988,13 @@ snapshots:
       yaml: 2.9.0
       zod: 4.4.3
 
-  '@releasekit/release@0.32.1(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/release@0.33.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@octokit/rest': 22.0.1
-      '@releasekit/notes': 0.32.1(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
-      '@releasekit/publish': 0.32.1
-      '@releasekit/version': 0.32.1(conventional-commits-parser@6.4.0)
+      '@releasekit/notes': 0.33.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      '@releasekit/publish': 0.33.0
+      '@releasekit/version': 0.33.0(conventional-commits-parser@6.4.0)
       chalk: 5.6.2
       commander: 14.0.3
       conventional-changelog-angular: 8.3.1
@@ -11009,7 +11009,7 @@ snapshots:
       - conventional-commits-parser
       - ws
 
-  '@releasekit/version@0.32.1(conventional-commits-parser@6.4.0)':
+  '@releasekit/version@0.33.0(conventional-commits-parser@6.4.0)':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@types/minimatch': 5.1.2
@@ -15439,7 +15439,7 @@ snapshots:
   normalize-package-data@6.0.2:
     dependencies:
       hosted-git-info: 7.0.2
-      semver: 7.8.4
+      semver: 7.8.5
       validate-npm-package-license: 3.0.4
 
   normalize-package-data@7.0.1:
@@ -15451,7 +15451,7 @@ snapshots:
   normalize-package-data@8.0.0:
     dependencies:
       hosted-git-info: 9.0.3
-      semver: 7.8.4
+      semver: 7.8.5
       validate-npm-package-license: 3.0.4
 
   normalize-path@3.0.0: {}
