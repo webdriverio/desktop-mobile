@@ -118,7 +118,7 @@ jobs:
       # disabling the syslog the Flutter driver reads the (random, auth-coded) VM-service URL from →
       # the first session fails with "mandatory syslog service must be running" while warmed-up later
       # sessions pass. Running one stream now (with a generous window) absorbs that cold start; the
-      # fork's startLogCapture retry is the backstop for any residual transient.
+      # driver's startLogCapture retry (appium-flutter-driver ≥ 3.8.0) is the backstop for any residual transient.
       - name: 🔥 Warm up simulator logd
         shell: bash
         run: |
@@ -130,32 +130,16 @@ jobs:
             sleep 1
           done
           kill "$(cat /tmp/logwarm.pid)" 2>/dev/null || true
-          [ -s /tmp/logwarm.out ] || echo "::warning::logd did not emit within 30s during warm-up (continuing; fork retry is the backstop)"
+          [ -s /tmp/logwarm.out ] || echo "::warning::logd did not emit within 30s during warm-up (continuing; the driver's log-capture retry is the backstop)"
 
-      - name: 🔌 Install XCUITest + use the appium-flutter-driver fork (getVMServiceUrl)
+      - name: 🔌 Install XCUITest driver
         shell: bash
-        # XCUITest installs normally. For Flutter: @repo/e2e depends on appium-flutter-driver
-        # (node_modules), which appium loads by default — so `appium driver install --source=local/git`
-        # can't replace it (and the fork's driver/ subdir has no root package.json for a git dep).
-        # Build the fork and overwrite the node_modules driver's build/ in place so appium loads the
-        # fork's code (getVMServiceUrl). Interim until that's upstreamed/published.
+        # @repo/e2e pins appium-flutter-driver in node_modules (appium loads it by default).
+        # XCUITest is installed here only if the APPIUM_HOME cache doesn't already carry it.
         run: |
           set -euo pipefail
           installed=$(pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 || true)
           echo "$installed" | grep -qi xcuitest || pnpm --filter @repo/e2e exec appium driver install xcuitest
-          git clone --depth 1 -b feat/android-vm-service-port \
-            https://github.com/goosewobbler/appium-flutter-driver "$RUNNER_TEMP/afd"
-          ( cd "$RUNNER_TEMP/afd/driver" && npm install --no-audit --no-fund && npm run build )
-          AFD=$( cd "$GITHUB_WORKSPACE/e2e" && node -e 'process.stdout.write(require("path").dirname(require.resolve("appium-flutter-driver/package.json")))' )
-          echo "Overwriting node_modules appium-flutter-driver at: $AFD"
-          rm -rf "$AFD/build"
-          cp -R "$RUNNER_TEMP/afd/driver/build" "$AFD/build"
-          if grep -q getVMServiceUrl "$AFD/build/lib/commands/execute.js"; then
-            echo "✓ fork getVMServiceUrl present in the loaded driver"
-          else
-            echo "✗ fork overwrite failed — getVMServiceUrl not found"
-            exit 1
-          fi
 
       # WDA DerivedData cache keyed on e2e/package.json (driver pins) + the runner image version.
       - name: 💾 Restore WDA DerivedData cache
@@ -197,12 +181,9 @@ jobs:
           # (occasionally flaky) e2e failure. It stays second so it runs on a sim the suite warmed.
           e2e_rc=0; pnpm --filter @repo/e2e run test:e2e:flutter:ios || e2e_rc=$?
           # Packed @wdio/flutter-service against THIS booted sim, reusing the prebuilt WDA
-          # (FLUTTER_WDA_DD, read by the fixture config). test-package.ts overwrites the isolated
-          # fixture's appium-flutter-driver with the getVMServiceUrl fork (AFD_FORK_BUILD_DIR, built
-          # above) — the published driver can't reach the Dart VM.
+          # (FLUTTER_WDA_DD, read by the fixture config).
           smoke_rc=0
-          FLUTTER_PLATFORM=ios FLUTTER_DEVICE_NAME="$FLUTTER_IOS_DEVICE" \
-            AFD_FORK_BUILD_DIR="$RUNNER_TEMP/afd/driver/build" pnpm test:package:flutter || smoke_rc=$?
+          FLUTTER_PLATFORM=ios FLUTTER_DEVICE_NAME="$FLUTTER_IOS_DEVICE" pnpm test:package:flutter || smoke_rc=$?
           if [ "$e2e_rc" != 0 ] || [ "$smoke_rc" != 0 ]; then exit 1; fi
 
       - name: 📦 Upload Test Logs

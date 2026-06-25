@@ -241,7 +241,7 @@ describe('FlutterWorkerService', () => {
     const browser = {} as WebdriverIO.Browser;
     const service = new FlutterWorkerService({}, cap);
     await service.before(cap, [], browser);
-    // A release build / unpinned non-fork run would otherwise burn the full ~60s scrape here.
+    // A release build / unpinned pre-getVMServiceUrl run would otherwise burn the full ~60s scrape here.
     expect(discoverVmServiceUrl).toHaveBeenCalledWith(
       expect.anything(),
       expect.objectContaining({ retries: VM_SERVICE_PREWARM_RETRIES }),

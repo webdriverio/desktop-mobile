@@ -8,7 +8,7 @@ vi.mock('node:module', () => ({
 
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
-import { checkAppiumFlutterDriverFork, checkFlutterOnPath, flutterDoctorChecks } from '../src/diagnostics.js';
+import { checkAppiumFlutterDriverVersion, checkFlutterOnPath, flutterDoctorChecks } from '../src/diagnostics.js';
 
 const execMock = vi.mocked(execFileSync);
 const readMock = vi.mocked(readFileSync);
@@ -29,35 +29,40 @@ describe('checkFlutterOnPath', () => {
   });
 });
 
-describe('checkAppiumFlutterDriverFork', () => {
-  it('should report ok when getVMServiceUrl is present in the installed driver', async () => {
-    readMock.mockReturnValueOnce('exports.getVMServiceUrl = ...');
-    expect(await checkAppiumFlutterDriverFork()()).toMatchObject({ status: 'ok' });
+describe('checkAppiumFlutterDriverVersion', () => {
+  it('should report ok when the installed driver meets the minimum', async () => {
+    readMock.mockReturnValueOnce(JSON.stringify({ version: '3.8.0' }));
+    expect(await checkAppiumFlutterDriverVersion()()).toMatchObject({ status: 'ok', message: 'v3.8.0' });
   });
 
-  it('should warn with the fork hint when getVMServiceUrl is absent', async () => {
-    readMock.mockReturnValueOnce('exports.execute = ...');
-    const r = await checkAppiumFlutterDriverFork()();
+  it('should report ok for a higher minor/major (numeric, not lexical, compare)', async () => {
+    readMock.mockReturnValueOnce(JSON.stringify({ version: '3.10.0' }));
+    expect(await checkAppiumFlutterDriverVersion()()).toMatchObject({ status: 'ok' });
+  });
+
+  it('should warn with the upgrade hint when the driver is below the minimum', async () => {
+    readMock.mockReturnValueOnce(JSON.stringify({ version: '3.7.1' }));
+    const r = await checkAppiumFlutterDriverVersion()();
     expect(r.status).toBe('warn');
-    expect(r.details).toMatch(/goosewobbler/);
+    expect(r.details).toMatch(/3\.8\.0/);
   });
 
-  it('should warn (with the fork hint) when the driver cannot be inspected', async () => {
+  it('should warn (with the upgrade hint) when the driver cannot be inspected', async () => {
     readMock.mockImplementationOnce(() => {
       throw new Error('ENOENT');
     });
-    const r = await checkAppiumFlutterDriverFork()();
+    const r = await checkAppiumFlutterDriverVersion()();
     expect(r.status).toBe('warn');
-    expect(r.details).toMatch(/goosewobbler/);
+    expect(r.details).toMatch(/3\.8\.0/);
   });
 });
 
 describe('flutterDoctorChecks', () => {
-  it('should bundle the flutter + fork checks for an Android run', () => {
+  it('should bundle the flutter + driver-version checks for an Android run', () => {
     expect(flutterDoctorChecks(new Set(['android']))).toHaveLength(2);
   });
 
-  it('should omit the Android-only fork check for an iOS-only run', () => {
+  it('should omit the Android-only driver-version check for an iOS-only run', () => {
     expect(flutterDoctorChecks(new Set(['ios']))).toHaveLength(1);
   });
 });

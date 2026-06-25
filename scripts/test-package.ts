@@ -635,22 +635,6 @@ async function testExample(
     const addCommand = `pnpm add ${packagesToInstall.join(' ')}`;
     execCommand(addCommand, packageDir, `Installing local packages for ${packageName}`);
 
-    // Flutter drives the Dart VM via appium-flutter-driver's getVMServiceUrl, which only exists
-    // in the goosewobbler fork (not the published driver). CI builds that fork and points
-    // AFD_FORK_BUILD_DIR at its build/ output; overwrite the isolated fixture's driver build/ with
-    // it so the smoke can reach the VM — mirrors what the flutter e2e does to e2e/node_modules.
-    // No-op without the env (a local run must install the fork itself). Drop once it's published.
-    if (service === 'flutter' && process.env.AFD_FORK_BUILD_DIR && existsSync(process.env.AFD_FORK_BUILD_DIR)) {
-      const afdDir = execSync(
-        `node -e "process.stdout.write(require('path').dirname(require.resolve('appium-flutter-driver/package.json')))"`,
-        { cwd: packageDir, encoding: 'utf-8' },
-      ).trim();
-      const afdBuild = join(afdDir, 'build');
-      log(`Overwriting appium-flutter-driver build/ with the getVMServiceUrl fork at ${afdBuild}`);
-      rmSync(afdBuild, { recursive: true, force: true });
-      cpSync(process.env.AFD_FORK_BUILD_DIR, afdBuild, { recursive: true });
-    }
-
     // Ensure logs directory exists for WebdriverIO output
     mkdirSync(logsDir, { recursive: true });
     log(`✅ Created logs directory: ${logsDir}`);

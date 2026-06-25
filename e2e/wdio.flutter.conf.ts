@@ -74,8 +74,8 @@ const flutterServiceOptions: FlutterServiceOptions = {
   platform: isIos ? 'iOS' : 'Android',
   // Forward the device (logcat/syslog) logs into the WDIO log on each test.
   captureBackendLogs: true,
-  // Exercise the preflight doctor end-to-end (appium-service present, flutter on PATH, the
-  // fork's getVMServiceUrl present on Android, iOS toolchain warm). strict mode makes a
+  // Exercise the preflight doctor end-to-end (appium-service present, flutter on PATH,
+  // appium-flutter-driver ≥ 3.8.0 on Android, iOS toolchain warm). strict mode makes a
   // regression that breaks the preflight fail CI.
   doctor: { strict: true },
 };

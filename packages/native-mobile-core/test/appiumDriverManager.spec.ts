@@ -109,7 +109,7 @@ describe('ensureAppiumDriver', () => {
     expect(r).toMatchObject({ ok: true, value: { method: 'installed' } });
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
-      ['driver', 'install', '--source=npm', 'appium-flutter-driver@^3.7.0'],
+      ['driver', 'install', '--source=npm', 'appium-flutter-driver@^3.8.0'],
       // a timeout caps the install so a slow registry can't hang onPrepare
       expect.objectContaining({ timeout: 300000 }),
     );
@@ -134,10 +134,10 @@ describe('ensureAppiumDriver', () => {
   it('should honour a source override for the install spec', async () => {
     mockAppium('3.5.0', []);
     spawnMock.mockReturnValueOnce(fakeProc(0));
-    await ensureAppiumDriver('flutter', { autoInstallDriver: true, source: '@goosewobbler/appium-flutter-driver' });
+    await ensureAppiumDriver('flutter', { autoInstallDriver: true, source: '@example/appium-flutter-driver' });
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
-      ['driver', 'install', '--source=npm', '@goosewobbler/appium-flutter-driver@^3.7.0'],
+      ['driver', 'install', '--source=npm', '@example/appium-flutter-driver@^3.8.0'],
       expect.any(Object),
     );
   });

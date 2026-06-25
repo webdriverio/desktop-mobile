@@ -71,8 +71,8 @@ export default class FlutterWorkerService {
     const store = this.store;
 
     // `retries` is parameterised so the best-effort pre-warm can use a short budget (a 60-retry
-    // scrape there would block worker setup for ~60s on a release build / any unpinned non-fork run);
-    // the lazy on-demand path keeps the full budget.
+    // scrape there would block worker setup for ~60s on a release build / any unpinned run on a
+    // pre-getVMServiceUrl driver); the lazy on-demand path keeps the full budget.
     const discover = (retries = VM_SERVICE_CONNECT_RETRIES) =>
       discoverVmServiceUrl(browser, {
         platform,
@@ -205,8 +205,8 @@ export default class FlutterWorkerService {
     // getLogs scrape finds nothing (appium-flutter-driver catches it only because it streams the
     // log from session start). Discovering here, right after launch, captures it; a later relaunch
     // re-scrapes its fresh line via the reconnect path. Best-effort with a SHORT budget so it never
-    // blocks worker setup: a release build (no VM service) or any unpinned non-fork run misses fast
-    // and falls through to the lazy retry, which keeps the full budget for genuine on-demand use.
+    // blocks worker setup: a release build (no VM service) or any unpinned pre-getVMServiceUrl run
+    // misses fast and falls through to the lazy retry, which keeps the full budget for on-demand use.
     if (platform) {
       this.vmServiceUrl = (await discover(VM_SERVICE_PREWARM_RETRIES).catch(() => undefined)) ?? this.vmServiceUrl;
     }
