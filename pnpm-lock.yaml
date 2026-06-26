@@ -60,8 +60,8 @@ importers:
         specifier: ^22.0.1
         version: 22.0.1
       '@releasekit/release':
-        specifier: ^0.33.0
-        version: 0.33.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+        specifier: ^0.34.0
+        version: 0.34.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
@@ -764,7 +764,7 @@ importers:
         version: 14.0.3
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       find-up-simple:
         specifier: ^1.0.1
         version: 1.0.1
@@ -852,7 +852,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -913,7 +913,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -977,7 +977,7 @@ importers:
         version: 6.1.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       deepmerge-ts:
         specifier: ^7.1.5
         version: 7.1.5
@@ -1172,7 +1172,7 @@ importers:
         version: link:../native-utils
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -1297,7 +1297,7 @@ importers:
         version: 9.18.0
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       esbuild:
         specifier: ^0.28.0
         version: 0.28.0
@@ -1450,7 +1450,7 @@ importers:
         version: 9.27.1
       debug:
         specifier: ^4.4.3
-        version: 4.4.3(supports-color@10.2.2)
+        version: 4.4.3(supports-color@8.1.1)
       get-port:
         specifier: ^7.1.0
         version: 7.2.0
@@ -3324,23 +3324,23 @@ packages:
       proxy-agent:
         optional: true
 
-  '@releasekit/notes@0.33.0':
-    resolution: {integrity: sha512-hfYzcz/iLtQqWwbAGGFkEv9Ya7VXpl+C2gUlPelDVtn76FRgblDuAW6Xo70MrQCifUaGVAihRkQeNs3SMQq3/g==}
+  '@releasekit/notes@0.34.0':
+    resolution: {integrity: sha512-/jKcERqUXqdwNG8TQYqJk1lNMgLjmCVT22TgUf2O5ufZArZ3rF2X2Ux1OoLdeMuQSX5iCACRjtgTcbKslo0XhA==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/publish@0.33.0':
-    resolution: {integrity: sha512-+BI81NleiLVX2RpLIPqYcSKMJ3i+ZgOtJ6hLSlJHSYzjFQQnaj3LW/u3t1nYMmtL42nI+uSoHRiyZ84vT06+LA==}
+  '@releasekit/publish@0.34.0':
+    resolution: {integrity: sha512-9kx+C25J7n5YNYbRIi5WaXwnp+w6ogIgtd2jc/qa8fOiUGIP2t7Czj3abWg/a6qoCez2+p3uVSaClfLkmYT4Jw==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/release@0.33.0':
-    resolution: {integrity: sha512-xxztDWijbhGy5+pQlEEym0+F3ualZWL5UIfVIjHuNRlZF8K0RiUeb+CEdarDuya2ut7phy1IWgSuvppZQe2jNQ==}
+  '@releasekit/release@0.34.0':
+    resolution: {integrity: sha512-uQdLXeZisTYFwtXO40Jtjg1PrtNKB6Kqz6bwsSiI5RlrgEHlG1CIc0TSeLUPLBVhmlfhnSexwgOqImVPyPgNLQ==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/version@0.33.0':
-    resolution: {integrity: sha512-icjNW+hCF+Rh0nG6HmtP6Kbd45J0tDXM7R5Epp2h6K3m8J7lEjMRWhqFsIS18aaoUW1RhPITlxIAD8oLX2SO8Q==}
+  '@releasekit/version@0.34.0':
+    resolution: {integrity: sha512-SLQBI7/5Cch9jqCWXyQtw5S8m4su6ZnRvZzyGRZZ4VYKD8qMQE/89ABa7IA51NoQU/FIwlUGYQcv7PYErLTm/g==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -5884,6 +5884,7 @@ packages:
   git-semver-tags@8.0.1:
     resolution: {integrity: sha512-zMbamckSNdlT4U48IMFa2Cn6FTzM+2yF6/gEmStPJI8PiLxd/bT6dw10+mc6u5Qe4fhrc/y9nU290FWjQhAV7g==}
     engines: {node: '>=18'}
+    deprecated: Deprecated and no longer maintained. Use @conventional-changelog/git-client instead.
     hasBin: true
 
   glob-parent@5.1.2:
@@ -9496,7 +9497,7 @@ snapshots:
       make-fetch-happen: 10.2.1
       nopt: 6.0.0
       proc-log: 2.0.1
-      semver: 7.8.2
+      semver: 7.8.5
       tar: 6.2.1
       which: 2.0.2
     transitivePeerDependencies:
@@ -10835,11 +10836,11 @@ snapshots:
   '@npmcli/fs@2.1.2':
     dependencies:
       '@gar/promisify': 1.1.3
-      semver: 7.8.2
+      semver: 7.8.5
 
   '@npmcli/fs@4.0.0':
     dependencies:
-      semver: 7.8.4
+      semver: 7.8.5
 
   '@npmcli/move-file@2.0.1':
     dependencies:
@@ -10959,7 +10960,7 @@ snapshots:
       modern-tar: 0.7.6
       yargs: 17.7.2
 
-  '@releasekit/notes@0.33.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/notes@0.34.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@anthropic-ai/sdk': 0.105.0(zod@4.4.3)
       '@octokit/rest': 22.0.1
@@ -10977,7 +10978,7 @@ snapshots:
     transitivePeerDependencies:
       - ws
 
-  '@releasekit/publish@0.33.0':
+  '@releasekit/publish@0.34.0':
     dependencies:
       chalk: 5.6.2
       commander: 14.0.3
@@ -10988,13 +10989,13 @@ snapshots:
       yaml: 2.9.0
       zod: 4.4.3
 
-  '@releasekit/release@0.33.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/release@0.34.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@octokit/rest': 22.0.1
-      '@releasekit/notes': 0.33.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
-      '@releasekit/publish': 0.33.0
-      '@releasekit/version': 0.33.0(conventional-commits-parser@6.4.0)
+      '@releasekit/notes': 0.34.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      '@releasekit/publish': 0.34.0
+      '@releasekit/version': 0.34.0(conventional-commits-parser@6.4.0)
       chalk: 5.6.2
       commander: 14.0.3
       conventional-changelog-angular: 8.3.1
@@ -11009,7 +11010,7 @@ snapshots:
       - conventional-commits-parser
       - ws
 
-  '@releasekit/version@0.33.0(conventional-commits-parser@6.4.0)':
+  '@releasekit/version@0.34.0(conventional-commits-parser@6.4.0)':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@types/minimatch': 5.1.2
@@ -15369,7 +15370,7 @@ snapshots:
 
   node-abi@4.28.0:
     dependencies:
-      semver: 7.8.4
+      semver: 7.8.5
 
   node-addon-api@1.7.2:
     optional: true
@@ -15403,7 +15404,7 @@ snapshots:
       make-fetch-happen: 14.0.3
       nopt: 8.1.0
       proc-log: 5.0.0
-      semver: 7.8.4
+      semver: 7.8.5
       tar: 7.5.13
       tinyglobby: 0.2.16
       which: 5.0.0
@@ -15451,7 +15452,7 @@ snapshots:
   normalize-package-data@8.0.0:
     dependencies:
       hosted-git-info: 9.0.3
-      semver: 7.8.1
+      semver: 7.8.5
       validate-npm-package-license: 3.0.4
 
   normalize-path@3.0.0: {}
