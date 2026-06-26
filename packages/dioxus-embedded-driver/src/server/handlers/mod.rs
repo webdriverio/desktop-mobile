@@ -6,6 +6,7 @@ use serde_json::json;
 use crate::server::response::{WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 
+pub mod actions;
 pub mod cookie;
 pub mod document;
 pub mod element;
