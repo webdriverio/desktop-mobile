@@ -158,6 +158,11 @@ async fn eval_point(script: String, timeout_ms: u64) -> Result<(i32, i32), WebDr
     Ok(Err(_)) => return Err(WebDriverErrorResponse::unknown_error("eval channel closed")),
     Err(_) => return Err(WebDriverErrorResponse::script_timeout()),
   };
+  // element_center_js returns JS `null` when the element variable is undefined/null — a stale
+  // element reference, which must surface as `stale element reference` (404), not `unknown error`.
+  if value.is_null() {
+    return Err(WebDriverErrorResponse::stale_element_reference());
+  }
   let arr = value
     .as_array()
     .ok_or_else(|| WebDriverErrorResponse::unknown_error("expected [x, y] from element-center eval"))?;
@@ -177,12 +182,13 @@ fn element_center_js(var: &str) -> String {
   )
 }
 
-/// JS that synthesizes a `MouseEvent` of `event_type` at viewport `(x, y)` on
-/// the element under that point, with the given `button`.
-fn pointer_event_js(event_type: &str, x: i32, y: i32, button: u32) -> String {
+/// JS that synthesizes a `MouseEvent` of `event_type` at viewport `(x, y)`. `button` is the W3C
+/// pointer-button index that changed; `buttons` is the cumulative held-button bitmask at the moment
+/// the event fires (per the DOM spec these differ — e.g. a left-button `mouseup` reports
+/// `button: 0` but `buttons: 0`, and `click`/`contextmenu`/un-pressed `mousemove` report `buttons: 0`).
+fn pointer_event_js(event_type: &str, x: i32, y: i32, button: u32, buttons: u32) -> String {
   format!(
-    "(function(){{ var t=document.elementFromPoint({x},{y})||document.body; if(!t) return; var e=new MouseEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,view:window,clientX:{x},clientY:{y},button:{button},buttons:{button_mask}}}); t.dispatchEvent(e); }})(); null",
-    button_mask = button_to_mask(button),
+    "(function(){{ var t=document.elementFromPoint({x},{y})||document.body; if(!t) return; var e=new MouseEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,view:window,clientX:{x},clientY:{y},button:{button},buttons:{buttons}}}); t.dispatchEvent(e); }})(); null",
   )
 }
 
@@ -218,17 +224,25 @@ pub async fn perform(
   Path(session_id): Path<String>,
   Json(request): Json<ActionsRequest>,
 ) -> WebDriverResult {
-  let (timeout_ms, start_pos) = {
+  let (timeout_ms, start_pos, initial_mask) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
-    (session.timeouts.script_ms, session.action_state.pointer_position)
+    let mask = session.action_state.pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
+    (session.timeouts.script_ms, session.action_state.pointer_position, mask)
   };
 
   let mut pointer_state = PointerState { x: start_pos.0, y: start_pos.1 };
+  // The cumulative `MouseEvent.buttons` mask, kept in sync with press/release so each synthesized
+  // event reports the buttons actually held when it fires (not just the one that changed).
+  let mut held_mask = initial_mask;
   // Position of the last primary-button press, used to synthesize a `click`
   // when the matching release lands on the same spot (a click, not a drag).
   let mut primary_down_pos: Option<(i32, i32)> = None;
 
+  // Sources are processed serially (each source's actions in full) rather than tick-interleaved
+  // across sources, mirroring the Tauri handler. Single-source chains — the common WDIO case — are
+  // identical either way; cross-source interleaving (e.g. Ctrl+click in one performActions) is a
+  // known gap tracked in webdriverio/desktop-mobile#491.
   for action_seq in &request.actions {
     match action_seq {
       ActionSequence::Key { _id: _, actions } => {
@@ -256,8 +270,9 @@ pub async fn perform(
         for action in actions {
           match action {
             PointerAction::PointerDown { button } => {
+              held_mask |= button_to_mask(*button);
               eval(
-                pointer_event_js("mousedown", pointer_state.x, pointer_state.y, *button),
+                pointer_event_js("mousedown", pointer_state.x, pointer_state.y, *button, held_mask),
                 timeout_ms,
               )
               .await?;
@@ -270,8 +285,9 @@ pub async fn perform(
               }
             }
             PointerAction::PointerUp { button } => {
+              held_mask &= !button_to_mask(*button);
               eval(
-                pointer_event_js("mouseup", pointer_state.x, pointer_state.y, *button),
+                pointer_event_js("mouseup", pointer_state.x, pointer_state.y, *button, held_mask),
                 timeout_ms,
               )
               .await?;
@@ -283,7 +299,7 @@ pub async fn perform(
               if *button == 0 {
                 if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
                   eval(
-                    pointer_event_js("click", pointer_state.x, pointer_state.y, *button),
+                    pointer_event_js("click", pointer_state.x, pointer_state.y, *button, 0),
                     timeout_ms,
                   )
                   .await?;
@@ -291,7 +307,7 @@ pub async fn perform(
                 primary_down_pos = None;
               } else if *button == 2 {
                 eval(
-                  pointer_event_js("contextmenu", pointer_state.x, pointer_state.y, *button),
+                  pointer_event_js("contextmenu", pointer_state.x, pointer_state.y, *button, 0),
                   timeout_ms,
                 )
                 .await?;
@@ -310,7 +326,7 @@ pub async fn perform(
               pointer_state.y = target_y;
               sleep_for(*duration).await;
               eval(
-                pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0),
+                pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0, held_mask),
                 timeout_ms,
               )
               .await?;
@@ -416,9 +432,11 @@ pub async fn release(
   for key in pressed_keys {
     eval(key_event_js("keyup", &key), timeout_ms).await?;
   }
+  let mut held_mask = pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
   for (_source_id, buttons) in pressed_buttons {
     for button in buttons {
-      eval(pointer_event_js("mouseup", pointer_pos.0, pointer_pos.1, button), timeout_ms).await?;
+      held_mask &= !button_to_mask(button);
+      eval(pointer_event_js("mouseup", pointer_pos.0, pointer_pos.1, button, held_mask), timeout_ms).await?;
     }
   }
 
@@ -523,16 +541,23 @@ mod tests {
 
   #[test]
   fn pointer_event_js_targets_element_from_point() {
-    let down = pointer_event_js("mousedown", 30, 40, 0);
+    let down = pointer_event_js("mousedown", 30, 40, 0, 1);
     assert!(down.contains("elementFromPoint(30,40)"));
     assert!(down.contains("clientX:30"));
     assert!(down.contains("clientY:40"));
     assert!(down.contains("button:0"));
+    assert!(down.contains("buttons:1"));
     assert!(down.contains("MouseEvent(\"mousedown\""));
 
-    let right = pointer_event_js("contextmenu", 1, 2, 2);
+    // `button` is the pointer index that changed; `buttons` is the cumulative held mask — they
+    // differ on release (a left `mouseup` reports button 0 but buttons 0) and for context menus.
+    let up = pointer_event_js("mouseup", 1, 2, 0, 0);
+    assert!(up.contains("button:0"));
+    assert!(up.contains("buttons:0"));
+
+    let right = pointer_event_js("contextmenu", 1, 2, 2, 0);
     assert!(right.contains("button:2"));
-    assert!(right.contains("buttons:2"));
+    assert!(right.contains("buttons:0"));
   }
 
   #[test]
