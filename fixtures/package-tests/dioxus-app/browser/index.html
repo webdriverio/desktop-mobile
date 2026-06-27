@@ -21,8 +21,12 @@
       }
 
       document.querySelector('[data-testid="fetch-info"]').addEventListener('click', async () => {
-        const info = await window.__WDIO_DIOXUS__.invoke('get_info');
-        document.querySelector('[data-testid="info"]').textContent = JSON.stringify(info);
+        try {
+          const info = await window.__WDIO_DIOXUS__.invoke('get_info');
+          document.querySelector('[data-testid="info"]').textContent = JSON.stringify(info);
+        } catch (err) {
+          document.querySelector('[data-testid="info"]').textContent = `error: ${err.message}`;
+        }
       });
     </script>
   </body>

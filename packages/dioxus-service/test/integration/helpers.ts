@@ -1,21 +1,4 @@
-import type { DioxusMock } from '@wdio/native-types';
 import { vi } from 'vitest';
-
-export type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason: unknown) => void;
-};
-
-export function defer<T = void>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
 
 export type OverrideFn = (
   this: unknown,
@@ -64,31 +47,4 @@ export function createFakeBrowser(): FakeBrowser {
     },
   };
   return browser;
-}
-
-export interface FakeMock {
-  mock: DioxusMock;
-  update: ReturnType<typeof vi.fn>;
-}
-
-/**
- * Create a fake mock whose `update()` resolves immediately by default. Tests
- * that need controllable timing can override via `.mockImplementationOnce`,
- * `.mockResolvedValueOnce`, or `.mockRejectedValueOnce`.
- */
-export function createFakeMock(name: string): FakeMock {
-  const update = vi.fn(async () => undefined);
-  const mock = {
-    getMockName: () => name,
-    update,
-  } as unknown as DioxusMock;
-  return { mock, update };
-}
-
-/**
- * Flush the microtask queue. Two `setImmediate` flushes cover .then().then() chains.
- */
-export async function flushMicrotasks(): Promise<void> {
-  await new Promise<void>((resolve) => setImmediate(resolve));
-  await new Promise<void>((resolve) => setImmediate(resolve));
 }
