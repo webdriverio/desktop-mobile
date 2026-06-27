@@ -139,11 +139,17 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
     const mode = modes[0] ?? 'native';
 
     if (mode === 'browser') {
+      // Reject a non-chrome browserName on any cap before any network probe, so the actionable
+      // misconfig error surfaces immediately rather than after a (up to 3s) dev-server probe.
       for (const cap of caps) {
         const browserNameError = nonChromeBrowserNameError(cap.browserName, ['chrome', 'electron']);
         if (browserNameError) {
           throw new SevereServiceError(browserNameError);
         }
+      }
+      // Validate + probe each distinct devServerUrl once (caps may share one under multiremote).
+      const probedUrls = new Set<string>();
+      for (const cap of caps) {
         const capOpts = ((cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] ??
           {}) as ElectronServiceGlobalOptions;
         const devServerUrl = capOpts.devServerUrl ?? this.#globalOptions.devServerUrl;
@@ -155,14 +161,19 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         } catch {
           throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
         }
-        const reachable = await probeDevServerReachable(devServerUrl);
-        if (isErr(reachable)) {
-          throw new SevereServiceError(reachable.error.message);
+        if (!probedUrls.has(devServerUrl)) {
+          const reachable = await probeDevServerReachable(devServerUrl);
+          if (isErr(reachable)) {
+            throw new SevereServiceError(reachable.error.message);
+          }
+          probedUrls.add(devServerUrl);
         }
+      }
+      // Rewrite every cap to a system-Chrome session.
+      for (const cap of caps) {
         cap.browserName = 'chrome';
-        // Preserve user-supplied goog:chromeOptions (args, extensions, prefs, etc.)
-        // but strip `binary` — in browser mode we want system Chrome, not the
-        // Electron binary that may have been passed in for native mode.
+        // Preserve user-supplied goog:chromeOptions (args, extensions, prefs, etc.) but strip
+        // `binary` — browser mode wants system Chrome, not the Electron binary passed for native mode.
         const chromeOpts = (cap as Record<string, unknown>)['goog:chromeOptions'] as
           | Record<string, unknown>
           | undefined;

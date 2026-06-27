@@ -19,8 +19,11 @@ describe('nonChromeBrowserNameError', () => {
 
   it('honours a custom allow list', () => {
     expect(nonChromeBrowserNameError('electron', ['chrome', 'electron'])).toBeUndefined();
+    // A genuinely foreign browserName still errors; the message guides to chrome (not the
+    // tolerated native names in the allow-list).
     const message = nonChromeBrowserNameError('firefox', ['chrome', 'electron']);
-    expect(message).toContain("'chrome' or 'electron'");
+    expect(message).toContain("got 'firefox'");
+    expect(message).toContain("'chrome'");
   });
 });
 

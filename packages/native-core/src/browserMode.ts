@@ -27,9 +27,11 @@ export function nonChromeBrowserNameError(
   if (typeof browserName !== 'string' || allowed.includes(browserName.toLowerCase())) {
     return undefined;
   }
-  const supported = allowed.map((name) => `'${name}'`).join(' or ');
+  // `allowed` also carries each service's native detection name (e.g. 'electron', 'wry') so a
+  // carried-over native cap isn't rejected — but those aren't something to advise setting, so the
+  // message guides the user to 'chrome' (or removal), not the full allow-list.
   return (
-    `Browser mode only supports browserName: ${supported}, but got '${browserName}'. ` +
+    `Browser mode only supports browserName: '${BROWSER_MODE_SUPPORTED_BROWSER}', but got '${browserName}'. ` +
     `Remove the browserName from your capability (it is set automatically) or set it to '${BROWSER_MODE_SUPPORTED_BROWSER}'.`
   );
 }
