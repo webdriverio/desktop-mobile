@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/providers/embedded.js', () => ({
   getEmbeddedPort: vi.fn().mockReturnValue(4444),
@@ -24,6 +24,7 @@ describe('DioxusLaunchService', () => {
   afterEach(() => {
     setPlatform(originalPlatform);
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
   });
 
   describe('onPrepare', () => {
@@ -154,6 +155,10 @@ describe('DioxusLaunchService', () => {
   });
 
   describe('browser mode', () => {
+    beforeEach(() => {
+      vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    });
+
     it('should set browserName=chrome and return early when mode=browser', async () => {
       const launcher = new DioxusLaunchService(
         { mode: 'browser', devServerUrl: 'http://localhost:3000' } as DioxusServiceGlobalOptions,

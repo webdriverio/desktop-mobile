@@ -1,3 +1,4 @@
+import { nonChromeBrowserNameError, probeDevServerReachable } from '@wdio/native-core';
 import type {
   AppBuildInfo,
   BinaryPathResult,
@@ -5,7 +6,13 @@ import type {
   ElectronServiceGlobalOptions,
   PathGenerationError,
 } from '@wdio/native-types';
-import { createLogger, formatDiagnosticResults, type NormalizedReadResult, readPackageUp } from '@wdio/native-utils';
+import {
+  createLogger,
+  formatDiagnosticResults,
+  isErr,
+  type NormalizedReadResult,
+  readPackageUp,
+} from '@wdio/native-utils';
 import { getAppBuildInfo } from './appBuildInfo.js';
 import { getBinaryPath } from './binaryPath.js';
 import { getElectronVersion } from './electronVersion.js';
@@ -133,6 +140,10 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
 
     if (mode === 'browser') {
       for (const cap of caps) {
+        const browserNameError = nonChromeBrowserNameError(cap.browserName, ['chrome', 'electron']);
+        if (browserNameError) {
+          throw new SevereServiceError(browserNameError);
+        }
         const capOpts = ((cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] ??
           {}) as ElectronServiceGlobalOptions;
         const devServerUrl = capOpts.devServerUrl ?? this.#globalOptions.devServerUrl;
@@ -143,6 +154,10 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           new URL(devServerUrl);
         } catch {
           throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
+        }
+        const reachable = await probeDevServerReachable(devServerUrl);
+        if (isErr(reachable)) {
+          throw new SevereServiceError(reachable.error.message);
         }
         cap.browserName = 'chrome';
         // Preserve user-supplied goog:chromeOptions (args, extensions, prefs, etc.)
