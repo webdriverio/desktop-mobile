@@ -295,3 +295,15 @@ jobs:
           GITHUB_TOKEN: ${{ github.token }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
           OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
+
+      # Reconcile the standing PR against the just-released HEAD (closes it if nothing's left, else
+      # rebuilds the release branch) and refresh feeder-PR previews — replaces the former
+      # reconcile-after-* jobs. The push reuses the checkout's SSH deploy key so the standing PR's CI
+      # re-runs; a GITHUB_TOKEN push wouldn't trigger it. Only the scoped-release path leaves a stale
+      # standing PR (the standing-pr-publish path is the PR being merged), and never on a dry run.
+      - name: Refresh standing PR after release
+        if: ${{ inputs.standing_pr_number == '' && !inputs.dry_run }}
+        run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
