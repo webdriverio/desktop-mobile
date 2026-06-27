@@ -52,6 +52,7 @@ export async function probeDevServerReachable(
     await fetch(url, { method: 'HEAD', signal: AbortSignal.timeout(timeoutMs) });
     return Ok(undefined);
   } catch (error) {
-    return Err(new Error(`Dev server not reachable at ${url} — is it running? (${(error as Error).message})`));
+    const detail = error instanceof Error ? error.message : String(error);
+    return Err(new Error(`Dev server not reachable at ${url} — is it running? (${detail})`));
   }
 }
