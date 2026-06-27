@@ -238,6 +238,9 @@ pub async fn perform(
   // Position of the last primary-button press, used to synthesize a `click`
   // when the matching release lands on the same spot (a click, not a drag).
   let mut primary_down_pos: Option<(i32, i32)> = None;
+  // Position of the previous synthesized `click` within this request, used to emit a `dblclick`
+  // when a second click lands on the same spot (e.g. element.doubleClick()'s two press/release pairs).
+  let mut last_click_pos: Option<(i32, i32)> = None;
 
   // Sources are processed serially (each source's actions in full) rather than tick-interleaved
   // across sources, mirroring the Tauri handler. Single-source chains — the common WDIO case — are
@@ -298,11 +301,16 @@ pub async fn perform(
               // tracked press — a non-primary release must not drop it.
               if *button == 0 {
                 if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
-                  eval(
-                    pointer_event_js("click", pointer_state.x, pointer_state.y, *button, 0),
-                    timeout_ms,
-                  )
-                  .await?;
+                  let pos = (pointer_state.x, pointer_state.y);
+                  eval(pointer_event_js("click", pos.0, pos.1, *button, 0), timeout_ms).await?;
+                  // A second click on the same spot completes a double-click — emit `dblclick`
+                  // (what element.doubleClick()'s two press/release pairs should produce).
+                  if last_click_pos == Some(pos) {
+                    eval(pointer_event_js("dblclick", pos.0, pos.1, *button, 0), timeout_ms).await?;
+                    last_click_pos = None;
+                  } else {
+                    last_click_pos = Some(pos);
+                  }
                 }
                 primary_down_pos = None;
               } else if *button == 2 {
@@ -558,6 +566,10 @@ mod tests {
     let right = pointer_event_js("contextmenu", 1, 2, 2, 0);
     assert!(right.contains("button:2"));
     assert!(right.contains("buttons:0"));
+
+    let dbl = pointer_event_js("dblclick", 5, 6, 0, 0);
+    assert!(dbl.contains("MouseEvent(\"dblclick\""));
+    assert!(dbl.contains("buttons:0"));
   }
 
   #[test]
