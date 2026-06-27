@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Dioxus Browser-Mode E2E Fixture</title>
+    <style>
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+        margin: 0;
+        padding: 20px;
+        background: linear-gradient(135deg, #475569 0%, #0f172a 100%);
+        color: white;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+      }
+      .container {
+        background: rgba(255, 255, 255, 0.15);
+        backdrop-filter: blur(15px);
+        border-radius: 25px;
+        padding: 50px;
+        text-align: center;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.15);
+        border: 1px solid rgba(255, 255, 255, 0.25);
+        max-width: 800px;
+        width: 100%;
+      }
+      h1 {
+        margin: 0 0 25px 0;
+        font-size: 3em;
+        font-weight: 200;
+        text-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
+      }
+      button {
+        background: rgba(255, 255, 255, 0.25);
+        border: 2px solid rgba(255, 255, 255, 0.4);
+        color: white;
+        padding: 15px 20px;
+        border-radius: 12px;
+        cursor: pointer;
+        font-size: 1em;
+        font-weight: 500;
+        transition: all 0.3s ease;
+        backdrop-filter: blur(5px);
+        margin: 8px;
+      }
+      button:hover {
+        background: rgba(255, 255, 255, 0.35);
+        transform: translateY(-3px);
+        box-shadow: 0 8px 25px rgba(0, 0, 0, 0.2);
+      }
+      section {
+        margin: 20px 0;
+      }
+      pre {
+        margin-top: 12px;
+        padding: 12px 16px;
+        background: rgba(0, 0, 0, 0.25);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 10px;
+        font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
+        font-size: 0.95em;
+        min-height: 1.2em;
+        text-align: left;
+        white-space: pre-wrap;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <h1 data-testid="title">Dioxus Browser-Mode E2E</h1>
+
+      <section>
+        <button type="button" data-testid="fetch-version">Fetch version</button>
+        <pre data-testid="version-output"></pre>
+      </section>
+
+      <section>
+        <button type="button" data-testid="send-greeting">Send greeting</button>
+        <pre data-testid="greeting-output"></pre>
+      </section>
+    </div>
+
+    <script>
+      // In a real Dioxus app window.__WDIO_DIOXUS__.invoke is installed by
+      // @wdio/dioxus-bridge. In browser mode the service's injection script
+      // defines the same shape (and patches invoke to consult registered
+      // mocks), so frontend code is portable as-is. This fallback only matters
+      // if a button is clicked before injection ran.
+      if (!window.__WDIO_DIOXUS__) {
+        window.__WDIO_DIOXUS__ = { invoke: () => Promise.reject(new Error('Dioxus IPC not injected')) };
+      }
+
+      document.querySelector('[data-testid="fetch-version"]').addEventListener('click', async () => {
+        try {
+          const version = await window.__WDIO_DIOXUS__.invoke('get_app_version');
+          document.querySelector('[data-testid="version-output"]').textContent = version;
+        } catch (err) {
+          document.querySelector('[data-testid="version-output"]').textContent = `error: ${err.message}`;
+        }
+      });
+
+      document.querySelector('[data-testid="send-greeting"]').addEventListener('click', async () => {
+        try {
+          const reply = await window.__WDIO_DIOXUS__.invoke('greet', { name: 'WDIO' });
+          document.querySelector('[data-testid="greeting-output"]').textContent = String(reply);
+        } catch (err) {
+          document.querySelector('[data-testid="greeting-output"]').textContent = `error: ${err.message}`;
+        }
+      });
+    </script>
+  </body>
+</html>
