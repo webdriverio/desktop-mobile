@@ -43,6 +43,18 @@ pub enum ActionSequence {
     },
 }
 
+impl ActionSequence {
+    /// Number of actions in this source. The request's tick count is the max across all sources.
+    fn action_count(&self) -> usize {
+        match self {
+            ActionSequence::Key { actions, .. } => actions.len(),
+            ActionSequence::Pointer { actions, .. } => actions.len(),
+            ActionSequence::Wheel { actions, .. } => actions.len(),
+            ActionSequence::None { actions, .. } => actions.len(),
+        }
+    }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum KeyAction {
@@ -151,202 +163,214 @@ pub async fn perform<R: Runtime + 'static>(
     let mut primary_down_pos: Option<(i32, i32)> = None;
     let mut modifier_state = ModifierState::default();
 
-    for action_seq in &request.actions {
-        match action_seq {
-            ActionSequence::Key { _id: _, actions } => {
-                for action in actions {
-                    match action {
-                        KeyAction::KeyDown { value } => {
-                            modifier_state.update(value, true);
-                            executor
-                                .dispatch_key_event(value, true, &modifier_state)
-                                .await?;
-                            // Track pressed key
-                            let mut sessions = state.sessions.write().await;
-                            if let Ok(session) = sessions.get_mut(&session_id) {
-                                session.action_state.pressed_keys.insert(value.clone());
-                            }
-                        }
-                        KeyAction::KeyUp { value } => {
-                            executor
-                                .dispatch_key_event(value, false, &modifier_state)
-                                .await?;
-                            modifier_state.update(value, false);
-                            // Remove from tracked keys
-                            let mut sessions = state.sessions.write().await;
-                            if let Ok(session) = sessions.get_mut(&session_id) {
-                                session.action_state.pressed_keys.remove(value);
-                            }
-                        }
-                        KeyAction::Pause { duration } => {
-                            if let Some(ms) = duration {
-                                tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
-                            }
-                        }
-                    }
-                }
-            }
-            ActionSequence::Pointer { id, actions } => {
-                for action in actions {
-                    match action {
-                        PointerAction::PointerDown { button } => {
-                            executor
-                                .dispatch_pointer_event(
-                                    PointerEventType::Down,
-                                    pointer_state.x,
-                                    pointer_state.y,
-                                    *button,
-                                )
-                                .await?;
-                            if *button == 0 {
-                                primary_down_pos = Some((pointer_state.x, pointer_state.y));
-                            }
-                            // Track pressed button
-                            let mut sessions = state.sessions.write().await;
-                            if let Ok(session) = sessions.get_mut(&session_id) {
-                                session
-                                    .action_state
-                                    .pressed_buttons
-                                    .entry(id.clone())
-                                    .or_default()
-                                    .insert(*button);
-                            }
-                        }
-                        PointerAction::PointerUp { button } => {
-                            executor
-                                .dispatch_pointer_event(
-                                    PointerEventType::Up,
-                                    pointer_state.x,
-                                    pointer_state.y,
-                                    *button,
-                                )
-                                .await?;
-                            // A primary press + release on the same spot is a
-                            // click; emit the click event the browser would
-                            // synthesize for real input so element handlers fire.
-                            // Only the primary button's release consumes/clears
-                            // the press state — a non-primary release in between
-                            // must not drop it.
-                            if *button == 0 {
-                                if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
-                                    executor
-                                        .dispatch_pointer_event(
-                                            PointerEventType::Click,
-                                            pointer_state.x,
-                                            pointer_state.y,
-                                            *button,
-                                        )
-                                        .await?;
-                                }
-                                primary_down_pos = None;
-                            }
-                            // Remove from tracked buttons
-                            let mut sessions = state.sessions.write().await;
-                            if let Ok(session) = sessions.get_mut(&session_id) {
-                                if let Some(buttons) =
-                                    session.action_state.pressed_buttons.get_mut(id)
-                                {
-                                    buttons.remove(button);
+    // Process actions tick-by-tick across sources (W3C): the action at index N from every source runs
+    // before index N+1 from any source, so cross-source chains interleave correctly (e.g. Ctrl+click
+    // built as a key source + a pointer source in one performActions — the modifier is down when the
+    // click lands). A source with fewer actions contributes nothing on later ticks.
+    let tick_count = request
+        .actions
+        .iter()
+        .map(ActionSequence::action_count)
+        .max()
+        .unwrap_or(0);
+    for tick in 0..tick_count {
+        for action_seq in &request.actions {
+            match action_seq {
+                ActionSequence::Key { _id: _, actions } => {
+                    if let Some(action) = actions.get(tick) {
+                        match action {
+                            KeyAction::KeyDown { value } => {
+                                modifier_state.update(value, true);
+                                executor
+                                    .dispatch_key_event(value, true, &modifier_state)
+                                    .await?;
+                                // Track pressed key
+                                let mut sessions = state.sessions.write().await;
+                                if let Ok(session) = sessions.get_mut(&session_id) {
+                                    session.action_state.pressed_keys.insert(value.clone());
                                 }
                             }
-                        }
-                        PointerAction::PointerMove {
-                            x,
-                            y,
-                            duration,
-                            origin,
-                        } => {
-                            let (target_x, target_y) = match origin {
-                                // No origin (the default) or "viewport": x/y are absolute viewport coords.
-                                None => (*x, *y),
-                                Some(Origin::Named(name)) if name == "viewport" => (*x, *y),
-                                Some(Origin::Named(name)) if name == "pointer" => {
-                                    (pointer_state.x + *x, pointer_state.y + *y)
+                            KeyAction::KeyUp { value } => {
+                                executor
+                                    .dispatch_key_event(value, false, &modifier_state)
+                                    .await?;
+                                modifier_state.update(value, false);
+                                // Remove from tracked keys
+                                let mut sessions = state.sessions.write().await;
+                                if let Ok(session) = sessions.get_mut(&session_id) {
+                                    session.action_state.pressed_keys.remove(value);
                                 }
-                                // The spec defines only "viewport" and "pointer" as named origins;
-                                // reject anything else rather than silently treating it as viewport.
-                                Some(Origin::Named(name)) => {
-                                    return Err(WebDriverErrorResponse::invalid_argument(&format!(
-                                        "pointerMove origin '{name}' is not a recognised named origin (expected 'viewport' or 'pointer')"
-                                    )));
-                                }
-                                Some(Origin::Element(refs)) => {
-                                    let element_id = refs.get(ELEMENT_KEY).ok_or_else(|| {
-                                        WebDriverErrorResponse::invalid_argument(
-                                            "pointerMove origin is missing a web element reference",
-                                        )
-                                    })?;
-                                    let js_var = {
-                                        let sessions = state.sessions.read().await;
-                                        let session = sessions.get(&session_id)?;
-                                        session
-                                            .elements
-                                            .get(element_id)
-                                            .ok_or_else(WebDriverErrorResponse::no_such_element)?
-                                            .js_ref
-                                            .clone()
-                                    };
-                                    let (cx, cy) = executor.get_element_center(&js_var).await?;
-                                    (cx + *x, cy + *y)
-                                }
-                            };
-                            pointer_state.x = target_x;
-                            pointer_state.y = target_y;
-                            if let Some(ms) = duration {
-                                if *ms > 0 {
+                            }
+                            KeyAction::Pause { duration } => {
+                                if let Some(ms) = duration {
                                     tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
                                 }
                             }
-                            executor
-                                .dispatch_pointer_event(
-                                    PointerEventType::Move,
-                                    pointer_state.x,
-                                    pointer_state.y,
-                                    0,
-                                )
-                                .await?;
-                        }
-                        PointerAction::Pause { duration } => {
-                            if let Some(ms) = duration {
-                                tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
-                            }
                         }
                     }
                 }
-            }
-            ActionSequence::Wheel { _id: _, actions } => {
-                for action in actions {
-                    match action {
-                        WheelAction::Scroll {
-                            x,
-                            y,
-                            delta_x,
-                            delta_y,
-                            duration,
-                        } => {
-                            if let Some(ms) = duration {
-                                if *ms > 0 {
+                ActionSequence::Pointer { id, actions } => {
+                    if let Some(action) = actions.get(tick) {
+                        match action {
+                                PointerAction::PointerDown { button } => {
+                                executor
+                                    .dispatch_pointer_event(
+                                        PointerEventType::Down,
+                                        pointer_state.x,
+                                        pointer_state.y,
+                                        *button,
+                                    )
+                                    .await?;
+                                if *button == 0 {
+                                    primary_down_pos = Some((pointer_state.x, pointer_state.y));
+                                }
+                                // Track pressed button
+                                let mut sessions = state.sessions.write().await;
+                                if let Ok(session) = sessions.get_mut(&session_id) {
+                                    session
+                                        .action_state
+                                        .pressed_buttons
+                                        .entry(id.clone())
+                                        .or_default()
+                                        .insert(*button);
+                                }
+                            }
+                            PointerAction::PointerUp { button } => {
+                                executor
+                                    .dispatch_pointer_event(
+                                        PointerEventType::Up,
+                                        pointer_state.x,
+                                        pointer_state.y,
+                                        *button,
+                                    )
+                                    .await?;
+                                // A primary press + release on the same spot is a
+                                // click; emit the click event the browser would
+                                // synthesize for real input so element handlers fire.
+                                // Only the primary button's release consumes/clears
+                                // the press state — a non-primary release in between
+                                // must not drop it.
+                                if *button == 0 {
+                                    if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
+                                        executor
+                                            .dispatch_pointer_event(
+                                                PointerEventType::Click,
+                                                pointer_state.x,
+                                                pointer_state.y,
+                                                *button,
+                                            )
+                                            .await?;
+                                    }
+                                    primary_down_pos = None;
+                                }
+                                // Remove from tracked buttons
+                                let mut sessions = state.sessions.write().await;
+                                if let Ok(session) = sessions.get_mut(&session_id) {
+                                    if let Some(buttons) =
+                                        session.action_state.pressed_buttons.get_mut(id)
+                                    {
+                                        buttons.remove(button);
+                                    }
+                                }
+                            }
+                            PointerAction::PointerMove {
+                                x,
+                                y,
+                                duration,
+                                origin,
+                            } => {
+                                let (target_x, target_y) = match origin {
+                                    // No origin (the default) or "viewport": x/y are absolute viewport coords.
+                                    None => (*x, *y),
+                                    Some(Origin::Named(name)) if name == "viewport" => (*x, *y),
+                                    Some(Origin::Named(name)) if name == "pointer" => {
+                                        (pointer_state.x + *x, pointer_state.y + *y)
+                                    }
+                                    // The spec defines only "viewport" and "pointer" as named origins;
+                                    // reject anything else rather than silently treating it as viewport.
+                                    Some(Origin::Named(name)) => {
+                                        return Err(WebDriverErrorResponse::invalid_argument(&format!(
+                                            "pointerMove origin '{name}' is not a recognised named origin (expected 'viewport' or 'pointer')"
+                                        )));
+                                    }
+                                    Some(Origin::Element(refs)) => {
+                                        let element_id = refs.get(ELEMENT_KEY).ok_or_else(|| {
+                                            WebDriverErrorResponse::invalid_argument(
+                                                "pointerMove origin is missing a web element reference",
+                                            )
+                                        })?;
+                                        let js_var = {
+                                            let sessions = state.sessions.read().await;
+                                            let session = sessions.get(&session_id)?;
+                                            session
+                                                .elements
+                                                .get(element_id)
+                                                .ok_or_else(WebDriverErrorResponse::no_such_element)?
+                                                .js_ref
+                                                .clone()
+                                        };
+                                        let (cx, cy) = executor.get_element_center(&js_var).await?;
+                                        (cx + *x, cy + *y)
+                                    }
+                                };
+                                pointer_state.x = target_x;
+                                pointer_state.y = target_y;
+                                if let Some(ms) = duration {
+                                    if *ms > 0 {
+                                        tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
+                                    }
+                                }
+                                executor
+                                    .dispatch_pointer_event(
+                                        PointerEventType::Move,
+                                        pointer_state.x,
+                                        pointer_state.y,
+                                        0,
+                                    )
+                                    .await?;
+                            }
+                            PointerAction::Pause { duration } => {
+                                if let Some(ms) = duration {
                                     tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
                                 }
                             }
-                            executor
-                                .dispatch_scroll_event(*x, *y, *delta_x, *delta_y)
-                                .await?;
                         }
-                        WheelAction::Pause { duration } => {
-                            if let Some(ms) = duration {
-                                tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
+                    }
+                }
+                ActionSequence::Wheel { _id: _, actions } => {
+                    if let Some(action) = actions.get(tick) {
+                        match action {
+                            WheelAction::Scroll {
+                                x,
+                                y,
+                                delta_x,
+                                delta_y,
+                                duration,
+                            } => {
+                                if let Some(ms) = duration {
+                                    if *ms > 0 {
+                                        tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
+                                    }
+                                }
+                                executor
+                                    .dispatch_scroll_event(*x, *y, *delta_x, *delta_y)
+                                    .await?;
+                            }
+                            WheelAction::Pause { duration } => {
+                                if let Some(ms) = duration {
+                                    tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
+                                }
                             }
                         }
                     }
                 }
-            }
-            ActionSequence::None { _id: _, actions } => {
-                for action in actions {
-                    match action {
-                        PauseAction::Pause { duration } => {
-                            if let Some(ms) = duration {
-                                tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
+                ActionSequence::None { _id: _, actions } => {
+                    if let Some(action) = actions.get(tick) {
+                        match action {
+                            PauseAction::Pause { duration } => {
+                                if let Some(ms) = duration {
+                                    tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
+                                }
                             }
                         }
                     }
@@ -408,4 +432,58 @@ pub async fn release<R: Runtime + 'static>(
     }
 
     Ok(WebDriverResponse::null())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn parse(json: &str) -> ActionsRequest {
+        serde_json::from_str(json).expect("valid actions request")
+    }
+
+    #[test]
+    fn action_count_returns_actions_len_per_source() {
+        let req = parse(
+            r#"{"actions":[
+                {"type":"key","id":"k","actions":[{"type":"keyDown","value":"a"},{"type":"keyUp","value":"a"}]},
+                {"type":"none","id":"n","actions":[{"type":"pause","duration":0}]}
+            ]}"#,
+        );
+        let counts: Vec<usize> = req.actions.iter().map(ActionSequence::action_count).collect();
+        assert_eq!(counts, vec![2, 1]);
+    }
+
+    #[test]
+    fn tick_count_is_the_max_actions_across_sources() {
+        // The number of ticks is max(actions) across sources, so a shorter source contributes
+        // nothing on later ticks while a longer one keeps going.
+        let req = parse(
+            r#"{"actions":[
+                {"type":"key","id":"k","actions":[{"type":"keyDown","value":"a"}]},
+                {"type":"pointer","id":"p","actions":[
+                    {"type":"pointerMove","x":0,"y":0},{"type":"pointerDown","button":0},{"type":"pointerUp","button":0}
+                ]}
+            ]}"#,
+        );
+        let ticks = req
+            .actions
+            .iter()
+            .map(ActionSequence::action_count)
+            .max()
+            .unwrap_or(0);
+        assert_eq!(ticks, 3);
+    }
+
+    #[test]
+    fn tick_count_is_zero_for_no_sources() {
+        let req = parse(r#"{"actions":[]}"#);
+        let ticks = req
+            .actions
+            .iter()
+            .map(ActionSequence::action_count)
+            .max()
+            .unwrap_or(0);
+        assert_eq!(ticks, 0);
+    }
 }
