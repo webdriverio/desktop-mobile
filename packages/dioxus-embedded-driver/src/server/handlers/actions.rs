@@ -289,7 +289,10 @@ fn button_to_mask(button: u32) -> u32 {
     0 => 1, // primary / left
     1 => 4, // auxiliary / middle
     2 => 2, // secondary / right
-    n => 1 << n,
+    // `1 << n` overflows (panics in debug, wraps in release) for n >= 32; the buttons bitmask is
+    // 32 bits and W3C only defines 0–4, so an out-of-range index contributes no bit.
+    n if n < 32 => 1 << n,
+    _ => 0,
   }
 }
 
@@ -752,5 +755,9 @@ mod tests {
     assert_eq!(button_to_mask(0), 1);
     assert_eq!(button_to_mask(1), 4);
     assert_eq!(button_to_mask(2), 2);
+    assert_eq!(button_to_mask(5), 32);
+    // Out-of-range index must not overflow the shift (panics in debug builds / under cargo test).
+    assert_eq!(button_to_mask(32), 0);
+    assert_eq!(button_to_mask(99), 0);
   }
 }
