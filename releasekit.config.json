@@ -70,7 +70,10 @@
     },
     "standingPr": {
       "branch": "release/next",
-      "mergeMethod": "squash"
+      "mergeMethod": "squash",
+      "primaryPackages": [
+        "@wdio/*-service"
+      ]
     },
     "scopeLabels": {
       "scope:native-utils": "@wdio/native-utils",
