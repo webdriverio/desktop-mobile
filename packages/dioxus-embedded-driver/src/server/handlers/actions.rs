@@ -58,6 +58,18 @@ pub enum ActionSequence {
   },
 }
 
+impl ActionSequence {
+  /// Number of actions in this source. The request's tick count is the max across all sources.
+  fn action_count(&self) -> usize {
+    match self {
+      ActionSequence::Key { actions, .. } => actions.len(),
+      ActionSequence::Pointer { actions, .. } => actions.len(),
+      ActionSequence::Wheel { actions, .. } => actions.len(),
+      ActionSequence::None { actions, .. } => actions.len(),
+    }
+  }
+}
+
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type")]
 pub enum KeyAction {
@@ -325,145 +337,148 @@ pub async fn perform(
   // when a second click lands on the same spot (e.g. element.doubleClick()'s two press/release pairs).
   let mut last_click_pos: Option<(i32, i32)> = None;
 
-  // Sources are processed serially (each source's actions in full) rather than tick-interleaved
-  // across sources, mirroring the Tauri handler. Single-source chains — the common WDIO case — are
-  // identical either way; cross-source interleaving (e.g. Ctrl+click in one performActions) is a
-  // known gap tracked in webdriverio/desktop-mobile#491.
-  for action_seq in &request.actions {
-    match action_seq {
-      ActionSequence::Key { _id: _, actions } => {
-        for action in actions {
-          match action {
-            KeyAction::KeyDown { value } => {
-              {
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.pressed_keys.insert(value.clone());
-                  modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
-                }
-              }
-              // Recompute before dispatch so a modifier key's own keydown carries its flag.
-              eval(key_event_js("keydown", value, modifiers), timeout_ms).await?;
-            }
-            KeyAction::KeyUp { value } => {
-              {
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.pressed_keys.remove(value);
-                  modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
-                }
-              }
-              eval(key_event_js("keyup", value, modifiers), timeout_ms).await?;
-            }
-            KeyAction::Pause { duration } => sleep_for(*duration).await,
-          }
-        }
-      }
-      ActionSequence::Pointer { id, actions } => {
-        for action in actions {
-          match action {
-            PointerAction::PointerDown { button } => {
-              held_mask |= button_to_mask(*button);
-              eval(
-                pointer_event_js("mousedown", pointer_state.x, pointer_state.y, *button, held_mask, modifiers),
-                timeout_ms,
-              )
-              .await?;
-              if *button == 0 {
-                primary_down_pos = Some((pointer_state.x, pointer_state.y));
-              }
-              let mut sessions = state.sessions.write().await;
-              if let Ok(session) = sessions.get_mut(&session_id) {
-                session.action_state.pressed_buttons.entry(id.clone()).or_default().insert(*button);
-              }
-            }
-            PointerAction::PointerUp { button } => {
-              held_mask &= !button_to_mask(*button);
-              eval(
-                pointer_event_js("mouseup", pointer_state.x, pointer_state.y, *button, held_mask, modifiers),
-                timeout_ms,
-              )
-              .await?;
-              // A primary press + release on the same spot is a click; a
-              // secondary (right) release there is a context menu. Emit the
-              // event the browser would synthesize for real input so element
-              // handlers fire. Only the primary button's release consumes the
-              // tracked press — a non-primary release must not drop it.
-              if *button == 0 {
-                if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
-                  let pos = (pointer_state.x, pointer_state.y);
-                  eval(pointer_event_js("click", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
-                  // A second click on the same spot completes a double-click — emit `dblclick`
-                  // (what element.doubleClick()'s two press/release pairs should produce).
-                  if last_click_pos == Some(pos) {
-                    eval(pointer_event_js("dblclick", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
-                    last_click_pos = None;
-                  } else {
-                    last_click_pos = Some(pos);
+  // Process actions tick-by-tick across sources (W3C): the action at index N from every source runs
+  // before index N+1 from any source, so cross-source chains interleave correctly (e.g. Ctrl+click
+  // built as a key source + a pointer source in one performActions — the modifier is down when the
+  // click lands). A source with fewer actions contributes nothing on later ticks.
+  let tick_count = request.actions.iter().map(ActionSequence::action_count).max().unwrap_or(0);
+  for tick in 0..tick_count {
+    for action_seq in &request.actions {
+      match action_seq {
+        ActionSequence::Key { _id: _, actions } => {
+          if let Some(action) = actions.get(tick) {
+            match action {
+              KeyAction::KeyDown { value } => {
+                {
+                  let mut sessions = state.sessions.write().await;
+                  if let Ok(session) = sessions.get_mut(&session_id) {
+                    session.action_state.pressed_keys.insert(value.clone());
+                    modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
                   }
                 }
-                primary_down_pos = None;
-              } else if *button == 2 {
+                // Recompute before dispatch so a modifier key's own keydown carries its flag.
+                eval(key_event_js("keydown", value, modifiers), timeout_ms).await?;
+              }
+              KeyAction::KeyUp { value } => {
+                {
+                  let mut sessions = state.sessions.write().await;
+                  if let Ok(session) = sessions.get_mut(&session_id) {
+                    session.action_state.pressed_keys.remove(value);
+                    modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
+                  }
+                }
+                eval(key_event_js("keyup", value, modifiers), timeout_ms).await?;
+              }
+              KeyAction::Pause { duration } => sleep_for(*duration).await,
+            }
+          }
+        }
+        ActionSequence::Pointer { id, actions } => {
+          if let Some(action) = actions.get(tick) {
+            match action {
+              PointerAction::PointerDown { button } => {
+                held_mask |= button_to_mask(*button);
                 eval(
-                  pointer_event_js("contextmenu", pointer_state.x, pointer_state.y, *button, 0, modifiers),
+                  pointer_event_js("mousedown", pointer_state.x, pointer_state.y, *button, held_mask, modifiers),
+                  timeout_ms,
+                )
+                .await?;
+                if *button == 0 {
+                  primary_down_pos = Some((pointer_state.x, pointer_state.y));
+                }
+                let mut sessions = state.sessions.write().await;
+                if let Ok(session) = sessions.get_mut(&session_id) {
+                  session.action_state.pressed_buttons.entry(id.clone()).or_default().insert(*button);
+                }
+              }
+              PointerAction::PointerUp { button } => {
+                held_mask &= !button_to_mask(*button);
+                eval(
+                  pointer_event_js("mouseup", pointer_state.x, pointer_state.y, *button, held_mask, modifiers),
+                  timeout_ms,
+                )
+                .await?;
+                // A primary press + release on the same spot is a click; a
+                // secondary (right) release there is a context menu. Emit the
+                // event the browser would synthesize for real input so element
+                // handlers fire. Only the primary button's release consumes the
+                // tracked press — a non-primary release must not drop it.
+                if *button == 0 {
+                  if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
+                    let pos = (pointer_state.x, pointer_state.y);
+                    eval(pointer_event_js("click", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
+                    // A second click on the same spot completes a double-click — emit `dblclick`
+                    // (what element.doubleClick()'s two press/release pairs should produce).
+                    if last_click_pos == Some(pos) {
+                      eval(pointer_event_js("dblclick", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
+                      last_click_pos = None;
+                    } else {
+                      last_click_pos = Some(pos);
+                    }
+                  }
+                  primary_down_pos = None;
+                } else if *button == 2 {
+                  eval(
+                    pointer_event_js("contextmenu", pointer_state.x, pointer_state.y, *button, 0, modifiers),
+                    timeout_ms,
+                  )
+                  .await?;
+                }
+                let mut sessions = state.sessions.write().await;
+                if let Ok(session) = sessions.get_mut(&session_id) {
+                  if let Some(buttons) = session.action_state.pressed_buttons.get_mut(id) {
+                    buttons.remove(button);
+                  }
+                }
+              }
+              PointerAction::PointerMove { x, y, duration, origin } => {
+                let (target_x, target_y) =
+                  resolve_origin(&state, &session_id, origin, *x, *y, &pointer_state, timeout_ms).await?;
+                pointer_state.x = target_x;
+                pointer_state.y = target_y;
+                // A move between clicks breaks a double-click chain. element.doubleClick() never moves
+                // between its two press/release pairs, so this can't suppress a legitimate dblclick.
+                last_click_pos = None;
+                sleep_for(*duration).await;
+                eval(
+                  pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0, held_mask, modifiers),
                   timeout_ms,
                 )
                 .await?;
               }
-              let mut sessions = state.sessions.write().await;
-              if let Ok(session) = sessions.get_mut(&session_id) {
-                if let Some(buttons) = session.action_state.pressed_buttons.get_mut(id) {
-                  buttons.remove(button);
-                }
-              }
-            }
-            PointerAction::PointerMove { x, y, duration, origin } => {
-              let (target_x, target_y) =
-                resolve_origin(&state, &session_id, origin, *x, *y, &pointer_state, timeout_ms).await?;
-              pointer_state.x = target_x;
-              pointer_state.y = target_y;
-              // A move between clicks breaks a double-click chain. element.doubleClick() never moves
-              // between its two press/release pairs, so this can't suppress a legitimate dblclick.
-              last_click_pos = None;
-              sleep_for(*duration).await;
-              eval(
-                pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0, held_mask, modifiers),
-                timeout_ms,
-              )
-              .await?;
-            }
-            PointerAction::Pause { duration } => sleep_for(*duration).await,
-            PointerAction::PointerCancel => {
-              // A pointer cancel releases this source's buttons without a click — there's no
-              // MouseEvent equivalent, so just drop its tracked state and clear the held mask.
-              let mut sessions = state.sessions.write().await;
-              if let Ok(session) = sessions.get_mut(&session_id) {
-                if let Some(buttons) = session.action_state.pressed_buttons.remove(id) {
-                  for button in buttons {
-                    held_mask &= !button_to_mask(button);
+              PointerAction::Pause { duration } => sleep_for(*duration).await,
+              PointerAction::PointerCancel => {
+                // A pointer cancel releases this source's buttons without a click — there's no
+                // MouseEvent equivalent, so just drop its tracked state and clear the held mask.
+                let mut sessions = state.sessions.write().await;
+                if let Ok(session) = sessions.get_mut(&session_id) {
+                  if let Some(buttons) = session.action_state.pressed_buttons.remove(id) {
+                    for button in buttons {
+                      held_mask &= !button_to_mask(button);
+                    }
                   }
                 }
+                primary_down_pos = None;
               }
-              primary_down_pos = None;
             }
           }
         }
-      }
-      ActionSequence::Wheel { _id: _, actions } => {
-        for action in actions {
-          match action {
-            WheelAction::Scroll { x, y, delta_x, delta_y, duration } => {
-              sleep_for(*duration).await;
-              eval(wheel_event_js(*x, *y, *delta_x, *delta_y), timeout_ms).await?;
+        ActionSequence::Wheel { _id: _, actions } => {
+          if let Some(action) = actions.get(tick) {
+            match action {
+              WheelAction::Scroll { x, y, delta_x, delta_y, duration } => {
+                sleep_for(*duration).await;
+                eval(wheel_event_js(*x, *y, *delta_x, *delta_y), timeout_ms).await?;
+              }
+              WheelAction::Pause { duration } => sleep_for(*duration).await,
             }
-            WheelAction::Pause { duration } => sleep_for(*duration).await,
           }
         }
-      }
-      ActionSequence::None { _id: _, actions } => {
-        for action in actions {
-          match action {
-            PauseAction::Pause { duration } => sleep_for(*duration).await,
+        ActionSequence::None { _id: _, actions } => {
+          if let Some(action) = actions.get(tick) {
+            match action {
+              PauseAction::Pause { duration } => sleep_for(*duration).await,
+            }
           }
         }
       }
@@ -759,5 +774,21 @@ mod tests {
     // Out-of-range index must not overflow the shift (panics in debug builds / under cargo test).
     assert_eq!(button_to_mask(32), 0);
     assert_eq!(button_to_mask(99), 0);
+  }
+
+  #[test]
+  fn tick_count_is_the_max_actions_across_sources() {
+    // The number of ticks is max(actions) across sources, so a shorter source contributes
+    // nothing on later ticks while a longer one keeps going.
+    let req = parse(
+      r#"{"actions":[
+        {"type":"key","id":"k","actions":[{"type":"keyDown","value":"a"}]},
+        {"type":"pointer","id":"p","actions":[
+          {"type":"pointerMove","x":0,"y":0},{"type":"pointerDown","button":0},{"type":"pointerUp","button":0}
+        ]}
+      ]}"#,
+    );
+    let ticks = req.actions.iter().map(ActionSequence::action_count).max().unwrap_or(0);
+    assert_eq!(ticks, 3);
   }
 }
