@@ -190,10 +190,44 @@ fn element_center_js(var: &str) -> String {
 /// pointer-button index that changed; `buttons` is the cumulative held-button bitmask at the moment
 /// the event fires (per the DOM spec these differ — e.g. a left-button `mouseup` reports
 /// `button: 0` but `buttons: 0`, and `click`/`contextmenu`/un-pressed `mousemove` report `buttons: 0`).
-fn pointer_event_js(event_type: &str, x: i32, y: i32, button: u32, buttons: u32) -> String {
+fn pointer_event_js(event_type: &str, x: i32, y: i32, button: u32, buttons: u32, mods: Modifiers) -> String {
+  let modifiers = mods.js();
   format!(
-    "(function(){{ var t=document.elementFromPoint({x},{y})||document.body; if(!t) return; var e=new MouseEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,view:window,clientX:{x},clientY:{y},button:{button},buttons:{buttons}}}); t.dispatchEvent(e); }})(); null",
+    "(function(){{ var t=document.elementFromPoint({x},{y})||document.body; if(!t) return; var e=new MouseEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,view:window,clientX:{x},clientY:{y},button:{button},buttons:{buttons},{modifiers}}}); t.dispatchEvent(e); }})(); null",
   )
+}
+
+/// Active keyboard modifiers, derived from the keys currently held in session state. W3C sends
+/// modifier keys as Private-Use-Area codepoints (left + right variants); a held modifier must
+/// surface as the matching flag on every synthesized pointer and key event (e.g. a Ctrl+click's
+/// `click` carries `ctrlKey: true`). Interleaving a modifier across sources *within one*
+/// performActions still needs tick processing — tracked in webdriverio/desktop-mobile#491.
+#[derive(Clone, Copy, Default)]
+struct Modifiers {
+  ctrl: bool,
+  shift: bool,
+  alt: bool,
+  meta: bool,
+}
+
+impl Modifiers {
+  fn from_keys<'a>(keys: impl IntoIterator<Item = &'a String>) -> Self {
+    let mut m = Modifiers::default();
+    for k in keys {
+      match k.as_str() {
+        "\u{E008}" | "\u{E050}" => m.shift = true,
+        "\u{E009}" | "\u{E051}" => m.ctrl = true,
+        "\u{E00A}" | "\u{E052}" => m.alt = true,
+        "\u{E03D}" | "\u{E053}" => m.meta = true,
+        _ => {}
+      }
+    }
+    m
+  }
+
+  fn js(self) -> String {
+    format!("ctrlKey:{},shiftKey:{},altKey:{},metaKey:{}", self.ctrl, self.shift, self.alt, self.meta)
+  }
 }
 
 /// Translate a W3C key value to its DOM `KeyboardEvent.key` name. WDIO sends special keys
@@ -234,10 +268,11 @@ fn normalize_key(value: &str) -> &str {
 
 /// JS that synthesizes a `KeyboardEvent` of `event_type` for `value` on the
 /// active element.
-fn key_event_js(event_type: &str, value: &str) -> String {
+fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let key = normalize_key(value);
+  let modifiers = mods.js();
   format!(
-    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?}}}); t.dispatchEvent(e); }})(); null"
+    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},{modifiers}}}); t.dispatchEvent(e); }})(); null"
   )
 }
 
@@ -265,17 +300,21 @@ pub async fn perform(
   Path(session_id): Path<String>,
   Json(request): Json<ActionsRequest>,
 ) -> WebDriverResult {
-  let (timeout_ms, start_pos, initial_mask) = {
+  let (timeout_ms, start_pos, initial_mask, initial_mods) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
     let mask = session.action_state.pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
-    (session.timeouts.script_ms, session.action_state.pointer_position, mask)
+    let mods = Modifiers::from_keys(&session.action_state.pressed_keys);
+    (session.timeouts.script_ms, session.action_state.pointer_position, mask, mods)
   };
 
   let mut pointer_state = PointerState { x: start_pos.0, y: start_pos.1 };
   // The cumulative `MouseEvent.buttons` mask, kept in sync with press/release so each synthesized
   // event reports the buttons actually held when it fires (not just the one that changed).
   let mut held_mask = initial_mask;
+  // Modifier flags carried on every synthesized event, kept in sync as key actions press/release
+  // modifier keys (and seeded from any modifier still held from a prior performActions call).
+  let mut modifiers = initial_mods;
   // Position of the last primary-button press, used to synthesize a `click`
   // when the matching release lands on the same spot (a click, not a drag).
   let mut primary_down_pos: Option<(i32, i32)> = None;
@@ -293,18 +332,25 @@ pub async fn perform(
         for action in actions {
           match action {
             KeyAction::KeyDown { value } => {
-              eval(key_event_js("keydown", value), timeout_ms).await?;
-              let mut sessions = state.sessions.write().await;
-              if let Ok(session) = sessions.get_mut(&session_id) {
-                session.action_state.pressed_keys.insert(value.clone());
+              {
+                let mut sessions = state.sessions.write().await;
+                if let Ok(session) = sessions.get_mut(&session_id) {
+                  session.action_state.pressed_keys.insert(value.clone());
+                  modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
+                }
               }
+              // Recompute before dispatch so a modifier key's own keydown carries its flag.
+              eval(key_event_js("keydown", value, modifiers), timeout_ms).await?;
             }
             KeyAction::KeyUp { value } => {
-              eval(key_event_js("keyup", value), timeout_ms).await?;
-              let mut sessions = state.sessions.write().await;
-              if let Ok(session) = sessions.get_mut(&session_id) {
-                session.action_state.pressed_keys.remove(value);
+              {
+                let mut sessions = state.sessions.write().await;
+                if let Ok(session) = sessions.get_mut(&session_id) {
+                  session.action_state.pressed_keys.remove(value);
+                  modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
+                }
               }
+              eval(key_event_js("keyup", value, modifiers), timeout_ms).await?;
             }
             KeyAction::Pause { duration } => sleep_for(*duration).await,
           }
@@ -316,7 +362,7 @@ pub async fn perform(
             PointerAction::PointerDown { button } => {
               held_mask |= button_to_mask(*button);
               eval(
-                pointer_event_js("mousedown", pointer_state.x, pointer_state.y, *button, held_mask),
+                pointer_event_js("mousedown", pointer_state.x, pointer_state.y, *button, held_mask, modifiers),
                 timeout_ms,
               )
               .await?;
@@ -331,7 +377,7 @@ pub async fn perform(
             PointerAction::PointerUp { button } => {
               held_mask &= !button_to_mask(*button);
               eval(
-                pointer_event_js("mouseup", pointer_state.x, pointer_state.y, *button, held_mask),
+                pointer_event_js("mouseup", pointer_state.x, pointer_state.y, *button, held_mask, modifiers),
                 timeout_ms,
               )
               .await?;
@@ -343,11 +389,11 @@ pub async fn perform(
               if *button == 0 {
                 if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
                   let pos = (pointer_state.x, pointer_state.y);
-                  eval(pointer_event_js("click", pos.0, pos.1, *button, 0), timeout_ms).await?;
+                  eval(pointer_event_js("click", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
                   // A second click on the same spot completes a double-click — emit `dblclick`
                   // (what element.doubleClick()'s two press/release pairs should produce).
                   if last_click_pos == Some(pos) {
-                    eval(pointer_event_js("dblclick", pos.0, pos.1, *button, 0), timeout_ms).await?;
+                    eval(pointer_event_js("dblclick", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
                     last_click_pos = None;
                   } else {
                     last_click_pos = Some(pos);
@@ -356,7 +402,7 @@ pub async fn perform(
                 primary_down_pos = None;
               } else if *button == 2 {
                 eval(
-                  pointer_event_js("contextmenu", pointer_state.x, pointer_state.y, *button, 0),
+                  pointer_event_js("contextmenu", pointer_state.x, pointer_state.y, *button, 0, modifiers),
                   timeout_ms,
                 )
                 .await?;
@@ -378,7 +424,7 @@ pub async fn perform(
               last_click_pos = None;
               sleep_for(*duration).await;
               eval(
-                pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0, held_mask),
+                pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0, held_mask, modifiers),
                 timeout_ms,
               )
               .await?;
@@ -495,13 +541,13 @@ pub async fn release(
   };
 
   for key in pressed_keys {
-    eval(key_event_js("keyup", &key), timeout_ms).await?;
+    eval(key_event_js("keyup", &key, Modifiers::default()), timeout_ms).await?;
   }
   let mut held_mask = pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
   for (_source_id, buttons) in pressed_buttons {
     for button in buttons {
       held_mask &= !button_to_mask(button);
-      eval(pointer_event_js("mouseup", pointer_pos.0, pointer_pos.1, button, held_mask), timeout_ms).await?;
+      eval(pointer_event_js("mouseup", pointer_pos.0, pointer_pos.1, button, held_mask, Modifiers::default()), timeout_ms).await?;
     }
   }
 
@@ -622,7 +668,7 @@ mod tests {
 
   #[test]
   fn pointer_event_js_targets_element_from_point() {
-    let down = pointer_event_js("mousedown", 30, 40, 0, 1);
+    let down = pointer_event_js("mousedown", 30, 40, 0, 1, Modifiers::default());
     assert!(down.contains("elementFromPoint(30,40)"));
     assert!(down.contains("clientX:30"));
     assert!(down.contains("clientY:40"));
@@ -632,22 +678,22 @@ mod tests {
 
     // `button` is the pointer index that changed; `buttons` is the cumulative held mask — they
     // differ on release (a left `mouseup` reports button 0 but buttons 0) and for context menus.
-    let up = pointer_event_js("mouseup", 1, 2, 0, 0);
+    let up = pointer_event_js("mouseup", 1, 2, 0, 0, Modifiers::default());
     assert!(up.contains("button:0"));
     assert!(up.contains("buttons:0"));
 
-    let right = pointer_event_js("contextmenu", 1, 2, 2, 0);
+    let right = pointer_event_js("contextmenu", 1, 2, 2, 0, Modifiers::default());
     assert!(right.contains("button:2"));
     assert!(right.contains("buttons:0"));
 
-    let dbl = pointer_event_js("dblclick", 5, 6, 0, 0);
+    let dbl = pointer_event_js("dblclick", 5, 6, 0, 0, Modifiers::default());
     assert!(dbl.contains("MouseEvent(\"dblclick\""));
     assert!(dbl.contains("buttons:0"));
   }
 
   #[test]
   fn key_event_js_uses_active_element() {
-    let js = key_event_js("keydown", "Enter");
+    let js = key_event_js("keydown", "Enter", Modifiers::default());
     assert!(js.contains("document.activeElement"));
     assert!(js.contains("KeyboardEvent(\"keydown\""));
     assert!(js.contains("key:\"Enter\""));
@@ -656,11 +702,25 @@ mod tests {
   #[test]
   fn key_event_js_translates_special_key_codepoints() {
     // WDIO sends Key.Enter as the PUA codepoint \u{E007}; the DOM key must be "Enter", not the raw char.
-    assert!(key_event_js("keydown", "\u{E007}").contains("key:\"Enter\""));
-    assert!(key_event_js("keyup", "\u{E004}").contains("key:\"Tab\""));
-    assert!(key_event_js("keydown", "\u{E015}").contains("key:\"ArrowDown\""));
+    let m = Modifiers::default();
+    assert!(key_event_js("keydown", "\u{E007}", m).contains("key:\"Enter\""));
+    assert!(key_event_js("keyup", "\u{E004}", m).contains("key:\"Tab\""));
+    assert!(key_event_js("keydown", "\u{E015}", m).contains("key:\"ArrowDown\""));
     // Printable characters pass through unchanged.
-    assert!(key_event_js("keydown", "a").contains("key:\"a\""));
+    assert!(key_event_js("keydown", "a", m).contains("key:\"a\""));
+  }
+
+  #[test]
+  fn events_carry_held_modifier_flags() {
+    // \u{E009} = Control, \u{E008} = Shift.
+    let held = Modifiers::from_keys(&["\u{E009}".to_string(), "\u{E008}".to_string()]);
+    let click = pointer_event_js("click", 1, 2, 0, 0, held);
+    assert!(click.contains("ctrlKey:true"));
+    assert!(click.contains("shiftKey:true"));
+    assert!(click.contains("altKey:false"));
+    assert!(key_event_js("keydown", "a", held).contains("ctrlKey:true"));
+    // No modifier held → all flags false.
+    assert!(pointer_event_js("click", 1, 2, 0, 0, Modifiers::default()).contains("ctrlKey:false"));
   }
 
   #[test]
