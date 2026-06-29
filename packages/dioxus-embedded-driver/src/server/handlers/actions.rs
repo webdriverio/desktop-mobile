@@ -196,11 +196,48 @@ fn pointer_event_js(event_type: &str, x: i32, y: i32, button: u32, buttons: u32)
   )
 }
 
+/// Translate a W3C key value to its DOM `KeyboardEvent.key` name. WDIO sends special keys
+/// (`Key.Enter`, arrows, F-keys, modifiers) as Private-Use-Area codepoints (`\u{E0xx}`); forwarding
+/// the raw codepoint as `key` leaves `Key.*` broken, so map the ones the spec defines. Printable
+/// characters pass through unchanged. Mirrors the table in tauri-plugin-wdio-webdriver's executor.
+fn normalize_key(value: &str) -> &str {
+  match value {
+    "\u{E006}" | "\u{E007}" => "Enter",
+    "\u{E003}" => "Backspace",
+    "\u{E004}" => "Tab",
+    "\u{E00C}" => "Escape",
+    "\u{E00D}" => " ",
+    "\u{E012}" => "ArrowLeft",
+    "\u{E013}" => "ArrowUp",
+    "\u{E014}" => "ArrowRight",
+    "\u{E015}" => "ArrowDown",
+    "\u{E017}" => "Delete",
+    "\u{E031}" => "F1",
+    "\u{E032}" => "F2",
+    "\u{E033}" => "F3",
+    "\u{E034}" => "F4",
+    "\u{E035}" => "F5",
+    "\u{E036}" => "F6",
+    "\u{E037}" => "F7",
+    "\u{E038}" => "F8",
+    "\u{E039}" => "F9",
+    "\u{E03A}" => "F10",
+    "\u{E03B}" => "F11",
+    "\u{E03C}" => "F12",
+    "\u{E008}" => "Shift",
+    "\u{E009}" => "Control",
+    "\u{E00A}" => "Alt",
+    "\u{E03D}" => "Meta",
+    other => other,
+  }
+}
+
 /// JS that synthesizes a `KeyboardEvent` of `event_type` for `value` on the
 /// active element.
 fn key_event_js(event_type: &str, value: &str) -> String {
+  let key = normalize_key(value);
   format!(
-    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{value:?}}}); t.dispatchEvent(e); }})(); null"
+    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?}}}); t.dispatchEvent(e); }})(); null"
   )
 }
 
@@ -336,6 +373,9 @@ pub async fn perform(
                 resolve_origin(&state, &session_id, origin, *x, *y, &pointer_state, timeout_ms).await?;
               pointer_state.x = target_x;
               pointer_state.y = target_y;
+              // A move between clicks breaks a double-click chain. element.doubleClick() never moves
+              // between its two press/release pairs, so this can't suppress a legitimate dblclick.
+              last_click_pos = None;
               sleep_for(*duration).await;
               eval(
                 pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0, held_mask),
@@ -611,6 +651,16 @@ mod tests {
     assert!(js.contains("document.activeElement"));
     assert!(js.contains("KeyboardEvent(\"keydown\""));
     assert!(js.contains("key:\"Enter\""));
+  }
+
+  #[test]
+  fn key_event_js_translates_special_key_codepoints() {
+    // WDIO sends Key.Enter as the PUA codepoint \u{E007}; the DOM key must be "Enter", not the raw char.
+    assert!(key_event_js("keydown", "\u{E007}").contains("key:\"Enter\""));
+    assert!(key_event_js("keyup", "\u{E004}").contains("key:\"Tab\""));
+    assert!(key_event_js("keydown", "\u{E015}").contains("key:\"ArrowDown\""));
+    // Printable characters pass through unchanged.
+    assert!(key_event_js("keydown", "a").contains("key:\"a\""));
   }
 
   #[test]
