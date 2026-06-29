@@ -258,10 +258,10 @@ fn normalize_key(value: &str) -> &str {
     "\u{E03A}" => "F10",
     "\u{E03B}" => "F11",
     "\u{E03C}" => "F12",
-    "\u{E008}" => "Shift",
-    "\u{E009}" => "Control",
-    "\u{E00A}" => "Alt",
-    "\u{E03D}" => "Meta",
+    "\u{E008}" | "\u{E050}" => "Shift",
+    "\u{E009}" | "\u{E051}" => "Control",
+    "\u{E00A}" | "\u{E052}" => "Alt",
+    "\u{E03D}" | "\u{E053}" => "Meta",
     other => other,
   }
 }
@@ -540,8 +540,12 @@ pub async fn release(
     (session.timeouts.script_ms, pressed_keys, pressed_buttons, pointer_pos)
   };
 
-  for key in pressed_keys {
-    eval(key_event_js("keyup", &key, Modifiers::default()), timeout_ms).await?;
+  // Release held keys; each keyup reflects the modifiers still held *after* it is released
+  // (e.g. releasing Shift while Ctrl is still down → shiftKey:false, ctrlKey:true). The mouseups
+  // below run once every key is up, so their default (empty) modifiers are correct.
+  for (i, key) in pressed_keys.iter().enumerate() {
+    let mods = Modifiers::from_keys(&pressed_keys[i + 1..]);
+    eval(key_event_js("keyup", key, mods), timeout_ms).await?;
   }
   let mut held_mask = pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
   for (_source_id, buttons) in pressed_buttons {
@@ -706,6 +710,10 @@ mod tests {
     assert!(key_event_js("keydown", "\u{E007}", m).contains("key:\"Enter\""));
     assert!(key_event_js("keyup", "\u{E004}", m).contains("key:\"Tab\""));
     assert!(key_event_js("keydown", "\u{E015}", m).contains("key:\"ArrowDown\""));
+    // Right-hand modifier variants normalize to the same DOM key name as the left/generic ones.
+    assert!(key_event_js("keydown", "\u{E050}", m).contains("key:\"Shift\""));
+    assert!(key_event_js("keydown", "\u{E051}", m).contains("key:\"Control\""));
+    assert!(key_event_js("keydown", "\u{E053}", m).contains("key:\"Meta\""));
     // Printable characters pass through unchanged.
     assert!(key_event_js("keydown", "a", m).contains("key:\"a\""));
   }
@@ -721,6 +729,13 @@ mod tests {
     assert!(key_event_js("keydown", "a", held).contains("ctrlKey:true"));
     // No modifier held → all flags false.
     assert!(pointer_event_js("click", 1, 2, 0, 0, Modifiers::default()).contains("ctrlKey:false"));
+
+    // The release path computes each keyup's modifiers from the keys still held after it — so a
+    // Shift keyup while Control remains down reports shiftKey:false, ctrlKey:true.
+    let after_shift_released = Modifiers::from_keys(&["\u{E009}".to_string()]);
+    let shift_up = key_event_js("keyup", "\u{E008}", after_shift_released);
+    assert!(shift_up.contains("shiftKey:false"));
+    assert!(shift_up.contains("ctrlKey:true"));
   }
 
   #[test]
