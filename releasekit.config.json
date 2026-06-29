@@ -8,6 +8,15 @@
     "preset": "angular",
     "sync": false,
     "groups": {
+      "dioxus": {
+        "packages": [
+          "@wdio/dioxus-service",
+          "@wdio/dioxus-bridge",
+          "wdio-dioxus-embedded-driver",
+          "wdio-dioxus-driver"
+        ],
+        "sync": "linked"
+      },
       "tauri": {
         "packages": [
           "@wdio/tauri-service",
@@ -178,6 +187,7 @@
       "body": "auto",
       "skipPackages": [
         "@wdio/native-cdp-bridge",
+        "@wdio/native-mobile-core",
         "@wdio/native-utils",
         "@wdio/native-spy",
         "@wdio/native-types",
