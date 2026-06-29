@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeBrowser } from './helpers.js';
 
 // Native-mode setup modules — none should be touched when mode is 'browser'.
@@ -85,6 +85,12 @@ describe('launcher → worker handshake (browser mode)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockStore.clear();
+    // Launcher onPrepare now preflights the dev server; stub it as reachable.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('should transform the Tauri capability into a Chrome capability and remove tauri:options', async () => {

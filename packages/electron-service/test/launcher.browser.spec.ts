@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@wdio/native-utils', async () => {
   const actual = await vi.importActual('@wdio/native-utils');
@@ -33,6 +33,14 @@ function makeLauncher(globalOpts: Record<string, unknown> = {}): ElectronLaunchS
 }
 
 describe('ElectronLaunchService — browser mode', () => {
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   describe('onPrepare', () => {
     it('should set browserName to "chrome" and strip Electron-specific capability bits', async () => {
       const launcher = makeLauncher();
@@ -138,6 +146,24 @@ describe('ElectronLaunchService — browser mode', () => {
       await launcher.onPrepare({} as any, caps);
       expect(caps[0].browserName).toBe('chrome');
       expect(caps[1].browserName).toBe('chrome');
+    });
+
+    it('accepts the native detection browserName "electron" and rewrites it to chrome', async () => {
+      const launcher = makeLauncher();
+      const caps: any[] = [
+        { browserName: 'electron', 'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+      ];
+      await launcher.onPrepare({} as any, caps);
+      expect(caps[0].browserName).toBe('chrome');
+    });
+
+    it('throws SevereServiceError when the dev server is unreachable', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+      const launcher = makeLauncher();
+      const caps: any[] = [
+        { browserName: 'electron', 'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+      ];
+      await expect(launcher.onPrepare({} as any, caps)).rejects.toThrow('Dev server not reachable');
     });
   });
 

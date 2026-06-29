@@ -1,7 +1,14 @@
 import { join } from 'node:path';
 
-import { BaseLauncher, closeLogWriter, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
-import { createLogger } from '@wdio/native-utils';
+import {
+  BaseLauncher,
+  closeLogWriter,
+  getLogWriter,
+  isLogWriterInitialized,
+  nonChromeBrowserNameError,
+  probeDevServerReachable,
+} from '@wdio/native-core';
+import { createLogger, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 
@@ -55,6 +62,19 @@ export default class DioxusLaunchService extends BaseLauncher {
         new URL(devServerUrl);
       } catch {
         throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
+      }
+      for (const cap of capsList) {
+        const browserNameError = nonChromeBrowserNameError((cap as { browserName?: string }).browserName, [
+          'chrome',
+          'dioxus',
+        ]);
+        if (browserNameError) {
+          throw new SevereServiceError(browserNameError);
+        }
+      }
+      const reachable = await probeDevServerReachable(devServerUrl);
+      if (isErr(reachable)) {
+        throw new SevereServiceError(reachable.error.message);
       }
       for (const cap of capsList) {
         (cap as { browserName?: string }).browserName = 'chrome';
