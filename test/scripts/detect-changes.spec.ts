@@ -111,9 +111,9 @@ describe('classifyFile', () => {
     ['fixtures/package-tests/react-native-app/wdio.conf.ts', 'react-native'],
     ['.github/workflows/_ci-e2e-react-native-all-providers.reusable.yml', 'react-native'],
     ['.github/workflows/_ci-build-react-native-e2e-app.reusable.yml', 'react-native'],
-    // flutter: service src, the nested wdio_flutter Dart contract, e2e, fixtures, workflows.
+    // flutter: service src, the wdio_flutter Dart contract (packages/flutter-bridge), e2e, fixtures, workflows.
     ['packages/flutter-service/src/launcher.ts', 'flutter'],
-    ['packages/flutter-service/wdio_flutter/lib/wdio_flutter.dart', 'flutter'],
+    ['packages/flutter-bridge/lib/wdio_flutter.dart', 'flutter'],
     ['e2e/wdio.flutter.conf.ts', 'flutter'],
     ['e2e/test/flutter/api.spec.ts', 'flutter'],
     ['fixtures/e2e-apps/flutter/lib/main.dart', 'flutter'],

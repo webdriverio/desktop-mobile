@@ -45,7 +45,7 @@
     "pub": {
       "enabled": true,
       "paths": [
-        "packages/flutter-service/wdio_flutter"
+        "packages/flutter-bridge"
       ]
     },
     "skip": [

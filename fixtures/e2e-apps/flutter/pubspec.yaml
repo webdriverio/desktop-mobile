@@ -14,7 +14,7 @@ dependencies:
     sdk: flutter
   # The app-side contract. Path-linked here; consumers depend on the published pub.dev package.
   wdio_flutter:
-    path: ../../../packages/flutter-service/wdio_flutter
+    path: ../../../packages/flutter-bridge
 
 dev_dependencies:
   flutter_lints: ^4.0.0

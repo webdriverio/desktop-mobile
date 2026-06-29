@@ -4,7 +4,7 @@ description: >-
   and a mock registry your app's DI seams route through, driven by @wdio/flutter-service
   over the Dart VM Service. The app-side half of browser.flutter.mock.*.
 version: 1.0.0-next.0
-homepage: https://github.com/webdriverio/desktop-mobile/tree/main/packages/flutter-service/wdio_flutter
+homepage: https://github.com/webdriverio/desktop-mobile/tree/main/packages/flutter-bridge
 repository: https://github.com/webdriverio/desktop-mobile
 issue_tracker: https://github.com/webdriverio/desktop-mobile/issues
 topics:

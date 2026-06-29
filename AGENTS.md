@@ -37,12 +37,13 @@ packages/
 ├── dioxus-service/         # Dioxus WDIO service
 ├── electrobun-service/     # Electrobun WDIO service
 ├── react-native-service/   # React Native WDIO service (Android + iOS via Appium + Hermes CDP)
-├── flutter-service/        # Flutter WDIO service (Android + iOS via appium-flutter-driver + Dart VM Service); nested wdio_flutter Dart contract
+├── flutter-service/        # Flutter WDIO service (Android + iOS via appium-flutter-driver + Dart VM Service)
 ├── native-mobile-core/     # Shared Appium-mobile layer (DeviceManager, MobileBaseLauncher, session/caps/deeplink/contexts/logs) — RN + Flutter
 ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
 ├── dioxus-bridge/          # Dioxus bridge crate (Rust) — IPC, mocking, log forwarding
 ├── dioxus-embedded-driver/ # Dioxus in-process WebDriver server (Rust)
 ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows 'external' provider)
+├── flutter-bridge/         # Flutter app-side contract (Dart, pub.dev wdio_flutter) — execute + mock + emitEvent
 ├── native-cdp-bridge/      # Shared CDP bridge — single + multi-target (electron, electrobun, RN)
 ├── native-utils/           # Cross-platform utilities
 ├── native-types/           # TypeScript type definitions

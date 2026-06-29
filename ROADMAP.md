@@ -32,7 +32,7 @@ Published packages, grouped by release maturity. Status reflects the npm dist-ta
 
 #### [@wdio/flutter-service](./packages/flutter-service) — v1.0.0-next
 **Platforms:** Android, iOS\
-**Highlights:** native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (a Dart expression) + `mock` (the cooperative [`wdio_flutter`](./packages/flutter-service/wdio_flutter) Dart contract) via the Dart VM Service (debug/profile build); deeplink, context switching, log capture, multiremote/DeviceManager. Built on `@wdio/native-mobile-core`.\
+**Highlights:** native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (a Dart expression) + `mock` (the cooperative [`wdio_flutter`](./packages/flutter-bridge) Dart contract) via the Dart VM Service (debug/profile build); deeplink, context switching, log capture, multiremote/DeviceManager. Built on `@wdio/native-mobile-core`.\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/flutter-service)](https://npmjs.com/package/@wdio/flutter-service)
 
 ### 🧪 Experimental (`0.x`)

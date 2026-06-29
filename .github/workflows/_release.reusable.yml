@@ -270,7 +270,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
           OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
 
-      # The wdio_flutter Dart contract (packages/flutter-service/wdio_flutter) publishes to pub.dev
+      # The wdio_flutter Dart contract (packages/flutter-bridge) publishes to pub.dev
       # as part of the `flutter` scope. This is handled inside ReleaseKit — peer to its npm +
       # crates.io publishing — rather than a bespoke step here, so the pubspec.yaml version bumps in
       # lockstep with the @wdio/flutter-service npm line. Tracked: goosewobbler/releasekit#285.
