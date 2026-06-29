@@ -86,6 +86,10 @@ pub enum PointerAction {
   },
   #[serde(rename = "pause")]
   Pause { duration: Option<u64> },
+  // A valid W3C pointer action; accept it so it doesn't 400 the whole request, even though
+  // WDIO doesn't emit it for the mouse pointer type this driver synthesizes.
+  #[serde(rename = "pointerCancel")]
+  PointerCancel,
 }
 
 /// Coordinate origin for a `pointerMove`. Per the WebDriver Actions spec the
@@ -340,6 +344,19 @@ pub async fn perform(
               .await?;
             }
             PointerAction::Pause { duration } => sleep_for(*duration).await,
+            PointerAction::PointerCancel => {
+              // A pointer cancel releases this source's buttons without a click — there's no
+              // MouseEvent equivalent, so just drop its tracked state and clear the held mask.
+              let mut sessions = state.sessions.write().await;
+              if let Ok(session) = sessions.get_mut(&session_id) {
+                if let Some(buttons) = session.action_state.pressed_buttons.remove(id) {
+                  for button in buttons {
+                    held_mask &= !button_to_mask(button);
+                  }
+                }
+              }
+              primary_down_pos = None;
+            }
           }
         }
       }
@@ -476,6 +493,22 @@ mod tests {
       }
       other => panic!("expected pointerMove, got {other:?}"),
     }
+  }
+
+  #[test]
+  fn should_parse_pointer_cancel() {
+    // pointerCancel is a valid W3C pointer action — it must deserialize rather than
+    // 400 the whole request (an unknown internally-tagged variant would be rejected).
+    let req = parse(
+      r#"{"actions":[{"type":"pointer","id":"mouse","actions":[
+        {"type":"pointerDown","button":0},
+        {"type":"pointerCancel"}
+      ]}]}"#,
+    );
+    let ActionSequence::Pointer { actions, .. } = &req.actions[0] else {
+      panic!("expected pointer sequence");
+    };
+    assert!(matches!(actions[1], PointerAction::PointerCancel));
   }
 
   #[test]
