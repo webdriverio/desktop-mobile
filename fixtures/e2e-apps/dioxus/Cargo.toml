@@ -12,6 +12,7 @@ resolver = "2"
 name = "wdio-dioxus-e2e-app"
 version = "0.1.0"
 edition = "2021"
+publish = false
 
 [[bin]]
 name = "wdio-dioxus-e2e-app"

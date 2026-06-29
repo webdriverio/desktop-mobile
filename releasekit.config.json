@@ -47,28 +47,7 @@
       "paths": [
         "packages/flutter-bridge"
       ]
-    },
-    "skip": [
-      "@repo/e2e",
-      "@wdio/bundler",
-      "electron-builder-app-example-cjs",
-      "electron-builder-app-example-esm",
-      "electron-builder-e2e-app",
-      "electron-forge-app-example-cjs",
-      "electron-forge-app-example-esm",
-      "electron-forge-e2e-app",
-      "electron-script-app-example-cjs",
-      "electron-script-app-example-esm",
-      "electron-script-e2e-app",
-      "tauri-app-example",
-      "tauri-e2e-app",
-      "dioxus-app-example",
-      "wdio-dioxus-e2e-app",
-      "electrobun-app-example",
-      "electrobun-e2e-app",
-      "react-native-app-example",
-      "react-native-e2e-app"
-    ]
+    }
   },
   "ci": {
     "releaseStrategy": "standing-pr",

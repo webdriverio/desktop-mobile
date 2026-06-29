@@ -3,7 +3,7 @@
   "description": "WebdriverIO Electron Service E2E Test Suite",
   "version": "0.0.0",
   "type": "module",
-  "private": "true",
+  "private": true,
   "scripts": {
     "clean": "pnpm dlx shx rm -rf ./logs ./node_modules pnpm-lock.yaml",
     "logs": "tsx scripts/show-logs.ts",
