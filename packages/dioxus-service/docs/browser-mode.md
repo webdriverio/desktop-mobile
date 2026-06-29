@@ -134,6 +134,10 @@ await mockReadFile.mockResolvedValue('default content');
 await mockReadFile.mockRestore();
 ```
 
+## Events
+
+Events are not supported in either mode — Dioxus has no native event bus, so there is no `browser.dioxus.emitEvent()` (see [`@wdio/native-types`](../../native-types/src/dioxus.ts)). This is a service-wide limitation, not specific to browser mode.
+
 ## Mock Lifecycle Across Tests
 
 ### `mock(command)` Is Idempotent

@@ -7,5 +7,27 @@
   <body>
     <h1 id="app-title">WDIO Dioxus Browser Mode</h1>
     <div id="status">ready</div>
+
+    <button type="button" data-testid="fetch-info">Fetch info</button>
+    <pre data-testid="info"></pre>
+
+    <script type="module">
+      // In a real Dioxus app window.__WDIO_DIOXUS__.invoke is installed by
+      // @wdio/dioxus-bridge. In browser mode the service injects the same shape
+      // and patches invoke to consult registered mocks, so this frontend code is
+      // portable as-is. The fallback only fires if a click beats injection.
+      if (!window.__WDIO_DIOXUS__) {
+        window.__WDIO_DIOXUS__ = { invoke: () => Promise.reject(new Error('Dioxus IPC not injected')) };
+      }
+
+      document.querySelector('[data-testid="fetch-info"]').addEventListener('click', async () => {
+        try {
+          const info = await window.__WDIO_DIOXUS__.invoke('get_info');
+          document.querySelector('[data-testid="info"]').textContent = JSON.stringify(info);
+        } catch (err) {
+          document.querySelector('[data-testid="info"]').textContent = `error: ${err.message}`;
+        }
+      });
+    </script>
   </body>
 </html>

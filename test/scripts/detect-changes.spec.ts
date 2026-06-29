@@ -62,12 +62,15 @@ describe('classifyFile', () => {
     ['e2e/test/electron/api.spec.ts', 'electron'],
     ['e2e/wdio.electron.conf.ts', 'electron'],
     ['e2e/wdio.dioxus-embedded.conf.ts', 'dioxus'],
+    ['e2e/wdio.dioxus-browser.conf.ts', 'dioxus'],
+    ['e2e/test/dioxus-browser/mock.spec.ts', 'dioxus'],
     ['e2e/package.json', 'all'],
     ['e2e/test/helpers/shared.ts', 'all'],
     // fixtures
     ['fixtures/e2e-apps/electron-builder/package.json', 'electron'],
     ['fixtures/e2e-apps/tauri/src-tauri/Cargo.toml', 'tauri'],
     ['fixtures/package-tests/dioxus-app/docker/test.sh', 'dioxus'],
+    ['fixtures/e2e-apps/dioxus-browser/index.html', 'dioxus'],
     ['fixtures/package-tests/electrobun-app/wdio.conf.ts', 'electrobun'],
     ['fixtures/e2e-apps/mystery/app.ts', 'unknown'],
     // workflows
