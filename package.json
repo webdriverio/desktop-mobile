@@ -83,7 +83,7 @@
     "@biomejs/biome": "2.4.15",
     "@inquirer/prompts": "^8.4.3",
     "@octokit/rest": "^22.0.1",
-    "@releasekit/release": "^0.36.0",
+    "@releasekit/release": "^0.37.0",
     "@types/node": "^25.9.1",
     "@types/shelljs": "^0.10.0",
     "@typescript-eslint/parser": "^8.59.4",
