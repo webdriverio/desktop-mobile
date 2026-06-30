@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeBrowser } from './helpers.js';
 
 // Embedded-driver setup — none of these should run when mode is 'browser'.
@@ -30,6 +30,14 @@ function createLauncher(globalOpts: Partial<DioxusServiceGlobalOptions> = {}): D
 describe('launcher → worker handshake (browser mode)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // onPrepare now preflights the dev server with a fetch HEAD probe (#490); stub it reachable so
+    // the happy-path handshake tests don't hit a real (absent) server. Error-path tests below throw
+    // before the probe and are unaffected.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('should transform the Dioxus capability into a Chrome capability and remove dioxus:options', async () => {
