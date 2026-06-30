@@ -15,7 +15,7 @@
           "wdio-dioxus-embedded-driver",
           "wdio-dioxus-driver"
         ],
-        "sync": "linked"
+        "sync": "independent"
       },
       "tauri": {
         "packages": [
@@ -23,14 +23,14 @@
           "@wdio/tauri-plugin",
           "tauri-plugin-wdio-webdriver"
         ],
-        "sync": "linked"
+        "sync": "independent"
       },
       "flutter": {
         "packages": [
           "@wdio/flutter-service",
           "wdio_flutter"
         ],
-        "sync": "linked"
+        "sync": "independent"
       }
     },
     "versionPrefix": "v",
