@@ -278,13 +278,63 @@ fn normalize_key(value: &str) -> &str {
   }
 }
 
+/// Best-effort DOM `KeyboardEvent.code` (the physical key) for a W3C key value — derivable for the
+/// special keys, ASCII letters (`KeyA`) and digits (`Digit1`) that keyboard shortcuts use. Returns
+/// `""` (the spec default for an undetermined code) for layout-dependent symbols. Left/right modifier
+/// codepoints map to their distinct `*Left`/`*Right` codes even though their `key` is shared.
+fn key_code(value: &str) -> String {
+  let special = match value {
+    "\u{E006}" | "\u{E007}" => "Enter",
+    "\u{E003}" => "Backspace",
+    "\u{E004}" => "Tab",
+    "\u{E00C}" => "Escape",
+    "\u{E00D}" => "Space",
+    "\u{E012}" => "ArrowLeft",
+    "\u{E013}" => "ArrowUp",
+    "\u{E014}" => "ArrowRight",
+    "\u{E015}" => "ArrowDown",
+    "\u{E017}" => "Delete",
+    "\u{E031}" => "F1",
+    "\u{E032}" => "F2",
+    "\u{E033}" => "F3",
+    "\u{E034}" => "F4",
+    "\u{E035}" => "F5",
+    "\u{E036}" => "F6",
+    "\u{E037}" => "F7",
+    "\u{E038}" => "F8",
+    "\u{E039}" => "F9",
+    "\u{E03A}" => "F10",
+    "\u{E03B}" => "F11",
+    "\u{E03C}" => "F12",
+    "\u{E008}" => "ShiftLeft",
+    "\u{E050}" => "ShiftRight",
+    "\u{E009}" => "ControlLeft",
+    "\u{E051}" => "ControlRight",
+    "\u{E00A}" => "AltLeft",
+    "\u{E052}" => "AltRight",
+    "\u{E03D}" => "MetaLeft",
+    "\u{E053}" => "MetaRight",
+    _ => "",
+  };
+  if !special.is_empty() {
+    return special.to_string();
+  }
+  let mut chars = value.chars();
+  match (chars.next(), chars.next()) {
+    (Some(c), None) if c.is_ascii_alphabetic() => format!("Key{}", c.to_ascii_uppercase()),
+    (Some(c), None) if c.is_ascii_digit() => format!("Digit{c}"),
+    _ => String::new(),
+  }
+}
+
 /// JS that synthesizes a `KeyboardEvent` of `event_type` for `value` on the
 /// active element.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let key = normalize_key(value);
+  let code = key_code(value);
   let modifiers = mods.js();
   format!(
-    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},{modifiers}}}); t.dispatchEvent(e); }})(); null"
+    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},{modifiers}}}); t.dispatchEvent(e); }})(); null"
   )
 }
 
@@ -551,7 +601,9 @@ pub async fn release(
   let (timeout_ms, pressed_keys, pressed_buttons, pointer_pos) = {
     let mut sessions = state.sessions.write().await;
     let session = sessions.get_mut(&session_id)?;
-    let pressed_keys: Vec<String> = session.action_state.pressed_keys.drain().collect();
+    let mut pressed_keys: Vec<String> = session.action_state.pressed_keys.drain().collect();
+    // `pressed_keys` drains from a HashSet (unordered); sort so keyup dispatch order is stable.
+    pressed_keys.sort();
     let pressed_buttons = std::mem::take(&mut session.action_state.pressed_buttons);
     let pointer_pos = session.action_state.pointer_position;
     session.action_state.pointer_position = (0, 0);
@@ -734,6 +786,31 @@ mod tests {
     assert!(key_event_js("keydown", "\u{E053}", m).contains("key:\"Meta\""));
     // Printable characters pass through unchanged.
     assert!(key_event_js("keydown", "a", m).contains("key:\"a\""));
+  }
+
+  #[test]
+  fn key_event_js_carries_physical_code() {
+    let m = Modifiers::default();
+    // Special keys and printable chars both get a `code` so apps reading event.code (shortcuts) work.
+    assert!(key_event_js("keydown", "\u{E007}", m).contains("code:\"Enter\""));
+    assert!(key_event_js("keydown", "a", m).contains("code:\"KeyA\""));
+    assert!(key_event_js("keydown", "7", m).contains("code:\"Digit7\""));
+    // Left/right modifier variants share a `key` but get distinct `code`s.
+    assert!(key_event_js("keydown", "\u{E008}", m).contains("code:\"ShiftLeft\""));
+    assert!(key_event_js("keydown", "\u{E050}", m).contains("code:\"ShiftRight\""));
+  }
+
+  #[test]
+  fn key_code_derives_physical_codes() {
+    assert_eq!(key_code("a"), "KeyA");
+    assert_eq!(key_code("Z"), "KeyZ");
+    assert_eq!(key_code("3"), "Digit3");
+    assert_eq!(key_code("\u{E00D}"), "Space");
+    assert_eq!(key_code("\u{E053}"), "MetaRight");
+    assert_eq!(key_code("\u{E03D}"), "MetaLeft");
+    // Layout-dependent symbols and multi-char values can't be resolved → empty (the spec default).
+    assert_eq!(key_code("!"), "");
+    assert_eq!(key_code("ab"), "");
   }
 
   #[test]
