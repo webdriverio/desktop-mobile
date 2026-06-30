@@ -53,6 +53,33 @@ impl ActionSequence {
             ActionSequence::None { actions, .. } => actions.len(),
         }
     }
+
+    /// The duration (ms) this source's action at `tick` contributes to the tick. Pause, pointer-move
+    /// and wheel-scroll actions carry a duration; everything else is instantaneous (`None`). The tick's
+    /// duration is the max of these across sources (W3C §17.4.3), not their sum.
+    fn duration_at(&self, tick: usize) -> Option<u64> {
+        match self {
+            ActionSequence::Key { actions, .. } => match actions.get(tick) {
+                Some(KeyAction::Pause { duration }) => *duration,
+                _ => None,
+            },
+            ActionSequence::Pointer { actions, .. } => match actions.get(tick) {
+                Some(PointerAction::PointerMove { duration, .. })
+                | Some(PointerAction::Pause { duration }) => *duration,
+                _ => None,
+            },
+            ActionSequence::Wheel { actions, .. } => match actions.get(tick) {
+                Some(WheelAction::Scroll { duration, .. }) | Some(WheelAction::Pause { duration }) => {
+                    *duration
+                }
+                _ => None,
+            },
+            ActionSequence::None { actions, .. } => match actions.get(tick) {
+                Some(PauseAction::Pause { duration }) => *duration,
+                _ => None,
+            },
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
@@ -173,9 +200,15 @@ pub async fn perform<R: Runtime + 'static>(
         .map(ActionSequence::action_count)
         .max()
         .unwrap_or(0);
-    // Each source's pause within a tick currently sleeps sequentially (the tick takes their sum);
-    // W3C §17.4.3 wants the tick to take the max pause across sources. Tracked in #496.
     for tick in 0..tick_count {
+        // W3C §17.4.3: a tick lasts the *maximum* pause/move/scroll duration across its sources (not
+        // the sum), slept once after the tick's actions are dispatched.
+        let tick_duration_ms = request
+            .actions
+            .iter()
+            .filter_map(|seq| seq.duration_at(tick))
+            .max()
+            .unwrap_or(0);
         for action_seq in &request.actions {
             match action_seq {
                 ActionSequence::Key { _id: _, actions } => {
@@ -203,11 +236,7 @@ pub async fn perform<R: Runtime + 'static>(
                                     session.action_state.pressed_keys.remove(value);
                                 }
                             }
-                            KeyAction::Pause { duration } => {
-                                if let Some(ms) = duration {
-                                    tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
-                                }
-                            }
+                            KeyAction::Pause { .. } => {}
                         }
                     }
                 }
@@ -275,12 +304,7 @@ pub async fn perform<R: Runtime + 'static>(
                                     }
                                 }
                             }
-                            PointerAction::PointerMove {
-                                x,
-                                y,
-                                duration,
-                                origin,
-                            } => {
+                            PointerAction::PointerMove { x, y, origin, .. } => {
                                 let (target_x, target_y) = match origin {
                                     // No origin (the default) or "viewport": x/y are absolute viewport coords.
                                     None => (*x, *y),
@@ -317,11 +341,6 @@ pub async fn perform<R: Runtime + 'static>(
                                 };
                                 pointer_state.x = target_x;
                                 pointer_state.y = target_y;
-                                if let Some(ms) = duration {
-                                    if *ms > 0 {
-                                        tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
-                                    }
-                                }
                                 executor
                                     .dispatch_pointer_event(
                                         PointerEventType::Move,
@@ -331,53 +350,34 @@ pub async fn perform<R: Runtime + 'static>(
                                     )
                                     .await?;
                             }
-                            PointerAction::Pause { duration } => {
-                                if let Some(ms) = duration {
-                                    tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
-                                }
-                            }
+                            PointerAction::Pause { .. } => {}
                         }
                     }
                 }
                 ActionSequence::Wheel { _id: _, actions } => {
                     if let Some(action) = actions.get(tick) {
                         match action {
-                            WheelAction::Scroll {
-                                x,
-                                y,
-                                delta_x,
-                                delta_y,
-                                duration,
-                            } => {
-                                if let Some(ms) = duration {
-                                    if *ms > 0 {
-                                        tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
-                                    }
-                                }
+                            WheelAction::Scroll { x, y, delta_x, delta_y, .. } => {
                                 executor
                                     .dispatch_scroll_event(*x, *y, *delta_x, *delta_y)
                                     .await?;
                             }
-                            WheelAction::Pause { duration } => {
-                                if let Some(ms) = duration {
-                                    tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
-                                }
-                            }
+                            WheelAction::Pause { .. } => {}
                         }
                     }
                 }
                 ActionSequence::None { _id: _, actions } => {
                     if let Some(action) = actions.get(tick) {
                         match action {
-                            PauseAction::Pause { duration } => {
-                                if let Some(ms) = duration {
-                                    tokio::time::sleep(std::time::Duration::from_millis(*ms)).await;
-                                }
-                            }
+                            PauseAction::Pause { .. } => {}
                         }
                     }
                 }
             }
+        }
+        // The tick's actions are dispatched; wait its longest source duration once.
+        if tick_duration_ms > 0 {
+            tokio::time::sleep(std::time::Duration::from_millis(tick_duration_ms)).await;
         }
     }
 
@@ -487,5 +487,25 @@ mod tests {
             .max()
             .unwrap_or(0);
         assert_eq!(ticks, 0);
+    }
+
+    #[test]
+    fn tick_duration_is_max_across_sources_not_sum() {
+        // W3C §17.4.3: a tick lasts the max pause/move/scroll duration across sources, not their sum.
+        let req = parse(
+            r#"{"actions":[
+                {"type":"none","id":"n","actions":[{"type":"pause","duration":100},{"type":"pause","duration":50}]},
+                {"type":"pointer","id":"p","actions":[
+                    {"type":"pointerMove","x":0,"y":0,"duration":200},{"type":"pause","duration":30}
+                ]},
+                {"type":"wheel","id":"w","actions":[{"type":"scroll","x":0,"y":0,"deltaX":0,"deltaY":0,"duration":80}]}
+            ]}"#,
+        );
+        let tick_ms =
+            |tick: usize| req.actions.iter().filter_map(|s| s.duration_at(tick)).max().unwrap_or(0);
+        // tick 0: max(100, 200, 80) = 200 — not the sum (380).
+        assert_eq!(tick_ms(0), 200);
+        // tick 1: max(50, 30) = 50 — the wheel source is exhausted and contributes nothing.
+        assert_eq!(tick_ms(1), 50);
     }
 }
