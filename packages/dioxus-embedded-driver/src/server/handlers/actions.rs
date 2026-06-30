@@ -566,7 +566,9 @@ pub async fn perform(
       }
     }
     // The tick's actions are dispatched; wait its longest source duration once.
-    sleep_for(Some(tick_duration_ms)).await;
+    if tick_duration_ms > 0 {
+      tokio::time::sleep(Duration::from_millis(tick_duration_ms)).await;
+    }
   }
 
   // Persist the final pointer position for later `origin: "pointer"` resolution.
@@ -615,14 +617,6 @@ async fn resolve_origin(
       };
       let (cx, cy) = eval_point(element_center_js(&var), timeout_ms).await?;
       Ok((cx + x, cy + y))
-    }
-  }
-}
-
-async fn sleep_for(duration: Option<u64>) {
-  if let Some(ms) = duration {
-    if ms > 0 {
-      tokio::time::sleep(Duration::from_millis(ms)).await;
     }
   }
 }
