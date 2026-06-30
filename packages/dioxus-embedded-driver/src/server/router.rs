@@ -138,7 +138,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
     // Actions
     .route(
       "/session/{session_id}/actions",
-      post(handlers::stubs::not_implemented).delete(handlers::stubs::not_implemented),
+      post(handlers::actions::perform).delete(handlers::actions::release),
     )
     // Print (stub)
     .route("/session/{session_id}/print", post(handlers::stubs::not_implemented))

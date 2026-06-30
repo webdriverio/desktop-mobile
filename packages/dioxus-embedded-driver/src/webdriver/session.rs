@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use serde::Serialize;
 use uuid::Uuid;
@@ -25,6 +25,20 @@ impl Default for Timeouts {
   }
 }
 
+/// Input state carried across W3C Actions calls within a session.
+///
+/// The pointer position persists so a later `performActions` with
+/// `origin: "pointer"` resolves relative to it instead of `(0, 0)`, and the
+/// pressed keys/buttons let `releaseActions` (DELETE) emit the matching
+/// `keyUp`/`pointerUp` events that the test never explicitly sent.
+#[derive(Debug, Default)]
+pub struct ActionState {
+  pub pointer_position: (i32, i32),
+  pub pressed_keys: HashSet<String>,
+  /// Pressed pointer buttons keyed by the action source's `id`.
+  pub pressed_buttons: HashMap<String, HashSet<u32>>,
+}
+
 /// A WebDriver session.
 #[derive(Debug)]
 pub struct Session {
@@ -33,6 +47,7 @@ pub struct Session {
   pub elements: ElementStore,
   /// Label of the currently-active Dioxus window.
   pub current_window: String,
+  pub action_state: ActionState,
 }
 
 impl Session {
@@ -42,6 +57,7 @@ impl Session {
       timeouts: Timeouts::default(),
       elements: ElementStore::new(),
       current_window: initial_window,
+      action_state: ActionState::default(),
     }
   }
 }
