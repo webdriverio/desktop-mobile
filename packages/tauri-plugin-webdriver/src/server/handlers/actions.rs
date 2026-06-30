@@ -173,6 +173,8 @@ pub async fn perform<R: Runtime + 'static>(
         .map(ActionSequence::action_count)
         .max()
         .unwrap_or(0);
+    // Each source's pause within a tick currently sleeps sequentially (the tick takes their sum);
+    // W3C §17.4.3 wants the tick to take the max pause across sources. Tracked in #496.
     for tick in 0..tick_count {
         for action_seq in &request.actions {
             match action_seq {
@@ -212,7 +214,7 @@ pub async fn perform<R: Runtime + 'static>(
                 ActionSequence::Pointer { id, actions } => {
                     if let Some(action) = actions.get(tick) {
                         match action {
-                                PointerAction::PointerDown { button } => {
+                            PointerAction::PointerDown { button } => {
                                 executor
                                     .dispatch_pointer_event(
                                         PointerEventType::Down,
