@@ -11,7 +11,7 @@ over the [Dart VM Service](https://github.com/dart-lang/sdk/blob/main/runtime/vm
 — the service opens its own JSON-RPC-over-WebSocket connection to the observatory.
 
 Mocking is **cooperative** (Dart has no runtime monkey-patch): the app opts in via the
-[`wdio_flutter`](./wdio_flutter) Dart package, routing its DI seams through a registry the service
+[`wdio_flutter`](../flutter-bridge) Dart package, routing its DI seams through a registry the service
 drives over `ext.wdio.*` service extensions.
 
 > **Status: `1.0.0-next.x` pre-release.** Both platforms ship together; the feature surface is
@@ -260,7 +260,7 @@ await browser.flutter.restoreAllMocks();
 > **Cooperative-seam scope.** You mock the seams the app routes through `wdioRegistry`
 > (idiomatic Flutter DI), not arbitrary internals. There is no `mockImplementation` — Dart can't
 > serialise a JS closure across the boundary; use `mockReturnValue` / `mockResolvedValue` /
-> `mockRejectedValue` with serialisable values. See the [`wdio_flutter` contract](./wdio_flutter).
+> `mockRejectedValue` with serialisable values. See the [`wdio_flutter` contract](../flutter-bridge).
 
 > **Recorded values are JSON.** `mock.mock.calls` / `mock.mock.results` are synced from the app
 > over `ext.wdio.getCalls` as JSON. A seam arg or **real** (un-mocked) return value that isn't
@@ -365,7 +365,7 @@ try {
 | Area | Status |
 |---|---|
 | `execute` (Dart expression) | ✅ supported — **debug / profile build only** (VM Service) |
-| `mock` (cooperative contract) | ✅ supported — app opts in via [`wdio_flutter`](./wdio_flutter) |
+| `mock` (cooperative contract) | ✅ supported — app opts in via [`wdio_flutter`](../flutter-bridge) |
 | Android | ✅ full support |
 | iOS | ✅ full support |
 | find/tap (`byValueKey` / `byText`) | ✅ via appium-flutter-driver |

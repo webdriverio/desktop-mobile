@@ -8,6 +8,15 @@
     "preset": "angular",
     "sync": false,
     "groups": {
+      "dioxus": {
+        "packages": [
+          "@wdio/dioxus-service",
+          "@wdio/dioxus-bridge",
+          "wdio-dioxus-embedded-driver",
+          "wdio-dioxus-driver"
+        ],
+        "sync": "linked"
+      },
       "tauri": {
         "packages": [
           "@wdio/tauri-service",
@@ -36,30 +45,9 @@
     "pub": {
       "enabled": true,
       "paths": [
-        "packages/flutter-service/wdio_flutter"
+        "packages/flutter-bridge"
       ]
-    },
-    "skip": [
-      "@repo/e2e",
-      "@wdio/bundler",
-      "electron-builder-app-example-cjs",
-      "electron-builder-app-example-esm",
-      "electron-builder-e2e-app",
-      "electron-forge-app-example-cjs",
-      "electron-forge-app-example-esm",
-      "electron-forge-e2e-app",
-      "electron-script-app-example-cjs",
-      "electron-script-app-example-esm",
-      "electron-script-e2e-app",
-      "tauri-app-example",
-      "tauri-e2e-app",
-      "dioxus-app-example",
-      "wdio-dioxus-e2e-app",
-      "electrobun-app-example",
-      "electrobun-e2e-app",
-      "react-native-app-example",
-      "react-native-e2e-app"
-    ]
+    }
   },
   "ci": {
     "releaseStrategy": "standing-pr",
@@ -70,7 +58,10 @@
     },
     "standingPr": {
       "branch": "release/next",
-      "mergeMethod": "squash"
+      "mergeMethod": "squash",
+      "primaryPackages": [
+        "@wdio/*-service"
+      ]
     },
     "scopeLabels": {
       "scope:native-utils": "@wdio/native-utils",
@@ -175,6 +166,7 @@
       "body": "auto",
       "skipPackages": [
         "@wdio/native-cdp-bridge",
+        "@wdio/native-mobile-core",
         "@wdio/native-utils",
         "@wdio/native-spy",
         "@wdio/native-types",

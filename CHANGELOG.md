@@ -6,6 +6,15 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## @wdio/flutter-service@1.0.0-next.1 - 2026-06-27
+
+_First release of @wdio/flutter-service._
+
+### Changed
+- Updated Flutter manifest files to align with the published 1.0.0-next.0 version.
+- **Dependencies**: Removed the custom Flutter driver fork in favor of the official upstream version. (#461)
+
 ## [@wdio/tauri-plugin@1.2.0] - 2026-06-25
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v1.1.0...wdio-tauri-plugin@v1.2.0)

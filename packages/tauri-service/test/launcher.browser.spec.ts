@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/embeddedProvider.js', () => ({
   checkEmbeddedServerAlive: vi.fn(),
@@ -15,8 +15,8 @@ vi.mock('../src/diagnostics.js', () => ({
 vi.mock('@wdio/native-utils', () => ({
   createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   formatDiagnosticResults: vi.fn(),
-  isErr: vi.fn().mockReturnValue(false),
-  isOk: vi.fn().mockReturnValue(true),
+  isErr: (r: { ok: boolean }) => r.ok === false,
+  isOk: (r: { ok: boolean }) => r.ok === true,
   Ok: (v: unknown) => ({ ok: true, value: v }),
   Err: (e: unknown) => ({ ok: false, error: e }),
 }));
@@ -78,6 +78,15 @@ function createLauncher(globalOpts: Record<string, unknown> = {}): TauriLaunchSe
 }
 
 describe('TauriLaunchService — browser mode', () => {
+  beforeEach(() => {
+    // Dev server reachable by default; individual tests override for the unreachable case.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
   describe('onPrepare', () => {
     it('mutates browserName to "chrome" and removes tauri:options', async () => {
       const launcher = createLauncher();
@@ -116,6 +125,21 @@ describe('TauriLaunchService — browser mode', () => {
       const caps: any[] = [{}];
       await launcher.onPrepare({} as any, caps);
       expect(caps[0].browserName).toBe('chrome');
+    });
+
+    it('throws SevereServiceError when browserName is a non-chrome value', async () => {
+      const launcher = createLauncher();
+      const caps: any[] = [
+        { browserName: 'firefox', 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+      ];
+      await expect(launcher.onPrepare({} as any, caps)).rejects.toThrow('Browser mode only supports');
+    });
+
+    it('throws SevereServiceError when the dev server is unreachable', async () => {
+      vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+      const launcher = createLauncher();
+      const caps: any[] = [{ 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } }];
+      await expect(launcher.onPrepare({} as any, caps)).rejects.toThrow('Dev server not reachable');
     });
   });
 

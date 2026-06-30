@@ -1,0 +1,6 @@
+# Dart / pub — https://dart.dev/guides/libraries/private-files
+.dart_tool/
+build/
+
+# Library package: lockfile is not committed (applications commit it, libraries don't).
+pubspec.lock

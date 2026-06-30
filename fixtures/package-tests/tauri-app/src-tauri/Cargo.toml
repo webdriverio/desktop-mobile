@@ -1,6 +1,7 @@
 [package]
 name = "tauri-app-example"
 version = "0.1.0"
+publish = false
 description = "A basic Tauri app for testing"
 authors = ["WebDriverIO Team"]
 license = "MIT"

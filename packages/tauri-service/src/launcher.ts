@@ -2,6 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { nonChromeBrowserNameError, probeDevServerReachable } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -168,6 +169,20 @@ export default class TauriLaunchService {
         new URL(devServerUrl);
       } catch {
         throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
+      }
+      for (const cap of capsList) {
+        const browserNameError = nonChromeBrowserNameError((cap as { browserName?: string }).browserName, [
+          'chrome',
+          'tauri',
+          'wry',
+        ]);
+        if (browserNameError) {
+          throw new SevereServiceError(browserNameError);
+        }
+      }
+      const reachable = await probeDevServerReachable(devServerUrl);
+      if (isErr(reachable)) {
+        throw new SevereServiceError(reachable.error.message);
       }
       this.browserMode = true;
       for (const cap of capsList) {

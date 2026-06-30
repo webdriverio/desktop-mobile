@@ -60,8 +60,8 @@ importers:
         specifier: ^22.0.1
         version: 22.0.1
       '@releasekit/release':
-        specifier: ^0.34.0
-        version: 0.34.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+        specifier: ^0.36.0
+        version: 0.36.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
@@ -1491,8 +1491,8 @@ packages:
   7zip-bin@5.2.0:
     resolution: {integrity: sha512-ukTPVhqG4jNzMro2qA9HSCSSVJN3aN7tlb+hfqYCt3ER0yWroeA2VR38MNrOHLQ/cVj+DaIMad0kFCtWWowh/A==}
 
-  '@anthropic-ai/sdk@0.105.0':
-    resolution: {integrity: sha512-sDyu+aM9cE6uZE+HgRjjHRb+qqb87GHZOx+8bE0YlWetdL1YcVLxn8h9ltxGOflyChTe6PMEo50kMQV4cw0hfg==}
+  '@anthropic-ai/sdk@0.106.0':
+    resolution: {integrity: sha512-ufwVvYNDBj2dzOGupBCTaNzBLxqcTnGOzI4z8Wouxlt+mT3J3HuOmatgCy1VmwCHOUueqZ41ERhm0O99OUcbWA==}
     hasBin: true
     peerDependencies:
       zod: ^3.25.0 || ^4.0.0
@@ -3324,23 +3324,23 @@ packages:
       proxy-agent:
         optional: true
 
-  '@releasekit/notes@0.34.0':
-    resolution: {integrity: sha512-/jKcERqUXqdwNG8TQYqJk1lNMgLjmCVT22TgUf2O5ufZArZ3rF2X2Ux1OoLdeMuQSX5iCACRjtgTcbKslo0XhA==}
+  '@releasekit/notes@0.36.0':
+    resolution: {integrity: sha512-Tf68nXefPXW5g5oDikW+YB/JCNTPNOgqZ37x3xDvB+M32au01jotKu3de2nHIudJFcZHytNLfNWtiXQm3uRnfA==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/publish@0.34.0':
-    resolution: {integrity: sha512-9kx+C25J7n5YNYbRIi5WaXwnp+w6ogIgtd2jc/qa8fOiUGIP2t7Czj3abWg/a6qoCez2+p3uVSaClfLkmYT4Jw==}
+  '@releasekit/publish@0.36.0':
+    resolution: {integrity: sha512-z3gh0tFnxfcroy+9LDJ1pE0zuyIj5JOoOgNZMoJkB8BiBARY90dXsAoUIqNlvEbEDs8ozFIsa2IPoMraHSoKFA==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/release@0.34.0':
-    resolution: {integrity: sha512-uQdLXeZisTYFwtXO40Jtjg1PrtNKB6Kqz6bwsSiI5RlrgEHlG1CIc0TSeLUPLBVhmlfhnSexwgOqImVPyPgNLQ==}
+  '@releasekit/release@0.36.0':
+    resolution: {integrity: sha512-w828RkSGdEaTHZIebHPF+DElI+b80UdkmnzICcOe78xE8wMTrt9DcyiZgS4Q4cxgQ1HxrwcwAztEqn5+/81PiA==}
     engines: {node: '>=22'}
     hasBin: true
 
-  '@releasekit/version@0.34.0':
-    resolution: {integrity: sha512-SLQBI7/5Cch9jqCWXyQtw5S8m4su6ZnRvZzyGRZZ4VYKD8qMQE/89ABa7IA51NoQU/FIwlUGYQcv7PYErLTm/g==}
+  '@releasekit/version@0.36.0':
+    resolution: {integrity: sha512-hovj6KJ8Agk0F/rJeHxMXSGHe7e6PiUs12Bmv61j/VdG4DXE+0qkWE+3OYD8aHXnzcHI62t6RkBvkzmH1SQS5A==}
     engines: {node: '>=22'}
     hasBin: true
 
@@ -6484,8 +6484,8 @@ packages:
     engines: {node: '>=22.22.1'}
     hasBin: true
 
-  liquidjs@10.27.0:
-    resolution: {integrity: sha512-tw/OA59K7aIBlMKIrKlumr37fiZUheShVHXY8cVctWisgY1p9mc5hreOvlreoS0wTiwlWk14Ya7305c2a/Cg5w==}
+  liquidjs@10.27.1:
+    resolution: {integrity: sha512-ylE+1q2kSef1UxAyxqbyuWM3FRWS1v48JK1Y3CoW3bD6TSNXZh0+GsVnihujEpKyR+Jejx2aRAFfC3AHm9rElg==}
     engines: {node: '>=16'}
     hasBin: true
 
@@ -7014,12 +7014,21 @@ packages:
     resolution: {integrity: sha512-VXJjc87FScF88uafS3JllDgvAm+c/Slfz06lorj2uAY34rlUu0Nt+v8wreiImcrgAjjIHp1rXpTDlLOGw29WwQ==}
     engines: {node: '>=18'}
 
-  openai@6.44.0:
-    resolution: {integrity: sha512-09/gH+8jH0RgUwsgWHAaxsKGRT5zVZ95IaJUnqAWj6XejIBmnFRwq2WUIF37VtDEsmGrtPmvCs5+yBSeZGWvkA==}
+  openai@6.45.0:
+    resolution: {integrity: sha512-5DQVNErssk0afNpTTHUm/qZPU4iKR9OYdNid8Ib4puq4gHNNvGWZht2zY4h9a8JMF949Ik6m8gQutllVPbjdnw==}
     peerDependencies:
+      '@aws-sdk/credential-provider-node': '>=3.972.0 <4'
+      '@smithy/hash-node': '>=4.3.0 <5'
+      '@smithy/signature-v4': '>=5.4.0 <6'
       ws: ^8.18.0
       zod: ^3.25 || ^4.0
     peerDependenciesMeta:
+      '@aws-sdk/credential-provider-node':
+        optional: true
+      '@smithy/hash-node':
+        optional: true
+      '@smithy/signature-v4':
+        optional: true
       ws:
         optional: true
       zod:
@@ -8784,7 +8793,7 @@ snapshots:
 
   7zip-bin@5.2.0: {}
 
-  '@anthropic-ai/sdk@0.105.0(zod@4.4.3)':
+  '@anthropic-ai/sdk@0.106.0(zod@4.4.3)':
     dependencies:
       json-schema-to-ts: 3.1.1
       standardwebhooks: 1.0.0
@@ -10960,25 +10969,28 @@ snapshots:
       modern-tar: 0.7.6
       yargs: 17.7.2
 
-  '@releasekit/notes@0.34.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/notes@0.36.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
-      '@anthropic-ai/sdk': 0.105.0(zod@4.4.3)
+      '@anthropic-ai/sdk': 0.106.0(zod@4.4.3)
       '@octokit/rest': 22.0.1
       chalk: 5.6.2
       commander: 14.0.3
       ejs: 4.0.1
       handlebars: 4.7.9
       jsonc-parser: 3.3.1
-      liquidjs: 10.27.0
+      liquidjs: 10.27.1
       minimatch: 10.2.5
-      openai: 6.44.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.4.3)
+      openai: 6.45.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.4.3)
       smol-toml: 1.7.0
       yaml: 2.9.0
       zod: 4.4.3
     transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
       - ws
 
-  '@releasekit/publish@0.34.0':
+  '@releasekit/publish@0.36.0':
     dependencies:
       chalk: 5.6.2
       commander: 14.0.3
@@ -10989,13 +11001,13 @@ snapshots:
       yaml: 2.9.0
       zod: 4.4.3
 
-  '@releasekit/release@0.34.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
+  '@releasekit/release@0.36.0(conventional-commits-parser@6.4.0)(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@octokit/rest': 22.0.1
-      '@releasekit/notes': 0.34.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
-      '@releasekit/publish': 0.34.0
-      '@releasekit/version': 0.34.0(conventional-commits-parser@6.4.0)
+      '@releasekit/notes': 0.36.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))
+      '@releasekit/publish': 0.36.0
+      '@releasekit/version': 0.36.0(conventional-commits-parser@6.4.0)
       chalk: 5.6.2
       commander: 14.0.3
       conventional-changelog-angular: 8.3.1
@@ -11007,10 +11019,13 @@ snapshots:
       yaml: 2.9.0
       zod: 4.4.3
     transitivePeerDependencies:
+      - '@aws-sdk/credential-provider-node'
+      - '@smithy/hash-node'
+      - '@smithy/signature-v4'
       - conventional-commits-parser
       - ws
 
-  '@releasekit/version@0.34.0(conventional-commits-parser@6.4.0)':
+  '@releasekit/version@0.36.0(conventional-commits-parser@6.4.0)':
     dependencies:
       '@manypkg/get-packages': 3.1.0
       '@types/minimatch': 5.1.2
@@ -14955,7 +14970,7 @@ snapshots:
     optionalDependencies:
       yaml: 2.9.0
 
-  liquidjs@10.27.0:
+  liquidjs@10.27.1:
     dependencies:
       commander: 10.0.1
 
@@ -15529,7 +15544,7 @@ snapshots:
     dependencies:
       mimic-function: 5.0.1
 
-  openai@6.44.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.4.3):
+  openai@6.45.0(ws@8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.4.3):
     optionalDependencies:
       ws: 8.21.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       zod: 4.4.3

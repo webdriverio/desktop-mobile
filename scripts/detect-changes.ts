@@ -17,7 +17,7 @@
  *   - packages/native-*, packages/bundler        → shared (all services)
  *   - packages/<svc>[-...]/**                    → that service
  *   - packages/<unrecognised>/**                 → unknown (runs all — convention drift, fail loud)
- *   - e2e/test/<svc>/**, e2e/wdio.<svc>*.conf.ts → that service; other e2e/** → all (shared test infra)
+ *   - e2e/test/<svc>[-...]/**, e2e/wdio.<svc>*.conf.ts → that service; other e2e/** → all (shared test infra)
  *   - fixtures/{e2e-apps,package-tests}/<svc>[-...]/** → that service; unrecognised dir → unknown
  *   - .github/workflows/: core-infra list → all; meta list → none;
  *     actions/** → all; service token in filename → that service; else → unknown
@@ -180,7 +180,9 @@ export function classifyFile(file: string, services: string[]): Verdict {
 
   if (file.startsWith('e2e/')) {
     const test = file.match(/^e2e\/test\/([^/]+)\//);
-    if (test) return services.includes(test[1]) ? test[1] : 'all';
+    // serviceForDir (not exact match) so suffixed dirs like `dioxus-browser`
+    // route to their service — mirrors the wdio.<svc>-*.conf.ts rule below.
+    if (test) return serviceForDir(test[1], services) ?? 'all';
     const conf = file.match(/^e2e\/wdio\.([^/]+)\.conf\.ts$/);
     if (conf) return serviceForDir(conf[1], services) ?? 'all';
     return 'all';

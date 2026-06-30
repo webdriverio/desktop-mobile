@@ -66,11 +66,6 @@ on:
         required: false
         type: string
         default: ''
-      reconcile_after:
-        description: "Rebuild the standing release PR after this release completes. Manual callers may enable it so the standing PR drops the just-released changes."
-        required: false
-        type: boolean
-        default: false
 
 concurrency:
   group: release
@@ -107,7 +102,7 @@ jobs:
 
       - name: Run ReleaseKit Gate
         id: gate
-        uses: goosewobbler/releasekit@v0.34.0
+        uses: goosewobbler/releasekit@v0.36.0
         with:
           mode: gate
           node-version: '24'
@@ -139,25 +134,6 @@ jobs:
       crates_io_token: ${{ secrets.CRATES_IO_TOKEN }}
       ollama_api_key: ${{ secrets.OLLAMA_API_KEY }}
 
-  # An immediate release leaves the standing PR holding changes that overlap with what
-  # was just published. Re-running standing-pr update reconciles: closes the standing PR
-  # if nothing's left, otherwise rebuilds the release branch against the new HEAD.
-  # reconcile=true bypasses the skip-pattern guard, which would otherwise noop on the
-  # release commit at HEAD.
-  reconcile-after-auto:
-    name: Reconcile standing PR
-    needs: [release-auto]
-    if: needs.release-auto.result == 'success'
-    uses: ./.github/workflows/_standing-pr-update.reusable.yml
-    permissions:
-      contents: write
-      pull-requests: write
-    with:
-      reconcile: true
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
-      ollama_api_key: ${{ secrets.OLLAMA_API_KEY }}
-
   release-manual:
     name: Release (Manual)
     if: github.event_name == 'workflow_dispatch' && inputs.standing_pr_number == ''
@@ -175,20 +151,6 @@ jobs:
     secrets:
       ssh_key: ${{ secrets.DEPLOY_KEY }}
       crates_io_token: ${{ secrets.CRATES_IO_TOKEN }}
-      ollama_api_key: ${{ secrets.OLLAMA_API_KEY }}
-
-  reconcile-after-manual:
-    name: Reconcile standing PR
-    needs: [release-manual]
-    if: github.event_name == 'workflow_dispatch' && inputs.reconcile_after && !inputs.dry_run && needs.release-manual.result == 'success'
-    uses: ./.github/workflows/_standing-pr-update.reusable.yml
-    permissions:
-      contents: write
-      pull-requests: write
-    with:
-      reconcile: true
-    secrets:
-      ssh_key: ${{ secrets.DEPLOY_KEY }}
       ollama_api_key: ${{ secrets.OLLAMA_API_KEY }}
 
   # Standing-PR publish path. Dispatched by standing-pr.yml via `gh workflow run` so the

@@ -1,8 +1,8 @@
 name: Browser Mode
 # Description: Runs browser-mode tests — real Chrome against a user-managed dev server,
 # with native IPC mocked at the JS boundary. No native binary, no platform driver, no app
-# build. Covers the Electron browser-mode E2E suite plus the Tauri/Electron/Dioxus
-# browser-mode package tests. Linux only — fast feedback is the whole point of this mode.
+# build. Covers the Electron/Tauri/Dioxus browser-mode E2E suites plus the
+# Tauri/Electron/Dioxus browser-mode package tests. Linux only — fast feedback is the whole point of this mode.
 
 permissions:
   contents: read
@@ -86,8 +86,8 @@ jobs:
       # Chrome preinstalled on ubuntu-latest under a Xvfb display it starts itself. Each step
       # runs even if an earlier one failed (!cancelled) so one red tier never masks the others;
       # any failure still fails the job. The browser-mode E2E confs self-host their dev servers
-      # (electron-browser :5174, tauri-browser :1421); test-package.ts self-hosts the package
-      # fixtures' dev server (:5173).
+      # (electron-browser :5174, tauri-browser :1421, dioxus-browser :8088); test-package.ts
+      # self-hosts the package fixtures' dev server (:5173).
       - name: 🧪 Electron browser-mode E2E
         if: ${{ !cancelled() }}
         shell: bash
@@ -97,6 +97,11 @@ jobs:
         if: ${{ !cancelled() }}
         shell: bash
         run: pnpm e2e:tauri-browser
+
+      - name: 🧪 Dioxus browser-mode E2E
+        if: ${{ !cancelled() }}
+        shell: bash
+        run: pnpm e2e:dioxus-browser
 
       - name: 🧪 Electron browser-mode package test (ESM + CJS)
         if: ${{ !cancelled() }}

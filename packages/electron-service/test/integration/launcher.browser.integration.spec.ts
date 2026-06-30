@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { createFakeBrowser } from './helpers.js';
 
 // Launcher native-mode dependencies — should NOT be invoked when mode is 'browser'.
@@ -62,6 +62,12 @@ const DEV_SERVER = 'http://localhost:5173';
 describe('launcher → worker handshake (browser mode)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    // Launcher onPrepare now preflights the dev server; stub it as reachable.
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
   });
 
   it('should transform the Electron capability into a Chrome capability', async () => {

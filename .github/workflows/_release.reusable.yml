@@ -247,7 +247,7 @@ jobs:
       - name: Run ReleaseKit
         id: releasekit
         if: ${{ inputs.standing_pr_number == '' }}
-        uses: goosewobbler/releasekit@v0.34.0
+        uses: goosewobbler/releasekit@v0.36.0
         with:
           mode: release
           node-version: '24'
@@ -270,7 +270,7 @@ jobs:
           CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
           OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
 
-      # The wdio_flutter Dart contract (packages/flutter-service/wdio_flutter) publishes to pub.dev
+      # The wdio_flutter Dart contract (packages/flutter-bridge) publishes to pub.dev
       # as part of the `flutter` scope. This is handled inside ReleaseKit — peer to its npm +
       # crates.io publishing — rather than a bespoke step here, so the pubspec.yaml version bumps in
       # lockstep with the @wdio/flutter-service npm line. Tracked: goosewobbler/releasekit#285.
@@ -281,7 +281,7 @@ jobs:
       - name: Run ReleaseKit (standing PR publish)
         id: releasekit-standing
         if: ${{ inputs.standing_pr_number != '' }}
-        uses: goosewobbler/releasekit@v0.34.0
+        uses: goosewobbler/releasekit@v0.36.0
         with:
           mode: standing-pr-publish
           node-version: '24'
@@ -294,4 +294,16 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CARGO_REGISTRY_TOKEN: ${{ secrets.crates_io_token }}
+          OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
+
+      # Reconcile the standing PR against the just-released HEAD (closes it if nothing's left, else
+      # rebuilds the release branch) and refresh feeder-PR previews — replaces the former
+      # reconcile-after-* jobs. The push reuses the checkout's SSH deploy key so the standing PR's CI
+      # re-runs; a GITHUB_TOKEN push wouldn't trigger it. Only the scoped-release path leaves a stale
+      # standing PR (the standing-pr-publish path is the PR being merged), and never on a dry run.
+      - name: Refresh standing PR after release
+        if: ${{ inputs.standing_pr_number == '' && !inputs.dry_run }}
+        run: pnpm exec releasekit refresh-after-release
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
           OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
