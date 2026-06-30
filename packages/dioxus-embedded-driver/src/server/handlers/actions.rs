@@ -68,6 +68,30 @@ impl ActionSequence {
       ActionSequence::None { actions, .. } => actions.len(),
     }
   }
+
+  /// The duration (ms) this source's action at `tick` contributes to the tick. Pause, pointer-move
+  /// and wheel-scroll actions carry a duration; everything else is instantaneous (`None`). The tick's
+  /// duration is the max of these across sources (W3C §17.4.3), not their sum.
+  fn duration_at(&self, tick: usize) -> Option<u64> {
+    match self {
+      ActionSequence::Key { actions, .. } => match actions.get(tick) {
+        Some(KeyAction::Pause { duration }) => *duration,
+        _ => None,
+      },
+      ActionSequence::Pointer { actions, .. } => match actions.get(tick) {
+        Some(PointerAction::PointerMove { duration, .. }) | Some(PointerAction::Pause { duration }) => *duration,
+        _ => None,
+      },
+      ActionSequence::Wheel { actions, .. } => match actions.get(tick) {
+        Some(WheelAction::Scroll { duration, .. }) | Some(WheelAction::Pause { duration }) => *duration,
+        _ => None,
+      },
+      ActionSequence::None { actions, .. } => match actions.get(tick) {
+        Some(PauseAction::Pause { duration }) => *duration,
+        _ => None,
+      },
+    }
+  }
 }
 
 #[derive(Debug, Deserialize)]
@@ -405,6 +429,9 @@ pub async fn perform(
   // click lands). A source with fewer actions contributes nothing on later ticks.
   let tick_count = request.actions.iter().map(ActionSequence::action_count).max().unwrap_or(0);
   for tick in 0..tick_count {
+    // W3C §17.4.3: a tick lasts the *maximum* pause/move/scroll duration across its sources (not the
+    // sum), slept once after the tick's actions are dispatched.
+    let tick_duration_ms = request.actions.iter().filter_map(|seq| seq.duration_at(tick)).max().unwrap_or(0);
     for action_seq in &request.actions {
       match action_seq {
         ActionSequence::Key { _id: _, actions } => {
@@ -431,7 +458,7 @@ pub async fn perform(
                 }
                 eval(key_event_js("keyup", value, modifiers), timeout_ms).await?;
               }
-              KeyAction::Pause { duration } => sleep_for(*duration).await,
+              KeyAction::Pause { .. } => {}
             }
           }
         }
@@ -485,7 +512,7 @@ pub async fn perform(
                   }
                 }
               }
-              PointerAction::PointerMove { x, y, duration, origin } => {
+              PointerAction::PointerMove { x, y, origin, .. } => {
                 let (target_x, target_y) =
                   resolve_origin(&state, &session_id, origin, *x, *y, &pointer_state, timeout_ms).await?;
                 pointer_state.x = target_x;
@@ -493,14 +520,13 @@ pub async fn perform(
                 // A move between clicks breaks a double-click chain. element.doubleClick() never moves
                 // between its two press/release pairs, so this can't suppress a legitimate dblclick.
                 last_click_pos = None;
-                sleep_for(*duration).await;
                 eval(
                   pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0, held_mask, modifiers),
                   timeout_ms,
                 )
                 .await?;
               }
-              PointerAction::Pause { duration } => sleep_for(*duration).await,
+              PointerAction::Pause { .. } => {}
               PointerAction::PointerCancel => {
                 // A pointer cancel aborts the gesture: release this source's buttons without a click
                 // (there's no MouseEvent equivalent), so drop its tracked state and clear the held mask.
@@ -523,22 +549,25 @@ pub async fn perform(
         ActionSequence::Wheel { _id: _, actions } => {
           if let Some(action) = actions.get(tick) {
             match action {
-              WheelAction::Scroll { x, y, delta_x, delta_y, duration } => {
-                sleep_for(*duration).await;
+              WheelAction::Scroll { x, y, delta_x, delta_y, .. } => {
                 eval(wheel_event_js(*x, *y, *delta_x, *delta_y), timeout_ms).await?;
               }
-              WheelAction::Pause { duration } => sleep_for(*duration).await,
+              WheelAction::Pause { .. } => {}
             }
           }
         }
         ActionSequence::None { _id: _, actions } => {
           if let Some(action) = actions.get(tick) {
             match action {
-              PauseAction::Pause { duration } => sleep_for(*duration).await,
+              PauseAction::Pause { .. } => {}
             }
           }
         }
       }
+    }
+    // The tick's actions are dispatched; wait its longest source duration once.
+    if tick_duration_ms > 0 {
+      tokio::time::sleep(Duration::from_millis(tick_duration_ms)).await;
     }
   }
 
@@ -588,14 +617,6 @@ async fn resolve_origin(
       };
       let (cx, cy) = eval_point(element_center_js(&var), timeout_ms).await?;
       Ok((cx + x, cy + y))
-    }
-  }
-}
-
-async fn sleep_for(duration: Option<u64>) {
-  if let Some(ms) = duration {
-    if ms > 0 {
-      tokio::time::sleep(Duration::from_millis(ms)).await;
     }
   }
 }
@@ -891,5 +912,24 @@ mod tests {
     );
     let ticks = req.actions.iter().map(ActionSequence::action_count).max().unwrap_or(0);
     assert_eq!(ticks, 3);
+  }
+
+  #[test]
+  fn tick_duration_is_max_across_sources_not_sum() {
+    // W3C §17.4.3: a tick lasts the max pause/move/scroll duration across sources, not their sum.
+    let req = parse(
+      r#"{"actions":[
+        {"type":"none","id":"n","actions":[{"type":"pause","duration":100},{"type":"pause","duration":50}]},
+        {"type":"pointer","id":"p","actions":[
+          {"type":"pointerMove","x":0,"y":0,"duration":200},{"type":"pause","duration":30}
+        ]},
+        {"type":"wheel","id":"w","actions":[{"type":"scroll","x":0,"y":0,"deltaX":0,"deltaY":0,"duration":80}]}
+      ]}"#,
+    );
+    let tick_ms = |tick: usize| req.actions.iter().filter_map(|s| s.duration_at(tick)).max().unwrap_or(0);
+    // tick 0: max(100, 200, 80) = 200 — not the sum (380).
+    assert_eq!(tick_ms(0), 200);
+    // tick 1: max(50, 30) = 50 — the wheel source is exhausted and contributes nothing.
+    assert_eq!(tick_ms(1), 50);
   }
 }
