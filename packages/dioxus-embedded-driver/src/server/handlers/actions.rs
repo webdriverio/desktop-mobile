@@ -392,8 +392,8 @@ pub async fn perform(
   // Modifier flags carried on every synthesized event, kept in sync as key actions press/release
   // modifier keys (and seeded from any modifier still held from a prior performActions call).
   let mut modifiers = initial_mods;
-  // Position of the last primary-button press, used to synthesize a `click`
-  // when the matching release lands on the same spot (a click, not a drag).
+  // Position of each button's last press, used to synthesize a `click` (primary) or `auxclick`
+  // (non-primary) when the matching release lands on the same spot — an activation, not a drag.
   let mut down_pos: HashMap<u32, (i32, i32)> = HashMap::new();
   // Position of the previous synthesized `click` within this request, used to emit a `dblclick`
   // when a second click lands on the same spot (e.g. element.doubleClick()'s two press/release pairs).
