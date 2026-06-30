@@ -39,7 +39,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update standing release PR
-        uses: goosewobbler/releasekit@v0.37.0
+        uses: goosewobbler/releasekit@v0.38.0
         with:
           mode: standing-pr-update
           node-version: '24'
