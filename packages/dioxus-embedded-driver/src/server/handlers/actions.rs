@@ -498,8 +498,8 @@ pub async fn perform(
               }
               PointerAction::Pause { duration } => sleep_for(*duration).await,
               PointerAction::PointerCancel => {
-                // A pointer cancel releases this source's buttons without a click — there's no
-                // MouseEvent equivalent, so just drop its tracked state and clear the held mask.
+                // A pointer cancel aborts the gesture: release this source's buttons without a click
+                // (there's no MouseEvent equivalent), so drop its tracked state and clear the held mask.
                 let mut sessions = state.sessions.write().await;
                 if let Ok(session) = sessions.get_mut(&session_id) {
                   if let Some(buttons) = session.action_state.pressed_buttons.remove(id) {
@@ -508,7 +508,10 @@ pub async fn perform(
                     }
                   }
                 }
+                // The aborted press emits no click, and a cancel breaks any pending double-click chain
+                // so a later same-spot click isn't misread as a dblclick.
                 primary_down_pos = None;
+                last_click_pos = None;
               }
             }
           }
@@ -618,11 +621,14 @@ pub async fn release(
     eval(key_event_js("keyup", key, mods), timeout_ms).await?;
   }
   let mut held_mask = pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
-  for (_source_id, buttons) in pressed_buttons {
-    for button in buttons {
-      held_mask &= !button_to_mask(button);
-      eval(pointer_event_js("mouseup", pointer_pos.0, pointer_pos.1, button, held_mask, Modifiers::default()), timeout_ms).await?;
-    }
+  // Release every held button. `pressed_buttons` drains from a HashMap of HashSets (both unordered);
+  // collect and sort so a multi-button release dispatches its mouseups deterministically, each
+  // reporting the buttons still held *after* it (the released button is cleared from `held_mask` first).
+  let mut buttons_to_release: Vec<u32> = pressed_buttons.into_values().flatten().collect();
+  buttons_to_release.sort_unstable();
+  for button in buttons_to_release {
+    held_mask &= !button_to_mask(button);
+    eval(pointer_event_js("mouseup", pointer_pos.0, pointer_pos.1, button, held_mask, Modifiers::default()), timeout_ms).await?;
   }
 
   Ok(WebDriverResponse::null())
