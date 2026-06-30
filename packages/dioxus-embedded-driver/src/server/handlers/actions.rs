@@ -358,6 +358,18 @@ fn button_to_mask(button: u32) -> u32 {
   }
 }
 
+/// The high-level activation events a same-position press+release of pointer `button` synthesizes
+/// (a click-like gesture, not a drag). Per the UI Events spec the primary button fires `click`, any
+/// non-primary button fires `auxclick`, and the secondary (right) button additionally fires
+/// `contextmenu`. `dblclick` is layered on by the caller — it needs cross-gesture state.
+fn activation_events(button: u32) -> &'static [&'static str] {
+  match button {
+    0 => &["click"],
+    2 => &["auxclick", "contextmenu"],
+    _ => &["auxclick"],
+  }
+}
+
 /// POST `/session/{session_id}/actions` — perform actions.
 #[allow(clippy::too_many_lines)]
 pub async fn perform(
@@ -382,7 +394,7 @@ pub async fn perform(
   let mut modifiers = initial_mods;
   // Position of the last primary-button press, used to synthesize a `click`
   // when the matching release lands on the same spot (a click, not a drag).
-  let mut primary_down_pos: Option<(i32, i32)> = None;
+  let mut down_pos: HashMap<u32, (i32, i32)> = HashMap::new();
   // Position of the previous synthesized `click` within this request, used to emit a `dblclick`
   // when a second click lands on the same spot (e.g. element.doubleClick()'s two press/release pairs).
   let mut last_click_pos: Option<(i32, i32)> = None;
@@ -433,9 +445,7 @@ pub async fn perform(
                   timeout_ms,
                 )
                 .await?;
-                if *button == 0 {
-                  primary_down_pos = Some((pointer_state.x, pointer_state.y));
-                }
+                down_pos.insert(*button, (pointer_state.x, pointer_state.y));
                 let mut sessions = state.sessions.write().await;
                 if let Ok(session) = sessions.get_mut(&session_id) {
                   session.action_state.pressed_buttons.entry(id.clone()).or_default().insert(*button);
@@ -448,17 +458,18 @@ pub async fn perform(
                   timeout_ms,
                 )
                 .await?;
-                // A primary press + release on the same spot is a click; a
-                // secondary (right) release there is a context menu. Emit the
-                // event the browser would synthesize for real input so element
-                // handlers fire. Only the primary button's release consumes the
-                // tracked press — a non-primary release must not drop it.
-                if *button == 0 {
-                  if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
-                    let pos = (pointer_state.x, pointer_state.y);
-                    eval(pointer_event_js("click", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
-                    // A second click on the same spot completes a double-click — emit `dblclick`
-                    // (what element.doubleClick()'s two press/release pairs should produce).
+                // A press + release of a button on the same spot is an activation; a drag (released
+                // elsewhere) is not. The primary button fires `click`, a non-primary button fires
+                // `auxclick`, and the secondary (right) button additionally fires `contextmenu` — the
+                // events a browser synthesizes for real input, so element handlers fire.
+                let pos = (pointer_state.x, pointer_state.y);
+                if down_pos.remove(button) == Some(pos) {
+                  for event_type in activation_events(*button) {
+                    eval(pointer_event_js(event_type, pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
+                  }
+                  // A second primary click on the same spot completes a double-click — emit `dblclick`
+                  // (what element.doubleClick()'s two press/release pairs should produce).
+                  if *button == 0 {
                     if last_click_pos == Some(pos) {
                       eval(pointer_event_js("dblclick", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
                       last_click_pos = None;
@@ -466,13 +477,6 @@ pub async fn perform(
                       last_click_pos = Some(pos);
                     }
                   }
-                  primary_down_pos = None;
-                } else if *button == 2 {
-                  eval(
-                    pointer_event_js("contextmenu", pointer_state.x, pointer_state.y, *button, 0, modifiers),
-                    timeout_ms,
-                  )
-                  .await?;
                 }
                 let mut sessions = state.sessions.write().await;
                 if let Ok(session) = sessions.get_mut(&session_id) {
@@ -505,12 +509,12 @@ pub async fn perform(
                   if let Some(buttons) = session.action_state.pressed_buttons.remove(id) {
                     for button in buttons {
                       held_mask &= !button_to_mask(button);
+                      down_pos.remove(&button);
                     }
                   }
                 }
-                // The aborted press emits no click, and a cancel breaks any pending double-click chain
-                // so a later same-spot click isn't misread as a dblclick.
-                primary_down_pos = None;
+                // The aborted press emits no click/auxclick, and a cancel breaks any pending
+                // double-click chain so a later same-spot click isn't misread as a dblclick.
                 last_click_pos = None;
               }
             }
@@ -766,6 +770,11 @@ mod tests {
     assert!(right.contains("button:2"));
     assert!(right.contains("buttons:0"));
 
+    let aux = pointer_event_js("auxclick", 1, 2, 1, 0, Modifiers::default());
+    assert!(aux.contains("MouseEvent(\"auxclick\""));
+    assert!(aux.contains("button:1"));
+    assert!(aux.contains("buttons:0"));
+
     let dbl = pointer_event_js("dblclick", 5, 6, 0, 0, Modifiers::default());
     assert!(dbl.contains("MouseEvent(\"dblclick\""));
     assert!(dbl.contains("buttons:0"));
@@ -857,6 +866,15 @@ mod tests {
     // Out-of-range index must not overflow the shift (panics in debug builds / under cargo test).
     assert_eq!(button_to_mask(32), 0);
     assert_eq!(button_to_mask(99), 0);
+  }
+
+  #[test]
+  fn activation_events_per_button() {
+    // Primary → click; middle/non-primary → auxclick; right → auxclick + contextmenu.
+    assert_eq!(activation_events(0), &["click"]);
+    assert_eq!(activation_events(1), &["auxclick"]);
+    assert_eq!(activation_events(2), &["auxclick", "contextmenu"]);
+    assert_eq!(activation_events(3), &["auxclick"]);
   }
 
   #[test]
