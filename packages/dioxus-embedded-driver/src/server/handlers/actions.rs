@@ -468,6 +468,9 @@ pub async fn perform(
                   }
                   primary_down_pos = None;
                 } else if *button == 2 {
+                  // DOM-completeness gaps tracked in #494: this fires unconditionally (so a right-button
+                  // drag still pops a contextmenu — wants the same-position guard as the primary click),
+                  // and non-primary releases should also synthesize `auxclick`.
                   eval(
                     pointer_event_js("contextmenu", pointer_state.x, pointer_state.y, *button, 0, modifiers),
                     timeout_ms,
