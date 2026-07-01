@@ -65,8 +65,6 @@ function makeLauncher(options: ElectrobunServiceGlobalOptions): ElectrobunLaunch
   return new ElectrobunLaunchService(options, {} as ElectrobunCapabilities, baseConfig);
 }
 
-const managedStop = vi.fn(async () => {});
-
 // Tests default to darwin (the CEF path); the platform-guard and Windows/WebView2 tests
 // override to linux/win32. Restored after each test.
 const originalPlatform = process.platform;
@@ -499,6 +497,7 @@ describe('ElectrobunLaunchService', () => {
 
 describe('ElectrobunLaunchService — devServer management', () => {
   const DEV_SERVER = 'http://localhost:3000';
+  const managedStop = vi.fn(async () => {});
 
   beforeEach(() => {
     vi.clearAllMocks();
