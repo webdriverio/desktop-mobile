@@ -226,6 +226,13 @@ describe('ElectronLaunchService — devServer management', () => {
     await expect(launcher.onPrepare({} as any, [browserCap()] as any)).rejects.toThrow(/Failed to start dev server/);
   });
 
+  it('should stop the managed dev server when a later step fails (e.g. an invalid resolved url)', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'not-a-url', stop: managedStop });
+    const launcher = makeLauncher({ devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare({} as any, [browserCap()] as any)).rejects.toThrow(/not a valid URL/);
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
   it('should not manage a dev server when devServer is unset', async () => {
     const launcher = makeLauncher({ devServerUrl: DEV_SERVER });
     await launcher.onPrepare({} as any, [browserCap()] as any);

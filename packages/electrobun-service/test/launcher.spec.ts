@@ -529,6 +529,28 @@ describe('ElectrobunLaunchService — devServer management', () => {
     );
   });
 
+  it('should propagate a function-provided url override to the capability', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'http://localhost:5173', stop: managedStop });
+    const launcher = makeLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'http://localhost:5173', close: managedStop }),
+    } as never);
+    const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+    await launcher.onPrepare(baseConfig, caps as never);
+    expect((caps[0] as Record<string, any>)['wdio:electrobunServiceOptions'].devServerUrl).toBe(
+      'http://localhost:5173',
+    );
+  });
+
+  it('should stop the managed dev server when a later step fails (e.g. an invalid resolved url)', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'not-a-url', stop: managedStop });
+    const launcher = makeLauncher({ mode: 'browser', devServer: 'pnpm dev' } as never);
+    await expect(launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never)).rejects.toThrow(
+      /not a valid URL/,
+    );
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
   it('should not manage a dev server when devServer is unset', async () => {
     const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER } as never);
     await launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never);

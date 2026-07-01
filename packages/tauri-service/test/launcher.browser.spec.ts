@@ -196,6 +196,27 @@ describe('TauriLaunchService — devServer management', () => {
     await expect(launcher.onPrepare({} as any, [{}] as any)).rejects.toThrow(/Failed to start dev server/);
   });
 
+  it('should propagate a function-provided url override to the capability', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'http://localhost:5173', stop: managedStop });
+    const launcher = createLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'http://localhost:5173', close: managedStop }),
+    });
+    const caps: any[] = [{}];
+    await launcher.onPrepare({} as any, caps);
+    expect(caps[0]['wdio:tauriServiceOptions'].devServerUrl).toBe('http://localhost:5173');
+  });
+
+  it('should stop the managed dev server when a later step fails (e.g. an invalid resolved url)', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'not-a-url', stop: managedStop });
+    const launcher = createLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'not-a-url', close: managedStop }),
+    });
+    await expect(launcher.onPrepare({} as any, [{}] as any)).rejects.toThrow(/not a valid URL/);
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
   it('should not manage a dev server when devServer is unset', async () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
     await launcher.onPrepare({} as any, [{}] as any);
