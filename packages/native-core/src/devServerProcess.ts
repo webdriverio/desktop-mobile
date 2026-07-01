@@ -159,6 +159,12 @@ export class DevServerProcess {
         if (spawnError) {
           throw new Error(`Dev server failed to start: ${spawnError.message}`);
         }
+        // Likewise, the owned process may have exited during the probe await while a pre-existing
+        // server answered the URL — a fresh read of #proc reflects its current exit state.
+        const proc = this.#proc;
+        if (proc && (proc.exitCode !== null || proc.signalCode !== null)) {
+          throw new Error(this.#withStderr('Dev server process exited during startup'));
+        }
         log.info(`Dev server ready at ${options.url}`);
         return;
       }

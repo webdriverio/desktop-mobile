@@ -102,6 +102,19 @@ describe('DevServerProcess.start', () => {
     const dsp = new DevServerProcess({ spawn: vi.fn(() => proc) as never, probe });
     await expect(dsp.start({ command: 'x', url: URL, timeoutMs: 1000, pollMs: 10 })).rejects.toThrow(/ENOENT/);
   });
+
+  it('should throw when the owned process exits during the probe even if a pre-existing server answers', async () => {
+    const proc = fakeProc();
+    const probe = vi.fn(async () => {
+      proc.exitCode = 1;
+      return true;
+    });
+    const dsp = new DevServerProcess({ spawn: vi.fn(() => proc) as never, probe });
+    await expect(dsp.start({ command: 'x', url: URL, timeoutMs: 1000, pollMs: 10 })).rejects.toThrow(
+      /exited during startup/,
+    );
+    expect(dsp.isRunning()).toBe(false);
+  });
 });
 
 describe('DevServerProcess.stop', () => {
