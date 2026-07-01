@@ -2,7 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { nonChromeBrowserNameError, probeDevServerReachable } from '@wdio/native-core';
+import { nonChromeBrowserNameError, probeDevServerReachable, startManagedDevServer } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -97,6 +97,9 @@ export default class TauriLaunchService {
   private backendPortManager: PortManager;
   private driverPool: DriverPool;
   private browserMode: boolean = false;
+  // Teardown for a service-managed dev server (browser mode). Called from onComplete AND on an
+  // onPrepare failure — WDIO does not call onComplete after onPrepare throws. Idempotent.
+  #stopDevServer?: () => Promise<void>;
   private embeddedProcesses: Map<string, EmbeddedDriverInfo> = new Map();
   private embeddedConfigs: Map<string, { appBinaryPath: string; port: number; options: TauriServiceOptions }> =
     new Map();
@@ -161,9 +164,23 @@ export default class TauriLaunchService {
 
     // Browser mode: skip all driver/binary setup — worker navigates to a Vite dev server
     if (mergedOptions.mode === 'browser') {
-      const devServerUrl = mergedOptions.devServerUrl;
+      let devServerUrl = mergedOptions.devServerUrl;
+      // Auto-manage the dev server if requested; the managed readiness wait supersedes the
+      // one-shot preflight below, and a devServer function may supply the URL.
+      if (mergedOptions.devServer) {
+        try {
+          const managed = await startManagedDevServer(mergedOptions.devServer, devServerUrl ?? '');
+          this.#stopDevServer = managed.stop;
+          devServerUrl = managed.url || devServerUrl;
+        } catch (error) {
+          await this.#stopDevServer?.();
+          throw new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+        }
+      }
       if (!devServerUrl) {
-        throw new SevereServiceError('devServerUrl is required when mode is "browser"');
+        throw new SevereServiceError(
+          'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+        );
       }
       try {
         new URL(devServerUrl);
@@ -180,14 +197,24 @@ export default class TauriLaunchService {
           throw new SevereServiceError(browserNameError);
         }
       }
-      const reachable = await probeDevServerReachable(devServerUrl);
-      if (isErr(reachable)) {
-        throw new SevereServiceError(reachable.error.message);
+      if (!mergedOptions.devServer) {
+        // Unmanaged: preflight the user-started server before workers navigate to it.
+        const reachable = await probeDevServerReachable(devServerUrl);
+        if (isErr(reachable)) {
+          throw new SevereServiceError(reachable.error.message);
+        }
       }
       this.browserMode = true;
       for (const cap of capsList) {
         (cap as { browserName?: string }).browserName = 'chrome';
         delete (cap as { 'tauri:options'?: unknown })['tauri:options'];
+        // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
+        // which reads devServerUrl from its capability options.
+        const capRecord = cap as Record<string, unknown>;
+        capRecord['wdio:tauriServiceOptions'] = {
+          ...(capRecord['wdio:tauriServiceOptions'] as Record<string, unknown> | undefined),
+          devServerUrl,
+        };
       }
       log.info('Browser mode enabled — skipping driver/binary setup');
       return;
@@ -998,6 +1025,9 @@ export default class TauriLaunchService {
    */
   async onComplete(_exitCode: number, _config: Options.Testrunner, _capabilities: TauriCapabilities[]): Promise<void> {
     log.debug('Completing Tauri service...');
+
+    await this.#stopDevServer?.();
+    this.#stopDevServer = undefined;
 
     try {
       const { closeLogWriter } = await import('./logWriter.js');

@@ -68,6 +68,12 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
   waitTestRunnerBackendReady: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@wdio/native-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-core')>()),
+  startManagedDevServer: vi.fn(),
+}));
+
+import { startManagedDevServer } from '@wdio/native-core';
 import { ensureTauriDriver } from '../src/driverManager.js';
 import TauriLaunchService from '../src/launcher.js';
 
@@ -160,5 +166,39 @@ describe('TauriLaunchService — browser mode', () => {
       await launcher.onPrepare({} as any, caps);
       await expect(launcher.onWorkerEnd('0-0')).resolves.toBeUndefined();
     });
+  });
+});
+
+describe('TauriLaunchService — devServer management', () => {
+  const managedStop = vi.fn(async () => {});
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: DEV_SERVER, stop: managedStop });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('starts the managed dev server and tears it down in onComplete', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare({} as any, [{}] as any);
+    expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
+    await launcher.onComplete(0, {} as any, [] as any);
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('throws SevereServiceError when the managed dev server fails to start', async () => {
+    vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare({} as any, [{}] as any)).rejects.toThrow(/Failed to start dev server/);
+  });
+
+  it('does not manage a dev server when devServer is unset', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    await launcher.onPrepare({} as any, [{}] as any);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
   });
 });

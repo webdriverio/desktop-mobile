@@ -8,6 +8,12 @@ vi.mock('../src/providers/embedded.js', () => ({
   EMBEDDED_PORT_ENV_VAR: 'WDIO_EMBEDDED_PORT',
 }));
 
+vi.mock('@wdio/native-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-core')>()),
+  startManagedDevServer: vi.fn(),
+}));
+
+import { startManagedDevServer } from '@wdio/native-core';
 import DioxusLaunchService from '../src/launcher.js';
 import { startEmbeddedDriver } from '../src/providers/embedded.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
@@ -81,5 +87,58 @@ describe('DioxusLaunchService — browser mode', () => {
     const launcher = createLauncher();
     const caps: any[] = [{ 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } }];
     await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow('Dev server not reachable');
+  });
+});
+
+describe('DioxusLaunchService — devServer management', () => {
+  const managedStop = vi.fn(async () => {});
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: DEV_SERVER, stop: managedStop });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('starts the managed dev server and tears it down in onComplete', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare(baseConfig, [{}] as any);
+    expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
+    await launcher.onComplete();
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('skips the HEAD preflight when managing the dev server (managed readiness supersedes it)', async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+    vi.stubGlobal('fetch', fetchMock);
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare(baseConfig, [{}] as any);
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('throws SevereServiceError when the managed dev server fails to start', async () => {
+    vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare(baseConfig, [{}] as any)).rejects.toThrow(/Failed to start dev server/);
+  });
+
+  it('propagates a function-provided url override to the capability', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'http://localhost:5173', stop: managedStop });
+    const launcher = createLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'http://localhost:5173', close: managedStop }),
+    });
+    const caps: any[] = [{}];
+    await launcher.onPrepare(baseConfig, caps);
+    expect(caps[0]['wdio:dioxusServiceOptions'].devServerUrl).toBe('http://localhost:5173');
+  });
+
+  it('does not start a managed dev server when devServer is unset', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    await launcher.onPrepare(baseConfig, [{}] as any);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
   });
 });

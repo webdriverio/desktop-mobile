@@ -7,6 +7,7 @@ import {
   isLogWriterInitialized,
   nonChromeBrowserNameError,
   probeDevServerReachable,
+  startManagedDevServer,
 } from '@wdio/native-core';
 import { createLogger, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -25,6 +26,9 @@ const log = createLogger('dioxus-service', 'launcher');
 
 export default class DioxusLaunchService extends BaseLauncher {
   private embeddedProcesses: Map<string, EmbeddedDriverInfo> = new Map();
+  // Teardown for a service-managed dev server (browser mode). Called from onComplete AND on an
+  // onPrepare failure — WDIO does not call onComplete after onPrepare throws. Idempotent.
+  #stopDevServer?: () => Promise<void>;
 
   constructor(
     private options: DioxusServiceGlobalOptions,
@@ -54,9 +58,23 @@ export default class DioxusLaunchService extends BaseLauncher {
 
     // Browser mode: skip all binary/driver setup — test runs against a Vite dev server
     if (mergedOptions.mode === 'browser') {
-      const devServerUrl = mergedOptions.devServerUrl;
+      let devServerUrl = mergedOptions.devServerUrl;
+      // Auto-manage the dev server if requested; the managed readiness wait supersedes the
+      // one-shot preflight below, and a devServer function may supply the URL.
+      if (mergedOptions.devServer) {
+        try {
+          const managed = await startManagedDevServer(mergedOptions.devServer, devServerUrl ?? '');
+          this.#stopDevServer = managed.stop;
+          devServerUrl = managed.url || devServerUrl;
+        } catch (error) {
+          await this.#stopDevServer?.();
+          throw new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+        }
+      }
       if (!devServerUrl) {
-        throw new SevereServiceError('devServerUrl is required when mode is "browser"');
+        throw new SevereServiceError(
+          'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+        );
       }
       try {
         new URL(devServerUrl);
@@ -72,13 +90,23 @@ export default class DioxusLaunchService extends BaseLauncher {
           throw new SevereServiceError(browserNameError);
         }
       }
-      const reachable = await probeDevServerReachable(devServerUrl);
-      if (isErr(reachable)) {
-        throw new SevereServiceError(reachable.error.message);
+      if (!mergedOptions.devServer) {
+        // Unmanaged: preflight the user-started server before workers navigate to it.
+        const reachable = await probeDevServerReachable(devServerUrl);
+        if (isErr(reachable)) {
+          throw new SevereServiceError(reachable.error.message);
+        }
       }
       for (const cap of capsList) {
         (cap as { browserName?: string }).browserName = 'chrome';
         delete (cap as { 'dioxus:options'?: unknown })['dioxus:options'];
+        // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
+        // which reads devServerUrl from its capability options.
+        const capRecord = cap as Record<string, unknown>;
+        capRecord['wdio:dioxusServiceOptions'] = {
+          ...(capRecord['wdio:dioxusServiceOptions'] as Record<string, unknown> | undefined),
+          devServerUrl,
+        };
       }
       log.info('Browser mode enabled — skipping driver/binary setup');
       return;
@@ -205,6 +233,8 @@ export default class DioxusLaunchService extends BaseLauncher {
   }
 
   async onComplete(): Promise<void> {
+    await this.#stopDevServer?.();
+    this.#stopDevServer = undefined;
     await this.stopAllEmbedded();
     // Stop any external (wdio-dioxus-driver) processes managed by BaseLauncher
     await this.stopAllDrivers();
