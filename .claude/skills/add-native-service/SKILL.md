@@ -224,41 +224,32 @@ A standard feature can also ship **incomplete for a reason that isn't an upstrea
 multi-device/multi-instance implementation is deferred because the remaining work needs **expensive,
 flaky CI infra** (a second device, a real navigation on a booted emulator), not because anything
 upstream prevents it. **"The mechanism works" (unit-tested) ≠ "the feature is proven" (E2E-asserted +
-CI-gated).** This is the mobile reality behind #445/#446/#457 (see gotcha 19), and it also hit **desktop**:
-browser mode shipped across Electron/Tauri/Dioxus with **asymmetric** test coverage and needed
-per-service parity catch-up PRs (#415 Tauri, #472 Dioxus), plus a deferred dev-server-auto-start
-follow-up (#417). Decide *how far to take each and in which PR* by this rule:
+CI-gated).** Decide *how far to take each, and in which PR,* by this rule:
 
 - **Piggybacks on already-paid CI → finish it in place, don't defer.** If completing the feature reuses
-  hardware a leg already boots (the standard E2E emulator/sim), the cost argument is gone — fold it
-  into that E2E PR (or a tiny fast-follow), not a ceremony PR. **Deeplink nav-proof (#457) is this
-  case:** the fixture + emulator already exist and the spec is already in the tree smoke-only, so add
-  the fixture scheme/handler + a real navigation assertion + the CI gate *where the hardware is
-  already paid for*. Splitting it into a big standalone PR is overhead for cheap validation.
-- **Needs new expensive infra AND is architecturally separable → its own dedicated PR.** **Real
-  multiremote (#446) is this case:** it needs a **second device on one runner** (net-new, flaky) and
-  touches the device pool + both workers + per-instance JS-realm channel routing — a large, cleanly
-  separable chunk. Folding it into the ship PR would bloat an already-risky mobile-CI surface and hold
-  the release hostage; a dedicated follow-up PR is the right shape (consistent with "split the E2E PR
-  when its CI is itself high-risk"). So yes — doing it *after* the service's ship PRs, as its own PR,
-  is fair; do **not** cram it into the 6-PR stack. **This deferral is archetype-specific, not a
-  property of multiremote itself:** desktop services ship multiremote **in-band** (Electron/Tauri/Dioxus
-  weave it through the launcher/service; Tauri's #16 closed as ordinary service work) because multiple
-  instances are just more processes/ports on one host — no extra hardware. So a Tier-1 feature ends up
-  non-in-band for one of **three distinct reasons**: shipped in-band (desktop multiremote),
-  **cost-gate-deferred** (mobile multiremote needs a second device + per-instance channel — #446), or
-  **upstream-blocked** (electrobun's multiremote works on the Windows/native path but is blocked on the
-  macOS CEF profile path — #320, *not* cost-deferred). Same "not in the first ship" symptom, three
-  different causes and remedies — don't read the mobile example as a universal "multiremote always
-  follows up".
+  hardware a leg already boots (the standard E2E emulator/sim/driver), the cost argument is gone — fold
+  it into that E2E PR (or a tiny fast-follow), not a ceremony PR. Splitting cheap validation into a
+  standalone PR is pure overhead.
+- **Needs net-new expensive infra AND is architecturally separable → its own dedicated PR.** A feature
+  that requires new CI capacity (e.g. a *second* device on one runner) and touches a broad, cleanly
+  separable slice of the code earns its own follow-up PR — consistent with "split the E2E PR when its
+  CI is itself high-risk". Folding it into the ship PR would bloat an already-risky CI surface and hold
+  the release hostage. Doing it *after* the ship PRs is legitimate; don't cram it into the main stack.
 - **But if the deferred item is part of the *mandatory* convergent surface, the version number must
-  tell the truth.** Multiremote and deeplink are Tier-1 (universal). A service that ships them partial
-  is **not yet at the 1.0 bar** ("1.0 = the convergent surface works"). Honest options: base at **0.x**
-  until they land and graduate to 1.0 at real parity (see the section above), **or** ship 1.0 only with
-  each gap as a *committed, prominently documented* fast-follow (README + `ROADMAP.md` + a tracked
-  issue), never an open-ended "later". RN/Flutter took the second path at `1.0.0-next` with #446/#457
-  open and the gap noted in `AGENTS.md` — defensible, but for the *multiremote* gap specifically `0.x`
-  would have been the more honest signal, since a headline Tier-1 feature is shape-only.
+  tell the truth.** A Tier-1 (universal) feature shipped partial means the service is **not yet at the
+  1.0 bar** ("1.0 = the convergent surface works"). Honest options: base at **0.x** until it lands and
+  graduate at real parity (see the section above), **or** ship 1.0 only with the gap as a *committed,
+  prominently documented* fast-follow (README + `ROADMAP.md` + a tracked issue), never an open-ended
+  "later". For a headline Tier-1 feature that's only shape-complete, `0.x` is the more honest signal.
+
+**A non-in-band feature is not automatically a cost-gate deferral — separate the causes.** The same
+"not in the first ship" symptom has **three distinct causes** with different remedies: **shipped
+in-band** (the feature is cheap on the target archetype — e.g. desktop multiremote is just more
+processes/ports on one host, no extra hardware); **cost-gate-deferred** (this section — the work is
+real but the *CI* is expensive/flaky); and **upstream-blocked** (the platform/runtime can't support it
+yet — see "When upstream blocks the standard surface"). Don't read one archetype's deferral as a
+universal rule ("multiremote always follows up" is false — it can be in-band on one archetype,
+cost-gated on another, and upstream-blocked on a third).
 
 ## Process
 
