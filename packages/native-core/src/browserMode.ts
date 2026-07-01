@@ -133,12 +133,19 @@ export async function startManagedDevServer(
   }
 
   const proc = new DevServerProcess({ spawn: deps.spawn, probe: deps.probe });
-  await proc.start({
-    command: config.command,
-    cwd: config.cwd,
-    env: config.env,
-    url: devServerUrl,
-    timeoutMs: config.timeoutMs,
-  });
+  try {
+    await proc.start({
+      command: config.command,
+      cwd: config.cwd,
+      env: config.env,
+      url: devServerUrl,
+      timeoutMs: config.timeoutMs,
+    });
+  } catch (error) {
+    // start() can throw *after* the process spawned (readiness timeout) — stop the live-but-unready
+    // process before propagating, or it orphans (holding the port). Mirrors the function form's close().
+    await proc.stop();
+    throw error;
+  }
   return { url: devServerUrl, stop: () => proc.stop() };
 }

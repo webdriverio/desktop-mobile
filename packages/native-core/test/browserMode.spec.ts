@@ -171,4 +171,28 @@ describe('startManagedDevServer', () => {
     });
     expect(spawn).toHaveBeenCalled();
   });
+
+  it('should stop the spawned process and rethrow when it never becomes ready (no orphan)', async () => {
+    const proc = fakeChild();
+    // Stays alive (exitCode null) but never answers the probe → start() times out while the process
+    // is still running, which is the orphan case. pid undefined forces the direct-child kill branch
+    // so the test never signals a real process group; emit 'exit' so stop()'s teardown resolves.
+    proc.pid = undefined;
+    proc.kill = vi.fn(() => {
+      queueMicrotask(() => {
+        proc.exitCode = 143;
+        proc.emit('exit', null, 'SIGTERM');
+      });
+    });
+    const spawn = vi.fn(() => proc) as never;
+
+    await expect(
+      startManagedDevServer({ command: 'pnpm dev', timeoutMs: 20 }, url, {
+        spawn,
+        probe: async () => false,
+        isCI: true,
+      }),
+    ).rejects.toThrow(/did not become ready/);
+    expect(proc.kill).toHaveBeenCalled();
+  });
 });
