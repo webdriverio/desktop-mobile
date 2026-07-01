@@ -93,6 +93,8 @@ expect(title).toBe('My App');
 | browser mode (`mode: 'browser'` against a dev server) | ✅ |
 | standalone / session mode | ✅ |
 
+Browser mode also supports the optional **`devServer`** service option — the launcher spawns your dev server in `onPrepare`, waits until `devServerUrl` is reachable, and tears it down afterwards (and on a startup failure). It accepts a shell command (`'pnpm dev'`), a config object (`{ command, cwd, env, timeoutMs, reuseExistingServer }`), or an `async () => ({ url, close })` function; `reuseExistingServer` defaults to reusing a running server locally and always spawning fresh in CI.
+
 ## Known limitations
 
 Most of these are **upstream Electrobun/CEF limitations**, not service bugs — the
