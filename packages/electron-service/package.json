@@ -87,6 +87,7 @@
     "@types/electron-to-chromium": "^1.5.0",
     "@types/node": "^25.9.1",
     "@vitest/coverage-v8": "^4.1.7",
+    "@wdio/bundler": "workspace:*",
     "@wdio/native-spy": "workspace:*",
     "@wdio/types": "catalog:default",
     "builder-util": "^26.8.0",

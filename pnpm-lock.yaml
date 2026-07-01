@@ -872,6 +872,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -933,6 +936,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1024,6 +1030,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       '@wdio/native-spy':
         specifier: workspace:*
         version: link:../native-spy
@@ -1100,6 +1109,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1134,6 +1146,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -1189,6 +1204,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1226,6 +1244,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1244,6 +1265,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1265,6 +1289,9 @@ importers:
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       '@wdio/globals':
         specifier: catalog:default
         version: 9.27.1(expect-webdriverio@5.6.5)(webdriverio@9.27.1(bufferutil@4.1.0)(puppeteer-core@25.1.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(utf-8-validate@6.0.6))
@@ -1323,6 +1350,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../native-types
@@ -1375,6 +1405,9 @@ importers:
       '@vitest/coverage-v8':
         specifier: ^4.1.7
         version: 4.1.7(vitest@4.1.7)
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1470,6 +1503,9 @@ importers:
       '@types/node':
         specifier: ^25.9.1
         version: 25.9.1
+      '@wdio/bundler':
+        specifier: workspace:*
+        version: link:../bundler
       recast:
         specifier: ^0.23.11
         version: 0.23.11

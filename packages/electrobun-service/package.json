@@ -67,6 +67,7 @@
     "@types/debug": "^4.1.12",
     "@types/node": "^25.9.1",
     "@vitest/coverage-v8": "^4.1.7",
+    "@wdio/bundler": "workspace:*",
     "shx": "^0.4.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.7"
