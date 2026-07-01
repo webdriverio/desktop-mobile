@@ -24,6 +24,19 @@ column shows where each piece lives once `@wdio/native-mobile-core` exists (see 
 extraction"): a *second* mobile service **consumes** the `→ native-mobile-core` rows and builds only
 the framework-specific ones. The src tree above is RN's *pre-extraction* (first-consumer) layout.
 
+## Known first-ship gaps
+
+The RN/Flutter first ship put three Tier-1 "standard surface" features on the **mechanism-only**
+path — unit-tested, but not E2E-proven / not fully implemented. They are **template-inherited**: a
+new mobile service reinherits them unless it decides per feature (SKILL.md gotcha 19). Each is
+tracked, and the deferral rule (cost-gate vs upstream-block) is in SKILL.md.
+
+| Feature | Shipped | Deferred | Issue |
+|---|---|---|---|
+| Standalone / session | `session.ts` helpers + unit tests | zero E2E; the standalone divergences (no device-claim/udid-stamp, bring-your-own external Appium) were undocumented at ship | #445 |
+| Multiremote | capability-shape parse only — one udid shared across all instances | real N-distinct-device routing + a per-instance JS-realm channel | #446 |
+| Deeplink | `mobile: deepLink` + unit tests | fixture scheme/handler, post-navigation assertion, CI gate | #457 |
+
 ## Appium composition + capability mutation
 
 - **Compose at the runner, not in the package.** The config lists `services: ['appium', '<framework>']`
@@ -194,11 +207,12 @@ needs the same code — so **extract on Flutter's arrival, not before** (the pos
   channel shares none of it. (Mirrors the Dioxus precedent: only `shouldLog`/deeplink were genuinely
   shared; `logForwarder`/`logParser` stayed local.)
 - **Target: a new `@wdio/native-mobile-core`**, NOT `@wdio/native-core`. `native-core` is desktop
-  launcher infra (`PortManager`, `DriverPool`, `DriverProcess`, the OS-protocol `deeplink.ts`) —
-  every export assumes a spawned driver/binary the service owns, which has zero overlap with
+  launcher infra (`DriverPool`, `DriverProcess`, the OS-protocol `deeplink.ts`) —
+  these assume a spawned driver/binary the service owns, which has zero overlap with
   Appium-owned-session concerns; folding mobile in would make it a grab-bag and force desktop
-  consumers to carry mobile deps. `native-mobile-core` depends on `native-core` (for `BaseLauncher`,
-  the hook lifecycle mobile reuses) + `native-utils`/`native-types` for the generic primitives
+  consumers to carry mobile deps. `native-mobile-core` depends on `native-core` (for `BaseLauncher` +
+  `PortManager` — the hook lifecycle and the per-worker realm-port seam mobile reuses, #378) +
+  `native-utils`/`native-types` for the generic primitives
   (logger, `Result`, option-merge) — but **not** `native-cdp-bridge`. The Tier-1 JS-realm channel is a
   *non-candidate* (it stays in the framework service package), and the extract-candidates above are
   pure Appium infra (caps, device pool, contexts, deeplink, device logs) that never touch CDP — so
