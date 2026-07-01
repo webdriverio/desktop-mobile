@@ -1,7 +1,5 @@
 import { execSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { createServer, type Server } from 'node:http';
-import { dirname, extname, join, resolve as resolvePath } from 'node:path';
+import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { Options } from '@wdio/types';
 
@@ -11,50 +9,12 @@ const __dirname = dirname(__filename);
 const fixtureRoot = resolvePath(__dirname, '..', 'fixtures', 'e2e-apps', 'dioxus-browser');
 const port = 8088;
 const devServerUrl = `http://localhost:${port}`;
-
-let staticServer: Server | undefined;
-
-function startStaticServer(rootPath: string): Promise<Server> {
-  const mimeTypes: Record<string, string> = {
-    '.html': 'text/html',
-    '.js': 'application/javascript',
-    '.mjs': 'application/javascript',
-    '.css': 'text/css',
-    '.json': 'application/json',
-  };
-  // Enumerate files up front and look them up by request URL into the map.
-  // Keeps user-controlled input out of `readFileSync` and satisfies CodeQL.
-  const allowed = new Map<string, string>();
-  const walk = (dir: string, prefix: string) => {
-    for (const entry of readdirSync(dir, { withFileTypes: true })) {
-      const abs = join(dir, entry.name);
-      const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-      if (entry.isDirectory()) {
-        walk(abs, rel);
-      } else if (entry.isFile()) {
-        allowed.set(`/${rel}`, abs);
-        if (rel === 'index.html') allowed.set('/', abs);
-      }
-    }
-  };
-  walk(rootPath, '');
-
-  const server = createServer((req, res) => {
-    const key = (req.url ?? '/').split('?')[0];
-    const absolute = allowed.get(key);
-    if (!absolute) {
-      res.statusCode = 404;
-      res.end('Not Found');
-      return;
-    }
-    res.setHeader('Content-Type', mimeTypes[extname(absolute)] ?? 'application/octet-stream');
-    res.end(readFileSync(absolute));
-  });
-  return new Promise((resolveListen, rejectListen) => {
-    server.once('error', rejectListen);
-    server.listen(port, '127.0.0.1', () => resolveListen(server));
-  });
-}
+// Dogfood the service-managed `devServer` option (#417): the launcher spawns this static server,
+// waits until `devServerUrl` is reachable, and tears down the whole process tree on completion —
+// replacing the in-process onPrepare/onComplete server the other browser confs still hand-manage.
+// `reuseExistingServer` defaults to `!CI`, so CI exercises the real spawn + process-group teardown.
+const staticServer = resolvePath(__dirname, 'scripts', 'static-server.mjs');
+const devServer = `node "${staticServer}" "${fixtureRoot}" ${port}`;
 
 /**
  * On Linux/macOS, list running processes to confirm browser mode is not
@@ -97,6 +57,7 @@ export const config: Options.Testrunner = {
       'wdio:dioxusServiceOptions': {
         mode: 'browser',
         devServerUrl,
+        devServer,
       },
     },
   ] as unknown as Options.Testrunner['capabilities'],
@@ -115,20 +76,7 @@ export const config: Options.Testrunner = {
     ui: 'bdd',
     timeout: 60000,
   },
-  async onPrepare() {
-    if (!existsSync(fixtureRoot)) {
-      throw new Error(`Fixture not found: ${fixtureRoot}`);
-    }
-    staticServer = await startStaticServer(fixtureRoot);
-    console.log(`Browser-mode static server listening on ${devServerUrl}`);
-  },
   async beforeSession() {
     assertNoDioxusDriverProcesses();
-  },
-  async onComplete() {
-    if (staticServer) {
-      await new Promise<void>((resolveClose) => staticServer?.close(() => resolveClose()));
-      console.log('Browser-mode static server stopped');
-    }
   },
 };

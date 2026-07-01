@@ -109,44 +109,49 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     // server in a plain Chrome session.
     if (mergedOptions.mode === 'browser') {
       let devServerUrl = mergedOptions.devServerUrl;
-      // Auto-manage the dev server if requested; the managed readiness wait supersedes the
-      // one-shot preflight below, and a devServer function may supply the URL.
-      if (mergedOptions.devServer) {
-        try {
+      // Everything from the dev-server start onward runs in one guard: any failure after the server
+      // is up must stop it, because WDIO does not call onComplete after an onPrepare throw.
+      try {
+        // Auto-manage the dev server if requested; the managed readiness wait supersedes the
+        // one-shot preflight below, and a devServer function may supply the URL.
+        if (mergedOptions.devServer) {
           const managed = await startManagedDevServer(mergedOptions.devServer, devServerUrl ?? '');
           this.#stopDevServer = managed.stop;
           devServerUrl = managed.url || devServerUrl;
-        } catch (error) {
-          await this.#stopDevServer?.();
-          throw new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
         }
-      }
-      if (!devServerUrl) {
-        throw new SevereServiceError(
-          'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
-        );
-      }
-      try {
-        new URL(devServerUrl);
-      } catch {
-        throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
-      }
-      if (!mergedOptions.devServer) {
-        // Unmanaged: preflight the user-started server before workers navigate to it.
-        const reachable = await probeDevServerReachable(devServerUrl);
-        if (isErr(reachable)) {
-          throw new SevereServiceError(reachable.error.message);
+        if (!devServerUrl) {
+          throw new SevereServiceError(
+            'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+          );
         }
-      }
-      for (const cap of capsList) {
-        (cap as { browserName?: string }).browserName = 'chrome';
-        // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
-        // which reads devServerUrl from its capability options.
-        const capRecord = cap as Record<string, unknown>;
-        capRecord[CUSTOM_CAPABILITY_NAME] = {
-          ...(capRecord[CUSTOM_CAPABILITY_NAME] as Record<string, unknown> | undefined),
-          devServerUrl,
-        };
+        try {
+          new URL(devServerUrl);
+        } catch {
+          throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
+        }
+        if (!mergedOptions.devServer) {
+          // Unmanaged: preflight the user-started server before workers navigate to it.
+          const reachable = await probeDevServerReachable(devServerUrl);
+          if (isErr(reachable)) {
+            throw new SevereServiceError(reachable.error.message);
+          }
+        }
+        for (const cap of capsList) {
+          (cap as { browserName?: string }).browserName = 'chrome';
+          // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
+          // which reads devServerUrl from its capability options.
+          const capRecord = cap as Record<string, unknown>;
+          capRecord[CUSTOM_CAPABILITY_NAME] = {
+            ...(capRecord[CUSTOM_CAPABILITY_NAME] as Record<string, unknown> | undefined),
+            devServerUrl,
+          };
+        }
+      } catch (error) {
+        await this.#stopDevServer?.();
+        this.#stopDevServer = undefined;
+        throw error instanceof SevereServiceError
+          ? error
+          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
       }
       this.browserMode = true;
       log.info('Browser mode enabled — skipping Electrobun binary/CDP setup');

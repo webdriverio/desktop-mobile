@@ -182,7 +182,7 @@ describe('TauriLaunchService — devServer management', () => {
     vi.clearAllMocks();
   });
 
-  it('starts the managed dev server and tears it down in onComplete', async () => {
+  it('should start the managed dev server and tear it down in onComplete', async () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
     await launcher.onPrepare({} as any, [{}] as any);
     expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
@@ -190,13 +190,13 @@ describe('TauriLaunchService — devServer management', () => {
     expect(managedStop).toHaveBeenCalledOnce();
   });
 
-  it('throws SevereServiceError when the managed dev server fails to start', async () => {
+  it('should throw SevereServiceError when the managed dev server fails to start', async () => {
     vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
     await expect(launcher.onPrepare({} as any, [{}] as any)).rejects.toThrow(/Failed to start dev server/);
   });
 
-  it('does not manage a dev server when devServer is unset', async () => {
+  it('should not manage a dev server when devServer is unset', async () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
     await launcher.onPrepare({} as any, [{}] as any);
     expect(startManagedDevServer).not.toHaveBeenCalled();

@@ -203,7 +203,7 @@ describe('ElectronLaunchService — devServer management', () => {
 
   const browserCap = () => ({ browserName: 'electron', 'wdio:electronServiceOptions': { mode: 'browser' } });
 
-  it('starts the managed dev server from global options and stops it in onComplete', async () => {
+  it('should start the managed dev server from global options and stop it in onComplete', async () => {
     const launcher = makeLauncher({ devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
     await launcher.onPrepare({} as any, [browserCap()] as any);
     expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
@@ -211,7 +211,7 @@ describe('ElectronLaunchService — devServer management', () => {
     expect(managedStop).toHaveBeenCalledOnce();
   });
 
-  it('stamps the resolved url onto every cap (multiremote) so workers navigate to it', async () => {
+  it('should stamp the resolved url onto every cap (multiremote) so workers navigate to it', async () => {
     vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'http://localhost:4321', stop: managedStop });
     const launcher = makeLauncher({ devServer: 'pnpm dev' });
     const caps: any[] = [browserCap(), browserCap()];
@@ -220,13 +220,13 @@ describe('ElectronLaunchService — devServer management', () => {
     expect(caps[1]['wdio:electronServiceOptions'].devServerUrl).toBe('http://localhost:4321');
   });
 
-  it('throws SevereServiceError when the managed dev server fails to start', async () => {
+  it('should throw SevereServiceError when the managed dev server fails to start', async () => {
     vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
     const launcher = makeLauncher({ devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
     await expect(launcher.onPrepare({} as any, [browserCap()] as any)).rejects.toThrow(/Failed to start dev server/);
   });
 
-  it('does not manage a dev server when devServer is unset', async () => {
+  it('should not manage a dev server when devServer is unset', async () => {
     const launcher = makeLauncher({ devServerUrl: DEV_SERVER });
     await launcher.onPrepare({} as any, [browserCap()] as any);
     expect(startManagedDevServer).not.toHaveBeenCalled();

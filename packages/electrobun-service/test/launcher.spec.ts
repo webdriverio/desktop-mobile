@@ -513,7 +513,7 @@ describe('ElectrobunLaunchService — devServer management', () => {
     setPlatform(originalPlatform);
   });
 
-  it('starts the managed dev server and tears it down in onComplete', async () => {
+  it('should start the managed dev server and tear it down in onComplete', async () => {
     const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' } as never);
     await launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never);
     expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
@@ -521,7 +521,7 @@ describe('ElectrobunLaunchService — devServer management', () => {
     expect(managedStop).toHaveBeenCalledOnce();
   });
 
-  it('throws SevereServiceError when the managed dev server fails to start', async () => {
+  it('should throw SevereServiceError when the managed dev server fails to start', async () => {
     vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
     const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' } as never);
     await expect(launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never)).rejects.toThrow(
@@ -529,7 +529,7 @@ describe('ElectrobunLaunchService — devServer management', () => {
     );
   });
 
-  it('does not manage a dev server when devServer is unset', async () => {
+  it('should not manage a dev server when devServer is unset', async () => {
     const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER } as never);
     await launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never);
     expect(startManagedDevServer).not.toHaveBeenCalled();
