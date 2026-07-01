@@ -44,8 +44,8 @@ the framework-specific ones. The src tree above is RN's *pre-extraction* (first-
   invoke the launcher's cap-prep itself, and defaults the Appium connection to `localhost:4723/`
   (not WDIO's `:4444`). Note it drives **only `onPrepare`, never `onWorkerStart`** — so there is **no
   device claiming / udid stamping** (single-device only, relies on Appium's default device selection)
-  and **no auto-spawned Appium** (bring-your-own, external at `:4723`). Both are real divergences from
-  the runner path and both are currently undocumented + un-E2E'd — see "Known first-ship gaps" (#445).
+  and **no auto-spawned Appium** (bring-your-own, external at `:4723`). Both are deliberate divergences of
+  the standalone contract from the runner path (single-device, bring-your-own-Appium).
 
 ## Device pool (parallel workers / multiremote)
 
@@ -54,9 +54,7 @@ the framework-specific ones. The src tree above is RN's *pre-extraction* (first-
   `claimed.size` — `size` shrinks on `release()` and would re-hand a freed index to a new worker
   while an earlier one still holds it.
 - One device per worker; a multiremote worker shares its one device across instances
-  (distinct-device-per-instance would need N-per-cid, **not implemented** — the launcher only
-  capability-shape-parses multiremote and stamps one udid across every instance; real per-instance
-  device + JS-realm channel routing is tracked in "Known first-ship gaps", #446).
+  (distinct-device-per-instance would need N-per-cid, not implemented).
 - Empty/unconfigured pool = **no-op**: the cap is used as-is and Appium picks the device.
 - `applyToCapability(cap, device, platform)` sets `appium:udid` (Android emulator serial) or
   `appium:avd` (AVD name) on Android, and `appium:udid` (from `iOSUdid`) on iOS.
@@ -216,32 +214,3 @@ the WebSocket drops and the bridge goes dead. `MetroBridge.connected` therefore 
 Wry macOS background-throttling gotcha (plumbing-wry.md). Connect **lazily** on first command, not
 eagerly in `before` — the eager warm-up races Hermes' registration and would just fail. Under the
 New Architecture the inspector also registers *later* than Paper (see the dual-arch note).
-
-## Known first-ship gaps — the inheritance trap (delete this section when #445/#446/#457 close)
-
-A standard feature can ship with its *mechanism* unit-tested but never proven: **"the mechanism works"
-≠ "the feature is proven" (E2E-asserted + CI-gated) ≠ "the README may claim it".** The **default is to
-prove each standard feature in the main cycle** — a spec that only asserts "doesn't throw", or sits
-outside the gated `standard` run, is not coverage (SKILL.md → Phase 5 e2e "prove behaviour" rule + the
-per-PR verification checklist's "no false ✅" item). Deferral is the *earned exception*: it must clear
-both bars of the cost-gate rule (SKILL.md → "When the cost gate … defers a standard feature") —
-genuinely large / needs net-new expensive CI infra, **and** a truthful version + README (a Tier-1 gap
-at 1.0 overclaims → `0.x` or a loud fast-follow).
-
-**Applied — the one case that earned deferral vs the one that didn't.** Real **multiremote** (#446)
-*earns* a standalone follow-up: N-device allocation + a per-instance JS-realm channel (Hermes
-target-per-device / VM-URL-per-udid) is a large, separable chunk *and* needs a second device on one
-runner (net-new, flaky). **Deeplink** (#457) did **not**: its validation piggybacks the emulator the
-`standard` leg already boots, yet it shipped a "deeplink ✅ via `mobile: deepLink`" README while only
-smoke-tested (no fixture scheme, asserts only "doesn't throw", outside the gate) — a false ✅ that
-should have ridden the E2E PR. (Standalone #445 sits between: documenting its two contract divergences
-— external Appium, no device-claiming — is main-cycle-cheap; its single-device E2E is a small
-fast-follow.)
-
-**Inheritance warning (this is why the section exists — and why it self-destructs).** RN/Flutter today
-ship standalone (#445), multiremote (#446), and deeplink (#457) partial, so a service **cloned from the
-RN template inherits all three holes silently** — the same trap as gotcha 18 (#387). The clone isn't
-done until each hole is either closed per the Phase 5 gate or *re-deferred on its own merits* with a
-truthful README + its own tracked issue — never carried over as an unexamined ✅. **When #445/#446/#457
-land, delete this whole section**; the durable lessons already live in the Phase 5 e2e gate, the
-verification checklist, and the cost-gate rule.
