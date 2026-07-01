@@ -42,7 +42,10 @@ the framework-specific ones. The src tree above is RN's *pre-extraction* (first-
   keeping the discriminator on the cap lets the launcher tests exercise both branches.
 - **Standalone mode** (`session.ts`): `remote()` runs only worker hooks, so the standalone path must
   invoke the launcher's cap-prep itself, and defaults the Appium connection to `localhost:4723/`
-  (not WDIO's `:4444`).
+  (not WDIO's `:4444`). Note it drives **only `onPrepare`, never `onWorkerStart`** — so there is **no
+  device claiming / udid stamping** (single-device only, relies on Appium's default device selection)
+  and **no auto-spawned Appium** (bring-your-own, external at `:4723`). Both are real divergences from
+  the runner path and both are currently undocumented + un-E2E'd — see "Known first-ship gaps" (#445).
 
 ## Device pool (parallel workers / multiremote)
 
@@ -51,7 +54,9 @@ the framework-specific ones. The src tree above is RN's *pre-extraction* (first-
   `claimed.size` — `size` shrinks on `release()` and would re-hand a freed index to a new worker
   while an earlier one still holds it.
 - One device per worker; a multiremote worker shares its one device across instances
-  (distinct-device-per-instance would need N-per-cid, not implemented).
+  (distinct-device-per-instance would need N-per-cid, **not implemented** — the launcher only
+  capability-shape-parses multiremote and stamps one udid across every instance; real per-instance
+  device + JS-realm channel routing is tracked in "Known first-ship gaps", #446).
 - Empty/unconfigured pool = **no-op**: the cap is used as-is and Appium picks the device.
 - `applyToCapability(cap, device, platform)` sets `appium:udid` (Android emulator serial) or
   `appium:avd` (AVD name) on Android, and `appium:udid` (from `iOSUdid`) on iOS.
@@ -211,3 +216,30 @@ the WebSocket drops and the bridge goes dead. `MetroBridge.connected` therefore 
 Wry macOS background-throttling gotcha (plumbing-wry.md). Connect **lazily** on first command, not
 eagerly in `before` — the eager warm-up races Hermes' registration and would just fail. Under the
 New Architecture the inspector also registers *later* than Paper (see the dual-arch note).
+
+## Known first-ship gaps (the RN template ships these mechanism-only — decide, don't inherit)
+
+Convergence (SKILL.md → Feature scope) says ship every standard feature at full parity. RN + Flutter
+shipped three of them **mechanism-first, validation-deferred** — the API/mechanism exists and is
+unit-tested, but end-to-end proof and/or the full multi-device implementation is deferred behind a
+tracked issue. Crucially this deferral is gated by **mobile CI cost/fragility, not an upstream
+block** — so it is a *different* deferral than SKILL.md → "When upstream blocks the standard surface"
+(nothing upstream prevents finishing these; the emulator/simulator CI cost did). None is a 1.0
+blocker.
+
+A **second mobile service that clones the RN template inherits all three silently** — the same trap
+as SKILL.md gotcha 18 (#387, the un-wired package-test fixture). So for each, at ship time make a
+*conscious* call: finish it now, or defer it behind **your own** tracked issue and note it in your
+README/`ROADMAP.md`. Never reship the gap blind.
+
+| Feature | What ships (mechanism) | What's deferred (validation/impl) | Issue |
+|---|---|---|---|
+| **Standalone / session mode** | `session.ts` helpers (`startWdioSession`/`cleanupWdioSession`/`create<FW>Capabilities`), unit-tested; `before()` is self-sufficient given a live Appium session | **Zero E2E** (`startWdioSession` never exercised against a device); **two undocumented divergences** — no auto-spawned Appium (external, `:4723` default, `connection` override) and no device claiming/udid stamping (drives only `onPrepare`, never `onWorkerStart` → single-device) | #445 |
+| **Multiremote** | launcher `flattenCaps` parses the `{ instance: { capabilities } }` shape | **Real multi-device routing** — N distinct devices per worker, a **per-instance** JS-realm channel (Hermes target-per-device / VM-URL-per-udid), and per-instance `browser.<fw>` attachment. Today one udid is stamped across every instance; neither worker `service.ts` has an `isMultiremote` branch | #446 |
+| **Deeplink** | `triggerDeeplink` = `mobile: deepLink` (+ Android `am start` fallback), unit-tested | **Navigation proof** — the fixture registers **no URL scheme/handler**, the e2e asserts only "doesn't throw" (not that the app navigated), and it's **not in the required CI gate** (`TEST_TYPE=deeplink`, excluded from `standard`) | #457 |
+
+The general rule this encodes: **"the mechanism works" (unit-tested) ≠ "the feature is proven"
+(E2E-asserted + CI-gated).** For a mobile service, the standard surface items most prone to shipping
+as the former are exactly the ones whose validation needs a *second* device or a *real navigation* on
+a booted emulator — precisely the expensive, flaky CI paths. Flag each one you don't finish; a
+follow-up issue (SKILL.md → "Follow-up tracking") is the price of deferring, not an optional extra.
