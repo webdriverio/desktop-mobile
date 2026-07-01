@@ -1,4 +1,8 @@
-import { Err, Ok, type Result } from '@wdio/native-utils';
+import type { DevServer } from '@wdio/native-types';
+import { createLogger, Err, isErr, isOk, Ok, type Result } from '@wdio/native-utils';
+import { DevServerProcess, type DevServerReadyProbe } from './devServerProcess.js';
+
+const log = createLogger('native-core', 'launcher');
 
 // Browser mode drives the app's web UI through a real Chrome session (WDIO enables
 // BiDi by default for browserName: 'chrome'). Any other browserName is a
@@ -55,4 +59,93 @@ export async function probeDevServerReachable(
     const detail = error instanceof Error ? error.message : String(error);
     return Err(new Error(`Dev server not reachable at ${url} — is it running? (${detail})`));
   }
+}
+
+const DEV_SERVER_READY_TIMEOUT_MS = 60_000;
+const DEV_SERVER_READY_POLL_MS = 500;
+
+const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Poll {@link probeDevServerReachable} until the server answers or the budget elapses.
+ *
+ * The single-shot `probeDevServerReachable` is a preflight for a server the user already started;
+ * this is the "wait for a server we (or the user's function) just started to come up" variant.
+ */
+export async function waitForDevServerReachable(
+  url: string,
+  {
+    timeoutMs = DEV_SERVER_READY_TIMEOUT_MS,
+    pollMs = DEV_SERVER_READY_POLL_MS,
+  }: { timeoutMs?: number; pollMs?: number } = {},
+): Promise<Result<void, Error>> {
+  const start = Date.now();
+  let last = await probeDevServerReachable(url);
+  while (isErr(last) && Date.now() - start < timeoutMs) {
+    await delay(pollMs);
+    last = await probeDevServerReachable(url);
+  }
+  return last;
+}
+
+/**
+ * Start (or reuse) a dev server for browser mode and return a handle to tear it down.
+ *
+ * Handles all three {@link DevServer} forms so each launcher stays a few lines:
+ * - **function** — call it, poll its returned `url` for readiness, and teardown is its `close()`
+ *   (no subprocess spawn/kill involved). The returned `url` supplies/overrides `devServerUrl`.
+ * - **string / object** — if `reuseExistingServer` (default `!CI`) and `devServerUrl` is already
+ *   reachable, skip the spawn; otherwise spawn a {@link DevServerProcess} and poll `devServerUrl`.
+ *
+ * The caller stores the returned `stop` and must call it in `onComplete` *and* on an `onPrepare`
+ * failure (WDIO does not call `onComplete` after `onPrepare` throws). `stop` is idempotent.
+ */
+export async function startManagedDevServer(
+  devServer: DevServer,
+  devServerUrl: string,
+  deps: {
+    spawn?: typeof import('node:child_process').spawn;
+    probe?: DevServerReadyProbe;
+    isCI?: boolean;
+    readinessTimeoutMs?: number;
+    readinessPollMs?: number;
+  } = {},
+): Promise<{ url: string; stop: () => Promise<void> }> {
+  if (typeof devServer === 'function') {
+    const { url, close } = await devServer();
+    const ready = await waitForDevServerReachable(url, {
+      timeoutMs: deps.readinessTimeoutMs,
+      pollMs: deps.readinessPollMs,
+    });
+    if (isErr(ready)) {
+      await close();
+      throw ready.error;
+    }
+    return { url, stop: close };
+  }
+
+  const config = typeof devServer === 'string' ? { command: devServer } : devServer;
+  const isCI = deps.isCI ?? Boolean(process.env.CI);
+  const reuseExisting = config.reuseExistingServer ?? !isCI;
+  if (reuseExisting && isOk(await probeDevServerReachable(devServerUrl))) {
+    log.info(`Reusing dev server already reachable at ${devServerUrl}`);
+    return { url: devServerUrl, stop: async () => {} };
+  }
+
+  const proc = new DevServerProcess({ spawn: deps.spawn, probe: deps.probe });
+  try {
+    await proc.start({
+      command: config.command,
+      cwd: config.cwd,
+      env: config.env,
+      url: devServerUrl,
+      timeoutMs: config.timeoutMs,
+    });
+  } catch (error) {
+    // start() can throw *after* the process spawned (readiness timeout) — stop the live-but-unready
+    // process before propagating, or it orphans (holding the port). Mirrors the function form's close().
+    await proc.stop();
+    throw error;
+  }
+  return { url: devServerUrl, stop: () => proc.stop() };
 }

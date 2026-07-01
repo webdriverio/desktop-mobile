@@ -110,6 +110,8 @@ export type {
   BaseServiceOptions,
   BaseWithExecute,
   BrowserBase,
+  DevServer,
+  DevServerObject,
   DriverProviderConfig,
   Fn,
   LogCaptureConfig,
