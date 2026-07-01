@@ -31,7 +31,12 @@ function fakeProc() {
   return proc;
 }
 
-afterEach(() => vi.clearAllMocks());
+afterEach(() => {
+  vi.clearAllMocks();
+  // Restore real timers even if a fake-timer test threw before its own restore, so leaked fake
+  // timers don't hang the next test.
+  vi.useRealTimers();
+});
 
 describe('DevServerProcess.start', () => {
   it('should spawn the command in a shell and resolve once the server is reachable', async () => {
@@ -140,7 +145,9 @@ describe('DevServerProcess.stop', () => {
     await dsp.start({ command: 'x', url: URL, timeoutMs: 1000, pollMs: 10 });
 
     const stopping = dsp.stop();
-    await vi.advanceTimersByTimeAsync(5000); // grace timeout → SIGKILL
+    // #waitForExit's grace timeout is 10s in CI (5s locally); advance past the larger value so the
+    // SIGKILL fires deterministically regardless of process.env.CI.
+    await vi.advanceTimersByTimeAsync(10_000); // grace timeout → SIGKILL
     expect(kill).toHaveBeenCalledWith(proc, 'SIGKILL');
     await vi.advanceTimersByTimeAsync(5000); // post-SIGKILL grace → resolve
     await stopping;
