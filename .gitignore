@@ -100,3 +100,5 @@ fixtures/build-*/**/rollup.config.js
 # MCP config files
 .mcp.json
 
+# Opencode files
+.opencode
