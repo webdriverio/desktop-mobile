@@ -38,7 +38,7 @@ on:
       ios-device:
         description: 'Simulator device name'
         type: string
-        default: 'iPhone 16'
+        default: 'iPhone 17'
       new-arch:
         description: 'Build the fixture with the New Architecture (Fabric/bridgeless) enabled'
         type: boolean
@@ -165,7 +165,11 @@ jobs:
                | (max_by([(.name | capture("^iPhone (?<n>[0-9]+)").n | tonumber), -(.name | length)])) as $c
                | if $c == null then empty else "\($c.udid) \($c.name)" end')
             test -n "$UDID" || { echo "::error::No available iPhone simulator (requested '${{ inputs.ios-device }}')"; xcrun simctl list devices available; exit 1; }
-            echo "::warning::Requested simulator '${{ inputs.ios-device }}' not available on this runner; falling back to '$RN_IOS_DEVICE' ($UDID). See #510."
+            # Warn + write to the run summary (a passing job's annotations are easy to miss) so a
+            # perpetually-absent default gets noticed and bumped. See #510.
+            DRIFT="Requested iOS simulator '${{ inputs.ios-device }}' not on this runner; using '$RN_IOS_DEVICE'. Refresh the ios-device default (#510) once it's absent across runner images."
+            echo "::warning::$DRIFT"
+            printf '⚠️ **iOS simulator drift (RN):** %s\n' "$DRIFT" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
           fi
           echo "Using simulator $RN_IOS_DEVICE ($UDID)"
           echo "RN_IOS_UDID=$UDID" >> "$GITHUB_ENV"

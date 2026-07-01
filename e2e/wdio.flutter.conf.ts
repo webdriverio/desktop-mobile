@@ -113,7 +113,7 @@ const capabilities: FlutterCapability[] = [
     // cold/slow runners.
     ...(isIos
       ? {
-          'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 16',
+          'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 17',
           // CI pins the exact booted simulator (the boot step resolves + exports FLUTTER_IOS_UDID),
           // so appium doesn't independently resolve the deviceName to a different instance (#359).
           // Omitted locally (appium resolves by name).

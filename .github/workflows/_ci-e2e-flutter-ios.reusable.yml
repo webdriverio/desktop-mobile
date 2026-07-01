@@ -25,7 +25,7 @@ on:
       ios-device:
         description: 'Simulator device name'
         type: string
-        default: 'iPhone 16'
+        default: 'iPhone 17'
       build_id:
         type: string
         required: false
@@ -115,7 +115,11 @@ jobs:
                | (max_by([(.name | capture("^iPhone (?<n>[0-9]+)").n | tonumber), -(.name | length)])) as $c
                | if $c == null then empty else "\($c.udid) \($c.name)" end')
             test -n "$UDID" || { echo "::error::No available iPhone simulator (requested '${{ inputs.ios-device }}')"; xcrun simctl list devices available; exit 1; }
-            echo "::warning::Requested simulator '${{ inputs.ios-device }}' not available on this runner; falling back to '$FLUTTER_IOS_DEVICE' ($UDID). See #510."
+            # Warn + write to the run summary (a passing job's annotations are easy to miss) so a
+            # perpetually-absent default gets noticed and bumped. See #510.
+            DRIFT="Requested iOS simulator '${{ inputs.ios-device }}' not on this runner; using '$FLUTTER_IOS_DEVICE'. Refresh the ios-device default (#510) once it's absent across runner images."
+            echo "::warning::$DRIFT"
+            printf '⚠️ **iOS simulator drift (Flutter):** %s\n' "$DRIFT" >> "${GITHUB_STEP_SUMMARY:-/dev/null}"
           fi
           echo "Using simulator $FLUTTER_IOS_DEVICE ($UDID)"
           echo "FLUTTER_IOS_UDID=$UDID" >> "$GITHUB_ENV"
