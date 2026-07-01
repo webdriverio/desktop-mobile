@@ -73,6 +73,12 @@ JS/Dart realm (`execute`/`mock`).
   — become **base concerns fixed once**, not twice per framework, since the base is where the shared
   surface (deeplink / contexts / logs / multiremote) is defined. Converging is the natural place to
   close all three; treat them as part of this work, retargeted onto `@wdio/mobile-service`.
+- **Preserve the published framework surfaces — no breaking change.** RN and Flutter already ship
+  `browser.reactNative.*` / `browser.flutter.*` on the `next` tag. Convergence keeps those exact
+  namespaces — the base's shared commands surface *through* them (the framework service "widens" its own
+  namespace, per Architecture) — rather than moving users onto `browser.mobile.*`. `browser.mobile.*` is
+  the primary surface **only** for the standalone generic service. This is a hard backward-compat
+  constraint on the rework and shapes the `native-types` augmentation.
 
 ### Out of scope
 - The setup-automation mechanics (Tier 1/2/3) — see #378/#405/#406.
@@ -129,10 +135,14 @@ JS/Dart realm (`execute`/`mock`).
   `switchContext`, `getContexts`, `launchApp`, `lock`, …) rather than re-wrapping them. The mobile
   service's value is setup automation + the normalized, cross-service-consistent API shape + deeplink
   fallback + log forwarding.
-- **Open strategic question:** driver auto-install + the version matrix + the doctor are generic
-  enough to benefit *every* Appium user. They are a candidate to **propose upstream into
-  `@wdio/appium-service`** rather than maintain in parallel in `native-mobile-core`. This is a
-  maintainer (Wim) conversation, aligned with the project's peer-coordination outreach approach.
+- **Upstream candidate — deferred until after the mobile-service ships.** Driver auto-install + the
+  version matrix + the doctor are generic enough to benefit *every* Appium user, so they are a candidate
+  to **propose upstream into `@wdio/appium-service`** rather than maintain in parallel. **Decision:** do
+  **not** pursue this until after `@wdio/mobile-service` is released, and gate it on two questions first:
+  (1) does upstreaming complicate *our* maintenance (a fork/version-lag dependency, split ownership)?
+  and (2) does it dilute the value of our services by handing our differentiator to a base everyone gets
+  for free? Only open the maintainer (Wim) peer-coordination conversation if both answers are
+  comfortable. Until then, keep these in `native-mobile-core`.
 
 ## Testing & E2E strategy
 
@@ -151,12 +161,36 @@ JS/Dart realm (`execute`/`mock`).
   Hybrid webview context switching unreliable). Decide by building a minimal both-axis fixture and
   measuring green-on-both-OSes + CI cost.
 
+## Skill applicability — reuse the mechanics, skip these default motions
+
+The `add-native-service` skill is the right **mechanics checklist** for this build (Appium plumbing, CI
+shape, fixtures, tests, release). But this service is a **base/substrate**, not a leaf framework
+service, so several of the skill's *default motions do not apply* — a plan must consciously skip them:
+
+- **Extract-up, not clone-a-sibling.** The build *promotes* an existing library (`native-mobile-core`),
+  most of which already exists — it is not a fresh clone of RN.
+- **A base, not a leaf.** Design the worker for subclassing (the per-instance realm-bridge seam;
+  inheritance-vs-composition) — the skill's leaf-worker model doesn't cover this.
+- **Convergence is inverted.** This service *defines* the shared surface others converge onto; building
+  it is as much a **refactor of RN/Flutter** as a new build.
+- **`execute`/`mock` are deliberately *omitted*.** The skill's "every service ships execute + mock" is
+  inverted here — the generic base has no realm; those are the framework extensions.
+- **Standalone *and* wrapped** is a composition contract the skill doesn't model (the config table
+  above: no double-registration; foreign-cap no-op guard).
+- **Version coupling** (a JS base ↔ its published consumers), not the skill's Rust npm↔crate lockstep.
+
+The skill's Mobile archetype is updated to *reflect* this base **only after it ships** (Sequencing step
+4) — never edit it against this not-yet-built abstraction.
+
 ## Sequencing
 
 1. **Setup-automation track lands** in `native-mobile-core` (#378 → #405/#406).
 2. **Extract the concrete `MobileService` worker base; converge RN + Flutter.** This is the
    highest-leverage step and is worth doing *even if a standalone generic service is not published* —
-   it removes the existing RN/Flutter divergence.
+   it removes the existing RN/Flutter divergence. **It is also the project's biggest risk: reworking two
+   *published* (`1.0.0-next`) services onto a new base. Gate it — the RN *and* Flutter unit + E2E suites
+   stay green throughout — and do it as a *dedicated* rework step, not interleaved with new features
+   (the same extraction discipline that governed the original `native-mobile-core` extraction).**
 3. **Publish `@wdio/mobile-service`** (generic native) — the base that Capacitor extends.
 4. **Distill the converged mobile archetype back into the `add-native-service` skill**
    (`.claude/skills/add-native-service/` — the Mobile archetype + `plumbing-mobile.md`): a new mobile
@@ -167,7 +201,9 @@ JS/Dart realm (`execute`/`mock`).
 
 ## Open Questions
 
-- Upstream driver-install/doctor to `@wdio/appium-service`, or keep them in `native-mobile-core`?
+- ~~Upstream driver-install/doctor to `@wdio/appium-service`, or keep in `native-mobile-core`?~~
+  **Decided:** defer until after the mobile-service release; gate on maintenance-cost + service-value
+  dilution (see "Relationship to `@wdio/appium-service`").
 - Versioning: a `@wdio/mobile-service` `1.0` line vs the RN/Flutter `1.0.0-next.x` lines. **Guidance
   (version-honesty rule):** the base graduates to `1.0` only when its Tier-1 surface is *proven* —
   including standalone E2E (#445), real multiremote (#446), and deeplink nav-proof (#457). Until then it
