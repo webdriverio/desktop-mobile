@@ -161,8 +161,8 @@ The following frameworks were evaluated and excluded from the roadmap:
 | NW.js | Declining popularity, overlaps with Electron |
 | Cordova / PhoneGap | Deprecated (2020), replaced by Capacitor |
 | Qt / QML | Native rendering — no WebDriver fit |
-| .NET MAUI | No *dedicated* service planned (native UI needs no framework-specific channel) — but native MAUI apps are drivable via the generic [`@wdio/mobile-service`](#shared-mobile-infrastructure) over Appium (UiAutomator2 / XCUITest) |
-| Blazor | Standard web needs no service; Hybrid WebView context switching unreliable |
+| .NET MAUI | No *dedicated* service planned (native UI needs no framework-specific channel) — but native MAUI apps are drivable via the generic [`@wdio/mobile-service`](#shared-mobile-infrastructure) over Appium (UiAutomator2 / XCUITest); MAUI is also the **generic service's E2E fixture** (it dogfoods this exact use case — spike [#508](https://github.com/webdriverio/desktop-mobile/issues/508) confirmed Appium drivability + a cheap ~1.7 min Android CI toolchain) |
+| Blazor | Standard web needs no service; Hybrid WebView context switching is unreliable **only on Windows/WinAppDriver** — on Android/iOS `BlazorWebView`/`HybridWebView` are standard `android.webkit.WebView` / `WKWebView` and *are* drivable with a Chromedriver-matched config (spike [#508](https://github.com/webdriverio/desktop-mobile/issues/508)) |
 | Wails | Go webview, no established automation patterns |
 
 ## Evaluation Criteria

@@ -114,9 +114,9 @@ For a **self-rendered** framework, find/tap (sub-axis 1) and `execute`/`mock` (s
 packages/<framework>-*    — Rust crates (Wry path only)
 ```
 
-New services build **on `@wdio/native-core`** (Tauri and Dioxus do; Electron predates the extraction and is being migrated). Reuse port management, driver lifecycle, and log writing; add framework behaviour on top. Audit before extracting more into core — extract only what's duplicated bit-for-bit (see gotcha 2).
+New services build **on `@wdio/native-core`** (Tauri and Dioxus do; Electron predated the extraction and is being folded onto the shared layer — its CDP transport moved to `@wdio/native-cdp-bridge` in 10.2.0, #340, retiring the standalone `@wdio/electron-cdp-bridge`). Reuse port management, driver lifecycle, and log writing; add framework behaviour on top. Audit before extracting more into core — extract only what's duplicated bit-for-bit (see gotcha 2).
 
-**Mobile** services reuse `BaseLauncher` (the hook lifecycle) but **none** of the `native-core` driver/port/OS-protocol-deeplink primitives — Appium owns the session; **Tier-1** services additionally use `@wdio/native-cdp-bridge` for the JS-realm channel (Tier-2 doesn't). The shared mobile concerns (caps, device pool, contexts, `mobile: deepLink`, device-log channels) live in the RN package today and graduate to a new `@wdio/native-mobile-core` **when Flutter — the second consumer — lands** (extract-on-second-use, gotcha 2). See [plumbing-mobile.md](plumbing-mobile.md) → "Shared-layer extraction".
+**Mobile** services reuse `BaseLauncher` (the hook lifecycle) **and** its `PortManager` — the launcher activates a per-worker realm-port seam (Flutter `appium:dartVmServicePort`, RN Metro/Hermes; #378), so the earlier "reuses none of the port primitives" no longer holds. It still does **not** use `DriverPool`/`DriverProcess` (RN's `metroProcess.ts` *mirrors* the SIGTERM→SIGKILL discipline for a service-managed Metro child rather than reusing `DriverProcess`; #406) or the OS-protocol `deeplink.ts` (mobile uses `mobile: deepLink`). Appium owns the session; **Tier-1** services additionally use `@wdio/native-cdp-bridge` for the JS-realm channel (Tier-2 doesn't). The shared mobile concerns (caps, device pool, contexts, `mobile: deepLink`, device-log channels) live in the RN package today and graduate to a new `@wdio/native-mobile-core` **when Flutter — the second consumer — lands** (extract-on-second-use, gotcha 2). See [plumbing-mobile.md](plumbing-mobile.md) → "Shared-layer extraction".
 
 ## Feature scope
 
@@ -124,6 +124,7 @@ New services build **on `@wdio/native-core`** (Tauri and Dioxus do; Electron pre
 
 - **Standard surface — ship in every service, identical shape:** `execute`, mocking (`mock` + `clear/reset/restoreAllMocks` + `isMockFunction`, via `@wdio/native-spy`), `triggerDeeplink`, multi-window `switchWindow`/`listWindows`, backend+frontend log capture, browser mode, standalone/session mode, **multiremote + per-worker parallelism**, **headless on all supported platforms** (provided by WDIO's `@wdio/xvfb` / `autoXvfb` — being renamed `@wdio/display-server` in v10 — not by the service; CDP services use `autoXvfb` directly, Wry services wrap the command in `xvfb-run` because their driver runs in the launcher process), consistent config-option names. **Mobile keeps the same surface with mobile semantics:** `switchWindow`/`listWindows` = Appium contexts (`NATIVE_APP` ↔ `WEBVIEW_*`); `triggerDeeplink` = `mobile: deepLink` (+ Android `am start` fallback); log capture = native `logcat`/`syslog` **plus** JS-console-over-CDP; multiremote/parallelism = a device pool instead of per-worker driver ports; headless = the emulator/simulator (no Xvfb).
 - **Two mock tiers, one surface.** Mocking is always the same Vitest-like API, but the *inner* mechanism has two tiers: **Tier 1** transparent JS-eval injection (`native-spy` outer + an inner script-builder recorder — desktop CDP/Wry and RN/Hermes) and **Tier 2** a cooperative opt-in contract baked into the app/fixture (Flutter/Dart-VM, where the target can't be transparently rewritten — `execute` still works via the VM `evaluate` RPC; only `mock` needs the contract). Decision rule: *can you transparently rewrite the target through an eval channel?* See [features.md](features.md) → "Mocking — the two-tier doctrine".
+- **Zero-config setup / own the toolchain lifecycle.** DX parity is part of convergence: `@wdio/electron-service` auto-manages Chromedriver so the user configures nothing, and every service should drive as much of its own setup as feasible — **opt-in + idempotent**. Shipped analogs: mobile auto-installs the Appium driver against a server↔driver version matrix, allocates the per-worker realm port, and runs a **preflight doctor** that fails fast with an actionable message instead of a cryptic Appium timeout (`ensureAppiumDriver`/`autoInstallDriver` in `native-mobile-core`; #378); RN owns the Metro dev-server lifecycle (#406); Flutter auto-allocates `dartVmServicePort` (#405); the **desktop** analog is browser mode's `devServerCommand` auto-start (spawn → await-ready → teardown in the shared browser-mode layer; #417 — staged *after* the manual-`devServerUrl` v1). The *mechanism* is framework-specific (skip where there's no canonical toolchain to manage); the *goal* — the user configures nothing — is standard.
 - **Conditional only on the framework having the concept** (ship with the standard shape if it does): `emitEvent` (needs an event bus).
 - **Framework-specific — additive, never a divergent reinvention:** Electron `mockAll`/class-mock + fuses/AppArmor/Chromedriver-versioning, Tauri CrabNebula provider, Dioxus bridge IPC. The *mechanism* of auto binary-path detection is framework-specific (skip when there's no canonical build tool), but the user-facing `appBinaryPath`/`application` option stays standard.
 - **Not service features** (docs only, don't build): visual regression and video recording — usage examples composing with third-party WDIO packages we don't control (`@wdio/visual-service`, `wdio-video-reporter`).
@@ -216,6 +217,40 @@ version.
 > single-instance lock + `open-url` routing for deeplink — which has *no* existing issue), and is the
 > one URL linked from the docs.
 
+## When the *cost gate* — not upstream — defers a standard feature
+
+A standard feature can also ship **incomplete for a reason that isn't an upstream block** — the
+*mechanism* works and is unit-tested, but full validation (E2E + CI gate) or the full
+multi-device/multi-instance implementation is deferred because the remaining work needs **expensive,
+flaky CI infra** (a second device, a real navigation on a booted emulator), not because anything
+upstream prevents it. **"The mechanism works" (unit-tested) ≠ "the feature is proven" (E2E-asserted +
+CI-gated).** Decide *how far to take each, and in which PR,* by this rule:
+
+- **Piggybacks on already-paid CI → finish it in place, don't defer.** If completing the feature reuses
+  hardware a leg already boots (the standard E2E emulator/sim/driver), the cost argument is gone — fold
+  it into that E2E PR (or a tiny fast-follow), not a ceremony PR. Splitting cheap validation into a
+  standalone PR is pure overhead.
+- **Needs net-new expensive infra AND is architecturally separable → its own dedicated PR.** A feature
+  that requires new CI capacity (e.g. a *second* device on one runner) and touches a broad, cleanly
+  separable slice of the code earns its own follow-up PR — consistent with "split the E2E PR when its
+  CI is itself high-risk". Folding it into the ship PR would bloat an already-risky CI surface and hold
+  the release hostage. Doing it *after* the ship PRs is legitimate; don't cram it into the main stack.
+- **But if the deferred item is part of the *mandatory* convergent surface, the version number must
+  tell the truth.** A Tier-1 (universal) feature shipped partial means the service is **not yet at the
+  1.0 bar** ("1.0 = the convergent surface works"). Honest options: base at **0.x** until it lands and
+  graduate at real parity (see the section above), **or** ship 1.0 only with the gap as a *committed,
+  prominently documented* fast-follow (README + `ROADMAP.md` + a tracked issue), never an open-ended
+  "later". For a headline Tier-1 feature that's only shape-complete, `0.x` is the more honest signal.
+
+**A non-in-band feature is not automatically a cost-gate deferral — separate the causes.** The same
+"not in the first ship" symptom has **three distinct causes** with different remedies: **shipped
+in-band** (the feature is cheap on the target archetype — e.g. desktop multiremote is just more
+processes/ports on one host, no extra hardware); **cost-gate-deferred** (this section — the work is
+real but the *CI* is expensive/flaky); and **upstream-blocked** (the platform/runtime can't support it
+yet — see "When upstream blocks the standard surface"). Don't read one archetype's deferral as a
+universal rule ("multiremote always follows up" is false — it can be in-band on one archetype,
+cost-gated on another, and upstream-blocked on a third).
+
 ## Process
 
 ### Phase 0 — Pre-implementation spike
@@ -290,11 +325,19 @@ See [ci-and-release.md](ci-and-release.md) → "CI gates". Add `run_<framework>`
 
 - `fixtures/e2e-apps/<framework>/` — minimal app exercising the service surface (execute + mock + multi-window). See **Fixture app conventions** below. **Mobile**: one fixture app drives every leg; the native `android/`/`ios/` projects are **generated in CI (not committed)** by scaffolding a pinned framework version and overlaying the fixture source. RN additionally runs it under a **dual-architecture matrix** (Paper + Fabric) — that's RN-specific (see ci-and-release.md), not a universal mobile rule.
 - `fixtures/package-tests/<framework>-app/` — package-install smoke fixture. Same visual conventions; reduced functional surface (typically just `#app-title` + `#status`). **Mobile package-tests are ESM-only** (a CJS config can't compose `services: ['appium', …]` — `@wdio/appium-service` + WDIO v9 core are ESM-only); ship one ESM fixture, no CJS variant. **A fixture is inert until it's wired to run** — it needs all three of: a `scripts/test-package.ts` case (pack the `.tgz` + native deps), a `detect-changes` gate (+ `detect-changes.spec.ts`), and a CI job that actually runs it. Creating the fixture without the wiring is a silent gap that shipped on *both* mobile services (#387). Deferring is fine **only** behind a tracked issue; the moment the fixture lands, wire it (desktop: the per-distro Docker matrix is system-webview-only — see [ci-and-release.md](ci-and-release.md); mobile: an emulator/simulator job, wired alongside the e2e PR that already pays the device cost).
-- `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,mocking,window}.spec.ts` mirroring `e2e/test/tauri/`. Also add `logging.external.spec.ts` if the service has an **external** driver provider — capturing the driver subprocess's stdout/stderr is a distinct code path from in-app frontend/backend logging and needs its own coverage. **Mobile** mirrors `e2e/test/react-native/` (`{api,application,execute,mocking,logging,contexts,deeplink}.spec.ts`).
+- `e2e/test/<framework>/{api,application,execute-advanced,execute-data-types,logging,mocking,window}.spec.ts` mirroring `e2e/test/tauri/`. Also add `logging.external.spec.ts` if the service has an **external** driver provider — capturing the driver subprocess's stdout/stderr is a distinct code path from in-app frontend/backend logging and needs its own coverage. **Mobile** mirrors `e2e/test/react-native/` (`{api,application,execute,mocking,logging,contexts,deeplink}.spec.ts`). **Prove behaviour, don't smoke-test:** each spec asserts the real effect (deeplink → the app *navigated*, with the fixture registering a scheme + handler; standalone → a live session against a device; multiremote → two instances routed) and runs inside the **required** CI gate. A spec that only asserts "doesn't throw", or sits outside the gated `standard` run, is not coverage — and nothing may claim ✅ in the README on the strength of it (see the per-PR verification checklist).
 - `e2e/wdio.<framework>.conf.ts` (+ `wdio.<framework>-embedded.conf.ts` for a Wry embedded provider). **Mobile**: `services: ['appium', '<framework>']`, `maxInstances: 1`, `specFileRetries: 1` (absorbs emulator/sim-boot + first-session flake), generous `connectionRetryTimeout`, an **app-ready `before` gate** (`waitForDisplayed` on a known element), and a **page-source-on-failure `afterTest`** (writes the Appium UI hierarchy to the uploaded logs). iOS reads `RN_WDA_DD`/device env to reuse a prebuilt WebDriverAgent.
 - `packages/<framework>-service/README.md` + `docs/` set + per-crate READMEs.
 - Root `README.md`, `ROADMAP.md`, `AGENTS.md`, `CLAUDE.md`, `CONTRIBUTING.md`, `docs/*.md` updates.
 - Release pipeline — see [ci-and-release.md](ci-and-release.md) → "Release pipeline".
+- **Post-ship external outreach — a standard deliverable, not optional.** Once released, get the
+  service recommended where users actually look: (1) the **framework's own docs** (usually a *new*
+  WebDriver/E2E-testing section — Tauri landed it via tauri-docs#3922, tracked in #30; Dioxus is #458,
+  open), and (2) the **WDIO docs** — add a `desktop-testing/<framework>` (or
+  `mobile-testing/<framework>`) page mirroring the Tauri page (webdriverio#15235). File it as a
+  per-service outreach issue (#30 / #458 are the template) so it isn't forgotten after the release
+  glow fades. Frame the outreach as **peer coordination + offer-to-upstream, not permission-seeking**
+  (rebut "you could do it in raw WebDriver" with the tauri-driver-vs-service precedent).
 
 ### Follow-up tracking (cross-cutting)
 
@@ -423,6 +466,8 @@ The 6-PR split, mirroring the tables above:
 16. **(Mobile/iOS CI) keep heavy `xcodebuild` off the E2E runner.** Pre-build WebDriverAgent into an explicit `derivedDataPath` (cap `appium:derivedDataPath` + `usePrebuiltWDA`); a per-session WDA xcodebuild on the same runner as the Appium session starves appium-xcuitest's SDK probe and drops the `POST /session` socket. Mirror the two-stage iOS workflow.
 17. **(Mobile) `execute`/`mock` (and a self-rendered framework's find/tap) need an *instrumented, non-release* build.** The eval/finder channel only exists in a debug build: RN needs the Hermes debugger + Metro; Flutter needs the Dart VM Service + `enableFlutterDriverExtension()`. A release build has no channel — `execute`/`mock` silently have nothing to attach to. This shapes the fixture and the CI build step (build *debug*, expose the debug/VM port), so decide it in the spike, not late.
 18. **(Package tests) a fixture must be *wired*, not just created.** `fixtures/package-tests/<framework>-app/` does nothing until `test-package.ts` packs it, `detect-changes` gates it, and a CI job runs it. Both mobile services shipped the fixture and skipped all three — the test silently never ran (#387). Done-condition is *the package test runs green in CI*, not *the fixture exists*.
+19. **(Mobile) a working mechanism is not a proven feature.** "The mechanism works" (unit-tested) ≠ "the feature is proven" (E2E-asserted + CI-gated) ≠ "the README may claim it". Mobile's expensive, flaky device CI tempts you to ship a standard feature with its mechanism unit-tested but its behaviour only smoke-tested ("doesn't throw") or left out of the required gate — and a service cloned from a sibling template inherits that silently (cf. gotcha 18). **Prove each standard feature in the main cycle**: the guards are the Phase 5 e2e "prove behaviour, don't smoke-test" rule + the per-PR verification-checklist "no false ✅" item. Defer only the genuinely large/infra-heavy feature via the cost-gate rule above, with a version that tells the truth (a Tier-1 gap at 1.0 overclaims → prefer `0.x`).
+20. **(Mobile/iOS CI) don't rely on a hardcoded simulator device name — resolve it resiliently.** GitHub runner images roll their Xcode forward, and each Xcode ships a *different* default simulator set, so a leg that assumes an exact name (e.g. `appium:deviceName: 'iPhone 16'`) fails **deterministically** once the image drops that device — it only "passes on re-run" while older images linger in the pool, then hard-fails everywhere (#510, fixed in #511). At boot, resolve a concrete device from `xcrun simctl list devices available --json`: prefer the requested name (on the newest runtime), else **fall back to the highest plain `iPhone <N>`** — `max_by([model number, -name length])`, so `iPhone 17` beats `iPhone 17 Pro` and `iPhone 16e` — **pin its UDID**, propagate name + UDID to the caps (via `$GITHUB_ENV` → `appium:deviceName` / `appium:udid`; the UDID pin also kills the duplicate-name boot ambiguity, #359), and emit a `::warning::` naming the fallback. Bumping the default to a currently-present device (`iPhone 16`→`iPhone 17`) is fine *as the preferred name* but is **not** the fix by itself — without the fallback it just re-arms the trap for the next roll. #511 applies this to **both** iOS reusable workflows (RN + Flutter) by duplication — the resolver is a shared mobile-CI concern the mobile-service base should later own, not copy-paste per service.
 
 ## Verification checklist (per PR)
 
@@ -432,6 +477,7 @@ The 6-PR split, mirroring the tables above:
 - [ ] No regressions: `@wdio/tauri-service`, `@wdio/electron-service`, `@wdio/dioxus-service`, `@wdio/native-core` unit suites
 - [ ] (Wry) `cargo check` + `cargo test` green for each new crate; no `packages/*/target/` staged
 - [ ] (Ship) package-test fixture is *wired* — `test-package.ts` case + `detect-changes` gate + a CI job that runs green, not just the fixture committed (#387)
+- [ ] Every ✅ in the service README / feature table is backed by a CI-gated E2E that *proves the behaviour* (not a smoke test), or is explicitly marked "pending #N" — don't dress a smoke-test as a ✅
 
 ## Reference implementations (worked examples by archetype)
 
