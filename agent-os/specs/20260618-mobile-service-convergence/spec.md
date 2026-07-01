@@ -1,11 +1,12 @@
 # Specification: Generic `@wdio/mobile-service` & Mobile-Service Convergence
 
-> **Status:** 📋 Planned (design) — 2026-06-18
+> **Status:** 📋 Planned (design) — 2026-06-18 (updated 2026-07-01: E2E strategy, convergence-subsumes-gaps, versioning guidance)
 >
 > **Companion work (tracked as issues, not restated here):**
 > - [#378](https://github.com/webdriverio/desktop-mobile/issues/378) — shared mobile setup automation in `@wdio/native-mobile-core`
 > - [#405](https://github.com/webdriverio/desktop-mobile/issues/405) — Flutter zero-config (`dartVmServicePort`)
 > - [#406](https://github.com/webdriverio/desktop-mobile/issues/406) — React Native Metro/Hermes
+> - [#508](https://github.com/webdriverio/desktop-mobile/issues/508) — Phase-0 spike: the generic E2E fixture (native-widget + webview, both OSes)
 >
 > This spec is **focused** on the generic service + the convergence refactor. The setup-automation
 > mechanics (Tier 1/2/3) live in the issues above and are referenced, not duplicated.
@@ -65,6 +66,13 @@ JS/Dart realm (`execute`/`mock`).
   service omits realm-level `execute`/`mock`; API types are segregated so it does not advertise them.
 - **Foreign-cap no-op guard** — each service ignores caps that are not its own (by
   `automationName` / custom-capability marker), the prerequisite for mixed multiremote fleets.
+- **The mobile first-ship gaps are resolved *in the base*.** Standalone E2E + the standalone contract
+  ([#445](https://github.com/webdriverio/desktop-mobile/issues/445)), real multi-device multiremote
+  ([#446](https://github.com/webdriverio/desktop-mobile/issues/446)), and deeplink nav-proof + CI gate
+  ([#457](https://github.com/webdriverio/desktop-mobile/issues/457)) — currently open against RN/Flutter
+  — become **base concerns fixed once**, not twice per framework, since the base is where the shared
+  surface (deeplink / contexts / logs / multiremote) is defined. Converging is the natural place to
+  close all three; treat them as part of this work, retargeted onto `@wdio/mobile-service`.
 
 ### Out of scope
 - The setup-automation mechanics (Tier 1/2/3) — see #378/#405/#406.
@@ -89,6 +97,11 @@ JS/Dart realm (`execute`/`mock`).
 - Inheritance is one extra level vs today (core lib → concrete service → framework service). The
   alternative — composition (framework worker holds a `MobileService` instance) — is acceptable if a
   3-level class chain proves awkward; decide during implementation.
+- **Multiremote splits across the base/framework boundary.** The base owns N-distinct-device
+  allocation (`DeviceManager`) and per-instance attachment of the *shared* API; a framework extension
+  owns the per-instance *realm* channel (Hermes target-per-device / Dart-VM-per-udid). The base worker
+  must therefore expose a **seam for a subclass to attach a per-instance realm bridge** — a hard
+  constraint on the inheritance-vs-composition choice above, and the base half of #446.
 
 ## Composition / Configuration Model
 
@@ -121,6 +134,23 @@ JS/Dart realm (`execute`/`mock`).
   `@wdio/appium-service`** rather than maintain in parallel in `native-mobile-core`. This is a
   maintainer (Wim) conversation, aligned with the project's peer-coordination outreach approach.
 
+## Testing & E2E strategy
+
+- **Standalone is the base's *primary* mode**, so its E2E is first-class — not the deferred afterthought
+  it was for RN (#445). Prove real behaviour against a device (navigation asserted, session exercised),
+  not a smoke test. When the base is **wrapped**, its API is exercised transitively by the RN/Flutter
+  suites; the *net-new* E2E investment is specifically the **standalone-generic** path.
+- **The generic fixture must prove two independent axes** no trivial app covers together: native-widget
+  find/tap (the core), and `NATIVE_APP` ↔ `WEBVIEW_*` context switching — plus deeplink (scheme +
+  handler), device logs, and multiremote. It must be **neither RN nor Flutter** (their own fixtures),
+  ideally one cross-platform codebase on both OSes.
+- **Fixture technology is an open Phase-0 decision — spike
+  [#508](https://github.com/webdriverio/desktop-mobile/issues/508).** Candidates: **.NET MAUI** (the
+  marquee generic-service target per `ROADMAP.md` → dogfooding, but heavy .NET/Xcode CI),
+  **NativeScript** (lighter), or **plain native** (two codebases); **not** Blazor Hybrid (`ROADMAP.md`:
+  Hybrid webview context switching unreliable). Decide by building a minimal both-axis fixture and
+  measuring green-on-both-OSes + CI cost.
+
 ## Sequencing
 
 1. **Setup-automation track lands** in `native-mobile-core` (#378 → #405/#406).
@@ -138,5 +168,8 @@ JS/Dart realm (`execute`/`mock`).
 ## Open Questions
 
 - Upstream driver-install/doctor to `@wdio/appium-service`, or keep them in `native-mobile-core`?
-- Versioning: a `@wdio/mobile-service` `1.0` line vs the RN/Flutter `1.0.0-next.x` lines.
+- Versioning: a `@wdio/mobile-service` `1.0` line vs the RN/Flutter `1.0.0-next.x` lines. **Guidance
+  (version-honesty rule):** the base graduates to `1.0` only when its Tier-1 surface is *proven* —
+  including standalone E2E (#445), real multiremote (#446), and deeplink nav-proof (#457). Until then it
+  stays `0.x` / `-next`; a `1.0` base sitting on shape-only multiremote would overclaim.
 - Inheritance vs composition for the worker base (decide at implementation).
