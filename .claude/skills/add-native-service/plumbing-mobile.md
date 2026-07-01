@@ -217,49 +217,31 @@ Wry macOS background-throttling gotcha (plumbing-wry.md). Connect **lazily** on 
 eagerly in `before` — the eager warm-up races Hermes' registration and would just fail. Under the
 New Architecture the inspector also registers *later* than Paper (see the dual-arch note).
 
-## Known first-ship gaps — and whether each was actually justified
+## Known first-ship gaps — the inheritance trap (delete this section when #445/#446/#457 close)
 
-Convergence (SKILL.md → Feature scope) says ship every standard feature at full parity. RN + Flutter
-shipped three of them **mechanism-only** — the API exists and is unit-tested, but E2E proof and/or the
-full multi-device implementation was deferred behind a tracked issue (standalone #445, multiremote
-#446, deeplink #457). This section exists so the **next** mobile service doesn't clone the RN template
-and silently reinherit all three (the same trap as gotcha 18 / #387) — it is **not** a licence to
-defer freely, and it's honest to note it's partly a *post-hoc* catalogue of what slipped.
+A standard feature can ship with its *mechanism* unit-tested but never proven: **"the mechanism works"
+≠ "the feature is proven" (E2E-asserted + CI-gated) ≠ "the README may claim it".** The **default is to
+prove each standard feature in the main cycle** — a spec that only asserts "doesn't throw", or sits
+outside the gated `standard` run, is not coverage (SKILL.md → Phase 5 e2e "prove behaviour" rule + the
+per-PR verification checklist's "no false ✅" item). Deferral is the *earned exception*: it must clear
+both bars of the cost-gate rule (SKILL.md → "When the cost gate … defers a standard feature") —
+genuinely large / needs net-new expensive CI infra, **and** a truthful version + README (a Tier-1 gap
+at 1.0 overclaims → `0.x` or a loud fast-follow).
 
-**Default: wire and prove each standard feature in the main development cycle.** Deferral is the
-*exception*, and only holds up when it clears **two** bars: (1) the remaining work is genuinely large
-or needs **net-new expensive CI infra** (a second device, a fragile new platform leg) — *not* merely
-"more test-writing"; and (2) the **version number and README tell the truth** — a Tier-1 feature that's
-shape-only means the service isn't at the 1.0 bar (base at `0.x`, or ship a loudly-documented
-fast-follow), never a README that reads ✅ tested. Judged against that bar the three are **not** equally
-defensible — a second mobile service that clones the RN template inherits them silently, so decide each
-on its own merits rather than copying the precedent.
+**Applied — the one case that earned deferral vs the one that didn't.** Real **multiremote** (#446)
+*earns* a standalone follow-up: N-device allocation + a per-instance JS-realm channel (Hermes
+target-per-device / VM-URL-per-udid) is a large, separable chunk *and* needs a second device on one
+runner (net-new, flaky). **Deeplink** (#457) did **not**: its validation piggybacks the emulator the
+`standard` leg already boots, yet it shipped a "deeplink ✅ via `mobile: deepLink`" README while only
+smoke-tested (no fixture scheme, asserts only "doesn't throw", outside the gate) — a false ✅ that
+should have ridden the E2E PR. (Standalone #445 sits between: documenting its two contract divergences
+— external Appium, no device-claiming — is main-cycle-cheap; its single-device E2E is a small
+fast-follow.)
 
-| Feature | What ships (mechanism) | What's deferred (validation/impl) | Issue |
-|---|---|---|---|
-| **Standalone / session mode** | `session.ts` helpers (`startWdioSession`/`cleanupWdioSession`/`create<FW>Capabilities`), unit-tested; `before()` is self-sufficient given a live Appium session | **Zero E2E** (`startWdioSession` never exercised against a device); **two undocumented divergences** — no auto-spawned Appium (external, `:4723` default, `connection` override) and no device claiming/udid stamping (drives only `onPrepare`, never `onWorkerStart` → single-device) | #445 |
-| **Multiremote** | launcher `flattenCaps` parses the `{ instance: { capabilities } }` shape | **Real multi-device routing** — N distinct devices per worker, a **per-instance** JS-realm channel (Hermes target-per-device / VM-URL-per-udid), and per-instance `browser.<fw>` attachment. Today one udid is stamped across every instance; neither worker `service.ts` has an `isMultiremote` branch | #446 |
-| **Deeplink** | `triggerDeeplink` = `mobile: deepLink` (+ Android `am start` fallback), unit-tested | **Navigation proof** — the fixture registers **no URL scheme/handler**, the e2e asserts only "doesn't throw" (not that the app navigated), and it's **not in the required CI gate** (`TEST_TYPE=deeplink`, excluded from `standard`) | #457 |
-
-**Was each deferral justified? (apply the two-bar test above.)**
-
-- **Multiremote (#446) — yes, the one clear case.** Real N-device allocation + a per-instance JS-realm
-  channel is a large, separable chunk *and* needs a second device on one runner (net-new, flaky). It
-  legitimately earns its own follow-up PR. Caveat: it's Tier-1, so ship **`0.x`** or a loudly-documented
-  fast-follow — shape-only-at-1.0 overclaims.
-- **Deeplink (#457) — mostly no; it should have ridden the E2E PR.** Validation piggybacks the emulator
-  the `standard` leg already boots. The fixture URL-handler + a deeplink CI leg on a fragile platform are
-  real work, so a *tight fast-follow* is defensible — but shipping the README/feature table as
-  "deeplink ✅ via `mobile: deepLink`" while it's only smoke-tested was **not**. Either prove it or soften
-  the claimed status; don't ship a false ✅.
-- **Standalone (#445) — no for the docs, weak for the E2E.** Documenting the two contract divergences
-  (external Appium; no device-claiming) is nearly free → main cycle. The E2E is single-device (same as
-  `standard`) and reuses the standard emulator, so it's a small fast-follow at most — not a genuinely
-  cost-gated deferral.
-
-The rule this encodes: **"the mechanism works" (unit-tested) ≠ "the feature is proven" (E2E-asserted +
-CI-gated) ≠ "the README may claim it".** Only multiremote earned its deferral on cost; the other two
-were closer to *slips* — cheap validation that should have ridden the E2E PR, plus a README that
-overstated status. On the next service, bias hard toward **finishing in the cycle**; reserve "defer
-behind a tracked issue" (SKILL.md → "Follow-up tracking") for the genuinely large/infra-heavy feature,
-and make the version + docs tell the truth when you do.
+**Inheritance warning (this is why the section exists — and why it self-destructs).** RN/Flutter today
+ship standalone (#445), multiremote (#446), and deeplink (#457) partial, so a service **cloned from the
+RN template inherits all three holes silently** — the same trap as gotcha 18 (#387). The clone isn't
+done until each hole is either closed per the Phase 5 gate or *re-deferred on its own merits* with a
+truthful README + its own tracked issue — never carried over as an unexamined ✅. **When #445/#446/#457
+land, delete this whole section**; the durable lessons already live in the Phase 5 e2e gate, the
+verification checklist, and the cost-gate rule.
