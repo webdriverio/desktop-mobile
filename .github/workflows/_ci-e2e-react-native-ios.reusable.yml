@@ -154,12 +154,23 @@ jobs:
           # booted here — a source of the "failed to finish booting" first-session flake (#359). We
           # export RN_IOS_UDID so the wdio config pins appium:udid to this exact simulator.
           # Prefer the newest runtime (highest SimRuntime key) when a name appears more than once.
-          UDID=$(xcrun simctl list devices available --json \
-            | jq -r --arg name "$RN_IOS_DEVICE" \
+          DEVICES=$(xcrun simctl list devices available --json)
+          UDID=$(echo "$DEVICES" | jq -r --arg name "$RN_IOS_DEVICE" \
                 'first(.devices | to_entries | sort_by(.key) | reverse | .[].value[] | select(.name == $name) | .udid) // empty')
-          test -n "$UDID" || { echo "::error::No available simulator named '$RN_IOS_DEVICE'"; xcrun simctl list devices available; exit 1; }
+          if [ -z "$UDID" ]; then
+            # Requested device absent on this runner image (Xcode versions drift across GitHub's
+            # macOS images), so fall back to the newest available "iPhone <N>" and pin its UDID.
+            read -r UDID RN_IOS_DEVICE < <(echo "$DEVICES" | jq -r \
+              '[.devices[][] | select(.name | test("^iPhone [0-9]"))]
+               | (max_by([(.name | capture("^iPhone (?<n>[0-9]+)").n | tonumber), -(.name | length)])) as $c
+               | if $c == null then empty else "\($c.udid) \($c.name)" end')
+            test -n "$UDID" || { echo "::error::No available iPhone simulator (requested '${{ inputs.ios-device }}')"; xcrun simctl list devices available; exit 1; }
+            echo "::warning::Requested simulator '${{ inputs.ios-device }}' not available on this runner; falling back to '$RN_IOS_DEVICE' ($UDID). See #510."
+          fi
           echo "Using simulator $RN_IOS_DEVICE ($UDID)"
           echo "RN_IOS_UDID=$UDID" >> "$GITHUB_ENV"
+          # Propagate the resolved name so the wdio config's appium:deviceName matches the pinned UDID.
+          echo "RN_IOS_DEVICE=$RN_IOS_DEVICE" >> "$GITHUB_ENV"
           # Tolerate "already booted" but fail loudly on a genuine error rather than masking it into
           # a later cryptic Appium "device not found".
           if ! xcrun simctl boot "$UDID" 2>/tmp/boot.err; then
@@ -222,10 +233,9 @@ jobs:
 
       - name: 🧪 Run E2E on iOS simulator
         shell: bash
-        env:
-          RN_IOS_DEVICE: ${{ inputs.ios-device }}
         run: |
           set -euo pipefail
+          # RN_IOS_DEVICE / RN_IOS_UDID are inherited from the boot step via $GITHUB_ENV.
           # Metro is now service-managed (manageMetro + prebundle): the @wdio/react-native-service
           # launcher starts `react-native start`, waits for /status, force-compiles the JS bundle
           # (so the first launch doesn't land on the "Bundling…" overlay), and tears it down. The

@@ -101,16 +101,34 @@ jobs:
           FLUTTER_IOS_DEVICE: ${{ inputs.ios-device }}
         run: |
           set -euo pipefail
-          if ! xcrun simctl boot "$FLUTTER_IOS_DEVICE" 2>/tmp/boot.err; then
+          # Resolve a concrete UDID and act on THAT throughout, so appium doesn't independently
+          # resolve the name to a different instance than we booted (#359). Prefer the requested
+          # device; fall back to the newest available "iPhone <N>" if the runner image doesn't carry
+          # it (Xcode versions drift across GitHub's macOS images). Export FLUTTER_IOS_UDID so the
+          # wdio config pins appium:udid to this exact simulator.
+          DEVICES=$(xcrun simctl list devices available --json)
+          UDID=$(echo "$DEVICES" | jq -r --arg name "$FLUTTER_IOS_DEVICE" \
+            'first(.devices | to_entries | sort_by(.key) | reverse | .[].value[] | select(.name == $name) | .udid) // empty')
+          if [ -z "$UDID" ]; then
+            read -r UDID FLUTTER_IOS_DEVICE < <(echo "$DEVICES" | jq -r \
+              '[.devices[][] | select(.name | test("^iPhone [0-9]"))]
+               | (max_by([(.name | capture("^iPhone (?<n>[0-9]+)").n | tonumber), -(.name | length)])) as $c
+               | if $c == null then empty else "\($c.udid) \($c.name)" end')
+            test -n "$UDID" || { echo "::error::No available iPhone simulator (requested '${{ inputs.ios-device }}')"; xcrun simctl list devices available; exit 1; }
+            echo "::warning::Requested simulator '${{ inputs.ios-device }}' not available on this runner; falling back to '$FLUTTER_IOS_DEVICE' ($UDID). See #510."
+          fi
+          echo "Using simulator $FLUTTER_IOS_DEVICE ($UDID)"
+          echo "FLUTTER_IOS_UDID=$UDID" >> "$GITHUB_ENV"
+          echo "FLUTTER_IOS_DEVICE=$FLUTTER_IOS_DEVICE" >> "$GITHUB_ENV"
+          if ! xcrun simctl boot "$UDID" 2>/tmp/boot.err; then
             if grep -qiE "already booted|current state: Booted" /tmp/boot.err; then
               echo "Simulator '$FLUTTER_IOS_DEVICE' already booted"
             else
-              echo "::error::Failed to boot simulator '$FLUTTER_IOS_DEVICE':"; cat /tmp/boot.err
-              echo "Available devices:"; xcrun simctl list devices available
+              echo "::error::Failed to boot simulator '$FLUTTER_IOS_DEVICE' ($UDID):"; cat /tmp/boot.err
               exit 1
             fi
           fi
-          xcrun simctl bootstatus "$FLUTTER_IOS_DEVICE" -b || { echo "::error::Simulator '$FLUTTER_IOS_DEVICE' did not reach Booted state"; exit 1; }
+          xcrun simctl bootstatus "$UDID" -b || { echo "::error::Simulator '$UDID' did not reach Booted state"; exit 1; }
 
       # Prime logd before Appium's first session. The first `simctl … log stream` on a freshly
       # booted sim routinely exceeds appium-xcuitest's 10s start window ("process did not start
@@ -171,10 +189,9 @@ jobs:
 
       - name: 🧪 Run E2E on iOS simulator
         shell: bash
-        env:
-          FLUTTER_IOS_DEVICE: ${{ inputs.ios-device }}
         run: |
           set -euo pipefail
+          # FLUTTER_IOS_DEVICE / FLUTTER_IOS_UDID are inherited from the boot step via $GITHUB_ENV.
           # Run the e2e suite and the package smoke DECOUPLED: capture each exit code with `|| rc=$?`
           # (so a failed e2e suite doesn't abort the step before the smoke runs) and fail at the end
           # if either failed. The smoke validates the PACKED tarball — its signal must survive an

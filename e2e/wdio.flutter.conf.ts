@@ -86,6 +86,7 @@ type FlutterCapability = {
   'appium:app': string;
   'appium:newCommandTimeout': number;
   'appium:deviceName'?: string;
+  'appium:udid'?: string;
   'appium:dartVmServicePort'?: number;
   'appium:wdaLaunchTimeout'?: number;
   'appium:simulatorStartupTimeout'?: number;
@@ -113,6 +114,10 @@ const capabilities: FlutterCapability[] = [
     ...(isIos
       ? {
           'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 16',
+          // CI pins the exact booted simulator (the boot step resolves + exports FLUTTER_IOS_UDID),
+          // so appium doesn't independently resolve the deviceName to a different instance (#359).
+          // Omitted locally (appium resolves by name).
+          ...(process.env.FLUTTER_IOS_UDID ? { 'appium:udid': process.env.FLUTTER_IOS_UDID } : {}),
           'appium:simulatorStartupTimeout': 240000,
           // Prebuilt WDA just launches (no compile), so a tight per-attempt ceiling lets several
           // startup retries fit inside connectionRetryTimeout below; non-prebuilt (local) must
