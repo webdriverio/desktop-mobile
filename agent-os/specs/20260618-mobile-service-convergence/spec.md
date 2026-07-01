@@ -154,12 +154,28 @@ JS/Dart realm (`execute`/`mock`).
   find/tap (the core), and `NATIVE_APP` ↔ `WEBVIEW_*` context switching — plus deeplink (scheme +
   handler), device logs, and multiremote. It must be **neither RN nor Flutter** (their own fixtures),
   ideally one cross-platform codebase on both OSes.
-- **Fixture technology is an open Phase-0 decision — spike
-  [#508](https://github.com/webdriverio/desktop-mobile/issues/508).** Candidates: **.NET MAUI** (the
-  marquee generic-service target per `ROADMAP.md` → dogfooding, but heavy .NET/Xcode CI),
-  **NativeScript** (lighter), or **plain native** (two codebases); **not** Blazor Hybrid (`ROADMAP.md`:
-  Hybrid webview context switching unreliable). Decide by building a minimal both-axis fixture and
-  measuring green-on-both-OSes + CI cost.
+- **Fixture technology — RESOLVED (spike [#508](https://github.com/webdriverio/desktop-mobile/issues/508)): .NET MAUI**
+  (net10) with a plain `WebView` screen; **plain-native** (Kotlin/Compose + SwiftUI) is the documented
+  fallback. MAUI is Appium-official, dogfoods the marquee generic-service target, and — measured on CI —
+  is **cheap on Android**: `maui-android` workload **14 s** + `net10.0-android` Debug build **89 s** ≈
+  **1.7 min** (the full `maui` workload is Linux-unsupported, so the Android leg never pays the published
+  ~7 min figure). Rejected: NativeScript (stale E2E tooling), Blazor Hybrid (actually drivable on
+  Android/iOS — the `ROADMAP.md` "unreliable" was Windows/WinAppDriver-scoped — but a plain `WebView` is
+  the minimal surface), Capacitor shell (coupling).
+- **Two-device multiremote CI (#446) is feasible on a *standard* runner** — spike #508 booted two Android
+  emulators concurrently on `ubuntu-latest` (4-core / 15 GB, KVM) in **46 s / 63 s**, both driveable, RAM
+  un-strained. The recipe: `reactivecircus/android-emulator-runner` boots exactly one, so the second is
+  hand-rolled with `sdkmanager` on PATH, a **bounded** `adb wait-for-device`, and **`ANDROID_AVD_HOME`
+  pinned** to `$HOME/.android/avd` (else `avdmanager` and `emulator` disagree). This de-risks #446's
+  multiremote leg — **no fork or bigger runner needed**.
+- **Two shared mobile-CI concerns the base should own** (generic — every mobile service's E2E needs
+  them, so consolidate, don't copy-paste): the **Android webview Chromedriver-version match** (the real
+  axis-2 context-switch risk — Appium's bundled Chromedriver vs the device webview's Chrome; also
+  pre-informs the deferred Capacitor webview-`execute`), and the **resilient iOS-simulator resolver**
+  ([#510](https://github.com/webdriverio/desktop-mobile/issues/510) /
+  [#511](https://github.com/webdriverio/desktop-mobile/issues/511): prefer the requested name → newest
+  plain `iPhone <N>` → pin UDID, since runner-image Xcode rolls drop device names; #511 currently
+  duplicates it across the RN + Flutter iOS legs — a convergence candidate for this base).
 
 ## Skill applicability — reuse the mechanics, skip these default motions
 
