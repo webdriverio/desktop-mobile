@@ -110,10 +110,12 @@ jobs:
           UDID=$(echo "$DEVICES" | jq -r --arg name "$FLUTTER_IOS_DEVICE" \
             'first(.devices | to_entries | sort_by(.key) | reverse | .[].value[] | select(.name == $name) | .udid) // empty')
           if [ -z "$UDID" ]; then
+            # `|| true`: with an empty jq result `read` exits 1, which under `set -e` would kill the
+            # step before the guard below — losing the error annotation + device-list diagnostic.
             read -r UDID FLUTTER_IOS_DEVICE < <(echo "$DEVICES" | jq -r \
               '[.devices[][] | select(.name | test("^iPhone [0-9]"))]
                | (max_by([(.name | capture("^iPhone (?<n>[0-9]+)").n | tonumber), -(.name | length)])) as $c
-               | if $c == null then empty else "\($c.udid) \($c.name)" end')
+               | if $c == null then empty else "\($c.udid) \($c.name)" end') || true
             test -n "$UDID" || { echo "::error::No available iPhone simulator (requested '${{ inputs.ios-device }}')"; xcrun simctl list devices available; exit 1; }
             # Warn + write to the run summary (a passing job's annotations are easy to miss) so a
             # perpetually-absent default gets noticed and bumped. See #510.

@@ -160,10 +160,12 @@ jobs:
           if [ -z "$UDID" ]; then
             # Requested device absent on this runner image (Xcode versions drift across GitHub's
             # macOS images), so fall back to the newest available "iPhone <N>" and pin its UDID.
+            # `|| true`: with an empty jq result `read` exits 1, which under `set -e` would kill the
+            # step before the guard below — losing the error annotation + device-list diagnostic.
             read -r UDID RN_IOS_DEVICE < <(echo "$DEVICES" | jq -r \
               '[.devices[][] | select(.name | test("^iPhone [0-9]"))]
                | (max_by([(.name | capture("^iPhone (?<n>[0-9]+)").n | tonumber), -(.name | length)])) as $c
-               | if $c == null then empty else "\($c.udid) \($c.name)" end')
+               | if $c == null then empty else "\($c.udid) \($c.name)" end') || true
             test -n "$UDID" || { echo "::error::No available iPhone simulator (requested '${{ inputs.ios-device }}')"; xcrun simctl list devices available; exit 1; }
             # Warn + write to the run summary (a passing job's annotations are easy to miss) so a
             # perpetually-absent default gets noticed and bumped. See #510.
