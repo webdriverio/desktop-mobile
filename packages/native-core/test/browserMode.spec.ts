@@ -90,13 +90,13 @@ describe('waitForDevServerReachable', () => {
   const url = 'http://localhost:1420';
   afterEach(() => vi.unstubAllGlobals());
 
-  it('resolves Ok as soon as the server is reachable', async () => {
+  it('should resolve Ok as soon as the server is reachable', async () => {
     vi.stubGlobal('fetch', reachable());
     const result = await waitForDevServerReachable(url, { timeoutMs: 1000, pollMs: 10 });
     expect(result.ok).toBe(true);
   });
 
-  it('polls until the server comes up', async () => {
+  it('should poll until the server comes up', async () => {
     const fetchMock = vi
       .fn()
       .mockRejectedValueOnce(new Error('ECONNREFUSED'))
@@ -107,7 +107,7 @@ describe('waitForDevServerReachable', () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
   });
 
-  it('resolves Err after the timeout when never reachable', async () => {
+  it('should resolve Err after the timeout when never reachable', async () => {
     vi.stubGlobal('fetch', unreachable());
     const result = await waitForDevServerReachable(url, { timeoutMs: 30, pollMs: 10 });
     expect(result.ok).toBe(false);
@@ -118,7 +118,7 @@ describe('startManagedDevServer', () => {
   const url = 'http://localhost:1420';
   afterEach(() => vi.unstubAllGlobals());
 
-  it('function form: awaits readiness and returns close() as the teardown', async () => {
+  it('should await readiness and return close() as the teardown for the function form', async () => {
     vi.stubGlobal('fetch', reachable());
     const close = vi.fn(async () => {});
     const devServer = async () => ({ url: 'http://localhost:5173', close });
@@ -130,7 +130,7 @@ describe('startManagedDevServer', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it('function form: closes and throws when the returned url never becomes reachable', async () => {
+  it('should close and throw when the function-form url never becomes reachable', async () => {
     vi.stubGlobal('fetch', unreachable());
     const close = vi.fn(async () => {});
     const devServer = async () => ({ url: 'http://localhost:5173', close });
@@ -141,7 +141,7 @@ describe('startManagedDevServer', () => {
     expect(close).toHaveBeenCalledOnce();
   });
 
-  it('string/object form: reuses an already-reachable server (no spawn) when not in CI', async () => {
+  it('should reuse an already-reachable server (no spawn) for the string/object form when not in CI', async () => {
     vi.stubGlobal('fetch', reachable());
     const spawn = vi.fn();
     const managed = await startManagedDevServer('pnpm dev', url, { spawn: spawn as never, isCI: false });
@@ -149,7 +149,7 @@ describe('startManagedDevServer', () => {
     await expect(managed.stop()).resolves.toBeUndefined();
   });
 
-  it('string/object form: spawns even if reachable when in CI (no reuse)', async () => {
+  it('should spawn even if reachable in CI for the string/object form (no reuse)', async () => {
     vi.stubGlobal('fetch', reachable());
     const spawn = vi.fn(() => fakeChild()) as never;
     const managed = await startManagedDevServer({ command: 'pnpm dev', timeoutMs: 1000 }, url, {
@@ -161,7 +161,7 @@ describe('startManagedDevServer', () => {
     expect(managed.url).toBe(url);
   });
 
-  it('string/object form: reuseExistingServer:false spawns even when reachable', async () => {
+  it('should spawn even when reachable if reuseExistingServer is false (string/object form)', async () => {
     vi.stubGlobal('fetch', reachable());
     const spawn = vi.fn(() => fakeChild()) as never;
     await startManagedDevServer({ command: 'pnpm dev', reuseExistingServer: false, timeoutMs: 1000 }, url, {
