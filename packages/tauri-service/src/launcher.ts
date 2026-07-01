@@ -217,7 +217,8 @@ export default class TauriLaunchService {
           };
         }
       } catch (error) {
-        await this.#stopDevServer?.();
+        // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
+        await this.#stopDevServer?.().catch(() => {});
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error

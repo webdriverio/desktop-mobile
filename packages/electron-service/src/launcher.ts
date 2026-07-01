@@ -211,7 +211,8 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           delete (cap as Record<string, unknown>)['wdio:enforceWebDriverClassic'];
         }
       } catch (error) {
-        await this.#stopDevServer?.();
+        // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
+        await this.#stopDevServer?.().catch(() => {});
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error
