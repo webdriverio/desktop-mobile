@@ -128,10 +128,10 @@ const capabilities: ReactNativeCapability[] = [
     'appium:automationName': isIos ? 'XCUITest' : 'UiAutomator2',
     'appium:app': appPath,
     'appium:newCommandTimeout': 240,
-    // iOS needs a target simulator; CI sets RN_IOS_DEVICE (e.g. 'iPhone 16').
+    // iOS needs a target simulator; CI sets RN_IOS_DEVICE (e.g. 'iPhone 17').
     ...(isIos
       ? {
-          'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 16',
+          'appium:deviceName': process.env.RN_IOS_DEVICE ?? 'iPhone 17',
           // Pin the exact simulator the workflow already booted. Without a udid, appium resolves
           // the deviceName independently and — when the runner image carries duplicate device names
           // across runtimes — can monitor/boot a *different* instance than CI pre-booted, surfacing
