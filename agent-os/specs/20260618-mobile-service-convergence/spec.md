@@ -158,8 +158,13 @@ JS/Dart realm (`execute`/`mock`).
     server-lifecycle + selector-perf, or absorb driver-install/doctor/device-management/a normalized
     mobile API? Its v9.27 selector-perf worker shows the maintainer *is* willing to grow it, so the
     question is live. Two clean outcomes: **"stays narrow"** → publish the standalone service as planned;
-    **"we want it upstream"** → keep `native-mobile-core` as the RN/Flutter base, upstream the
-    setup-automation, and **skip the standalone publish** (convergence value survives either way).
+    **"we want it upstream"** → keep `native-mobile-core` as the RN/Flutter base (it stays *code* —
+    RN/Flutter subclass it), upstream the setup-automation, and **skip the standalone publish**. In that
+    world the *generic-native* story (no framework realm; appium-service + core already cover the
+    mechanics) thins to helper patterns + config — so it likely ships as **docs / examples / boilerplate
+    contributed to the ecosystem** (Wim's Mobile docs / `appium-boilerplate`), *not* a package. That's
+    the honest "mechanism works ≠ needs a package" call, and it turns the outreach's ask #1 from
+    *competing* with those docs into *improving* them. Convergence value survives either way.
   - **Implementation stays put for now:** keep driver-install/doctor in `native-mobile-core` until the
     direction is settled — don't build them into appium-service speculatively. This gates only *where*
     they eventually live and *whether* we publish a standalone service, not the near-term work.
