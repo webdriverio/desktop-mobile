@@ -194,9 +194,44 @@ export interface MockLifecycleConfig {
 }
 
 /**
+ * Object form of {@link DevServer} — the command to spawn plus its environment and readiness knobs.
+ */
+export interface DevServerObject {
+  /** Command run in a shell to start the dev server, e.g. `'pnpm dev'`. */
+  command: string;
+  /** Working directory for the command. Default `process.cwd()`. */
+  cwd?: string;
+  /** Extra environment variables, merged over `process.env`. */
+  env?: Record<string, string>;
+  /** Readiness timeout in ms (how long to wait for `devServerUrl`). Default 60000 (120000 in CI). */
+  timeoutMs?: number;
+  /**
+   * Reuse a server already reachable at `devServerUrl` instead of spawning a new one.
+   * @default true locally, false in CI (`!process.env.CI`)
+   */
+  reuseExistingServer?: boolean;
+}
+
+/**
+ * Optional dev-server management for browser mode. When set, the service spawns the dev server in
+ * `onPrepare`, waits until `devServerUrl` is reachable, and tears it down on completion / failure.
+ *
+ * - `string` — a shell command, e.g. `'pnpm dev'`.
+ * - {@link DevServerObject} — the command plus `cwd` / `env` / `timeoutMs` / `reuseExistingServer`.
+ * - function — start the server yourself and return `{ url, close }`; the returned `url` supplies or
+ *   overrides `devServerUrl`, and `close` is the teardown (no subprocess/child-kill involved).
+ */
+export type DevServer = string | DevServerObject | (() => Promise<{ url: string; close: () => Promise<void> }>);
+
+/**
  * Base service options shared between Electron and Tauri
  */
 export interface BaseServiceOptions extends LogCaptureConfig, MockLifecycleConfig {
+  /**
+   * Auto-manage the dev server in browser mode (spawn in `onPrepare`, wait for `devServerUrl`,
+   * tear down on completion). Ignored outside browser mode.
+   */
+  devServer?: DevServer;
   /**
    * The path to the application binary for testing
    */
@@ -225,6 +260,11 @@ export interface BaseServiceGlobalOptions extends LogCaptureConfig, MockLifecycl
    * Root directory of the project
    */
   rootDir?: string;
+  /**
+   * Auto-manage the dev server in browser mode (spawn in `onPrepare`, wait for `devServerUrl`,
+   * tear down on completion). Ignored outside browser mode.
+   */
+  devServer?: DevServer;
 }
 
 // ============================================================================
