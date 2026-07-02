@@ -157,15 +157,17 @@ describe('DriverProcess - Integration', () => {
       });
 
       const proc = driver.proc;
-      expect(proc?.pid).toBeDefined();
+      if (!proc?.pid) {
+        throw new Error('expected a running driver process with a pid');
+      }
 
       // Kill via process.kill() so the wrapper's `.killed` stays false but
       // the OS-level process actually dies (mimics a natural exit/crash).
-      process.kill(proc!.pid!, 'SIGKILL');
-      await new Promise<void>((resolve) => proc!.once('exit', () => resolve()));
+      process.kill(proc.pid, 'SIGKILL');
+      await new Promise<void>((resolve) => proc.once('exit', () => resolve()));
 
-      expect(proc!.killed).toBe(false);
-      expect(proc!.exitCode !== null || proc!.signalCode !== null).toBe(true);
+      expect(proc.killed).toBe(false);
+      expect(proc.exitCode !== null || proc.signalCode !== null).toBe(true);
 
       const start = Date.now();
       await driver.stop();

@@ -1,4 +1,4 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('@wdio/native-core', async () => {
   const actual = await vi.importActual<typeof import('@wdio/native-core')>('@wdio/native-core');

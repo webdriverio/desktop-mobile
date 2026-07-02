@@ -71,7 +71,7 @@ export default class DioxusWorkerService {
     try {
       if (this.devServerUrl) {
         stage = 'initBrowserMode';
-        await this.initBrowserMode(browser as WebdriverIO.Browser);
+        await this.initBrowserMode(browser as WebdriverIO.Browser, this.devServerUrl);
         log.info('before() complete (browser mode)');
         return;
       }
@@ -199,9 +199,9 @@ export default class DioxusWorkerService {
     (browser as unknown as { dioxus: DioxusServiceAPI }).dioxus = dioxus;
   }
 
-  private async initBrowserMode(browser: WebdriverIO.Browser): Promise<void> {
-    log.debug(`Browser mode: navigating to ${this.devServerUrl}`);
-    await browser.url(this.devServerUrl!);
+  private async initBrowserMode(browser: WebdriverIO.Browser, devServerUrl: string): Promise<void> {
+    log.debug(`Browser mode: navigating to ${devServerUrl}`);
+    await browser.url(devServerUrl);
 
     await this.injectSpy(browser);
 

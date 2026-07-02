@@ -443,9 +443,9 @@ export default class TauriWorkerService {
       'url',
       async function (
         this: WebdriverIO.Browser,
-        originalUrl: (href?: string) => Promise<string | void>,
+        originalUrl: (href?: string) => Promise<string | undefined>,
         href?: string,
-      ): Promise<string | void> {
+      ): Promise<string | undefined> {
         const result = await Reflect.apply(originalUrl, this, [href]);
         if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioBrowserMode__ && !this.isBidi) {
           try {

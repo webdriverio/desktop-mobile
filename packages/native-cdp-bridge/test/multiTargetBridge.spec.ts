@@ -349,7 +349,7 @@ describe('MultiTargetCdpBridge cdp:disconnect event and self-healing', () => {
     // Simulate the active Connection emitting cdp:disconnect.
     const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
     expect(handler).toBeDefined();
-    handler!();
+    handler?.();
 
     expect(disconnectHandler).toHaveBeenCalledTimes(1);
   });
@@ -360,7 +360,7 @@ describe('MultiTargetCdpBridge cdp:disconnect event and self-healing', () => {
     await bridge.connect();
 
     const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
-    handler!();
+    handler?.();
 
     // The dropped connection is gone; activeLabel is cleared so the next send() throws
     // NOT_CONNECTED (safe) rather than routing to a dead socket.
@@ -374,7 +374,7 @@ describe('MultiTargetCdpBridge cdp:disconnect event and self-healing', () => {
     expect(bridge.activeLabel).toBe('main');
 
     const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/A');
-    handler!();
+    handler?.();
 
     // Active target dropped → label cleared so consumers know to call switchTarget()
     // or wait for a refresh before sending again.
@@ -392,7 +392,7 @@ describe('MultiTargetCdpBridge cdp:disconnect event and self-healing', () => {
 
     // Fire disconnect on the non-active window-1.
     const handler = h.disconnectHandlers.get('ws://localhost:9222/devtools/page/B');
-    handler!();
+    handler?.();
 
     // Active label (main) should be unaffected.
     expect(bridge.activeLabel).toBe('main');
@@ -418,7 +418,7 @@ describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)'
 
     // Simulate unexpected disconnect of the active target. The consumer reconnects
     // via switchTarget() — #ensureConnection replays #cdpListeners onto the new socket.
-    h.disconnectHandlers.get(wsA)!();
+    h.disconnectHandlers.get(wsA)?.();
     await bridge.switchTarget('main');
 
     expect(bridge.activeLabel).toBe('main');
@@ -440,7 +440,7 @@ describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)'
     expect(h.removedListeners.get(wsA)).toContainEqual({ event: 'Runtime.consoleAPICalled', listener });
 
     // Reconnect must not replay the off'd listener.
-    h.disconnectHandlers.get(wsA)!();
+    h.disconnectHandlers.get(wsA)?.();
     await bridge.switchTarget('main');
     expect(bridge.activeLabel).toBe('main');
     expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
@@ -459,7 +459,7 @@ describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)'
     // Unexpected disconnect of the active target clears activeLabel but deliberately
     // keeps the #cdpListeners entry for replay. off() must still remove it while
     // disconnected, or the listener resurrects on the next reconnect.
-    h.disconnectHandlers.get(wsA)!();
+    h.disconnectHandlers.get(wsA)?.();
     expect(bridge.activeLabel).toBeUndefined();
     bridge.off('Runtime.consoleAPICalled', listener);
 
@@ -498,15 +498,18 @@ describe('MultiTargetCdpBridge CDP listener registry (reconnect survival + off)'
     // A drops unexpectedly: removed from #connections, but its #cdpListeners entry is kept
     // for replay. refresh() with A gone must still prune it — a connection-keyed sweep can't,
     // because A is no longer in #connections.
-    h.disconnectHandlers.get(wsA)!();
+    h.disconnectHandlers.get(wsA)?.();
     h.targets = [target('B', 'views://secondview/index.html')];
     await bridge.refresh();
 
     // Prove the entry was pruned: when a target with wsA later reconnects, fn must NOT replay.
     h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
     await bridge.refresh();
-    const aLabel = bridge.listTargets().find((entry) => entry.webSocketDebuggerUrl === wsA)!.label;
-    await bridge.switchTarget(aLabel);
+    const aTarget = bridge.listTargets().find((entry) => entry.webSocketDebuggerUrl === wsA);
+    if (!aTarget) {
+      throw new Error(`expected a target for ${wsA}`);
+    }
+    await bridge.switchTarget(aTarget.label);
     expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(fn)).toBeFalsy();
   });
 
@@ -611,7 +614,7 @@ describe('MultiTargetCdpBridge per-target listener isolation', () => {
 
     // No entry for A's URL remains — reconnect will not replay the removed listener.
     const wsA = 'ws://localhost:9222/devtools/page/A';
-    h.disconnectHandlers.get(wsA)!();
+    h.disconnectHandlers.get(wsA)?.();
     await bridge.switchTarget('main');
     expect(h.cdpMethodListeners.get(wsA)?.get('Runtime.consoleAPICalled')?.has(listener)).toBeFalsy();
   });

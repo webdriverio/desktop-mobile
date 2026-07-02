@@ -28,17 +28,17 @@ describe('TauriAdapter integration (synthetic window)', () => {
       const win = makeSyntheticWindow();
       const script = interceptor.buildRegistrationScript('my_cmd');
       evalScript(script, win);
-      expect(typeof win.__wdio_mocks__['my_cmd']).toBe('function');
+      expect(typeof win.__wdio_mocks__.my_cmd).toBe('function');
     });
 
     it('should call mockClear so calls start empty', () => {
       const win = makeSyntheticWindow();
       const script = interceptor.buildRegistrationScript('my_cmd');
       evalScript(script, win);
-      const mock = win.__wdio_mocks__['my_cmd'];
+      const mock = win.__wdio_mocks__.my_cmd;
       mock('some_arg');
       evalScript(script, win);
-      expect(win.__wdio_mocks__['my_cmd'].mock.calls).toHaveLength(0);
+      expect(win.__wdio_mocks__.my_cmd.mock.calls).toHaveLength(0);
     });
   });
 
@@ -46,8 +46,8 @@ describe('TauriAdapter integration (synthetic window)', () => {
     it('should return call data', () => {
       const win = makeSyntheticWindow();
       evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
-      win.__wdio_mocks__['my_cmd']('arg1');
-      win.__wdio_mocks__['my_cmd']('arg2');
+      win.__wdio_mocks__.my_cmd('arg1');
+      win.__wdio_mocks__.my_cmd('arg2');
 
       const readScript = interceptor.buildCallDataReadScript('my_cmd');
       const raw = evalScript(readScript, win);
@@ -58,7 +58,7 @@ describe('TauriAdapter integration (synthetic window)', () => {
     it('should round-trip Error results without losing detail', () => {
       const win = makeSyntheticWindow();
       evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
-      const mock = win.__wdio_mocks__['my_cmd'];
+      const mock = win.__wdio_mocks__.my_cmd;
       mock.mockImplementation(() => {
         throw new Error('boom');
       });
@@ -75,7 +75,7 @@ describe('TauriAdapter integration (synthetic window)', () => {
     it('should round-trip Error arguments in calls', () => {
       const win = makeSyntheticWindow();
       evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
-      const mock = win.__wdio_mocks__['my_cmd'];
+      const mock = win.__wdio_mocks__.my_cmd;
       mock(new Error('arg-error'));
 
       const raw = evalScript(interceptor.buildCallDataReadScript('my_cmd'), win);
@@ -93,7 +93,7 @@ describe('TauriAdapter integration (synthetic window)', () => {
       const s = interceptor.serializeHandler(() => 'hello');
       evalScript(interceptor.buildSetImplementationScript('my_cmd', s), win);
 
-      const result = win.__wdio_mocks__['my_cmd']();
+      const result = win.__wdio_mocks__.my_cmd();
       expect(result).toBe('hello');
     });
 
@@ -104,8 +104,8 @@ describe('TauriAdapter integration (synthetic window)', () => {
       const s = interceptor.serializeHandler(() => 'once');
       evalScript(interceptor.buildSetImplementationScript('my_cmd', s, true), win);
 
-      expect(win.__wdio_mocks__['my_cmd']()).toBe('once');
-      expect(win.__wdio_mocks__['my_cmd']()).toBeUndefined();
+      expect(win.__wdio_mocks__.my_cmd()).toBe('once');
+      expect(win.__wdio_mocks__.my_cmd()).toBeUndefined();
     });
   });
 
@@ -114,7 +114,7 @@ describe('TauriAdapter integration (synthetic window)', () => {
       const win = makeSyntheticWindow();
       evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
       evalScript(interceptor.buildInnerSetterScript('my_cmd', 'mockReturnValue', 42), win);
-      expect(win.__wdio_mocks__['my_cmd']()).toBe(42);
+      expect(win.__wdio_mocks__.my_cmd()).toBe(42);
     });
 
     it('should reconstruct Error for mockRejectedValue', () => {
@@ -122,7 +122,7 @@ describe('TauriAdapter integration (synthetic window)', () => {
       evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
       evalScript(interceptor.buildInnerSetterScript('my_cmd', 'mockRejectedValue', new Error('fail msg')), win);
 
-      expect(() => win.__wdio_mocks__['my_cmd']()).toThrow('fail msg');
+      expect(() => win.__wdio_mocks__.my_cmd()).toThrow('fail msg');
     });
   });
 
@@ -130,11 +130,11 @@ describe('TauriAdapter integration (synthetic window)', () => {
     it('should empty call history for mockClear', () => {
       const win = makeSyntheticWindow();
       evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
-      win.__wdio_mocks__['my_cmd']('test');
-      expect(win.__wdio_mocks__['my_cmd'].mock.calls).toHaveLength(1);
+      win.__wdio_mocks__.my_cmd('test');
+      expect(win.__wdio_mocks__.my_cmd.mock.calls).toHaveLength(1);
 
       evalScript(interceptor.buildInnerInvocationScript('my_cmd', 'mockClear'), win);
-      expect(win.__wdio_mocks__['my_cmd'].mock.calls).toHaveLength(0);
+      expect(win.__wdio_mocks__.my_cmd.mock.calls).toHaveLength(0);
     });
   });
 
@@ -142,10 +142,10 @@ describe('TauriAdapter integration (synthetic window)', () => {
     it('should remove mock from __wdio_mocks__', () => {
       const win = makeSyntheticWindow();
       evalScript(interceptor.buildRegistrationScript('my_cmd'), win);
-      expect(win.__wdio_mocks__['my_cmd']).toBeDefined();
+      expect(win.__wdio_mocks__.my_cmd).toBeDefined();
 
       evalScript(interceptor.buildUnregistrationScript('my_cmd'), win);
-      expect(win.__wdio_mocks__['my_cmd']).toBeUndefined();
+      expect(win.__wdio_mocks__.my_cmd).toBeUndefined();
     });
   });
 

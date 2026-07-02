@@ -312,7 +312,6 @@ async function batchUpdateBrowserModeMocks(
       const out: Record<string, unknown> = {};
       for (let i = 0; i < innerScripts.length; i++) {
         try {
-          // biome-ignore lint/security/noGlobalEval: interceptor-built script wrapper
           const reader = new Function(`return (${innerScripts[i]});`)() as (...a: unknown[]) => unknown;
           out[innerIds[i]] = reader();
         } catch (e) {
@@ -655,9 +654,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       'url',
       async function (
         this: WebdriverIO.Browser,
-        originalUrl: (href?: string) => Promise<string | void>,
+        originalUrl: (href?: string) => Promise<string | undefined>,
         href?: string,
-      ): Promise<string | void> {
+      ): Promise<string | undefined> {
         const result = await Reflect.apply(originalUrl, this, [href]);
         if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioElectronBrowserMode__) {
           try {

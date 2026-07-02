@@ -160,6 +160,32 @@
           }
         }
       }
+    },
+    {
+      // script-detect passes literal ${...} template-source as string input to the parser under test
+      "includes": [
+        "**/native-utils/test/script-detect.spec.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "scripts/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            // Node CI scripts legitimately read process.env (GITHUB_TOKEN, etc.)
+            "noUndeclaredEnvVars": "off"
+          }
+        }
+      }
     }
   ],
   "assist": {
