@@ -17,10 +17,11 @@
 
 ## Goal
 
-Promote the framework-agnostic mobile layer (`@wdio/native-mobile-core`) into a concrete,
-publishable **`@wdio/mobile-service`** usable for any Appium-drivable app, and converge the
-React Native and Flutter services onto it as **thin extensions** that add only their
-JS/Dart realm (`execute`/`mock`).
+Promote the framework-agnostic mobile layer (`@wdio/native-mobile-core`) into a concrete
+**`MobileService` base** usable for any Appium-drivable app, and converge the React Native and Flutter
+services onto it as **thin extensions** that add only their JS/Dart realm (`execute`/`mock`). Whether
+that base also ships as a *published* standalone **`@wdio/mobile-service`** is conditional on the
+appium-service direction question (Sequencing step 3) — the convergence happens either way.
 
 ## User Stories
 
@@ -65,9 +66,10 @@ JS/Dart realm (`execute`/`mock`).
 ## Scope
 
 ### In scope
-- **`@wdio/mobile-service`** — a concrete launcher (consuming the #378 setup automation) + a
+- **The concrete `MobileService` base** — a launcher (consuming the #378 setup automation) + a
   `MobileService` worker exposing the shared API: deeplink, context switching, device logs, native
-  find/tap via Appium, multiremote/DeviceManager.
+  find/tap via Appium, multiremote/DeviceManager. (Publishing it as a standalone **`@wdio/mobile-service`**
+  is conditional on the direction outcome — Sequencing step 3; the base itself is built regardless.)
 - **Convergence** — `react-native-service` and `flutter-service` extend the concrete base and add
   **only** their realm bridge (Hermes / Dart VM) plus framework specifics (Flutter `automationName`,
   finders).
