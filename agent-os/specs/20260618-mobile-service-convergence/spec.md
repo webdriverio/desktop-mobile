@@ -243,7 +243,7 @@ The skill's Mobile archetype is updated to *reflect* this base **only after it s
    *published* (`1.0.0-next`) services onto a new base. Gate it — the RN *and* Flutter unit + E2E suites
    stay green throughout — and do it as a *dedicated* rework step, not interleaved with new features
    (the same extraction discipline that governed the original `native-mobile-core` extraction).**
-3. **Settle the `@wdio/appium-service` direction question, *then* publish `@wdio/mobile-service`.**
+3. **Settle the `@wdio/appium-service` direction question — then either publish `@wdio/mobile-service` or skip it.**
    Before committing to the standalone publish, settle the direction question (Relationship section) with
    the maintainer — it decides whether to publish at all. If they want setup-automation/device-management
    in appium-service: **skip the publish**, keep `native-mobile-core` as the RN/Flutter base, and
