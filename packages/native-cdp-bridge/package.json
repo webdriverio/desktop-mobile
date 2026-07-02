@@ -43,18 +43,18 @@
     "ws": "^8.21.0"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^25.9.4",
     "@types/ws": "^8.18.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.9",
     "@wdio/bundler": "workspace:*",
     "cross-env": "^10.1.0",
-    "devtools-protocol": "^0.0.1634055",
+    "devtools-protocol": "^0.0.1654583",
     "get-port": "^7.1.0",
-    "nock": "^14.0.15",
+    "nock": "^14.0.16",
     "shx": "^0.4.0",
     "tslib": "^2.8.1",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.9"
   },
   "files": [
     "dist",
