@@ -15,7 +15,7 @@
     "clean:dist": "node ../../../scripts/clean-dist.ts ./dist ./dist-electron"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.1.0",
     "@wdio/cli": "catalog:default",
     "@wdio/globals": "catalog:default",
     "@wdio/local-runner": "catalog:default",
@@ -23,7 +23,7 @@
     "electron": "catalog:default",
     "electron-builder": "catalog:default",
     "electron-vite": "^5.0.0",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "webdriverio": "catalog:default"
   },
   "build": {

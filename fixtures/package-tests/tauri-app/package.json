@@ -26,6 +26,6 @@
     "@wdio/mocha-framework": "^9.29.1",
     "@wdio/spec-reporter": "^9.29.1",
     "@wdio/tauri-service": "workspace:*",
-    "typescript": "^5.0.0"
+    "typescript": "^6.0.3"
   }
 }

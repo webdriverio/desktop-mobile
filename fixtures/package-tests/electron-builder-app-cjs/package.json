@@ -15,7 +15,7 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.1.0",
     "@wdio/cli": "^9.29.1",
     "@wdio/electron-service": "workspace:*",
     "@wdio/globals": "^9.29.1",
@@ -23,10 +23,10 @@
     "@wdio/mocha-framework": "^9.29.1",
     "@wdio/spec-reporter": "^9.29.1",
     "cross-env": "^10.1.0",
-    "electron": "41.9.2",
+    "electron": "43.0.0",
     "electron-builder": "catalog:",
     "electron-vite": "^5.0.0",
-    "typescript": "^5.9.3"
+    "typescript": "^6.0.3"
   },
   "keywords": [
     "electron",

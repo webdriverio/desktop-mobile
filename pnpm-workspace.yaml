@@ -36,13 +36,9 @@ catalogs:
     '@wdio/spec-reporter': 9.29.1
     '@wdio/types': 9.29.1
     '@wdio/xvfb': 9.29.1
-    electron: 41.9.2
+    electron: 43.0.0
     electron-builder: 26.15.3
     webdriverio: 9.29.1
-  # Non-default catalogs only need entries for deps whose version differs from
-  # `default`. The switch script falls back to `catalog:default` for any dep
-  # not listed here (e.g. when an upstream dep is new and has no older
-  # equivalent to put in `minimum`).
   minimum:
     '@wdio/cli': v8
     '@wdio/globals': v8
@@ -65,8 +61,3 @@ catalogs:
     electron-builder: next
     electron-nightly: 44.0.0-nightly.20260701
     webdriverio: latest
-# yauzl@2 (via extract-zip → @electron/packager) is broken on Node 24.16+; the
-# Forge maintainer recommends overriding to yauzl@3.3.1 until extract-zip is
-# replaced. See electron/forge#4277 and electron/electron#51619.
-overrides:
-  yauzl: ^3.3.1

@@ -84,7 +84,7 @@
     "@inquirer/prompts": "^8.5.2",
     "@octokit/rest": "^22.0.1",
     "@releasekit/release": "^0.39.0",
-    "@types/node": "^25.9.4",
+    "@types/node": "^26.1.0",
     "@types/shelljs": "^0.10.0",
     "@typescript-eslint/parser": "^8.62.1",
     "@vitest/eslint-plugin": "^1.6.20",
@@ -99,7 +99,7 @@
     "shelljs": "^0.10.0",
     "shx": "^0.4.0",
     "turbo": "2.10.2",
-    "typescript": "^5.9.3",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.9",
     "yaml": "^2.9.0"
   },

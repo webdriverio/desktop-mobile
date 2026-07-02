@@ -40,16 +40,16 @@
   "dependencies": {
     "@rollup/plugin-node-resolve": "^16.0.2",
     "@rollup/plugin-typescript": "^12.3.0",
-    "commander": "^14.0.3",
+    "commander": "^15.0.0",
     "debug": "^4.4.3",
     "find-up-simple": "^1.0.1",
     "rollup": "^4.62.2",
-    "rollup-plugin-node-externals": "^8.1.2",
-    "typescript": "^5.9.3"
+    "rollup-plugin-node-externals": "^9.0.1",
+    "typescript": "^6.0.3"
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.1.0",
     "@vitest/coverage-v8": "^4.1.9",
     "shx": "^0.4.0",
     "terser": "^5.48.0",
