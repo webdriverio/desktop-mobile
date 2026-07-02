@@ -92,7 +92,11 @@ JS/Dart realm (`execute`/`mock`).
 ### Out of scope
 - The setup-automation mechanics (Tier 1/2/3) — see #378/#405/#406.
 - Webview-context `execute` for Capacitor — a future Capacitor-service concern, not part of the generic base.
-- Any change to `@wdio/appium-service`'s server-lifecycle responsibilities.
+- **Modifying `@wdio/appium-service` as part of *this* work.** This spec doesn't touch appium-service —
+  its server-lifecycle responsibilities are untouched, and setup-automation stays in `native-mobile-core`
+  for now. *Upstreaming* setup-automation into appium-service is a possible **later** outcome of the
+  direction question (Relationship section / Sequencing step 3), pursued separately — an outcome of this
+  work, not part of its build scope.
 
 ## Architecture
 
