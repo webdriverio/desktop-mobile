@@ -43,13 +43,25 @@ function getAllNpmVersions(packageName: string): string[] {
 }
 
 function getAllCargoVersions(packageName: string): string[] {
+  // crates.io enforces a User-Agent policy (https://crates.io/data-access): a generic UA (curl's
+  // default) gets a 403 with an `{ errors }` body, which previously slipped through as 0 versions.
+  const userAgent = 'wdio-desktop-mobile update-tauri-version (https://github.com/webdriverio/desktop-mobile)';
+  let output: string;
   try {
-    const output = execSync(`curl -s https://crates.io/api/v1/crates/${packageName}`, { encoding: 'utf8' });
-    const info = JSON.parse(output);
-    return info.versions?.map((v: { num: string }) => v.num) || [];
-  } catch {
-    throw new Error(`Failed to fetch versions for cargo package ${packageName}`);
+    output = execSync(`curl -s -A ${JSON.stringify(userAgent)} https://crates.io/api/v1/crates/${packageName}`, {
+      encoding: 'utf8',
+    });
+  } catch (error) {
+    throw new Error(`Failed to fetch versions for cargo package ${packageName}: ${(error as Error).message}`);
   }
+  const info = JSON.parse(output);
+  if (!Array.isArray(info.versions)) {
+    // A blocked/errored request returns `{ errors: [{ detail }] }` instead of versions — surface it
+    // rather than silently yielding an empty list ("No common version found").
+    const detail = info?.errors?.[0]?.detail ?? 'crates.io response had no "versions" array';
+    throw new Error(`Failed to fetch versions for cargo package ${packageName}: ${detail}`);
+  }
+  return info.versions.map((v: { num: string }) => v.num);
 }
 
 function compareVersions(v1: string, v2: string): number {

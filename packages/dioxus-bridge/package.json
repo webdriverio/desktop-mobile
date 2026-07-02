@@ -42,7 +42,7 @@
   "devDependencies": {
     "@types/node": "^25.9.4",
     "@vitest/coverage-v8": "^4.1.9",
-    "esbuild": "^0.28.0",
+    "esbuild": "^0.28.1",
     "happy-dom": "^20.10.6",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3",
