@@ -173,8 +173,9 @@ JS/Dart realm (`execute`/`mock`).
     world the *generic-native* story (no framework realm; appium-service + core already cover the
     mechanics) thins to helper patterns + config — so it likely ships as **docs / examples / boilerplate
     contributed to the ecosystem** (Wim's Mobile docs / `appium-boilerplate`), *not* a package. That's
-    the honest "mechanism works ≠ needs a package" call, and it turns the outreach's ask #1 from
-    *competing* with those docs into *improving* them. Convergence value survives either way.
+    the honest "mechanism works ≠ needs a package" call — and it flips our pitch to the maintainer
+    (that the mobile layer *lightens* the boilerplate the Mobile docs teach) from *competing* with those
+    docs to *improving* them. Convergence value survives either way.
   - **Implementation stays put for now:** keep driver-install/doctor in `native-mobile-core` until the
     direction is settled — don't build them into appium-service speculatively. This gates only *where*
     they eventually live and *whether* we publish a standalone service, not the near-term work.
