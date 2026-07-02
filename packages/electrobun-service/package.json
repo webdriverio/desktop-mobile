@@ -49,9 +49,9 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@wdio/native-cdp-bridge": "workspace:*",
     "@wdio/globals": "catalog:default",
     "@wdio/logger": "catalog:default",
+    "@wdio/native-cdp-bridge": "workspace:*",
     "@wdio/native-core": "workspace:*",
     "@wdio/native-spy": "workspace:*",
     "@wdio/native-types": "workspace:*",
@@ -66,11 +66,11 @@
   "devDependencies": {
     "@types/debug": "^4.1.12",
     "@types/node": "^25.9.1",
-    "@vitest/coverage-v8": "^4.1.7",
+    "@vitest/coverage-v8": "^4.1.9",
     "@wdio/bundler": "workspace:*",
     "shx": "^0.4.0",
     "typescript": "^5.9.3",
-    "vitest": "^4.1.7"
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "webdriverio": "^9.0.0"

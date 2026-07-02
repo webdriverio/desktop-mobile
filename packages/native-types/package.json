@@ -40,7 +40,7 @@
     "@wdio/globals": "catalog:default",
     "@wdio/native-spy": "workspace:*",
     "@wdio/types": "catalog:default",
-    "builder-util": "^26.8.0",
+    "builder-util": "^26.15.3",
     "electron": "catalog:default",
     "shx": "^0.4.0",
     "typescript": "^5.9.3",
