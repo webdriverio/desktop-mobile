@@ -34,8 +34,8 @@ catalogs:
       specifier: 9.29.1
       version: 9.29.1
     electron:
-      specifier: 42.5.2
-      version: 42.5.2
+      specifier: 42.2.0
+      version: 42.2.0
     electron-builder:
       specifier: 26.15.3
       version: 26.15.3
@@ -160,7 +160,7 @@ importers:
         version: 9.29.1
       electron:
         specifier: catalog:default
-        version: 42.5.2
+        version: 42.2.0
       tsx:
         specifier: ^4.22.4
         version: 4.22.4
@@ -254,7 +254,7 @@ importers:
         version: 9.29.1
       electron:
         specifier: catalog:default
-        version: 42.5.2
+        version: 42.2.0
       electron-builder:
         specifier: catalog:default
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
@@ -290,7 +290,7 @@ importers:
         version: 9.29.1
       electron:
         specifier: catalog:default
-        version: 42.5.2
+        version: 42.2.0
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -320,7 +320,7 @@ importers:
         version: 9.29.1
       electron:
         specifier: catalog:default
-        version: 42.5.2
+        version: 42.2.0
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -465,8 +465,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 42.5.2
-        version: 42.5.2
+        specifier: 42.2.0
+        version: 42.2.0
       electron-builder:
         specifier: 26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
@@ -504,8 +504,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 42.5.2
-        version: 42.5.2
+        specifier: 42.2.0
+        version: 42.2.0
       electron-builder:
         specifier: 26.15.3
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)
@@ -564,8 +564,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 42.5.2
-        version: 42.5.2
+        specifier: 42.2.0
+        version: 42.2.0
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -621,8 +621,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 42.5.2
-        version: 42.5.2
+        specifier: 42.2.0
+        version: 42.2.0
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -660,8 +660,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 42.5.2
-        version: 42.5.2
+        specifier: 42.2.0
+        version: 42.2.0
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -702,8 +702,8 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       electron:
-        specifier: 42.5.2
-        version: 42.5.2
+        specifier: 42.2.0
+        version: 42.2.0
       electron-vite:
         specifier: 6.0.0-beta.1
         version: 6.0.0-beta.1(vite@8.1.3(@types/node@26.1.0)(esbuild@0.28.1)(jiti@2.7.0)(terser@5.48.0)(tsx@4.22.4)(yaml@2.9.0))
@@ -1044,7 +1044,7 @@ importers:
         version: 0.0.1655900
       electron:
         specifier: catalog:default
-        version: 42.5.2
+        version: 42.2.0
       jsdom:
         specifier: ^29.1.1
         version: 29.1.1(@noble/hashes@2.2.0)
@@ -1303,7 +1303,7 @@ importers:
         version: 26.15.3
       electron:
         specifier: catalog:default
-        version: 42.5.2
+        version: 42.2.0
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -5450,8 +5450,8 @@ packages:
     resolution: {integrity: sha512-j9ETcBGJaXxAY/b6UBpR7LZfjdU4BAO+yvr4ifqHEdyuc3UNCy91PDGkWKY5UQ4coHNYfnwFggrqD6QPeFGAlg==}
     engines: {node: '>=8.0.0'}
 
-  electron@42.5.2:
-    resolution: {integrity: sha512-nEoyciv2iC6gTvCbkQ3eP5tjAOo28wfm0adZaMYTns92MyODHeD1TlrGt4E35d4tJfDlmv+BHOuz0QIkJ63c6w==}
+  electron@42.2.0:
+    resolution: {integrity: sha512-b2Tc7sIKiZEl0tBVwFM5GJ+FT5KYhmy9QJHjx8BGVZPVW2SctXWEvrE959ElB56qw7H05dBkhlikDA1DmpaAMw==}
     engines: {node: '>= 22.12.0'}
     hasBin: true
 
@@ -13724,11 +13724,11 @@ snapshots:
       - supports-color
     optional: true
 
-  electron@42.5.2:
+  electron@42.2.0:
     dependencies:
-      '@electron-internal/extract-zip': 1.0.4
       '@electron/get': 5.0.0
       '@types/node': 24.13.2
+      extract-zip: 2.0.1
     transitivePeerDependencies:
       - supports-color
 
