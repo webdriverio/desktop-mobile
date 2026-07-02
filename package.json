@@ -73,7 +73,7 @@
     "test:package:flutter": "node ./scripts/test-package.ts --service=flutter",
     "test:unit": "turbo run test:unit",
     "typecheck": "turbo run typecheck",
-    "update:dependencies": "pnpm catalog:update --default && pnpm catalog:update --next && pnpm up -iLr",
+    "update:dependencies": "pnpm catalog:update --default && pnpm catalog:update --next && pnpm up -iLr && node ./scripts/strip-fixture-catalogs.ts",
     "update:releasekit": "node ./scripts/update-releasekit.ts",
     "update:tauri": "node ./scripts/update-tauri-version.ts",
     "test:scripts": "vitest run --config vitest.scripts.config.ts",
