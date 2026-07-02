@@ -33,6 +33,11 @@ JS/Dart realm (`execute`/`mock`).
 - As a future-framework author (Capacitor), I want to extend a stable generic base rather than
   re-implement the mobile scaffold.
 
+> **How these are delivered depends on the appium-service direction call (Sequencing step 3):** a
+> published `@wdio/mobile-service`, or — if the standalone publish is skipped — `@wdio/native-mobile-core`
+> as the RN/Flutter base plus docs/boilerplate for the generic-native story. The stories describe the
+> goals, which hold either way.
+
 ## Background & Motivation
 
 - **`native-mobile-core` is already framework-agnostic, but it is a *library*** (a base launcher +
