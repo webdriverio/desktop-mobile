@@ -1,5 +1,5 @@
 import { existsSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { dirname, resolve, sep } from 'node:path';
 import type { OutputOptions, RollupOptions } from 'rollup';
 import { rollup } from 'rollup';
 import type { CodeReplacePluginOption } from '../plugins.js';
@@ -12,6 +12,26 @@ import type {
   RollupLogMessage,
   TypeScriptPluginOptions,
 } from './types.js';
+
+/**
+ * Derive the common source directory of a build's entry points. TypeScript 6.0 (TS5011) requires an
+ * explicit `rootDir` once `outDir` is set; using the entries' common parent reproduces the output
+ * layout TypeScript inferred implicitly before 6.0 (and works for consumer packages whose own
+ * tsconfig omits `rootDir`).
+ */
+function commonSourceDir(input: string | Record<string, string>, targetCwd: string): string {
+  const entries = typeof input === 'string' ? [input] : Object.values(input);
+  const segmentLists = entries.map((entry) => dirname(resolve(targetCwd, entry)).split(sep));
+  const common = segmentLists[0]?.slice() ?? [];
+  for (const segments of segmentLists.slice(1)) {
+    let i = 0;
+    while (i < common.length && i < segments.length && common[i] === segments[i]) {
+      i++;
+    }
+    common.length = i;
+  }
+  return common.join(sep) || targetCwd;
+}
 
 export class RollupExecutor {
   constructor(private logger: Logger) {}
@@ -103,6 +123,7 @@ export class RollupExecutor {
         const compilerOptions: CompilerOptions = {
           noEmitOnError: false,
           outDir: resolve(targetCwd, configSpec.output.dir),
+          rootDir: commonSourceDir(configSpec.input, targetCwd),
           module: 'ESNext',
           moduleResolution: 'Bundler',
           skipLibCheck: true,
@@ -118,7 +139,9 @@ export class RollupExecutor {
           compilerOptions,
           typescript: typescript.default, // Pass the TypeScript compiler explicitly
           include: ['**/*.ts', '**/*.tsx'],
-          exclude: ['node_modules', '**/*.d.ts'],
+          // Keep the bundler's own config files out of the build program; they live at the package
+          // root and would otherwise push the common source dir above rootDir (TS6059 under TS 6).
+          exclude: ['node_modules', '**/*.d.ts', '**/wdio-bundler.config.*', '**/rollup.config.*'],
         };
 
         // If no tsconfig.json exists, disable tsconfig to avoid TypeScript plugin issues
