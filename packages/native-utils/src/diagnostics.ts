@@ -49,15 +49,26 @@ export function diagnoseBinary(binaryPath: string): DiagnosticResult[] {
   try {
     const stats = statSync(binaryPath);
     const mode = (stats.mode & 0o777).toString(8);
-    const isExecutable = (stats.mode & 0o111) !== 0;
     const sizeMB = (stats.size / 1024 / 1024).toFixed(2);
 
-    results.push({
-      category: 'Binary Permissions',
-      status: isExecutable ? 'ok' : 'error',
-      message: mode,
-      details: isExecutable ? 'Binary is executable' : 'Binary is not executable. Run chmod +x on Unix systems.',
-    });
+    // The Unix execute bit (0o111) is meaningless on Windows — `fs.stat` reports `0o666`
+    // there whether or not the binary is runnable, so the check would false-error.
+    if (process.platform === 'win32') {
+      results.push({
+        category: 'Binary Permissions',
+        status: 'ok',
+        message: mode,
+        details: 'Executability is not gated by file mode on Windows.',
+      });
+    } else {
+      const isExecutable = (stats.mode & 0o111) !== 0;
+      results.push({
+        category: 'Binary Permissions',
+        status: isExecutable ? 'ok' : 'error',
+        message: mode,
+        details: isExecutable ? 'Binary is executable' : 'Binary is not executable. Run chmod +x on Unix systems.',
+      });
+    }
 
     results.push({
       category: 'Binary Size',
