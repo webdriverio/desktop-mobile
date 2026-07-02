@@ -83,7 +83,7 @@ appium-service direction question (Sequencing step 3) — the convergence happen
   ([#457](https://github.com/webdriverio/desktop-mobile/issues/457)) — currently open against RN/Flutter
   — become **base concerns fixed once**, not twice per framework, since the base is where the shared
   surface (deeplink / contexts / logs / multiremote) is defined. Converging is the natural place to
-  close all three; treat them as part of this work, retargeted onto `@wdio/mobile-service`.
+  close all three; treat them as part of this work, retargeted onto the `MobileService` base.
 - **Preserve the published framework surfaces — no breaking change.** RN and Flutter already ship
   `browser.reactNative.*` / `browser.flutter.*` on the `next` tag. Convergence keeps those exact
   namespaces — the base's shared commands surface *through* them (the framework service "widens" its own
@@ -104,11 +104,14 @@ appium-service direction question (Sequencing step 3) — the convergence happen
 
 ```
 @wdio/native-mobile-core (library)
-  └─ @wdio/mobile-service            launcher: #378 setup automation
-                                     worker:   MobileService (shared API)
+  └─ MobileService base              launcher: #378 setup automation
+                                     worker:   shared API
        ├─ @wdio/react-native-service  + Hermes realm (execute/mock); native driver unchanged
        └─ @wdio/flutter-service       + Dart VM realm (execute/mock); automationName 'Flutter'
 ```
+
+> The `MobileService` base publishes standalone as **`@wdio/mobile-service`** only if the direction
+> question warrants it (Sequencing step 3); RN and Flutter extend the base regardless.
 
 - A concrete `MobileService` **worker base** wires the shared API once; framework workers extend it
   and install only their realm-backed commands.
