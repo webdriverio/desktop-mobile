@@ -29,6 +29,7 @@ const config: RollupOptions = {
     typescript({
       compilerOptions: {
         outDir: './dist',
+        rootDir: './src',
       },
     }),
     nodeExternals(),

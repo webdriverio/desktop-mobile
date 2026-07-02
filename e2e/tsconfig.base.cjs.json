@@ -1,6 +1,5 @@
 {
   "compilerOptions": {
-    "baseUrl": ".",
     "module": "CommonJS",
     "target": "ESNext",
     "esModuleInterop": true,
