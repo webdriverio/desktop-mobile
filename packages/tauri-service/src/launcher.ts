@@ -2,7 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { nonChromeBrowserNameError, probeDevServerReachable } from '@wdio/native-core';
+import { nonChromeBrowserNameError, probeDevServerReachable, startManagedDevServer } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -97,6 +97,9 @@ export default class TauriLaunchService {
   private backendPortManager: PortManager;
   private driverPool: DriverPool;
   private browserMode: boolean = false;
+  // Teardown for a service-managed dev server (browser mode). Called from onComplete AND on an
+  // onPrepare failure — WDIO does not call onComplete after onPrepare throws. Idempotent.
+  #stopDevServer?: () => Promise<void>;
   private embeddedProcesses: Map<string, EmbeddedDriverInfo> = new Map();
   private embeddedConfigs: Map<string, { appBinaryPath: string; port: number; options: TauriServiceOptions }> =
     new Map();
@@ -161,15 +164,8 @@ export default class TauriLaunchService {
 
     // Browser mode: skip all driver/binary setup — worker navigates to a Vite dev server
     if (mergedOptions.mode === 'browser') {
-      const devServerUrl = mergedOptions.devServerUrl;
-      if (!devServerUrl) {
-        throw new SevereServiceError('devServerUrl is required when mode is "browser"');
-      }
-      try {
-        new URL(devServerUrl);
-      } catch {
-        throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
-      }
+      // Reject a non-chrome browserName up front — before starting anything — so a misconfig fails
+      // fast and can never orphan a managed dev server.
       for (const cap of capsList) {
         const browserNameError = nonChromeBrowserNameError((cap as { browserName?: string }).browserName, [
           'chrome',
@@ -180,14 +176,61 @@ export default class TauriLaunchService {
           throw new SevereServiceError(browserNameError);
         }
       }
-      const reachable = await probeDevServerReachable(devServerUrl);
-      if (isErr(reachable)) {
-        throw new SevereServiceError(reachable.error.message);
-      }
-      this.browserMode = true;
-      for (const cap of capsList) {
-        (cap as { browserName?: string }).browserName = 'chrome';
-        delete (cap as { 'tauri:options'?: unknown })['tauri:options'];
+      let devServerUrl = mergedOptions.devServerUrl;
+      // Everything from the dev-server start onward runs in one guard: any failure after the server
+      // is up must stop it, because WDIO does not call onComplete after an onPrepare throw.
+      try {
+        // Auto-manage the dev server if requested; the managed readiness wait supersedes the
+        // one-shot preflight below, and a devServer function may supply the URL.
+        if (mergedOptions.devServer) {
+          // Only a devServer *function* can supply the URL; a string/object form needs devServerUrl
+          // as its readiness target. Require it up front so a missing one fails fast instead of
+          // polling an empty URL for the whole readiness timeout.
+          if (typeof mergedOptions.devServer !== 'function' && !devServerUrl) {
+            throw new SevereServiceError(
+              'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+            );
+          }
+          const managed = await startManagedDevServer(mergedOptions.devServer, devServerUrl ?? '');
+          this.#stopDevServer = managed.stop;
+          devServerUrl = managed.url || devServerUrl;
+        }
+        if (!devServerUrl) {
+          throw new SevereServiceError(
+            'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+          );
+        }
+        try {
+          new URL(devServerUrl);
+        } catch {
+          throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
+        }
+        if (!mergedOptions.devServer) {
+          // Unmanaged: preflight the user-started server before workers navigate to it.
+          const reachable = await probeDevServerReachable(devServerUrl);
+          if (isErr(reachable)) {
+            throw new SevereServiceError(reachable.error.message);
+          }
+        }
+        this.browserMode = true;
+        for (const cap of capsList) {
+          (cap as { browserName?: string }).browserName = 'chrome';
+          delete (cap as { 'tauri:options'?: unknown })['tauri:options'];
+          // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
+          // which reads devServerUrl from its capability options.
+          const capRecord = cap as Record<string, unknown>;
+          capRecord['wdio:tauriServiceOptions'] = {
+            ...(capRecord['wdio:tauriServiceOptions'] as Record<string, unknown> | undefined),
+            devServerUrl,
+          };
+        }
+      } catch (error) {
+        // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
+        await this.#stopDevServer?.().catch(() => {});
+        this.#stopDevServer = undefined;
+        throw error instanceof SevereServiceError
+          ? error
+          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
       }
       log.info('Browser mode enabled — skipping driver/binary setup');
       return;
@@ -998,6 +1041,9 @@ export default class TauriLaunchService {
    */
   async onComplete(_exitCode: number, _config: Options.Testrunner, _capabilities: TauriCapabilities[]): Promise<void> {
     log.debug('Completing Tauri service...');
+
+    await this.#stopDevServer?.();
+    this.#stopDevServer = undefined;
 
     try {
       const { closeLogWriter } = await import('./logWriter.js');

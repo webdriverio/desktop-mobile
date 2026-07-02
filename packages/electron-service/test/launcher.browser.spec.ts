@@ -24,6 +24,12 @@ vi.mock('../src/apparmor.js', () => ({ applyApparmorWorkaround: vi.fn() }));
 
 vi.mock('get-port', () => ({ default: vi.fn().mockResolvedValue(9229) }));
 
+vi.mock('@wdio/native-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-core')>()),
+  startManagedDevServer: vi.fn(),
+}));
+
+import { startManagedDevServer } from '@wdio/native-core';
 import ElectronLaunchService from '../src/launcher.js';
 
 const DEV_SERVER = 'http://localhost:5173';
@@ -179,5 +185,63 @@ describe('ElectronLaunchService — browser mode', () => {
       await expect(launcher.onWorkerStart('0-0', caps[0])).resolves.toBeUndefined();
       expect(getPort).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('ElectronLaunchService — devServer management', () => {
+  const managedStop = vi.fn(async () => {});
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: DEV_SERVER, stop: managedStop });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  const browserCap = () => ({ browserName: 'electron', 'wdio:electronServiceOptions': { mode: 'browser' } });
+
+  it('should start the managed dev server from global options and stop it in onComplete', async () => {
+    const launcher = makeLauncher({ devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare({} as any, [browserCap()] as any);
+    expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
+    await launcher.onComplete();
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should stamp the resolved url onto every cap (multiremote) so workers navigate to it', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'http://localhost:4321', stop: managedStop });
+    const launcher = makeLauncher({ devServer: async () => ({ url: 'http://localhost:4321', close: managedStop }) });
+    const caps: any[] = [browserCap(), browserCap()];
+    await launcher.onPrepare({} as any, caps);
+    expect(caps[0]['wdio:electronServiceOptions'].devServerUrl).toBe('http://localhost:4321');
+    expect(caps[1]['wdio:electronServiceOptions'].devServerUrl).toBe('http://localhost:4321');
+  });
+
+  it('should throw SevereServiceError when the managed dev server fails to start', async () => {
+    vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
+    const launcher = makeLauncher({ devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare({} as any, [browserCap()] as any)).rejects.toThrow(/Failed to start dev server/);
+  });
+
+  it('should stop the managed dev server when a later step fails (e.g. an invalid resolved url)', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'not-a-url', stop: managedStop });
+    const launcher = makeLauncher({ devServer: async () => ({ url: 'not-a-url', close: managedStop }) });
+    await expect(launcher.onPrepare({} as any, [browserCap()] as any)).rejects.toThrow(/not a valid URL/);
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should not manage a dev server when devServer is unset', async () => {
+    const launcher = makeLauncher({ devServerUrl: DEV_SERVER });
+    await launcher.onPrepare({} as any, [browserCap()] as any);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {
+    const launcher = makeLauncher({ devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare({} as any, [browserCap()] as any)).rejects.toThrow(/devServerUrl is required/);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
   });
 });

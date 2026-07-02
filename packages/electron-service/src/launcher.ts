@@ -1,4 +1,4 @@
-import { nonChromeBrowserNameError, probeDevServerReachable } from '@wdio/native-core';
+import { nonChromeBrowserNameError, probeDevServerReachable, startManagedDevServer } from '@wdio/native-core';
 import type {
   AppBuildInfo,
   BinaryPathResult,
@@ -108,10 +108,19 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
   #projectRoot: string;
   #usedPorts = new Set<number>();
   #browserMode = false;
+  // Teardown for a service-managed dev server (browser mode). Called from onComplete AND on an
+  // onPrepare failure — WDIO does not call onComplete after onPrepare throws. Idempotent.
+  #stopDevServer?: () => Promise<void>;
 
   constructor(globalOptions: ElectronServiceGlobalOptions, _caps: unknown, config: Options.Testrunner) {
     this.#globalOptions = globalOptions;
     this.#projectRoot = globalOptions.rootDir || config.rootDir || process.cwd();
+  }
+
+  async onComplete(): Promise<void> {
+    // Tear down a service-managed dev server (browser mode). No-op otherwise; idempotent.
+    await this.#stopDevServer?.();
+    this.#stopDevServer = undefined;
   }
 
   async onPrepare(_config: Options.Testrunner, capabilities: ElectronServiceCapabilities) {
@@ -147,40 +156,75 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           throw new SevereServiceError(browserNameError);
         }
       }
-      // Validate + probe each distinct devServerUrl once (caps may share one under multiremote).
-      const probedUrls = new Set<string>();
-      for (const cap of caps) {
-        const capOpts = ((cap as Record<string, unknown>)[CUSTOM_CAPABILITY_NAME] ??
-          {}) as ElectronServiceGlobalOptions;
-        const devServerUrl = capOpts.devServerUrl ?? this.#globalOptions.devServerUrl;
-        if (!devServerUrl) {
-          throw new SevereServiceError('devServerUrl is required when mode is "browser"');
-        }
-        try {
-          new URL(devServerUrl);
-        } catch {
-          throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
-        }
-        if (!probedUrls.has(devServerUrl)) {
-          const reachable = await probeDevServerReachable(devServerUrl);
-          if (isErr(reachable)) {
-            throw new SevereServiceError(reachable.error.message);
+      // Everything from the dev-server start onward runs in one guard: any failure after the server
+      // is up must stop it, because WDIO does not call onComplete after an onPrepare throw.
+      try {
+        // Auto-manage the dev server once for the run if requested; the managed readiness wait
+        // supersedes the per-cap preflight below, and a devServer function may supply the URL. A
+        // managed server serves one URL for every cap.
+        let managedUrl: string | undefined;
+        if (this.#globalOptions.devServer) {
+          // Only a devServer *function* can supply the URL; a string/object form needs devServerUrl
+          // as its readiness target. Require it up front so a missing one fails fast instead of
+          // polling an empty URL for the whole readiness timeout.
+          if (typeof this.#globalOptions.devServer !== 'function' && !this.#globalOptions.devServerUrl) {
+            throw new SevereServiceError(
+              'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+            );
           }
-          probedUrls.add(devServerUrl);
+          const managed = await startManagedDevServer(
+            this.#globalOptions.devServer,
+            this.#globalOptions.devServerUrl ?? '',
+          );
+          this.#stopDevServer = managed.stop;
+          managedUrl = managed.url;
         }
-      }
-      // Rewrite every cap to a system-Chrome session.
-      for (const cap of caps) {
-        cap.browserName = 'chrome';
-        // Preserve user-supplied goog:chromeOptions (args, extensions, prefs, etc.) but strip
-        // `binary` — browser mode wants system Chrome, not the Electron binary passed for native mode.
-        const chromeOpts = (cap as Record<string, unknown>)['goog:chromeOptions'] as
-          | Record<string, unknown>
-          | undefined;
-        if (chromeOpts && 'binary' in chromeOpts) {
-          delete chromeOpts.binary;
+        // Validate (+ preflight each distinct URL once when unmanaged) and stamp the resolved URL
+        // back onto every cap so the worker navigates to it (a devServer function may have overridden it).
+        const probedUrls = new Set<string>();
+        for (const cap of caps) {
+          const capRecord = cap as Record<string, unknown>;
+          const capOpts = (capRecord[CUSTOM_CAPABILITY_NAME] ?? {}) as ElectronServiceGlobalOptions;
+          const devServerUrl = managedUrl ?? capOpts.devServerUrl ?? this.#globalOptions.devServerUrl;
+          if (!devServerUrl) {
+            throw new SevereServiceError(
+              'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+            );
+          }
+          try {
+            new URL(devServerUrl);
+          } catch {
+            throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
+          }
+          if (!this.#globalOptions.devServer && !probedUrls.has(devServerUrl)) {
+            const reachable = await probeDevServerReachable(devServerUrl);
+            if (isErr(reachable)) {
+              throw new SevereServiceError(reachable.error.message);
+            }
+            probedUrls.add(devServerUrl);
+          }
+          capRecord[CUSTOM_CAPABILITY_NAME] = { ...capOpts, devServerUrl };
         }
-        delete (cap as Record<string, unknown>)['wdio:enforceWebDriverClassic'];
+        // Rewrite every cap to a system-Chrome session.
+        for (const cap of caps) {
+          cap.browserName = 'chrome';
+          // Preserve user-supplied goog:chromeOptions (args, extensions, prefs, etc.) but strip
+          // `binary` — browser mode wants system Chrome, not the Electron binary passed for native mode.
+          const chromeOpts = (cap as Record<string, unknown>)['goog:chromeOptions'] as
+            | Record<string, unknown>
+            | undefined;
+          if (chromeOpts && 'binary' in chromeOpts) {
+            delete chromeOpts.binary;
+          }
+          delete (cap as Record<string, unknown>)['wdio:enforceWebDriverClassic'];
+        }
+      } catch (error) {
+        // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
+        await this.#stopDevServer?.().catch(() => {});
+        this.#stopDevServer = undefined;
+        throw error instanceof SevereServiceError
+          ? error
+          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
       }
       this.#browserMode = true;
       log.info('Browser mode enabled — skipping Electron binary and CDP bridge setup');

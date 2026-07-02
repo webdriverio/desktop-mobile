@@ -41,6 +41,8 @@ vite dev
 webpack serve
 ```
 
+Or let the service **start and stop it for you** with the optional `devServer` option (see [Auto-managing the dev server](#auto-managing-the-dev-server) below) — then you don't need to start it yourself.
+
 ### 2. Configure the Service
 
 Set `mode: 'browser'` and provide `devServerUrl` in your WDIO configuration. No `appBinaryPath` or `appEntryPoint` is needed.
@@ -82,6 +84,40 @@ export const config = {
 ```
 
 Capability-level options take precedence over service-level ones. All capabilities in a session must use the same mode; mixing `'native'` and `'browser'` across capabilities throws a `SevereServiceError` at startup.
+
+## Auto-managing the dev server
+
+By default you start the dev server yourself. The optional `devServer` service option makes the service **spawn it in `onPrepare`, wait until `devServerUrl` is reachable, and tear it down on completion** (and on a startup failure). It takes three forms:
+
+```ts
+// 1. A shell command (the common case)
+devServer: 'pnpm dev'
+
+// 2. An object — command plus cwd/env/timeout, and reuse control
+devServer: {
+  command: 'pnpm dev',
+  cwd: './app',
+  env: { NODE_ENV: 'test' },
+  timeoutMs: 60_000,           // readiness budget (default 60s, 120s in CI)
+  reuseExistingServer: true,   // default: reuse a running server locally, always spawn in CI
+}
+
+// 3. A function — start it programmatically and return how to close it.
+//    No subprocess/quoting/child-kill involved; the returned `url` supplies/overrides devServerUrl.
+devServer: async () => {
+  const server = await createServer();
+  await server.listen();
+  return { url: server.resolvedUrls.local[0], close: () => server.close() };
+}
+```
+
+Notes:
+
+- `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode.
+- With `reuseExistingServer` (default off in CI, on locally), if `devServerUrl` is already reachable the spawn is skipped — handy when you already have `pnpm dev` running during local iteration.
+- The command form spawns in a shell and tears down the whole process tree (so `pnpm dev → vite → esbuild` grandchildren don't orphan); the function form avoids subprocesses entirely.
+- In multiremote, the single managed server is taken from the **global** service options and its resolved URL is stamped onto every capability.
+- The same option is available on the Tauri, Dioxus, and Electrobun services.
 
 ## IPC Mocking
 

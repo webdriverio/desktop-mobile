@@ -68,6 +68,12 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
   waitTestRunnerBackendReady: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('@wdio/native-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-core')>()),
+  startManagedDevServer: vi.fn(),
+}));
+
+import { startManagedDevServer } from '@wdio/native-core';
 import { ensureTauriDriver } from '../src/driverManager.js';
 import TauriLaunchService from '../src/launcher.js';
 
@@ -160,5 +166,66 @@ describe('TauriLaunchService — browser mode', () => {
       await launcher.onPrepare({} as any, caps);
       await expect(launcher.onWorkerEnd('0-0')).resolves.toBeUndefined();
     });
+  });
+});
+
+describe('TauriLaunchService — devServer management', () => {
+  const managedStop = vi.fn(async () => {});
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: DEV_SERVER, stop: managedStop });
+  });
+
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.clearAllMocks();
+  });
+
+  it('should start the managed dev server and tear it down in onComplete', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare({} as any, [{}] as any);
+    expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
+    await launcher.onComplete(0, {} as any, [] as any);
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should throw SevereServiceError when the managed dev server fails to start', async () => {
+    vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare({} as any, [{}] as any)).rejects.toThrow(/Failed to start dev server/);
+  });
+
+  it('should propagate a function-provided url override to the capability', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'http://localhost:5173', stop: managedStop });
+    const launcher = createLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'http://localhost:5173', close: managedStop }),
+    });
+    const caps: any[] = [{}];
+    await launcher.onPrepare({} as any, caps);
+    expect(caps[0]['wdio:tauriServiceOptions'].devServerUrl).toBe('http://localhost:5173');
+  });
+
+  it('should stop the managed dev server when a later step fails (e.g. an invalid resolved url)', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'not-a-url', stop: managedStop });
+    const launcher = createLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'not-a-url', close: managedStop }),
+    });
+    await expect(launcher.onPrepare({} as any, [{}] as any)).rejects.toThrow(/not a valid URL/);
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should not manage a dev server when devServer is unset', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    await launcher.onPrepare({} as any, [{}] as any);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare({} as any, [{}] as any)).rejects.toThrow(/devServerUrl is required/);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
   });
 });

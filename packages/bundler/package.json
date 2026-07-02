@@ -30,7 +30,7 @@
     "clean:dist": "pnpm dlx shx rm -rf ./dist",
     "dev": "pnpm run build --watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "build": "rollup --config rollup.config.ts --configPlugin typescript",
+    "build": "shx rm -rf dist && rollup --config rollup.config.ts --configPlugin typescript",
     "build:debug": "cross-env DEBUG=@wdio/bundler pnpm build",
     "test:unit": "vitest --coverage --watch=false test/unit/",
     "test:integration": "vitest --watch=false test/integration/",

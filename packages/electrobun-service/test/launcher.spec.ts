@@ -47,6 +47,12 @@ vi.mock('../src/webview2Version.js', () => ({
   detectWebView2RuntimeVersion: vi.fn(() => '148.0.3967.83'),
 }));
 
+vi.mock('@wdio/native-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-core')>()),
+  startManagedDevServer: vi.fn(),
+}));
+
+import { startManagedDevServer } from '@wdio/native-core';
 import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } from '../src/electrobunConfig.js';
 import ElectrobunLaunchService from '../src/launcher.js';
 import { spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
@@ -70,10 +76,14 @@ describe('ElectrobunLaunchService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     setPlatform('darwin');
+    // Browser mode now preflights the dev server with a fetch HEAD probe; stub it reachable so the
+    // happy-path browser tests don't hit a real (absent) server. (Native-mode tests never probe.)
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
+    vi.unstubAllGlobals();
     setPlatform(originalPlatform);
   });
 
@@ -482,5 +492,78 @@ describe('ElectrobunLaunchService', () => {
       await expect(launcher.onWorkerEnd('0-9')).resolves.toBeUndefined();
       expect(vi.mocked(stopElectrobunApp)).not.toHaveBeenCalled();
     });
+  });
+});
+
+describe('ElectrobunLaunchService — devServer management', () => {
+  const DEV_SERVER = 'http://localhost:3000';
+  const managedStop = vi.fn(async () => {});
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    setPlatform('darwin');
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: DEV_SERVER, stop: managedStop });
+  });
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+    setPlatform(originalPlatform);
+  });
+
+  it('should start the managed dev server and tear it down in onComplete', async () => {
+    const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' } as never);
+    await launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never);
+    expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
+    await launcher.onComplete();
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should throw SevereServiceError when the managed dev server fails to start', async () => {
+    vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
+    const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' } as never);
+    await expect(launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never)).rejects.toThrow(
+      /Failed to start dev server/,
+    );
+  });
+
+  it('should propagate a function-provided url override to the capability', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'http://localhost:5173', stop: managedStop });
+    const launcher = makeLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'http://localhost:5173', close: managedStop }),
+    } as never);
+    const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+    await launcher.onPrepare(baseConfig, caps as never);
+    expect((caps[0] as Record<string, any>)['wdio:electrobunServiceOptions'].devServerUrl).toBe(
+      'http://localhost:5173',
+    );
+  });
+
+  it('should stop the managed dev server when a later step fails (e.g. an invalid resolved url)', async () => {
+    vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'not-a-url', stop: managedStop });
+    const launcher = makeLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'not-a-url', close: managedStop }),
+    } as never);
+    await expect(launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never)).rejects.toThrow(
+      /not a valid URL/,
+    );
+    expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should not manage a dev server when devServer is unset', async () => {
+    const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER } as never);
+    await launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {
+    const launcher = makeLauncher({ mode: 'browser', devServer: 'pnpm dev' } as never);
+    await expect(launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never)).rejects.toThrow(
+      /devServerUrl is required/,
+    );
+    expect(startManagedDevServer).not.toHaveBeenCalled();
   });
 });
