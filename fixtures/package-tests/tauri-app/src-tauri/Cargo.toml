@@ -13,7 +13,7 @@ rust-version = "1.77"
 tauri-build = { version = "2.6.0", features = [] }
 
 [dependencies]
-tauri = { version = "2.11.0", features = ["tray-icon"] }
+tauri = { version = "2.11.1", features = ["tray-icon"] }
 tauri-plugin-fs = "2.5.1"
 tauri-plugin-wdio = { path = "../../../../packages/tauri-plugin" }
 tauri-plugin-wdio-webdriver = { path = "../../../../packages/tauri-plugin-webdriver" }
