@@ -8,7 +8,7 @@ describe('versionMatrix', () => {
     expect(driverSpecFor('uiautomator2', 3)).toEqual({
       name: 'uiautomator2',
       source: 'appium-uiautomator2-driver',
-      version: '^7.6.0',
+      version: '^7.6.2',
     });
     expect(driverSpecFor('flutter', 3)?.source).toBe('appium-flutter-driver');
   });
