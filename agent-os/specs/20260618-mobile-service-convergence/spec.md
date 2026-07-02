@@ -1,6 +1,6 @@
 # Specification: Generic `@wdio/mobile-service` & Mobile-Service Convergence
 
-> **Status:** 📋 Planned (design) — 2026-06-18 (updated 2026-07-01: E2E strategy, convergence-subsumes-gaps, versioning guidance)
+> **Status:** 📋 Planned (design) — 2026-06-18 (updated 2026-07-01: E2E strategy, convergence-subsumes-gaps, versioning guidance; 2026-07-02: appium-service premise corrected (v9.27 selector-perf worker) + upstream direction question gated before the standalone publish)
 >
 > **Companion work (tracked as issues, not restated here):**
 > - [#378](https://github.com/webdriverio/desktop-mobile/issues/378) — shared mobile setup automation in `@wdio/native-mobile-core`
@@ -154,7 +154,8 @@ JS/Dart realm (`execute`/`mock`).
     appium-service, and WDIO core already ships the raw mobile commands. So if setup-automation upstreams,
     a standalone service's unique surface thins to "normalized API + deeplink fallback + log forwarding".
   - **So, before committing to the standalone publish, ask the maintainer (Wim) the direction question**
-    (peer coordination — see the outreach draft): is `@wdio/appium-service` meant to stay
+    (peer coordination, not permission — frame it collaboratively, "where should this live?", not "is
+    this welcome?"): is `@wdio/appium-service` meant to stay
     server-lifecycle + selector-perf, or absorb driver-install/doctor/device-management/a normalized
     mobile API? Its v9.27 selector-perf worker shows the maintainer *is* willing to grow it, so the
     question is live. Two clean outcomes: **"stays narrow"** → publish the standalone service as planned;
@@ -240,8 +241,9 @@ The skill's Mobile archetype is updated to *reflect* this base **only after it s
    extends). Step 2 (convergence) ships either way.
 4. **Distill the converged mobile archetype back into the `add-native-service` skill**
    (`.claude/skills/add-native-service/` — the Mobile archetype + `plumbing-mobile.md`): a new mobile
-   framework should extend `@wdio/mobile-service` rather than clone RN/Flutter. This is an **output of
-   completion, not a prerequisite** — the skill encodes *proven* patterns, so it is updated only once
+   framework should extend the shared base — **`@wdio/mobile-service` if it was published, or
+   `@wdio/native-mobile-core` if the standalone publish was skipped** (Sequencing step 3) — rather than
+   clone RN/Flutter. This is an **output of completion, not a prerequisite** — the skill encodes *proven* patterns, so it is updated only once
    the base ships and is validated, never against the not-yet-existent abstraction (same reason the
    skill was revised only after React Native shipped). **Required deliverable** of this work.
 
