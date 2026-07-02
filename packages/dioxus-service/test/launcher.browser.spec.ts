@@ -142,6 +142,12 @@ describe('DioxusLaunchService — devServer management', () => {
     expect(startManagedDevServer).not.toHaveBeenCalled();
   });
 
+  it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare(baseConfig, [{}] as any)).rejects.toThrow(/devServerUrl is required/);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
   it('should reject a non-chrome browserName before starting the dev server (no orphan)', async () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
     const caps: any[] = [{ browserName: 'firefox' }];

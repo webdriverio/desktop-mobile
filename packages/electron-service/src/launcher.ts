@@ -164,6 +164,14 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         // managed server serves one URL for every cap.
         let managedUrl: string | undefined;
         if (this.#globalOptions.devServer) {
+          // Only a devServer *function* can supply the URL; a string/object form needs devServerUrl
+          // as its readiness target. Require it up front so a missing one fails fast instead of
+          // polling an empty URL for the whole readiness timeout.
+          if (typeof this.#globalOptions.devServer !== 'function' && !this.#globalOptions.devServerUrl) {
+            throw new SevereServiceError(
+              'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+            );
+          }
           const managed = await startManagedDevServer(
             this.#globalOptions.devServer,
             this.#globalOptions.devServerUrl ?? '',

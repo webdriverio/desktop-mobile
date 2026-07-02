@@ -222,4 +222,10 @@ describe('TauriLaunchService — devServer management', () => {
     await launcher.onPrepare({} as any, [{}] as any);
     expect(startManagedDevServer).not.toHaveBeenCalled();
   });
+
+  it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServer: 'pnpm dev' });
+    await expect(launcher.onPrepare({} as any, [{}] as any)).rejects.toThrow(/devServerUrl is required/);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
 });

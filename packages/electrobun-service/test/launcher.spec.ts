@@ -543,7 +543,10 @@ describe('ElectrobunLaunchService — devServer management', () => {
 
   it('should stop the managed dev server when a later step fails (e.g. an invalid resolved url)', async () => {
     vi.mocked(startManagedDevServer).mockResolvedValue({ url: 'not-a-url', stop: managedStop });
-    const launcher = makeLauncher({ mode: 'browser', devServer: 'pnpm dev' } as never);
+    const launcher = makeLauncher({
+      mode: 'browser',
+      devServer: async () => ({ url: 'not-a-url', close: managedStop }),
+    } as never);
     await expect(launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never)).rejects.toThrow(
       /not a valid URL/,
     );
@@ -553,6 +556,14 @@ describe('ElectrobunLaunchService — devServer management', () => {
   it('should not manage a dev server when devServer is unset', async () => {
     const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER } as never);
     await launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never);
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {
+    const launcher = makeLauncher({ mode: 'browser', devServer: 'pnpm dev' } as never);
+    await expect(launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never)).rejects.toThrow(
+      /devServerUrl is required/,
+    );
     expect(startManagedDevServer).not.toHaveBeenCalled();
   });
 });
