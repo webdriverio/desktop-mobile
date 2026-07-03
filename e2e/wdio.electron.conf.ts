@@ -77,6 +77,11 @@ async function getElectronConfigContext(): Promise<ElectronConfigContext> {
   } else {
     console.log('🔍 Setting up binary test with app binary path');
 
+    // Serialize structured/Result errors: interpolating them renders `[object Object]` and hides
+    // the candidate paths that pinpoint a resolution failure.
+    const describeError = (err: unknown): string =>
+      err instanceof Error ? (err.stack ?? err.message) : JSON.stringify(err, null, 2);
+
     try {
       // Import async utilities and resolve binary path directly
       const { getBinaryPath, getAppBuildInfo, getElectronVersion } = await import('@wdio/electron-service');
@@ -89,13 +94,14 @@ async function getElectronConfigContext(): Promise<ElectronConfigContext> {
 
       // Extract the actual path string from the result object
       if (!isOk(binaryResult)) {
-        throw new Error(`Failed to resolve binary path: ${binaryResult.error}`);
+        throw new Error(`Failed to resolve binary path: ${describeError(binaryResult.error)}`);
       }
       appBinaryPath = binaryResult.value.binaryPath;
 
       console.log('🔍 Found app binary at:', appBinaryPath);
     } catch (error) {
-      throw new Error(`Failed to resolve binary path: ${error instanceof Error ? error.message : error}`);
+      // Preserve the already-formatted error from above (don't double-wrap the message).
+      throw error instanceof Error ? error : new Error(`Failed to resolve binary path: ${describeError(error)}`);
     }
   }
 
