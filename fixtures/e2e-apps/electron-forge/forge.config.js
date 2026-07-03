@@ -10,6 +10,10 @@ const config = {
     asar: true,
     icon,
     osxSign: false,
+    // Skip electron-packager's native-dependency prune (flora-colossus) — it can't traverse
+    // pnpm's symlinked workspace store and intermittently fails packaging in CI. A larger
+    // package is fine for a fixture that only needs to launch.
+    prune: false,
   },
   rebuildConfig: {},
   makers: [],
