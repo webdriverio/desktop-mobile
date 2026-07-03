@@ -5,13 +5,11 @@
   ],
   "tasks": {
     "build": {
+      "dependsOn": [
+        "typecheck"
+      ],
       "inputs": [
-        "src/**",
-        "tsconfig.json",
-        "tsconfig.*.json",
-        "wdio-bundler.config.ts",
-        "rollup.config.ts",
-        "package.json",
+        "$TURBO_EXTENDS$",
         "$TURBO_ROOT$/pnpm-lock.yaml"
       ]
     }

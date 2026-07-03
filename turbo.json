@@ -215,14 +215,6 @@
       ],
       "cache": false
     },
-    "@wdio/bundler#build": {
-      "dependsOn": [
-        "typecheck"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
-    },
     "@wdio/native-types#build": {
       "dependsOn": [
         "typecheck"
