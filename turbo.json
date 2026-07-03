@@ -5,6 +5,10 @@
     "TURBO_TOKEN",
     "TURBO_TEAM"
   ],
+  "globalDependencies": [
+    "tsconfig.base.json",
+    "tsconfig.base.cjs.json"
+  ],
   "remoteCache": {
     "enabled": true
   },
