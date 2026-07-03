@@ -128,7 +128,7 @@ function unwrapEmbeddedResult<T>(raw: unknown): T {
   if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
     const envelope = raw as Record<string, unknown>;
     if ('__wdio_value__' in envelope) {
-      return envelope['__wdio_value__'] as T;
+      return envelope.__wdio_value__ as T;
     }
     // Key absent: JSON.stringify omitted it because the JS result was undefined
     return undefined as unknown as T;

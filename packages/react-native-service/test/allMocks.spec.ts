@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from '../src/commands/allMocks.js';
 import { ReactNativeMockStore } from '../src/mockStore.js';

@@ -1,9 +1,9 @@
 {
   "$schema": "./node_modules/@biomejs/biome/configuration_schema.json",
   "vcs": {
-    "enabled": false,
+    "enabled": true,
     "clientKind": "git",
-    "useIgnoreFile": false
+    "useIgnoreFile": true
   },
   "files": {
     "ignoreUnknown": false,
@@ -157,6 +157,32 @@
           },
           "suspicious": {
             "noExplicitAny": "off"
+          }
+        }
+      }
+    },
+    {
+      // script-detect passes literal ${...} template-source as string input to the parser under test
+      "includes": [
+        "**/native-utils/test/script-detect.spec.ts"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noTemplateCurlyInString": "off"
+          }
+        }
+      }
+    },
+    {
+      "includes": [
+        "scripts/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            // Node CI scripts legitimately read process.env (GITHUB_TOKEN, etc.)
+            "noUndeclaredEnvVars": "off"
           }
         }
       }

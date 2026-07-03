@@ -114,7 +114,6 @@ describe('DioxusWorkerService', () => {
 
   it('should leave the mockStore intact in after() so afterSession() can restore mocks', async () => {
     const fakeMock = { getMockName: () => 'dioxus.greet' };
-    // biome-ignore lint/suspicious/noExplicitAny: test-only cast
     mockStore.setMock(fakeMock as any);
     expect(mockStore.getMocks()).toHaveLength(1);
 
@@ -126,7 +125,6 @@ describe('DioxusWorkerService', () => {
 
   it('should clear the process-wide mockStore in afterSession()', async () => {
     const fakeMock = { getMockName: () => 'dioxus.greet', mockRestore: vi.fn().mockResolvedValue(undefined) };
-    // biome-ignore lint/suspicious/noExplicitAny: test-only cast
     mockStore.setMock(fakeMock as any);
     expect(mockStore.getMocks()).toHaveLength(1);
 
@@ -145,7 +143,6 @@ describe('DioxusWorkerService', () => {
       getMockName: () => 'dioxus.greet',
       mockRestore: vi.fn().mockRejectedValue(new Error('session closed')),
     };
-    // biome-ignore lint/suspicious/noExplicitAny: test-only cast
     mockStore.setMock(fakeMock as any);
 
     const service = new DioxusWorkerService({}, {});

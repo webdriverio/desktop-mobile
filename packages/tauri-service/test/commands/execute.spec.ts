@@ -160,13 +160,13 @@ describe('execute — embedded provider (direct eval)', () => {
       const mockFn = mockFetch({ value: 1 });
       vi.stubGlobal('fetch', mockFn);
 
-      process.env['TAURI_WEBDRIVER_PORT'] = '9000';
+      process.env.TAURI_WEBDRIVER_PORT = '9000';
       await execute(browser, '() => 1');
 
-      process.env['TAURI_WEBDRIVER_PORT'] = '9001';
+      process.env.TAURI_WEBDRIVER_PORT = '9001';
       await execute(browser, '() => 2');
 
-      delete process.env['TAURI_WEBDRIVER_PORT'];
+      delete process.env.TAURI_WEBDRIVER_PORT;
 
       expect(mockFn.mock.calls[0][0]).toBe('http://127.0.0.1:9000/wdio/eval');
       expect(mockFn.mock.calls[1][0]).toBe('http://127.0.0.1:9001/wdio/eval');

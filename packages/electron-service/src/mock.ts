@@ -355,7 +355,7 @@ export async function createElectronBrowserModeMock(
     );
     const result = await browser.executeAsync((s: string, done: (v: unknown) => void) => {
       // eslint-disable-next-line no-new-func
-      const fn = new Function('return (' + s + ')')() as () => Promise<unknown>;
+      const fn = new Function(`return (${s})`)() as () => Promise<unknown>;
       Promise.resolve(fn()).then(done, (err: unknown) => {
         done({ __wdioAsyncErr__: err instanceof Error ? err.message : String(err) });
       });

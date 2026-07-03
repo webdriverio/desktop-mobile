@@ -327,8 +327,10 @@ describe('TauriWorkerService', () => {
       // *body* — not just that it was registered — so dropping updateAllMocks()
       // would fail here.
       const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
-      expect(clickCall).toBeDefined();
-      const override = clickCall![1] as unknown as (
+      if (!clickCall) {
+        throw new Error('click command was not overwritten');
+      }
+      const override = clickCall[1] as unknown as (
         this: unknown,
         originalCommand: (...args: unknown[]) => Promise<unknown>,
         ...args: unknown[]
@@ -363,7 +365,10 @@ describe('TauriWorkerService', () => {
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
 
       const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
-      const override = clickCall![1] as unknown as (
+      if (!clickCall) {
+        throw new Error('click command was not overwritten');
+      }
+      const override = clickCall[1] as unknown as (
         this: unknown,
         originalCommand: (...args: unknown[]) => Promise<unknown>,
         ...args: unknown[]
@@ -393,7 +398,10 @@ describe('TauriWorkerService', () => {
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
 
       const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
-      const override = clickCall![1] as unknown as (
+      if (!clickCall) {
+        throw new Error('click command was not overwritten');
+      }
+      const override = clickCall[1] as unknown as (
         this: unknown,
         originalCommand: (...args: unknown[]) => Promise<unknown>,
         ...args: unknown[]
@@ -429,7 +437,10 @@ describe('TauriWorkerService', () => {
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
 
       const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
-      const override = clickCall![1] as unknown as (
+      if (!clickCall) {
+        throw new Error('click command was not overwritten');
+      }
+      const override = clickCall[1] as unknown as (
         this: unknown,
         originalCommand: (...args: unknown[]) => Promise<unknown>,
         ...args: unknown[]
@@ -456,7 +467,10 @@ describe('TauriWorkerService', () => {
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: mockUpdate } as any]]);
 
       const clickCall = vi.mocked(mockBrowser.overwriteCommand).mock.calls.find((c) => c[0] === 'click');
-      const override = clickCall![1] as unknown as (
+      if (!clickCall) {
+        throw new Error('click command was not overwritten');
+      }
+      const override = clickCall[1] as unknown as (
         this: unknown,
         originalCommand: (...args: unknown[]) => Promise<unknown>,
         ...args: unknown[]

@@ -10,10 +10,9 @@
     "resolveJsonModule": true,
     "strict": true,
     "jsx": "preserve",
-    "baseUrl": ".",
     "paths": {
       "@/*": [
-        "src/*"
+        "./src/*"
       ]
     },
     "types": [

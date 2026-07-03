@@ -81,7 +81,7 @@ describe('ElectronAdapter.buildBrowserIpcInjectionScript', () => {
   it('should spread args to the registered mock', async () => {
     const script = adapter.buildBrowserIpcInjectionScript();
     const window = runInBrowserContext(script);
-    let capturedArgs: unknown[];
+    let capturedArgs: unknown[] | undefined;
     (window.__wdio_mocks__ as Record<string, unknown>)['multi-arg'] = (...args: unknown[]) => {
       capturedArgs = args;
       return 'ok';
@@ -89,7 +89,7 @@ describe('ElectronAdapter.buildBrowserIpcInjectionScript', () => {
     const ipcRenderer = (window.electron as Record<string, unknown>).ipcRenderer as Record<string, unknown>;
     const invoke = ipcRenderer.invoke as (channel: string, ...args: unknown[]) => Promise<unknown>;
     await invoke('multi-arg', 'a', 'b', 'c');
-    expect(capturedArgs!).toEqual(['a', 'b', 'c']);
+    expect(capturedArgs).toEqual(['a', 'b', 'c']);
   });
 
   it('should throw synchronously for send on unmocked channels', () => {

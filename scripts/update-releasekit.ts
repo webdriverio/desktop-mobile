@@ -40,13 +40,13 @@ function updateWorkflowFile(path: string, version: string) {
   const updated = content.replace(/goosewobbler\/releasekit@v[\d.]+/g, `goosewobbler/releasekit@v${version}`);
 
   if (content === updated) {
-    console.log(`  - ${path.replace(ROOT + '/', '')}: no occurrences found`);
+    console.log(`  - ${path.replace(`${ROOT}/`, '')}: no occurrences found`);
     return;
   }
 
   writeFileSync(path, updated);
   const count = (updated.match(/goosewobbler\/releasekit@v[\d.]+/g) ?? []).length;
-  console.log(`  ✓ ${path.replace(ROOT + '/', '')}: ${count} occurrence(s) → v${version}`);
+  console.log(`  ✓ ${path.replace(`${ROOT}/`, '')}: ${count} occurrence(s) → v${version}`);
 }
 
 function runCommand(command: string, cwd: string) {

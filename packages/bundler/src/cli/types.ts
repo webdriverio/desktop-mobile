@@ -134,6 +134,7 @@ export interface CompilerOptions {
   skipLibCheck?: boolean;
   noEmitOnError?: boolean;
   outDir?: string;
+  rootDir?: string;
   declaration?: boolean;
   declarationMap?: boolean;
 }

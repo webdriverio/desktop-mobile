@@ -64,15 +64,15 @@
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
-    "@babel/parser": "^7.29.7",
+    "@babel/parser": "^8.0.0",
     "@types/debug": "^4.1.12",
-    "@types/node": "^25.9.1",
+    "@types/node": "^26.1.0",
     "@wdio/bundler": "workspace:*",
     "recast": "^0.23.12",
     "shx": "^0.4.0",
     "terser": "^5.48.0",
-    "typescript": "^5.9.3",
-    "vitest": "^4.1.7"
+    "typescript": "^6.0.3",
+    "vitest": "^4.1.9"
   },
   "peerDependencies": {
     "webdriverio": "^9.0.0"
