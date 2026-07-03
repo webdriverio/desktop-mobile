@@ -219,35 +219,9 @@
       ],
       "cache": false
     },
-    "@wdio/native-types#build": {
-      "dependsOn": [
-        "typecheck"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
-    },
-    "@wdio/native-utils#build": {
-      "dependsOn": [
-        "@wdio/native-types#build",
-        "typecheck"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
-    },
     "@wdio/electron-service#build": {
       "dependsOn": [
         "@wdio/native-cdp-bridge#build"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
-    },
-    "@wdio/native-cdp-bridge#build": {
-      "dependsOn": [
-        "@wdio/native-utils#build",
-        "typecheck"
       ],
       "outputs": [
         "dist/**"
@@ -302,18 +276,9 @@
     },
     "@wdio/tauri-service#build": {
       "dependsOn": [
-        "@wdio/native-utils#build",
+        "^build",
         "@wdio/tauri-plugin#build:js",
-        "@wdio/tauri-service#build:console-wrapper",
-        "typecheck"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
-    },
-    "@wdio/native-spy#build": {
-      "dependsOn": [
-        "typecheck"
+        "@wdio/tauri-service#build:console-wrapper"
       ],
       "outputs": [
         "dist/**"

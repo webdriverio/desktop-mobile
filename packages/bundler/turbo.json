@@ -5,9 +5,6 @@
   ],
   "tasks": {
     "build": {
-      "dependsOn": [
-        "typecheck"
-      ],
       "inputs": [
         "$TURBO_EXTENDS$",
         "$TURBO_ROOT$/pnpm-lock.yaml"
