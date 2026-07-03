@@ -219,22 +219,6 @@
       ],
       "cache": false
     },
-    "@wdio/electron-service#build": {
-      "dependsOn": [
-        "@wdio/native-cdp-bridge#build"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
-    },
-    "@wdio/electrobun-service#build": {
-      "dependsOn": [
-        "@wdio/native-cdp-bridge#build"
-      ],
-      "outputs": [
-        "dist/**"
-      ]
-    },
     "@wdio/tauri-plugin#build": {
       "dependsOn": [
         "@wdio/tauri-plugin#build:js"
