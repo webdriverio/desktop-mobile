@@ -79,8 +79,17 @@ async function getElectronConfigContext(): Promise<ElectronConfigContext> {
 
     // Serialize structured/Result errors: interpolating them renders `[object Object]` and hides
     // the candidate paths that pinpoint a resolution failure.
-    const describeError = (err: unknown): string =>
-      err instanceof Error ? (err.stack ?? err.message) : JSON.stringify(err, null, 2);
+    const describeError = (err: unknown): string => {
+      if (err instanceof Error) {
+        return err.stack ?? err.message;
+      }
+      // JSON.stringify throws on circular refs / BigInt; a diagnostic helper must never itself throw.
+      try {
+        return JSON.stringify(err, null, 2);
+      } catch {
+        return String(err);
+      }
+    };
 
     try {
       // Import async utilities and resolve binary path directly
