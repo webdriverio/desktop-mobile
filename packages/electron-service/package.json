@@ -61,7 +61,7 @@
   "dependencies": {
     "@babel/parser": "^8.0.0",
     "@electron/fuses": "^2.1.3",
-    "@electron/packager": "^20.0.1",
+    "@electron/packager": "^20.0.2",
     "@wdio/globals": "catalog:default",
     "@wdio/logger": "catalog:default",
     "@wdio/native-cdp-bridge": "workspace:*",
@@ -71,7 +71,7 @@
     "compare-versions": "^6.1.1",
     "debug": "^4.4.3",
     "deepmerge-ts": "^7.1.5",
-    "electron-to-chromium": "^1.5.384",
+    "electron-to-chromium": "^1.5.389",
     "fast-copy": "^4.0.2",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
