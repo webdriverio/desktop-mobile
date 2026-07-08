@@ -153,8 +153,8 @@ importers:
         specifier: link:../packages/tauri-service
         version: link:../packages/tauri-service
       '@wdio/visual-service':
-        specifier: ^10.0.0
-        version: 10.0.0(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
+        specifier: ^10.0.1
+        version: 10.0.1(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
       '@wdio/xvfb':
         specifier: catalog:default
         version: 9.29.1
@@ -4145,6 +4145,9 @@ packages:
   '@vitest/pretty-format@2.1.9':
     resolution: {integrity: sha512-KhRIdGV2U9HOUzxfiHmY8IFHTdqtOhIzCpd8WRdJiE7D/HUcZVD0EgQCVjm+Q9gkUXWgBvMmTtZgIG48wq7sOQ==}
 
+  '@vitest/pretty-format@4.1.10':
+    resolution: {integrity: sha512-W1HsjSH4MXQ9YfmmhLAoIYf1HRfekQCGngeIgcei6MP5QQGWUe0gkopdZQaVCFO+JDJMrAJGwa5pRpNpvy4P8Q==}
+
   '@vitest/pretty-format@4.1.9':
     resolution: {integrity: sha512-s0iufns3iIFitdgm+YR7g1whCAaGtXz459VS9/PqyKDEEFgYIhsHOQmXgIgDuYCt7DeQmiZT0Qe2OA2p4ZPu5A==}
 
@@ -4154,11 +4157,17 @@ packages:
   '@vitest/snapshot@2.1.9':
     resolution: {integrity: sha512-oBO82rEjsxLNJincVhLhaxxZdEtV0EFHMK5Kmx5sJ6H9L183dHECjiefOAdnqpIgT5eZwT04PoggUnW88vOBNQ==}
 
+  '@vitest/snapshot@4.1.10':
+    resolution: {integrity: sha512-xRkfOT1qpTAi/Ti4Y1LtfRc3kEuqxGw59eN2jN9pRWMtS/XDevekhcFSqvQqjUNGksfjMJu3Y+oJ+4Ypn2OaJw==}
+
   '@vitest/snapshot@4.1.9':
     resolution: {integrity: sha512-Jc7RKGNBo8Z28WYIm0Niej4xdSPByRf6mU58VpHQkd6Zh05rlnA+twjbK5HyeIGHxrzsc3mJgS43uM0CZKzaIA==}
 
   '@vitest/spy@4.1.9':
     resolution: {integrity: sha512-fHpsS6mIi+PiEW+vcRVOMkX1oSaPKne3VOclSFICPcGOmfKgXPU5iAah+wcNcj2xPrCCmfq99IDGf+EojhhvhA==}
+
+  '@vitest/utils@4.1.10':
+    resolution: {integrity: sha512-fy9am/HWxbaGt/Sawrp90vt6Y6jQwf1RX77cz3uwoJwJVMli/e1IEwRPnMNJ7vKfPTwo0diXifkpPvwH9v7nGA==}
 
   '@vitest/utils@4.1.9':
     resolution: {integrity: sha512-A51o8ymO5PpqlWNnBP9ZHPXDIpuMtTLlGSjN7la4US+LJzoUMyhwjA5QXlm39JexgwHKW4Xjs8Z2d3dLCXOeuA==}
@@ -4191,8 +4200,8 @@ packages:
       expect-webdriverio: ^5.6.5
       webdriverio: ^9.0.0
 
-  '@wdio/image-comparison-core@2.0.0':
-    resolution: {integrity: sha512-7/y1mr0hZaO7/JTQkUJbETRuhCzRkbKA5vajmq7SNwFq/hgJ3p3DVmc6dJ74553moJthLR3V2mCscvmSfqzXdQ==}
+  '@wdio/image-comparison-core@2.0.1':
+    resolution: {integrity: sha512-2WVXuAIkm7HbrkQqt/7Z8a/0CtNxrvilitBWaP+m1XRoKfO//dYeJ14K1r973WucHBeStWPP5E4MYGe0x/wKYA==}
 
   '@wdio/local-runner@9.29.1':
     resolution: {integrity: sha512-ypgi3gTZYY3eStp1U9H6Gjl0mer55CYMdbtRQ27s6evN1QABcwkGCTuzwqHoO6RmKzwPOuht2mnWb9HwYJaNnw==}
@@ -4236,8 +4245,8 @@ packages:
     resolution: {integrity: sha512-jyt6b6FfdYwVbMISVhuyGC1xQGZj6xM03KhTHozH7a9/zu9b++94KRdT9HRbwX8zefjW0YeIC5+qWSIf7WWHZg==}
     engines: {node: '>=18.20.0'}
 
-  '@wdio/visual-service@10.0.0':
-    resolution: {integrity: sha512-xc8UK6SIQxNpQIl0QoNjMsvQ6rBK14zH+HISvdilSJKU0Hw0tvXYLXUalX9Qw+0pvLYoJ3PP/ZDpcNNU6pHeuQ==}
+  '@wdio/visual-service@10.0.1':
+    resolution: {integrity: sha512-qVCx12I8lrCimGhK2BhcfV2YHFRrB9k41WaOmc3OfJzu4egOBpEGKhnasQQc83ZNnKswSscwUVXaDU2FBkAgqQ==}
 
   '@wdio/xvfb@9.29.1':
     resolution: {integrity: sha512-suC0EJcPVldpIyJA/UB9cV11PkW4sGgNmLHPhWU7NiASnbiFeHjK3EbevjzlwwBNYXx1KHO4jMY4Rep2wwVNuw==}
@@ -7459,6 +7468,10 @@ packages:
 
   picomatch@4.0.4:
     resolution: {integrity: sha512-QP88BAKvMam/3NxH6vj2o21R6MjxZUAd6nlwAS/pnGvN9IVLocLHxGYIzFhg6fUQ+5th6P4dv4eW9jX3DSIj7A==}
+    engines: {node: '>=12'}
+
+  picomatch@4.0.5:
+    resolution: {integrity: sha512-RvwwcruNjI1ncT5xRakeyS9Lf8lcItv34KD+aif+VH9kduAyfYBipGh12274xtenIPZ119/R9BdTBa8gAwSh0A==}
     engines: {node: '>=12'}
 
   pidtree@0.6.0:
@@ -11631,6 +11644,10 @@ snapshots:
     dependencies:
       tinyrainbow: 1.2.0
 
+  '@vitest/pretty-format@4.1.10':
+    dependencies:
+      tinyrainbow: 3.1.0
+
   '@vitest/pretty-format@4.1.9':
     dependencies:
       tinyrainbow: 3.1.0
@@ -11646,6 +11663,13 @@ snapshots:
       magic-string: 0.30.21
       pathe: 1.1.2
 
+  '@vitest/snapshot@4.1.10':
+    dependencies:
+      '@vitest/pretty-format': 4.1.10
+      '@vitest/utils': 4.1.10
+      magic-string: 0.30.21
+      pathe: 2.0.3
+
   '@vitest/snapshot@4.1.9':
     dependencies:
       '@vitest/pretty-format': 4.1.9
@@ -11654,6 +11678,12 @@ snapshots:
       pathe: 2.0.3
 
   '@vitest/spy@4.1.9': {}
+
+  '@vitest/utils@4.1.10':
+    dependencies:
+      '@vitest/pretty-format': 4.1.10
+      convert-source-map: 2.0.0
+      tinyrainbow: 3.1.0
 
   '@vitest/utils@4.1.9':
     dependencies:
@@ -11745,7 +11775,7 @@ snapshots:
       expect-webdriverio: 5.7.0(@wdio/globals@9.29.1)(@wdio/logger@9.29.1)(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
       webdriverio: 9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6)
 
-  '@wdio/image-comparison-core@2.0.0':
+  '@wdio/image-comparison-core@2.0.1':
     dependencies:
       '@wdio/logger': 9.29.1
       '@wdio/types': 9.29.1
@@ -11865,10 +11895,10 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  '@wdio/visual-service@10.0.0(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))':
+  '@wdio/visual-service@10.0.1(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))':
     dependencies:
       '@wdio/globals': 9.29.1(expect-webdriverio@5.7.0)(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
-      '@wdio/image-comparison-core': 2.0.0
+      '@wdio/image-comparison-core': 2.0.1
       '@wdio/logger': 9.29.1
       '@wdio/types': 9.29.1
       expect-webdriverio: 5.7.0(@wdio/globals@9.29.1)(@wdio/logger@9.29.1)(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
@@ -14057,7 +14087,7 @@ snapshots:
 
   expect-webdriverio@5.7.0(@wdio/globals@9.29.1)(@wdio/logger@9.29.1)(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6)):
     dependencies:
-      '@vitest/snapshot': 4.1.9
+      '@vitest/snapshot': 4.1.10
       '@wdio/globals': 9.29.1(expect-webdriverio@5.7.0)(webdriverio@9.29.1(bufferutil@4.1.0)(puppeteer-core@25.3.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
       '@wdio/logger': 9.29.1
       deep-eql: 5.0.2
@@ -14917,7 +14947,7 @@ snapshots:
       chalk: 4.1.2
       graceful-fs: 4.2.11
       jest-util: 30.4.1
-      picomatch: 4.0.4
+      picomatch: 4.0.5
       pretty-format: 30.4.1
       slash: 3.0.0
       stack-utils: 2.0.6
@@ -14937,7 +14967,7 @@ snapshots:
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
-      picomatch: 4.0.4
+      picomatch: 4.0.5
 
   jest-worker@27.5.1:
     dependencies:
@@ -15902,6 +15932,8 @@ snapshots:
   picomatch@2.3.2: {}
 
   picomatch@4.0.4: {}
+
+  picomatch@4.0.5: {}
 
   pidtree@0.6.0:
     optional: true

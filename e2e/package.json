@@ -74,7 +74,7 @@
     "@wdio/native-utils": "workspace:*",
     "@wdio/react-native-service": "link:../packages/react-native-service",
     "@wdio/tauri-service": "link:../packages/tauri-service",
-    "@wdio/visual-service": "^10.0.0",
+    "@wdio/visual-service": "^10.0.1",
     "@wdio/xvfb": "catalog:default",
     "electron": "catalog:default",
     "tsx": "^4.22.4",
