@@ -36,6 +36,13 @@ interface WebDriverError {
   message: string;
 }
 
+interface WindowBounds {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 async function invokeFixture<T>(command: string, args: Record<string, unknown> = {}): Promise<T> {
   const result = await browser.executeAsync<FixtureCommandResult<unknown>, [string, Record<string, unknown>]>(
     (commandName, commandArgs, done) => {
@@ -163,6 +170,8 @@ describeChildWebviews('child webview handles', () => {
     await waitForHandles([MAIN_WINDOW, DISPOSABLE_WINDOW, CHILD_LEFT, CHILD_RIGHT]);
 
     await browser.switchToWindow(CHILD_LEFT);
+    await expect(browser.$('#child-output')).toHaveText('idle');
+    expect(await browser.getWindowHandle()).toBe(CHILD_LEFT);
     await expect(browser).toHaveTitle(`Child WebView ${CHILD_LEFT}`);
     expect(await browser.execute(() => (globalThis as unknown as FixtureWindow).__childWebviewLabel)).toBe(CHILD_LEFT);
     await (await browser.$('#child-button')).click();
@@ -201,18 +210,16 @@ describeChildWebviews('child webview handles', () => {
     await createChildren();
     await waitForHandles([CHILD_LEFT]);
     await switchToMain();
-    const hostBefore = await browser.getWindowRect();
+    const nativeHostBefore = await invokeFixture<WindowBounds>('get_window_bounds');
+    expect(await browser.getWindowRect()).toEqual(nativeHostBefore);
 
     await browser.switchToWindow(CHILD_LEFT);
     expect(await browser.setWindowRect(20, 20, 240, 160)).toEqual({ x: 20, y: 20, width: 240, height: 160 });
     expect(await browser.getWindowRect()).toEqual({ x: 20, y: 20, width: 240, height: 160 });
 
     await switchToMain();
-    const hostAfter = await browser.getWindowRect();
-    expect(hostAfter.width).toBe(hostBefore.width);
-    expect(hostAfter.height).toBe(hostBefore.height);
-    expect(hostAfter.width).not.toBe(240);
-    expect(hostAfter.height).not.toBe(160);
+    expect(await browser.getWindowRect()).toEqual(nativeHostBefore);
+    expect(await invokeFixture<WindowBounds>('get_window_bounds')).toEqual(nativeHostBefore);
   });
 
   it('rejects closeWindow for a child without closing its host', async () => {

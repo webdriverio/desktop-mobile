@@ -40,6 +40,7 @@ vi.mock('../src/window.js', () => ({
   clearWindowState: vi.fn(),
   ensureActiveWindowFocus: vi.fn().mockResolvedValue(undefined),
   getDefaultWindowLabel: vi.fn().mockReturnValue('main'),
+  isInternalWindowSwitch: vi.fn().mockReturnValue(false),
   listWindowLabels: vi.fn().mockResolvedValue(['main']),
   setCurrentWindowLabel: vi.fn(),
   setSessionProvider: vi.fn(),
@@ -55,6 +56,7 @@ import TauriWorkerService from '../src/service.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
+  isInternalWindowSwitch,
   setCurrentWindowLabel,
   suppressActiveWindowFocus,
 } from '../src/window.js';
@@ -929,6 +931,17 @@ describe('TauriWorkerService', () => {
       await service.beforeCommand('switchToWindow', ['child-left']);
 
       expect(suppressActiveWindowFocus).toHaveBeenCalledWith(mockBrowser);
+    });
+
+    it('should not suppress auto-focus for an internal focus-recovery window switch', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+      vi.mocked(isInternalWindowSwitch).mockReturnValueOnce(true);
+
+      await service.beforeCommand('switchToWindow', ['main']);
+
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
     });
 
     it('should return early when browser is multiremote', async () => {

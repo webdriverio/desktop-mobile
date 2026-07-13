@@ -17,6 +17,7 @@ import {
   clearWindowState,
   ensureActiveWindowFocus,
   getDefaultWindowLabel,
+  isInternalWindowSwitch,
   listWindowLabels,
   setCurrentWindowLabel,
   setSessionProvider,
@@ -233,7 +234,7 @@ export default class TauriWorkerService {
 
     const browser = this.browser as WebdriverIO.Browser;
 
-    if (commandName === 'switchToWindow') {
+    if (commandName === 'switchToWindow' && !isInternalWindowSwitch(browser)) {
       suppressActiveWindowFocus(browser);
       return;
     }

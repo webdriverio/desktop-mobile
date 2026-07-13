@@ -32,6 +32,17 @@ pub struct WindowRect {
     pub height: u32,
 }
 
+#[cfg(desktop)]
+pub(crate) fn is_primary_webview<R: Runtime>(webview: &Webview<R>) -> bool {
+    webview.label() == webview.window().label()
+}
+
+#[cfg(desktop)]
+#[allow(dead_code)]
+pub(crate) fn is_standalone_webview<R: Runtime>(webview: &Webview<R>) -> bool {
+    is_primary_webview(webview) && webview.window().webviews().len() == 1
+}
+
 /// Frame identifier for switching frames
 #[derive(Debug, Clone)]
 pub enum FrameId {
@@ -1462,7 +1473,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Get window rectangle (position and size)
     #[cfg(desktop)]
     async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        if self.is_independent_webview_window() {
+        if is_primary_webview(self.webview()) {
             let window = self.webview().window();
             let position = window
                 .outer_position()
@@ -1503,7 +1514,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         &self,
         rect: WindowRect,
     ) -> Result<WindowRect, WebDriverErrorResponse> {
-        if self.is_independent_webview_window() {
+        if is_primary_webview(self.webview()) {
             let window = self.webview().window();
 
             // Exit fullscreen/maximized state before setting rect
@@ -1798,14 +1809,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
     /// Print page to PDF, returns base64-encoded PDF
     async fn print_page(&self, options: PrintOptions) -> Result<String, WebDriverErrorResponse>;
-
-    #[cfg(desktop)]
-    fn is_independent_webview_window(&self) -> bool {
-        self.webview()
-            .app_handle()
-            .get_webview_window(self.webview().label())
-            .is_some()
-    }
 }
 
 // =============================================================================

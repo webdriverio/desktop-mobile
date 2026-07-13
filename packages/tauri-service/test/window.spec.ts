@@ -8,12 +8,14 @@ import {
   getCurrentWindowLabel,
   getDefaultWindowLabel,
   getLastCommand,
+  isInternalWindowSwitch,
   listWindowLabels,
   setCurrentWindowLabel,
   setSessionProvider,
   suppressActiveWindowFocus,
   switchWindowByLabel,
   updateLastCommand,
+  withInternalWindowSwitch,
 } from '../src/window.js';
 
 describe('window management', () => {
@@ -423,6 +425,59 @@ describe('window management', () => {
 
       expect(getLastCommand(browser1)).toBeUndefined();
       expect(getLastCommand(browser2)).toBeUndefined();
+    });
+  });
+
+  describe('internal window switches', () => {
+    it('should expose internal state only while the callback is running', async () => {
+      const mockBrowser = { sessionId: 'internal-success' } as unknown as WebdriverIO.Browser;
+
+      expect(isInternalWindowSwitch(mockBrowser)).toBe(false);
+      await withInternalWindowSwitch(mockBrowser, async () => {
+        expect(isInternalWindowSwitch(mockBrowser)).toBe(true);
+      });
+      expect(isInternalWindowSwitch(mockBrowser)).toBe(false);
+    });
+
+    it('should clear internal state when the callback rejects', async () => {
+      const mockBrowser = { sessionId: 'internal-failure' } as unknown as WebdriverIO.Browser;
+
+      await expect(
+        withInternalWindowSwitch(mockBrowser, async () => {
+          expect(isInternalWindowSwitch(mockBrowser)).toBe(true);
+          throw new Error('switch failed');
+        }),
+      ).rejects.toThrow('switch failed');
+      expect(isInternalWindowSwitch(mockBrowser)).toBe(false);
+    });
+
+    it('should preserve internal state across nested callbacks', async () => {
+      const mockBrowser = { sessionId: 'internal-nested' } as unknown as WebdriverIO.Browser;
+
+      await withInternalWindowSwitch(mockBrowser, async () => {
+        await withInternalWindowSwitch(mockBrowser, async () => {
+          expect(isInternalWindowSwitch(mockBrowser)).toBe(true);
+        });
+        expect(isInternalWindowSwitch(mockBrowser)).toBe(true);
+      });
+      expect(isInternalWindowSwitch(mockBrowser)).toBe(false);
+    });
+
+    it('should not suppress later focus recovery', async () => {
+      const mockBrowser = {
+        sessionId: 'internal-focus-recovery',
+        tauri: {
+          execute: vi
+            .fn()
+            .mockResolvedValueOnce([{ label: 'main', title: 'Main Window', is_visible: true, is_focused: true }]),
+        },
+        getTitle: vi.fn().mockResolvedValue('Main Window'),
+      } as unknown as WebdriverIO.Browser;
+
+      await withInternalWindowSwitch(mockBrowser, async () => undefined);
+      await ensureActiveWindowFocus(mockBrowser, 'getTitle');
+
+      expect(mockBrowser.tauri.execute).toHaveBeenCalled();
     });
   });
 

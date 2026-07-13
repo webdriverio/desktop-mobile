@@ -17,6 +17,8 @@ const currentWindowLabelCache = new Map<string, string>();
 
 const userSwitchedWindowCache = new Set<string>();
 
+const internalWindowSwitchDepthCache = new Map<string, number>();
+
 const sessionProviderCache = new Map<string, DriverProvider>();
 
 const DEFAULT_WINDOW_LABEL = 'main';
@@ -36,6 +38,29 @@ export function setCurrentWindowLabel(browser: WebdriverIO.Browser, label: strin
 
 export function suppressActiveWindowFocus(browser: WebdriverIO.Browser): void {
   userSwitchedWindowCache.add(browser.sessionId || 'default');
+}
+
+export function isInternalWindowSwitch(browser: WebdriverIO.Browser): boolean {
+  return (internalWindowSwitchDepthCache.get(browser.sessionId || 'default') ?? 0) > 0;
+}
+
+export async function withInternalWindowSwitch<T>(
+  browser: WebdriverIO.Browser,
+  operation: () => Promise<T>,
+): Promise<T> {
+  const sessionKey = browser.sessionId || 'default';
+  const depth = internalWindowSwitchDepthCache.get(sessionKey) ?? 0;
+  internalWindowSwitchDepthCache.set(sessionKey, depth + 1);
+  try {
+    return await operation();
+  } finally {
+    const nextDepth = (internalWindowSwitchDepthCache.get(sessionKey) ?? 1) - 1;
+    if (nextDepth === 0) {
+      internalWindowSwitchDepthCache.delete(sessionKey);
+    } else {
+      internalWindowSwitchDepthCache.set(sessionKey, nextDepth);
+    }
+  }
 }
 
 export function setSessionProvider(browser: WebdriverIO.Browser, provider: DriverProvider): void {
@@ -289,7 +314,7 @@ export async function ensureActiveWindowFocus(browser: WebdriverIO.Browser, comm
 
     // Switch to the active window
     log.debug(`[SERVICE] Switching to active window: ${activeWindow.title}`);
-    const switched = await switchToWindowByTitle(browser, activeWindow.title);
+    const switched = await withInternalWindowSwitch(browser, () => switchToWindowByTitle(browser, activeWindow.title));
 
     if (switched) {
       log.debug(`[SERVICE] Successfully switched to active window`);
@@ -317,11 +342,13 @@ export function clearWindowState(sessionId?: string): void {
     lastCommandCache.delete(sessionId);
     currentWindowLabelCache.delete(sessionId);
     userSwitchedWindowCache.delete(sessionId);
+    internalWindowSwitchDepthCache.delete(sessionId);
     sessionProviderCache.delete(sessionId);
   } else {
     lastCommandCache.clear();
     currentWindowLabelCache.clear();
     userSwitchedWindowCache.clear();
+    internalWindowSwitchDepthCache.clear();
     sessionProviderCache.clear();
   }
 }
