@@ -234,8 +234,10 @@ export default class TauriWorkerService {
 
     const browser = this.browser as WebdriverIO.Browser;
 
-    if (commandName === 'switchToWindow' && !isInternalWindowSwitch(browser)) {
-      suppressActiveWindowFocus(browser);
+    if (commandName === 'switchToWindow') {
+      if (!isInternalWindowSwitch(browser)) {
+        suppressActiveWindowFocus(browser);
+      }
       return;
     }
 

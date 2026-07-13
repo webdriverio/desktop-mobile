@@ -942,6 +942,7 @@ describe('TauriWorkerService', () => {
       await service.beforeCommand('switchToWindow', ['main']);
 
       expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+      expect(ensureActiveWindowFocus).not.toHaveBeenCalled();
     });
 
     it('should return early when browser is multiremote', async () => {
