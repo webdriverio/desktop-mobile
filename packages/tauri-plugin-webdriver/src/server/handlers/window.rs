@@ -6,6 +6,8 @@ use serde::Deserialize;
 use serde_json::json;
 use tauri::{Manager, Runtime};
 
+#[cfg(desktop)]
+use crate::platform::is_standalone_webview;
 use crate::platform::WindowRect;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
@@ -84,19 +86,31 @@ pub async fn close_window<R: Runtime>(
         let current_window = session.current_window.clone();
         drop(sessions);
 
-        // Close the current window
-        if let Some(window) = state.app.webview_windows().get(&current_window).cloned() {
-            window
-                .destroy()
-                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+        let webview = state
+            .app
+            .webviews()
+            .get(&current_window)
+            .cloned()
+            .ok_or_else(WebDriverErrorResponse::no_such_window)?;
 
-            // Return remaining window handles
-            let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
-
-            Ok(WebDriverResponse::success(handles))
-        } else {
-            Err(WebDriverErrorResponse::no_such_window())
+        if !is_standalone_webview(&webview) {
+            return Err(WebDriverErrorResponse::unsupported_operation(
+                "Closing a child or shared-host webview is not supported",
+            ));
         }
+
+        webview
+            .window()
+            .destroy()
+            .map_err(|error| WebDriverErrorResponse::unknown_error(&error.to_string()))?;
+
+        let handles = state
+            .get_window_labels()
+            .into_iter()
+            .filter(|label| label != &current_window)
+            .collect::<Vec<_>>();
+
+        Ok(WebDriverResponse::success(handles))
     }
 }
 

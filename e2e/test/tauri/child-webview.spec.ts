@@ -115,6 +115,10 @@ async function deleteWebDriverSession(sessionId: string): Promise<void> {
   }
 }
 
+async function closeCurrentWindow(): Promise<string[]> {
+  return requestWebDriver<string[]>(`/session/${browser.sessionId}/window`, { method: 'DELETE' });
+}
+
 describeChildWebviews('child webview handles', () => {
   afterEach(async () => {
     const handles = await browser.getWindowHandles().catch(() => [] as string[]);
@@ -227,9 +231,12 @@ describeChildWebviews('child webview handles', () => {
     await waitForHandles([CHILD_LEFT]);
     await browser.switchToWindow(CHILD_LEFT);
 
-    await expect(browser.closeWindow()).rejects.toThrow(/unsupported operation/i);
+    await expect(closeCurrentWindow()).rejects.toThrow(
+      /unsupported operation|Closing a child or shared-host webview is not supported/i,
+    );
+    expect(await browser.getWindowHandles()).toContain(CHILD_LEFT);
     await switchToMain();
-    await expect(browser).toHaveTitle('Tauri E2E Test App');
+    await expect(browser).toHaveTitle(/Tauri.*E2E Test App/);
   });
 
   it('drops removed child handles and returns no such window', async () => {
@@ -255,8 +262,9 @@ describeChildWebviews('child webview handles', () => {
     await waitForHandles([DISPOSABLE_WINDOW]);
     await browser.switchToWindow(DISPOSABLE_WINDOW);
 
-    const remaining = await browser.closeWindow();
-    expect(remaining).toContain(MAIN_WINDOW);
+    const handles = await browser.closeWindow();
+    expect(handles).toContain(MAIN_WINDOW);
+    expect(handles).not.toContain(DISPOSABLE_WINDOW);
     await browser.waitUntil(async () => !(await browser.getWindowHandles()).includes(DISPOSABLE_WINDOW), {
       timeoutMsg: `Expected ${DISPOSABLE_WINDOW} handle to be removed`,
     });
@@ -275,5 +283,16 @@ describeChildWebviews('child webview handles', () => {
     await waitForHandles([MAIN_WINDOW, DISPOSABLE_WINDOW]);
     await switchToMain();
     await expect(browser).toHaveTitle('Tauri E2E Test App');
+  });
+
+  it('rejects closeWindow for a primary webview with child siblings', async () => {
+    await createChildren();
+    await waitForHandles([MAIN_WINDOW, CHILD_LEFT, CHILD_RIGHT]);
+    await switchToMain();
+
+    await expect(closeCurrentWindow()).rejects.toThrow(
+      /unsupported operation|Closing a child or shared-host webview is not supported/i,
+    );
+    expect(await browser.getWindowHandles()).toEqual(expect.arrayContaining([MAIN_WINDOW, CHILD_LEFT, CHILD_RIGHT]));
   });
 });
