@@ -58,7 +58,7 @@ pub async fn get_window_handles<R: Runtime>(
     drop(sessions);
 
     // Return all window labels as handles
-    let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
+    let handles = state.get_window_labels();
 
     Ok(WebDriverResponse::success(handles))
 }
@@ -110,7 +110,7 @@ pub async fn switch_to_window<R: Runtime>(
     let session = sessions.get_mut(&session_id)?;
 
     // Verify the window exists
-    if !state.app.webview_windows().contains_key(&request.handle) {
+    if !state.app.webviews().contains_key(&request.handle) {
         return Err(WebDriverErrorResponse::no_such_window());
     }
 

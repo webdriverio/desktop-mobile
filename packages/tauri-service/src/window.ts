@@ -34,6 +34,10 @@ export function setCurrentWindowLabel(browser: WebdriverIO.Browser, label: strin
   log.debug(`Current window label set to: ${label}`);
 }
 
+export function suppressActiveWindowFocus(browser: WebdriverIO.Browser): void {
+  userSwitchedWindowCache.add(browser.sessionId || 'default');
+}
+
 export function setSessionProvider(browser: WebdriverIO.Browser, provider: DriverProvider): void {
   sessionProviderCache.set(browser.sessionId || 'default', provider);
   log.debug(`Session provider set to: ${provider}`);
@@ -93,7 +97,7 @@ export async function switchWindowByLabel(browser: WebdriverIO.Browser, label: s
 
   // Suppress auto-focus BEFORE any switching or iteration to prevent focus-change races
   // during handle discovery (ensureActiveWindowFocus checks this flag first).
-  userSwitchedWindowCache.add(sessionKey);
+  suppressActiveWindowFocus(browser);
 
   try {
     const originalHandle = await browser.getWindowHandle();

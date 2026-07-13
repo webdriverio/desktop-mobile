@@ -25,12 +25,12 @@ pub mod window;
 
 /// GET `/status` - `WebDriver` server status
 ///
-/// Returns ready=true only when at least one webview window is available.
+/// Returns ready=true only when at least one webview is available.
 /// This ensures the WebView2/WebKit/WKWebView is fully initialized before
 /// clients attempt to create sessions.
 pub async fn status<R: Runtime>(state: State<Arc<AppState<R>>>) -> WebDriverResult {
-    // Check if any webview windows are available
-    // This is a proxy for WebView2 readiness - windows become available
+    // Check if any webviews are available
+    // This is a proxy for WebView2 readiness - webviews become available
     // only after the webview is fully initialized
     let window_labels = state.get_window_labels();
     let ready = !window_labels.is_empty();

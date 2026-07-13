@@ -35,16 +35,16 @@ impl<R: Runtime + 'static> AppState<R> {
         frame_context: Vec<FrameId>,
     ) -> Result<Arc<dyn PlatformExecutor<R>>, WebDriverErrorResponse> {
         self.app
-            .webview_windows()
+            .webviews()
             .get(window_label)
             .cloned()
-            .map(|window| create_executor(window, timeouts, frame_context))
+            .map(|webview| create_executor(webview, timeouts, frame_context))
             .ok_or_else(WebDriverErrorResponse::no_such_window)
     }
 
     /// Get all window labels
     pub fn get_window_labels(&self) -> Vec<String> {
-        self.app.webview_windows().keys().cloned().collect()
+        self.app.webviews().keys().cloned().collect()
     }
 }
 
@@ -75,7 +75,8 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
                 Err(e) => {
                     tracing::error!(
                         "Failed to bind WebDriver server to {} — port may already be in use: {}",
-                        addr, e
+                        addr,
+                        e
                     );
                     return;
                 }

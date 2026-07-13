@@ -11,6 +11,7 @@ import {
   listWindowLabels,
   setCurrentWindowLabel,
   setSessionProvider,
+  suppressActiveWindowFocus,
   switchWindowByLabel,
   updateLastCommand,
 } from '../src/window.js';
@@ -349,6 +350,18 @@ describe('window management', () => {
         Object.defineProperty(focusBrowser, 'sessionId', { value: 'autofocus-session' });
         await ensureActiveWindowFocus(focusBrowser, 'getTitle');
         expect(focusBrowser.tauri.execute).not.toHaveBeenCalled();
+      });
+
+      it('should suppress ensureActiveWindowFocus after a raw WebDriver window switch', async () => {
+        const mockBrowser = {
+          sessionId: 'raw-switch-session',
+          tauri: { execute: vi.fn() },
+        } as unknown as WebdriverIO.Browser;
+
+        suppressActiveWindowFocus(mockBrowser);
+        await ensureActiveWindowFocus(mockBrowser, 'getTitle');
+
+        expect(mockBrowser.tauri.execute).not.toHaveBeenCalled();
       });
     });
   });

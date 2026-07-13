@@ -5,7 +5,7 @@ use async_trait::async_trait;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
 use serde_json::Value;
-use tauri::{Manager, Runtime, WebviewWindow};
+use tauri::{Manager, Runtime, Webview};
 use tokio::sync::oneshot;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
     ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Environment6,
@@ -113,15 +113,15 @@ impl SendableComPtr {
 /// Windows `WebView2` executor
 #[derive(Clone)]
 pub struct WindowsExecutor<R: Runtime> {
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 }
 
 impl<R: Runtime> WindowsExecutor<R> {
-    pub fn new(window: WebviewWindow<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
+    pub fn new(webview: Webview<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
         Self {
-            window,
+            webview,
             timeouts,
             frame_context,
         }
@@ -139,7 +139,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
 
         let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
-        let result = self.window.with_webview({
+        let result = self.webview.with_webview({
             let tx = tx.clone();
             move |webview| unsafe {
                 let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
@@ -150,8 +150,13 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
                     let handler: ICoreWebView2ExecuteScriptCompletedHandler =
                         ExecuteScriptHandler::new(tx.clone()).into();
 
-                    if let Err(e) = webview2.ExecuteScript(PCWSTR(script_hstring.as_ptr()), &handler) {
-                        tracing::error!("ExecuteScript call failed for script '{}...': {e:?}", script_preview);
+                    if let Err(e) =
+                        webview2.ExecuteScript(PCWSTR(script_hstring.as_ptr()), &handler)
+                    {
+                        tracing::error!(
+                            "ExecuteScript call failed for script '{}...': {e:?}",
+                            script_preview
+                        );
                         if let Ok(mut guard) = tx.lock() {
                             if let Some(tx) = guard.take() {
                                 let _ = tx.send(Err(format!("ExecuteScript failed: {e:?}")));
@@ -188,7 +193,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
             Ok(Err(_)) => {
                 tracing::error!("Channel closed unexpectedly during script execution");
                 Err(WebDriverErrorResponse::unknown_error("Channel closed"))
-            },
+            }
             Err(_) => Err(WebDriverErrorResponse::script_timeout()),
         }
     }
@@ -239,8 +244,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     // Window Access
     // =========================================================================
 
-    fn window(&self) -> &WebviewWindow<R> {
-        &self.window
+    fn webview(&self) -> &Webview<R> {
+        &self.webview
     }
 
     fn script_timeout_ms(&self) -> u64 {
@@ -252,8 +257,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     // =========================================================================
 
     async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
-        let locks = self.window.state::<ScriptExecutionLocks>();
-        let lock = locks.get(self.window.label());
+        let locks = self.webview.state::<ScriptExecutionLocks>();
+        let lock = locks.get(self.webview.label());
         let _guard = lock.lock().await;
         self.evaluate_js_inner(script).await
     }
@@ -266,7 +271,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         // Use WebView2's native CapturePreview API
         let (tx, rx) = oneshot::channel();
 
-        let result = self.window.with_webview(move |webview| {
+        let result = self.webview.with_webview(move |webview| {
             unsafe {
                 if let Ok(webview2) = webview.controller().CoreWebView2() {
                     // Create an in-memory stream for the PNG image
@@ -372,7 +377,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         let margin_left = options.margin_left;
         let margin_right = options.margin_right;
 
-        let result = self.window.with_webview(move |webview| unsafe {
+        let result = self.webview.with_webview(move |webview| unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
             let webview2 = match webview.controller().CoreWebView2() {
@@ -539,14 +544,14 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         let async_id = uuid::Uuid::new_v4().to_string();
 
         // Get async state and register this operation
-        let app = self.window.app_handle().clone();
+        let app = self.webview.app_handle().clone();
         let async_state = app.state::<AsyncScriptState>();
-        let label = self.window.label().to_string();
+        let label = self.webview.label().to_string();
 
         // Register handler if not already registered for this window
         if !async_state.mark_handler_registered(&label) {
             let app_clone = app.clone();
-            let handler_result = self.window.with_webview(move |webview| unsafe {
+            let handler_result = self.webview.with_webview(move |webview| unsafe {
                 let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
                 if let Ok(webview2) = webview.controller().CoreWebView2() {
@@ -610,8 +615,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
 
         // Acquire the per-webview lock and hold it across the entire async script lifecycle.
         // This prevents another ExecuteScript from preempting the in-flight async JS callback.
-        let locks = self.window.state::<ScriptExecutionLocks>();
-        let lock = locks.get(self.window.label());
+        let locks = self.webview.state::<ScriptExecutionLocks>();
+        let lock = locks.get(self.webview.label());
         let _guard = lock.lock().await;
 
         // Execute the wrapper using the unlocked inner method (we already hold the lock).

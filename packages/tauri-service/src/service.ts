@@ -20,6 +20,7 @@ import {
   listWindowLabels,
   setCurrentWindowLabel,
   setSessionProvider,
+  suppressActiveWindowFocus,
   switchWindowByLabel,
 } from './window.js';
 
@@ -231,6 +232,11 @@ export default class TauriWorkerService {
     }
 
     const browser = this.browser as WebdriverIO.Browser;
+
+    if (commandName === 'switchToWindow') {
+      suppressActiveWindowFocus(browser);
+      return;
+    }
 
     try {
       // Generic window focus detection like Electron - no app-specific knowledge

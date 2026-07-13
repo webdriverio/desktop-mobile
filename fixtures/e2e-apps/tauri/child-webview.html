@@ -1,0 +1,22 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Child WebView Fixture</title>
+  </head>
+  <body>
+    <h1 id="child-label"></h1>
+    <button id="child-button" type="button">Activate child</button>
+    <output id="child-output">idle</output>
+    <script>
+      const label = new URLSearchParams(window.location.search).get('label') ?? 'unknown';
+      window.__childWebviewLabel = label;
+      document.title = `Child WebView ${label}`;
+      document.querySelector('#child-label').textContent = label;
+      document.querySelector('#child-button').addEventListener('click', () => {
+        document.querySelector('#child-output').textContent = `activated:${label}`;
+      });
+    </script>
+  </body>
+</html>
