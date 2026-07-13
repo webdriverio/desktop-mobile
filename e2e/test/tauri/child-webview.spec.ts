@@ -36,6 +36,11 @@ interface WebDriverError {
   message: string;
 }
 
+interface WebDriverRawResponse<T> {
+  status: number;
+  value: T | WebDriverError;
+}
+
 interface WindowBounds {
   x: number;
   y: number;
@@ -115,8 +120,12 @@ async function deleteWebDriverSession(sessionId: string): Promise<void> {
   }
 }
 
-async function closeCurrentWindow(): Promise<string[]> {
-  return requestWebDriver<string[]>(`/session/${browser.sessionId}/window`, { method: 'DELETE' });
+async function closeCurrentWindowRaw(): Promise<WebDriverRawResponse<string[]>> {
+  const origin = `${browser.options.protocol ?? 'http'}://${browser.options.hostname ?? '127.0.0.1'}:${browser.options.port ?? 4445}`;
+  const response = await fetch(`${origin}/session/${browser.sessionId}/window`, { method: 'DELETE' });
+  const body = (await response.json()) as WebDriverResponse<string[]>;
+
+  return { status: response.status, value: body.value };
 }
 
 describeChildWebviews('child webview handles', () => {
@@ -231,12 +240,13 @@ describeChildWebviews('child webview handles', () => {
     await waitForHandles([CHILD_LEFT]);
     await browser.switchToWindow(CHILD_LEFT);
 
-    await expect(closeCurrentWindow()).rejects.toThrow(
-      /unsupported operation|Closing a child or shared-host webview is not supported/i,
-    );
-    expect(await browser.getWindowHandles()).toContain(CHILD_LEFT);
+    const response = await closeCurrentWindowRaw();
+    expect(response.status).toBe(500);
+    expect(response.value).toHaveProperty('error', 'unsupported operation');
+    expect(response.value).toHaveProperty('message', 'Closing a child or shared-host webview is not supported');
+    expect(await browser.getWindowHandles()).toEqual(expect.arrayContaining([MAIN_WINDOW, CHILD_LEFT, CHILD_RIGHT]));
     await switchToMain();
-    await expect(browser).toHaveTitle(/Tauri.*E2E Test App/);
+    await expect(browser).toHaveTitle('Tauri E2E Test App');
   });
 
   it('drops removed child handles and returns no such window', async () => {
@@ -290,9 +300,12 @@ describeChildWebviews('child webview handles', () => {
     await waitForHandles([MAIN_WINDOW, CHILD_LEFT, CHILD_RIGHT]);
     await switchToMain();
 
-    await expect(closeCurrentWindow()).rejects.toThrow(
-      /unsupported operation|Closing a child or shared-host webview is not supported/i,
-    );
+    const response = await closeCurrentWindowRaw();
+    expect(response.status).toBe(500);
+    expect(response.value).toHaveProperty('error', 'unsupported operation');
+    expect(response.value).toHaveProperty('message', 'Closing a child or shared-host webview is not supported');
     expect(await browser.getWindowHandles()).toEqual(expect.arrayContaining([MAIN_WINDOW, CHILD_LEFT, CHILD_RIGHT]));
+    await switchToMain();
+    await expect(browser).toHaveTitle('Tauri E2E Test App');
   });
 });
