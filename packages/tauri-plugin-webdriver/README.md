@@ -22,6 +22,7 @@ It is **not needed** if you use the `'official'` or `'crabnebula'` driver provid
 - **Native platform integration** — Uses native WebView APIs (WKWebView, WebView2, WebKitGTK)
 - **Zero configuration** — Add the plugin, and `@wdio/tauri-service` handles the rest
 - **No external drivers** — No need to install `tauri-driver`, `msedgedriver`, or `webkit2gtk-driver`
+- **Child webview handles on macOS** — Tauri child `Webview` labels are exposed as standard WebDriver window handles by the embedded provider. This requires Tauri's `unstable` feature because Tauri currently gates its managed-webview registry behind that feature.
 
 ### Supported Platforms
 
@@ -153,6 +154,16 @@ let builder = builder.plugin(tauri_plugin_wdio_webdriver::init_with_port(9515));
 Port resolution order:
 1. `init_with_port(port)` — uses the specified port (ignores env var)
 2. `init()` — checks `TAURI_WEBDRIVER_PORT` env var, falls back to 4445
+
+## Child WebViews
+
+Child webview runtime support is currently limited to macOS and the embedded driver provider. WebDriver handles identify webviews, so multiple child handles can share one native host window. Page, element, script, screenshot, cookie, and print commands target the selected webview. Rectangle commands target child bounds, while maximize, minimize, fullscreen, focus, and visibility commands affect the shared native host window.
+
+A primary webview uses the same label as its host window. Child webviews must use labels distinct from their host. Primary rectangle commands target the native outer window; child rectangle commands target child bounds.
+
+`closeWindow` closes only a standalone primary webview whose host contains no sibling webviews. It returns `unsupported operation` for child and shared-host primary webviews so it cannot destroy sibling browsing contexts. Applications should remove child webviews through their own lifecycle command.
+
+An explicit standard `switchToWindow` selection is preserved. Automatic focus recovery does not override it, and internal recovery switches are not recorded as explicit user selection.
 
 ## W3C WebDriver Endpoints
 
