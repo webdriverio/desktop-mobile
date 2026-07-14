@@ -31,6 +31,15 @@ struct WindowBounds {
     height: u32,
 }
 
+#[derive(Debug, Serialize)]
+struct WindowMetrics {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    scale_factor: f64,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 struct ScreenshotOptions {
     format: Option<String>,
@@ -74,14 +83,16 @@ struct DiskInfo {
 
 // Basic Tauri Commands for testing
 #[tauri::command]
-async fn get_window_bounds(window: Window) -> Result<WindowBounds, String> {
+async fn get_window_bounds(window: Window) -> Result<WindowMetrics, String> {
     let position = window.outer_position().map_err(|e| e.to_string())?;
-    let size = window.outer_size().map_err(|e| e.to_string())?;
-    Ok(WindowBounds {
+    let outer_size = window.outer_size().map_err(|e| e.to_string())?;
+    let scale_factor = window.scale_factor().map_err(|e| e.to_string())?;
+    Ok(WindowMetrics {
         x: position.x,
         y: position.y,
-        width: size.width,
-        height: size.height,
+        width: outer_size.width,
+        height: outer_size.height,
+        scale_factor,
     })
 }
 

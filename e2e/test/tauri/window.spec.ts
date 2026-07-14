@@ -1,6 +1,104 @@
 import { expect } from '@wdio/globals';
 import { browser, withExecuteOptions } from '@wdio/tauri-service';
 
+interface NativeWindowMetrics {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  scale_factor: number;
+}
+
+interface ViewportSize {
+  width: number;
+  height: number;
+}
+
+const WINDOW_RECT_TOLERANCE = 1;
+
+async function getNativeWindowMetrics(): Promise<NativeWindowMetrics> {
+  return browser.tauri.execute(({ core }) => core.invoke('get_window_bounds')) as Promise<NativeWindowMetrics>;
+}
+
+async function getViewportSize(): Promise<ViewportSize> {
+  return browser.execute<ViewportSize>(() => ({
+    width: window.innerWidth,
+    height: window.innerHeight,
+  }));
+}
+
+function expectWithinTolerance(actual: number, expected: number): void {
+  expect(Math.abs(actual - expected)).toBeLessThanOrEqual(WINDOW_RECT_TOLERANCE);
+}
+
+describe('Embedded WebDriver WindowRect CSS pixel semantics', () => {
+  beforeEach(async function () {
+    if (process.env.DRIVER_PROVIDER !== 'embedded') {
+      this.skip();
+    }
+    await browser.tauri.switchWindow('main');
+  });
+
+  it('should return the native outer rect in logical pixels', async () => {
+    const metrics = await getNativeWindowMetrics();
+    const rect = await browser.getWindowRect();
+
+    expectWithinTolerance(rect.x, Math.round(metrics.x / metrics.scale_factor));
+    expectWithinTolerance(rect.y, Math.round(metrics.y / metrics.scale_factor));
+    expectWithinTolerance(rect.width, Math.round(metrics.width / metrics.scale_factor));
+    expectWithinTolerance(rect.height, Math.round(metrics.height / metrics.scale_factor));
+  });
+
+  it('should set the outer rect in logical pixels', async () => {
+    const originalRect = await browser.getWindowRect();
+    const targetRect = {
+      x: originalRect.x + 20,
+      y: originalRect.y + 20,
+      width: 720,
+      height: 540,
+    };
+
+    try {
+      const rect = await browser.setWindowRect(targetRect.x, targetRect.y, targetRect.width, targetRect.height);
+      const metrics = await getNativeWindowMetrics();
+
+      expectWithinTolerance(rect.x, targetRect.x);
+      expectWithinTolerance(rect.y, targetRect.y);
+      expectWithinTolerance(rect.width, targetRect.width);
+      expectWithinTolerance(rect.height, targetRect.height);
+      expectWithinTolerance(rect.x, Math.round(metrics.x / metrics.scale_factor));
+      expectWithinTolerance(rect.y, Math.round(metrics.y / metrics.scale_factor));
+      expectWithinTolerance(rect.width, Math.round(metrics.width / metrics.scale_factor));
+      expectWithinTolerance(rect.height, Math.round(metrics.height / metrics.scale_factor));
+    } finally {
+      await browser.setWindowRect(originalRect.x, originalRect.y, originalRect.width, originalRect.height);
+    }
+  });
+
+  it('should set the outer size in logical pixels without shrinking the viewport', async () => {
+    const originalRect = await browser.getWindowRect();
+    const originalViewport = await getViewportSize();
+    const targetRect = { width: 720, height: 540 };
+
+    try {
+      const rect = await browser.setWindowRect(null, null, targetRect.width, targetRect.height);
+      const metrics = await getNativeWindowMetrics();
+      const viewport = await getViewportSize();
+
+      expectWithinTolerance(rect.x, originalRect.x);
+      expectWithinTolerance(rect.y, originalRect.y);
+      expectWithinTolerance(rect.width, targetRect.width);
+      expectWithinTolerance(rect.height, targetRect.height);
+      expectWithinTolerance(rect.width, Math.round(metrics.width / metrics.scale_factor));
+      expectWithinTolerance(rect.height, Math.round(metrics.height / metrics.scale_factor));
+      expectWithinTolerance(viewport.width - originalViewport.width, rect.width - originalRect.width);
+      expectWithinTolerance(viewport.height - originalViewport.height, rect.height - originalRect.height);
+    } finally {
+      await browser.setWindowRect(originalRect.x, originalRect.y, originalRect.width, originalRect.height);
+    }
+  });
+});
+
 describe('Multi-Window Support', () => {
   beforeEach(async () => {
     // Ensure we're on the main window before each test
