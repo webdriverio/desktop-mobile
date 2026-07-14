@@ -47,7 +47,7 @@ export default class TauriWorkerService {
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
-  private pendingExternalWindowSwitches = new Map<string, string>();
+  private pendingExternalWindowSwitches = new Map<string, Map<string, number>>();
 
   constructor(options: TauriServiceOptions & TauriServiceGlobalOptions, capabilities: TauriCapabilities) {
     // Options may be supplied service-level (services: [['tauri', {...}]]) or capability-level
@@ -239,7 +239,10 @@ export default class TauriWorkerService {
       if (!isInternalWindowSwitch(browser)) {
         const handle = args[0];
         if (typeof handle === 'string') {
-          this.pendingExternalWindowSwitches.set(browser.sessionId || 'default', handle);
+          const sessionKey = browser.sessionId || 'default';
+          const pendingByHandle = this.pendingExternalWindowSwitches.get(sessionKey) ?? new Map<string, number>();
+          pendingByHandle.set(handle, (pendingByHandle.get(handle) ?? 0) + 1);
+          this.pendingExternalWindowSwitches.set(sessionKey, pendingByHandle);
         }
       }
       return;
@@ -253,19 +256,33 @@ export default class TauriWorkerService {
     }
   }
 
-  async afterCommand(commandName: string, _args: unknown[], _result: unknown, error?: Error): Promise<void> {
+  async afterCommand(commandName: string, args: unknown[], _result: unknown, error?: Error): Promise<void> {
     if (commandName !== 'switchToWindow' || !this.browser || this.browser.isMultiremote) {
       return;
     }
 
     const browser = this.browser as WebdriverIO.Browser;
     const sessionKey = browser.sessionId || 'default';
-    const handle = this.pendingExternalWindowSwitches.get(sessionKey);
-    if (!handle) {
+    const handle = args[0];
+    if (typeof handle !== 'string') {
       return;
     }
 
-    this.pendingExternalWindowSwitches.delete(sessionKey);
+    const pendingByHandle = this.pendingExternalWindowSwitches.get(sessionKey);
+    const pendingCount = pendingByHandle?.get(handle) ?? 0;
+    if (pendingCount === 0 || !pendingByHandle) {
+      return;
+    }
+
+    if (pendingCount === 1) {
+      pendingByHandle.delete(handle);
+      if (pendingByHandle.size === 0) {
+        this.pendingExternalWindowSwitches.delete(sessionKey);
+      }
+    } else {
+      pendingByHandle.set(handle, pendingCount - 1);
+    }
+
     if (error) {
       return;
     }

@@ -997,6 +997,73 @@ describe('TauriWorkerService', () => {
       expect(setCurrentWindowLabel).not.toHaveBeenCalled();
     });
 
+    it('should commit each concurrent same-session switch only when its matching command succeeds', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['child-left']);
+      await service.beforeCommand('switchToWindow', ['child-right']);
+
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+      await service.afterCommand('switchToWindow', ['child-right'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledTimes(2);
+      expect(setCurrentWindowLabel).toHaveBeenCalledTimes(2);
+      expect(setCurrentWindowLabel).toHaveBeenNthCalledWith(1, mockBrowser, 'child-left');
+      expect(setCurrentWindowLabel).toHaveBeenNthCalledWith(2, mockBrowser, 'child-right');
+    });
+
+    it('should discard only the failed matching switch and preserve other pending switches', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['child-left']);
+      await service.beforeCommand('switchToWindow', ['child-right']);
+      await service.afterCommand('switchToWindow', ['child-left'], undefined, new Error('no such window'));
+      await service.afterCommand('switchToWindow', ['child-right'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledTimes(1);
+      expect(setCurrentWindowLabel).toHaveBeenCalledOnce();
+      expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'child-right');
+    });
+
+    it('should not consume a pending switch for an unknown afterCommand handle', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['child-left']);
+      await service.afterCommand('switchToWindow', ['unknown-child'], undefined);
+
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+      expect(setCurrentWindowLabel).not.toHaveBeenCalled();
+
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledOnce();
+      expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'child-left');
+    });
+
+    it('should retain a count for concurrent switches to the same handle', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['child-left']);
+      await service.beforeCommand('switchToWindow', ['child-left']);
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledTimes(2);
+      expect(setCurrentWindowLabel).toHaveBeenCalledTimes(2);
+      expect(setCurrentWindowLabel).toHaveBeenNthCalledWith(1, mockBrowser, 'child-left');
+      expect(setCurrentWindowLabel).toHaveBeenNthCalledWith(2, mockBrowser, 'child-left');
+    });
+
     it('should keep pending external switches isolated by session', async () => {
       const firstBrowser = createMockBrowser({ sessionId: 'session-one' });
       const secondBrowser = createMockBrowser({ sessionId: 'session-two' });
