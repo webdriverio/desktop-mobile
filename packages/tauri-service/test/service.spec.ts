@@ -923,14 +923,14 @@ describe('TauriWorkerService', () => {
       expect(ensureActiveWindowFocus).toHaveBeenCalledWith(mockBrowser, 'getTitle');
     });
 
-    it('should suppress auto-focus for a raw WebDriver window switch', async () => {
+    it('should defer auto-focus suppression for a raw WebDriver window switch', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       (service as any).browser = mockBrowser;
 
       await service.beforeCommand('switchToWindow', ['child-left']);
 
-      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(mockBrowser);
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
     });
 
     it('should not suppress auto-focus for an internal focus-recovery window switch', async () => {
@@ -940,9 +940,81 @@ describe('TauriWorkerService', () => {
       vi.mocked(isInternalWindowSwitch).mockReturnValueOnce(true);
 
       await service.beforeCommand('switchToWindow', ['main']);
+      await service.afterCommand('switchToWindow', ['main'], undefined);
 
       expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+      expect(setCurrentWindowLabel).not.toHaveBeenCalled();
       expect(ensureActiveWindowFocus).not.toHaveBeenCalled();
+    });
+
+    it('should commit an embedded raw window switch only after it succeeds', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['child-left']);
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+      expect(setCurrentWindowLabel).not.toHaveBeenCalled();
+
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(mockBrowser);
+      expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'child-left');
+    });
+
+    it('should treat the default provider as embedded after a successful raw switch', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['child-right']);
+      await service.afterCommand('switchToWindow', ['child-right'], undefined);
+
+      expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'child-right');
+    });
+
+    it('should discard a failed raw window switch without changing focus or label state', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['missing-child']);
+      await service.afterCommand('switchToWindow', ['missing-child'], undefined, new Error('no such window'));
+
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+      expect(setCurrentWindowLabel).not.toHaveBeenCalled();
+    });
+
+    it('should suppress successful non-embedded switches without treating opaque handles as labels', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['opaque-webdriver-handle']);
+      await service.afterCommand('switchToWindow', ['opaque-webdriver-handle'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(mockBrowser);
+      expect(setCurrentWindowLabel).not.toHaveBeenCalled();
+    });
+
+    it('should keep pending external switches isolated by session', async () => {
+      const firstBrowser = createMockBrowser({ sessionId: 'session-one' });
+      const secondBrowser = createMockBrowser({ sessionId: 'session-two' });
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+
+      (service as any).browser = firstBrowser;
+      await service.beforeCommand('switchToWindow', ['child-left']);
+
+      (service as any).browser = secondBrowser;
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+
+      (service as any).browser = firstBrowser;
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledTimes(1);
+      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(firstBrowser);
+      expect(setCurrentWindowLabel).toHaveBeenCalledWith(firstBrowser, 'child-left');
     });
 
     it('should return early when browser is multiremote', async () => {
@@ -1002,6 +1074,19 @@ describe('TauriWorkerService', () => {
       await service.afterSession({}, {} as any, []);
 
       expect(clearWindowState).toHaveBeenCalledWith('sess-abc');
+    });
+
+    it('should clear a pending external window switch for the completed session', async () => {
+      const mockBrowser = createMockBrowser({ sessionId: 'pending-session' });
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+      await service.beforeCommand('switchToWindow', ['child-left']);
+
+      await service.afterSession({}, {} as any, []);
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+      expect(setCurrentWindowLabel).not.toHaveBeenCalled();
     });
 
     it('should handle gracefully when no browser exists', async () => {

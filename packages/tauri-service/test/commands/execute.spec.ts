@@ -11,7 +11,8 @@ import {
   getTauriVersion,
   isTauriApiAvailable,
 } from '../../src/commands/execute.js';
-import { clearWindowState, setSessionProvider } from '../../src/window.js';
+import TauriWorkerService from '../../src/service.js';
+import { clearWindowState, getCurrentWindowLabel, setSessionProvider } from '../../src/window.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@wdio/native-utils')>();
@@ -134,6 +135,22 @@ describe('execute — embedded provider (direct eval)', () => {
       await execute(browser, '() => 1');
       const body = JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
       expect(body.window_label).toBeUndefined();
+    });
+
+    it('should route direct eval to a successful external embedded switch', async () => {
+      const mockFn = mockFetch({ value: 'child-left' });
+      vi.stubGlobal('fetch', mockFn);
+      Object.assign(browser, { isMultiremote: false, sessionId: 'external-switch-session' });
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = browser;
+
+      await service.beforeCommand('switchToWindow', ['child-left']);
+      await service.afterCommand('switchToWindow', ['child-left'], undefined);
+
+      expect(getCurrentWindowLabel(browser)).toBe('child-left');
+      await execute(browser, () => (globalThis as unknown as { __childWebviewLabel: string }).__childWebviewLabel);
+      const body = JSON.parse(mockFn.mock.calls[0][1].body as string) as Record<string, unknown>;
+      expect(body.window_label).toBe('child-left');
     });
   });
 

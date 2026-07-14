@@ -46,7 +46,10 @@ pub async fn get_window_handle<R: Runtime>(
     let current_window = session.current_window.clone();
     drop(sessions);
 
-    // Return the session's current window handle
+    if !state.app.webviews().contains_key(&current_window) {
+        return Err(WebDriverErrorResponse::no_such_window());
+    }
+
     Ok(WebDriverResponse::success(current_window))
 }
 
@@ -128,8 +131,8 @@ pub async fn switch_to_window<R: Runtime>(
         return Err(WebDriverErrorResponse::no_such_window());
     }
 
-    // Update session's current window
     session.current_window = request.handle;
+    session.frame_context.clear();
 
     Ok(WebDriverResponse::null())
 }

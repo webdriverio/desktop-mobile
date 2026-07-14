@@ -128,6 +128,22 @@ async function closeCurrentWindowRaw(): Promise<WebDriverRawResponse<string[]>> 
   return { status: response.status, value: body.value };
 }
 
+async function switchToWindowRaw(handle: string): Promise<void> {
+  await requestWebDriver<null>(`/session/${browser.sessionId}/window`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ handle }),
+  });
+}
+
+async function switchToFrameRaw(id: number | null): Promise<void> {
+  await requestWebDriver<null>(`/session/${browser.sessionId}/frame`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ id }),
+  });
+}
+
 describeChildWebviews('child webview handles', () => {
   afterEach(async () => {
     const handles = await browser.getWindowHandles().catch(() => [] as string[]);
@@ -194,6 +210,17 @@ describeChildWebviews('child webview handles', () => {
     await expect(browser).toHaveTitle(`Child WebView ${CHILD_RIGHT}`);
     expect(await browser.execute(() => (globalThis as unknown as FixtureWindow).__childWebviewLabel)).toBe(CHILD_RIGHT);
     await expect(browser.$('#child-output')).toHaveText('idle');
+  });
+
+  it('resets frame context when switching between child webviews', async () => {
+    await createChildren();
+    await waitForHandles([CHILD_LEFT, CHILD_RIGHT]);
+
+    await switchToWindowRaw(CHILD_LEFT);
+    await switchToFrameRaw(0);
+
+    await switchToWindowRaw(CHILD_RIGHT);
+    await expect(browser.$('#child-label')).toHaveText(CHILD_RIGHT);
   });
 
   it('creates a session with an initial child-webview label', async () => {
@@ -264,6 +291,18 @@ describeChildWebviews('child webview handles', () => {
         body: JSON.stringify({ handle: CHILD_RIGHT }),
       }),
     ).rejects.toThrow(/no such window/i);
+  });
+
+  it('returns no such window when the current child disappears from the registry', async () => {
+    await createChildren();
+    await waitForHandles([CHILD_RIGHT]);
+    await switchToWindowRaw(CHILD_RIGHT);
+    await (await browser.$('#remove-child')).click();
+    await browser.waitUntil(async () => !(await browser.getWindowHandles()).includes(CHILD_RIGHT), {
+      timeoutMsg: `Expected current ${CHILD_RIGHT} handle to be removed`,
+    });
+
+    await expect(requestWebDriver<string>(`/session/${browser.sessionId}/window`)).rejects.toThrow(/no such window/i);
   });
 
   it('preserves closeWindow for an independent WebviewWindow', async () => {

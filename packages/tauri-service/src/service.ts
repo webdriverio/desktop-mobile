@@ -47,6 +47,7 @@ export default class TauriWorkerService {
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
+  private pendingExternalWindowSwitches = new Map<string, string>();
 
   constructor(options: TauriServiceOptions & TauriServiceGlobalOptions, capabilities: TauriCapabilities) {
     // Options may be supplied service-level (services: [['tauri', {...}]]) or capability-level
@@ -227,7 +228,7 @@ export default class TauriWorkerService {
     }
   }
 
-  async beforeCommand(commandName: string, _args: unknown[]): Promise<void> {
+  async beforeCommand(commandName: string, args: unknown[]): Promise<void> {
     if (!this.browser || this.browser.isMultiremote) {
       return;
     }
@@ -236,7 +237,10 @@ export default class TauriWorkerService {
 
     if (commandName === 'switchToWindow') {
       if (!isInternalWindowSwitch(browser)) {
-        suppressActiveWindowFocus(browser);
+        const handle = args[0];
+        if (typeof handle === 'string') {
+          this.pendingExternalWindowSwitches.set(browser.sessionId || 'default', handle);
+        }
       }
       return;
     }
@@ -246,6 +250,29 @@ export default class TauriWorkerService {
       await ensureActiveWindowFocus(browser, commandName);
     } catch (error) {
       log.warn('Failed to ensure window focus before command:', error);
+    }
+  }
+
+  async afterCommand(commandName: string, _args: unknown[], _result: unknown, error?: Error): Promise<void> {
+    if (commandName !== 'switchToWindow' || !this.browser || this.browser.isMultiremote) {
+      return;
+    }
+
+    const browser = this.browser as WebdriverIO.Browser;
+    const sessionKey = browser.sessionId || 'default';
+    const handle = this.pendingExternalWindowSwitches.get(sessionKey);
+    if (!handle) {
+      return;
+    }
+
+    this.pendingExternalWindowSwitches.delete(sessionKey);
+    if (error) {
+      return;
+    }
+
+    suppressActiveWindowFocus(browser);
+    if ((this.driverProvider ?? 'embedded') === 'embedded') {
+      setCurrentWindowLabel(browser, handle);
     }
   }
 
@@ -290,6 +317,7 @@ export default class TauriWorkerService {
 
     if (!this.browser) {
       log.warn('No browser instance available for session cleanup');
+      this.pendingExternalWindowSwitches.clear();
       clearWindowState();
       return;
     }
@@ -298,6 +326,7 @@ export default class TauriWorkerService {
       // Delete WebDriver session explicitly for clean retry handling
       if (!this.browser.isMultiremote) {
         const stdBrowser = this.browser as WebdriverIO.Browser;
+        this.pendingExternalWindowSwitches.delete(stdBrowser.sessionId || 'default');
         clearWindowState(stdBrowser.sessionId);
         if (stdBrowser.sessionId) {
           log.debug(`Deleting session: ${stdBrowser.sessionId}`);
@@ -323,6 +352,7 @@ export default class TauriWorkerService {
         }
         // Clear all session IDs from cache
         for (const sid of sessionIds) {
+          this.pendingExternalWindowSwitches.delete(sid || 'default');
           clearWindowState(sid);
         }
       }
