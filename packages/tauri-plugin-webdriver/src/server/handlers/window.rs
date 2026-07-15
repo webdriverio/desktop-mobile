@@ -4,7 +4,7 @@ use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
-use tauri::{Manager, Runtime};
+use tauri::Runtime;
 
 #[cfg(desktop)]
 use crate::platform::is_standalone_webview;
@@ -46,7 +46,7 @@ pub async fn get_window_handle<R: Runtime>(
     let current_window = session.current_window.clone();
     drop(sessions);
 
-    if !state.app.webviews().contains_key(&current_window) {
+    if !state.has_window_label(&current_window) {
         return Err(WebDriverErrorResponse::no_such_window());
     }
 
@@ -90,10 +90,7 @@ pub async fn close_window<R: Runtime>(
         drop(sessions);
 
         let webview = state
-            .app
-            .webviews()
-            .get(&current_window)
-            .cloned()
+            .get_webview(&current_window)
             .ok_or_else(WebDriverErrorResponse::no_such_window)?;
 
         if !is_standalone_webview(&webview) {
@@ -127,7 +124,7 @@ pub async fn switch_to_window<R: Runtime>(
     let session = sessions.get_mut(&session_id)?;
 
     // Verify the window exists
-    if !state.app.webviews().contains_key(&request.handle) {
+    if !state.has_window_label(&request.handle) {
         return Err(WebDriverErrorResponse::no_such_window());
     }
 

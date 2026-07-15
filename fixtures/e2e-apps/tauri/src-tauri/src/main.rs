@@ -276,15 +276,14 @@ async fn create_child_webview(
 
 #[tauri::command]
 async fn remove_child_webview(app: tauri::AppHandle, label: String) -> Result<(), String> {
-    if label == "main" {
-        return Err("Refusing to remove main through the child fixture command".into());
-    }
-    if app.get_webview_window(&label).is_some() {
-        return Err("Refusing to remove an independent WebviewWindow as a child".into());
+    let webview = app
+        .get_webview(&label)
+        .ok_or_else(|| format!("Webview '{label}' not found"))?;
+    if webview.label() == webview.window().label() {
+        return Err("Refusing to remove a primary Webview through the child fixture command".into());
     }
 
-    app.get_webview(&label)
-        .ok_or_else(|| format!("Webview '{label}' not found"))?
+    webview
         .close()
         .map_err(|error| error.to_string())
 }

@@ -36,17 +36,20 @@ vi.mock('../src/commands/execute.js', () => ({
   execute: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../src/window.js', () => ({
-  clearWindowState: vi.fn(),
-  ensureActiveWindowFocus: vi.fn().mockResolvedValue(undefined),
-  getDefaultWindowLabel: vi.fn().mockReturnValue('main'),
-  isInternalWindowSwitch: vi.fn().mockReturnValue(false),
-  listWindowLabels: vi.fn().mockResolvedValue(['main']),
-  setCurrentWindowLabel: vi.fn(),
-  setSessionProvider: vi.fn(),
-  suppressActiveWindowFocus: vi.fn(),
-  switchWindowByLabel: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock('../src/window.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/window.js')>();
+  return {
+    ...actual,
+    clearWindowState: vi.fn(),
+    ensureActiveWindowFocus: vi.fn().mockResolvedValue(undefined),
+    getDefaultWindowLabel: vi.fn().mockReturnValue('main'),
+    listWindowLabels: vi.fn().mockResolvedValue(['main']),
+    setCurrentWindowLabel: vi.fn(),
+    setSessionProvider: vi.fn(),
+    suppressActiveWindowFocus: vi.fn(),
+    switchWindowByLabel: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import { waitUntilWindowAvailable } from '@wdio/native-utils';
 import { execute as executeCommand } from '../src/commands/execute.js';
@@ -56,9 +59,9 @@ import TauriWorkerService from '../src/service.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
-  isInternalWindowSwitch,
   setCurrentWindowLabel,
   suppressActiveWindowFocus,
+  withInternalWindowSwitch,
 } from '../src/window.js';
 
 function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO.Browser {
@@ -937,14 +940,42 @@ describe('TauriWorkerService', () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       (service as any).browser = mockBrowser;
-      vi.mocked(isInternalWindowSwitch).mockReturnValueOnce(true);
 
-      await service.beforeCommand('switchToWindow', ['main']);
-      await service.afterCommand('switchToWindow', ['main'], undefined);
+      await withInternalWindowSwitch(mockBrowser, async () => {
+        await service.beforeCommand('switchToWindow', ['main']);
+        await service.afterCommand('switchToWindow', ['main'], undefined);
+      });
 
       expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
       expect(setCurrentWindowLabel).not.toHaveBeenCalled();
       expect(ensureActiveWindowFocus).not.toHaveBeenCalled();
+    });
+
+    it('should commit an external matching switch that starts during internal focus recovery', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider: 'embedded' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      let releaseExternalBefore: () => void;
+      const externalBefore = new Promise<void>((resolve) => {
+        releaseExternalBefore = resolve;
+      }).then(() => service.beforeCommand('switchToWindow', ['main']));
+
+      await withInternalWindowSwitch(mockBrowser, async () => {
+        releaseExternalBefore();
+        await externalBefore;
+
+        await service.beforeCommand('switchToWindow', ['main']);
+        await service.afterCommand('switchToWindow', ['main'], undefined);
+
+        expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+        expect(setCurrentWindowLabel).not.toHaveBeenCalled();
+      });
+
+      await service.afterCommand('switchToWindow', ['main'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(mockBrowser);
+      expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'main');
     });
 
     it('should commit an embedded raw window switch only after it succeeds', async () => {

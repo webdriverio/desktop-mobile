@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createLogger } from '@wdio/native-utils';
 import { clearPluginAvailabilityCache } from './pluginCache.js';
 import type { DriverProvider } from './types.js';
@@ -17,7 +18,7 @@ const currentWindowLabelCache = new Map<string, string>();
 
 const userSwitchedWindowCache = new Set<string>();
 
-const internalWindowSwitchDepthCache = new Map<string, number>();
+const internalWindowSwitchContext = new AsyncLocalStorage<string>();
 
 const sessionProviderCache = new Map<string, DriverProvider>();
 
@@ -41,7 +42,7 @@ export function suppressActiveWindowFocus(browser: WebdriverIO.Browser): void {
 }
 
 export function isInternalWindowSwitch(browser: WebdriverIO.Browser): boolean {
-  return (internalWindowSwitchDepthCache.get(browser.sessionId || 'default') ?? 0) > 0;
+  return internalWindowSwitchContext.getStore() === (browser.sessionId || 'default');
 }
 
 export async function withInternalWindowSwitch<T>(
@@ -49,18 +50,7 @@ export async function withInternalWindowSwitch<T>(
   operation: () => Promise<T>,
 ): Promise<T> {
   const sessionKey = browser.sessionId || 'default';
-  const depth = internalWindowSwitchDepthCache.get(sessionKey) ?? 0;
-  internalWindowSwitchDepthCache.set(sessionKey, depth + 1);
-  try {
-    return await operation();
-  } finally {
-    const nextDepth = (internalWindowSwitchDepthCache.get(sessionKey) ?? 1) - 1;
-    if (nextDepth === 0) {
-      internalWindowSwitchDepthCache.delete(sessionKey);
-    } else {
-      internalWindowSwitchDepthCache.set(sessionKey, nextDepth);
-    }
-  }
+  return internalWindowSwitchContext.run(sessionKey, operation);
 }
 
 export function setSessionProvider(browser: WebdriverIO.Browser, provider: DriverProvider): void {
@@ -342,13 +332,11 @@ export function clearWindowState(sessionId?: string): void {
     lastCommandCache.delete(sessionId);
     currentWindowLabelCache.delete(sessionId);
     userSwitchedWindowCache.delete(sessionId);
-    internalWindowSwitchDepthCache.delete(sessionId);
     sessionProviderCache.delete(sessionId);
   } else {
     lastCommandCache.clear();
     currentWindowLabelCache.clear();
     userSwitchedWindowCache.clear();
-    internalWindowSwitchDepthCache.clear();
     sessionProviderCache.clear();
   }
 }

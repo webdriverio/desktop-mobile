@@ -262,6 +262,10 @@ export default class TauriWorkerService {
     }
 
     const browser = this.browser as WebdriverIO.Browser;
+    if (isInternalWindowSwitch(browser)) {
+      return;
+    }
+
     const sessionKey = browser.sessionId || 'default';
     const handle = args[0];
     if (typeof handle !== 'string') {

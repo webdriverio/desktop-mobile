@@ -172,14 +172,14 @@ describeChildWebviews('child webview handles', () => {
     }
   });
 
-  it('refuses to remove main or an independent WebviewWindow through the child fixture command', async () => {
+  it('refuses to remove primary webviews through the child fixture command', async () => {
     await createChildren();
 
     await expect(invokeFixture<void>('remove_child_webview', { label: MAIN_WINDOW })).rejects.toThrow(
-      /refusing to remove main/i,
+      /refusing to remove a primary webview/i,
     );
     await expect(invokeFixture<void>('remove_child_webview', { label: DISPOSABLE_WINDOW })).rejects.toThrow(
-      /refusing to remove an independent webviewwindow/i,
+      /refusing to remove a primary webview/i,
     );
     await removeChild(CHILD_LEFT);
     await removeChild(CHILD_RIGHT);
