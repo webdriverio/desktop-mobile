@@ -32,18 +32,32 @@ enum FrameContextCommitError {
     BrowsingContextChanged,
 }
 
+enum FrameContextMutation {
+    Clear,
+    Push(FrameId),
+    Pop,
+}
+
 fn commit_frame_context(
     session: &mut crate::webdriver::session::Session,
     browsing_context_generation: u64,
     original_window_exists: bool,
-    frame_id: FrameId,
+    mutation: FrameContextMutation,
 ) -> Result<(), FrameContextCommitError> {
     if !original_window_exists {
         return Err(FrameContextCommitError::WindowMissing);
     }
 
-    if !session.append_frame_context_if_current(browsing_context_generation, frame_id) {
+    if session.browsing_context_generation != browsing_context_generation {
         return Err(FrameContextCommitError::BrowsingContextChanged);
+    }
+
+    match mutation {
+        FrameContextMutation::Clear => session.frame_context.clear(),
+        FrameContextMutation::Push(frame_id) => session.frame_context.push(frame_id),
+        FrameContextMutation::Pop => {
+            session.frame_context.pop();
+        }
     }
 
     Ok(())
@@ -73,20 +87,29 @@ pub async fn switch_to_frame<R: Runtime + 'static>(
     // Parse the frame ID to determine what we're switching to
     let (frame_id, js_var_for_element) = match &request.id {
         Value::Null => {
-            // Switch to top-level context - no validation needed
             drop(sessions);
 
-            // Update session: clear frame context
             let mut sessions = state.sessions.write().await;
             let session = sessions.get_mut(&session_id)?;
-            if session.browsing_context_generation != browsing_context_generation {
-                return Err(browsing_context_changed_error(
-                    &state,
-                    &current_window,
-                    None,
-                ));
+            let original_window_exists = state.has_window_label(&current_window);
+            match commit_frame_context(
+                session,
+                browsing_context_generation,
+                original_window_exists,
+                FrameContextMutation::Clear,
+            ) {
+                Ok(()) => {}
+                Err(FrameContextCommitError::WindowMissing) => {
+                    return Err(WebDriverErrorResponse::no_such_window());
+                }
+                Err(FrameContextCommitError::BrowsingContextChanged) => {
+                    return Err(browsing_context_changed_error(
+                        &state,
+                        &current_window,
+                        None,
+                    ));
+                }
             }
-            session.frame_context.clear();
 
             return Ok(WebDriverResponse::null());
         }
@@ -152,7 +175,7 @@ pub async fn switch_to_frame<R: Runtime + 'static>(
         session,
         browsing_context_generation,
         original_window_exists,
-        frame_id.clone(),
+        FrameContextMutation::Push(frame_id.clone()),
     ) {
         Ok(()) => {}
         Err(FrameContextCommitError::WindowMissing) => {
@@ -175,26 +198,45 @@ pub async fn switch_to_parent_frame<R: Runtime + 'static>(
     State(state): State<Arc<AppState<R>>>,
     Path(session_id): Path<String>,
 ) -> WebDriverResult {
-    let mut sessions = state.sessions.write().await;
-    let session = sessions.get_mut(&session_id)?;
-
-    // Pop one level from frame context
-    session.frame_context.pop();
-
+    let sessions = state.sessions.read().await;
+    let session = sessions.get(&session_id)?;
     let current_window = session.current_window.clone();
     let timeouts = session.timeouts.clone();
     let frame_context = session.frame_context.clone();
+    let browsing_context_generation = session.browsing_context_generation;
     drop(sessions);
 
     let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
     executor.switch_to_parent_frame().await?;
+
+    let mut sessions = state.sessions.write().await;
+    let session = sessions.get_mut(&session_id)?;
+    let original_window_exists = state.has_window_label(&current_window);
+    match commit_frame_context(
+        session,
+        browsing_context_generation,
+        original_window_exists,
+        FrameContextMutation::Pop,
+    ) {
+        Ok(()) => {}
+        Err(FrameContextCommitError::WindowMissing) => {
+            return Err(WebDriverErrorResponse::no_such_window());
+        }
+        Err(FrameContextCommitError::BrowsingContextChanged) => {
+            return Err(browsing_context_changed_error(
+                &state,
+                &current_window,
+                None,
+            ));
+        }
+    }
 
     Ok(WebDriverResponse::null())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{commit_frame_context, FrameContextCommitError};
+    use super::{commit_frame_context, FrameContextCommitError, FrameContextMutation};
     use crate::platform::FrameId;
     use crate::webdriver::session::Session;
 
@@ -203,7 +245,12 @@ mod tests {
         let mut session = Session::new("child-left".to_string());
         let generation = session.browsing_context_generation;
 
-        let result = commit_frame_context(&mut session, generation, false, FrameId::Index(0));
+        let result = commit_frame_context(
+            &mut session,
+            generation,
+            false,
+            FrameContextMutation::Push(FrameId::Index(0)),
+        );
 
         assert_eq!(result, Err(FrameContextCommitError::WindowMissing));
         assert!(session.frame_context.is_empty());
@@ -214,9 +261,78 @@ mod tests {
         let mut session = Session::new("child-left".to_string());
         session.browsing_context_generation = 1;
 
-        let result = commit_frame_context(&mut session, 0, false, FrameId::Index(0));
+        let result = commit_frame_context(
+            &mut session,
+            0,
+            false,
+            FrameContextMutation::Push(FrameId::Index(0)),
+        );
 
         assert_eq!(result, Err(FrameContextCommitError::WindowMissing));
         assert!(session.frame_context.is_empty());
+    }
+
+    #[test]
+    fn preserves_frame_context_when_top_level_commit_loses_the_selected_window() {
+        let mut session = Session::new("child-left".to_string());
+        session.frame_context.push(FrameId::Index(0));
+        session.frame_context.push(FrameId::Index(1));
+        let generation = session.browsing_context_generation;
+
+        let result =
+            commit_frame_context(&mut session, generation, false, FrameContextMutation::Clear);
+
+        assert_eq!(result, Err(FrameContextCommitError::WindowMissing));
+        assert!(matches!(
+            session.frame_context.as_slice(),
+            [FrameId::Index(0), FrameId::Index(1)]
+        ));
+    }
+
+    #[test]
+    fn preserves_frame_context_when_parent_commit_loses_the_selected_window() {
+        let mut session = Session::new("child-left".to_string());
+        session.frame_context.push(FrameId::Index(0));
+        session.frame_context.push(FrameId::Index(1));
+        let generation = session.browsing_context_generation;
+
+        let result =
+            commit_frame_context(&mut session, generation, false, FrameContextMutation::Pop);
+
+        assert_eq!(result, Err(FrameContextCommitError::WindowMissing));
+        assert!(matches!(
+            session.frame_context.as_slice(),
+            [FrameId::Index(0), FrameId::Index(1)]
+        ));
+    }
+
+    #[test]
+    fn clears_frame_context_when_switching_to_top_level() {
+        let mut session = Session::new("child-left".to_string());
+        session.frame_context.push(FrameId::Index(0));
+        let generation = session.browsing_context_generation;
+
+        let result =
+            commit_frame_context(&mut session, generation, true, FrameContextMutation::Clear);
+
+        assert_eq!(result, Ok(()));
+        assert!(session.frame_context.is_empty());
+    }
+
+    #[test]
+    fn pops_one_frame_context_when_switching_to_parent() {
+        let mut session = Session::new("child-left".to_string());
+        session.frame_context.push(FrameId::Index(0));
+        session.frame_context.push(FrameId::Index(1));
+        let generation = session.browsing_context_generation;
+
+        let result =
+            commit_frame_context(&mut session, generation, true, FrameContextMutation::Pop);
+
+        assert_eq!(result, Ok(()));
+        assert!(matches!(
+            session.frame_context.as_slice(),
+            [FrameId::Index(0)]
+        ));
     }
 }

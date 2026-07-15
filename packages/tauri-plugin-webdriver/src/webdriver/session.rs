@@ -91,15 +91,6 @@ impl Session {
 
         Ok(())
     }
-
-    pub fn append_frame_context_if_current(&mut self, generation: u64, frame_id: FrameId) -> bool {
-        if self.browsing_context_generation != generation {
-            return false;
-        }
-
-        self.frame_context.push(frame_id);
-        true
-    }
 }
 
 /// Manages `WebDriver` sessions
@@ -146,30 +137,6 @@ impl SessionManager {
 #[cfg(test)]
 mod tests {
     use super::{FrameId, Session, SwitchWindowError};
-
-    #[test]
-    fn appends_a_validated_frame_when_the_browsing_context_is_unchanged() {
-        let mut session = Session::new("child-left".to_string());
-        let generation = session.browsing_context_generation;
-
-        assert!(session.append_frame_context_if_current(generation, FrameId::Index(0)));
-        assert!(matches!(
-            session.frame_context.as_slice(),
-            [FrameId::Index(0)]
-        ));
-    }
-
-    #[test]
-    fn rejects_a_validated_frame_after_switching_away_and_back_to_the_same_window() {
-        let mut session = Session::new("child-left".to_string());
-        let generation = session.browsing_context_generation;
-
-        session.switch_to_window("child-right".to_string()).unwrap();
-        session.switch_to_window("child-left".to_string()).unwrap();
-
-        assert!(!session.append_frame_context_if_current(generation, FrameId::Index(0)));
-        assert!(session.frame_context.is_empty());
-    }
 
     #[test]
     fn switching_windows_updates_context_and_generation_together() {

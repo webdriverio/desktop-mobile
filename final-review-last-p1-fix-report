@@ -1,0 +1,6 @@
+# Final Review Last P1 Fix Report
+
+- 2026-07-15: Unified all frame-context mutations behind a commit guard that checks the captured selected webview still exists and the browsing-context generation still matches before clearing, pushing, or popping.
+- TDD evidence: the new null/parent commit tests first failed to compile because `FrameContextMutation` did not exist; after the minimal implementation, the missing-webview paths preserve frame context and normal top-level/parent paths mutate it.
+- Verification: `cargo test --manifest-path packages/tauri-plugin-webdriver/Cargo.toml` passed (27 tests); `cargo clippy --manifest-path packages/tauri-plugin-webdriver/Cargo.toml -- -D warnings` passed; targeted `rustfmt --edition 2021` passed.
+- Verification: Node v24.18.0 `pnpm --filter tauri-e2e-app build`, `pnpm --filter @repo/e2e test:e2e:tauri-basic-embedded` (11/11 spec files), and `pnpm lint` passed. Lint emitted only the pre-existing Biome `linter.recommended` deprecation notice.
