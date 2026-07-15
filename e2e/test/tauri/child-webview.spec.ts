@@ -181,6 +181,9 @@ describeChildWebviews('child webview handles', () => {
     await expect(invokeFixture<void>('remove_child_webview', { label: DISPOSABLE_WINDOW })).rejects.toThrow(
       /refusing to remove a primary webview/i,
     );
+    expect(await browser.getWindowHandles()).toContain(DISPOSABLE_WINDOW);
+    await browser.switchToWindow(DISPOSABLE_WINDOW);
+    expect(await browser.getWindowHandle()).toBe(DISPOSABLE_WINDOW);
     await removeChild(CHILD_LEFT);
     await removeChild(CHILD_RIGHT);
     await waitForHandles([MAIN_WINDOW]);

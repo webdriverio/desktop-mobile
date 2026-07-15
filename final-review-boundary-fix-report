@@ -1,0 +1,5 @@
+# Final Review Boundary Fix Report
+
+- 2026-07-15: Added a characterization assertion that a rejected `remove_child_webview(disposable-window)` command preserves the independent primary handle and permits switching back to it.
+- TDD evidence: the new assertion was GREEN on its first run because the existing implementation already preserves the handle; no production change was needed.
+- Verification: Node v24.18.0 `pnpm --filter @repo/e2e test:e2e:tauri-basic-embedded` passed (11 spec files); focused `pnpm exec biome check e2e/test/tauri/child-webview.spec.ts` passed.
