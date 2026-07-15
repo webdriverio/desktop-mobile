@@ -3,3 +3,6 @@
 - 2026-07-15: Added a characterization assertion that a rejected `remove_child_webview(disposable-window)` command preserves the independent primary handle and permits switching back to it.
 - TDD evidence: the new assertion was GREEN on its first run because the existing implementation already preserves the handle; no production change was needed.
 - Verification: Node v24.18.0 `pnpm --filter @repo/e2e test:e2e:tauri-basic-embedded` passed (11 spec files); focused `pnpm exec biome check e2e/test/tauri/child-webview.spec.ts` passed.
+- 2026-07-15: Limited embedded WebDriver child webview exposure to macOS. Windows, Linux, Android, and iOS retain primary-webview-only behavior.
+- TDD evidence: the new pure platform-policy tests first failed because `child_webviews_are_exposed_for_platform` did not exist; after the minimal implementation, `cargo test --manifest-path packages/tauri-plugin-webdriver/Cargo.toml` passed (19 tests).
+- Verification: `cargo clippy --manifest-path packages/tauri-plugin-webdriver/Cargo.toml -- -D warnings`, focused `rustfmt --edition 2021 packages/tauri-plugin-webdriver/src/server/mod.rs`, Node v24.18.0 `pnpm lint`, macOS `pnpm --filter tauri-e2e-app build`, and Node v24.18.0 `pnpm --filter @repo/e2e test:e2e:tauri-basic-embedded` passed (11 spec files).

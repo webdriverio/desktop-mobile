@@ -75,11 +75,11 @@ impl<R: Runtime + 'static> AppState<R> {
 }
 
 fn child_webviews_are_exposed() -> bool {
-    cfg!(any(
-        target_os = "macos",
-        target_os = "android",
-        target_os = "ios"
-    ))
+    child_webviews_are_exposed_for_platform(std::env::consts::OS)
+}
+
+fn child_webviews_are_exposed_for_platform(platform: &str) -> bool {
+    platform == "macos"
 }
 
 fn is_webview_exposed(expose_children: bool, webview_label: &str, window_label: &str) -> bool {
@@ -131,7 +131,7 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
 
 #[cfg(test)]
 mod tests {
-    use super::{child_webviews_are_exposed, is_webview_exposed};
+    use super::{child_webviews_are_exposed_for_platform, is_webview_exposed};
 
     #[test]
     fn primary_only_policy_hides_child_webviews() {
@@ -146,11 +146,32 @@ mod tests {
     }
 
     #[test]
-    fn platform_policy_only_exposes_children_on_supported_platforms() {
-        #[cfg(any(target_os = "macos", target_os = "android", target_os = "ios"))]
-        assert!(child_webviews_are_exposed());
+    fn non_macos_platforms_expose_only_primary_webviews() {
+        for platform in ["windows", "linux", "android", "ios"] {
+            assert!(is_webview_exposed(
+                child_webviews_are_exposed_for_platform(platform),
+                "main",
+                "main"
+            ));
+            assert!(!is_webview_exposed(
+                child_webviews_are_exposed_for_platform(platform),
+                "child",
+                "main"
+            ));
+        }
+    }
 
-        #[cfg(any(target_os = "windows", target_os = "linux"))]
-        assert!(!child_webviews_are_exposed());
+    #[test]
+    fn macos_exposes_all_webviews() {
+        assert!(is_webview_exposed(
+            child_webviews_are_exposed_for_platform("macos"),
+            "main",
+            "main"
+        ));
+        assert!(is_webview_exposed(
+            child_webviews_are_exposed_for_platform("macos"),
+            "child",
+            "main"
+        ));
     }
 }
