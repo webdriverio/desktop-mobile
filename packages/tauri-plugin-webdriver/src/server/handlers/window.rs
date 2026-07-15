@@ -128,8 +128,7 @@ pub async fn switch_to_window<R: Runtime>(
         return Err(WebDriverErrorResponse::no_such_window());
     }
 
-    session.current_window = request.handle;
-    session.frame_context.clear();
+    session.switch_to_window(request.handle);
 
     Ok(WebDriverResponse::null())
 }

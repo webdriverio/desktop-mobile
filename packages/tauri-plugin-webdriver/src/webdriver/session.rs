@@ -55,6 +55,8 @@ pub struct Session {
     pub current_window: String,
     /// Current frame context (stack of frame selectors)
     pub frame_context: Vec<FrameId>,
+    /// Increments whenever the selected top-level browsing context changes
+    pub browsing_context_generation: u64,
     /// Action state tracking for pressed keys/buttons
     pub action_state: ActionState,
 }
@@ -67,8 +69,27 @@ impl Session {
             elements: ElementStore::new(),
             current_window: initial_window,
             frame_context: Vec::new(),
+            browsing_context_generation: 0,
             action_state: ActionState::default(),
         }
+    }
+
+    pub fn switch_to_window(&mut self, window: String) {
+        self.current_window = window;
+        self.frame_context.clear();
+        self.browsing_context_generation = self
+            .browsing_context_generation
+            .checked_add(1)
+            .expect("browsing context generation overflowed");
+    }
+
+    pub fn append_frame_context_if_current(&mut self, generation: u64, frame_id: FrameId) -> bool {
+        if self.browsing_context_generation != generation {
+            return false;
+        }
+
+        self.frame_context.push(frame_id);
+        true
     }
 }
 
@@ -110,5 +131,34 @@ impl SessionManager {
     /// Delete a session
     pub fn delete(&mut self, id: &str) -> bool {
         self.sessions.remove(id).is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FrameId, Session};
+
+    #[test]
+    fn appends_a_validated_frame_when_the_browsing_context_is_unchanged() {
+        let mut session = Session::new("child-left".to_string());
+        let generation = session.browsing_context_generation;
+
+        assert!(session.append_frame_context_if_current(generation, FrameId::Index(0)));
+        assert!(matches!(
+            session.frame_context.as_slice(),
+            [FrameId::Index(0)]
+        ));
+    }
+
+    #[test]
+    fn rejects_a_validated_frame_after_switching_away_and_back_to_the_same_window() {
+        let mut session = Session::new("child-left".to_string());
+        let generation = session.browsing_context_generation;
+
+        session.switch_to_window("child-right".to_string());
+        session.switch_to_window("child-left".to_string());
+
+        assert!(!session.append_frame_context_if_current(generation, FrameId::Index(0)));
+        assert!(session.frame_context.is_empty());
     }
 }

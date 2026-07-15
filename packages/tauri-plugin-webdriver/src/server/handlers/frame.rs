@@ -10,6 +10,22 @@ use crate::platform::FrameId;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 
+fn browsing_context_changed_error<R: Runtime>(
+    state: &AppState<R>,
+    current_window: &str,
+    frame_id: Option<&FrameId>,
+) -> WebDriverErrorResponse {
+    if !state.has_window_label(current_window) {
+        return WebDriverErrorResponse::no_such_window();
+    }
+
+    if matches!(frame_id, Some(FrameId::Element(_))) {
+        return WebDriverErrorResponse::stale_element_reference();
+    }
+
+    WebDriverErrorResponse::unknown_error("Browsing context changed while switching frame")
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SwitchFrameRequest {
     pub id: Value,
@@ -29,6 +45,7 @@ pub async fn switch_to_frame<R: Runtime + 'static>(
     let current_window = session.current_window.clone();
     let timeouts = session.timeouts.clone();
     let current_frame_context = session.frame_context.clone();
+    let browsing_context_generation = session.browsing_context_generation;
 
     // Parse the frame ID to determine what we're switching to
     let (frame_id, js_var_for_element) = match &request.id {
@@ -39,6 +56,13 @@ pub async fn switch_to_frame<R: Runtime + 'static>(
             // Update session: clear frame context
             let mut sessions = state.sessions.write().await;
             let session = sessions.get_mut(&session_id)?;
+            if session.browsing_context_generation != browsing_context_generation {
+                return Err(browsing_context_changed_error(
+                    &state,
+                    &current_window,
+                    None,
+                ));
+            }
             session.frame_context.clear();
 
             return Ok(WebDriverResponse::null());
@@ -94,15 +118,18 @@ pub async fn switch_to_frame<R: Runtime + 'static>(
     let mut sessions = state.sessions.write().await;
     let session = sessions.get_mut(&session_id)?;
 
-    match &frame_id {
-        FrameId::Index(_) => {
-            session.frame_context.push(frame_id);
-        }
-        FrameId::Element(_) => {
-            if let Some(js_var) = js_var_for_element {
-                session.frame_context.push(FrameId::Element(js_var));
-            }
-        }
+    let frame_id = match frame_id {
+        FrameId::Index(index) => FrameId::Index(index),
+        FrameId::Element(_) => FrameId::Element(
+            js_var_for_element.expect("element frame IDs always have an element reference"),
+        ),
+    };
+    if !session.append_frame_context_if_current(browsing_context_generation, frame_id.clone()) {
+        return Err(browsing_context_changed_error(
+            &state,
+            &current_window,
+            Some(&frame_id),
+        ));
     }
 
     Ok(WebDriverResponse::null())

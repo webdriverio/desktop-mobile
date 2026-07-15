@@ -265,6 +265,24 @@ describeChildWebviews('child webview handles', () => {
     expect(await invokeFixture<WindowBounds>('get_window_bounds')).toEqual(nativeHostBefore);
   });
 
+  it('returns the host bounds after maximizing a selected child webview', async () => {
+    await createChildren();
+    await waitForHandles([CHILD_LEFT]);
+    await switchToMain();
+    const hostBefore = await invokeFixture<WindowBounds>('get_window_bounds');
+
+    try {
+      await browser.switchToWindow(CHILD_LEFT);
+      const maximized = await browser.maximizeWindow();
+
+      await switchToMain();
+      expect(maximized).toEqual(await browser.getWindowRect());
+    } finally {
+      await switchToMain();
+      await browser.setWindowRect(hostBefore.x, hostBefore.y, hostBefore.width, hostBefore.height);
+    }
+  });
+
   it('rejects closeWindow for a child without closing its host', async () => {
     await createChildren();
     await waitForHandles([CHILD_LEFT]);

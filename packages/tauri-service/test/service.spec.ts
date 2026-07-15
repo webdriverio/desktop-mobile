@@ -259,6 +259,31 @@ describe('TauriWorkerService', () => {
       expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'settings');
     });
 
+    it('should suppress focus recovery for an explicitly configured initial child label', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ windowLabel: 'child-left' }, { 'wdio:tauriServiceOptions': {} });
+
+      await service.before({} as any, [], mockBrowser);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(mockBrowser);
+    });
+
+    it('should suppress focus recovery for every multiremote instance with an initial child label', async () => {
+      const firstBrowser = createMockBrowser({ sessionId: 'first-child-session' });
+      const secondBrowser = createMockBrowser({ sessionId: 'second-child-session' });
+      const multiremoteBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['first', 'second'],
+        getInstance: vi.fn((name: string) => (name === 'first' ? firstBrowser : secondBrowser)),
+      }) as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new TauriWorkerService({ windowLabel: 'child-left' }, { 'wdio:tauriServiceOptions': {} });
+
+      await service.before({} as any, [], multiremoteBrowser);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(firstBrowser);
+      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(secondBrowser);
+    });
+
     it('should default window label to main when not configured', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
@@ -266,6 +291,7 @@ describe('TauriWorkerService', () => {
       await service.before({} as any, [], mockBrowser);
 
       expect(setCurrentWindowLabel).toHaveBeenCalledWith(mockBrowser, 'main');
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
     });
 
     it('should call patchBrowserExecute for standard browser', async () => {

@@ -113,6 +113,9 @@ export default class TauriWorkerService {
           this.addTauriApi(mrInstance);
           this.patchBrowserExecute(mrInstance);
           setCurrentWindowLabel(mrInstance, this.windowLabel);
+          if (this.windowLabel !== getDefaultWindowLabel()) {
+            suppressActiveWindowFocus(mrInstance);
+          }
           setSessionProvider(mrInstance, this.driverProvider ?? 'embedded');
           stage = `waitUntilWindowAvailable:${instanceName}`;
           await waitUntilWindowAvailable(mrInstance);
@@ -145,6 +148,9 @@ export default class TauriWorkerService {
         this.addTauriApi(browser as WebdriverIO.Browser);
         this.patchBrowserExecute(browser as WebdriverIO.Browser);
         setCurrentWindowLabel(browser as WebdriverIO.Browser, this.windowLabel);
+        if (this.windowLabel !== getDefaultWindowLabel()) {
+          suppressActiveWindowFocus(browser as WebdriverIO.Browser);
+        }
         setSessionProvider(browser as WebdriverIO.Browser, this.driverProvider ?? 'embedded');
         stage = 'waitUntilWindowAvailable:single';
         await waitUntilWindowAvailable(browser as WebdriverIO.Browser);

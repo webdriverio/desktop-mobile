@@ -43,6 +43,23 @@ pub(crate) fn is_standalone_webview<R: Runtime>(webview: &Webview<R>) -> bool {
     is_primary_webview(webview) && webview.window().webviews().len() == 1
 }
 
+#[cfg(desktop)]
+fn host_outer_rect<R: Runtime>(webview: &Webview<R>) -> Result<WindowRect, WebDriverErrorResponse> {
+    let window = webview.window();
+    let position = window
+        .outer_position()
+        .map_err(|error| WebDriverErrorResponse::unknown_error(&error.to_string()))?;
+    let size = window
+        .outer_size()
+        .map_err(|error| WebDriverErrorResponse::unknown_error(&error.to_string()))?;
+    Ok(WindowRect {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+    })
+}
+
 /// Frame identifier for switching frames
 #[derive(Debug, Clone)]
 pub enum FrameId {
@@ -1474,19 +1491,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     #[cfg(desktop)]
     async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse> {
         if is_primary_webview(self.webview()) {
-            let window = self.webview().window();
-            let position = window
-                .outer_position()
-                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
-            let size = window
-                .outer_size()
-                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
-            return Ok(WindowRect {
-                x: position.x,
-                y: position.y,
-                width: size.width,
-                height: size.height,
-            });
+            return host_outer_rect(self.webview());
         }
 
         let position = self
@@ -1568,7 +1573,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         let window = self.webview().window();
         let _ = window.maximize();
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        self.get_window_rect().await
+        host_outer_rect(self.webview())
     }
 
     /// Minimize window
@@ -1585,7 +1590,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         let window = self.webview().window();
         let _ = window.set_fullscreen(true);
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        self.get_window_rect().await
+        host_outer_rect(self.webview())
     }
 
     /// Set window rectangle (mobile unsupported)
