@@ -26,6 +26,29 @@ fn browsing_context_changed_error<R: Runtime>(
     WebDriverErrorResponse::unknown_error("Browsing context changed while switching frame")
 }
 
+#[derive(Debug, PartialEq, Eq)]
+enum FrameContextCommitError {
+    WindowMissing,
+    BrowsingContextChanged,
+}
+
+fn commit_frame_context(
+    session: &mut crate::webdriver::session::Session,
+    browsing_context_generation: u64,
+    original_window_exists: bool,
+    frame_id: FrameId,
+) -> Result<(), FrameContextCommitError> {
+    if !original_window_exists {
+        return Err(FrameContextCommitError::WindowMissing);
+    }
+
+    if !session.append_frame_context_if_current(browsing_context_generation, frame_id) {
+        return Err(FrameContextCommitError::BrowsingContextChanged);
+    }
+
+    Ok(())
+}
+
 #[derive(Debug, Deserialize)]
 pub struct SwitchFrameRequest {
     pub id: Value,
@@ -124,12 +147,24 @@ pub async fn switch_to_frame<R: Runtime + 'static>(
             js_var_for_element.expect("element frame IDs always have an element reference"),
         ),
     };
-    if !session.append_frame_context_if_current(browsing_context_generation, frame_id.clone()) {
-        return Err(browsing_context_changed_error(
-            &state,
-            &current_window,
-            Some(&frame_id),
-        ));
+    let original_window_exists = state.has_window_label(&current_window);
+    match commit_frame_context(
+        session,
+        browsing_context_generation,
+        original_window_exists,
+        frame_id.clone(),
+    ) {
+        Ok(()) => {}
+        Err(FrameContextCommitError::WindowMissing) => {
+            return Err(WebDriverErrorResponse::no_such_window());
+        }
+        Err(FrameContextCommitError::BrowsingContextChanged) => {
+            return Err(browsing_context_changed_error(
+                &state,
+                &current_window,
+                Some(&frame_id),
+            ));
+        }
     }
 
     Ok(WebDriverResponse::null())
@@ -155,4 +190,33 @@ pub async fn switch_to_parent_frame<R: Runtime + 'static>(
     executor.switch_to_parent_frame().await?;
 
     Ok(WebDriverResponse::null())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{commit_frame_context, FrameContextCommitError};
+    use crate::platform::FrameId;
+    use crate::webdriver::session::Session;
+
+    #[test]
+    fn refuses_to_commit_a_frame_after_the_original_window_is_removed() {
+        let mut session = Session::new("child-left".to_string());
+        let generation = session.browsing_context_generation;
+
+        let result = commit_frame_context(&mut session, generation, false, FrameId::Index(0));
+
+        assert_eq!(result, Err(FrameContextCommitError::WindowMissing));
+        assert!(session.frame_context.is_empty());
+    }
+
+    #[test]
+    fn prioritizes_a_removed_window_over_a_changed_browsing_context() {
+        let mut session = Session::new("child-left".to_string());
+        session.browsing_context_generation = 1;
+
+        let result = commit_frame_context(&mut session, 0, false, FrameId::Index(0));
+
+        assert_eq!(result, Err(FrameContextCommitError::WindowMissing));
+        assert!(session.frame_context.is_empty());
+    }
 }
