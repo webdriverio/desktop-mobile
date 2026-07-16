@@ -38,7 +38,6 @@ pub(crate) fn is_primary_webview<R: Runtime>(webview: &Webview<R>) -> bool {
 }
 
 #[cfg(desktop)]
-#[allow(dead_code)]
 pub(crate) fn is_standalone_webview<R: Runtime>(webview: &Webview<R>) -> bool {
     is_primary_webview(webview) && webview.window().webviews().len() == 1
 }
@@ -1573,6 +1572,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         let window = self.webview().window();
         let _ = window.maximize();
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // Native maximize applies to the host, unlike child-relative getWindowRect.
         host_outer_rect(self.webview())
     }
 
@@ -1590,6 +1590,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         let window = self.webview().window();
         let _ = window.set_fullscreen(true);
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        // Native fullscreen applies to the host, unlike child-relative getWindowRect.
         host_outer_rect(self.webview())
     }
 
