@@ -78,6 +78,14 @@ fn child_webviews_are_exposed() -> bool {
     child_webviews_are_exposed_for_platform(std::env::consts::OS)
 }
 
+pub(crate) fn close_protection_is_required() -> bool {
+    close_protection_is_required_for_platform(std::env::consts::OS)
+}
+
+fn close_protection_is_required_for_platform(platform: &str) -> bool {
+    child_webviews_are_exposed_for_platform(platform)
+}
+
 fn child_webviews_are_exposed_for_platform(platform: &str) -> bool {
     platform == "macos"
 }
@@ -131,7 +139,10 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
 
 #[cfg(test)]
 mod tests {
-    use super::{child_webviews_are_exposed_for_platform, is_webview_exposed};
+    use super::{
+        child_webviews_are_exposed_for_platform, close_protection_is_required_for_platform,
+        is_webview_exposed,
+    };
 
     #[test]
     fn primary_only_policy_hides_child_webviews() {
@@ -173,5 +184,25 @@ mod tests {
             "child",
             "main"
         ));
+    }
+
+    #[test]
+    fn close_protection_is_required_only_when_child_webviews_are_exposed() {
+        for (platform, expected) in [
+            ("macos", true),
+            ("windows", false),
+            ("linux", false),
+            ("android", false),
+            ("ios", false),
+        ] {
+            assert_eq!(
+                close_protection_is_required_for_platform(platform),
+                expected
+            );
+            assert_eq!(
+                close_protection_is_required_for_platform(platform),
+                child_webviews_are_exposed_for_platform(platform)
+            );
+        }
     }
 }

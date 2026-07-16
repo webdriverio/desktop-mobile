@@ -9,6 +9,8 @@ use tauri::Runtime;
 #[cfg(desktop)]
 use crate::platform::is_standalone_webview;
 use crate::platform::WindowRect;
+#[cfg(desktop)]
+use crate::server::close_protection_is_required;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 
@@ -93,7 +95,7 @@ pub async fn close_window<R: Runtime>(
             .get_webview(&current_window)
             .ok_or_else(WebDriverErrorResponse::no_such_window)?;
 
-        if !is_standalone_webview(&webview) {
+        if close_protection_is_required() && !is_standalone_webview(&webview) {
             return Err(WebDriverErrorResponse::unsupported_operation(
                 "Closing a child or shared-host webview is not supported",
             ));
