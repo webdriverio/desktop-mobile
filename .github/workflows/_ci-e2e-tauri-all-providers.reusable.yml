@@ -533,12 +533,16 @@ jobs:
           failed=false
 
           check_result() {
-            local provider="$1" outcome="$2"
+            local provider="$1" outcome="$2" allow_fail="${3:-false}" reason="${4:-}"
             case "$outcome" in
               success|skipped|"") ;;
               failure)
-                echo "::error::$provider provider tests failed"
-                failed=true ;;
+                if [ "$allow_fail" = "true" ]; then
+                  echo "::warning::$provider provider tests failed (allowed on $RUNNER_OS — $reason)"
+                else
+                  echo "::error::$provider provider tests failed"
+                  failed=true
+                fi ;;
               cancelled)
                 echo "::error::$provider provider tests were cancelled"
                 failed=true ;;
@@ -548,9 +552,26 @@ jobs:
             esac
           }
 
-          check_result "Official" "$official"
+          # Known upstream/environmental breakages of the third-party CDP/WebDriver
+          # providers; embedded (in-process, immune) stays required and is our signal.
+          #  - Windows: WebView2 Runtime 150 dropped the CDP --remote-debugging-port for
+          #    elevated hosts (runners run as admin), breaking the msedgedriver-based
+          #    official + crabnebula providers. See https://github.com/webdriverio/desktop-mobile/issues/542.
+          #  - macOS: the macos-26 image (26.4) broke the closed-source CrabNebula
+          #    driver's session setup. See https://github.com/webdriverio/desktop-mobile/issues/540.
+          allow_official=false; official_reason=""
+          allow_crabnebula=false; crabnebula_reason=""
+          case "$RUNNER_OS" in
+            Windows)
+              allow_official=true;   official_reason="WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542"
+              allow_crabnebula=true; crabnebula_reason="WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542" ;;
+            macOS)
+              allow_crabnebula=true; crabnebula_reason="macos-26 image (26.4) broke the CrabNebula driver; see https://github.com/webdriverio/desktop-mobile/issues/540" ;;
+          esac
+
+          check_result "Official" "$official" "$allow_official" "$official_reason"
           check_result "Embedded" "$embedded"
-          check_result "CrabNebula" "$crabnebula"
+          check_result "CrabNebula" "$crabnebula" "$allow_crabnebula" "$crabnebula_reason"
 
           if [ "$failed" = "true" ]; then
             exit 1

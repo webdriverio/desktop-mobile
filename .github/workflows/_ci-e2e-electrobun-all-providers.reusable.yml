@@ -230,8 +230,17 @@ jobs:
               echo "Electrobun E2E passed"
               ;;
             failure)
-              echo "::error::Electrobun E2E tests failed"
-              exit 1
+              # WebView2 Runtime 150 dropped the CDP --remote-debugging-port for
+              # elevated hosts (Windows runners run as admin), so Electrobun's native
+              # WebView2/CDP session creation times out on Windows. Allow it to fail on
+              # Windows only until the fix lands; macOS (CEF) stays required.
+              # See https://github.com/webdriverio/desktop-mobile/issues/542
+              if [ "$RUNNER_OS" = "Windows" ]; then
+                echo "::warning::Electrobun E2E tests failed — allowed on Windows (WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542)"
+              else
+                echo "::error::Electrobun E2E tests failed"
+                exit 1
+              fi
               ;;
             cancelled)
               echo "::error::Electrobun E2E tests were cancelled"
