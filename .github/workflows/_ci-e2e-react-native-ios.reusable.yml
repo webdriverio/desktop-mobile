@@ -206,12 +206,14 @@ jobs:
       # image version. ImageVersion is set automatically on GitHub-hosted macOS runners and
       # encodes the Xcode major — a stale DerivedData compiled against a previous SDK causes
       # cryptic E2E failures rather than a clean miss-and-rebuild.
+      # -v3: the pre-build now selects the WDA matching the loaded driver (was building a stale
+      # transitive copy); bump forces a rebuild so a v2 entry holding the wrong WDA isn't reused.
       - name: 💾 Restore WDA DerivedData cache
         id: wda-cache
         uses: actions/cache@v6
         with:
           path: ${{ env.RN_WDA_DD }}
-          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v2
+          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v3
 
       # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
       # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (several
@@ -224,8 +226,21 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          WDA_PROJ=$(find node_modules/.pnpm -maxdepth 6 -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -type d 2>/dev/null | head -1)
-          test -n "$WDA_PROJ" || { echo "::error::WebDriverAgent.xcodeproj not found under node_modules"; exit 1; }
+          # Build the WebDriverAgent that the appium-xcuitest-driver Appium actually loads depends
+          # on. Two appium-webdriveragent copies coexist in the pnpm store: the pinned xcuitest
+          # driver's (15.x) and an older one pulled transitively via appium-flutter-driver's bundled
+          # xcuitest (11.x). A bare `find | head -1` picked the stale 11.x project, so the
+          # preinstalled WDA never matched the 15.x launcher — it launched but its :8100 server never
+          # came up and session-create timed out at wdaLaunchTimeout on every spec. Resolve the
+          # project from the driver; fall back to the newest copy by version if resolution fails.
+          WDA_PROJ=""
+          WDA_DIR=$(pnpm --filter @repo/e2e exec node -e "const p=require('path');const x=require.resolve('appium-xcuitest-driver/package.json');process.stdout.write(p.dirname(require.resolve('appium-webdriveragent/package.json',{paths:[p.dirname(x)]})))" 2>/dev/null || true)
+          if [ -n "$WDA_DIR" ] && [ -d "$WDA_DIR/WebDriverAgent.xcodeproj" ]; then
+            WDA_PROJ="$WDA_DIR/WebDriverAgent.xcodeproj"
+          else
+            WDA_PROJ=$(find node_modules/.pnpm -maxdepth 6 -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -type d 2>/dev/null | sort -V | tail -1)
+          fi
+          test -n "$WDA_PROJ" && test -d "$WDA_PROJ" || { echo "::error::WebDriverAgent.xcodeproj not found under node_modules"; exit 1; }
           echo "WDA project: $WDA_PROJ"
           xcodebuild build-for-testing \
             -project "$WDA_PROJ" \
