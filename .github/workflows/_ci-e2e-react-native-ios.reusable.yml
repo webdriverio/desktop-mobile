@@ -239,6 +239,11 @@ jobs:
 
       - name: 🧪 Run E2E on iOS simulator
         shell: bash
+        # SPIKE (#421): blank RN_WDA_DD so the wdio config takes the in-session WDA build path
+        # (usePreinstalledWDA off + longer timeouts) — tests whether an in-session WDA build works
+        # on iOS 26, where the preinstalled-WDA path deterministically walls at :8100.
+        env:
+          RN_WDA_DD: ''
         run: |
           set -euo pipefail
           # RN_IOS_DEVICE / RN_IOS_UDID are inherited from the boot step via $GITHUB_ENV.
