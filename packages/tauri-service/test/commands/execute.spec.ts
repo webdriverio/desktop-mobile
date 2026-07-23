@@ -131,7 +131,7 @@ describe('execute — embedded provider (direct eval)', () => {
           ok: !failing,
           status: failing ? 500 : 200,
           statusText: failing ? 'Internal Server Error' : 'OK',
-          json: vi.fn().mockResolvedValue(failing ? { error: 'A JavaScript exception occurred' } : { value }),
+          json: vi.fn().mockResolvedValue(failing ? { error: 'A JavaScript exception occurred. (code 4)' } : { value }),
         });
       });
     }
@@ -172,6 +172,21 @@ describe('execute — embedded provider (direct eval)', () => {
     it('does not retry a genuine script error', async () => {
       vi.stubGlobal('fetch', mockFetch({ error: 'ReferenceError: foo is not defined' }, false, 500));
       await expect(execute(browser, '() => foo')).rejects.toThrow('ReferenceError: foo is not defined');
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry an enriched WebKit exception (real detail after the code)', async () => {
+      // describe_ns_error appends the real message/location after "(code N)", so this is a
+      // deterministic exception, not the opaque cold-webview one — it must fail immediately.
+      vi.stubGlobal(
+        'fetch',
+        mockFetch(
+          { error: 'A JavaScript exception occurred. (code 4): ReferenceError: foo is not defined @ 5:10' },
+          false,
+          500,
+        ),
+      );
+      await expect(execute(browser, '() => foo')).rejects.toThrow(/ReferenceError: foo is not defined/);
       expect(fetch).toHaveBeenCalledTimes(1);
     });
   });

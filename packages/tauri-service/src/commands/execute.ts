@@ -109,7 +109,14 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
       } catch (error) {
         lastError = error;
         const message = error instanceof Error ? error.message : String(error);
-        if (attempt >= maxAttempts || !/javascript exception occurred/i.test(message)) {
+        // Only the *opaque* cold-webview error is retriable — the bare
+        // "A JavaScript exception occurred. (code N)" with no detail. describe_ns_error
+        // (macos.rs) enriches a genuine WKWebView exception with the real message/location
+        // after the code (": …" / " @ line:col"), so an enriched message is a deterministic
+        // error and must fail immediately rather than retry the full budget.
+        const isOpaqueColdWebviewError =
+          /javascript exception occurred/i.test(message) && !/\(code \d+\)\s*[:@]/.test(message);
+        if (attempt >= maxAttempts || !isOpaqueColdWebviewError) {
           throw error;
         }
         log.warn(
