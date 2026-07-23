@@ -322,52 +322,6 @@ jobs:
             core.setOutput('crabnebula', `test:e2e:tauri-basic-crabnebula${suffix}`);
 
       # ══════════════════════════════════════════════════════════════
-      # PIN WEBVIEW2 FIXED RUNTIME (official + crabnebula only) — Windows
-      # ══════════════════════════════════════════════════════════════
-      #
-      # WebView2 Runtime 150 added a security hardening: an *elevated* host
-      # process (GitHub Windows runners run as admin) no longer honors the
-      # --remote-debugging-port supplied via command line / HKCU / WEBVIEW2_*
-      # env vars — only HKLM policy and args passed via the WebView2 API survive.
-      # The official (tauri-driver → msedgedriver) and crabnebula CDP drivers
-      # reach the webview through that debug port, so on Evergreen ≥150 their
-      # session creation times out. See MicrosoftEdge/WebView2Feedback#5645.
-      #
-      # A fixed-version runtime that predates the hardening restores the port.
-      # We point ONLY the two CDP providers at it via WEBVIEW2_BROWSER_EXECUTABLE_FOLDER;
-      # the embedded provider drives the webview in-process (ICoreWebView2::ExecuteScript,
-      # no debug port) so it is immune and intentionally stays on Evergreen to keep
-      # proving that.
-      #
-      # STOPGAP: fixed-version CABs are published only for the latest + second-latest
-      # major, so the 149 link dies once Edge 151 ships (and by then 150/151 both carry
-      # the hardening, so no pin can help). Durable fix = upstream tauri-driver passing
-      # the debug arg via the WebView2 API. Bump/retire this step at Edge 151 GA.
-      - name: 📌 Pin WebView2 fixed runtime 149 (official + crabnebula)
-        if: runner.os == 'Windows'
-        shell: pwsh
-        run: |
-          # Fixed-version 149.0.4022.98 x64 CAB from the WebView2 "Fixed Version"
-          # download page (https://developer.microsoft.com/microsoft-edge/webview2/).
-          # If blank — e.g. once the link is retired at Edge 151 GA — the step skips
-          # so the embedded provider (which does not need it) still runs.
-          $url = 'https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/2943b6d1-31d1-42c5-8cfa-c2c31485974d/Microsoft.WebView2.FixedVersionRuntime.149.0.4022.98.x64.cab'
-          if ([string]::IsNullOrWhiteSpace($url)) {
-            Write-Warning "WebView2 fixed-runtime URL not set — official/crabnebula will run against Evergreen (expected to fail on Edge >=150). See WebView2Feedback#5645."
-            exit 0
-          }
-          $cab = "$env:RUNNER_TEMP\wv2.cab"
-          $dest = "$env:RUNNER_TEMP\wv2-fixed"
-          Invoke-WebRequest -Uri $url -OutFile $cab
-          New-Item -ItemType Directory -Force -Path $dest | Out-Null
-          expand $cab -F:* $dest | Out-Null
-          # The CAB unpacks to a versioned subfolder containing msedgewebview2.exe.
-          $runtime = (Get-ChildItem $dest -Recurse -Filter msedgewebview2.exe | Select-Object -First 1).DirectoryName
-          if (-not $runtime) { throw "msedgewebview2.exe not found under $dest after expanding the fixed-version CAB" }
-          "WEBVIEW2_FIXED_RUNTIME_DIR=$runtime" | Out-File -FilePath $env:GITHUB_ENV -Append
-          Write-Host "Pinned WebView2 fixed runtime: $runtime"
-
-      # ══════════════════════════════════════════════════════════════
       # PROVIDER 1: OFFICIAL (tauri-driver) — skipped on macOS
       # ══════════════════════════════════════════════════════════════
 
@@ -393,9 +347,6 @@ jobs:
           RUST_BACKTRACE: '1'
           NO_AT_BRIDGE: '1'
           DRIVER_PROVIDER: 'official'
-          # Route this CDP driver at the pinned fixed runtime (see the pin step above).
-          # Empty on non-Windows / when unpinned → a harmless no-op the loader ignores.
-          WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: ${{ env.WEBVIEW2_FIXED_RUNTIME_DIR }}
         run: |
           if ($env:RUNNER_OS -eq "Linux") {
             xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" `
@@ -499,9 +450,6 @@ jobs:
           NO_AT_BRIDGE: '1'
           DRIVER_PROVIDER: 'crabnebula'
           CN_API_KEY: ${{ secrets.CN_API_KEY }}
-          # Route this CDP driver at the pinned fixed runtime (see the pin step above).
-          # Empty on non-Windows / when unpinned → a harmless no-op the loader ignores.
-          WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: ${{ env.WEBVIEW2_FIXED_RUNTIME_DIR }}
         run: |
           if ($env:RUNNER_OS -eq "Linux") {
             xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" `
@@ -585,12 +533,16 @@ jobs:
           failed=false
 
           check_result() {
-            local provider="$1" outcome="$2"
+            local provider="$1" outcome="$2" allow_fail="${3:-false}"
             case "$outcome" in
               success|skipped|"") ;;
               failure)
-                echo "::error::$provider provider tests failed"
-                failed=true ;;
+                if [ "$allow_fail" = "true" ]; then
+                  echo "::warning::$provider provider tests failed (allowed on Windows — WebView2 150 elevated-host regression; see tauri-apps/wry#1782 and MicrosoftEdge/WebView2Feedback#5645)"
+                else
+                  echo "::error::$provider provider tests failed"
+                  failed=true
+                fi ;;
               cancelled)
                 echo "::error::$provider provider tests were cancelled"
                 failed=true ;;
@@ -600,9 +552,19 @@ jobs:
             esac
           }
 
-          check_result "Official" "$official"
+          # WebView2 Runtime 150 stopped honoring the CDP --remote-debugging-port for
+          # elevated hosts (GitHub runners run as admin), which breaks the msedgedriver-
+          # based official + crabnebula providers on Windows only. Allow those to fail
+          # here until the upstream fix lands; embedded (in-process, immune) stays
+          # required and is our Windows signal. See tauri-apps/wry#1782.
+          allow_cdp_fail=false
+          if [ "$RUNNER_OS" = "Windows" ]; then
+            allow_cdp_fail=true
+          fi
+
+          check_result "Official" "$official" "$allow_cdp_fail"
           check_result "Embedded" "$embedded"
-          check_result "CrabNebula" "$crabnebula"
+          check_result "CrabNebula" "$crabnebula" "$allow_cdp_fail"
 
           if [ "$failed" = "true" ]; then
             exit 1
