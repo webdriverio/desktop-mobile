@@ -556,17 +556,17 @@ jobs:
           # providers; embedded (in-process, immune) stays required and is our signal.
           #  - Windows: WebView2 Runtime 150 dropped the CDP --remote-debugging-port for
           #    elevated hosts (runners run as admin), breaking the msedgedriver-based
-          #    official + crabnebula providers. See tauri-apps/wry#1782.
+          #    official + crabnebula providers. See https://github.com/tauri-apps/wry/issues/1782.
           #  - macOS: the macos-26 image (26.4) broke the closed-source CrabNebula
           #    driver's session setup. See #540.
           allow_official=false; official_reason=""
           allow_crabnebula=false; crabnebula_reason=""
           case "$RUNNER_OS" in
             Windows)
-              allow_official=true;   official_reason="WebView2 150 elevated-host regression; see tauri-apps/wry#1782"
-              allow_crabnebula=true; crabnebula_reason="WebView2 150 elevated-host regression; see tauri-apps/wry#1782" ;;
+              allow_official=true;   official_reason="WebView2 150 elevated-host regression; see https://github.com/tauri-apps/wry/issues/1782"
+              allow_crabnebula=true; crabnebula_reason="WebView2 150 elevated-host regression; see https://github.com/tauri-apps/wry/issues/1782" ;;
             macOS)
-              allow_crabnebula=true; crabnebula_reason="macos-26 image (26.4) broke the CrabNebula driver; see #540" ;;
+              allow_crabnebula=true; crabnebula_reason="macos-26 image (26.4) broke the CrabNebula driver; see https://github.com/webdriverio/desktop-mobile/issues/540" ;;
           esac
 
           check_result "Official" "$official" "$allow_official" "$official_reason"

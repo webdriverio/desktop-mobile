@@ -249,7 +249,7 @@ jobs:
         # WebView2 Runtime 150 dropped the CDP --remote-debugging-port for elevated
         # hosts (Windows runners run as admin), breaking the msedgedriver-based Tauri
         # package test — the same regression as the E2E official provider. Allow it to
-        # fail on Windows only until the upstream fix lands. See tauri-apps/wry#1782.
+        # fail on Windows only until the upstream fix lands. See https://github.com/tauri-apps/wry/issues/1782.
         continue-on-error: ${{ inputs.service == 'tauri' && runner.os == 'Windows' }}
         shell: bash
         env:
@@ -317,7 +317,7 @@ jobs:
       - name: ⚠️ Note allowed Tauri Windows failure
         if: always() && inputs.service == 'tauri' && runner.os == 'Windows' && steps.package-tests.outcome == 'failure'
         shell: bash
-        run: echo "::warning::Tauri Windows package test failed — allowed (WebView2 150 elevated-host regression; see tauri-apps/wry#1782)"
+        run: echo "::warning::Tauri Windows package test failed — allowed (WebView2 150 elevated-host regression; see https://github.com/tauri-apps/wry/issues/1782)"
 
       # Upload logs as artifacts for later analysis (same as E2E tests)
       # This helps debug issues without cluttering the GitHub Actions console
