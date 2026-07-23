@@ -91,9 +91,41 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     const port = getDirectEvalPort();
     const client = getOrCreateDirectEvalClient(browser, port);
     const wrapped = wrapScriptForDirectEval(scriptString, JSON.stringify(userArgs));
-    return (await client.eval(wrapped, {
-      windowLabel: executeOptions.windowLabel,
-    })) as ReturnValue;
+
+    // On macOS the first direct eval against a freshly-spawned WKWebView can return the
+    // opaque WKErrorJavaScriptExceptionOccurred ("A JavaScript exception occurred") before
+    // the page's main world is fully ready. This shows up in standalone mode, where the
+    // first tauri.execute runs seconds after launch — the test-runner path never hits it
+    // because before() warms the webview first. A real script error surfaces its own
+    // message through the wrapper's try/catch, so retrying only this opaque WebKit error
+    // is safe. Tracking: webdriverio/desktop-mobile#540.
+    const maxAttempts = 4;
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        return (await client.eval(wrapped, {
+          windowLabel: executeOptions.windowLabel,
+        })) as ReturnValue;
+      } catch (error) {
+        lastError = error;
+        const message = error instanceof Error ? error.message : String(error);
+        // Only the *opaque* cold-webview error is retriable — the bare
+        // "A JavaScript exception occurred. (code N)" with no detail. describe_ns_error
+        // (macos.rs) enriches a genuine WKWebView exception with the real message/location
+        // after the code (": …" / " @ line:col"), so an enriched message is a deterministic
+        // error and must fail immediately rather than retry the full budget.
+        const isOpaqueColdWebviewError =
+          /javascript exception occurred/i.test(message) && !/\(code \d+\)\s*[:@]/.test(message);
+        if (attempt >= maxAttempts || !isOpaqueColdWebviewError) {
+          throw error;
+        }
+        log.warn(
+          `Direct eval returned an opaque WebKit JS exception (attempt ${attempt}/${maxAttempts}); retrying: ${message}`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, 250 * attempt));
+      }
+    }
+    throw lastError;
   }
 
   // Non-embedded path: use IPC via browser.execute (official/crabnebula providers)

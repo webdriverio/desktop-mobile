@@ -119,6 +119,78 @@ describe('execute — embedded provider (direct eval)', () => {
     });
   });
 
+  // Regression: on macOS the first direct eval against a freshly-spawned WKWebView can
+  // return the opaque WKErrorJavaScriptExceptionOccurred before the page is ready (#540).
+  describe('macOS cold-webview retry (#540)', () => {
+    function evalErrorThenValue(failures: number, value: unknown): ReturnType<typeof vi.fn> {
+      let call = 0;
+      return vi.fn().mockImplementation(() => {
+        call++;
+        const failing = call <= failures;
+        return Promise.resolve({
+          ok: !failing,
+          status: failing ? 500 : 200,
+          statusText: failing ? 'Internal Server Error' : 'OK',
+          json: vi.fn().mockResolvedValue(failing ? { error: 'A JavaScript exception occurred. (code 4)' } : { value }),
+        });
+      });
+    }
+
+    it('retries the opaque WebKit JS exception and succeeds once the webview is ready', async () => {
+      vi.useFakeTimers();
+      const fetchMock = evalErrorThenValue(2, 7);
+      vi.stubGlobal('fetch', fetchMock);
+
+      const promise = execute<number>(browser, '() => 7');
+      for (let i = 0; i < 5; i++) {
+        await vi.advanceTimersByTimeAsync(1000);
+      }
+      const result = await promise;
+
+      expect(result).toBe(7);
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      vi.useRealTimers();
+    });
+
+    it('gives up after the retry budget and rethrows the WebKit JS exception', async () => {
+      vi.useFakeTimers();
+      const fetchMock = evalErrorThenValue(Number.POSITIVE_INFINITY, undefined);
+      vi.stubGlobal('fetch', fetchMock);
+
+      const promise = execute(browser, '() => 1').catch((e: Error) => e);
+      for (let i = 0; i < 5; i++) {
+        await vi.advanceTimersByTimeAsync(1000);
+      }
+      const result = await promise;
+
+      expect(result).toBeInstanceOf(Error);
+      expect((result as Error).message).toMatch(/javascript exception occurred/i);
+      expect(fetchMock).toHaveBeenCalledTimes(4);
+      vi.useRealTimers();
+    });
+
+    it('does not retry a genuine script error', async () => {
+      vi.stubGlobal('fetch', mockFetch({ error: 'ReferenceError: foo is not defined' }, false, 500));
+      await expect(execute(browser, '() => foo')).rejects.toThrow('ReferenceError: foo is not defined');
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+
+    it('does not retry an enriched WebKit exception (real detail after the code)', async () => {
+      // describe_ns_error appends the real message/location after "(code N)", so this is a
+      // deterministic exception, not the opaque cold-webview one — it must fail immediately.
+      vi.stubGlobal(
+        'fetch',
+        mockFetch(
+          { error: 'A JavaScript exception occurred. (code 4): ReferenceError: foo is not defined @ 5:10' },
+          false,
+          500,
+        ),
+      );
+      await expect(execute(browser, '() => foo')).rejects.toThrow(/ReferenceError: foo is not defined/);
+      expect(fetch).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('window label routing', () => {
     it('should send window_label when per-call option is provided', async () => {
       const mockFn = mockFetch({ value: 1 });

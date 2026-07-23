@@ -106,8 +106,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
             let block = RcBlock::new(move |result: *mut AnyObject, error: *mut NSError| {
                 let response = if !error.is_null() {
                     let error_ref = &*error;
-                    let description = error_ref.localizedDescription();
-                    Err(description.to_string())
+                    Err(describe_ns_error(error_ref))
                 } else if result.is_null() {
                     Ok(Value::Null)
                 } else {
@@ -214,8 +213,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
             let block = RcBlock::new(move |result: *mut AnyObject, error: *mut NSError| {
                 let response = if !error.is_null() {
                     let error_ref = &*error;
-                    let description = error_ref.localizedDescription();
-                    Err(description.to_string())
+                    Err(describe_ns_error(error_ref))
                 } else if result.is_null() {
                     Ok(Value::Null)
                 } else {
@@ -271,8 +269,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
             let block = RcBlock::new(move |image: *mut NSImage, error: *mut NSError| {
                 let response = if !error.is_null() {
                     let error_ref = &*error;
-                    let description = error_ref.localizedDescription();
-                    Err(description.to_string())
+                    Err(describe_ns_error(error_ref))
                 } else if image.is_null() {
                     Err("No image returned".to_string())
                 } else {
@@ -386,8 +383,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
             let block = RcBlock::new(move |data: *mut NSData, error: *mut NSError| {
                 let response = if !error.is_null() {
                     let error_ref = &*error;
-                    let description = error_ref.localizedDescription();
-                    Err(description.to_string())
+                    Err(describe_ns_error(error_ref))
                 } else if data.is_null() {
                     Err("No PDF data returned".to_string())
                 } else {
@@ -454,6 +450,49 @@ unsafe fn image_to_png_base64(image: &NSImage) -> Result<String, String> {
 
     let bytes = png_data.to_vec();
     Ok(BASE64_STANDARD.encode(&bytes))
+}
+
+/// Build a diagnostic string for an `NSError` returned by a `WKWebView` completion handler.
+///
+/// `localizedDescription` for a script failure is frequently the opaque
+/// "A JavaScript exception occurred." with no detail. WebKit stashes the real
+/// exception text (and source location) in `userInfo` under the `WKJavaScriptException*`
+/// keys, so surface those when present. Without this, a script failure on the embedded
+/// executor is undiagnosable from the WDIO side (all we get back is the opaque string).
+unsafe fn describe_ns_error(error: &NSError) -> String {
+    let mut out = format!(
+        "{} (code {})",
+        error.localizedDescription().to_string(),
+        error.code()
+    );
+
+    let user_info = error.userInfo();
+    let get = |key: &str| -> Option<String> {
+        let ns_key = NSString::from_str(key);
+        // v is Retained<AnyObject>; ns_object_to_json takes &AnyObject. The explicit
+        // unsafe block is required because a closure body does not inherit the enclosing
+        // unsafe fn's context.
+        user_info
+            .objectForKey(&ns_key)
+            .and_then(|v| match unsafe { ns_object_to_json(&v) } {
+                Value::String(s) if !s.is_empty() => Some(s),
+                Value::Number(n) => Some(n.to_string()),
+                _ => None,
+            })
+    };
+
+    if let Some(message) = get("WKJavaScriptExceptionMessage") {
+        out.push_str(": ");
+        out.push_str(&message);
+    }
+    if let (Some(line), Some(column)) = (
+        get("WKJavaScriptExceptionLineNumber"),
+        get("WKJavaScriptExceptionColumnNumber"),
+    ) {
+        out.push_str(&format!(" @ {line}:{column}"));
+    }
+
+    out
 }
 
 /// Convert an `NSObject` to a JSON value
