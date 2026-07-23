@@ -347,11 +347,11 @@ jobs:
         if: runner.os == 'Windows'
         shell: pwsh
         run: |
-          # Fixed-version 149 x64 CAB from the WebView2 "Fixed Version" download page
-          # (https://developer.microsoft.com/microsoft-edge/webview2/ → Fixed Version).
-          # Left blank until the URL is filled in; when blank we skip the pin so the
-          # embedded provider (which does not need it) still runs.
-          $url = ''
+          # Fixed-version 149.0.4022.98 x64 CAB from the WebView2 "Fixed Version"
+          # download page (https://developer.microsoft.com/microsoft-edge/webview2/).
+          # If blank — e.g. once the link is retired at Edge 151 GA — the step skips
+          # so the embedded provider (which does not need it) still runs.
+          $url = 'https://msedge.sf.dl.delivery.mp.microsoft.com/filestreamingservice/files/2943b6d1-31d1-42c5-8cfa-c2c31485974d/Microsoft.WebView2.FixedVersionRuntime.149.0.4022.98.x64.cab'
           if ([string]::IsNullOrWhiteSpace($url)) {
             Write-Warning "WebView2 fixed-runtime URL not set — official/crabnebula will run against Evergreen (expected to fail on Edge >=150). See WebView2Feedback#5645."
             exit 0
