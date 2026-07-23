@@ -85,8 +85,8 @@ describe('Builder App Example', () => {
     expect(result).not.toBeNull();
     expect(result?.width).toBe(900);
     if (process.platform === 'darwin') {
-      // Allow minor variance on macOS due to frame metrics and work area fitting
-      expect(result.height).toBeGreaterThanOrEqual(680);
+      // Band accommodates macOS runner work-area fit (window fits to a shrinking work area) — see #543
+      expect(result.height).toBeGreaterThanOrEqual(660);
       expect(result.height).toBeLessThanOrEqual(720);
     } else {
       expect(result?.height).toBe(700);

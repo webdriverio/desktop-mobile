@@ -85,7 +85,8 @@ describe('Forge App Example', () => {
     expect(windowSize).not.toBeNull();
     expect(windowSize?.width).toBe(900);
     if (process.platform === 'darwin') {
-      expect(windowSize?.height ?? 0).toBeGreaterThanOrEqual(680);
+      // Band accommodates macOS runner work-area fit (window fits to a shrinking work area) — see #543
+      expect(windowSize?.height ?? 0).toBeGreaterThanOrEqual(660);
       expect(windowSize?.height ?? 0).toBeLessThanOrEqual(720);
     } else {
       expect(windowSize?.height).toBe(700);
