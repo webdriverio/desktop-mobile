@@ -247,10 +247,11 @@ jobs:
       - name: 🧪 Execute Package Tests
         id: package-tests
         # WebView2 Runtime 150 dropped the CDP --remote-debugging-port for elevated
-        # hosts (Windows runners run as admin), breaking the msedgedriver-based Tauri
-        # package test — the same regression as the E2E official provider. Allow it to
-        # fail on Windows only until the upstream fix lands. See https://github.com/tauri-apps/wry/issues/1782.
-        continue-on-error: ${{ inputs.service == 'tauri' && runner.os == 'Windows' }}
+        # hosts (Windows runners run as admin), breaking the WebView2/CDP-driven Tauri
+        # and Electrobun package tests on Windows (session creation times out). Allow
+        # those two on Windows only until the fixes land; every other service/OS stays
+        # required. See https://github.com/webdriverio/desktop-mobile/issues/542
+        continue-on-error: ${{ (inputs.service == 'tauri' || inputs.service == 'electrobun') && runner.os == 'Windows' }}
         shell: bash
         env:
           # Enable Rust backtraces for debugging Tauri/GTK issues
@@ -314,10 +315,10 @@ jobs:
               ;;
           esac
 
-      - name: ⚠️ Note allowed Tauri Windows failure
-        if: always() && inputs.service == 'tauri' && runner.os == 'Windows' && steps.package-tests.outcome == 'failure'
+      - name: ⚠️ Note allowed WebView2-150 Windows failure
+        if: always() && (inputs.service == 'tauri' || inputs.service == 'electrobun') && runner.os == 'Windows' && steps.package-tests.outcome == 'failure'
         shell: bash
-        run: echo "::warning::Tauri Windows package test failed — allowed (WebView2 150 elevated-host regression; see https://github.com/tauri-apps/wry/issues/1782)"
+        run: echo "::warning::${{ inputs.service }} Windows package test failed — allowed (WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542)"
 
       # Upload logs as artifacts for later analysis (same as E2E tests)
       # This helps debug issues without cluttering the GitHub Actions console
