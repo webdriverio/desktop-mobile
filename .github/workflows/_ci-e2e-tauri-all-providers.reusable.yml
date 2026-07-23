@@ -558,7 +558,7 @@ jobs:
           #    elevated hosts (runners run as admin), breaking the msedgedriver-based
           #    official + crabnebula providers. See https://github.com/tauri-apps/wry/issues/1782.
           #  - macOS: the macos-26 image (26.4) broke the closed-source CrabNebula
-          #    driver's session setup. See #540.
+          #    driver's session setup. See https://github.com/webdriverio/desktop-mobile/issues/540.
           allow_official=false; official_reason=""
           allow_crabnebula=false; crabnebula_reason=""
           case "$RUNNER_OS" in
