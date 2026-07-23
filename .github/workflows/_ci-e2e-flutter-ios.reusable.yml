@@ -40,7 +40,6 @@ env:
   TURBO_TELEMETRY_DISABLED: 1
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
-  FLUTTER_WDA_DD: ${{ github.workspace }}/wda_dd
   FLUTTER_APP_DIR: ${{ github.workspace }}/flutter-ios-app
 
 jobs:
@@ -165,41 +164,14 @@ jobs:
           installed=$(pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 || true)
           echo "$installed" | grep -qi xcuitest || pnpm --filter @repo/e2e exec appium driver install xcuitest
 
-      # WDA DerivedData cache keyed on e2e/package.json (driver pins) + the runner image version.
-      - name: 💾 Restore WDA DerivedData cache
-        id: wda-cache
-        uses: actions/cache@v6
-        with:
-          path: ${{ env.FLUTTER_WDA_DD }}
-          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v2
-
-      # Pre-build WebDriverAgent deterministically (no appium session, so no socket fragility).
-      # The run consumes it via appium:usePreinstalledWDA + prebuiltWDAPath (simctl install/launch,
-      # no in-session xcodebuild), skipping the multi-minute compile on the first session (which
-      # under WDIO's undici client dropped the POST /session socket on the RN leg).
-      - name: 🏎️ Pre-build WebDriverAgent
-        if: steps.wda-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          WDA_PROJ=$(find node_modules/.pnpm -maxdepth 6 -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -type d 2>/dev/null | head -1)
-          test -n "$WDA_PROJ" || { echo "::error::WebDriverAgent.xcodeproj not found under node_modules"; exit 1; }
-          xcodebuild build-for-testing \
-            -project "$WDA_PROJ" \
-            -scheme WebDriverAgentRunner \
-            -derivedDataPath "$FLUTTER_WDA_DD" \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO GCC_TREAT_WARNINGS_AS_ERRORS=0 2>&1 | (xcbeautify || cat)
-          test -d "$FLUTTER_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app" \
-            || { echo "::error::prebuilt WDA runner not found"; exit 1; }
-
+      # WDA is built in-session by appium-xcuitest (which appium-flutter-driver wraps). The prebuilt-WDA
+      # optimisation (appium:usePreinstalledWDA + a pre-built Runner.app) deterministically walls at
+      # :8100 on the iOS-26 / Xcode-26 runner — the preinstalled WDA launches but its server never
+      # comes up (appium/WebDriverAgent#1147 class). The in-session build works; the wdio config falls
+      # back to it (longer wda/connection timeouts) when FLUTTER_WDA_DD is unset — which it now always
+      # is. Re-introduce the pre-build + usePreinstalledWDA once the upstream path is fixed. See #548.
       - name: 🧪 Run E2E on iOS simulator
         shell: bash
-        # SPIKE (#421): blank FLUTTER_WDA_DD so the wdio config takes the in-session WDA build path
-        # (usePreinstalledWDA off + longer timeouts) — tests whether an in-session WDA build works
-        # on iOS 26, where the preinstalled-WDA path deterministically walls at :8100.
-        env:
-          FLUTTER_WDA_DD: ''
         run: |
           set -euo pipefail
           # FLUTTER_IOS_DEVICE / FLUTTER_IOS_UDID are inherited from the boot step via $GITHUB_ENV.
@@ -208,8 +180,8 @@ jobs:
           # if either failed. The smoke validates the PACKED tarball — its signal must survive an
           # (occasionally flaky) e2e failure. It stays second so it runs on a sim the suite warmed.
           e2e_rc=0; pnpm --filter @repo/e2e run test:e2e:flutter:ios || e2e_rc=$?
-          # Packed @wdio/flutter-service against THIS booted sim, reusing the prebuilt WDA
-          # (FLUTTER_WDA_DD, read by the fixture config).
+          # Packed @wdio/flutter-service against THIS booted sim; WDA is built in-session (like the
+          # suite above — usePreinstalledWDA is off, see #548).
           smoke_rc=0
           FLUTTER_PLATFORM=ios FLUTTER_DEVICE_NAME="$FLUTTER_IOS_DEVICE" pnpm test:package:flutter || smoke_rc=$?
           if [ "$e2e_rc" != 0 ] || [ "$smoke_rc" != 0 ]; then exit 1; fi
