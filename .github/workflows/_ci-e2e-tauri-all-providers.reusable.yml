@@ -533,12 +533,12 @@ jobs:
           failed=false
 
           check_result() {
-            local provider="$1" outcome="$2" allow_fail="${3:-false}"
+            local provider="$1" outcome="$2" allow_fail="${3:-false}" reason="${4:-}"
             case "$outcome" in
               success|skipped|"") ;;
               failure)
                 if [ "$allow_fail" = "true" ]; then
-                  echo "::warning::$provider provider tests failed (allowed on Windows — WebView2 150 elevated-host regression; see tauri-apps/wry#1782 and MicrosoftEdge/WebView2Feedback#5645)"
+                  echo "::warning::$provider provider tests failed (allowed on $RUNNER_OS — $reason)"
                 else
                   echo "::error::$provider provider tests failed"
                   failed=true
@@ -552,19 +552,26 @@ jobs:
             esac
           }
 
-          # WebView2 Runtime 150 stopped honoring the CDP --remote-debugging-port for
-          # elevated hosts (GitHub runners run as admin), which breaks the msedgedriver-
-          # based official + crabnebula providers on Windows only. Allow those to fail
-          # here until the upstream fix lands; embedded (in-process, immune) stays
-          # required and is our Windows signal. See tauri-apps/wry#1782.
-          allow_cdp_fail=false
-          if [ "$RUNNER_OS" = "Windows" ]; then
-            allow_cdp_fail=true
-          fi
+          # Known upstream/environmental breakages of the third-party CDP/WebDriver
+          # providers; embedded (in-process, immune) stays required and is our signal.
+          #  - Windows: WebView2 Runtime 150 dropped the CDP --remote-debugging-port for
+          #    elevated hosts (runners run as admin), breaking the msedgedriver-based
+          #    official + crabnebula providers. See tauri-apps/wry#1782.
+          #  - macOS: the macos-26 image (26.4) broke the closed-source CrabNebula
+          #    driver's session setup. See #540.
+          allow_official=false; official_reason=""
+          allow_crabnebula=false; crabnebula_reason=""
+          case "$RUNNER_OS" in
+            Windows)
+              allow_official=true;   official_reason="WebView2 150 elevated-host regression; see tauri-apps/wry#1782"
+              allow_crabnebula=true; crabnebula_reason="WebView2 150 elevated-host regression; see tauri-apps/wry#1782" ;;
+            macOS)
+              allow_crabnebula=true; crabnebula_reason="macos-26 image (26.4) broke the CrabNebula driver; see #540" ;;
+          esac
 
-          check_result "Official" "$official" "$allow_cdp_fail"
+          check_result "Official" "$official" "$allow_official" "$official_reason"
           check_result "Embedded" "$embedded"
-          check_result "CrabNebula" "$crabnebula" "$allow_cdp_fail"
+          check_result "CrabNebula" "$crabnebula" "$allow_crabnebula" "$crabnebula_reason"
 
           if [ "$failed" = "true" ]; then
             exit 1
