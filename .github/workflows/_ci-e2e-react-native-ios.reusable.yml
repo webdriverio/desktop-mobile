@@ -206,6 +206,8 @@ jobs:
       # image version. ImageVersion is set automatically on GitHub-hosted macOS runners and
       # encodes the Xcode major — a stale DerivedData compiled against a previous SDK causes
       # cryptic E2E failures rather than a clean miss-and-rebuild.
+      # Key also hashes pnpm-lock.yaml — the WDA/xcuitest versions resolve through the lockfile
+      # (incl. transitive copies), so a lockfile-only bump must bust the cache too.
       # -v3: the pre-build now selects the WDA matching the loaded driver (was building a stale
       # transitive copy); bump forces a rebuild so a v2 entry holding the wrong WDA isn't reused.
       - name: 💾 Restore WDA DerivedData cache
@@ -213,7 +215,7 @@ jobs:
         uses: actions/cache@v6
         with:
           path: ${{ env.RN_WDA_DD }}
-          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v3
+          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json', 'pnpm-lock.yaml') }}-v3
 
       # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
       # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (several
