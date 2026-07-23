@@ -167,7 +167,7 @@ jobs:
       # WDA is built in-session by appium-xcuitest (which appium-flutter-driver wraps). The prebuilt-WDA
       # optimisation (appium:usePreinstalledWDA + a pre-built Runner.app) deterministically walls at
       # :8100 on the iOS-26 / Xcode-26 runner — the preinstalled WDA launches but its server never
-      # comes up (appium/WebDriverAgent#1147 class). The in-session build works; the wdio config falls
+      # comes up (appium/WebDriverAgent#1177; #1147 is the real-device variant). The in-session build works; the wdio config falls
       # back to it (longer wda/connection timeouts) when FLUTTER_WDA_DD is unset — which it now always
       # is. Re-introduce the pre-build + usePreinstalledWDA once the upstream path is fixed. See #548.
       - name: 🧪 Run E2E on iOS simulator
