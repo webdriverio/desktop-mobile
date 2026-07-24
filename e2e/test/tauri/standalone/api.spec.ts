@@ -5,7 +5,7 @@ import url from 'node:url';
 import { cleanupWdioSession, createTauriCapabilities, startWdioSession } from '@wdio/tauri-service';
 import '@wdio/native-types';
 import { xvfb } from '@wdio/xvfb';
-import { resolveTauriFixtureBinary } from '../../../lib/utils.js';
+import { getLogDirName, resolveTauriFixtureBinary } from '../../../lib/utils.js';
 
 // Get the directory name once at the top
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
@@ -32,6 +32,24 @@ const sessionOptions = createTauriCapabilities(appBinaryPath, {
   driverProvider,
   autoInstallTauriDriver: true,
 });
+
+// #540: capture the app's backend/frontend logs so an intermittent macOS-26.4 embedded hang (the
+// app wedges mid-execute and its WebDriver server stops responding) leaves evidence in the uploaded
+// artifacts. Writes under e2e/logs/, which the CI "Upload Test Logs" step collects.
+const logDir = path.join(
+  __dirname,
+  '..',
+  '..',
+  '..',
+  'logs',
+  getLogDirName('standalone', path.basename(appDir), driverProvider),
+);
+if (sessionOptions['wdio:tauriServiceOptions']) {
+  sessionOptions['wdio:tauriServiceOptions'].captureBackendLogs = true;
+  sessionOptions['wdio:tauriServiceOptions'].captureFrontendLogs = true;
+  sessionOptions['wdio:tauriServiceOptions'].backendLogLevel = 'info';
+  sessionOptions['wdio:tauriServiceOptions'].logDir = logDir;
+}
 
 // Initialize xvfb if running on Linux
 if (process.platform === 'linux') {
