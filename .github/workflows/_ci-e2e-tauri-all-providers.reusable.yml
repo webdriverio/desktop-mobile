@@ -430,7 +430,9 @@ jobs:
         shell: bash
         run: |
           # Stop the sampler and gather any crash/hang reports for the app (#540).
-          [ -f /tmp/tauri-hang-sampler.pid ] && kill "$(cat /tmp/tauri-hang-sampler.pid)" 2>/dev/null || true
+          if [ -f /tmp/tauri-hang-sampler.pid ]; then
+            kill "$(cat /tmp/tauri-hang-sampler.pid)" 2>/dev/null || true
+          fi
           mkdir -p "$GITHUB_WORKSPACE/e2e/logs/diag"
           shopt -s nullglob
           for f in "$HOME"/Library/Logs/DiagnosticReports/tauri-e2e-app*; do
