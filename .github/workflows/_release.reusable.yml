@@ -247,7 +247,7 @@ jobs:
       - name: Run ReleaseKit
         id: releasekit
         if: ${{ inputs.standing_pr_number == '' }}
-        uses: goosewobbler/releasekit@v0.39.0
+        uses: goosewobbler/releasekit@v0.41.2
         with:
           mode: release
           node-version: '24'
@@ -281,7 +281,7 @@ jobs:
       - name: Run ReleaseKit (standing PR publish)
         id: releasekit-standing
         if: ${{ inputs.standing_pr_number != '' }}
-        uses: goosewobbler/releasekit@v0.39.0
+        uses: goosewobbler/releasekit@v0.41.2
         with:
           mode: standing-pr-publish
           node-version: '24'
