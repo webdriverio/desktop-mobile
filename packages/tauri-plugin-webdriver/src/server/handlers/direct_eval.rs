@@ -61,7 +61,7 @@ pub async fn eval<R: Runtime + 'static>(
         }
     };
 
-    match executor.execute_async_script(&req.script, &[]).await {
+    match executor.execute_direct_eval(&req.script).await {
         Ok(result) => {
             match result.get("ok").and_then(|v| v.as_bool()) {
                 Some(true) => {

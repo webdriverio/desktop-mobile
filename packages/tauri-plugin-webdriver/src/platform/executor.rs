@@ -1041,6 +1041,15 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         args: &[Value],
     ) -> Result<Value, WebDriverErrorResponse>;
 
+    /// Execute a pre-wrapped async DirectEval script (the `/wdio/eval` channel).
+    ///
+    /// The script uses the W3C async-callback contract (`arguments[last]` is the done callback).
+    /// Defaults to `execute_async_script`; a platform may override to avoid a long-lived native
+    /// completion handler (see the macOS executor).
+    async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
+        self.execute_async_script(script, &[]).await
+    }
+
     // =========================================================================
     // Screenshots
     // =========================================================================
