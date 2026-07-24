@@ -56,6 +56,22 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     let _ = webview.with_webview(move |webview| unsafe {
         let wk_webview: &WKWebView = &*webview.inner().cast();
 
+        // #540: on macOS 26.4 WebKit throttles/suspends the WebContent process of an *occluded* page,
+        // so in-webview evaluateJavaScript wedges on the headless CI runner — the app sends the
+        // RunJavaScriptInFrameInScriptWorld IPC and never gets a reply because the WebContent process
+        // is suspended. Disable window-occlusion detection so this webview's page is always treated as
+        // visible and its WebContent process keeps running. Private WKWebView SPI, so guard it with
+        // respondsToSelector (a no-op if a future WebKit drops it).
+        let occlusion_sel = objc2::sel!(_setWindowOcclusionDetectionEnabled:);
+        if wk_webview.respondsToSelector(occlusion_sel) {
+            let _: () = msg_send![wk_webview, _setWindowOcclusionDetectionEnabled: false];
+            tracing::info!("Disabled WKWebView window-occlusion detection to keep WebContent live (#540)");
+        } else {
+            tracing::warn!(
+                "_setWindowOcclusionDetectionEnabled: unavailable — occlusion throttling not disabled (#540)"
+            );
+        }
+
         let delegate = WebDriverUIDelegate::new(alert_state);
         let delegate_protocol: Retained<ProtocolObject<dyn WKUIDelegate>> =
             ProtocolObject::from_retained(delegate);
