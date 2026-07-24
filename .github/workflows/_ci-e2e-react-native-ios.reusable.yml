@@ -58,10 +58,6 @@ env:
   TURBO_TOKEN: ${{ secrets.TURBO_TOKEN }}
   TURBO_TEAM: ${{ secrets.TURBO_TEAM }}
   RN_BUILD_DIR: ${{ github.workspace }}/rn-build
-  # Explicit, shared DerivedData for the prebuilt WebDriverAgent: the pre-build step writes here and
-  # the run reads the Runner.app under it (appium:prebuiltWDAPath), so the cached WDA is reused, not
-  # rebuilt.
-  RN_WDA_DD: ${{ github.workspace }}/wda_dd
 
 jobs:
   run:
@@ -202,41 +198,12 @@ jobs:
             pnpm --filter @repo/e2e exec appium driver install xcuitest
           fi
 
-      # WDA DerivedData is keyed on e2e/package.json (xcuitest driver pin) AND the runner
-      # image version. ImageVersion is set automatically on GitHub-hosted macOS runners and
-      # encodes the Xcode major — a stale DerivedData compiled against a previous SDK causes
-      # cryptic E2E failures rather than a clean miss-and-rebuild.
-      - name: 💾 Restore WDA DerivedData cache
-        id: wda-cache
-        uses: actions/cache@v6
-        with:
-          path: ${{ env.RN_WDA_DD }}
-          key: wda-dd-${{ runner.os }}-${{ env.ImageVersion }}-${{ hashFiles('e2e/package.json') }}-v2
-
-      # Pre-build WebDriverAgent deterministically with a plain xcodebuild (no appium session, so no
-      # socket fragility — it runs to completion). appium-xcuitest otherwise compiles WDA (several
-      # minutes) on the first graded session, and under WDIO's undici client that long POST /session
-      # dropped the socket (UND_ERR_SOCKET) and failed the first spec. Building here, then launching
-      # the Runner.app via appium:usePreinstalledWDA + prebuiltWDAPath (simctl install/launch, no
-      # in-session xcodebuild), means the graded sessions skip the build and are fast.
-      - name: 🏎️ Pre-build WebDriverAgent
-        if: steps.wda-cache.outputs.cache-hit != 'true'
-        shell: bash
-        run: |
-          set -euo pipefail
-          WDA_PROJ=$(find node_modules/.pnpm -maxdepth 6 -path '*/appium-webdriveragent/WebDriverAgent.xcodeproj' -type d 2>/dev/null | head -1)
-          test -n "$WDA_PROJ" || { echo "::error::WebDriverAgent.xcodeproj not found under node_modules"; exit 1; }
-          echo "WDA project: $WDA_PROJ"
-          xcodebuild build-for-testing \
-            -project "$WDA_PROJ" \
-            -scheme WebDriverAgentRunner \
-            -derivedDataPath "$RN_WDA_DD" \
-            -destination 'generic/platform=iOS Simulator' \
-            CODE_SIGNING_ALLOWED=NO COMPILER_INDEX_STORE_ENABLE=NO GCC_TREAT_WARNINGS_AS_ERRORS=0 2>&1 | (xcbeautify || cat)
-          RUNNER_APP="$RN_WDA_DD/Build/Products/Debug-iphonesimulator/WebDriverAgentRunner-Runner.app"
-          test -d "$RUNNER_APP" || { echo "::error::prebuilt WDA runner not found at $RUNNER_APP"; find "$RN_WDA_DD/Build/Products" 2>/dev/null | head -40; exit 1; }
-          echo "✅ WDA prebuilt at $RUNNER_APP"
-
+      # WDA is built in-session by appium-xcuitest. The prebuilt-WDA optimisation
+      # (appium:usePreinstalledWDA + a pre-built Runner.app) deterministically walls at :8100 on the
+      # iOS-26 / Xcode-26 runner — the preinstalled WDA launches but its server never comes up
+      # (appium/WebDriverAgent#1177; #1147 is the real-device variant). The in-session build works; the wdio config falls back to
+      # it (with longer wda/connection timeouts) when RN_WDA_DD is unset — which it now always is.
+      # Re-introduce the pre-build + usePreinstalledWDA once the upstream path is fixed. See #548.
       - name: 🧪 Run E2E on iOS simulator
         shell: bash
         run: |
@@ -254,10 +221,10 @@ jobs:
           # (occasionally flaky) e2e failure. It stays second so it runs on a sim+Metro the suite warmed.
           e2e_rc=0; pnpm --filter @repo/e2e run test:e2e:react-native:ios || e2e_rc=$?
           # Validate the PACKED @wdio/react-native-service tarball against THIS booted simulator +
-          # Metro, reusing the prebuilt WDA. test-package.ts installs it into the isolated fixture,
-          # whose own devDeps provide appium + the xcuitest driver (Appium detects drivers from
-          # node_modules). The fixture config reads RN_IOS_UDID + RN_WDA_DD (already exported) to pin
-          # the sim and reuse the WDA. Gated to the new-arch leg so it runs once per service
+          # Metro. test-package.ts installs it into the isolated fixture, whose own devDeps provide
+          # appium + the xcuitest driver (Appium detects drivers from node_modules). The fixture
+          # config reads RN_IOS_UDID (already exported) to pin the sim; WDA is built in-session, like
+          # the suite above. Gated to the new-arch leg so it runs once per service
           # (packaging is arch-independent).
           smoke_rc=0
           if [ "${{ inputs.new-arch }}" = "true" ]; then
