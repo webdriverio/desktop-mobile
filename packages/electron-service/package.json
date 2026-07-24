@@ -59,9 +59,9 @@
     }
   },
   "dependencies": {
-    "@babel/parser": "^8.0.0",
+    "@babel/parser": "^8.0.4",
     "@electron/fuses": "^2.1.3",
-    "@electron/packager": "^20.0.1",
+    "@electron/packager": "^20.0.4",
     "@wdio/globals": "catalog:default",
     "@wdio/logger": "catalog:default",
     "@wdio/native-cdp-bridge": "workspace:*",
@@ -71,8 +71,8 @@
     "compare-versions": "^6.1.1",
     "debug": "^4.4.3",
     "deepmerge-ts": "^7.1.5",
-    "electron-to-chromium": "^1.5.384",
-    "fast-copy": "^4.0.2",
+    "electron-to-chromium": "^1.5.396",
+    "fast-copy": "^4.0.4",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
     "puppeteer-core": "^25.3.0",
