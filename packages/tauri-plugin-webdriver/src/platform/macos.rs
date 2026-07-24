@@ -253,6 +253,64 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
         }
     }
 
+    /// DirectEval (`/wdio/eval`) override that avoids a long-lived `callAsyncJavaScript`
+    /// completion handler. The macos-26 (26.4) WebKit reclaims that handler while the async
+    /// script is still pending ("Completion handler for function call is no longer reachable",
+    /// WKError code 4), which fails every async execute on the standalone DirectEval channel.
+    ///
+    /// Instead we drive the pre-wrapped script fire-and-forget — routing its done-callback
+    /// (`arguments[last]`) to a `window` global — then read the result back with short
+    /// synchronous evals, whose completion handlers fire immediately and are never held long
+    /// enough to be reclaimed.
+    async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
+        use std::sync::atomic::{AtomicU64, Ordering};
+
+        const FIRE: &str = r#"(function () {
+  var __k = "__KEY__";
+  try { delete window[__k]; } catch (e) {}
+  var __stash = function (r) {
+    try { window[__k] = (r === undefined ? { ok: true, value: null, undef: true } : r); } catch (e) {}
+  };
+  try {
+    (function () { __SCRIPT__ }).apply(null, [__stash]);
+  } catch (e) {
+    window[__k] = { ok: false, error: (e && e.message) || String(e) };
+  }
+})(); undefined;"#;
+
+        const POLL: &str = r#"(function () {
+  var __k = "__KEY__";
+  var r = window[__k];
+  if (r !== undefined && r !== null) { try { delete window[__k]; } catch (e) {} return r; }
+  return null;
+})()"#;
+
+        static COUNTER: AtomicU64 = AtomicU64::new(0);
+        let key = format!("__wdio_de_{}__", COUNTER.fetch_add(1, Ordering::Relaxed));
+
+        // Kick the async work; its done-callback stashes the result on window[key].
+        let fire = FIRE.replace("__KEY__", &key).replace("__SCRIPT__", script);
+        self.evaluate_js(&fire).await?;
+
+        // Read the result back with short synchronous evals until present or the script deadline.
+        let poll = POLL.replace("__KEY__", &key);
+        let poll_interval = std::time::Duration::from_millis(15);
+        let deadline =
+            std::time::Instant::now() + std::time::Duration::from_millis(self.timeouts.script_ms);
+        loop {
+            let res = self.evaluate_js(&poll).await?;
+            if let Some(value) = res.get("value") {
+                if !value.is_null() {
+                    return Ok(value.clone());
+                }
+            }
+            if std::time::Instant::now() >= deadline {
+                return Err(WebDriverErrorResponse::script_timeout());
+            }
+            tokio::time::sleep(poll_interval).await;
+        }
+    }
+
     // =========================================================================
     // Screenshots
     // =========================================================================
