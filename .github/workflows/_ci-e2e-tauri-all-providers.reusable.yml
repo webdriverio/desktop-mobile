@@ -388,26 +388,6 @@ jobs:
             pkill -9 -f tauri-e2e-app || true
           fi
 
-      # #540: the embedded standalone/deeplink legs intermittently wedge on the macos-26 image — the
-      # app hangs mid-execute and its WebDriver server stops responding. Sample the app in the
-      # background so a hang leaves stuck-thread stacks in the artifacts (sample needs no root).
-      - name: 🩺 Start hang sampler [Embedded]
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/e2e/logs/diag"
-          (
-            for _ in $(seq 1 90); do
-              pid=$(pgrep -x tauri-e2e-app | head -1 || true)
-              if [ -n "$pid" ]; then
-                /usr/bin/sample "$pid" 2 -mayDie \
-                  -file "$GITHUB_WORKSPACE/e2e/logs/diag/sample-embedded-$pid-$(date +%s).log" >/dev/null 2>&1 || true
-              fi
-              sleep 4
-            done
-          ) &
-          echo $! > /tmp/tauri-hang-sampler.pid
-
       - name: 🧪 E2E Tests [Embedded]
         id: test-embedded
         continue-on-error: true
@@ -424,21 +404,6 @@ jobs:
           } else {
             pnpm run ${{ steps.gen-test.outputs.embedded }}
           }
-
-      - name: 🩺 Collect hang diagnostics [Embedded]
-        if: always() && runner.os == 'macOS'
-        shell: bash
-        run: |
-          # Stop the sampler and gather any crash/hang reports for the app (#540).
-          if [ -f /tmp/tauri-hang-sampler.pid ]; then
-            kill "$(cat /tmp/tauri-hang-sampler.pid)" 2>/dev/null || true
-          fi
-          mkdir -p "$GITHUB_WORKSPACE/e2e/logs/diag"
-          shopt -s nullglob
-          for f in "$HOME"/Library/Logs/DiagnosticReports/tauri-e2e-app*; do
-            cp "$f" "$GITHUB_WORKSPACE/e2e/logs/diag/$(basename "$f").log" 2>/dev/null || true
-          done
-          echo "diag artifacts:"; ls -la "$GITHUB_WORKSPACE/e2e/logs/diag" 2>/dev/null || echo "  (none)"
 
       - name: 🧹 Post-cleanup [Embedded]
         if: always()
