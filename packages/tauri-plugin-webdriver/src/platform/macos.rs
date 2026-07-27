@@ -7,7 +7,7 @@ use block2::{DynBlock, RcBlock};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
-use objc2_app_kit::{NSApplication, NSBitmapImageFileType, NSBitmapImageRep, NSImage};
+use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSImage};
 use objc2_foundation::{NSData, NSDictionary, NSError, NSObject, NSObjectProtocol, NSString};
 use objc2_web_kit::{
     WKContentWorld, WKFrameInfo, WKPDFConfiguration, WKSnapshotConfiguration, WKUIDelegate,
@@ -55,27 +55,6 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
 
     let _ = webview.with_webview(move |webview| unsafe {
         let wk_webview: &WKWebView = &*webview.inner().cast();
-
-        // #540: on the headless macos-26 (26.4) CI runner the WebContent process of the (never-shown)
-        // webview page wedges — the app sends RunJavaScriptInFrameInScriptWorld and never gets a reply,
-        // so in-webview evaluateJavaScript hangs. Two mitigations for the "WebKit treats the page as
-        // background/occluded and throttles its WebContent process" hypothesis:
-        //   1. disable window-occlusion detection so the page is always treated as visible;
-        //   2. mark the app as active/foreground so its windows aren't background.
-        // Both are guarded (SPI / no-op off-screen) and harmless when a real display is present.
-        let occlusion_sel = objc2::sel!(_setWindowOcclusionDetectionEnabled:);
-        if wk_webview.respondsToSelector(occlusion_sel) {
-            let _: () = msg_send![wk_webview, _setWindowOcclusionDetectionEnabled: false];
-            tracing::info!("#540: disabled WKWebView window-occlusion detection");
-        } else {
-            tracing::warn!("#540: _setWindowOcclusionDetectionEnabled: unavailable");
-        }
-
-        if let Some(mtm) = MainThreadMarker::new() {
-            let app = NSApplication::sharedApplication(mtm);
-            app.activate();
-            tracing::info!("#540: activated app to keep windows foreground");
-        }
 
         let delegate = WebDriverUIDelegate::new(alert_state);
         let delegate_protocol: Retained<ProtocolObject<dyn WKUIDelegate>> =
@@ -313,12 +292,18 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
         let fire = FIRE.replace("__KEY__", &key).replace("__SCRIPT__", script);
         self.evaluate_js(&fire).await?;
 
-        // Read the result back with short synchronous evals until present or the script deadline.
+        // Read the result back with periodic reads until present or the script deadline. Poll
+        // gently: each read is an evaluateJavaScript on the page, and Tauri delivers its
+        // core.invoke responses by eval-ing into the *same* webview — a tight poll (the original
+        // 15ms) starves that response eval on a slow/headless runner, so the awaited invoke never
+        // resolves and this loop spins to timeout (#540). Wait before the first read so the fired
+        // async work gets a turn, then read at a wide interval that leaves the webview free.
         let poll = POLL.replace("__KEY__", &key);
-        let poll_interval = std::time::Duration::from_millis(15);
+        let poll_interval = std::time::Duration::from_millis(150);
         let deadline =
             std::time::Instant::now() + std::time::Duration::from_millis(self.timeouts.script_ms);
         loop {
+            tokio::time::sleep(poll_interval).await;
             let res = self.evaluate_js(&poll).await?;
             if let Some(value) = res.get("value") {
                 if !value.is_null() {
@@ -328,7 +313,6 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
             if std::time::Instant::now() >= deadline {
                 return Err(WebDriverErrorResponse::script_timeout());
             }
-            tokio::time::sleep(poll_interval).await;
         }
     }
 
