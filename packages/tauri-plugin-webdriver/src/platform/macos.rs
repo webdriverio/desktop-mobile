@@ -7,7 +7,7 @@ use block2::{DynBlock, RcBlock};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
-use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSImage};
+use objc2_app_kit::{NSApplication, NSBitmapImageFileType, NSBitmapImageRep, NSImage};
 use objc2_foundation::{NSData, NSDictionary, NSError, NSObject, NSObjectProtocol, NSString};
 use objc2_web_kit::{
     WKContentWorld, WKFrameInfo, WKPDFConfiguration, WKSnapshotConfiguration, WKUIDelegate,
@@ -56,20 +56,25 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     let _ = webview.with_webview(move |webview| unsafe {
         let wk_webview: &WKWebView = &*webview.inner().cast();
 
-        // #540: on macOS 26.4 WebKit throttles/suspends the WebContent process of an *occluded* page,
-        // so in-webview evaluateJavaScript wedges on the headless CI runner — the app sends the
-        // RunJavaScriptInFrameInScriptWorld IPC and never gets a reply because the WebContent process
-        // is suspended. Disable window-occlusion detection so this webview's page is always treated as
-        // visible and its WebContent process keeps running. Private WKWebView SPI, so guard it with
-        // respondsToSelector (a no-op if a future WebKit drops it).
+        // #540: on the headless macos-26 (26.4) CI runner the WebContent process of the (never-shown)
+        // webview page wedges — the app sends RunJavaScriptInFrameInScriptWorld and never gets a reply,
+        // so in-webview evaluateJavaScript hangs. Two mitigations for the "WebKit treats the page as
+        // background/occluded and throttles its WebContent process" hypothesis:
+        //   1. disable window-occlusion detection so the page is always treated as visible;
+        //   2. mark the app as active/foreground so its windows aren't background.
+        // Both are guarded (SPI / no-op off-screen) and harmless when a real display is present.
         let occlusion_sel = objc2::sel!(_setWindowOcclusionDetectionEnabled:);
         if wk_webview.respondsToSelector(occlusion_sel) {
             let _: () = msg_send![wk_webview, _setWindowOcclusionDetectionEnabled: false];
-            tracing::info!("Disabled WKWebView window-occlusion detection to keep WebContent live (#540)");
+            tracing::info!("#540: disabled WKWebView window-occlusion detection");
         } else {
-            tracing::warn!(
-                "_setWindowOcclusionDetectionEnabled: unavailable — occlusion throttling not disabled (#540)"
-            );
+            tracing::warn!("#540: _setWindowOcclusionDetectionEnabled: unavailable");
+        }
+
+        if let Some(mtm) = MainThreadMarker::new() {
+            let app = NSApplication::sharedApplication(mtm);
+            app.activate();
+            tracing::info!("#540: activated app to keep windows foreground");
         }
 
         let delegate = WebDriverUIDelegate::new(alert_state);
