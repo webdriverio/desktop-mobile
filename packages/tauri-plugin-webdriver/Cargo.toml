@@ -50,7 +50,7 @@ features = [ "NSImage", "NSImageRep", "NSBitmapImageRep" ]
 
 [target."cfg(target_os = \"macos\")".dependencies.objc2-web-kit]
 version = "0.3"
-features = [ "WKWebView", "WKSnapshotConfiguration", "WKUIDelegate", "WKPDFConfiguration", "WKFrameInfo", "WKContentWorld", "block2", "objc2-app-kit" ]
+features = [ "WKWebView", "WKWebViewConfiguration", "WKSnapshotConfiguration", "WKUIDelegate", "WKPDFConfiguration", "WKFrameInfo", "WKContentWorld", "WKUserContentController", "WKScriptMessage", "WKScriptMessageHandler", "block2", "objc2-app-kit" ]
 
 [target."cfg(target_os = \"windows\")".dependencies]
 webview2-com = "0.38"
