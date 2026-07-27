@@ -261,14 +261,15 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
     /// (#540) — independent of poll rate.
     ///
     /// The pre-wrapped script (`wrapScriptForDirectEval`) is callback-style: `arguments[last]` is its
-    /// done-callback. Bridge it to callAsyncJavaScript's promise contract with a single minimal wrap,
-    /// passing `resolve` as that callback. (#549 abandoned callAsyncJavaScript after routing this
-    /// script through `execute_async_script`, whose extra wrapping double-wrapped it and tripped the
-    /// "completion handler no longer reachable" reclaim; the session path — a simple single wrap —
-    /// never hit that, and neither does this one.)
+    /// done-callback. Bridge it to callAsyncJavaScript's promise contract by passing `resolve` as that
+    /// callback and **returning the promise object directly** (`return new Promise(...)`, not
+    /// `return await ...`), exactly as the working session `execute_async_script` path does. On 26.4
+    /// the extra `await` hop makes WebKit lose the completion handler's reachability ("Completion
+    /// handler for function call is no longer reachable", WKError code 4) — which is what #549 hit and
+    /// wrongly attributed to callAsyncJavaScript itself.
     async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
         let wrapper = format!(
-            "return await new Promise((resolve) => {{ (function () {{ {script} }}).apply(null, [resolve]); }});"
+            "return new Promise((resolve) => {{ (function () {{ {script} }}).apply(null, [resolve]); }});"
         );
 
         let (tx, rx) = oneshot::channel();
