@@ -396,9 +396,10 @@ jobs:
         shell: bash
         run: |
           mkdir -p "$GITHUB_WORKSPACE/e2e/logs/diag"
+          # Write as .log so the "Upload Test Logs" step (e2e/logs/**/*.log) actually collects it.
           /usr/bin/log stream --level debug --style compact \
             --predicate 'subsystem == "com.apple.WebKit" OR process == "com.apple.WebKit.WebContent" OR process == "com.apple.WebKit.GPU"' \
-            > "$GITHUB_WORKSPACE/e2e/logs/diag/webkit-log.txt" 2>&1 &
+            > "$GITHUB_WORKSPACE/e2e/logs/diag/webkit-log.log" 2>&1 &
           echo $! > /tmp/webkit-log.pid
 
       - name: 🧪 E2E Tests [Embedded]
@@ -430,11 +431,16 @@ jobs:
           fi
           mkdir -p "$GITHUB_WORKSPACE/e2e/logs/diag"
           shopt -s nullglob
-          for f in "$HOME"/Library/Logs/DiagnosticReports/*.ips "$HOME"/Library/Logs/DiagnosticReports/*.crash; do
-            case "$(basename "$f")" in
-              tauri-e2e-app*|*WebContent*|*WebKit*|*GPU*|*Networking*)
-                cp "$f" "$GITHUB_WORKSPACE/e2e/logs/diag/$(basename "$f").log" 2>/dev/null || true ;;
-            esac
+          # Helper-process (WebContent/GPU) crashes land in the ROOT DiagnosticReports, not $HOME —
+          # scan both. The runner user is admin, so sudo -n reads root-owned reports.
+          for dir in "$HOME/Library/Logs/DiagnosticReports" "/Library/Logs/DiagnosticReports"; do
+            for f in "$dir"/*.ips "$dir"/*.crash; do
+              case "$(basename "$f")" in
+                tauri-e2e-app*|*WebContent*|*WebKit*|*GPU*|*Networking*)
+                  sudo -n cp "$f" "$GITHUB_WORKSPACE/e2e/logs/diag/$(basename "$f").log" 2>/dev/null \
+                    || cp "$f" "$GITHUB_WORKSPACE/e2e/logs/diag/$(basename "$f").log" 2>/dev/null || true ;;
+              esac
+            done
           done
           echo "diag artifacts:"; ls -la "$GITHUB_WORKSPACE/e2e/logs/diag" 2>/dev/null || echo "  (none)"
 
