@@ -253,66 +253,69 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
         }
     }
 
-    /// DirectEval (`/wdio/eval`) override that avoids a long-lived `callAsyncJavaScript`
-    /// completion handler. The macos-26 (26.4) WebKit reclaims that handler while the async
-    /// script is still pending ("Completion handler for function call is no longer reachable",
-    /// WKError code 4), which fails every async execute on the standalone DirectEval channel.
+    /// DirectEval (`/wdio/eval`) via `callAsyncJavaScript` — the same WebKit-driven mechanism the
+    /// session `execute_async_script` path uses, which works on macos-26 (26.4). WebKit holds a
+    /// run-loop activity until the returned promise settles, and that pumps Tauri's `core.invoke`
+    /// response IPC. The prior fire-and-forget + poll approach left nothing driving that pump, so on
+    /// the slow/headless 26.4 runner the awaited invoke never resolved and the poll spun to timeout
+    /// (#540) — independent of poll rate.
     ///
-    /// Instead we drive the pre-wrapped script fire-and-forget — routing its done-callback
-    /// (`arguments[last]`) to a `window` global — then read the result back with short
-    /// synchronous evals, whose completion handlers fire immediately and are never held long
-    /// enough to be reclaimed.
+    /// The pre-wrapped script (`wrapScriptForDirectEval`) is callback-style: `arguments[last]` is its
+    /// done-callback. Bridge it to callAsyncJavaScript's promise contract with a single minimal wrap,
+    /// passing `resolve` as that callback. (#549 abandoned callAsyncJavaScript after routing this
+    /// script through `execute_async_script`, whose extra wrapping double-wrapped it and tripped the
+    /// "completion handler no longer reachable" reclaim; the session path — a simple single wrap —
+    /// never hit that, and neither does this one.)
     async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
-        use std::sync::atomic::{AtomicU64, Ordering};
+        let wrapper = format!(
+            "return await new Promise((resolve) => {{ (function () {{ {script} }}).apply(null, [resolve]); }});"
+        );
 
-        const FIRE: &str = r#"(function () {
-  var __k = "__KEY__";
-  try { delete window[__k]; } catch (e) {}
-  var __stash = function (r) {
-    try { window[__k] = (r === undefined ? { ok: true, value: null, undef: true } : r); } catch (e) {}
-  };
-  try {
-    (function () { __SCRIPT__ }).apply(null, [__stash]);
-  } catch (e) {
-    window[__k] = { ok: false, error: (e && e.message) || String(e) };
-  }
-})(); undefined;"#;
+        let (tx, rx) = oneshot::channel();
 
-        const POLL: &str = r#"(function () {
-  var __k = "__KEY__";
-  var r = window[__k];
-  if (r !== undefined && r !== null) { try { delete window[__k]; } catch (e) {} return r; }
-  return null;
-})()"#;
+        let result = self.window.with_webview(move |webview| unsafe {
+            let wk_webview: &WKWebView = &*webview.inner().cast();
+            let ns_script = NSString::from_str(&wrapper);
+            let mtm = MainThreadMarker::new_unchecked();
+            let empty_dict: Retained<NSDictionary<NSString, AnyObject>> = NSDictionary::new();
+            let content_world = WKContentWorld::pageWorld(mtm);
 
-        static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let key = format!("__wdio_de_{}__", COUNTER.fetch_add(1, Ordering::Relaxed));
+            let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
+            let block = RcBlock::new(move |result: *mut AnyObject, error: *mut NSError| {
+                let response = if !error.is_null() {
+                    Err(describe_ns_error(&*error))
+                } else if result.is_null() {
+                    Ok(Value::Null)
+                } else {
+                    Ok(ns_object_to_json(&*result))
+                };
 
-        // Kick the async work; its done-callback stashes the result on window[key].
-        let fire = FIRE.replace("__KEY__", &key).replace("__SCRIPT__", script);
-        self.evaluate_js(&fire).await?;
-
-        // Read the result back with periodic reads until present or the script deadline. Poll
-        // gently: each read is an evaluateJavaScript on the page, and Tauri delivers its
-        // core.invoke responses by eval-ing into the *same* webview — a tight poll (the original
-        // 15ms) starves that response eval on a slow/headless runner, so the awaited invoke never
-        // resolves and this loop spins to timeout (#540). Wait before the first read so the fired
-        // async work gets a turn, then read at a wide interval that leaves the webview free.
-        let poll = POLL.replace("__KEY__", &key);
-        let poll_interval = std::time::Duration::from_millis(150);
-        let deadline =
-            std::time::Instant::now() + std::time::Duration::from_millis(self.timeouts.script_ms);
-        loop {
-            tokio::time::sleep(poll_interval).await;
-            let res = self.evaluate_js(&poll).await?;
-            if let Some(value) = res.get("value") {
-                if !value.is_null() {
-                    return Ok(value.clone());
+                if let Ok(mut guard) = tx.lock() {
+                    if let Some(tx) = guard.take() {
+                        let _ = tx.send(response);
+                    }
                 }
-            }
-            if std::time::Instant::now() >= deadline {
-                return Err(WebDriverErrorResponse::script_timeout());
-            }
+            });
+
+            wk_webview.callAsyncJavaScript_arguments_inFrame_inContentWorld_completionHandler(
+                &ns_script,
+                Some(&empty_dict),
+                None,
+                &content_world,
+                Some(&block),
+            );
+        });
+
+        if let Err(e) = result {
+            return Err(WebDriverErrorResponse::javascript_error(&e.to_string(), None));
+        }
+
+        let timeout = std::time::Duration::from_millis(self.timeouts.script_ms);
+        match tokio::time::timeout(timeout, rx).await {
+            Ok(Ok(Ok(value))) => Ok(value),
+            Ok(Ok(Err(error))) => Err(WebDriverErrorResponse::javascript_error(&error, None)),
+            Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error("Channel closed")),
+            Err(_) => Err(WebDriverErrorResponse::script_timeout()),
         }
     }
 
