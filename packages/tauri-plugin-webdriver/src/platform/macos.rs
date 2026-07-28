@@ -103,9 +103,11 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
 ///
 /// With no display, the app parks in `-[NSApplication run]` waiting for events, so WebKit doesn't
 /// promptly service WebContent's URL-scheme resource requests (page-load subresources) or eval
-/// dispatches — a DirectEval can then stall for tens of seconds and time out. A repeating no-op
-/// timer in the run loop's common modes forces it to wake, draining that pending work each tick.
-/// Harmless with a real display (the loop already pumps continuously). Scheduled once.
+/// dispatches — a DirectEval can then stall for tens of seconds and time out. A low-frequency no-op
+/// timer in the run loop's common modes forces it to wake, draining that pending work each tick; the
+/// interval only bounds worst-case servicing latency (well under the command timeout), so it is kept
+/// coarse to minimise idle wakeups. Harmless with a real display (the loop already pumps
+/// continuously). This plugin ships only in WebDriver-automation builds. Scheduled once.
 /// https://github.com/webdriverio/desktop-mobile/issues/540
 ///
 /// # Safety
@@ -115,7 +117,7 @@ unsafe fn start_runloop_pump() {
     static PUMP: Once = Once::new();
     PUMP.call_once(|| {
         let block = RcBlock::new(|_timer: NonNull<NSTimer>| {});
-        let timer = NSTimer::timerWithTimeInterval_repeats_block(0.016, true, &block);
+        let timer = NSTimer::timerWithTimeInterval_repeats_block(0.05, true, &block);
         NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes);
         tracing::debug!("Started macOS main run-loop pump for headless WebKit scheduling");
     });
