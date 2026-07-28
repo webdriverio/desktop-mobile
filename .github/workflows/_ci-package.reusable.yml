@@ -244,6 +244,19 @@ jobs:
       # Run package tests using test-package.ts script
       # All apps are built in isolated environments (Electron always, Tauri if not skipBuild)
       # Tauri uses skipBuild to copy pre-built binaries from separate build jobs
+      # #540 investigation (temporary): capture the WebKit unified log during the macOS Tauri package
+      # test so we can classify its intermittent failure — same idle-run-loop stall class as the e2e
+      # DirectEval flake, or a different flake (e.g. session-create/teardown). Scoped to macOS + tauri.
+      - name: 🩺 Start WebKit log stream [Package]
+        if: runner.os == 'macOS' && inputs.service == 'tauri'
+        shell: bash
+        run: |
+          mkdir -p "$GITHUB_WORKSPACE/logs/package-tests"
+          /usr/bin/log stream --level debug --style compact \
+            --predicate 'subsystem == "com.apple.WebKit" OR process == "com.apple.WebKit.WebContent" OR process == "com.apple.WebKit.GPU"' \
+            > "$GITHUB_WORKSPACE/logs/package-tests/webkit-log.log" 2>&1 &
+          echo $! > /tmp/webkit-log-pkg.pid
+
       - name: 🧪 Execute Package Tests
         id: package-tests
         # WebView2 Runtime 150 dropped the CDP --remote-debugging-port for elevated
@@ -314,6 +327,26 @@ jobs:
               exit 1
               ;;
           esac
+
+      - name: 🩺 Collect WebKit diagnostics [Package]
+        if: always() && runner.os == 'macOS' && inputs.service == 'tauri'
+        shell: bash
+        run: |
+          if [ -f /tmp/webkit-log-pkg.pid ]; then
+            kill "$(cat /tmp/webkit-log-pkg.pid)" 2>/dev/null || true
+          fi
+          mkdir -p "$GITHUB_WORKSPACE/logs/package-tests"
+          shopt -s nullglob
+          for dir in "$HOME/Library/Logs/DiagnosticReports" "/Library/Logs/DiagnosticReports"; do
+            for f in "$dir"/*.ips "$dir"/*.crash; do
+              case "$(basename "$f")" in
+                *tauri*|*WebContent*|*WebKit*|*GPU*|*Networking*)
+                  sudo -n cp "$f" "$GITHUB_WORKSPACE/logs/package-tests/$(basename "$f").log" 2>/dev/null \
+                    || cp "$f" "$GITHUB_WORKSPACE/logs/package-tests/$(basename "$f").log" 2>/dev/null || true ;;
+              esac
+            done
+          done
+          echo "package diag:"; ls -la "$GITHUB_WORKSPACE/logs/package-tests" 2>/dev/null || true
 
       - name: ⚠️ Note allowed WebView2-150 Windows failure
         if: always() && (inputs.service == 'tauri' || inputs.service == 'electrobun') && runner.os == 'Windows' && steps.package-tests.outcome == 'failure'
