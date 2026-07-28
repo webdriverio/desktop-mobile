@@ -10,13 +10,14 @@ use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOn
 use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSImage};
 use objc2_foundation::{NSData, NSDictionary, NSError, NSObject, NSObjectProtocol, NSString};
 use objc2_web_kit::{
-    WKContentWorld, WKFrameInfo, WKPDFConfiguration, WKSnapshotConfiguration, WKUIDelegate,
-    WKWebView,
+    WKContentWorld, WKFrameInfo, WKPDFConfiguration, WKScriptMessage, WKScriptMessageHandler,
+    WKSnapshotConfiguration, WKUIDelegate, WKUserContentController, WKWebView,
 };
 use serde_json::Value;
 use tauri::{Manager, Runtime, WebviewWindow};
 use tokio::sync::oneshot;
 
+use crate::eval_channel::EvalResultRegistry;
 use crate::platform::alert_state::{AlertState, AlertStateManager, AlertType, PendingAlert};
 use crate::platform::{wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions};
 use crate::server::response::WebDriverErrorResponse;
@@ -52,6 +53,12 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     // Get per-window alert state from the manager
     let manager = webview.app_handle().state::<AlertStateManager>();
     let alert_state = manager.get_or_create(webview.label());
+    // Cloned Arc so the (non-generic) objc2 message handler can hold it for the webview's lifetime.
+    let eval_registry = webview
+        .app_handle()
+        .state::<Arc<EvalResultRegistry>>()
+        .inner()
+        .clone();
 
     let _ = webview.with_webview(move |webview| unsafe {
         let wk_webview: &WKWebView = &*webview.inner().cast();
@@ -72,7 +79,17 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
             OBJC_ASSOCIATION_RETAIN_NONATOMIC,
         );
 
-        tracing::debug!("Registered UI delegate for webview");
+        // The DirectEval result channel (see execute_direct_eval). WKUserContentController retains the
+        // handler for the webview's lifetime, so — unlike the UI delegate — it needs no associated object.
+        let eval_handler = EvalMessageHandler::new(eval_registry);
+        let eval_proto: Retained<ProtocolObject<dyn WKScriptMessageHandler>> =
+            ProtocolObject::from_retained(eval_handler);
+        wk_webview
+            .configuration()
+            .userContentController()
+            .addScriptMessageHandler_name(&eval_proto, &NSString::from_str("wdioEvalResult"));
+
+        tracing::debug!("Registered UI delegate + eval message handler for webview");
     });
 }
 
@@ -253,61 +270,83 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
         }
     }
 
-    /// DirectEval (`/wdio/eval`) override that avoids a long-lived `callAsyncJavaScript`
-    /// completion handler. The macos-26 (26.4) WebKit reclaims that handler while the async
-    /// script is still pending ("Completion handler for function call is no longer reachable",
-    /// WKError code 4), which fails every async execute on the standalone DirectEval channel.
+    /// DirectEval (`/wdio/eval`) with out-of-band result delivery.
     ///
-    /// Instead we drive the pre-wrapped script fire-and-forget — routing its done-callback
-    /// (`arguments[last]`) to a `window` global — then read the result back with short
-    /// synchronous evals, whose completion handlers fire immediately and are never held long
-    /// enough to be reclaimed.
+    /// Runs the pre-wrapped script via `callAsyncJavaScript` solely to keep the run loop pumping — on a
+    /// headless runner the app's own `core.invoke` IPC response only completes while WebKit holds a
+    /// run-loop activity. The result is NOT taken from that call's completion handler: macOS 26.4's
+    /// WebKit intermittently reclaims it ("Completion handler for function call is no longer
+    /// reachable"). Instead the wrapper posts `{ id, result }` to the `wdioEvalResult`
+    /// `WKScriptMessageHandler`, which completes the `oneshot` awaited here, so a reclaim is harmless.
+    /// Mirrors the Windows native-handler path (`AsyncScriptState`).
+    /// https://github.com/webdriverio/desktop-mobile/issues/540
+    ///
+    /// `wrapScriptForDirectEval` produces a callback-style script (`arguments[last]` is its
+    /// done-callback); `__report` forwards the result to the message handler then `resolve`s so the
+    /// `callAsyncJavaScript` promise settles.
     async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
         use std::sync::atomic::{AtomicU64, Ordering};
-
-        const FIRE: &str = r#"(function () {
-  var __k = "__KEY__";
-  try { delete window[__k]; } catch (e) {}
-  var __stash = function (r) {
-    try { window[__k] = (r === undefined ? { ok: true, value: null, undef: true } : r); } catch (e) {}
-  };
-  try {
-    (function () { __SCRIPT__ }).apply(null, [__stash]);
-  } catch (e) {
-    window[__k] = { ok: false, error: (e && e.message) || String(e) };
-  }
-})(); undefined;"#;
-
-        const POLL: &str = r#"(function () {
-  var __k = "__KEY__";
-  var r = window[__k];
-  if (r !== undefined && r !== null) { try { delete window[__k]; } catch (e) {} return r; }
-  return null;
-})()"#;
-
         static COUNTER: AtomicU64 = AtomicU64::new(0);
-        let key = format!("__wdio_de_{}__", COUNTER.fetch_add(1, Ordering::Relaxed));
+        let id = format!("wdio_de_{}", COUNTER.fetch_add(1, Ordering::Relaxed));
 
-        // Kick the async work; its done-callback stashes the result on window[key].
-        let fire = FIRE.replace("__KEY__", &key).replace("__SCRIPT__", script);
-        self.evaluate_js(&fire).await?;
+        // Register the waiter before dispatching, so a fast report can't arrive before we're listening.
+        let registry = self
+            .window
+            .state::<Arc<EvalResultRegistry>>()
+            .inner()
+            .clone();
+        let rx = registry.register(id.clone());
 
-        // Read the result back with short synchronous evals until present or the script deadline.
-        let poll = POLL.replace("__KEY__", &key);
-        let poll_interval = std::time::Duration::from_millis(15);
-        let deadline =
-            std::time::Instant::now() + std::time::Duration::from_millis(self.timeouts.script_ms);
-        loop {
-            let res = self.evaluate_js(&poll).await?;
-            if let Some(value) = res.get("value") {
-                if !value.is_null() {
-                    return Ok(value.clone());
+        // id is alphanumeric + '_', so it needs no escaping in the JS string literal below.
+        let wrapper = format!(
+            r#"return new Promise((resolve) => {{
+  var __report = function (r) {{
+    try {{ window.webkit.messageHandlers.wdioEvalResult.postMessage({{ id: "{id}", result: r }}); }} catch (e) {{}}
+    resolve(r);
+  }};
+  (function () {{ {script} }}).apply(null, [__report]);
+}});"#
+        );
+
+        let dispatch = self.window.with_webview(move |webview| unsafe {
+            let wk_webview: &WKWebView = &*webview.inner().cast();
+            let ns_script = NSString::from_str(&wrapper);
+            let mtm = MainThreadMarker::new_unchecked();
+            let empty_dict: Retained<NSDictionary<NSString, AnyObject>> = NSDictionary::new();
+            let content_world = WKContentWorld::pageWorld(mtm);
+
+            // Observability only — the result arrives via the message channel, not this handler.
+            let block = RcBlock::new(move |_result: *mut AnyObject, error: *mut NSError| {
+                if !error.is_null() {
+                    tracing::debug!("DirectEval completion error (ignored): {}", describe_ns_error(&*error));
                 }
+            });
+
+            wk_webview.callAsyncJavaScript_arguments_inFrame_inContentWorld_completionHandler(
+                &ns_script,
+                Some(&empty_dict),
+                None,
+                &content_world,
+                Some(&block),
+            );
+        });
+
+        if let Err(e) = dispatch {
+            registry.cancel(&id);
+            return Err(WebDriverErrorResponse::javascript_error(&e.to_string(), None));
+        }
+
+        let timeout = std::time::Duration::from_millis(self.timeouts.script_ms);
+        match tokio::time::timeout(timeout, rx).await {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(_)) => {
+                registry.cancel(&id);
+                Err(WebDriverErrorResponse::unknown_error("Eval result channel closed"))
             }
-            if std::time::Instant::now() >= deadline {
-                return Err(WebDriverErrorResponse::script_timeout());
+            Err(_) => {
+                registry.cancel(&id);
+                Err(WebDriverErrorResponse::script_timeout())
             }
-            tokio::time::sleep(poll_interval).await;
         }
     }
 
@@ -778,6 +817,55 @@ impl WebDriverUIDelegate {
         let mtm = MainThreadMarker::new_unchecked();
         let this = Self::alloc(mtm);
         let this = this.set_ivars(WebDriverUIDelegateIvars { alert_state });
+        msg_send![super(this), init]
+    }
+}
+
+struct EvalMessageHandlerIvars {
+    registry: Arc<EvalResultRegistry>,
+}
+
+// SAFETY: Arc<EvalResultRegistry> is Send + Sync
+unsafe impl Send for EvalMessageHandlerIvars {}
+unsafe impl Sync for EvalMessageHandlerIvars {}
+
+define_class!(
+    #[unsafe(super(NSObject))]
+    #[thread_kind = MainThreadOnly]
+    #[name = "WdioEvalMessageHandler"]
+    #[ivars = EvalMessageHandlerIvars]
+    struct EvalMessageHandler;
+
+    unsafe impl NSObjectProtocol for EvalMessageHandler {}
+
+    #[allow(non_snake_case)]
+    unsafe impl WKScriptMessageHandler for EvalMessageHandler {
+        /// Delivers `{ id, result }` posted by the DirectEval wrapper to the waiting executor.
+        #[unsafe(method(userContentController:didReceiveScriptMessage:))]
+        fn userContentController_didReceiveScriptMessage(
+            &self,
+            _controller: &WKUserContentController,
+            message: &WKScriptMessage,
+        ) {
+            let json = unsafe { ns_object_to_json(&message.body()) };
+            let (Some(id), Some(result)) =
+                (json.get("id").and_then(Value::as_str), json.get("result").cloned())
+            else {
+                tracing::warn!("wdioEvalResult message missing id/result");
+                return;
+            };
+            self.ivars().registry.complete(id, result);
+        }
+    }
+);
+
+impl EvalMessageHandler {
+    /// # Safety
+    /// Must be called from the main thread.
+    unsafe fn new(registry: Arc<EvalResultRegistry>) -> Retained<Self> {
+        let mtm = MainThreadMarker::new_unchecked();
+        let this = Self::alloc(mtm);
+        let this = this.set_ivars(EvalMessageHandlerIvars { registry });
         msg_send![super(this), init]
     }
 }

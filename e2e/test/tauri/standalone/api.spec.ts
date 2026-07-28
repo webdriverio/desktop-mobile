@@ -33,9 +33,8 @@ const sessionOptions = createTauriCapabilities(appBinaryPath, {
   autoInstallTauriDriver: true,
 });
 
-// #540: capture the app's backend/frontend logs so an intermittent macOS-26.4 embedded hang (the
-// app wedges mid-execute and its WebDriver server stops responding) leaves evidence in the uploaded
-// artifacts. Writes under e2e/logs/, which the CI "Upload Test Logs" step collects.
+// #540: capture the app's backend/frontend logs (incl. the plugin's occlusion/activation tracing) so
+// a hang leaves evidence in the uploaded artifacts. Writes under e2e/logs/ (CI "Upload Test Logs").
 const logDir = path.join(
   __dirname,
   '..',

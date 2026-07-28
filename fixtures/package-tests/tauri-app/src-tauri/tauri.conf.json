@@ -16,9 +16,10 @@
         ],
         "connect-src": [
           "'self'",
-          "ipc:*",
-          "plugin:*",
-          "tauri:*"
+          "ipc:",
+          "http://ipc.localhost",
+          "plugin:",
+          "tauri:"
         ],
         "img-src": [
           "'self'",

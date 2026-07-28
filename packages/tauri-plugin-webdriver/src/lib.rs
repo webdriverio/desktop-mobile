@@ -9,6 +9,8 @@ mod desktop;
 mod mobile;
 
 mod error;
+#[cfg(target_os = "macos")]
+mod eval_channel;
 mod platform;
 mod server;
 mod webdriver;
@@ -58,6 +60,10 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
 
             // Manage per-window alert state
             app.manage(platform::AlertStateManager::default());
+
+            // Arc so the (non-generic) objc2 message handler can hold its own clone; see eval_channel.
+            #[cfg(target_os = "macos")]
+            app.manage(std::sync::Arc::new(eval_channel::EvalResultRegistry::default()));
 
             // Start the WebDriver HTTP server
             let app_handle = app.app_handle().clone();
