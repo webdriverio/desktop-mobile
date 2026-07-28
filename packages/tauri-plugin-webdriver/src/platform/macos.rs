@@ -8,7 +8,7 @@ use block2::{DynBlock, RcBlock};
 use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
-use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSImage};
+use objc2_app_kit::{NSApplication, NSBitmapImageFileType, NSBitmapImageRep, NSImage, NSScreen};
 use objc2_foundation::{
     NSData, NSDictionary, NSError, NSObject, NSObjectProtocol, NSRunLoop, NSRunLoopCommonModes,
     NSString, NSTimer,
@@ -116,6 +116,19 @@ unsafe fn start_runloop_pump() {
     use std::sync::Once;
     static PUMP: Once = Once::new();
     PUMP.call_once(|| {
+        // TEMP (#540 gate investigation): log the display/activation state so we can tell whether a
+        // "no display" gate is viable, or whether the runner has a display but the app is merely
+        // inactive/occluded (which would need a different gate signal). Behaviour unchanged.
+        if let Some(mtm) = MainThreadMarker::new() {
+            let app = NSApplication::sharedApplication(mtm);
+            eprintln!(
+                "wdio-pump-diag: screens={} isActive={} occlusion={:?}",
+                NSScreen::screens(mtm).count(),
+                app.isActive(),
+                app.occlusionState()
+            );
+        }
+
         let block = RcBlock::new(|_timer: NonNull<NSTimer>| {});
         let timer = NSTimer::timerWithTimeInterval_repeats_block(0.05, true, &block);
         NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes);

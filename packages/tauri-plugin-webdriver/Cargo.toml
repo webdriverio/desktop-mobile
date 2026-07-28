@@ -46,7 +46,7 @@ features = [ "NSString", "NSData", "NSError", "NSArray", "NSDictionary", "NSTime
 
 [target."cfg(target_os = \"macos\")".dependencies.objc2-app-kit]
 version = "0.3"
-features = [ "NSImage", "NSImageRep", "NSBitmapImageRep" ]
+features = [ "NSImage", "NSImageRep", "NSBitmapImageRep", "NSScreen", "NSApplication", "NSResponder" ]
 
 [target."cfg(target_os = \"macos\")".dependencies.objc2-web-kit]
 version = "0.3"
