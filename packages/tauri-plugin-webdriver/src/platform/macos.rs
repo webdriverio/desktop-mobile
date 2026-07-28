@@ -1,3 +1,4 @@
+use std::ptr::NonNull;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -8,7 +9,10 @@ use objc2::rc::Retained;
 use objc2::runtime::{AnyObject, ProtocolObject};
 use objc2::{define_class, msg_send, DefinedClass, MainThreadMarker, MainThreadOnly};
 use objc2_app_kit::{NSBitmapImageFileType, NSBitmapImageRep, NSImage};
-use objc2_foundation::{NSData, NSDictionary, NSError, NSObject, NSObjectProtocol, NSString};
+use objc2_foundation::{
+    NSData, NSDictionary, NSError, NSObject, NSObjectProtocol, NSRunLoop, NSRunLoopCommonModes,
+    NSString, NSTimer,
+};
 use objc2_web_kit::{
     WKContentWorld, WKFrameInfo, WKPDFConfiguration, WKScriptMessage, WKScriptMessageHandler,
     WKSnapshotConfiguration, WKUIDelegate, WKUserContentController, WKWebView,
@@ -89,7 +93,31 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
             .userContentController()
             .addScriptMessageHandler_name(&eval_proto, &NSString::from_str("wdioEvalResult"));
 
+        start_runloop_pump();
+
         tracing::debug!("Registered UI delegate + eval message handler for webview");
+    });
+}
+
+/// Keep the app's main run loop waking on a headless/off-screen runner.
+///
+/// With no display, the app parks in `-[NSApplication run]` waiting for events, so WebKit doesn't
+/// promptly service WebContent's URL-scheme resource requests (page-load subresources) or eval
+/// dispatches — a DirectEval can then stall for tens of seconds and time out. A repeating no-op
+/// timer in the run loop's common modes forces it to wake, draining that pending work each tick.
+/// Harmless with a real display (the loop already pumps continuously). Scheduled once.
+/// https://github.com/webdriverio/desktop-mobile/issues/540
+///
+/// # Safety
+/// Must be called on the main thread (schedules on the main run loop).
+unsafe fn start_runloop_pump() {
+    use std::sync::Once;
+    static PUMP: Once = Once::new();
+    PUMP.call_once(|| {
+        let block = RcBlock::new(|_timer: NonNull<NSTimer>| {});
+        let timer = NSTimer::timerWithTimeInterval_repeats_block(0.016, true, &block);
+        NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes);
+        tracing::debug!("Started macOS main run-loop pump for headless WebKit scheduling");
     });
 }
 
