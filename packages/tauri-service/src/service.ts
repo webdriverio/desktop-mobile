@@ -17,9 +17,11 @@ import {
   clearWindowState,
   ensureActiveWindowFocus,
   getDefaultWindowLabel,
+  isInternalWindowSwitch,
   listWindowLabels,
   setCurrentWindowLabel,
   setSessionProvider,
+  suppressActiveWindowFocus,
   switchWindowByLabel,
 } from './window.js';
 
@@ -45,6 +47,7 @@ export default class TauriWorkerService {
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
+  private pendingExternalWindowSwitches = new Map<string, Map<string, number>>();
 
   constructor(options: TauriServiceOptions & TauriServiceGlobalOptions, capabilities: TauriCapabilities) {
     // Options may be supplied service-level (services: [['tauri', {...}]]) or capability-level
@@ -110,6 +113,9 @@ export default class TauriWorkerService {
           this.addTauriApi(mrInstance);
           this.patchBrowserExecute(mrInstance);
           setCurrentWindowLabel(mrInstance, this.windowLabel);
+          if (this.windowLabel !== getDefaultWindowLabel()) {
+            suppressActiveWindowFocus(mrInstance);
+          }
           setSessionProvider(mrInstance, this.driverProvider ?? 'embedded');
           stage = `waitUntilWindowAvailable:${instanceName}`;
           await waitUntilWindowAvailable(mrInstance);
@@ -142,6 +148,9 @@ export default class TauriWorkerService {
         this.addTauriApi(browser as WebdriverIO.Browser);
         this.patchBrowserExecute(browser as WebdriverIO.Browser);
         setCurrentWindowLabel(browser as WebdriverIO.Browser, this.windowLabel);
+        if (this.windowLabel !== getDefaultWindowLabel()) {
+          suppressActiveWindowFocus(browser as WebdriverIO.Browser);
+        }
         setSessionProvider(browser as WebdriverIO.Browser, this.driverProvider ?? 'embedded');
         stage = 'waitUntilWindowAvailable:single';
         await waitUntilWindowAvailable(browser as WebdriverIO.Browser);
@@ -225,18 +234,72 @@ export default class TauriWorkerService {
     }
   }
 
-  async beforeCommand(commandName: string, _args: unknown[]): Promise<void> {
+  async beforeCommand(commandName: string, args: unknown[]): Promise<void> {
     if (!this.browser || this.browser.isMultiremote) {
       return;
     }
 
     const browser = this.browser as WebdriverIO.Browser;
 
+    if (commandName === 'switchToWindow') {
+      if (!isInternalWindowSwitch(browser)) {
+        const handle = args[0];
+        if (typeof handle === 'string') {
+          const sessionKey = browser.sessionId || 'default';
+          const pendingByHandle = this.pendingExternalWindowSwitches.get(sessionKey) ?? new Map<string, number>();
+          pendingByHandle.set(handle, (pendingByHandle.get(handle) ?? 0) + 1);
+          this.pendingExternalWindowSwitches.set(sessionKey, pendingByHandle);
+        }
+      }
+      return;
+    }
+
     try {
       // Generic window focus detection like Electron - no app-specific knowledge
       await ensureActiveWindowFocus(browser, commandName);
     } catch (error) {
       log.warn('Failed to ensure window focus before command:', error);
+    }
+  }
+
+  async afterCommand(commandName: string, args: unknown[], _result: unknown, error?: Error): Promise<void> {
+    if (commandName !== 'switchToWindow' || !this.browser || this.browser.isMultiremote) {
+      return;
+    }
+
+    const browser = this.browser as WebdriverIO.Browser;
+    if (isInternalWindowSwitch(browser)) {
+      return;
+    }
+
+    const sessionKey = browser.sessionId || 'default';
+    const handle = args[0];
+    if (typeof handle !== 'string') {
+      return;
+    }
+
+    const pendingByHandle = this.pendingExternalWindowSwitches.get(sessionKey);
+    const pendingCount = pendingByHandle?.get(handle) ?? 0;
+    if (pendingCount === 0 || !pendingByHandle) {
+      return;
+    }
+
+    if (pendingCount === 1) {
+      pendingByHandle.delete(handle);
+      if (pendingByHandle.size === 0) {
+        this.pendingExternalWindowSwitches.delete(sessionKey);
+      }
+    } else {
+      pendingByHandle.set(handle, pendingCount - 1);
+    }
+
+    if (error) {
+      return;
+    }
+
+    suppressActiveWindowFocus(browser);
+    if ((this.driverProvider ?? 'embedded') === 'embedded') {
+      setCurrentWindowLabel(browser, handle);
     }
   }
 
@@ -281,6 +344,7 @@ export default class TauriWorkerService {
 
     if (!this.browser) {
       log.warn('No browser instance available for session cleanup');
+      this.pendingExternalWindowSwitches.clear();
       clearWindowState();
       return;
     }
@@ -289,6 +353,7 @@ export default class TauriWorkerService {
       // Delete WebDriver session explicitly for clean retry handling
       if (!this.browser.isMultiremote) {
         const stdBrowser = this.browser as WebdriverIO.Browser;
+        this.pendingExternalWindowSwitches.delete(stdBrowser.sessionId || 'default');
         clearWindowState(stdBrowser.sessionId);
         if (stdBrowser.sessionId) {
           log.debug(`Deleting session: ${stdBrowser.sessionId}`);
@@ -314,6 +379,7 @@ export default class TauriWorkerService {
         }
         // Clear all session IDs from cache
         for (const sid of sessionIds) {
+          this.pendingExternalWindowSwitches.delete(sid || 'default');
           clearWindowState(sid);
         }
       }

@@ -2,7 +2,7 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::webview::Cookie as TauriCookie;
-use tauri::{Runtime, WebviewWindow};
+use tauri::{Runtime, Webview};
 
 #[cfg(desktop)]
 use tauri::{PhysicalPosition, PhysicalSize};
@@ -30,6 +30,33 @@ pub struct WindowRect {
     pub y: i32,
     pub width: u32,
     pub height: u32,
+}
+
+#[cfg(desktop)]
+pub(crate) fn is_primary_webview<R: Runtime>(webview: &Webview<R>) -> bool {
+    webview.label() == webview.window().label()
+}
+
+#[cfg(desktop)]
+pub(crate) fn is_standalone_webview<R: Runtime>(webview: &Webview<R>) -> bool {
+    is_primary_webview(webview) && webview.window().webviews().len() == 1
+}
+
+#[cfg(desktop)]
+fn host_outer_rect<R: Runtime>(webview: &Webview<R>) -> Result<WindowRect, WebDriverErrorResponse> {
+    let window = webview.window();
+    let position = window
+        .outer_position()
+        .map_err(|error| WebDriverErrorResponse::unknown_error(&error.to_string()))?;
+    let size = window
+        .outer_size()
+        .map_err(|error| WebDriverErrorResponse::unknown_error(&error.to_string()))?;
+    Ok(WindowRect {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+    })
 }
 
 /// Frame identifier for switching frames
@@ -128,8 +155,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     // Window Access
     // =========================================================================
 
-    /// Get a reference to the underlying window
-    fn window(&self) -> &WebviewWindow<R>;
+    /// Get a reference to the selected webview
+    fn webview(&self) -> &Webview<R>;
 
     /// Get the script timeout in milliseconds
     fn script_timeout_ms(&self) -> u64;
@@ -469,10 +496,9 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         );
         let result = self.evaluate_js(&script).await?;
 
-        let value = result
-            .get("value")
-            .cloned()
-            .ok_or_else(|| WebDriverErrorResponse::unknown_error("element center script returned no value"))?;
+        let value = result.get("value").cloned().ok_or_else(|| {
+            WebDriverErrorResponse::unknown_error("element center script returned no value")
+        })?;
 
         #[derive(serde::Deserialize)]
         struct Center {
@@ -1002,7 +1028,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         self.evaluate_js(&wrapper).await?;
 
         // Poll for the result with timeout
-        let poll_script = format!("window['{}']", result_var);
+        let poll_script = format!("window['{result_var}']");
         let timeout = std::time::Duration::from_millis(self.script_timeout_ms());
         let start = std::time::Instant::now();
         let poll_interval = std::time::Duration::from_millis(50);
@@ -1014,7 +1040,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
             // Check if we have a result
             if !inner.is_null() && inner.get("__wd_success").is_some() {
                 // Clean up the global variable
-                let cleanup_script = format!("delete window['{}']", result_var);
+                let cleanup_script = format!("delete window['{result_var}']");
                 let _ = self.evaluate_js(&cleanup_script).await;
 
                 return extract_script_result_from_inner(&inner);
@@ -1022,7 +1048,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
             if start.elapsed() > timeout {
                 // Clean up on timeout
-                let cleanup_script = format!("delete window['{}']", result_var);
+                let cleanup_script = format!("delete window['{result_var}']");
                 let _ = self.evaluate_js(&cleanup_script).await;
 
                 return Err(WebDriverErrorResponse::script_timeout());
@@ -1472,17 +1498,24 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Get window rectangle (position and size)
     #[cfg(desktop)]
     async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        if let Ok(position) = self.window().outer_position() {
-            if let Ok(size) = self.window().outer_size() {
-                return Ok(WindowRect {
-                    x: position.x,
-                    y: position.y,
-                    width: size.width,
-                    height: size.height,
-                });
-            }
+        if is_primary_webview(self.webview()) {
+            return host_outer_rect(self.webview());
         }
-        Ok(WindowRect::default())
+
+        let position = self
+            .webview()
+            .position()
+            .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+        let size = self
+            .webview()
+            .size()
+            .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+        Ok(WindowRect {
+            x: position.x,
+            y: position.y,
+            width: size.width,
+            height: size.height,
+        })
     }
 
     #[cfg(mobile)]
@@ -1494,40 +1527,50 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         &self,
         rect: WindowRect,
     ) -> Result<WindowRect, WebDriverErrorResponse> {
-        // Exit fullscreen/maximized state before setting rect
-        // Otherwise the window manager may ignore our size/position request
-        if self.window().is_fullscreen().unwrap_or(false) {
-            let _ = self.window().set_fullscreen(false);
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-        if self.window().is_maximized().unwrap_or(false) {
-            let _ = self.window().unmaximize();
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
+        if is_primary_webview(self.webview()) {
+            let window = self.webview().window();
 
-        let _ = self
-            .window()
-            .set_position(PhysicalPosition::new(rect.x, rect.y));
+            // Exit fullscreen/maximized state before setting rect
+            // Otherwise the window manager may ignore our size/position request
+            if window.is_fullscreen().unwrap_or(false) {
+                let _ = window.set_fullscreen(false);
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
+            if window.is_maximized().unwrap_or(false) {
+                let _ = window.unmaximize();
+                tokio::time::sleep(std::time::Duration::from_millis(50)).await;
+            }
 
-        // Calculate chrome/decoration size to set outer size correctly
-        // On Windows/Linux, set_size sets inner size, but we want to set outer size
-        let (chrome_width, chrome_height) = if let (Ok(outer), Ok(inner)) =
-            (self.window().outer_size(), self.window().inner_size())
-        {
-            (
-                outer.width.saturating_sub(inner.width),
-                outer.height.saturating_sub(inner.height),
-            )
+            window
+                .set_position(PhysicalPosition::new(rect.x, rect.y))
+                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+
+            // Calculate chrome/decoration size to set outer size correctly
+            // On Windows/Linux, set_size sets inner size, but we want to set outer size
+            let (outer, inner) = (window.outer_size(), window.inner_size());
+            let (chrome_width, chrome_height) = if let (Ok(outer), Ok(inner)) = (outer, inner) {
+                (
+                    outer.width.saturating_sub(inner.width),
+                    outer.height.saturating_sub(inner.height),
+                )
+            } else {
+                (0, 0)
+            };
+
+            // Set inner size = requested outer size - chrome
+            let inner_width = rect.width.saturating_sub(chrome_width);
+            let inner_height = rect.height.saturating_sub(chrome_height);
+            window
+                .set_size(PhysicalSize::new(inner_width, inner_height))
+                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
         } else {
-            (0, 0)
-        };
-
-        // Set inner size = requested outer size - chrome
-        let inner_width = rect.width.saturating_sub(chrome_width);
-        let inner_height = rect.height.saturating_sub(chrome_height);
-        let _ = self
-            .window()
-            .set_size(PhysicalSize::new(inner_width, inner_height));
+            self.webview()
+                .set_position(PhysicalPosition::new(rect.x, rect.y))
+                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+            self.webview()
+                .set_size(PhysicalSize::new(rect.width, rect.height))
+                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+        }
 
         self.get_window_rect().await
     }
@@ -1535,24 +1578,29 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Maximize window
     #[cfg(desktop)]
     async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        let _ = self.window().maximize();
+        let window = self.webview().window();
+        let _ = window.maximize();
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        self.get_window_rect().await
+        // Native maximize applies to the host, unlike child-relative getWindowRect.
+        host_outer_rect(self.webview())
     }
 
     /// Minimize window
     #[cfg(desktop)]
     async fn minimize_window(&self) -> Result<(), WebDriverErrorResponse> {
-        let _ = self.window().minimize();
+        let window = self.webview().window();
+        let _ = window.minimize();
         Ok(())
     }
 
     /// Set window to fullscreen
     #[cfg(desktop)]
     async fn fullscreen_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        let _ = self.window().set_fullscreen(true);
+        let window = self.webview().window();
+        let _ = window.set_fullscreen(true);
         tokio::time::sleep(std::time::Duration::from_millis(100)).await;
-        self.get_window_rect().await
+        // Native fullscreen applies to the host, unlike child-relative getWindowRect.
+        host_outer_rect(self.webview())
     }
 
     /// Set window rectangle (mobile unsupported)
@@ -1644,7 +1692,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
     /// Get all cookies
     async fn get_all_cookies(&self) -> Result<Vec<Cookie>, WebDriverErrorResponse> {
-        self.window()
+        self.webview()
             .cookies()
             .map(|cookies| cookies.iter().map(tauri_cookie_to_webdriver).collect())
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))
@@ -1660,7 +1708,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     async fn add_cookie(&self, mut cookie: Cookie) -> Result<(), WebDriverErrorResponse> {
         // Per WebDriver spec: if no domain is specified, use the current page's domain
         if cookie.domain.is_none() {
-            if let Ok(url) = self.window().url() {
+            if let Ok(url) = self.webview().url() {
                 cookie.domain = url.host_str().map(String::from);
             }
         }
@@ -1671,7 +1719,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         }
 
         let tauri_cookie = webdriver_cookie_to_tauri(&cookie);
-        self.window()
+        self.webview()
             .set_cookie(tauri_cookie)
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))
     }
@@ -1680,13 +1728,13 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     async fn delete_cookie(&self, name: &str) -> Result<(), WebDriverErrorResponse> {
         // Find the cookie first to get its exact domain/path for deletion
         let cookies = self
-            .window()
+            .webview()
             .cookies()
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
 
         for cookie in cookies {
             if cookie.name() == name {
-                self.window()
+                self.webview()
                     .delete_cookie(cookie)
                     .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
                 return Ok(());
@@ -1698,12 +1746,12 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Delete all cookies
     async fn delete_all_cookies(&self) -> Result<(), WebDriverErrorResponse> {
         let cookies = self
-            .window()
+            .webview()
             .cookies()
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
 
         for cookie in cookies {
-            self.window()
+            self.webview()
                 .delete_cookie(cookie)
                 .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
         }
@@ -1716,8 +1764,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
     /// Dismiss the current alert (cancel)
     async fn dismiss_alert(&self) -> Result<(), WebDriverErrorResponse> {
-        let manager = self.window().app_handle().state::<AlertStateManager>();
-        let alert_state = manager.get_or_create(self.window().label());
+        let manager = self.webview().app_handle().state::<AlertStateManager>();
+        let alert_state = manager.get_or_create(self.webview().label());
         if alert_state.respond(false, None) {
             Ok(())
         } else {
@@ -1727,8 +1775,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
     /// Accept the current alert (OK)
     async fn accept_alert(&self) -> Result<(), WebDriverErrorResponse> {
-        let manager = self.window().app_handle().state::<AlertStateManager>();
-        let alert_state = manager.get_or_create(self.window().label());
+        let manager = self.webview().app_handle().state::<AlertStateManager>();
+        let alert_state = manager.get_or_create(self.webview().label());
         // For prompts, use input text if set, otherwise default text
         let prompt_text = alert_state
             .get_prompt_input()
@@ -1742,8 +1790,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
     /// Get the text of the current alert
     async fn get_alert_text(&self) -> Result<String, WebDriverErrorResponse> {
-        let manager = self.window().app_handle().state::<AlertStateManager>();
-        let alert_state = manager.get_or_create(self.window().label());
+        let manager = self.webview().app_handle().state::<AlertStateManager>();
+        let alert_state = manager.get_or_create(self.webview().label());
         match alert_state.get_message() {
             Some(msg) => Ok(msg),
             None => Err(WebDriverErrorResponse::no_such_alert()),
@@ -1752,8 +1800,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
     /// Send text to the current alert (for prompts)
     async fn send_alert_text(&self, text: &str) -> Result<(), WebDriverErrorResponse> {
-        let manager = self.window().app_handle().state::<AlertStateManager>();
-        let alert_state = manager.get_or_create(self.window().label());
+        let manager = self.webview().app_handle().state::<AlertStateManager>();
+        let alert_state = manager.get_or_create(self.webview().label());
         match alert_state.get_alert_type() {
             None => Err(WebDriverErrorResponse::no_such_alert()),
             Some(AlertType::Prompt) => {
@@ -1945,7 +1993,7 @@ fn tauri_cookie_to_webdriver(cookie: &TauriCookie<'static>) -> Cookie {
         secure: cookie.secure().unwrap_or(false),
         http_only: cookie.http_only().unwrap_or(false),
         expiry: cookie.expires().and_then(|exp| match exp {
-            Expiration::DateTime(dt) => Some(dt.unix_timestamp().cast_unsigned()),
+            Expiration::DateTime(dt) => u64::try_from(dt.unix_timestamp()).ok(),
             Expiration::Session => None,
         }),
         same_site: cookie.same_site().map(|ss| match ss {
@@ -1979,8 +2027,10 @@ fn webdriver_cookie_to_tauri(cookie: &Cookie) -> TauriCookie<'static> {
     }
 
     if let Some(expiry) = cookie.expiry {
-        if let Ok(dt) = OffsetDateTime::from_unix_timestamp(expiry.cast_signed()) {
-            builder = builder.expires(Expiration::DateTime(dt));
+        if let Ok(expiry) = i64::try_from(expiry) {
+            if let Ok(dt) = OffsetDateTime::from_unix_timestamp(expiry) {
+                builder = builder.expires(Expiration::DateTime(dt));
+            }
         }
     }
 

@@ -1,7 +1,7 @@
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use tauri::{Manager, Runtime, WebviewWindow};
+use tauri::{Manager, Runtime, Webview};
 
 use crate::mobile::{
     AlertResult, EvaluateJsArgs, JsResult, ScreenshotArgs, SendAlertTextArgs, TouchArgs, Webdriver,
@@ -16,15 +16,15 @@ use crate::webdriver::Timeouts;
 /// Android `WebView` executor using Tauri's mobile plugin bridge
 #[derive(Clone)]
 pub struct AndroidExecutor<R: Runtime> {
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 }
 
 impl<R: Runtime> AndroidExecutor<R> {
-    pub fn new(window: WebviewWindow<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
+    pub fn new(webview: Webview<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
         Self {
-            window,
+            webview,
             timeouts,
             frame_context,
         }
@@ -85,8 +85,8 @@ struct CookiesResult {
 
 #[async_trait]
 impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
-    fn window(&self) -> &WebviewWindow<R> {
-        &self.window
+    fn webview(&self) -> &Webview<R> {
+        &self.webview
     }
 
     fn script_timeout_ms(&self) -> u64 {
@@ -96,7 +96,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
     async fn evaluate_js(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
         let wrapped_script = wrap_script_for_frame_context(script, &self.frame_context);
 
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let args = EvaluateJsArgs {
             script: wrapped_script,
@@ -177,7 +177,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
             }})()"
         );
 
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let plugin_args = AsyncScriptArgs {
             async_id,
@@ -213,7 +213,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
     }
 
     async fn take_screenshot(&self) -> Result<String, WebDriverErrorResponse> {
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let args = ScreenshotArgs {
             timeout_ms: self.timeouts.script_ms,
@@ -262,7 +262,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
     }
 
     async fn print_page(&self, options: PrintOptions) -> Result<String, WebDriverErrorResponse> {
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let result: JsResult = webdriver
             .0
@@ -293,7 +293,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
         y: i32,
         _button: u32,
     ) -> Result<(), WebDriverErrorResponse> {
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let touch_type = match event_type {
             PointerEventType::Down => "down",
@@ -318,7 +318,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
 
     // Alert handling via plugin
     async fn get_alert_text(&self) -> Result<String, WebDriverErrorResponse> {
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let result: AlertResult = webdriver
             .0
@@ -338,7 +338,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
     }
 
     async fn accept_alert(&self) -> Result<(), WebDriverErrorResponse> {
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let _result: Value = webdriver
             .0
@@ -356,7 +356,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
     }
 
     async fn dismiss_alert(&self) -> Result<(), WebDriverErrorResponse> {
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let _result: Value = webdriver
             .0
@@ -374,7 +374,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
     }
 
     async fn send_alert_text(&self, text: &str) -> Result<(), WebDriverErrorResponse> {
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let _result: Value = webdriver
             .0
@@ -407,12 +407,12 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
 
     async fn get_all_cookies(&self) -> Result<Vec<Cookie>, WebDriverErrorResponse> {
         let url = self
-            .window
+            .webview
             .url()
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?
             .to_string();
 
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let result: CookiesResult = webdriver
             .0
@@ -446,7 +446,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
 
     async fn add_cookie(&self, mut cookie: Cookie) -> Result<(), WebDriverErrorResponse> {
         let url = self
-            .window
+            .webview
             .url()
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
 
@@ -460,7 +460,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
             cookie.path = Some("/".to_string());
         }
 
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let _result: Value = webdriver
             .0
@@ -486,12 +486,12 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
 
     async fn delete_cookie(&self, name: &str) -> Result<(), WebDriverErrorResponse> {
         let url = self
-            .window
+            .webview
             .url()
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?
             .to_string();
 
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let _result: Value = webdriver
             .0
@@ -509,7 +509,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
     }
 
     async fn delete_all_cookies(&self) -> Result<(), WebDriverErrorResponse> {
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         let _result: Value = webdriver
             .0
@@ -526,7 +526,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
 
     async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse> {
         // Get viewport size from Kotlin plugin
-        let webdriver = self.window.app_handle().state::<Webdriver<R>>();
+        let webdriver = self.webview.app_handle().state::<Webdriver<R>>();
 
         webdriver
             .0

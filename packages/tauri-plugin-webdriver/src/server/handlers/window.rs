@@ -4,9 +4,13 @@ use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
-use tauri::{Manager, Runtime};
+use tauri::Runtime;
 
+#[cfg(desktop)]
+use crate::platform::is_standalone_webview;
 use crate::platform::WindowRect;
+#[cfg(desktop)]
+use crate::server::close_protection_is_required;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 
@@ -44,7 +48,10 @@ pub async fn get_window_handle<R: Runtime>(
     let current_window = session.current_window.clone();
     drop(sessions);
 
-    // Return the session's current window handle
+    if !state.has_window_label(&current_window) {
+        return Err(WebDriverErrorResponse::no_such_window());
+    }
+
     Ok(WebDriverResponse::success(current_window))
 }
 
@@ -58,7 +65,7 @@ pub async fn get_window_handles<R: Runtime>(
     drop(sessions);
 
     // Return all window labels as handles
-    let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
+    let handles = state.get_window_labels();
 
     Ok(WebDriverResponse::success(handles))
 }
@@ -84,19 +91,28 @@ pub async fn close_window<R: Runtime>(
         let current_window = session.current_window.clone();
         drop(sessions);
 
-        // Close the current window
-        if let Some(window) = state.app.webview_windows().get(&current_window).cloned() {
-            window
-                .destroy()
-                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+        let webview = state
+            .get_webview(&current_window)
+            .ok_or_else(WebDriverErrorResponse::no_such_window)?;
 
-            // Return remaining window handles
-            let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
-
-            Ok(WebDriverResponse::success(handles))
-        } else {
-            Err(WebDriverErrorResponse::no_such_window())
+        if close_protection_is_required() && !is_standalone_webview(&webview) {
+            return Err(WebDriverErrorResponse::unsupported_operation(
+                "Closing a child or shared-host webview is not supported",
+            ));
         }
+
+        webview
+            .window()
+            .destroy()
+            .map_err(|error| WebDriverErrorResponse::unknown_error(&error.to_string()))?;
+
+        let handles = state
+            .get_window_labels()
+            .into_iter()
+            .filter(|label| label != &current_window)
+            .collect::<Vec<_>>();
+
+        Ok(WebDriverResponse::success(handles))
     }
 }
 
@@ -110,12 +126,13 @@ pub async fn switch_to_window<R: Runtime>(
     let session = sessions.get_mut(&session_id)?;
 
     // Verify the window exists
-    if !state.app.webview_windows().contains_key(&request.handle) {
+    if !state.has_window_label(&request.handle) {
         return Err(WebDriverErrorResponse::no_such_window());
     }
 
-    // Update session's current window
-    session.current_window = request.handle;
+    session.switch_to_window(request.handle).map_err(|_| {
+        WebDriverErrorResponse::unknown_error("Browsing context generation overflowed")
+    })?;
 
     Ok(WebDriverResponse::null())
 }

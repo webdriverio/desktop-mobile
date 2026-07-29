@@ -14,7 +14,7 @@ use objc2_web_kit::{
     WKSnapshotConfiguration, WKUIDelegate, WKUserContentController, WKWebView,
 };
 use serde_json::Value;
-use tauri::{Manager, Runtime, WebviewWindow};
+use tauri::{Manager, Runtime, Webview};
 use tokio::sync::oneshot;
 
 use crate::eval_channel::EvalResultRegistry;
@@ -29,15 +29,15 @@ static DELEGATE_KEY: u8 = 0;
 /// macOS `WebView` executor using `WKWebView` native APIs
 #[derive(Clone)]
 pub struct MacOSExecutor<R: Runtime> {
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 }
 
 impl<R: Runtime> MacOSExecutor<R> {
-    pub fn new(window: WebviewWindow<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
+    pub fn new(webview: Webview<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
         Self {
-            window,
+            webview,
             timeouts,
             frame_context,
         }
@@ -99,8 +99,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
     // Window Access
     // =========================================================================
 
-    fn window(&self) -> &WebviewWindow<R> {
-        &self.window
+    fn webview(&self) -> &Webview<R> {
+        &self.webview
     }
 
     fn script_timeout_ms(&self) -> u64 {
@@ -115,7 +115,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
         let (tx, rx) = oneshot::channel();
         let script_owned = wrap_script_for_frame_context(script, &self.frame_context);
 
-        let result = self.window.with_webview(move |webview| unsafe {
+        let result = self.webview.with_webview(move |webview| unsafe {
             let wk_webview: &WKWebView = &*webview.inner().cast();
             let ns_script = NSString::from_str(&script_owned);
 
@@ -215,7 +215,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
 
         let (tx, rx) = oneshot::channel();
 
-        let result = self.window.with_webview(move |webview| unsafe {
+        let result = self.webview.with_webview(move |webview| unsafe {
             let wk_webview: &WKWebView = &*webview.inner().cast();
             let ns_script = NSString::from_str(&wrapper);
             let mtm = MainThreadMarker::new_unchecked();
@@ -357,7 +357,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
     async fn take_screenshot(&self) -> Result<String, WebDriverErrorResponse> {
         let (tx, rx) = oneshot::channel();
 
-        let result = self.window.with_webview(move |webview| unsafe {
+        let result = self.webview.with_webview(move |webview| unsafe {
             let wk_webview: &WKWebView = &*webview.inner().cast();
             let mtm = MainThreadMarker::new_unchecked();
             let config = WKSnapshotConfiguration::new(mtm);
@@ -467,7 +467,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
         // Now create PDF using WKWebView's native API
         let (tx, rx) = oneshot::channel();
 
-        let result = self.window.with_webview(move |webview| unsafe {
+        let result = self.webview.with_webview(move |webview| unsafe {
             let wk_webview: &WKWebView = &*webview.inner().cast();
             let mtm = MainThreadMarker::new_unchecked();
 

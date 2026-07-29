@@ -25,66 +25,66 @@ mod android;
 mod ios;
 
 use std::sync::Arc;
-use tauri::{Runtime, WebviewWindow};
+use tauri::{Runtime, Webview};
 
 use crate::webdriver::Timeouts;
 
-/// Create a platform-specific executor for the given window
+/// Create a platform-specific executor for the given webview
 #[cfg(target_os = "macos")]
 pub fn create_executor<R: Runtime + 'static>(
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 ) -> Arc<dyn PlatformExecutor<R>> {
-    Arc::new(macos::MacOSExecutor::new(window, timeouts, frame_context))
+    Arc::new(macos::MacOSExecutor::new(webview, timeouts, frame_context))
 }
 
-/// Create a platform-specific executor for the given window
+/// Create a platform-specific executor for the given webview
 #[cfg(target_os = "windows")]
 pub fn create_executor<R: Runtime + 'static>(
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 ) -> Arc<dyn PlatformExecutor<R>> {
     Arc::new(windows::WindowsExecutor::new(
-        window,
+        webview,
         timeouts,
         frame_context,
     ))
 }
 
-/// Create a platform-specific executor for the given window
+/// Create a platform-specific executor for the given webview
 #[cfg(target_os = "linux")]
 pub fn create_executor<R: Runtime + 'static>(
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 ) -> Arc<dyn PlatformExecutor<R>> {
-    Arc::new(linux::LinuxExecutor::new(window, timeouts, frame_context))
+    Arc::new(linux::LinuxExecutor::new(webview, timeouts, frame_context))
 }
 
-/// Create a platform-specific executor for the given window
+/// Create a platform-specific executor for the given webview
 #[cfg(target_os = "android")]
 pub fn create_executor<R: Runtime + 'static>(
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 ) -> Arc<dyn PlatformExecutor<R>> {
     Arc::new(android::AndroidExecutor::new(
-        window,
+        webview,
         timeouts,
         frame_context,
     ))
 }
 
-/// Create a platform-specific executor for the given window
+/// Create a platform-specific executor for the given webview
 #[cfg(target_os = "ios")]
 pub fn create_executor<R: Runtime + 'static>(
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 ) -> Arc<dyn PlatformExecutor<R>> {
-    Arc::new(ios::IOSExecutor::new(window, timeouts, frame_context))
+    Arc::new(ios::IOSExecutor::new(webview, timeouts, frame_context))
 }
 
 /// Register platform-specific webview handlers at webview creation time.

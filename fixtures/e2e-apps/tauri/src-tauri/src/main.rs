@@ -247,6 +247,69 @@ fn create_main_window<R: tauri::Runtime>(app: &tauri::AppHandle<R>) -> tauri::We
 }
 
 #[tauri::command]
+async fn create_child_webview(
+    app: tauri::AppHandle,
+    label: String,
+    slot: u8,
+) -> Result<(), String> {
+    if app.get_webview(&label).is_some() {
+        return Ok(());
+    }
+
+    let main = app.get_webview("main").ok_or("Main webview not found")?;
+    let host = main.window();
+    let size = host.inner_size().map_err(|error| error.to_string())?;
+    let scale_factor = host.scale_factor().map_err(|error| error.to_string())?;
+    let logical_size = size.to_logical::<f64>(scale_factor);
+    let width = logical_size.width / 2.0;
+    let x = if slot == 0 { 0.0 } else { width };
+    let url = tauri::WebviewUrl::App(format!("child-webview.html?label={label}").into());
+
+    host.add_child(
+        tauri::webview::WebviewBuilder::new(label, url),
+        tauri::LogicalPosition::new(x, 0.0),
+        tauri::LogicalSize::new(width, logical_size.height),
+    )
+    .map(|_| ())
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn remove_child_webview(app: tauri::AppHandle, label: String) -> Result<(), String> {
+    let webview = app
+        .get_webview(&label)
+        .ok_or_else(|| format!("Webview '{label}' not found"))?;
+    if webview.label() == webview.window().label() {
+        return Err("Refusing to remove a primary Webview through the child fixture command".into());
+    }
+
+    webview
+        .close()
+        .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+async fn create_disposable_webview_window(
+    app: tauri::AppHandle,
+    label: String,
+) -> Result<(), String> {
+    if app.get_webview_window(&label).is_some() {
+        return Ok(());
+    }
+
+    tauri::WebviewWindowBuilder::new(
+        &app,
+        &label,
+        tauri::WebviewUrl::App(format!("child-webview.html?label={label}").into()),
+    )
+    .title(format!("Disposable WebviewWindow {label}"))
+    .inner_size(360.0, 240.0)
+    .build()
+    .map(|_| ())
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
 async fn switch_to_main(app: tauri::AppHandle) -> Result<(), String> {
     let main = app.get_webview_window("main")
         .ok_or_else(|| "Main window not found".to_string())?;
@@ -287,7 +350,7 @@ fn main() {
 
     // Add automation plugin for macOS CrabNebula testing (debug builds only)
     #[cfg(all(debug_assertions, target_os = "macos"))]
-    {
+    if !use_embedded_server {
         builder = builder.plugin(tauri_plugin_automation::init());
     }
 
@@ -388,6 +451,9 @@ fn main() {
             switch_to_main,
             get_deep_links,
             get_command_line_args,
+            create_child_webview,
+            remove_child_webview,
+            create_disposable_webview_window,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

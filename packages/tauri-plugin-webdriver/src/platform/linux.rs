@@ -6,7 +6,7 @@ use base64::Engine as _;
 use glib::MainContext;
 use javascriptcore::ValueExt;
 use serde_json::Value;
-use tauri::{Manager, Runtime, WebviewWindow};
+use tauri::{Manager, Runtime, Webview};
 use tokio::sync::oneshot;
 use webkit2gtk::{
     PrintOperationExt, ScriptDialogType, SnapshotOptions, SnapshotRegion, WebViewExt,
@@ -18,10 +18,10 @@ use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
 
 /// Convert a JavaScriptCore value to JSON with multiple fallback strategies.
-/// 
-/// WebKitGTK's `to_json()` can fail for certain types (functions, undefined, 
+///
+/// WebKitGTK's `to_json()` can fail for certain types (functions, undefined,
 /// circular refs, etc.). This function provides robust serialization:
-/// 
+///
 /// 1. Try `to_json(0)` first (handles most primitives and objects)
 /// 2. Try type-specific conversions for special cases
 /// 3. Fall back to string representation or null
@@ -81,15 +81,15 @@ fn js_value_to_json(js_value: &javascriptcore::Value) -> Result<Value, String> {
 /// Linux `WebKitGTK` executor
 #[derive(Clone)]
 pub struct LinuxExecutor<R: Runtime> {
-    window: WebviewWindow<R>,
+    webview: Webview<R>,
     timeouts: Timeouts,
     frame_context: Vec<FrameId>,
 }
 
 impl<R: Runtime> LinuxExecutor<R> {
-    pub fn new(window: WebviewWindow<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
+    pub fn new(webview: Webview<R>, timeouts: Timeouts, frame_context: Vec<FrameId>) -> Self {
         Self {
-            window,
+            webview,
             timeouts,
             frame_context,
         }
@@ -188,8 +188,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
     // Window Access
     // =========================================================================
 
-    fn window(&self) -> &WebviewWindow<R> {
-        &self.window
+    fn webview(&self) -> &Webview<R> {
+        &self.webview
     }
 
     fn script_timeout_ms(&self) -> u64 {
@@ -204,7 +204,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
         let (tx, rx) = oneshot::channel();
         let script_owned = wrap_script_for_frame_context(script, &self.frame_context);
 
-        let result = self.window.with_webview(move |webview| {
+        let result = self.webview.with_webview(move |webview| {
             let webview = webview.inner().clone();
             let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
@@ -257,7 +257,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
         // Use WebKitGTK's native snapshot API
         let (tx, rx) = oneshot::channel();
 
-        let result = self.window.with_webview(move |webview| {
+        let result = self.webview.with_webview(move |webview| {
             let webview = webview.inner().clone();
             let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 
@@ -354,7 +354,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
         let margin_left = options.margin_left;
         let margin_right = options.margin_right;
 
-        let result = self.window.with_webview(move |webview| {
+        let result = self.webview.with_webview(move |webview| {
             let webview = webview.inner().clone();
 
             // Create print operation
@@ -496,7 +496,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for LinuxExecutor<R> {
 
         let (tx, rx) = oneshot::channel();
 
-        let result = self.window.with_webview(move |webview| {
+        let result = self.webview.with_webview(move |webview| {
             let webview = webview.inner().clone();
             let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
 

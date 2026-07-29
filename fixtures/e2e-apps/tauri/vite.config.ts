@@ -10,6 +10,7 @@ export default defineConfig({
       input: {
         main: resolve(__dirname, 'index.html'),
         splash: resolve(__dirname, 'splash.html'),
+        childWebview: resolve(__dirname, 'child-webview.html'),
       },
     },
   },

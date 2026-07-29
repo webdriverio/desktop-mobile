@@ -34,18 +34,64 @@ impl<R: Runtime + 'static> AppState<R> {
         timeouts: Timeouts,
         frame_context: Vec<FrameId>,
     ) -> Result<Arc<dyn PlatformExecutor<R>>, WebDriverErrorResponse> {
-        self.app
-            .webview_windows()
-            .get(window_label)
-            .cloned()
-            .map(|window| create_executor(window, timeouts, frame_context))
+        self.get_webview(window_label)
+            .map(|webview| create_executor(webview, timeouts, frame_context))
             .ok_or_else(WebDriverErrorResponse::no_such_window)
+    }
+
+    pub fn get_webview(&self, window_label: &str) -> Option<tauri::Webview<R>> {
+        self.app
+            .webviews()
+            .get(window_label)
+            .filter(|webview| {
+                is_webview_exposed(
+                    child_webviews_are_exposed(),
+                    webview.label(),
+                    webview.window().label(),
+                )
+            })
+            .cloned()
+    }
+
+    pub fn has_window_label(&self, window_label: &str) -> bool {
+        self.get_webview(window_label).is_some()
     }
 
     /// Get all window labels
     pub fn get_window_labels(&self) -> Vec<String> {
-        self.app.webview_windows().keys().cloned().collect()
+        self.app
+            .webviews()
+            .values()
+            .filter(|webview| {
+                is_webview_exposed(
+                    child_webviews_are_exposed(),
+                    webview.label(),
+                    webview.window().label(),
+                )
+            })
+            .map(|webview| webview.label().to_string())
+            .collect()
     }
+}
+
+fn child_webviews_are_exposed() -> bool {
+    child_webviews_are_exposed_for_platform(std::env::consts::OS)
+}
+
+pub(crate) fn close_protection_is_required() -> bool {
+    close_protection_is_required_for_platform(std::env::consts::OS)
+}
+
+fn close_protection_is_required_for_platform(platform: &str) -> bool {
+    child_webviews_are_exposed_for_platform(platform)
+}
+
+fn child_webviews_are_exposed_for_platform(platform: &str) -> bool {
+    platform == "macos"
+}
+
+fn is_webview_exposed(expose_children: bool, webview_label: &str, window_label: &str) -> bool {
+    expose_children || webview_label == window_label
 }
 
 /// Start the `WebDriver` HTTP server on the specified port
@@ -75,7 +121,8 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
                 Err(e) => {
                     tracing::error!(
                         "Failed to bind WebDriver server to {} — port may already be in use: {}",
-                        addr, e
+                        addr,
+                        e
                     );
                     return;
                 }
@@ -88,4 +135,74 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
             }
         });
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{
+        child_webviews_are_exposed_for_platform, close_protection_is_required_for_platform,
+        is_webview_exposed,
+    };
+
+    #[test]
+    fn primary_only_policy_hides_child_webviews() {
+        assert!(is_webview_exposed(false, "main", "main"));
+        assert!(!is_webview_exposed(false, "child", "main"));
+    }
+
+    #[test]
+    fn all_webviews_policy_keeps_child_webviews_visible() {
+        assert!(is_webview_exposed(true, "main", "main"));
+        assert!(is_webview_exposed(true, "child", "main"));
+    }
+
+    #[test]
+    fn non_macos_platforms_expose_only_primary_webviews() {
+        for platform in ["windows", "linux", "android", "ios"] {
+            assert!(is_webview_exposed(
+                child_webviews_are_exposed_for_platform(platform),
+                "main",
+                "main"
+            ));
+            assert!(!is_webview_exposed(
+                child_webviews_are_exposed_for_platform(platform),
+                "child",
+                "main"
+            ));
+        }
+    }
+
+    #[test]
+    fn macos_exposes_all_webviews() {
+        assert!(is_webview_exposed(
+            child_webviews_are_exposed_for_platform("macos"),
+            "main",
+            "main"
+        ));
+        assert!(is_webview_exposed(
+            child_webviews_are_exposed_for_platform("macos"),
+            "child",
+            "main"
+        ));
+    }
+
+    #[test]
+    fn close_protection_is_required_only_when_child_webviews_are_exposed() {
+        for (platform, expected) in [
+            ("macos", true),
+            ("windows", false),
+            ("linux", false),
+            ("android", false),
+            ("ios", false),
+        ] {
+            assert_eq!(
+                close_protection_is_required_for_platform(platform),
+                expected
+            );
+            assert_eq!(
+                close_protection_is_required_for_platform(platform),
+                child_webviews_are_exposed_for_platform(platform)
+            );
+        }
+    }
 }
