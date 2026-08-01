@@ -56,6 +56,11 @@ jobs:
           script: |
             const fs = require('fs');
             const MARKER = '<!-- releasekit-preview -->';
+            // Stamped into the comment so a run can tell whether a newer one already
+            // wrote it. `run_number` increases monotonically per workflow, so it orders
+            // runs even when they share a head SHA — which label/unlabel events do.
+            const RUN_TAG = /<!-- releasekit-preview-run: (\d+) -->/;
+            const runNumber = context.payload.workflow_run.run_number;
 
             if (!fs.existsSync('preview/preview.md')) {
               core.info('No preview artifact contents; nothing to post.');
@@ -89,7 +94,8 @@ jobs:
 
             // releasekit keys its comment off the marker so repeated runs update in
             // place. Re-add it if the preview body did not already carry one.
-            const body = raw.startsWith(MARKER) ? raw : `${MARKER}\n\n${raw}`;
+            const withMarker = raw.startsWith(MARKER) ? raw : `${MARKER}\n\n${raw}`;
+            const body = `${withMarker}\n\n<!-- releasekit-preview-run: ${runNumber} -->`;
 
             const comments = await github.paginate(github.rest.issues.listComments, {
               owner: context.repo.owner,
@@ -100,6 +106,15 @@ jobs:
             const existing = comments.find((comment) => comment.body?.includes(MARKER));
 
             if (existing) {
+              // Cancelling a superseded consumer does not recall an update it already
+              // dispatched, so refuse to write over a comment a newer run produced.
+              const stamped = existing.body?.match(RUN_TAG);
+              if (stamped && Number(stamped[1]) >= runNumber) {
+                core.info(
+                  `Comment on #${prNumber} is from run ${stamped[1]} (this is ${runNumber}); leaving the newer preview in place.`,
+                );
+                return;
+              }
               await github.rest.issues.updateComment({
                 owner: context.repo.owner,
                 repo: context.repo.repo,
