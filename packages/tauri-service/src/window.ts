@@ -1,3 +1,4 @@
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { createLogger } from '@wdio/native-utils';
 import { clearPluginAvailabilityCache } from './pluginCache.js';
 import type { DriverProvider } from './types.js';
@@ -17,6 +18,8 @@ const currentWindowLabelCache = new Map<string, string>();
 
 const userSwitchedWindowCache = new Set<string>();
 
+const internalWindowSwitchContext = new AsyncLocalStorage<string>();
+
 const sessionProviderCache = new Map<string, DriverProvider>();
 
 const DEFAULT_WINDOW_LABEL = 'main';
@@ -32,6 +35,23 @@ export function getCurrentWindowLabel(browser: WebdriverIO.Browser): string {
 export function setCurrentWindowLabel(browser: WebdriverIO.Browser, label: string): void {
   currentWindowLabelCache.set(browser.sessionId || 'default', label);
   log.debug(`Current window label set to: ${label}`);
+}
+
+/** Stop automatic focus recovery from overriding a window the user chose explicitly. */
+export function suppressActiveWindowFocus(browser: WebdriverIO.Browser): void {
+  userSwitchedWindowCache.add(browser.sessionId || 'default');
+}
+
+export function isInternalWindowSwitch(browser: WebdriverIO.Browser): boolean {
+  return internalWindowSwitchContext.getStore() === (browser.sessionId || 'default');
+}
+
+/** Mark a `switchToWindow` issued by the service itself, so it is not read as user intent. */
+export async function withInternalWindowSwitch<T>(
+  browser: WebdriverIO.Browser,
+  operation: () => Promise<T>,
+): Promise<T> {
+  return internalWindowSwitchContext.run(browser.sessionId || 'default', operation);
 }
 
 export function setSessionProvider(browser: WebdriverIO.Browser, provider: DriverProvider): void {
@@ -93,7 +113,7 @@ export async function switchWindowByLabel(browser: WebdriverIO.Browser, label: s
 
   // Suppress auto-focus BEFORE any switching or iteration to prevent focus-change races
   // during handle discovery (ensureActiveWindowFocus checks this flag first).
-  userSwitchedWindowCache.add(sessionKey);
+  suppressActiveWindowFocus(browser);
 
   try {
     const originalHandle = await browser.getWindowHandle();
@@ -285,7 +305,10 @@ export async function ensureActiveWindowFocus(browser: WebdriverIO.Browser, comm
 
     // Switch to the active window
     log.debug(`[SERVICE] Switching to active window: ${activeWindow.title}`);
-    const switched = await switchToWindowByTitle(browser, activeWindow.title);
+    // Marked internal: this switch is the service recovering focus, not the user
+    // choosing a window. Without the marker the service's own `switchToWindow`
+    // would look like an explicit selection and permanently disable recovery.
+    const switched = await withInternalWindowSwitch(browser, () => switchToWindowByTitle(browser, activeWindow.title));
 
     if (switched) {
       log.debug(`[SERVICE] Successfully switched to active window`);
