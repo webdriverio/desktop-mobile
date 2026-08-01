@@ -1255,6 +1255,10 @@ jobs:
       - package-electrobun-macos-arm
       - package-electrobun-windows
       - build-matrix
+      - clippy-tauri-crates-linux
+      - clippy-tauri-crates-windows
+      - clippy-tauri-crates-macos-arm
+      - clippy-dioxus-crates-linux
       - build-dioxus-crates-linux
       - build-tauri-e2e-app-linux
       - build-tauri-e2e-app-windows
