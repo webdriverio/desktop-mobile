@@ -65,6 +65,15 @@ fn physical_window_chrome_to_logical(
 }
 
 #[cfg(desktop)]
+const WINDOW_CHANGE_EVENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Apply a native window change and wait for Tauri to confirm it via `event_name`.
+///
+/// Only a failure of the native call itself is an error. A window manager may clamp or
+/// ignore a request, in which case the confirming event never arrives — `Set Window Rect`
+/// is best-effort, so callers report the rect the window actually ended up with instead
+/// of failing the command.
+#[cfg(desktop)]
 async fn apply_window_change<R, F>(
     window: &WebviewWindow<R>,
     event_name: &'static str,
@@ -87,18 +96,18 @@ where
         )));
     }
 
-    match tokio::time::timeout(std::time::Duration::from_secs(1), receiver).await {
-        Ok(Ok(())) => Ok(()),
-        Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error(&format!(
-            "Window event listener closed while waiting to {operation}"
-        ))),
+    match tokio::time::timeout(WINDOW_CHANGE_EVENT_TIMEOUT, receiver).await {
+        Ok(Ok(())) => {}
+        Ok(Err(_)) => {
+            tracing::debug!("Window event listener closed while waiting to {operation}");
+        }
         Err(_) => {
             window.unlisten(listener_id);
-            Err(WebDriverErrorResponse::unknown_error(&format!(
-                "Timed out waiting to {operation}"
-            )))
+            tracing::debug!("Timed out waiting to {operation}");
         }
     }
+
+    Ok(())
 }
 
 #[cfg(all(test, desktop))]
