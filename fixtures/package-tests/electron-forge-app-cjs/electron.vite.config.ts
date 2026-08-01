@@ -32,10 +32,5 @@ export default defineConfig({
         },
       },
     },
-    // workaround for windows path issue
-    // see https://github.com/alex8088/electron-vite/issues/802
-    resolve: {
-      preserveSymlinks: true,
-    },
   },
 });

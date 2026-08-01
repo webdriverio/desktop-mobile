@@ -19,7 +19,7 @@
  */
 
 import { execSync, spawn } from 'node:child_process';
-import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
 import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize } from 'node:path';
@@ -499,9 +499,14 @@ async function testExample(
     throw new Error(`Package not found: ${packagePath}`);
   }
 
-  // Create isolated test environment to avoid pnpm hoisting issues
+  // Create isolated test environment to avoid pnpm hoisting issues.
+  // On Windows os.tmpdir() is an 8.3 short-name path (C:\Users\RUNNER~1\...). vite
+  // realpath-resolves build inputs but leaves config.root un-resolved, so vite:build-html
+  // emits a `../`-laden index.html fileName that Rolldown rejects (vitejs/vite#10802).
+  // Canonicalising the base here makes config.root match vite's realpath'd ids.
   const testId = Date.now();
-  const tempDir = normalize(join(tmpdir(), `wdio-package-test-${testId}`));
+  const tempBase = process.platform === 'win32' ? realpathSync.native(tmpdir()) : tmpdir();
+  const tempDir = normalize(join(tempBase, `wdio-package-test-${testId}`));
   const packageDir = normalize(join(tempDir, packageName));
 
   // Define logs directory path for reuse throughout function
