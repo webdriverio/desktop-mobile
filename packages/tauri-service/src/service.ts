@@ -17,9 +17,11 @@ import {
   clearWindowState,
   ensureActiveWindowFocus,
   getDefaultWindowLabel,
+  isInternalWindowSwitch,
   listWindowLabels,
   setCurrentWindowLabel,
   setSessionProvider,
+  suppressActiveWindowFocus,
   switchWindowByLabel,
 } from './window.js';
 
@@ -232,12 +234,35 @@ export default class TauriWorkerService {
 
     const browser = this.browser as WebdriverIO.Browser;
 
+    // Recovering focus in front of a window switch would just be undone by it.
+    if (commandName === 'switchToWindow') {
+      return;
+    }
+
     try {
       // Generic window focus detection like Electron - no app-specific knowledge
       await ensureActiveWindowFocus(browser, commandName);
     } catch (error) {
       log.warn('Failed to ensure window focus before command:', error);
     }
+  }
+
+  async afterCommand(commandName: string, _args: unknown[], _result: unknown, error?: Error): Promise<void> {
+    if (commandName !== 'switchToWindow' || !this.browser || this.browser.isMultiremote) {
+      return;
+    }
+
+    const browser = this.browser as WebdriverIO.Browser;
+
+    // A standard `browser.switchToWindow()` is just as explicit as
+    // `browser.tauri.switchWindow()`, so it has to suppress focus recovery too —
+    // otherwise the next getTitle/$/elementClick silently switches the user back.
+    // Only on success, and never for the service's own recovery switches.
+    if (error || isInternalWindowSwitch(browser)) {
+      return;
+    }
+
+    suppressActiveWindowFocus(browser);
   }
 
   async afterTest(_test: unknown, _context: unknown, _results: unknown): Promise<void> {

@@ -36,22 +36,33 @@ vi.mock('../src/commands/execute.js', () => ({
   execute: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('../src/window.js', () => ({
-  clearWindowState: vi.fn(),
-  ensureActiveWindowFocus: vi.fn().mockResolvedValue(undefined),
-  getDefaultWindowLabel: vi.fn().mockReturnValue('main'),
-  listWindowLabels: vi.fn().mockResolvedValue(['main']),
-  setCurrentWindowLabel: vi.fn(),
-  setSessionProvider: vi.fn(),
-  switchWindowByLabel: vi.fn().mockResolvedValue(undefined),
-}));
+vi.mock('../src/window.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/window.js')>();
+  return {
+    ...actual,
+    clearWindowState: vi.fn(),
+    ensureActiveWindowFocus: vi.fn().mockResolvedValue(undefined),
+    getDefaultWindowLabel: vi.fn().mockReturnValue('main'),
+    listWindowLabels: vi.fn().mockResolvedValue(['main']),
+    setCurrentWindowLabel: vi.fn(),
+    setSessionProvider: vi.fn(),
+    suppressActiveWindowFocus: vi.fn(),
+    switchWindowByLabel: vi.fn().mockResolvedValue(undefined),
+  };
+});
 
 import { waitUntilWindowAvailable } from '@wdio/native-utils';
 import { execute as executeCommand } from '../src/commands/execute.js';
 import { clearAllMocks, resetAllMocks, restoreAllMocks } from '../src/commands/mock.js';
 import mockStore from '../src/mockStore.js';
 import TauriWorkerService from '../src/service.js';
-import { clearWindowState, ensureActiveWindowFocus, setCurrentWindowLabel } from '../src/window.js';
+import {
+  clearWindowState,
+  ensureActiveWindowFocus,
+  setCurrentWindowLabel,
+  suppressActiveWindowFocus,
+  withInternalWindowSwitch,
+} from '../src/window.js';
 
 function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO.Browser {
   return {
@@ -913,6 +924,60 @@ describe('TauriWorkerService', () => {
       await service.beforeCommand('getTitle', []);
 
       expect(ensureActiveWindowFocus).toHaveBeenCalledWith(mockBrowser, 'getTitle');
+    });
+
+    it('should not run focus recovery in front of a window switch', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.beforeCommand('switchToWindow', ['splash']);
+
+      expect(ensureActiveWindowFocus).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('afterCommand()', () => {
+    it('should suppress focus recovery after a successful switchToWindow', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.afterCommand('switchToWindow', ['splash'], undefined);
+
+      expect(suppressActiveWindowFocus).toHaveBeenCalledWith(mockBrowser);
+    });
+
+    it('should not suppress focus recovery when the switch failed', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.afterCommand('switchToWindow', ['missing'], undefined, new Error('no such window'));
+
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+    });
+
+    it('should not suppress focus recovery for the service own recovery switch', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await withInternalWindowSwitch(mockBrowser, async () => {
+        await service.afterCommand('switchToWindow', ['main'], undefined);
+      });
+
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
+    });
+
+    it('should ignore commands other than switchToWindow', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.afterCommand('getTitle', [], 'title');
+
+      expect(suppressActiveWindowFocus).not.toHaveBeenCalled();
     });
 
     it('should return early when browser is multiremote', async () => {
