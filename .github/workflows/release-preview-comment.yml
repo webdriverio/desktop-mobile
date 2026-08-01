@@ -1,0 +1,93 @@
+name: Release Preview Comment
+
+# Posts the artifact produced by release-preview.yml. `workflow_run` runs in the
+# base-repo context with a writable token even when the triggering run came from
+# a fork, and it never checks out PR code — so contributor PRs get a preview
+# without handing the write token to untrusted code.
+#
+# Note: GitHub only ever runs the copy of this file on the default branch, so
+# changes to it take effect after merge, not on the PR that introduces them.
+
+on:
+  workflow_run:
+    workflows: ['Release Preview']
+    types: [completed]
+
+permissions:
+  pull-requests: write
+  actions: read
+
+jobs:
+  comment:
+    name: Post Release Preview
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      # The preview job skips the upload when there is nothing to report, so a
+      # missing artifact is a normal outcome rather than a failure.
+      - name: Download preview artifact
+        id: download
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: release-preview
+          path: preview
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Post or update the preview comment
+        if: steps.download.outcome == 'success'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- releasekit-preview -->';
+
+            if (!fs.existsSync('preview/preview.md') || !fs.existsSync('preview/pr-number')) {
+              core.info('No preview artifact contents; nothing to post.');
+              return;
+            }
+
+            const raw = fs.readFileSync('preview/preview.md', 'utf8').trim();
+            if (!raw) {
+              core.info('Preview artifact was empty; nothing to post.');
+              return;
+            }
+
+            const prNumber = Number(fs.readFileSync('preview/pr-number', 'utf8').trim());
+            if (!Number.isInteger(prNumber) || prNumber <= 0) {
+              core.setFailed(`Preview artifact carried an unusable PR number: ${prNumber}`);
+              return;
+            }
+
+            // releasekit keys its comment off the marker so repeated runs update in
+            // place. Re-add it if the preview body did not already carry one.
+            const body = raw.startsWith(MARKER) ? raw : `${MARKER}\n\n${raw}`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(MARKER));
+
+            if (existing) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+              core.info(`Updated release preview comment ${existing.id} on #${prNumber}.`);
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+              core.info(`Created release preview comment on #${prNumber}.`);
+            }
