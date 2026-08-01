@@ -55,8 +55,15 @@ pub struct Session {
     pub current_window: String,
     /// Current frame context (stack of frame selectors)
     pub frame_context: Vec<FrameId>,
+    /// Increments whenever the selected top-level browsing context changes
+    pub browsing_context_generation: u64,
     /// Action state tracking for pressed keys/buttons
     pub action_state: ActionState,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum SwitchWindowError {
+    BrowsingContextGenerationOverflow,
 }
 
 impl Session {
@@ -67,8 +74,22 @@ impl Session {
             elements: ElementStore::new(),
             current_window: initial_window,
             frame_context: Vec::new(),
+            browsing_context_generation: 0,
             action_state: ActionState::default(),
         }
+    }
+
+    pub fn switch_to_window(&mut self, window: String) -> Result<(), SwitchWindowError> {
+        let browsing_context_generation = self
+            .browsing_context_generation
+            .checked_add(1)
+            .ok_or(SwitchWindowError::BrowsingContextGenerationOverflow)?;
+
+        self.current_window = window;
+        self.frame_context.clear();
+        self.browsing_context_generation = browsing_context_generation;
+
+        Ok(())
     }
 }
 
@@ -110,5 +131,42 @@ impl SessionManager {
     /// Delete a session
     pub fn delete(&mut self, id: &str) -> bool {
         self.sessions.remove(id).is_some()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{FrameId, Session, SwitchWindowError};
+
+    #[test]
+    fn switching_windows_updates_context_and_generation_together() {
+        let mut session = Session::new("child-left".to_string());
+        session.frame_context.push(FrameId::Index(0));
+
+        assert_eq!(session.switch_to_window("child-right".to_string()), Ok(()));
+
+        assert_eq!(session.current_window, "child-right");
+        assert!(session.frame_context.is_empty());
+        assert_eq!(session.browsing_context_generation, 1);
+    }
+
+    #[test]
+    fn switching_windows_at_max_generation_leaves_session_unchanged() {
+        let mut session = Session::new("child-left".to_string());
+        session.frame_context.push(FrameId::Index(0));
+        session.browsing_context_generation = u64::MAX;
+
+        let result = session.switch_to_window("child-right".to_string());
+
+        assert_eq!(
+            result,
+            Err(SwitchWindowError::BrowsingContextGenerationOverflow)
+        );
+        assert_eq!(session.current_window, "child-left");
+        assert!(matches!(
+            session.frame_context.as_slice(),
+            [FrameId::Index(0)]
+        ));
+        assert_eq!(session.browsing_context_generation, u64::MAX);
     }
 }
