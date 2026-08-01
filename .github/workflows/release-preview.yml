@@ -49,12 +49,14 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
 
+      # Only the body is staged. The consumer resolves the target PR from the
+      # triggering run's head SHA — carrying a PR number here would let a fork
+      # aim the privileged comment at someone else's PR.
       - name: Stage preview comment
         id: stage
         shell: bash
         env:
           PREVIEW_MARKDOWN: ${{ steps.preview.outputs.preview-markdown }}
-          PR_NUMBER: ${{ github.event.pull_request.number }}
         run: |
           set -euo pipefail
           if [ -z "${PREVIEW_MARKDOWN//[[:space:]]/}" ]; then
@@ -64,7 +66,6 @@ jobs:
           fi
           mkdir -p preview
           printf '%s\n' "$PREVIEW_MARKDOWN" > preview/preview.md
-          printf '%s\n' "$PR_NUMBER" > preview/pr-number
           echo "has_preview=true" >> "$GITHUB_OUTPUT"
 
       - name: Upload preview artifact
