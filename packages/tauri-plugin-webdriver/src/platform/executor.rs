@@ -1731,8 +1731,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Maximize window
     #[cfg(desktop)]
     async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        let _ = self.window().maximize();
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        apply_window_change(self.window(), "tauri://resize", "maximize window", || {
+            self.window().maximize()
+        })
+        .await?;
         self.get_window_rect().await
     }
 
@@ -1746,8 +1748,13 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Set window to fullscreen
     #[cfg(desktop)]
     async fn fullscreen_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        let _ = self.window().set_fullscreen(true);
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        apply_window_change(
+            self.window(),
+            "tauri://resize",
+            "enter window fullscreen state",
+            || self.window().set_fullscreen(true),
+        )
+        .await?;
         self.get_window_rect().await
     }
 
