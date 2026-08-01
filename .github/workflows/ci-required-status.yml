@@ -1,0 +1,80 @@
+name: CI Required Status
+
+# Publishes the `CI / Required` commit status for fork pull requests.
+#
+# The `ci-required` ruleset requires that status context, but the CI workflow
+# cannot post it on a fork PR: a `pull_request` run from a fork gets a read-only
+# GITHUB_TOKEN, so the publish call in ci.yml's `ci-status` job 403s. Without
+# this workflow the context is never published at all and the ruleset can never
+# be satisfied, so external contributions are permanently unmergeable.
+#
+# `workflow_run` runs in the base-repo context with a writable token and never
+# checks out PR code, so it can publish safely. The verdict is not taken from
+# the fork — it is read from the conclusion GitHub recorded for the `CI Summary`
+# job, which already encodes the curated required-job set via its `needs` list
+# (quarantined jobs are deliberately excluded there, and that stays the single
+# source of truth).
+#
+# Note: GitHub only ever runs the copy of this file on the default branch, so
+# changes to it take effect after merge, not on the PR that introduces them.
+
+on:
+  workflow_run:
+    workflows: ['CI']
+    types: [completed]
+
+# Statuses are per-commit, so serialising by head SHA is exactly the scope that
+# can race. Queue rather than cancel so a re-run cannot overtake its predecessor.
+concurrency:
+  group: ci-required-status-${{ github.event.workflow_run.head_sha }}
+  cancel-in-progress: false
+
+permissions:
+  statuses: write
+  actions: read
+
+jobs:
+  publish:
+    name: Publish CI / Required
+    runs-on: ubuntu-latest
+    # Fork PRs only — everything else already published the status from ci.yml.
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.head_repository.full_name != github.repository
+    steps:
+      - name: Publish CI / Required commit status
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const run = context.payload.workflow_run;
+
+            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: run.id,
+              per_page: 100,
+            });
+            const summary = jobs.find((job) => job.name === 'CI Summary');
+
+            // Never leave the context unpublished: the ruleset would sit pending forever
+            // with nothing able to resolve it. An absent or non-success summary is red.
+            let state = 'failure';
+            let description = 'One or more required CI jobs failed';
+            if (!summary) {
+              description = 'CI Summary job did not run';
+            } else if (summary.conclusion === 'success') {
+              state = 'success';
+              description = 'All required CI jobs passed';
+            }
+
+            await github.rest.repos.createCommitStatus({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              sha: run.head_sha,
+              state,
+              context: 'CI / Required',
+              description,
+              target_url: run.html_url,
+            });
+
+            core.info(`Published CI / Required=${state} to ${run.head_sha} (${description}).`);

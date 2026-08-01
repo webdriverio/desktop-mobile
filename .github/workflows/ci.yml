@@ -1240,7 +1240,12 @@ jobs:
         # The job already skips Dependabot pull_request runs (see the job-level `if`), so this
         # only ever runs where publishing is wanted: normal PRs, pushes, and the ci:run-
         # dispatched workflow_dispatch run. `always()` so a failure still posts a red status.
-        if: always()
+        #
+        # Skipped for fork PRs: their GITHUB_TOKEN is read-only, so this 403s and takes the
+        # whole job down with it, which is worse than not publishing — the job's own
+        # conclusion is what ci-required-status.yml reads to publish the status for them.
+        # `head.repo.fork` is null on push/workflow_dispatch, so those still publish here.
+        if: always() && github.event.pull_request.head.repo.fork != true
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
