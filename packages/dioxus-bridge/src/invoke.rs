@@ -188,7 +188,7 @@ mod tests {
   #[test]
   fn should_forward_args_to_registered_handlers() {
     let registry = CommandRegistry::new();
-    registry.register("echo", |args| Ok(args));
+    registry.register("echo", Ok);
     let response = handle_invoke_request(&registry, &req(r#"{"command":"echo","args":{"hello":"world"}}"#));
     let body = parse_body(&response);
     assert_eq!(body["ok"], true);

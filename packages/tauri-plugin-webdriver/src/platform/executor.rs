@@ -1945,7 +1945,7 @@ fn tauri_cookie_to_webdriver(cookie: &TauriCookie<'static>) -> Cookie {
         secure: cookie.secure().unwrap_or(false),
         http_only: cookie.http_only().unwrap_or(false),
         expiry: cookie.expires().and_then(|exp| match exp {
-            Expiration::DateTime(dt) => Some(dt.unix_timestamp().cast_unsigned()),
+            Expiration::DateTime(dt) => u64::try_from(dt.unix_timestamp()).ok(),
             Expiration::Session => None,
         }),
         same_site: cookie.same_site().map(|ss| match ss {
@@ -1979,7 +1979,10 @@ fn webdriver_cookie_to_tauri(cookie: &Cookie) -> TauriCookie<'static> {
     }
 
     if let Some(expiry) = cookie.expiry {
-        if let Ok(dt) = OffsetDateTime::from_unix_timestamp(expiry.cast_signed()) {
+        if let Some(dt) = i64::try_from(expiry)
+            .ok()
+            .and_then(|expiry| OffsetDateTime::from_unix_timestamp(expiry).ok())
+        {
             builder = builder.expires(Expiration::DateTime(dt));
         }
     }
