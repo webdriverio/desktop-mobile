@@ -19,11 +19,15 @@ on:
     workflows: ['Release Preview']
     types: [completed]
 
-# Serialise per source branch so two runs for the same PR cannot interleave their
-# writes. Combined with the head-SHA check below, the newest run always wins.
+# Serialise per source branch. `cancel-in-progress: false` is deliberate: cancelling
+# a consumer does not recall an update it already dispatched, so two live consumers
+# could both read the old run stamp and race their writes. Queueing instead makes the
+# read-check-write below mutually exclusive, and the stamp then decides the winner
+# deterministically. GitHub keeps only the newest pending run per group, so a burst
+# of label events collapses to first + last rather than building a backlog.
 concurrency:
   group: release-preview-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
-  cancel-in-progress: true
+  cancel-in-progress: false
 
 permissions:
   pull-requests: write
@@ -106,8 +110,8 @@ jobs:
             const existing = comments.find((comment) => comment.body?.includes(MARKER));
 
             if (existing) {
-              // Cancelling a superseded consumer does not recall an update it already
-              // dispatched, so refuse to write over a comment a newer run produced.
+              // Safe to read-then-write: the concurrency group above guarantees no other
+              // consumer for this branch is running, so the stamp cannot change under us.
               const stamped = existing.body?.match(RUN_TAG);
               if (stamped && Number(stamped[1]) >= runNumber) {
                 core.info(
