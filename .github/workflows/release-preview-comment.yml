@@ -77,20 +77,32 @@ jobs:
               return;
             }
 
-            // Resolve the target from the triggering run's head SHA rather than from
-            // the artifact. This binds the write to the PR that actually produced the
-            // preview, and drops superseded runs for free: once the PR has moved on,
-            // no open PR still has this SHA as its head.
-            const headSha = context.payload.workflow_run.head_sha;
+            // Resolve the target from the triggering run rather than from the artifact,
+            // so the write is bound to the PR that actually produced the preview.
+            //
+            // All three of these come from GitHub, not the fork: matching the head SHA
+            // alone would also match an unrelated PR that happens to sit on the same
+            // commit, so the source repo and branch are checked too. Requiring exactly
+            // one match additionally drops superseded runs — once the PR has moved on,
+            // nothing still has this SHA as its head.
+            const run = context.payload.workflow_run;
+            const headSha = run.head_sha;
+            const headRepo = run.head_repository?.full_name;
             const associated = await github.paginate(
               github.rest.repos.listPullRequestsAssociatedWithCommit,
               { owner: context.repo.owner, repo: context.repo.repo, commit_sha: headSha },
             );
-            const targets = associated.filter((pr) => pr.state === 'open' && pr.head.sha === headSha);
+            const targets = associated.filter(
+              (pr) =>
+                pr.state === 'open' &&
+                pr.head.sha === headSha &&
+                pr.head.ref === run.head_branch &&
+                pr.head.repo?.full_name === headRepo,
+            );
 
             if (targets.length !== 1) {
               core.info(
-                `Expected exactly one open PR with head ${headSha}, found ${targets.length} — superseded or ambiguous, not posting.`,
+                `Expected exactly one open PR at ${headRepo}:${run.head_branch}@${headSha}, found ${targets.length} — superseded or ambiguous, not posting.`,
               );
               return;
             }
