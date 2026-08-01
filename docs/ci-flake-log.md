@@ -67,6 +67,8 @@ Not the PR's fault, but not flakes either.
 | 2026-08-01 | 30708074906 | #561 | Package - Dioxus (Docker) [Void] | F3 |
 | 2026-08-01 | 30708074906 | #561 | E2E - Electron [Windows] - forge | F2 |
 | 2026-08-01 | 30708074906 | #561 | E2E - Tauri [macOS-ARM] - standalone | F1 |
+| 2026-08-01 | 30701420535 | #560 | Package - Tauri [macOS-ARM] | F1 |
+| 2026-08-01 | 30701283449 (att. 1–3) | #559 | E2E - Tauri [macOS-ARM] - deeplink | F1 on **all 3 attempts** — retry never cleared (both symptoms: `Script execution timed out` + app-unreachable `failed to send request`) |
 | 2026-08-01 | 30700125548 | #558 | E2E - Electron [Windows] - forge | F2 |
 | 2026-08-01 | 30699263358 | #557 | Package - Dioxus (Docker) [Fedora] | F3 |
 | 2026-08-01 | 30699263358 | #557 | E2E - Flutter [iOS] - standard | F4 |
