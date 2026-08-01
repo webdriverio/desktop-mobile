@@ -114,8 +114,9 @@ pub async fn switch_to_window<R: Runtime>(
         return Err(WebDriverErrorResponse::no_such_window());
     }
 
-    // Update session's current window
-    session.current_window = request.handle;
+    session.switch_to_window(request.handle).map_err(|_| {
+        WebDriverErrorResponse::unknown_error("Browsing context generation overflowed")
+    })?;
 
     Ok(WebDriverResponse::null())
 }

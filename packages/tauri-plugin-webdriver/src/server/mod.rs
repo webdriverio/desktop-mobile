@@ -42,6 +42,11 @@ impl<R: Runtime + 'static> AppState<R> {
             .ok_or_else(WebDriverErrorResponse::no_such_window)
     }
 
+    /// Whether a window with this label is still registered
+    pub fn has_window_label(&self, window_label: &str) -> bool {
+        self.app.webview_windows().contains_key(window_label)
+    }
+
     /// Get all window labels
     pub fn get_window_labels(&self) -> Vec<String> {
         self.app.webview_windows().keys().cloned().collect()
