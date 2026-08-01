@@ -1,2 +1,5 @@
-turbo run test --filter=./packages/* --force
-
+# `--force` is deliberately gone: it was compensating for cache keys that could
+# not be trusted, and tracking the shared tsconfig.base files in globalDependencies
+# is what fixes that. Letting the run cache is what buys the room for typecheck,
+# which no longer happens as a side effect of build.
+turbo run typecheck test --filter=./packages/*

@@ -74,6 +74,10 @@ jobs:
       # Type-check every package with the full, strict tsconfig (tsc --noEmit).
       # The bundler build only type-checks files reachable from the entry points;
       # this covers all of src/**. Reuses the dist/ built above (^build = cache hits).
+      #
+      # packages/* only. The two fixtures with a typecheck script
+      # (flutter-app-example, react-native-app-example) type-check against installed
+      # tarballs, so they need a packaged build and are covered by the package tests.
       - name: 🔎 Typecheck All Packages
         run: pnpm turbo run typecheck --filter=./packages/*
         shell: bash
