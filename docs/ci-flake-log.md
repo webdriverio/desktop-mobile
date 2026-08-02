@@ -63,6 +63,7 @@ Not the PR's fault, but not flakes either.
 
 | Date | Run | PR | Job | Class |
 |------|-----|----|----|-------|
+| 2026-08-02 | 30751456330 (att. 6) | #553 | Package - Tauri (Docker) [Void] | F3 (`test.sh` failed ~3m20s; job log unavailable — the F3 "log unavailable" tell). Non-macOS — does NOT reset the #553 macOS-Tauri clean streak (held at 6/7). The 7 macOS Tauri legs were all green this attempt |
 | 2026-08-02 | 30750927964 (att. 1–5) | #537 | E2E - Tauri [macOS-ARM] - standalone | F1 (embedded provider; each attempt: `Script execution timed out` ×3 + app-unreachable `failed to send request` ×48; crabnebula also red but allow-listed). **Recurred att. 1–4, cleared att. 5** — ~1-in-5 clear rate on the un-pumped path (matches #557). Off main / **pre-#553** — the exact flake #553 fixes |
 | 2026-08-02 | 30750927964 (att. 1) | #537 | E2E - Tauri [macOS-ARM] - deeplink | F1 (embedded provider; app-unreachable `failed to send request … execute/async`; crabnebula allow-listed). **Cleared att. 2.** Off main / **pre-#553** |
 | 2026-08-02 | 30750927964 (att. 1) | #537 | Package - Dioxus (Docker) [Fedora] | F3 (bridge `Error: Timeout` — `should execute` + `should mock a bridge command`, ~12 m). **Cleared att. 2.** |
