@@ -5,7 +5,7 @@ import type { ReactNativeServiceOptions } from '@wdio/native-types';
 
 // Local superset of the shipped `ReactNativeCapabilities`, which does not yet model the
 // iOS/WDA tuning keys this config sets. Mirrors the same workaround in
-// e2e/wdio.react-native.conf.ts; drop both once the shipped type covers `appium:*`.
+// e2e/wdio.react-native.conf.ts; drop both once #574 lands.
 type ReactNativeCapability = {
   platformName: 'Android' | 'iOS';
   'appium:automationName': 'UiAutomator2' | 'XCUITest';
