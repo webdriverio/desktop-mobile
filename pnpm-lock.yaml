@@ -714,6 +714,93 @@ importers:
         specifier: ^6.0.3
         version: 6.0.3
 
+  fixtures/package-tests/flutter-app:
+    devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
+      '@types/node':
+        specifier: ^26.1.2
+        version: 26.1.2
+      '@wdio/appium-service':
+        specifier: ^9.30.0
+        version: 9.30.0(bufferutil@4.1.0)(puppeteer-core@25.4.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6)
+      '@wdio/cli':
+        specifier: ^9.30.0
+        version: 9.30.0(@types/node@26.1.2)(bufferutil@4.1.0)(expect-webdriverio@5.7.0)(puppeteer-core@25.4.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6)
+      '@wdio/flutter-service':
+        specifier: workspace:*
+        version: link:../../../packages/flutter-service
+      '@wdio/globals':
+        specifier: ^9.29.1
+        version: 9.29.1(expect-webdriverio@5.7.0)(webdriverio@9.30.0(bufferutil@4.1.0)(puppeteer-core@25.4.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
+      '@wdio/local-runner':
+        specifier: ^9.30.0
+        version: 9.30.0(@wdio/globals@9.29.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.30.0(bufferutil@4.1.0)(puppeteer-core@25.4.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
+      '@wdio/mocha-framework':
+        specifier: ^9.30.0
+        version: 9.30.0
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../../../packages/native-types
+      '@wdio/spec-reporter':
+        specifier: ^9.29.1
+        version: 9.29.1
+      appium:
+        specifier: ^3.6.0
+        version: 3.6.0(@types/node@26.1.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      appium-flutter-driver:
+        specifier: ^3.9.1
+        version: 3.9.1(@appium/logger@2.0.10)(@types/node@26.1.2)(appium@3.6.0(@types/node@26.1.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
+  fixtures/package-tests/react-native-app:
+    devDependencies:
+      '@types/mocha':
+        specifier: ^10.0.10
+        version: 10.0.10
+      '@types/node':
+        specifier: ^26.1.2
+        version: 26.1.2
+      '@wdio/appium-service':
+        specifier: ^9.30.0
+        version: 9.30.0(bufferutil@4.1.0)(puppeteer-core@25.4.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6)
+      '@wdio/cli':
+        specifier: ^9.30.0
+        version: 9.30.0(@types/node@26.1.2)(bufferutil@4.1.0)(expect-webdriverio@5.7.0)(puppeteer-core@25.4.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6)
+      '@wdio/globals':
+        specifier: ^9.29.1
+        version: 9.29.1(expect-webdriverio@5.7.0)(webdriverio@9.30.0(bufferutil@4.1.0)(puppeteer-core@25.4.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
+      '@wdio/local-runner':
+        specifier: ^9.30.0
+        version: 9.30.0(@wdio/globals@9.29.1)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(webdriverio@9.30.0(bufferutil@4.1.0)(puppeteer-core@25.4.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(utf-8-validate@6.0.6))
+      '@wdio/mocha-framework':
+        specifier: ^9.30.0
+        version: 9.30.0
+      '@wdio/native-types':
+        specifier: workspace:*
+        version: link:../../../packages/native-types
+      '@wdio/react-native-service':
+        specifier: workspace:*
+        version: link:../../../packages/react-native-service
+      '@wdio/spec-reporter':
+        specifier: ^9.29.1
+        version: 9.29.1
+      appium:
+        specifier: ^3.6.0
+        version: 3.6.0(@types/node@26.1.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      appium-uiautomator2-driver:
+        specifier: ^8.2.2
+        version: 8.2.2(@appium/logger@2.0.10)(@types/node@26.1.2)(appium@3.6.0(@types/node@26.1.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      appium-xcuitest-driver:
+        specifier: ^11.17.1
+        version: 11.17.1(@appium/logger@2.0.10)(@types/node@26.1.2)(appium@3.6.0(@types/node@26.1.2)(bufferutil@4.1.0)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      typescript:
+        specifier: ^6.0.3
+        version: 6.0.3
+
   fixtures/package-tests/tauri-app:
     dependencies:
       '@tauri-apps/api':

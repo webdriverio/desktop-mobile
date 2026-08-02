@@ -1,7 +1,27 @@
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { ReactNativeCapabilities, ReactNativeServiceOptions } from '@wdio/native-types';
+import type { ReactNativeServiceOptions } from '@wdio/native-types';
+
+// Local superset of the shipped `ReactNativeCapabilities`, which does not yet model the
+// iOS/WDA tuning keys this config sets. Mirrors the same workaround in
+// e2e/wdio.react-native.conf.ts; drop both once the shipped type covers `appium:*`.
+type ReactNativeCapability = {
+  platformName: 'Android' | 'iOS';
+  'appium:automationName': 'UiAutomator2' | 'XCUITest';
+  'appium:app': string;
+  'appium:deviceName'?: string;
+  'appium:platformVersion'?: string;
+  'appium:noReset'?: boolean;
+  'appium:udid'?: string;
+  'appium:wdaLaunchTimeout'?: number;
+  'appium:simulatorStartupTimeout'?: number;
+  'appium:usePreinstalledWDA'?: boolean;
+  'appium:prebuiltWDAPath'?: string;
+  'appium:wdaStartupRetries'?: number;
+  'appium:wdaStartupRetryInterval'?: number;
+  'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
+};
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -39,7 +59,7 @@ const rnServiceOptions: ReactNativeServiceOptions = {
   doctor: false,
 };
 
-const capabilities: ReactNativeCapabilities[] = [
+const capabilities: ReactNativeCapability[] = [
   platform === 'ios'
     ? {
         platformName: 'iOS',

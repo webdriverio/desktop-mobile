@@ -17,6 +17,8 @@ packages:
   - fixtures/package-tests/tauri-app
   - fixtures/package-tests/dioxus-app
   - fixtures/package-tests/electrobun-app
+  - fixtures/package-tests/react-native-app
+  - fixtures/package-tests/flutter-app
 allowBuilds:
   edgedriver: false
   electron: true
