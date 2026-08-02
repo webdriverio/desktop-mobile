@@ -15,9 +15,11 @@ import {
   parseInstalledDrivers,
   resetInstalledCache,
 } from '../src/appiumDriverManager.js';
+import { driverSpecFor } from '../src/versionMatrix.js';
 
 const execMock = vi.mocked(execFileSync);
 const spawnMock = vi.mocked(spawn);
+const flutterPin = driverSpecFor('flutter', 3)?.version;
 
 /** A fake child process that emits `close` with `code` (and optional `signal`) on the next tick. */
 function fakeProc(code: number | null = 0, stderr = '', signal?: NodeJS.Signals) {
@@ -109,7 +111,7 @@ describe('ensureAppiumDriver', () => {
     expect(r).toMatchObject({ ok: true, value: { method: 'installed' } });
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
-      ['driver', 'install', '--source=npm', 'appium-flutter-driver@^3.8.0'],
+      ['driver', 'install', '--source=npm', `appium-flutter-driver@${flutterPin}`],
       // a timeout caps the install so a slow registry can't hang onPrepare
       expect.objectContaining({ timeout: 300000 }),
     );
@@ -137,7 +139,7 @@ describe('ensureAppiumDriver', () => {
     await ensureAppiumDriver('flutter', { autoInstallDriver: true, source: '@example/appium-flutter-driver' });
     expect(spawnMock).toHaveBeenCalledWith(
       expect.any(String),
-      ['driver', 'install', '--source=npm', '@example/appium-flutter-driver@^3.8.0'],
+      ['driver', 'install', '--source=npm', `@example/appium-flutter-driver@${flutterPin}`],
       expect.any(Object),
     );
   });

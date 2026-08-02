@@ -59,15 +59,14 @@ describe('Logger', () => {
       expect(consoleSpy).not.toHaveBeenCalled();
     });
 
-    it.each([
-      'normal',
-      'verbose',
-      'extra-verbose',
-    ] as LogLevel[])('should log success message for %s level', (level) => {
-      const logger = new Logger(level);
-      logger.success('test success');
-      expect(consoleSpy).toHaveBeenCalledWith('✅ test success');
-    });
+    it.each(['normal', 'verbose', 'extra-verbose'] as LogLevel[])(
+      'should log success message for %s level',
+      (level) => {
+        const logger = new Logger(level);
+        logger.success('test success');
+        expect(consoleSpy).toHaveBeenCalledWith('✅ test success');
+      },
+    );
 
     it('should not log success message for silent level', () => {
       const logger = new Logger('silent');
@@ -75,26 +74,23 @@ describe('Logger', () => {
       expect(consoleSpy).not.toHaveBeenCalled();
     });
 
-    it.each([
-      'silent',
-      'normal',
-      'verbose',
-      'extra-verbose',
-    ] as LogLevel[])('should always log error message for %s level', (level) => {
-      const logger = new Logger(level);
-      logger.error('test error');
-      expect(consoleErrorSpy).toHaveBeenCalledWith('❌ test error');
-    });
+    it.each(['silent', 'normal', 'verbose', 'extra-verbose'] as LogLevel[])(
+      'should always log error message for %s level',
+      (level) => {
+        const logger = new Logger(level);
+        logger.error('test error');
+        expect(consoleErrorSpy).toHaveBeenCalledWith('❌ test error');
+      },
+    );
 
-    it.each([
-      'normal',
-      'verbose',
-      'extra-verbose',
-    ] as LogLevel[])('should log warning message for %s level', (level) => {
-      const logger = new Logger(level);
-      logger.warning('test warning');
-      expect(consoleSpy).toHaveBeenCalledWith('⚠️  test warning');
-    });
+    it.each(['normal', 'verbose', 'extra-verbose'] as LogLevel[])(
+      'should log warning message for %s level',
+      (level) => {
+        const logger = new Logger(level);
+        logger.warning('test warning');
+        expect(consoleSpy).toHaveBeenCalledWith('⚠️  test warning');
+      },
+    );
 
     it('should not log warning message for silent level', () => {
       const logger = new Logger('silent');
@@ -130,15 +126,14 @@ describe('Logger', () => {
       expect(consoleSpy).toHaveBeenCalledWith('extra verbose message');
     });
 
-    it.each([
-      'silent',
-      'normal',
-      'verbose',
-    ] as LogLevel[])('should not log extra verbose message for %s level', (level) => {
-      const logger = new Logger(level);
-      logger.extraVerbose('extra verbose message');
-      expect(consoleSpy).not.toHaveBeenCalled();
-    });
+    it.each(['silent', 'normal', 'verbose'] as LogLevel[])(
+      'should not log extra verbose message for %s level',
+      (level) => {
+        const logger = new Logger(level);
+        logger.extraVerbose('extra verbose message');
+        expect(consoleSpy).not.toHaveBeenCalled();
+      },
+    );
   });
 
   describe('section headers', () => {
@@ -156,23 +151,23 @@ describe('Logger', () => {
   });
 
   describe('detail messages', () => {
-    it.each([
-      'verbose',
-      'extra-verbose',
-    ] as LogLevel[])('should log detail with default indent for %s level', (level) => {
-      const logger = new Logger(level);
-      logger.detail('detail message');
-      expect(consoleSpy).toHaveBeenCalledWith('   detail message');
-    });
+    it.each(['verbose', 'extra-verbose'] as LogLevel[])(
+      'should log detail with default indent for %s level',
+      (level) => {
+        const logger = new Logger(level);
+        logger.detail('detail message');
+        expect(consoleSpy).toHaveBeenCalledWith('   detail message');
+      },
+    );
 
-    it.each([
-      'verbose',
-      'extra-verbose',
-    ] as LogLevel[])('should log detail with custom indent for %s level', (level) => {
-      const logger = new Logger(level);
-      logger.detail('detail message', 2);
-      expect(consoleSpy).toHaveBeenCalledWith('      detail message');
-    });
+    it.each(['verbose', 'extra-verbose'] as LogLevel[])(
+      'should log detail with custom indent for %s level',
+      (level) => {
+        const logger = new Logger(level);
+        logger.detail('detail message', 2);
+        expect(consoleSpy).toHaveBeenCalledWith('      detail message');
+      },
+    );
 
     it.each(['silent', 'normal'] as LogLevel[])('should not log detail for %s level', (level) => {
       const logger = new Logger(level);
@@ -226,15 +221,14 @@ describe('Logger', () => {
   });
 
   describe('dry run messaging', () => {
-    it.each([
-      'normal',
-      'verbose',
-      'extra-verbose',
-    ] as LogLevel[])('should log dry run message for %s level', (level) => {
-      const logger = new Logger(level);
-      logger.dryRun('would do something');
-      expect(consoleSpy).toHaveBeenCalledWith('🚫 Dry run - would do something');
-    });
+    it.each(['normal', 'verbose', 'extra-verbose'] as LogLevel[])(
+      'should log dry run message for %s level',
+      (level) => {
+        const logger = new Logger(level);
+        logger.dryRun('would do something');
+        expect(consoleSpy).toHaveBeenCalledWith('🚫 Dry run - would do something');
+      },
+    );
 
     it('should not log dry run message for silent level', () => {
       const logger = new Logger('silent');
