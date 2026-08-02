@@ -6,61 +6,53 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+## [@wdio/tauri-plugin@1.3.0-next.0] - 2026-08-02
 
-
-## [@wdio/native-utils@2.5.0] - 2026-07-01
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-utils@v2.4.0...wdio-native-utils@v2.5.0)
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v1.2.0...wdio-tauri-plugin@v1.3.0-next.0)
 
 ### Fixed
-- Fixed user command overrides being silently clobbered by electron-service and tauri-service when both register element-scoped wrappers for the same commands. (PR [#441](https://github.com/webdriverio/desktop-mobile/pull/441) · closes [#422](https://github.com/webdriverio/desktop-mobile/issues/422), [#432](https://github.com/webdriverio/desktop-mobile/issues/432), [#432](https://github.com/webdriverio/desktop-mobile/issues/432), [#422](https://github.com/webdriverio/desktop-mobile/issues/422))
-
-### Changed
-- **Tooling**: Updated internal tooling to run repository scripts on bare Node.js instead of tsx, improving type checking coverage for scripts. (PR [#347](https://github.com/webdriverio/desktop-mobile/pull/347) · closes [#345](https://github.com/webdriverio/desktop-mobile/issues/345))
-- **Dependencies**: Updated 9 production dependencies including Electron to 41.7.1, rollup to 4.61.1, and puppeteer-core to 25.1.0. (PR [#336](https://github.com/webdriverio/desktop-mobile/pull/336))
-
-## @wdio/flutter-service@1.0.0-next.1 - 2026-06-27
-
-_First release of @wdio/flutter-service._
-
-### Changed
-- Updated Flutter manifest files to align with the published 1.0.0-next.0 version.
-- **Dependencies**: Removed the custom Flutter driver fork in favor of the official upstream version. (#461)
-
-## [@wdio/tauri-plugin@1.2.0] - 2026-06-25
-
-[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v1.1.0...wdio-tauri-plugin@v1.2.0)
+- Fixed turbo cache poisoning by using stable chunk names, removing the bundler build override, tracking shared tsconfig.base in globalDependencies, and unifying typecheck coverage. (PR [#519](https://github.com/webdriverio/desktop-mobile/pull/519) · closes [#509](https://github.com/webdriverio/desktop-mobile/issues/509))
 
 ### Developer
-- **Dependencies**: Bumped cargo dependencies across multiple directories, including 8 updates.
+**Dependencies**:
+- Updated minor and patch dependencies across the workspace, including WebdriverIO, Appium drivers, Biome, Turbo, Vitest, ESLint, and Electron nightly. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Bumped Rust dependencies (serde, serde_json, tokio, thiserror, uuid, anyhow, futures, http-body-util, which, hyper) across multiple Dioxus and fixture packages. (PR [#537](https://github.com/webdriverio/desktop-mobile/pull/537))
+- Updated npm package versions including Biome, Inquirer, TypeScript ESLint plugins, Vitest plugin, ESLint, Turbo, and WebdriverIO packages. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+- Updated Rust dependencies (anyhow, tauri) in Dioxus and Tauri plugin packages. (PR [#515](https://github.com/webdriverio/desktop-mobile/pull/515))
+- Updated production dependencies including Rollup, esbuild, Electron, Puppeteer, and Electron nightlies. (PR [#500](https://github.com/webdriverio/desktop-mobile/pull/500))
+- **Clippy CI linting**: Added CI linting with cargo clippy for Rust crates on Linux, macOS, and Windows, ensuring platform-specific modules are consistently linted. (PR [#557](https://github.com/webdriverio/desktop-mobile/pull/557))
 
-## [@wdio/tauri-service@1.2.0] - 2026-06-25
+## [@wdio/tauri-service@1.3.0-next.0] - 2026-08-02
 
-[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-service@v1.1.0...wdio-tauri-service@v1.2.0)
-
-### Breaking
-- **BREAKING** Removed the tauri afterCommand mock-sync feature.
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-service@v1.2.0...wdio-tauri-service@v1.3.0-next.0)
 
 ### New
-- **BiDi preload**: Added support for capturing startup invoke() calls via BiDi preload in browser mode.
+- **DevServer auto-start**: Integrated devServer auto-start into all four desktop launchers (Dioxus, Tauri, Electrobun, Electron), automatically starting dev servers before test execution and propagating the URL to browser workers. (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
 
 ### Fixed
-- Fixed command overrides being overwritten instead of properly composed with existing commands. (#422, #432, #432, #422)
-- Fixed mock synchronization via afterCommand so user command overrides are preserved. (#422)
+- Fixed an issue where standard WebDriver `switchToWindow` calls could silently revert due to automatic focus recovery, undoing explicit window selections. (PR [#560](https://github.com/webdriverio/desktop-mobile/pull/560))
+- Fixed the embedded standalone test suite failure on macOS 26.4. (PR [#546](https://github.com/webdriverio/desktop-mobile/pull/546))
+- Added validation for browser mode configuration: non-Chrome browser names now throw a clear error, and unreachable dev servers fail early with an actionable message. (PR [#490](https://github.com/webdriverio/desktop-mobile/pull/490) · closes [#416](https://github.com/webdriverio/desktop-mobile/issues/416))
 
 ### Changed
-- **Performance**: Improved mock updates by batching updateAllMocks into a single scheduler for better performance. (#429)
+**Dependencies**:
+- Updated numerous minor and patch dependencies across the workspace, including WebdriverIO packages, Appium drivers, Biome, Turbo, Vitest, ESLint, and Electron nightly. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Updated various development dependencies including Biome, ESLint, TypeScript parser, Vitest, and Turbo. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+- Updated production dependencies including Rollup, esbuild, Electron, Puppeteer, and Tauri API. (PR [#500](https://github.com/webdriverio/desktop-mobile/pull/500))
 
-### Documentation
-- Updated documentation to reflect the new 'external' naming convention for driver-provider.
-
-### Developer
-- **CI**: Integrated browser-mode E2E and package tests into the CI pipeline. (#420)
-
-## [tauri-plugin-wdio-webdriver@1.2.0] - 2026-06-25
+## [tauri-plugin-wdio-webdriver@1.3.0-next.0] - 2026-08-02
 
 ### Fixed
-- Fixed clicking with options so the correct element is targeted when using pointerMove origin resolution (#423)
+- **macOS 26.4 DirectEval fix**: Fixed a regression on macOS 26.4 where DirectEval timed out due to WebKit intermittently reclaiming the `callAsyncJavaScript` completion handler mid-flight. (\#553)
+- Fixed `switchToWindow` to properly reset the frame stack, preventing subsequent commands from incorrectly targeting frames in the old window. (\#559)
+- Fixed `cargo build` from leaving the tree dirty by correcting a trailing newline in the webdriver permission schema and excluding generated tauri schemas from biome formatting. (\#556)
+- Corrected malformed Content Security Policy in fixtures that was causing macOS DirectEval to fall back to an unreliable postMessage IPC interface. (\#552)
+- **macOS DirectEval fire-and-forget**: Refactored the macOS DirectEval path to run scripts fire-and-forget and read results via synchronous evals, avoiding long-held completion handlers that WebKit 26.4 reclaims. (\#549)
+- Identified the embedded standalone suite as the actual macOS 26.4 regression target, correcting the initial diagnosis that focused on the deeplink suite. (\#546)
+- Fixed tick duration calculation in Actions to use the maximum pause across all sources rather than summing them, aligning with W3C WebDriver spec. (\#497, \#496)
 
-### Developer
-- **Dependencies**: Bumped cargo dependencies across the project with 8 updates in 5 directories
+### Changed
+- Bumped Cargo dependencies (serde, serde_json, tokio, uuid, thiserror, and others) across 7 directories for improved compatibility and bug fixes. (\#537)
+- **Clippy CI for Rust crates**: Added CI linting for first-party Rust crates using `cargo clippy`, running across all three platforms to catch platform-specific module violations. (\#557)
+- Bumped Cargo dependencies (anyhow, tauri) across 3 directories for improved compatibility and bug fixes. (\#515)
+- **Tick-by-tick Actions processing**: Changed `performActions` to process ticks across all sources concurrently rather than fully draining each source sequentially, fixing multi-source sequences like Ctrl+click. (\#492)
