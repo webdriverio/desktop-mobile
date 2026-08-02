@@ -1,4 +1,4 @@
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import path, { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -82,19 +82,4 @@ export const config = {
     timeout: 60000,
   },
   tsConfigPath: path.join(__dirname, 'tsconfig.json'),
-  // #540 investigation: the spec reporter only writes the failing assertion to stdout (the CI job
-  // log), which isn't in the uploaded artifacts. Mirror each failure into a .log file so
-  // test-package.ts preserves it — telling us exactly which `it` fails and why, when the
-  // intermittent macOS package flake next hits.
-  afterTest(test: { parent: string; title: string }, _ctx: unknown, result: { passed: boolean; error?: Error }) {
-    if (result.passed || !result.error) {
-      return;
-    }
-    const logDir = path.join(__dirname, 'logs');
-    mkdirSync(logDir, { recursive: true });
-    appendFileSync(
-      path.join(logDir, 'test-failures.log'),
-      `FAILED: ${test.parent} > ${test.title}\n${result.error.stack ?? result.error.message}\n\n`,
-    );
-  },
 };
