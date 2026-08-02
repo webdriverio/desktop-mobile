@@ -63,6 +63,9 @@ Not the PR's fault, but not flakes either.
 
 | Date | Run | PR | Job | Class |
 |------|-----|----|----|-------|
+| 2026-08-02 | 30750927964 | #537 | E2E - Tauri [macOS-ARM] - standalone | F1 (embedded provider; app-unreachable `failed to send request … execute/async` ×4; crabnebula also red but allow-listed). Off main / **pre-#553** — the un-pumped embedded path, i.e. the exact flake #553 fixes |
+| 2026-08-02 | 30750927964 | #537 | E2E - Tauri [macOS-ARM] - deeplink | F1 (embedded provider; app-unreachable `failed to send request … execute/async`; crabnebula allow-listed). Off main / **pre-#553** |
+| 2026-08-02 | 30750927964 | #537 | Package - Dioxus (Docker) [Fedora] | F3 (bridge `Error: Timeout` — `should execute` + `should mock a bridge command`, ~12 m) |
 | 2026-08-02 | 30730874052 (att. 1) | #528 | E2E - Tauri [macOS-ARM] - standalone | F1 (`Script execution timed out` ×3) — dependabot setup-node 6→7; a pure CI-infra bump drew all 4 top app-flake classes at once (F8 pattern). **Cleared on att. 2 retry** |
 | 2026-08-02 | 30730874052 (att. 1) | #528 | E2E - Electron [Linux] - script | F2 (127 specs pass, then `Timeout reached` at teardown). **Cleared on att. 2 retry** |
 | 2026-08-02 | 30730874052 (att. 1–2) | #528 | E2E - Flutter [iOS] - standard | F4 (9–13 ✓ then exit 1) — **recurred on retry** (both attempts) |
