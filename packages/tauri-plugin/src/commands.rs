@@ -115,10 +115,14 @@ pub(crate) async fn execute<R: Runtime>(
                         b'\'' if !in_double_quote && !in_backtick => in_single_quote = !in_single_quote,
                         b'"' if !in_single_quote && !in_backtick => in_double_quote = !in_double_quote,
                         b'`' if !in_single_quote && !in_double_quote => in_backtick = !in_backtick,
-                        b'=' if !in_single_quote && !in_double_quote && !in_backtick => {
-                            if i + 1 < bytes.len() && bytes[i + 1] == b'>' {
-                                return true;
-                            }
+                        b'='
+                            if !in_single_quote
+                                && !in_double_quote
+                                && !in_backtick
+                                && i + 1 < bytes.len()
+                                && bytes[i + 1] == b'>' =>
+                        {
+                            return true;
                         }
                         _ => {}
                     }
@@ -183,7 +187,7 @@ pub(crate) async fn execute<R: Runtime>(
             let mut i = 0;
             while i < bytes.len() {
                 let b = bytes[i];
-                let top_in_str = tmpl.last().map_or(false, |f| f.in_str);
+                let top_in_str = tmpl.last().is_some_and(|f| f.in_str);
 
                 // Escape: skip next byte when inside a string or template string chars.
                 if b == b'\\' && (in_single_quote || in_double_quote || top_in_str) {

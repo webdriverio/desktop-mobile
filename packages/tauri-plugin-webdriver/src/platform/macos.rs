@@ -559,7 +559,7 @@ unsafe fn image_to_png_base64(image: &NSImage) -> Result<String, String> {
 unsafe fn describe_ns_error(error: &NSError) -> String {
     let mut out = format!(
         "{} (code {})",
-        error.localizedDescription().to_string(),
+        error.localizedDescription(),
         error.code()
     );
 

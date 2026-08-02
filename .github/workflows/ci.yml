@@ -121,6 +121,60 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
+  # Lint the Tauri Rust crates. Runs on all three OSes on purpose: the plugin's
+  # platform modules are `#[cfg]`-gated, so a single-OS run would leave two of
+  # macos.rs / windows.rs / linux.rs unlinted.
+  clippy-tauri-crates-linux:
+    name: Clippy Tauri Crates [Linux]
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-rust-clippy.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      crates: |
+        packages/tauri-plugin
+        packages/tauri-plugin-webdriver
+
+  clippy-tauri-crates-windows:
+    name: Clippy Tauri Crates [Windows]
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-rust-clippy.reusable.yml
+    secrets: inherit
+    with:
+      os: 'windows-latest'
+      crates: |
+        packages/tauri-plugin
+        packages/tauri-plugin-webdriver
+
+  clippy-tauri-crates-macos-arm:
+    name: Clippy Tauri Crates [macOS-ARM]
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-rust-clippy.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      crates: |
+        packages/tauri-plugin
+        packages/tauri-plugin-webdriver
+
+  # Lint the Dioxus Rust crates. Linux-only for now, matching the v1 scope of
+  # build-dioxus-crates-linux below.
+  clippy-dioxus-crates-linux:
+    name: Clippy Dioxus Crates [Linux]
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-rust-clippy.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+      crates: |
+        packages/dioxus-bridge
+        packages/dioxus-driver
+        packages/dioxus-embedded-driver
+
   # Build Tauri E2E app binaries - only if Tauri tests will run
   build-tauri-e2e-app-linux:
     name: Build Tauri E2E App [Linux]
@@ -1201,6 +1255,10 @@ jobs:
       - package-electrobun-macos-arm
       - package-electrobun-windows
       - build-matrix
+      - clippy-tauri-crates-linux
+      - clippy-tauri-crates-windows
+      - clippy-tauri-crates-macos-arm
+      - clippy-dioxus-crates-linux
       - build-dioxus-crates-linux
       - build-tauri-e2e-app-linux
       - build-tauri-e2e-app-windows
