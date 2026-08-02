@@ -63,6 +63,10 @@ Not the PR's fault, but not flakes either.
 
 | Date | Run | PR | Job | Class |
 |------|-----|----|----|-------|
+| 2026-08-02 | 30730874052 | #528 | E2E - Tauri [macOS-ARM] - standalone | F1 (`Script execution timed out` ×3) — dependabot setup-node 6→7; a pure CI-infra bump still drew all 4 top app-flake classes at once (F8 pattern) |
+| 2026-08-02 | 30730874052 | #528 | E2E - Electron [Linux] - script | F2 (127 specs pass, then `Timeout reached` at teardown) |
+| 2026-08-02 | 30730874052 | #528 | E2E - Flutter [iOS] - standard | F4 (13 ✓ then exit 1) |
+| 2026-08-02 | 30730874052 | #528 | E2E - React Native [Android] - standard (new-arch) | F9 (accessibility-id native find; 21 other specs pass) |
 | 2026-08-02 | 30723856572 | #519 | E2E - React Native [Android] - standard (new-arch) | F9 |
 | 2026-08-02 | 30723856572 | #519 | E2E - React Native [iOS] - standard (old-arch) | F11 (1/6 specs flaked) |
 | 2026-08-02 | 30723856572 | #519 | Unit [macOS-Intel] | F10 (green on main) |
