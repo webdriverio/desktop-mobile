@@ -119,7 +119,7 @@ pub unsafe fn start_runloop_pump() {
     static PUMP: Once = Once::new();
     PUMP.call_once(|| {
         let block = RcBlock::new(|_timer: NonNull<NSTimer>| {});
-        let timer = NSTimer::timerWithTimeInterval_repeats_block(0.025, true, &block);
+        let timer = NSTimer::timerWithTimeInterval_repeats_block(0.05, true, &block);
         NSRunLoop::mainRunLoop().addTimer_forMode(&timer, NSRunLoopCommonModes);
         tracing::debug!("Started macOS main run-loop pump for headless WebKit scheduling");
     });
