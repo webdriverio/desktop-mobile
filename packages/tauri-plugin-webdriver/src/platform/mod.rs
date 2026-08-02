@@ -100,3 +100,12 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
 
     let _ = webview; // Avoid unused variable warning on platforms without handlers
 }
+
+/// Start the macOS headless run-loop pump as early as possible — from the plugin's `setup` hook, on
+/// the main thread — so it covers cold-start / deeplink navigation before the first webview is ready.
+/// `Once`-guarded in `macos::start_runloop_pump`, so the `on_webview_ready` call remains a harmless
+/// fallback. macOS only. See #540.
+#[cfg(target_os = "macos")]
+pub fn start_runloop_pump_early<R: Runtime>(app: &tauri::AppHandle<R>) {
+    let _ = app.run_on_main_thread(|| unsafe { macos::start_runloop_pump() });
+}

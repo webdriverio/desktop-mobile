@@ -65,6 +65,11 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
             #[cfg(target_os = "macos")]
             app.manage(std::sync::Arc::new(eval_channel::EvalResultRegistry::default()));
 
+            // Start the macOS headless run-loop pump early (before any webview loads); Once-guarded,
+            // so the on_webview_ready registration remains a fallback. See #540.
+            #[cfg(target_os = "macos")]
+            platform::start_runloop_pump_early(app.app_handle());
+
             // Start the WebDriver HTTP server
             let app_handle = app.app_handle().clone();
             server::start(app_handle, port);
