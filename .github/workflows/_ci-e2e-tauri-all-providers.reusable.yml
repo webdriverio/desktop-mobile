@@ -388,20 +388,6 @@ jobs:
             pkill -9 -f tauri-e2e-app || true
           fi
 
-      # #540 discriminator (macOS): passively stream the WebKit unified log during the embedded run so
-      # a hang shows whether the WebContent process was SUSPENDED (throttling) or CRASHED — sampling the
-      # app instead risks keeping the process warm. No `sample`; just a log stream we tear down after.
-      - name: 🩺 Start WebKit log stream [Embedded]
-        if: runner.os == 'macOS'
-        shell: bash
-        run: |
-          mkdir -p "$GITHUB_WORKSPACE/e2e/logs/diag"
-          # Write as .log so the "Upload Test Logs" step (e2e/logs/**/*.log) actually collects it.
-          /usr/bin/log stream --level debug --style compact \
-            --predicate 'subsystem == "com.apple.WebKit" OR process == "com.apple.WebKit.WebContent" OR process == "com.apple.WebKit.GPU"' \
-            > "$GITHUB_WORKSPACE/e2e/logs/diag/webkit-log.log" 2>&1 &
-          echo $! > /tmp/webkit-log.pid
-
       - name: 🧪 E2E Tests [Embedded]
         id: test-embedded
         continue-on-error: true
@@ -418,31 +404,6 @@ jobs:
           } else {
             pnpm run ${{ steps.gen-test.outputs.embedded }}
           }
-
-      # #540 discriminator (macOS): stop the log stream and collect crash reports for ALL WebKit
-      # helper processes (WebContent / GPU / Networking), not just the app — the earlier diag missed
-      # exactly the process whose state is in question.
-      - name: 🩺 Collect WebKit diagnostics [Embedded]
-        if: always() && runner.os == 'macOS'
-        shell: bash
-        run: |
-          if [ -f /tmp/webkit-log.pid ]; then
-            kill "$(cat /tmp/webkit-log.pid)" 2>/dev/null || true
-          fi
-          mkdir -p "$GITHUB_WORKSPACE/e2e/logs/diag"
-          shopt -s nullglob
-          # Helper-process (WebContent/GPU) crashes land in the ROOT DiagnosticReports, not $HOME —
-          # scan both. The runner user is admin, so sudo -n reads root-owned reports.
-          for dir in "$HOME/Library/Logs/DiagnosticReports" "/Library/Logs/DiagnosticReports"; do
-            for f in "$dir"/*.ips "$dir"/*.crash; do
-              case "$(basename "$f")" in
-                tauri-e2e-app*|*WebContent*|*WebKit*|*GPU*|*Networking*)
-                  sudo -n cp "$f" "$GITHUB_WORKSPACE/e2e/logs/diag/$(basename "$f").log" 2>/dev/null \
-                    || cp "$f" "$GITHUB_WORKSPACE/e2e/logs/diag/$(basename "$f").log" 2>/dev/null || true ;;
-              esac
-            done
-          done
-          echo "diag artifacts:"; ls -la "$GITHUB_WORKSPACE/e2e/logs/diag" 2>/dev/null || echo "  (none)"
 
       - name: 🧹 Post-cleanup [Embedded]
         if: always()

@@ -30,7 +30,7 @@ features = [ "derive" ]
 
 [dependencies.tokio]
 version = "1"
-features = [ "rt-multi-thread", "sync", "net", "time" ]
+features = [ "rt-multi-thread", "sync", "net", "time", "macros" ]
 
 [dependencies.uuid]
 version = "1"
@@ -42,7 +42,7 @@ block2 = "0.6"
 
 [target."cfg(target_os = \"macos\")".dependencies.objc2-foundation]
 version = "0.3"
-features = [ "NSString", "NSData", "NSError", "NSArray", "NSDictionary" ]
+features = [ "NSString", "NSData", "NSError", "NSArray", "NSDictionary", "NSTimer", "NSRunLoop", "NSDate", "block2" ]
 
 [target."cfg(target_os = \"macos\")".dependencies.objc2-app-kit]
 version = "0.3"
