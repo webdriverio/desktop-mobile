@@ -30,7 +30,7 @@ features = [ "derive" ]
 
 [dependencies.tokio]
 version = "1"
-features = [ "rt-multi-thread", "sync", "net", "time" ]
+features = [ "rt-multi-thread", "sync", "net", "time", "macros" ]
 
 [dependencies.uuid]
 version = "1"
