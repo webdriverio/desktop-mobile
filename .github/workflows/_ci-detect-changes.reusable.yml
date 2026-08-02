@@ -75,12 +75,6 @@ jobs:
         id: changes
         uses: dorny/paths-filter@v4
         with:
-          # paths-filter's base-ref handling is battle-tested for pull_request (the PR base) and push
-          # (the before-sha), but NOT for workflow_dispatch — the `ci:run` path (see dependabot-ci.yml).
-          # There, pin the base to the default branch so a scoped dispatch diffs the branch against main
-          # and runs only the affected frameworks instead of everything. Blank elsewhere keeps the
-          # battle-tested defaults; a full sweep is still available via `force_all` / `ci:run-all`.
-          base: ${{ github.event_name == 'workflow_dispatch' && github.event.repository.default_branch || '' }}
           list-files: json
           filters: |
             any:
