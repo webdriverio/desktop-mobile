@@ -2,9 +2,11 @@ name: Dependabot CI
 
 # Dependabot PRs skip CI by default (see the detect-changes gate + ci-status block in
 # ci.yml) so the weekly batch of dependency PRs doesn't drain the runners. Adding the
-# `ci:run` label dispatches the full pipeline for the PR's branch; the label is removed
-# afterwards so re-adding it re-runs CI. A human adds the label, so this run gets a normal
-# token (not Dependabot's restricted one) and can dispatch + edit the PR.
+# `ci:run` label dispatches CI scoped to the frameworks the bump actually touches (change
+# detection diffs against the default branch); `ci:run-all` forces the whole cross-platform
+# matrix — use it when a bump could affect frameworks its file diff doesn't name. The label
+# is removed afterwards so re-adding it re-runs CI. A human adds the label, so this run gets
+# a normal token (not Dependabot's restricted one) and can dispatch + edit the PR.
 #
 # The dispatched run is a `workflow_dispatch`, so GitHub never associates it with the PR —
 # it won't appear in the PR's checks list. To give immediate feedback we post a `CI / Required`
@@ -23,7 +25,7 @@ permissions:
 jobs:
   dispatch:
     if: >-
-      github.event.label.name == 'ci:run' &&
+      (github.event.label.name == 'ci:run' || github.event.label.name == 'ci:run-all') &&
       github.event.pull_request.user.login == 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
@@ -33,11 +35,18 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           BRANCH: ${{ github.event.pull_request.head.ref }}
+          LABEL: ${{ github.event.label.name }}
         run: |
           # Note the current latest dispatch run (if any) so the locate step can detect the new one.
           prev=$(gh run list --repo "$REPO" --workflow=ci.yml --branch="$BRANCH" \
             --event=workflow_dispatch --limit=1 --json databaseId --jq '.[0].databaseId // empty')
-          gh workflow run ci.yml --repo "$REPO" --ref "$BRANCH" -f force_all=true
+          # `ci:run` scopes to the frameworks the bump touches — detect-changes diffs the branch
+          # against the default branch on this workflow_dispatch run; `ci:run-all` forces everything.
+          if [ "$LABEL" = "ci:run-all" ]; then
+            gh workflow run ci.yml --repo "$REPO" --ref "$BRANCH" -f force_all=true
+          else
+            gh workflow run ci.yml --repo "$REPO" --ref "$BRANCH" -f force_all=false
+          fi
           echo "prev=$prev" >> "$GITHUB_OUTPUT"
           echo "runs_url=$GITHUB_SERVER_URL/$REPO/actions/workflows/ci.yml?query=branch%3A$BRANCH+event%3Aworkflow_dispatch" >> "$GITHUB_OUTPUT"
       - name: Mark CI / Required pending on the PR
@@ -92,13 +101,15 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           RUN_URL: ${{ steps.locate.outputs.run_url }}
+          LABEL: ${{ github.event.label.name }}
         run: |
-          gh pr comment "$PR" --repo "$REPO" --body "CI dispatched via \`ci:run\` → [view run]($RUN_URL). The result posts back as the \`CI / Required\` status on this PR; the run itself won't appear in the PR checks list (\`workflow_dispatch\` runs aren't PR-associated)."
-      - name: Remove the ci:run label
+          gh pr comment "$PR" --repo "$REPO" --body "CI dispatched via \`$LABEL\` → [view run]($RUN_URL). The result posts back as the \`CI / Required\` status on this PR; the run itself won't appear in the PR checks list (\`workflow_dispatch\` runs aren't PR-associated)."
+      - name: Remove the trigger label
         # Always remove so re-adding the label re-runs CI, even if a feedback step hiccupped.
         if: always()
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-        run: gh pr edit "$PR" --repo "$REPO" --remove-label ci:run
+          LABEL: ${{ github.event.label.name }}
+        run: gh pr edit "$PR" --repo "$REPO" --remove-label "$LABEL"
