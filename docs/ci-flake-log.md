@@ -20,13 +20,16 @@ When a CI run goes red (or suspiciously green) on something unrelated to the cha
 | ID | Class | Signature | Jobs typically hit | Status / fix |
 |----|-------|-----------|--------------------|--------------|
 | **F1** | Tauri macOS DirectEval flake (#540) | `Error: Script execution timed out` (~26 s gap between `runJavaScript` calls on the idle headless run loop); earlier variant `A JavaScript exception occurred (code 4): Completion handler … no longer reachable` | `E2E - Tauri [macOS-ARM] - standalone / deeplink`, `Package - Tauri [macOS-ARM]` | code-4 fixed in #549; residual idle-stall fix in flight PR #553 (50 ms `NSTimer` run-loop pump). Track: #540 |
-| **F2** | Electron Windows E2E teardown/hang | `Timeout reached, continuing the build`; session healthy through `deleteSession()`, dies at teardown | `E2E - Electron [Windows] - forge / builder / script` | Unfixed — needs a session-close/teardown investigation |
+| **F2** | Electron E2E teardown/hang | `Timeout reached, continuing the build`; session healthy through `deleteSession()`, dies at teardown | `E2E - Electron [Windows / Linux] - forge / builder / script` | Unfixed — needs a session-close/teardown investigation |
 | **F3** | Docker distro transient | bridge `Error: Timeout`, mirror/network drop, or job log unavailable (`status 404`) | `Package - Tauri / Dioxus (Docker) [Void / Fedora]` | Ambient (distro mirror / network / bridge timing) |
 | **F4** | Flutter iOS teardown exit-1 | test **passes** (`✓ should …`) then process exits `1` at teardown | `E2E - Flutter [iOS] - standard` | Unfixed — teardown exit-code |
 | **F5** | Electrobun macOS CEF new-browser-info timeout | `cef/libcef/browser/browser_info_manager.cc:858 Timeout of new browser info response for frame …` (multi-view) | `E2E - Electrobun [macOS-ARM] - standard` | CEF isolation gaps (upstream); umbrella #320 |
 | **F6** | Electron-forge packaging no-binary | forge packaging produces no binary (prune-related, flaky) | `Package / E2E - Electron [*] - forge` | Mitigated by prune-disable (#521); watch for recurrence |
 | **F7** | Runner disk-full / teardown race | `ENOSPC`; Windows process-teardown races | any | Ambient runner capacity |
 | **F8** | Dependabot red-on-first-run | dependency-bump PRs go red, clear on re-run | various | Ambient; re-run |
+| **F9** | RN Android new-arch native-find | `✖ should find a native element via accessibility id` (`expect(...).toBe(true)`); UiAutomator2 accessibility-id lookup intermittently fails on the new architecture (other RN tests pass) | `E2E - React Native [Android] - standard (new-arch)` | Intermittent — **green on main**, can fail through a retry; investigate UiAutomator2 tree timing on new-arch |
+| **F10** | Unit/integration suite hang (SIGINT/130) | tests pass, then `ELIFECYCLE Command failed with exit code 130` / `Failed: @wdio/<svc>#test:unit` — the suite is killed (step timeout), not a failing assertion; suspect an integration-test port/teardown hang | `Unit [*]` | Ambient; **green on main** (`fileParallelism: false` port isolation) |
+| **F11** | RN iOS E2E intermittent spec fail | 1 of N specs intermittently fails (most pass); exact spec varies — signature TBD, refine on recurrence | `E2E - React Native [iOS] - standard (old / new-arch)` | Intermittent; RN iOS mobile-E2E timing (simulator / WDA / Appium) |
 
 **Allow-listed (expected red, not counted against pass rate):**
 - **WebView2 150 elevated-host regression (#542 / WebView2Feedback #5645)** — runner Edge
@@ -60,6 +63,17 @@ Not the PR's fault, but not flakes either.
 
 | Date | Run | PR | Job | Class |
 |------|-----|----|----|-------|
+| 2026-08-02 | 30723856572 | #519 | E2E - React Native [Android] - standard (new-arch) | F9 |
+| 2026-08-02 | 30723856572 | #519 | E2E - React Native [iOS] - standard (old-arch) | F11 (1/6 specs flaked) |
+| 2026-08-02 | 30723856572 | #519 | Unit [macOS-Intel] | F10 (green on main) |
+| 2026-08-02 | 30723856572 | #519 | Package - Dioxus (Docker) [Fedora] | F3 |
+| 2026-08-02 | 30722562323 (att. 1–2) | #558 | E2E - React Native [Android] - standard (new-arch) | F9 — recurred on job retry (both attempts failed; green on main) |
+| 2026-08-02 | 30722562323 | #558 | E2E - Tauri [macOS-ARM] - standalone | F1 |
+| 2026-08-02 | 30722562323 | #558 | E2E - Flutter [iOS] - standard | F4 |
+| 2026-08-02 | 30722562323 | #558 | Package - Tauri (Docker) [Fedora] | F3 |
+| 2026-08-02 | 30722561443 | #557 | E2E - Electron [Linux] - builder | F2 (Linux — teardown timeout after healthy session) |
+| 2026-08-02 | 30722561443 (att. 1–5) | #557 | E2E - Tauri [macOS-ARM] - standalone | F1 att.1–4, **cleared on att. 5** → ~1-in-5 clear rate un-pumped (quantifies why F1 is #1) |
+| 2026-08-02 | 30722561443 (att. 1–2) | #557 | E2E - Flutter [iOS] - standard | F4 — recurred on job retry |
 | 2026-08-01 | 30710976372 (retry, att. 2) | #561 | E2E - Tauri [macOS-ARM] - deeplink | F1 — recurred on retry (embedded provider); F5 cleared |
 | 2026-08-01 | 30710976372 | #561 | E2E - Tauri [macOS-ARM] - deeplink | F1 |
 | 2026-08-01 | 30710976372 | #561 | E2E - Electrobun [macOS-ARM] - standard | F5 |
