@@ -67,7 +67,7 @@ jobs:
       # Pin the node version: native type stripping for the classifier needs >= 23.6;
       # the runner image carries 24, so this is a PATH switch, not a download.
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: '24'
 
