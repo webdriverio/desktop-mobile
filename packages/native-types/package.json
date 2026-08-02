@@ -34,8 +34,8 @@
   },
   "devDependencies": {
     "@electron-forge/shared-types": "^7.11.2",
-    "@electron/packager": "^20.0.1",
-    "@types/node": "^26.1.0",
+    "@electron/packager": "^20.0.4",
+    "@types/node": "^26.1.2",
     "@wdio/bundler": "workspace:*",
     "@wdio/globals": "catalog:default",
     "@wdio/native-spy": "workspace:*",

@@ -18,9 +18,16 @@ react-native/
 ```
 
 The native `android/` and `ios/` projects are **generated**, not checked in — they
-are large, platform-toolchain-specific, and reproducible. CI (PR4) regenerates them
-with `npx @react-native-community/cli init` pinned to the `react-native` version in
-`package.json`, then overlays `App.tsx` / `index.js` / `app.json`.
+are large, platform-toolchain-specific, and reproducible. CI scaffolds a complete
+stock app with `npx @react-native-community/cli init`, pinned to the `rn-version`
+input of the React Native workflows, and overlays only this fixture's `App.tsx` —
+the App imports nothing but react-native core, so the stock template builds it
+unmodified.
+
+That means **CI never installs this `package.json`** — it documents the app CI
+scaffolds, so you can run the fixture locally. `rn-version` is the source of truth
+for what actually gets built; `test/scripts/react-native-version-sync.spec.ts`
+keeps the two in step, so bump them together.
 
 ## Stable selectors
 

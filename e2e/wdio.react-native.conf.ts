@@ -105,6 +105,9 @@ const reactNativeServiceOptions: ReactNativeServiceOptions = {
   doctor: { strict: true },
 };
 
+// Local superset of the shipped `ReactNativeCapabilities`, which does not model the iOS/WDA
+// tuning keys below. Duplicated in fixtures/package-tests/react-native-app/wdio.conf.ts;
+// drop both once #574 lands.
 type ReactNativeCapability = {
   platformName: 'Android' | 'iOS';
   'appium:automationName': 'UiAutomator2' | 'XCUITest';
