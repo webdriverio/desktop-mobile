@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## [@wdio/electron-service@10.2.0-next.0] - 2026-08-02
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v10.1.0...wdio-electron-service@v10.2.0-next.0)
+
+### New
+- **DevServer auto-start**: Dev server now automatically starts before tests run in all four browser-mode launchers (Dioxus, Tauri, Electron, Electrobun). (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
+
+### Fixed
+- Browser mode now throws clear errors for unsupported browser names and unreachable dev servers instead of failing silently or late. (PR [#490](https://github.com/webdriverio/desktop-mobile/pull/490) · closes [#416](https://github.com/webdriverio/desktop-mobile/issues/416))
+- Fixed an unhandled promise rejection that could crash the worker when MockUpdateScheduler encountered a failed batch. (PR [#475](https://github.com/webdriverio/desktop-mobile/pull/475) · closes [#467](https://github.com/webdriverio/desktop-mobile/issues/467))
+
+### Changed
+**Dependencies**:
+- Routine minor and patch dependency updates including webdriverio, appium drivers, biome, turbo, vitest, eslint, and electron-nightly. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Updated package versions across multiple packages including biome, inquirer, typescript-eslint, vitest, eslint, and electron-builder. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+- Production dependency updates including rollup, esbuild, electron, puppeteer-core, and tauri-apps API. (PR [#500](https://github.com/webdriverio/desktop-mobile/pull/500))
+- Electron service now uses the shared \@wdio/native-cdp-bridge; \@wdio/electron-cdp-bridge has been retired. (PR [#481](https://github.com/webdriverio/desktop-mobile/pull/481))
+
 ## [@wdio/tauri-plugin@1.3.0-next.0] - 2026-08-02
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v1.2.0...wdio-tauri-plugin@v1.3.0-next.0)
