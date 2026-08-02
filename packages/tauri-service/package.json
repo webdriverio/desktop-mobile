@@ -64,11 +64,11 @@
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
-    "@babel/parser": "^8.0.0",
+    "@babel/parser": "^8.0.4",
     "@types/debug": "^4.1.12",
     "@types/node": "^26.1.0",
     "@wdio/bundler": "workspace:*",
-    "recast": "^0.23.12",
+    "recast": "^0.23.14",
     "shx": "^0.4.0",
     "terser": "^5.48.0",
     "typescript": "^6.0.3",
