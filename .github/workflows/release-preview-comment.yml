@@ -1,0 +1,149 @@
+name: Release Preview Comment
+
+# Posts the artifact produced by release-preview.yml. `workflow_run` runs in the
+# base-repo context with a writable token even when the triggering run came from
+# a fork, and it never checks out PR code — so contributor PRs get a preview
+# without handing the write token to untrusted code.
+#
+# The artifact itself is untrusted: a fork controls the workflow definition that
+# produces it. So the comment *target* is never read from it — the PR is resolved
+# from the triggering run's head SHA, which GitHub supplies and a fork cannot
+# forge. Only the body comes from the artifact, and it can only ever land on the
+# PR that produced it.
+#
+# Note: GitHub only ever runs the copy of this file on the default branch, so
+# changes to it take effect after merge, not on the PR that introduces them.
+
+on:
+  workflow_run:
+    workflows: ['Release Preview']
+    types: [completed]
+
+# Serialise per source branch. `cancel-in-progress: false` is deliberate: cancelling
+# a consumer does not recall an update it already dispatched, so two live consumers
+# could both read the old run stamp and race their writes. Queueing instead makes the
+# read-check-write below mutually exclusive, and the stamp then decides the winner
+# deterministically. GitHub keeps only the newest pending run per group, so a burst
+# of label events collapses to first + last rather than building a backlog.
+concurrency:
+  group: release-preview-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
+
+permissions:
+  pull-requests: write
+  actions: read
+
+jobs:
+  comment:
+    name: Post Release Preview
+    runs-on: ubuntu-latest
+    if: >-
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success'
+    steps:
+      # The preview job skips the upload when there is nothing to report, so a
+      # missing artifact is a normal outcome rather than a failure.
+      - name: Download preview artifact
+        id: download
+        uses: actions/download-artifact@v8
+        continue-on-error: true
+        with:
+          name: release-preview
+          path: preview
+          run-id: ${{ github.event.workflow_run.id }}
+          github-token: ${{ github.token }}
+
+      - name: Post or update the preview comment
+        if: steps.download.outcome == 'success'
+        uses: actions/github-script@v9
+        with:
+          script: |
+            const fs = require('fs');
+            const MARKER = '<!-- releasekit-preview -->';
+            // Stamped into the comment so a run can tell whether a newer one already
+            // wrote it. `run_number` increases monotonically per workflow, so it orders
+            // runs even when they share a head SHA — which label/unlabel events do.
+            const RUN_TAG = /<!-- releasekit-preview-run: (\d+) -->/;
+            const runNumber = context.payload.workflow_run.run_number;
+
+            if (!fs.existsSync('preview/preview.md')) {
+              core.info('No preview artifact contents; nothing to post.');
+              return;
+            }
+
+            const raw = fs.readFileSync('preview/preview.md', 'utf8').trim();
+            if (!raw) {
+              core.info('Preview artifact was empty; nothing to post.');
+              return;
+            }
+
+            // Resolve the target from the triggering run rather than from the artifact,
+            // so the write is bound to the PR that actually produced the preview.
+            //
+            // All three of these come from GitHub, not the fork: matching the head SHA
+            // alone would also match an unrelated PR that happens to sit on the same
+            // commit, so the source repo and branch are checked too. Requiring exactly
+            // one match additionally drops superseded runs — once the PR has moved on,
+            // nothing still has this SHA as its head.
+            const run = context.payload.workflow_run;
+            const headSha = run.head_sha;
+            const headRepo = run.head_repository?.full_name;
+            const associated = await github.paginate(
+              github.rest.repos.listPullRequestsAssociatedWithCommit,
+              { owner: context.repo.owner, repo: context.repo.repo, commit_sha: headSha },
+            );
+            const targets = associated.filter(
+              (pr) =>
+                pr.state === 'open' &&
+                pr.head.sha === headSha &&
+                pr.head.ref === run.head_branch &&
+                pr.head.repo?.full_name === headRepo,
+            );
+
+            if (targets.length !== 1) {
+              core.info(
+                `Expected exactly one open PR at ${headRepo}:${run.head_branch}@${headSha}, found ${targets.length} — superseded or ambiguous, not posting.`,
+              );
+              return;
+            }
+            const prNumber = targets[0].number;
+
+            // releasekit keys its comment off the marker so repeated runs update in
+            // place. Re-add it if the preview body did not already carry one.
+            const withMarker = raw.startsWith(MARKER) ? raw : `${MARKER}\n\n${raw}`;
+            const body = `${withMarker}\n\n<!-- releasekit-preview-run: ${runNumber} -->`;
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber,
+              per_page: 100,
+            });
+            const existing = comments.find((comment) => comment.body?.includes(MARKER));
+
+            if (existing) {
+              // Safe to read-then-write: the concurrency group above guarantees no other
+              // consumer for this branch is running, so the stamp cannot change under us.
+              const stamped = existing.body?.match(RUN_TAG);
+              if (stamped && Number(stamped[1]) >= runNumber) {
+                core.info(
+                  `Comment on #${prNumber} is from run ${stamped[1]} (this is ${runNumber}); leaving the newer preview in place.`,
+                );
+                return;
+              }
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: existing.id,
+                body,
+              });
+              core.info(`Updated release preview comment ${existing.id} on #${prNumber}.`);
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: prNumber,
+                body,
+              });
+              core.info(`Created release preview comment on #${prNumber}.`);
+            }

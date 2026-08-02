@@ -8,9 +8,10 @@ on:
       - synchronize
       - reopened
 
+# No write scopes: fork PRs get a read-only GITHUB_TOKEN regardless of what is
+# requested here, so anything needing write would fail for external contributors.
 permissions:
   pull-requests: read
-  statuses: write
 
 jobs:
   validate-pr-title:
@@ -38,5 +39,7 @@ jobs:
           requireScope: false
           validateSingleCommit: false
           validateSingleCommitMatchesPrTitle: false
-          # Allow WIP pull requests
-          wip: true
+          # `wip: true` is deliberately not set. It exists for repos without draft
+          # PRs, and it makes the action POST a commit status — which 403s on fork
+          # PRs and fails the job before the title verdict is even reported. This
+          # repo is public, so draft PRs cover the same need.
