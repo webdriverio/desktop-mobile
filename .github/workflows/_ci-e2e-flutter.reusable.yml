@@ -142,7 +142,7 @@ jobs:
       - name: 🤖 Run E2E on Android emulator
         # Third-party action (non-GitHub-owned) → pin to a full commit SHA, not a floating
         # tag, since secrets: inherit gives this job secret access. Bump deliberately.
-        uses: reactivecircus/android-emulator-runner@e89f39f1abbbd05b1113a29cf4db69e7540cae5a # v2.37.0
+        uses: reactivecircus/android-emulator-runner@a421e43855164a8197daf9d8d40fe71c6996bb0d # v2.38.0
         with:
           api-level: ${{ inputs.api-level }}
           arch: x86_64
