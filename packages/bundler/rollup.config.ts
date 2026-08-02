@@ -24,6 +24,9 @@ const config: RollupOptions = {
     format: 'esm',
     dir: './dist',
     sourcemap: true,
+    // Stable, non-hashed chunk names: a cached `dist/` can otherwise pair `cli.js` with a
+    // `plugins-<hash>.js` it no longer matches, crashing every consumer build.
+    chunkFileNames: '[name].js',
   },
   plugins: [
     typescript({
