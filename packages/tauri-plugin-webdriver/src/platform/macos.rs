@@ -428,7 +428,13 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
                             // Last attempt reclaimed: keep waiting for a late post until the deadline.
                             return (&mut rx).await.map_err(|_| channel_closed());
                         }
-                        tokio::time::sleep(RECLAIM_GRACE).await;
+                        // Race a late post against the grace: if the script actually ran and posts
+                        // here, return it — re-dispatching would execute the script (and any mocks it
+                        // hits) a second time. Only re-dispatch once the grace elapses with no result.
+                        tokio::select! {
+                            r = &mut rx => return r.map_err(|_| channel_closed()),
+                            _ = tokio::time::sleep(RECLAIM_GRACE) => {}
+                        }
                     }
                 }
             }
