@@ -6,6 +6,21 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 
+
+## [@wdio/react-native-service@1.0.0-next.1] - 2026-08-03
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-react-native-service@v1.0.0-next.0...wdio-react-native-service@v1.0.0-next.1)
+
+### New
+- **DevServer auto-start**: Integrated devServer auto-start functionality into all four browser-mode launchers (Dioxus, Tauri, Electron, Electrobun). Each launcher now automatically starts and manages a dev server when configured, propagates the resolved URL to workers, and handles cleanup on completion. (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
+
+### Changed
+- Updated minor and patch dependencies across the workspace, including WebdriverIO packages, Appium drivers, Biome, Turbo, Vitest, and ESLint. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Updated multiple development dependencies including Biome, Inquirer, TypeScript ESLint parser, Vitest, and Turbo. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+
+### Documentation
+- Corrected documentation to clarify that React Native and Flutter services support parallel workers but not multiremote sessions. (PR [#455](https://github.com/webdriverio/desktop-mobile/pull/455))
+
 ## [@wdio/dioxus-bridge@1.0.0-next.4] - 2026-08-03
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-bridge@v1.0.0-next.3...wdio-dioxus-bridge@v1.0.0-next.4)

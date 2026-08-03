@@ -1,6 +1,6 @@
 {
   "name": "@wdio/react-native-service",
-  "version": "1.0.0-next.0",
+  "version": "1.0.0-next.1",
   "description": "WebdriverIO service for testing React Native mobile applications",
   "author": "WebdriverIO Community",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/react-native-service",
