@@ -10,6 +10,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-cdp-bridge@1.1.0] - 2026-08-03
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-cdp-bridge@v1.0.0...wdio-native-cdp-bridge@v1.1.0)
+
+### New
+- **DevServer auto-start**: Integrated devServer auto-start into all four desktop launchers (Dioxus, Tauri, Electrobun, Electron), automatically starting the dev server during test preparation and passing the URL to browser workers. (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
+
+### Changed
+**Dependencies**:
+- Updated various development dependencies to their latest minor and patch versions. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Updated various dependencies including ESLint, Vitest, Turbo, and TypeScript-related packages to newer versions. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+
 ## [@wdio/native-spy@1.2.0] - 2026-08-03
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-spy@v1.1.0...wdio-native-spy@v1.2.0)
