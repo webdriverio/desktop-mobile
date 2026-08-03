@@ -2,6 +2,40 @@
 
 These are some common issues which others have encountered whilst using the service. For debugging tools and features, see the [Debugging guide](./debugging.md).
 
+## Could not determine the Electron version under test
+
+The service works out which Chromedriver to use from your app's Electron version, which it reads from the `electron` (or `electron-nightly`) dependency in the `package.json` nearest your `rootDir`. This error means it found no such dependency.
+
+The usual cause is testing an app built elsewhere — a downloaded release artifact, or a build produced by a separate CI job — so the tests have no local Electron install even though `appBinaryPath` points at a perfectly good app.
+
+Any one of these resolves it:
+
+- Install `electron` as a `devDependency` in the project being tested.
+- Set the `browserVersion` capability to the Electron version under test — see [Chromedriver Configuration](./configuration.md#chromedriver-configuration).
+- Set `wdio:chromedriverOptions.binary` to a Chromedriver you provide.
+
+## Could not determine the Chromium version for Electron vX
+
+The Electron version was found, but the service could not map it to a Chromium version, so it cannot select a matching Chromedriver. Installing Electron will not help — it is already installed.
+
+The mapping comes from `https://electronjs.org/headers/index.json`, falling back to the bundled `electron-to-chromium` data when that request fails. It comes up short when:
+
+- the build is a **fork** whose version is not a published Electron release;
+- the build is a **nightly** and the online lookup is unavailable — the bundled fallback contains no nightly versions;
+- the Electron release is **newer than the bundled data** and the online lookup is unavailable.
+
+Resolve it by pinning Chromedriver yourself:
+
+- Set `wdio:chromedriverOptions.binary` to a Chromedriver matching your app's Chromium version.
+- Or set the `browserVersion` capability to the **Chromium** version your Electron build uses. You can read that from the app itself:
+
+  ```console
+  $ ELECTRON_RUN_AS_NODE=1 /path/to/your/app -p "process.versions.chrome"
+  150.0.7871.129
+  ```
+
+See [Chromedriver Configuration](./configuration.md#chromedriver-configuration) for where these belong in your config.
+
 ## CDP bridge cannot be initialized: EnableNodeCliInspectArguments fuse is disabled
 
 This warning appears when your Electron app has the `EnableNodeCliInspectArguments` fuse explicitly disabled. The CDP (Chrome DevTools Protocol) bridge relies on the `--inspect` flag to connect to Electron's main process, so when this fuse is disabled, the service cannot provide access to the main process APIs.

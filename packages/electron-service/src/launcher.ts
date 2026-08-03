@@ -29,7 +29,11 @@ import {
   getConvertedElectronCapabilities,
   getElectronCapabilities,
 } from './capabilities.js';
-import { CUSTOM_CAPABILITY_NAME } from './constants.js';
+import {
+  CHROMIUM_VERSION_NOT_FOUND_ERROR,
+  CUSTOM_CAPABILITY_NAME,
+  ELECTRON_VERSION_NOT_FOUND_ERROR,
+} from './constants.js';
 import { diagnoseElectronEnvironment } from './diagnostics.js';
 import { resolveAppPaths } from './pathResolver.js';
 import { getChromiumVersion } from './versions.js';
@@ -251,7 +255,13 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
       caps.map(async (cap) => {
         const electronVersion = cap.browserVersion || localElectronVersion || '';
         const chromiumVersion = await getChromiumVersion(electronVersion);
-        log.info(`Found Electron v${electronVersion} with Chromedriver v${chromiumVersion}`);
+        if (!electronVersion) {
+          log.warn('Could not determine the Electron version under test');
+        } else if (chromiumVersion) {
+          log.info(`Found Electron v${electronVersion} with Chromedriver v${chromiumVersion}`);
+        } else {
+          log.warn(`Found Electron v${electronVersion}, but no matching Chromedriver version is known`);
+        }
 
         (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:chromiumVersion'] = chromiumVersion;
         (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:electronVersion'] = electronVersion;
@@ -365,8 +375,13 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         if (browserVersion) {
           cap.browserVersion = browserVersion;
         } else if (!cap['wdio:chromedriverOptions']?.binary) {
+          // Two different failures reach here: no Electron version could be determined at all, or
+          // one was determined but has no known Chromium mapping. The remedies differ, so they get
+          // different messages — installing Electron does nothing for the latter.
           const invalidBrowserVersionOptsError = new Error(
-            'You must install Electron locally, or provide a custom Chromedriver path / browserVersion value for each Electron capability',
+            electronVersion
+              ? CHROMIUM_VERSION_NOT_FOUND_ERROR.replace('%s', electronVersion)
+              : ELECTRON_VERSION_NOT_FOUND_ERROR,
           );
           log.error(invalidBrowserVersionOptsError.message);
           throw invalidBrowserVersionOptsError;
