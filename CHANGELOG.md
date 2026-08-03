@@ -9,6 +9,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-spy@1.2.0] - 2026-08-03
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-spy@v1.1.0...wdio-native-spy@v1.2.0)
+
+### New
+- **Dev server auto-start**: Implemented automatic dev server startup for all four desktop launchers (Dioxus, Tauri, Electron, Electrobun) with proper lifecycle management and URL propagation to browser capabilities. (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
+
+### Developer
+**Dependencies**:
+- Updated multiple dependencies to their latest minor and patch versions including WebDriverIO, Appium drivers, Biome, Turbo, Vitest, and ESLint. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Updated development dependencies including Biome, Inquirer, ESLint, TypeScript parser, Vitest, and Turbo. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+- **Tooling**: Migrated internal repository scripts from tsx to bare Node.js execution for improved consistency and type checking. (PR [#347](https://github.com/webdriverio/desktop-mobile/pull/347) · closes [#345](https://github.com/webdriverio/desktop-mobile/issues/345))
+
 ## [@wdio/native-utils@2.6.0] - 2026-08-03
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-utils@v2.5.0...wdio-native-utils@v2.6.0)
