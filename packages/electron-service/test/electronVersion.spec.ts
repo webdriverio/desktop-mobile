@@ -24,10 +24,7 @@ function createPackageJson(depName: string, dep: { [key: string]: string }) {
 
 const projectDirs: string[] = [];
 
-/**
- * Real on-disk project so `createRequire(...).resolve()` is exercised for the
- * node_modules fallback rather than stubbed out.
- */
+/** Real on-disk project, so the node_modules walk is exercised rather than stubbed out. */
 async function createProject(deps: { [key: string]: string }, installed: { [key: string]: string } = {}) {
   const projectDir = await mkdtemp(join(tmpdir(), 'wdio-electron-version-'));
   projectDirs.push(projectDir);
