@@ -12,6 +12,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-mobile-core@1.1.0] - 2026-08-03
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-mobile-core@v1.0.0...wdio-native-mobile-core@v1.1.0)
+
+### New
+- **Dev server auto-start**: Integrated dev server auto-start into all four browser-mode launchers (Dioxus, Tauri, Electron, Electrobun). Dev servers now start automatically during test preparation and the resolved URL is passed to test workers. (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
+
+### Changed
+- Updated various dependencies to their latest minor and patch versions, including webdriverio, appium drivers, biome, turbo, vitest, and eslint. Fixed a configuration drift where mobile fixtures weren't synchronized with the workspace. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Updated multiple development dependencies including eslint, vitest, biome, and TypeScript tooling to their latest versions. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+- Removed the custom appium-flutter-driver fork now that upstream appium-flutter-driver 3.8.0 includes all necessary changes for Android and iOS support. (PR [#484](https://github.com/webdriverio/desktop-mobile/pull/484) · closes [#461](https://github.com/webdriverio/desktop-mobile/issues/461))
+
 ## [@wdio/native-types@2.5.0] - 2026-08-03
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-types@v2.4.0...wdio-native-types@v2.5.0)
