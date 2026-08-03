@@ -1,6 +1,6 @@
 {
   "name": "@wdio/tauri-service",
-  "version": "1.3.0-next.1",
+  "version": "1.3.0",
   "description": "WebdriverIO service for testing Tauri applications",
   "author": "WebdriverIO Community",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/tauri-service",
