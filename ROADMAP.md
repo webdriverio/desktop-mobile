@@ -65,9 +65,9 @@ The mobile services (React Native, Flutter, and future Capacitor) share a common
 | Track | Status | Notes |
 |---|---|---|
 | **Zero-config mobile setup** | 📋 Planned | Chromedriver-style auto-management: opt-in Appium driver install + version matrix, per-worker realm-port allocation, cap-default derivation, and a fail-fast preflight doctor. Shared [#378](https://github.com/webdriverio/desktop-mobile/issues/378) + Flutter [#405](https://github.com/webdriverio/desktop-mobile/issues/405) + React Native [#406](https://github.com/webdriverio/desktop-mobile/issues/406). |
-| **Generic `@wdio/mobile-service`** | 📋 Planned | A publishable mobile service for any Appium-drivable app (plain native, NativeScript, MAUI, Capacitor shells): native find/tap, deeplink, context switching, logs, multiremote — without a framework realm. React Native and Flutter converge onto it as thin extensions that add only their JS/Dart `execute`/`mock`. Design: [spec](./agent-os/specs/20260618-mobile-service-convergence/spec.md). |
+| **Generic `@wdio/mobile-service`** | 📋 Planned | A publishable mobile service for any Appium-drivable app (plain native, NativeScript, MAUI, Capacitor shells): native find/tap, deeplink, context switching, logs, multiremote — without a framework realm. React Native and Flutter converge onto it as thin extensions that add only their JS/Dart `execute`/`mock`. Design: [spec](./docs/design/mobile-service-convergence.md). |
 
-Composition stays two-entry — `services: ['appium', '<framework>']`; the shared layer is inherited, not listed separately. See the [design spec](./agent-os/specs/20260618-mobile-service-convergence/spec.md) for the full model.
+Composition stays two-entry — `services: ['appium', '<framework>']`; the shared layer is inherited, not listed separately. See the [design spec](./docs/design/mobile-service-convergence.md) for the full model.
 
 **Sequencing:** the zero-config setup-automation track is in flight now (pre-release hardening of the mobile services). The generic `@wdio/mobile-service` + the React Native / Flutter convergence onto it is targeted **Q4 2026, ahead of Capacitor** — Capacitor is its first consumer and extends it rather than re-implementing the mobile scaffold.
 
@@ -99,7 +99,7 @@ Forward sequence, ordered by target window. Targets are aspirational (see the di
 ### Generic Mobile Service — targeted Q4 2026
 **Priority:** High — unlocks Capacitor and any native / other-framework app
 
-Promote the shared `@wdio/native-mobile-core` layer into a concrete, publishable `@wdio/mobile-service` for any Appium-drivable app (plain native, NativeScript, MAUI, Capacitor shells), and converge React Native + Flutter onto it as thin extensions that add only their JS/Dart realm. See [Shared Mobile Infrastructure](#shared-mobile-infrastructure) and the [design spec](./agent-os/specs/20260618-mobile-service-convergence/spec.md).
+Promote the shared `@wdio/native-mobile-core` layer into a concrete, publishable `@wdio/mobile-service` for any Appium-drivable app (plain native, NativeScript, MAUI, Capacitor shells), and converge React Native + Flutter onto it as thin extensions that add only their JS/Dart realm. See [Shared Mobile Infrastructure](#shared-mobile-infrastructure) and the [design spec](./docs/design/mobile-service-convergence.md).
 
 ### Capacitor Mobile — Q1 2027
 **Priority:** Medium — Ionic ecosystem coverage\

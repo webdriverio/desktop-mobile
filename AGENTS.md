@@ -55,7 +55,6 @@ fixtures/
 └── package-tests/        # Package integration test fixtures
 
 e2e/                      # End-to-end test suites
-agent-os/                 # Agent OS standards and specs
 ```
 
 ## Service Architecture Pattern
@@ -91,7 +90,7 @@ const log = createLogger('service-name', 'module-name');
 
 ## Mock Architecture
 
-Mocks span two process boundaries — an **inner mock** in the app context and an **outer mock** in the test process. The inner mock (created via `@wdio/native-spy`) intercepts real API calls inside the app. The outer mock (vitest-compatible) is used for test assertions. Call data syncs one-way from inner to outer via `update()`, serialized as JSON across CDP/WebDriver boundaries. See `agent-os/standards/global/mock-architecture.md` for details.
+Mocks span two process boundaries — an **inner mock** in the app context and an **outer mock** in the test process. The inner mock (created via `@wdio/native-spy`) intercepts real API calls inside the app. The outer mock (vitest-compatible) is used for test assertions. Call data syncs one-way from inner to outer via `update()`, serialized as JSON across CDP/WebDriver boundaries. See `docs/architecture/mock-architecture.md` for details.
 
 ## Coding Standards
 
@@ -195,17 +194,9 @@ if (result.ok) {
 | [docs/setup.md](./docs/setup.md) | Detailed setup instructions |
 | [docs/package-structure.md](./docs/package-structure.md) | Package conventions |
 | [docs/architecture.md](./docs/architecture.md) | Service architecture |
+| [docs/architecture/](./docs/architecture/) | Detailed architecture references (mock, driver lifecycle, cross-platform…) |
+| [docs/adr/](./docs/adr/) | Architecture Decision Records |
 | [docs/e2e-testing.md](./docs/e2e-testing.md) | E2E testing guide |
-
-## Agent OS Integration
-
-This project uses Agent OS v3 for AI-assisted development standards. Standards are in `agent-os/standards/` and can be injected using `/inject-standards`.
-
-Available commands:
-- `/discover-standards` - Extract patterns from codebase
-- `/inject-standards` - Inject standards into context
-- `/shape-spec` - Enhanced spec shaping
-- `/plan-product` - Product planning
 
 ## Common Tasks
 

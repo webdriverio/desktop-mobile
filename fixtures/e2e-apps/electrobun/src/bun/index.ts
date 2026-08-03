@@ -7,8 +7,8 @@ import { app, BrowserWindow } from 'electrobun/bun';
 // macOS/Linux (CEF): open TWO windows, STAGGERED — the second only after the main view's
 // DOM is ready. Two are needed so the CDP bridge can enumerate a 'window-1' target: a lone
 // CEF window doesn't reliably expose a `/json` page target after the forced `persist:default`
-// partition falls back to the shared global context (an upstream gap, see the agent-os plan
-// "Framework gaps"). Opening both concurrently races that fallback — a browser can spawn a
+// partition falls back to the shared global context (an upstream gap, see #320).
+// Opening both concurrently races that fallback — a browser can spawn a
 // separate top-level window instead of embedding via SetAsChild, leaving mainview's DOM
 // unpainted ("#app-title never rendered" → flaky). Staggering lets mainview embed + paint
 // cleanly first. The bridge labels content targets in registration order: first = 'main'

@@ -10,7 +10,7 @@ import '@wdio/native-types';
 // electrobun has no single-instance / open-url routing, so with the per-worker
 // bundle clone macOS launches a SECOND instance that can't surface into the
 // worker's session. Not fixable from the fixture/service. The CI matrix runs only
-// `standard` (see ci.yml + the agent-os plan "Framework gaps"). Runnable LOCALLY
+// `standard` (see ci.yml + #320). Runnable LOCALLY
 // via `TEST_TYPE=deeplink pnpm test:e2e:electrobun`; re-folded into CI once
 // electrobun adds a single-instance lock + open-url routing.
 const isMacOS = process.platform === 'darwin';

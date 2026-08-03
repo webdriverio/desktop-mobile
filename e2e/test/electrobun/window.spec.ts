@@ -10,8 +10,8 @@ import '@wdio/native-types';
 // profile-isolation gap: BrowserWindow forces a `persist:default` partition the
 // chrome-runtime can't create as a non-global profile, so secondview falls back to
 // a racy global context and isn't reliably enumerable as 'window-1'. Not fixable
-// from the fixture/service. The CI matrix runs only `standard` (see ci.yml + the
-// agent-os plan "Framework gaps"). Runnable LOCALLY via
+// from the fixture/service. The CI matrix runs only `standard` (see ci.yml +
+// #320). Runnable LOCALLY via
 // `TEST_TYPE=window pnpm test:e2e:electrobun`; re-folded into CI once electrobun
 // ships per-window partitions / an ephemeral-per-webview fallback.
 

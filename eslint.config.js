@@ -5,7 +5,7 @@ import * as wdio from 'eslint-plugin-wdio';
 export default [
   // Ignored dirs
   {
-    ignores: ['**/dist/**/*', '**/coverage/**/*', '**/out/**/*', '**/.turbo/**/*', 'agent-os/**/*', '.claude/**/*'],
+    ignores: ['**/dist/**/*', '**/coverage/**/*', '**/out/**/*', '**/.turbo/**/*', '.claude/**/*'],
   },
   // E2E test files - WebdriverIO specific rules
   {
