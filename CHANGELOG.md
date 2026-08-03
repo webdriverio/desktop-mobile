@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/electron-service@10.2.0-next.2] - 2026-08-03
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v10.2.0-next.1...wdio-electron-service@v10.2.0-next.2)
+
+### Fixed
+- Fixed an issue where Electron version detection failed when using dist-tags (like 'latest', 'next', 'beta', 'nightly') or version ranges (like '^37', '37.x'). Previously, the launcher would fail with a misleading error message even when Electron was installed. Also fixed incorrect version extraction from file paths containing version-like strings. (PR [#577](https://github.com/webdriverio/desktop-mobile/pull/577))
+
 ## [@wdio/react-native-service@1.0.0-next.1] - 2026-08-03
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-react-native-service@v1.0.0-next.0...wdio-react-native-service@v1.0.0-next.1)
