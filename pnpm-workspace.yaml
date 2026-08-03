@@ -20,12 +20,16 @@ packages:
   - fixtures/package-tests/react-native-app
   - fixtures/package-tests/flutter-app
 allowBuilds:
+  appium: false
+  appium-ios-tuntap: false
+  bufferutil: false
   edgedriver: false
   electron: true
   electron-nightly: true
   electron-winstaller: false
   esbuild: true
   geckodriver: false
+  utf-8-validate: false
 blockExoticSubdeps: false
 catalogs:
   default:
@@ -63,3 +67,11 @@ catalogs:
     electron-builder: next
     electron-nightly: 45.0.0-nightly.20260731
     webdriverio: latest
+# The `next` catalog resolves dist-tags and same-day nightlies on purpose, which the
+# default 24h resolution delay rejects outright. Scoped to the upstreams we track at
+# the bleeding edge — every other dependency keeps the delay.
+minimumReleaseAgeExclude:
+  - '@wdio/*'
+  - electron-builder
+  - electron-nightly
+  - webdriverio

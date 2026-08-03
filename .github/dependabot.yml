@@ -8,6 +8,10 @@ updates:
     open-pull-requests-limit: 10
     labels:
       - 'area:dependencies'
+    # pnpm rejects a lockfile entry younger than `minimumReleaseAge` (24h) even under
+    # --frozen-lockfile, so a same-day bump would open already-red. Outwait the gate.
+    cooldown:
+      default-days: 2
     groups:
       wdio-dependencies:
         patterns:

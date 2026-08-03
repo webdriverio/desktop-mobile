@@ -74,11 +74,5 @@
         }
       ]
     }
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron",
-      "electron-winstaller"
-    ]
   }
 }

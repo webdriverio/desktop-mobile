@@ -1,0 +1,8 @@
+# Materialised as pnpm-workspace.yaml by scripts/test-package.ts inside the isolated
+# package-test sandbox. Deliberately not named pnpm-workspace.yaml: that would make this
+# fixture its own workspace root in the monorepo and strand its workspace:* deps.
+# Electron Forge's packager resolves modules from a flat node_modules tree.
+nodeLinker: hoisted
+allowBuilds:
+  electron: true
+  electron-winstaller: true

@@ -114,7 +114,7 @@ desktop-mobile/
 ### Requirements
 
 - Node.js 24 LTS
-- pnpm 10.27.0
+- pnpm 11.20.0
 
 ### Setup
 

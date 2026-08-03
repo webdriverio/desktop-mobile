@@ -24,7 +24,7 @@ import { createServer, type Server } from 'node:http';
 import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { parse as parseYaml } from 'yaml';
+import { parse as parseYaml, stringify as stringifyYaml } from 'yaml';
 
 // Add global error handlers to catch silent failures
 process.on('uncaughtException', (error) => {
@@ -50,6 +50,22 @@ const __filename = (() => {
 const __dirname = dirname(__filename);
 const rootDir = normalize(join(__dirname, '..'));
 
+const SANDBOX_CONFIG_FILE = 'pnpm-workspace.sandbox.yaml';
+
+interface WorkspaceConfig {
+  overrides?: Record<string, string>;
+  allowBuilds?: Record<string, boolean>;
+  [key: string]: unknown;
+}
+
+function readWorkspaceConfig(dir: string, fileName = 'pnpm-workspace.yaml'): WorkspaceConfig {
+  const workspaceYamlPath = join(dir, fileName);
+  if (!existsSync(workspaceYamlPath)) {
+    return {};
+  }
+  return (parseYaml(readFileSync(workspaceYamlPath, 'utf-8')) as WorkspaceConfig) ?? {};
+}
+
 /**
  * Reads version overrides from the workspace's pnpm-workspace.yaml so the isolated
  * package-test install resolves the same dependency versions as the monorepo.
@@ -59,12 +75,7 @@ const rootDir = normalize(join(__dirname, '..'));
  * point at monorepo-relative paths that can't resolve from the temp dir.
  */
 function readWorkspaceOverrides(): Record<string, string> {
-  const workspaceYamlPath = join(rootDir, 'pnpm-workspace.yaml');
-  if (!existsSync(workspaceYamlPath)) {
-    return {};
-  }
-  const parsed = parseYaml(readFileSync(workspaceYamlPath, 'utf-8')) as { overrides?: Record<string, string> };
-  const overrides = parsed?.overrides ?? {};
+  const overrides = readWorkspaceConfig(rootDir).overrides ?? {};
   return Object.fromEntries(
     Object.entries(overrides).filter(
       ([, value]) =>
@@ -517,11 +528,12 @@ async function testExample(
     mkdirSync(tempDir, { recursive: true });
     cpSync(packagePath, packageDir, { recursive: true });
 
-    // Create .pnpmrc to prevent hoisting and ensure proper resolution
-    const pnpmrcPath = join(packageDir, '.pnpmrc');
-    writeFileSync(pnpmrcPath, 'hoist=false\nnode-linker=isolated\n');
+    // Sandbox-only pnpm settings ship under a name pnpm ignores: a real
+    // pnpm-workspace.yaml inside a fixture would make that directory its own
+    // workspace root in the monorepo, stranding its `workspace:*` dependencies.
+    const fixtureConfig = readWorkspaceConfig(packageDir, SANDBOX_CONFIG_FILE);
+    rmSync(join(packageDir, SANDBOX_CONFIG_FILE), { force: true });
 
-    // Add pnpm overrides to package.json to force local package versions
     const packageJsonPath = join(packageDir, 'package.json');
     if (!existsSync(packageJsonPath)) {
       throw new Error(`package.json not found at ${packageJsonPath}`);
@@ -529,10 +541,10 @@ async function testExample(
 
     const packageJson = JSON.parse(readFileSync(packageJsonPath, 'utf-8'));
 
-    // Carry over non-file overrides from the source package.json
+    // Carry over the fixture's own non-file overrides.
     // File-path overrides (like @wdio/utils) won't resolve from the temp dir and are
     // replaced by the dynamic overrides below.
-    const sourceOverrides: Record<string, string> = packageJson.pnpm?.overrides ?? {};
+    const sourceOverrides: Record<string, string> = fixtureConfig.overrides ?? {};
     const preservedOverrides: Record<string, string> = {};
     for (const [key, value] of Object.entries(sourceOverrides)) {
       if (!value.startsWith('file:')) {
@@ -626,18 +638,52 @@ async function testExample(
       packagesToInstall.push(packages.typesPath, packages.mobileCorePath, packages.flutterServicePath);
     }
 
-    packageJson.pnpm = {
-      ...packageJson.pnpm,
-      overrides,
-    };
-
+    // The sandbox is its own workspace root, so pnpm resolves `workspace:` specs
+    // against it rather than letting an override redirect them. Point them straight
+    // at the packed tarballs the test is meant to exercise.
+    for (const field of ['dependencies', 'devDependencies', 'optionalDependencies', 'peerDependencies']) {
+      const deps: Record<string, string> | undefined = packageJson[field];
+      if (!deps) {
+        continue;
+      }
+      for (const [name, spec] of Object.entries(deps)) {
+        if (typeof spec !== 'string' || !spec.startsWith('workspace:')) {
+          continue;
+        }
+        const resolved = overrides[name];
+        if (!resolved) {
+          throw new Error(`No packed tarball available for workspace dependency "${name}" in ${packageName}`);
+        }
+        deps[name] = resolved;
+        log(`  Resolving workspace dependency: ${name} -> ${resolved}`);
+      }
+    }
     writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
+
+    // pnpm reads settings only from pnpm-workspace.yaml; a `pnpm` field in package.json
+    // is ignored *silently*, which would strand every override built above.
+    writeFileSync(
+      join(packageDir, 'pnpm-workspace.yaml'),
+      stringifyYaml({
+        ...fixtureConfig,
+        // pnpm rejects a workspace config with no packages field.
+        packages: fixtureConfig.packages ?? ['.'],
+        allowBuilds: { ...readWorkspaceConfig(rootDir).allowBuilds, ...fixtureConfig.allowBuilds },
+        overrides,
+        // Every local package under test is injected above as a `file:` spec.
+        blockExoticSubdeps: false,
+        // Build policy belongs to the monorepo root, not a throwaway sandbox — an
+        // undeclared transitive build here should not fail the package test.
+        strictDepBuilds: false,
+      }),
+    );
 
     // Install all dependencies with pnpm
     execCommand('pnpm install', packageDir, `Installing dependencies for ${packageName}`);
 
-    // Install local packages
-    const addCommand = `pnpm add ${packagesToInstall.join(' ')}`;
+    // Install local packages. -w because the sandbox is a single-project workspace,
+    // so its root *is* the intended target.
+    const addCommand = `pnpm add -w ${packagesToInstall.join(' ')}`;
     execCommand(addCommand, packageDir, `Installing local packages for ${packageName}`);
 
     // Ensure logs directory exists for WebdriverIO output

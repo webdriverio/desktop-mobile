@@ -38,10 +38,5 @@
     "example"
   ],
   "author": "WebDriverIO Community",
-  "license": "MIT",
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "electron"
-    ]
-  }
+  "license": "MIT"
 }

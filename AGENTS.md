@@ -22,7 +22,7 @@ This is a monorepo providing WebdriverIO services for automated testing of nativ
 |----------|------------|
 | Language | TypeScript 5.9+ (strict mode, ESM) |
 | Runtime | Node.js 24 LTS |
-| Package Manager | pnpm 10.27.0+ |
+| Package Manager | pnpm 11.20.0+ |
 | Monorepo | Turborepo 2.5+ with pnpm workspaces |
 | Testing | Vitest 3.2+ (unit/integration), WebdriverIO 9.0+ (E2E) |
 | Linting | Biome 2.2.5 + ESLint 9.37+ |
