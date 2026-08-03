@@ -7,6 +7,9 @@ import { findPnpmCatalogVersion } from './pnpm.js';
 
 const log = createLogger('electron-service', 'utils');
 
+/** Specs that point at a location — a path, repo or tarball — rather than constraining a version. */
+const LOCATION_SPEC_PATTERN = /^(file|link|portal|workspace|npm|git|git\+[a-z]+|github|gitlab|bitbucket|gist|https?):/;
+
 /**
  * Deliberately walks node_modules rather than using `require.resolve`, which also
  * consults NODE_PATH and Node's global folders — those can resolve an Electron
@@ -52,18 +55,26 @@ export async function getElectronVersion(pkg: NormalizedReadResult) {
       continue;
     }
 
-    const parsedVersion = findVersions(declaredVersion, { loose: true })[0];
-    if (parsedVersion) {
-      return parsedVersion;
-    }
-
-    // The spec carries no version to parse — a dist-tag (`latest`, `next`, `beta`), a
-    // wildcard, or a git / file spec. Chromedriver has to match the Electron that
-    // actually got installed, so read that rather than giving up on the manifest.
-    const installedVersion = await getInstalledVersion(pkgName, projectDir);
-    if (installedVersion) {
-      log.debug(`Resolved ${pkgName} v${installedVersion} from node_modules for spec "${declaredVersion}"`);
+    // A location spec is a path, not a constraint, so any version-looking substring in
+    // it is incidental — `file:/build/v1.2.3/electron` is not Electron 1.2.3. Read the
+    // install first for those, and parse the spec first for everything else. Either way
+    // the other is tried as a fallback, since a dist-tag, a partial range (`^37`) or a
+    // wildcard carries no version to parse.
+    const readInstalledFirst = LOCATION_SPEC_PATTERN.test(declaredVersion);
+    const readInstalled = async () => {
+      const installedVersion = await getInstalledVersion(pkgName, projectDir);
+      if (installedVersion) {
+        log.debug(`Resolved ${pkgName} v${installedVersion} from node_modules for spec "${declaredVersion}"`);
+      }
       return installedVersion;
+    };
+    const parseSpec = async () => findVersions(declaredVersion, { loose: true })[0];
+
+    for (const resolve of readInstalledFirst ? [readInstalled, parseSpec] : [parseSpec, readInstalled]) {
+      const version = await resolve();
+      if (version) {
+        return version;
+      }
     }
   }
 

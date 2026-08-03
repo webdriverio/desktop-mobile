@@ -209,4 +209,34 @@ describe('getElectronVersion()', () => {
     const version = await getElectronVersion(pkg);
     expect(version).toBe('37.10.3');
   });
+
+  describe('when the declared version points at a location', () => {
+    it.each([
+      ['file:../electron', 'file'],
+      ['link:../electron', 'link'],
+      ['workspace:*', 'workspace'],
+      ['npm:my-electron-fork@latest', 'npm alias'],
+      ['github:myorg/electron-fork#my-branch', 'git'],
+      ['https://cdn.corp.net/builds/electron.tgz', 'url'],
+    ])('should use the installed version for a %s spec', async (spec) => {
+      const pkg = await createProject({ electron: spec }, { electron: '43.2.0' });
+
+      const version = await getElectronVersion(pkg);
+      expect(version).toBe('43.2.0');
+    });
+
+    it('should not mistake a version-looking path segment for the electron version', async () => {
+      const pkg = await createProject({ electron: 'file:/build/v1.2.3/electron' }, { electron: '43.2.0' });
+
+      const version = await getElectronVersion(pkg);
+      expect(version).toBe('43.2.0');
+    });
+
+    it('should fall back to parsing the spec when nothing is installed', async () => {
+      const pkg = await createProject({ electron: 'file:../vendor/electron-37.2.1.tgz' });
+
+      const version = await getElectronVersion(pkg);
+      expect(version).toBe('37.2.1');
+    });
+  });
 });
