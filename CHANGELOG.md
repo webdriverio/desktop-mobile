@@ -11,6 +11,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-types@2.5.0] - 2026-08-03
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-types@v2.4.0...wdio-native-types@v2.5.0)
+
+### New
+- **Dev server auto-start**: Wired dev server auto-start into all four browser-mode launchers (Dioxus, Tauri, Electrobun, Electron), automatically spawning the dev server, waiting for readiness, and tearing it down after tests complete. (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
+- **DevServerProcess**: Added DevServerProcess and startManagedDevServer infrastructure for browser mode, enabling automatic dev server lifecycle management across string, object, and function devServer configurations. (PR [#503](https://github.com/webdriverio/desktop-mobile/pull/503))
+
+### Developer
+**Dependencies**:
+- Updated WebdriverIO, Appium, Biome, Turbo, Vitest, ESLint, Electron, and various other runtime and tooling dependencies to their latest minor and patch versions. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Updated Biome, Inquirer, TypeScript ESLint, Vitest, Turbo, Electron Builder, and WebdriverIO packages to their latest versions for improved compatibility. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+
 ## [@wdio/native-cdp-bridge@1.1.0] - 2026-08-03
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-cdp-bridge@v1.0.0...wdio-native-cdp-bridge@v1.1.0)
