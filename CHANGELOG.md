@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-core@1.1.0] - 2026-08-03
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-core@v1.0.0...wdio-native-core@v1.1.0)
+
+### New
+- **Managed dev server**: Wired dev server auto-start into all four browser-mode launchers (Dioxus, Tauri, Electron, Electrobun). Each launcher now automatically starts the configured dev server, waits for it to be ready, propagates the URL to workers, and tears it down on completion. (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
+- **Managed dev server**: Added DevServerProcess class and startManagedDevServer orchestrator to native-core, providing shared infrastructure for spawning, polling, and tearing down dev server processes with proper process-tree cleanup on all platforms. (PR [#503](https://github.com/webdriverio/desktop-mobile/pull/503))
+
+### Fixed
+- Browser mode now throws a clear error when configured with a non-Chrome browser instead of silently overwriting it. Also added a preflight check in onPrepare that fails fast with an actionable message if the dev server is unreachable. (PR [#490](https://github.com/webdriverio/desktop-mobile/pull/490) · closes [#416](https://github.com/webdriverio/desktop-mobile/issues/416))
+
+### Changed
+**Dependencies**:
+- Updated minor and patch dependencies across the workspace, including webdriverio (9.29.1→9.30.0), appium (^3.5.2→^3.6.0), biome, turbo, vitest, eslint, and electron-nightly. Also synchronized Appium driver versions in the test matrix and applied biome formatting fixes. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Bumped various development dependencies including biome, inquirer, typescript-eslint packages, vitest, eslint, turbo, and electron-builder to their latest versions. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+
 ## [@wdio/electron-service@10.2.0-next.0] - 2026-08-02
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v10.1.0...wdio-electron-service@v10.2.0-next.0)
