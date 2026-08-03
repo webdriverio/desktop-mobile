@@ -8,6 +8,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 
 
+
+## [@wdio/native-utils@2.6.0] - 2026-08-03
+
+[Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-utils@v2.5.0...wdio-native-utils@v2.6.0)
+
+### New
+- **DevServer integration**: DevServer now auto-starts for all four browser-mode launchers (Dioxus, Tauri, Electrobun, Electron) with proper lifecycle management and URL propagation to test caps. (PR [#505](https://github.com/webdriverio/desktop-mobile/pull/505))
+
+### Fixed
+- Fixed false-positive 'Binary is not executable' error logs on Windows by correctly skipping the execute-bit check on non-Unix systems. (PR [#514](https://github.com/webdriverio/desktop-mobile/pull/514) · closes [#513](https://github.com/webdriverio/desktop-mobile/issues/513))
+
+### Changed
+**Dependencies**:
+- Updated dependencies including webdriverio packages (9.30.0), appium (3.6.0), appium drivers, biome (2.5.6), turbo (2.10.8), vitest (4.1.10), eslint (10.8.0), and electron-nightly. Also fixed appium driver matrix drift and biome formatting changes. (PR [#573](https://github.com/webdriverio/desktop-mobile/pull/573))
+- Updated development dependencies including biome, inquirer prompts, typescript-eslint parser, eslint, vitest, and turbo. (PR [#516](https://github.com/webdriverio/desktop-mobile/pull/516) · closes [#517](https://github.com/webdriverio/desktop-mobile/issues/517))
+- Updated production dependencies including rollup, esbuild, electron, puppeteer-core, electron-to-chromium, and tauri-apps/api. (PR [#500](https://github.com/webdriverio/desktop-mobile/pull/500))
+
 ## [@wdio/native-core@1.1.0] - 2026-08-03
 
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-core@v1.0.0...wdio-native-core@v1.1.0)
