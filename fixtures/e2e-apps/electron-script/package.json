@@ -20,7 +20,7 @@
     "@wdio/mocha-framework": "catalog:default",
     "electron": "catalog:default",
     "electron-vite": "6.0.0-beta.1",
-    "typescript": "^6.0.3",
+    "typescript": "^7.0.2",
     "webdriverio": "catalog:default"
   }
 }
