@@ -25,19 +25,16 @@ npm install --save-dev wdio-video-reporter
 
 The reporter bundles `ffmpeg` via `@ffmpeg-installer/ffmpeg` — no host install needed. If your package manager blocks postinstall scripts (pnpm 10+), allow them for `@ffmpeg-installer/*`:
 
-```jsonc
-// package.json
-{
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@ffmpeg-installer/darwin-arm64",
-      "@ffmpeg-installer/darwin-x64",
-      "@ffmpeg-installer/linux-x64",
-      "@ffmpeg-installer/win32-x64"
-    ]
-  }
-}
+```yaml
+# pnpm-workspace.yaml
+allowBuilds:
+  '@ffmpeg-installer/darwin-arm64': true
+  '@ffmpeg-installer/darwin-x64': true
+  '@ffmpeg-installer/linux-x64': true
+  '@ffmpeg-installer/win32-x64': true
 ```
+
+On pnpm 10 the same list goes in `package.json` under `pnpm.onlyBuiltDependencies`.
 
 ### 2. Add it to your WDIO config
 
