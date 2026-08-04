@@ -45,7 +45,7 @@
     "esbuild": "^0.28.1",
     "happy-dom": "^20.11.1",
     "tsx": "^4.23.5",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
   "repository": {

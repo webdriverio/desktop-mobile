@@ -71,7 +71,7 @@
     "recast": "^0.23.19",
     "shx": "^0.4.0",
     "terser": "^5.49.0",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.10"
   },
   "peerDependencies": {

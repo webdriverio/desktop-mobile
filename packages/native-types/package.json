@@ -43,7 +43,7 @@
     "builder-util": "^26.15.3",
     "electron": "catalog:default",
     "shx": "^0.4.0",
-    "typescript": "^7.0.2",
+    "typescript": "^6.0.3",
     "webdriverio": "catalog:default"
   },
   "files": [
