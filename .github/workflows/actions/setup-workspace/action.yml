@@ -18,11 +18,10 @@ runs:
       uses: actions/setup-node@v6
       with:
         node-version: ${{ inputs.node-version }}
-        # Store cache keyed on the lockfile. Safe w.r.t. the electron-builder fixtures'
-        # @wdio/utils `file:` tarball override: pnpm honors overrides only at the workspace
-        # root (which has none), so the root lockfile never references the mutable tarball —
-        # that's confined to the isolated package-test install (test-package.ts), which this
-        # cache doesn't touch.
+        # Store cache keyed on the lockfile. Safe w.r.t. the @wdio/utils `file:` tarball
+        # override: it is applied only by test-package.ts, inside its isolated sandbox
+        # install, so the root lockfile never references the mutable tarball and this
+        # cache never sees it.
         cache: 'pnpm'
         cache-dependency-path: '**/pnpm-lock.yaml'
 

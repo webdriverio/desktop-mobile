@@ -571,9 +571,19 @@ async function testExample(
     };
     const packagesToInstall: string[] = [packages.utilsPath, packages.spyPath, packages.corePath];
 
-    // Add @wdio/utils override if the tarball exists
-    const wdioUtilsTarball = join(rootDir, 'wdio-utils-9.23.3.tgz');
-    if (existsSync(wdioUtilsTarball)) {
+    // Swap in a locally patched @wdio/utils when one has been packed to the repo root by
+    // scripts/update-packages.ts. Matched by pattern, not by pinned version: that script
+    // names the tarball after whatever version it packed, so a pinned name silently stops
+    // matching the moment upstream bumps — leaving a green run that tested nothing.
+    const wdioUtilsTarballs = readdirSync(rootDir).filter((entry) => /^wdio-utils-.+\.tgz$/.test(entry));
+    if (wdioUtilsTarballs.length > 1) {
+      throw new Error(
+        `Found ${wdioUtilsTarballs.length} @wdio/utils tarballs in ${rootDir} (${wdioUtilsTarballs.join(', ')}). ` +
+          'Leave only the one to test.',
+      );
+    }
+    if (wdioUtilsTarballs.length === 1) {
+      const wdioUtilsTarball = join(rootDir, wdioUtilsTarballs[0]);
       overrides['@wdio/utils'] = `file:${wdioUtilsTarball}`;
       packagesToInstall.push(wdioUtilsTarball);
       log(`  Adding @wdio/utils override: ${wdioUtilsTarball}`);
