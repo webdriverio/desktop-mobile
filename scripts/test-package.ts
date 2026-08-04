@@ -51,6 +51,16 @@ const __dirname = dirname(__filename);
 const rootDir = normalize(join(__dirname, '..'));
 
 /**
+ * Upper bound for any child command. pnpm has been seen printing its "Done" summary and
+ * then never exiting after the registry connection dropped mid-install; with no bound the
+ * wedged child holds the job until CI's own limit, which is hours of a paid runner for a
+ * step that normally takes seconds. No real command comes close to this — the slowest
+ * package job is ~15 minutes end to end — so tripping it means something is stuck. Raise
+ * it for a cold Rust build on a slow machine.
+ */
+const COMMAND_TIMEOUT_MS = Number(process.env.PACKAGE_TEST_COMMAND_TIMEOUT_MS) || 30 * 60_000;
+
+/**
  * Reads version overrides from the workspace's pnpm-workspace.yaml so the isolated
  * package-test install resolves the same dependency versions as the monorepo.
  * Without this, a transitive version fix pinned at the workspace level never reaches
@@ -103,17 +113,24 @@ function execCommand(command: string, cwd: string, description: string) {
   const maxAttempts = isPnpm && process.platform === 'win32' ? 2 : 1;
   let lastError: unknown;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    const startedAt = Date.now();
     try {
       execSync(command, {
         cwd: normalize(cwd),
         stdio: 'inherit',
         encoding: 'utf-8',
         shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
+        timeout: COMMAND_TIMEOUT_MS,
+        killSignal: 'SIGKILL',
       });
       if (attempt > 1) log(`(retry ${attempt - 1} succeeded)`);
       log(`✅ ${description} completed`);
       return;
     } catch (error) {
+      // Retrying a hang just spends the budget twice, so a timeout is terminal.
+      if (Date.now() - startedAt >= COMMAND_TIMEOUT_MS) {
+        throw new Error(`${description} exceeded ${COMMAND_TIMEOUT_MS / 60_000} minutes and was killed: ${command}`);
+      }
       lastError = error;
       if (attempt < maxAttempts) {
         console.error(`⚠️  ${description} failed on attempt ${attempt}; retrying after 2s...`);
@@ -149,8 +166,18 @@ function execCommandAsync(command: string, cwd: string, description: string): Pr
       stdio: 'inherit',
       shell: process.platform === 'win32' ? 'cmd.exe' : '/bin/sh',
     });
-    child.on('error', rejectPromise);
+    const timer = setTimeout(() => {
+      child.kill('SIGKILL');
+      rejectPromise(
+        new Error(`${description} exceeded ${COMMAND_TIMEOUT_MS / 60_000} minutes and was killed: ${command}`),
+      );
+    }, COMMAND_TIMEOUT_MS);
+    child.on('error', (error) => {
+      clearTimeout(timer);
+      rejectPromise(error);
+    });
     child.on('close', (code) => {
+      clearTimeout(timer);
       if (code === 0) {
         log(`✅ ${description} completed`);
         resolvePromise();
