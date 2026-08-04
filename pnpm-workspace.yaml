@@ -31,6 +31,12 @@ allowBuilds:
   geckodriver: false
   utf-8-validate: false
 blockExoticSubdeps: false
+# pnpm's own default, declared so `pnpm config get hoist-pattern` reports it. Electron
+# Forge's preflight refuses pnpm unless node-linker is "hoisted" or a hoist pattern is
+# merely *defined*, and it no longer sees the .npmrc that used to satisfy that. Changes
+# no linking behaviour. Drop once electron/forge#4188 lands.
+hoistPattern:
+  - '*'
 catalogs:
   default:
     '@electron-forge/cli': 7.11.2
