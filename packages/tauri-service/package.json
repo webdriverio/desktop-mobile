@@ -64,7 +64,7 @@
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
-    "@babel/parser": "^8.0.0",
+    "@babel/parser": "^8.0.4",
     "@types/debug": "^4.1.12",
     "@types/node": "^26.1.2",
     "@wdio/bundler": "workspace:*",
