@@ -62,7 +62,7 @@
     "protocol-install:electron-forge": "../fixtures/e2e-apps/electron-forge/scripts/protocol-install.sh"
   },
   "dependencies": {
-    "@wdio/appium-service": "9.30.0",
+    "@wdio/appium-service": "9.30.1",
     "@wdio/cli": "catalog:default",
     "@wdio/dioxus-service": "link:../packages/dioxus-service",
     "@wdio/electrobun-service": "link:../packages/electrobun-service",
