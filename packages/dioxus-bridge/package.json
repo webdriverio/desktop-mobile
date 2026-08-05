@@ -1,6 +1,6 @@
 {
   "name": "@wdio/dioxus-bridge",
-  "version": "1.0.0-next.4",
+  "version": "1.0.0",
   "description": "Guest-side JS bundle for the wdio-dioxus-bridge Rust crate. Installs window.__WDIO_DIOXUS__.invoke for use by @wdio/dioxus-service.",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/dioxus-bridge",
   "type": "module",
