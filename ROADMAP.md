@@ -16,14 +16,14 @@ Published packages, grouped by release maturity. Status reflects the npm dist-ta
 **Platforms:** Windows, macOS, Linux\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/tauri-service)](https://npmjs.com/package/@wdio/tauri-service)
 
-### 🚧 Pre-release (`next`, `1.0.0-next.x`)
-
-> Feature-complete services published on the `next` dist-tag while the API and CI stabilise toward `1.0`.
-
-#### [@wdio/dioxus-service](./packages/dioxus-service) — v1.0.0-next
+#### [@wdio/dioxus-service](./packages/dioxus-service) — v1.x
 **Platforms:** Windows, macOS, Linux (`'embedded'` provider); Windows only for `'external'`\
 **Highlights:** Wry webview → CDP (shared patterns with the Tauri service); `execute`, mocking, log forwarding, browser mode, multiremote, standalone session.\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/dioxus-service)](https://npmjs.com/package/@wdio/dioxus-service)
+
+### 🚧 Pre-release (`next`, `1.0.0-next.x`)
+
+> Feature-complete services published on the `next` dist-tag while the API and CI stabilise toward `1.0`.
 
 #### [@wdio/react-native-service](./packages/react-native-service) — v1.0.0-next
 **Platforms:** Android, iOS\
