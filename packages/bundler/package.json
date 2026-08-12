@@ -49,10 +49,10 @@
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@vitest/coverage-v8": "^4.1.10",
     "shx": "^0.4.0",
-    "terser": "^5.49.0",
+    "terser": "^5.49.2",
     "tsx": "^4.23.4",
     "vitest": "^4.1.10"
   },
