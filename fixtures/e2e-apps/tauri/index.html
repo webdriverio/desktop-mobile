@@ -101,6 +101,7 @@
       <div class="repro-section">
         <input type="text" id="repro-input" aria-label="Repro input" placeholder="type here" />
         <button type="button" id="invoke-button">Invoke (get_platform_info)</button>
+        <button type="button" id="invoke-slow-button">Invoke slow (in-flight)</button>
         <div class="status" id="invoke-status">idle</div>
       </div>
     </div>
@@ -234,6 +235,28 @@
           .catch((error) => {
             window.__invokeClickState = `rejected:${String(error)}`;
             invokeStatusElement.textContent = 'rejected';
+          });
+      });
+
+      // In-flight variant: fires a deliberately slow invoke() so the app IPC
+      // channel is still busy when the next WebDriver execute() runs (#591 Bug 1).
+      const invokeSlowButton = document.getElementById('invoke-slow-button');
+      window.__slowInvokeState = 'idle';
+      invokeSlowButton.addEventListener('click', () => {
+        window.__slowInvokeState = 'in-flight';
+        invokeStatusElement.textContent = 'slow-in-flight';
+        const invoke = window.__TAURI__?.core?.invoke;
+        if (!invoke) {
+          window.__slowInvokeState = 'rejected:no-invoke';
+          return;
+        }
+        invoke('slow_command', { ms: 2500 })
+          .then(() => {
+            window.__slowInvokeState = 'resolved';
+            invokeStatusElement.textContent = 'slow-resolved';
+          })
+          .catch((error) => {
+            window.__slowInvokeState = `rejected:${String(error)}`;
           });
       });
 

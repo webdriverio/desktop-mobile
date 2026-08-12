@@ -47,4 +47,26 @@ describe('#591 Bug 1: execute survives an invoke()-triggering click (embedded)',
     const state = await browser.tauri.execute('return window.__invokeClickState');
     expect(['started', 'resolved']).toContain(state);
   });
+
+  it('REPRO (in-flight): execute during a still-pending invoke() must not wedge', async () => {
+    // Click starts a ~2.5s slow_command invoke() that is still in-flight afterwards.
+    await (await browser.$('#invoke-slow-button')).click();
+
+    // Confirm the invoke is genuinely still pending before we poke execute. (This
+    // read is itself a DirectEval — if the in-flight invoke has already wedged the
+    // channel, this throws, which is the repro.)
+    const inflight = await browser.tauri.execute('return window.__slowInvokeState');
+    expect(inflight).toBe('in-flight');
+
+    // Hammer execute across the in-flight window — the collision the report describes.
+    for (let i = 0; i < 6; i++) {
+      expect(await browser.tauri.execute((_tauri, n) => n, i)).toBe(i);
+    }
+
+    // The session must survive until the slow invoke resolves.
+    await browser.waitUntil(
+      async () => (await browser.tauri.execute('return window.__slowInvokeState')) === 'resolved',
+      { timeout: 8000, timeoutMsg: 'slow invoke never resolved — session may be wedged' },
+    );
+  });
 });

@@ -263,6 +263,14 @@ async fn switch_to_main(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// Deliberately slow command so a UI-initiated invoke() stays in-flight while a
+// subsequent WebDriver script-execution command runs — the #591 Bug 1 trigger.
+#[tauri::command]
+async fn slow_command(ms: Option<u64>) -> Result<String, String> {
+    tokio::time::sleep(std::time::Duration::from_millis(ms.unwrap_or(2500))).await;
+    Ok("slow-done".to_string())
+}
+
 fn main() {
     let is_splash = std::env::var("ENABLE_SPLASH_WINDOW").is_ok();
 
@@ -388,6 +396,7 @@ fn main() {
             switch_to_main,
             get_deep_links,
             get_command_line_args,
+            slow_command,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
