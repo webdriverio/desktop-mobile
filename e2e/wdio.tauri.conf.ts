@@ -137,6 +137,11 @@ if (envContext.driverProvider === 'crabnebula') {
 if (process.platform !== 'darwin' || envContext.driverProvider !== 'crabnebula') {
   exclude.push('./test/tauri/logging.crabnebula-tripwire.spec.ts');
 }
+// #591 Bug 2 is upstream tauri-driver dropping `text` only on the WebKitWebDriver (Linux) path.
+// Run its inverse assertion only on external+Linux; elsewhere setValue works and it would false-fire.
+if (process.platform !== 'linux' || envContext.driverProvider !== 'external') {
+  exclude.push('./test/tauri/set-value.linux-tripwire.spec.ts');
+}
 
 // Configure capabilities
 type TauriCapability = {

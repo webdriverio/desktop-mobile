@@ -118,6 +118,9 @@ switch (envContext.testType) {
       './test/tauri/window.spec.ts',
       './test/tauri/deeplink.spec.ts',
       './test/tauri/logging.tauri-driver.spec.ts',
+      // #591 Bug 2 tripwire asserts the upstream external+Linux failure; on the
+      // embedded provider setValue works, so its inverse assertion would false-fire.
+      './test/tauri/set-value.linux-tripwire.spec.ts',
     ];
     // Note: logging.embedded.spec.ts is included to document the limitation
     break;

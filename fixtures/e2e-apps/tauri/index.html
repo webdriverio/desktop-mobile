@@ -96,6 +96,13 @@
         <div class="status" id="status">Ready for testing</div>
         <button type="button" id="switch-main-window" class="switch-main-window" style="display:none">Continue to Main</button>
       </div>
+
+      <!-- Repro surface for issue #591 (do not remove without updating the #591 specs). -->
+      <div class="repro-section">
+        <input type="text" id="repro-input" aria-label="Repro input" placeholder="type here" />
+        <button type="button" id="invoke-button">Invoke (get_platform_info)</button>
+        <div class="status" id="invoke-status">idle</div>
+      </div>
     </div>
 
     <script type="module">
@@ -201,6 +208,33 @@
       resetButton.addEventListener('click', () => {
         count = 0;
         updateCounter();
+      });
+
+      // Repro surface for issue #591 — a real DOM click handler that fires a
+      // Tauri invoke(). Records progress on window so specs can observe it. The
+      // invoke here is UI-initiated (not via browser.tauri.execute), which is the
+      // exact trigger for the embedded-provider wedge reported in #591.
+      const invokeButton = document.getElementById('invoke-button');
+      const invokeStatusElement = document.getElementById('invoke-status');
+      window.__invokeClickState = 'idle';
+      invokeButton.addEventListener('click', () => {
+        window.__invokeClickState = 'started';
+        invokeStatusElement.textContent = 'started';
+        const invoke = window.__TAURI__?.core?.invoke;
+        if (!invoke) {
+          window.__invokeClickState = 'rejected:no-invoke';
+          invokeStatusElement.textContent = 'rejected:no-invoke';
+          return;
+        }
+        invoke('get_platform_info')
+          .then(() => {
+            window.__invokeClickState = 'resolved';
+            invokeStatusElement.textContent = 'resolved';
+          })
+          .catch((error) => {
+            window.__invokeClickState = `rejected:${String(error)}`;
+            invokeStatusElement.textContent = 'rejected';
+          });
       });
 
       // Initialize
