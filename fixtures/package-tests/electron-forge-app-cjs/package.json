@@ -30,7 +30,7 @@
     "@wdio/native-utils": "workspace:*",
     "@wdio/spec-reporter": "^9.29.1",
     "cross-env": "^10.1.0",
-    "electron": "42.2.0",
+    "electron": "42.8.1",
     "electron-vite": "6.0.0-beta.1",
     "typescript": "^6.0.3"
   },

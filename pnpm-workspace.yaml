@@ -48,7 +48,7 @@ catalogs:
     '@wdio/spec-reporter': 9.29.1
     '@wdio/types': 9.29.1
     '@wdio/xvfb': 9.30.0
-    electron: 42.2.0
+    electron: 42.8.1
     electron-builder: 26.15.3
     webdriverio: 9.30.0
   minimum:
@@ -71,7 +71,7 @@ catalogs:
     '@wdio/types': latest
     '@wdio/xvfb': latest
     electron-builder: next
-    electron-nightly: 45.0.0-nightly.20260731
+    electron-nightly: 45.0.0-nightly.20260808
     webdriverio: latest
 # The `next` catalog resolves dist-tags and same-day nightlies on purpose, which the
 # default 24h resolution delay rejects outright. Scoped to the upstreams we track at
