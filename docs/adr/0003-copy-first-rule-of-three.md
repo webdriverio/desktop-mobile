@@ -30,24 +30,37 @@ services instead of proven duplication.
 
 ## Decision
 
-Delete the inheritance / base-class layer. Adopt a **copy-first** rule:
+Delete the heavyweight `@wdio/native-utils` base-class layer. Adopt a **copy-first** rule:
 
 - A new service **copies** proven patterns from the reference implementation (Electron for
   desktop) and adapts them, rather than inheriting a framework.
 - Shared code is **extracted into a package only after the pattern appears in ~3 places** (the
-  Rule of Three), and even then favours **composition** (utility functions) over inheritance.
+  Rule of Three), and even then favours **composition** (utility functions) or a **minimal
+  shared-state base** over a behaviour-heavy inheritance framework.
 - `@wdio/native-utils` survives only as small, opt-in composition helpers (e.g. `createLogger`),
   not a base-class framework.
 
 ## Consequences
 
-- The desktop services (electron, tauri, dioxus, electrobun) copy-and-adapt; each owns its own
-  launcher and worker service. Some duplication across them is accepted as the price of
-  framework-specific clarity and looser coupling.
-- **The extraction that *was* earned came later, by this exact rule.** Once React Native *and*
-  Flutter both existed and demonstrated the duplication, the shared Appium layer was extracted
-  into `@wdio/native-mobile-core`, which RN and Flutter genuinely do extend. Two mobile services
-  justified a base class; one desktop service did not.
-- A contributor tempted to "extract a base class for all services" should read this record
-  first: that path was tried, cost several weeks, and was reverted. The bar is demonstrated
-  duplication, not anticipated duplication.
+- The desktop services copy-and-adapt their **framework-specific** launcher and worker logic;
+  some duplication is accepted as the price of framework clarity and looser coupling. Electron
+  and Tauri own their launchers outright; Dioxus and Electrobun extend a small shared base (next
+  point) for the mechanical lifecycle only.
+- **Two narrow base classes were later earned by this exact rule — one per platform:**
+  - **Mobile** — once React Native *and* Flutter both demonstrated the duplication, the shared
+    Appium layer was extracted into `@wdio/native-mobile-core`, which RN and Flutter genuinely
+    extend.
+  - **Desktop** — `@wdio/native-core` exposes a deliberately minimal `BaseLauncher`: just shared
+    launcher *state* (a `PortManager` for driver ports, a `DriverPool` for tracking driver
+    subprocesses, and a `stopAllDrivers()` teardown helper). Dioxus and Electrobun extend it;
+    Electron and Tauri do not. This is **not** the rejected `@wdio/native-utils` layer — it shares
+    only port/process/teardown plumbing, forces nothing onto the reference implementations, and
+    subclasses still own every WDIO hook and all framework-specific behaviour.
+- So **"copy-first" governs framework-specific launcher/service logic, not the mechanical
+  port/process/teardown lifecycle.** A new desktop service that spawns a driver subprocess should
+  **extend `native-core`'s `BaseLauncher`** rather than re-implement that plumbing, and
+  copy-and-adapt the framework-specific parts around it.
+- A contributor tempted to extract a base class for *all* services should still read this record
+  first: that universal-inheritance path (`@wdio/native-utils`) was tried, cost several weeks, and
+  was reverted. The bar is demonstrated duplication, not anticipated duplication — which is why the
+  two narrow bases above exist and a universal one does not.
