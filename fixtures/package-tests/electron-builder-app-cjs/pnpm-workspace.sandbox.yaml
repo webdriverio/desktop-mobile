@@ -5,5 +5,4 @@ allowBuilds:
   electron: true
   esbuild: true
 overrides:
-  '@wdio/utils': file:../../../../wdio-utils-9.23.0.tgz
   minimatch: 10.2.2
