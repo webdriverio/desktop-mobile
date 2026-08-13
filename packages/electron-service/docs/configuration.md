@@ -57,6 +57,8 @@ The path to the Electron binary of the app for testing. In most cases the servic
 
 If you manually set the path to the Electron binary, the path will be in different formats depending on the build tool you are using, how that tool is configured, and which OS you are building the app on.
 
+**Note:** `appBinaryPath` tells the service where your app is, but not which Chromedriver to run against it — that is still derived from the `electron` dependency in your `package.json`. If your app is built elsewhere and the tests have no local Electron install, set `browserVersion` or `wdio:chromedriverOptions.binary` as well, or the run will fail with *"Could not determine the Electron version under test"*. See [Chromedriver Configuration](#chromedriver-configuration).
+
 Here are some examples of binary paths using default build configurations for a hypothetical app called `myApp` which is built in the `workspace/myApp` directory:
 
 #### MacOS (Arm)
@@ -434,6 +436,8 @@ Other 2.x and 7.x versions generally work because the layout of `dist-electron/`
 ### Service Managed
 
 If you are not specifying a Chromedriver binary then the service will download and use the appropriate version for your app's Electron version. The Electron version of your app is determined by the version of `electron` or `electron-nightly` in your `package.json`, however you may want to override this behaviour - for instance, if the app you are testing is in a different repo from the tests. You can specify the Electron version manually by setting the `browserVersion` capability, as shown in the example configuration below:
+
+This is **required**, not merely an override, when the project running the tests has no `electron` dependency of its own — otherwise the run fails with *"Could not determine the Electron version under test"*. Setting `appBinaryPath` alone is not enough. If the version is a fork or nightly that the service cannot map to a Chromium version, use [User Managed](#user-managed) instead. See [Common Issues](./common-issues.md#could-not-determine-the-electron-version-under-test).
 
 _`wdio.conf.ts`_
 

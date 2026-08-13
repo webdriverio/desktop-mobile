@@ -722,6 +722,8 @@ describe('Electron Launch Service', () => {
       });
 
       it('should throw an error when browserVersion is not provided and there is no local Electron version', async () => {
+        (getElectronVersion as Mock).mockResolvedValueOnce(undefined as unknown as string);
+
         instance = new LaunchService(
           options,
           [] as never,
@@ -736,8 +738,51 @@ describe('Electron Launch Service', () => {
           },
         ];
         await expect(() => instance?.onPrepare({} as never, capabilities)).rejects.toThrow(
-          'Failed setting up Electron session: Error: You must install Electron locally, or provide a custom Chromedriver path / browserVersion value for each Electron capability',
+          'Could not determine the Electron version under test',
         );
+      });
+
+      it('should name the Electron version when it has no known Chromium version', async () => {
+        // A forked build resolves as an Electron version but is absent from the Electron -> Chromium
+        // map, so the remedy is not "install Electron locally".
+        (getElectronVersion as Mock).mockResolvedValueOnce('99.0.0-myfork');
+
+        instance = new LaunchService(
+          options,
+          [] as never,
+          {
+            services: [['electron', options]],
+            rootDir: getFixtureDir('package-scenarios', 'no-electron'),
+          } as Options.Testrunner,
+        );
+        const capabilities: WebdriverIO.Capabilities[] = [
+          {
+            browserName: 'electron',
+          },
+        ];
+        await expect(() => instance?.onPrepare({} as never, capabilities)).rejects.toThrow(
+          'Could not determine the Chromium version for Electron v99.0.0-myfork',
+        );
+      });
+
+      it('should not throw for an unmappable Electron version when a Chromedriver binary is supplied', async () => {
+        (getElectronVersion as Mock).mockResolvedValueOnce('99.0.0-myfork');
+
+        instance = new LaunchService(
+          options,
+          [] as never,
+          {
+            services: [['electron', options]],
+            rootDir: getFixtureDir('package-scenarios', 'no-electron'),
+          } as Options.Testrunner,
+        );
+        const capabilities: WebdriverIO.Capabilities[] = [
+          {
+            browserName: 'electron',
+            'wdio:chromedriverOptions': { binary: '/path/to/chromedriver' },
+          },
+        ];
+        await expect(instance?.onPrepare({} as never, capabilities)).resolves.not.toThrow();
       });
 
       it('should set the expected capabilities', async () => {

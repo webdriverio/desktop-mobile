@@ -11,6 +11,22 @@ export const BUILD_TOOL_DETECTION_ERROR =
 export const APP_NAME_DETECTION_ERROR =
   'No application name was detected, please set name / productName in your package.json or build tool configuration.';
 
+export const ELECTRON_VERSION_NOT_FOUND_ERROR = [
+  'Could not determine the Electron version under test.',
+  'Install `electron` or `electron-nightly` in the project being tested, or set the `browserVersion`',
+  'capability to the Electron version under test, or set `wdio:chromedriverOptions.binary` to a',
+  'Chromedriver you provide. See https://github.com/webdriverio/desktop-mobile/blob/main/packages/electron-service/docs/common-issues.md#could-not-determine-the-electron-version-under-test',
+].join(' ');
+
+export const CHROMIUM_VERSION_NOT_FOUND_ERROR = [
+  'Could not determine the Chromium version for Electron v%s.',
+  'This happens for nightly and forked builds, and for Electron releases newer than the bundled',
+  'version map when the online lookup is unavailable.',
+  'Set `wdio:chromedriverOptions.binary` to a matching Chromedriver, or set the `browserVersion`',
+  'capability to the Chromium version this Electron build uses.',
+  'See https://github.com/webdriverio/desktop-mobile/blob/main/packages/electron-service/docs/common-issues.md#could-not-determine-the-chromium-version-for-electron-vx',
+].join(' ');
+
 export const PKG_NAME_ELECTRON = {
   STABLE: 'electron',
   NIGHTLY: 'electron-nightly',
