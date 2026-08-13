@@ -34,8 +34,7 @@ const log = createLogger(SERVICE_NAME, 'launcher');
  *  - **Windows → native WebView2** (Edge-based Chromium), driven by **msedgedriver**
  *    (`browserName: 'MicrosoftEdge'`, `ms:edgeOptions.debuggerAddress`). Isolates per instance
  *    (its own `LOCALAPPDATA` data root), so parallel workers + multiremote work.
- *  - **Linux** has no CDP/automation surface yet → unsupported (fail fast). See the
- *    implementation plan "Framework gaps".
+ *  - **Linux** has no CDP/automation surface yet → unsupported (fail fast). See #320.
  *
  * Native-mode flow:
  *  - `onPrepare`: resolve each bundle + pick its transport; CEF-verify (CEF only); force

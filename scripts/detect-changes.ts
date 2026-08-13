@@ -24,7 +24,7 @@
  *   - scripts/: service token in filename → that service; else → all (cross-service tooling)
  *   - root infra files (package.json, lockfile, turbo.json, tsconfig*…) → all
  *   - biome.jsonc, eslint.config.js → none (the lint job has no `if:` gate)
- *   - everything else (docs/, agent-os/, .claude/, dotfiles…) → none
+ *   - everything else (docs/, .claude/, dotfiles…) → none
  *
  * 'all' and 'unknown' both run every pipeline; they differ only in reporting —
  * 'unknown' marks files no convention rule could place (likely naming drift) and is

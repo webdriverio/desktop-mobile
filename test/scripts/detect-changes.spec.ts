@@ -41,7 +41,6 @@ describe('classifyFile', () => {
     ['packages/electron-service/README.md', 'none'],
     ['packages/dioxus-bridge/docs/release-notes/v1.0.0.md', 'none'],
     ['.claude/skills/add-native-service/SKILL.md', 'none'],
-    ['agent-os/specs/foo/spec.md', 'none'],
     // packages → service / shared / unknown→all
     ['packages/electron-service/src/session.ts', 'electron'],
     ['packages/native-cdp-bridge/src/connection.ts', 'shared'],

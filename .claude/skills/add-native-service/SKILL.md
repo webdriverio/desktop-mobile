@@ -31,7 +31,7 @@ The single most important step is **Step 0**: identify which integration archety
 ## When NOT to use
 
 - Adding a feature to an already-shipped service — those have package-local conventions in each `README.md` / `docs/`.
-- Pure refactors of `@wdio/native-core` — see the relevant `agent-os/specs/<spec>/` plan.
+- Pure refactors of `@wdio/native-core` — scope those to their own PR/issue, not this skill.
 
 ## Step 0 — Identify the integration archetype
 
@@ -206,7 +206,7 @@ version.
 > fallback but Linux/Windows serve no `/json`, and multiremote/multi-window/deeplink all trace to the
 > same gap — none fixable from the service. So v1 ships **macOS-only, single-window, `0.1.0`**: the
 > Linux/Windows build+e2e jobs are removed (not allow-failure), the window/deeplink specs are
-> skipped-but-kept, and a macOS-only runtime guard fails fast elsewhere. The plan's "Framework gaps"
+> skipped-but-kept, and a macOS-only runtime guard fails fast elsewhere. The umbrella issue (#320)
 > aggregates every gap with source refs; the **search-first** pass found the upstream already tracking
 > most of them — `#380` (the proper profile-isolation fix), `#445` (remote-debugging opt-in, but only
 > noting macOS — Linux's `remote_debugging_port` is *commented out*), `#448` (a user hitting the same

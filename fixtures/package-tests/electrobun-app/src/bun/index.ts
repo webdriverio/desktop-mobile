@@ -5,7 +5,7 @@ import { BrowserWindow } from 'electrobun/bun';
 //
 // macOS/Linux (CEF): open a STAGGERED second window — a single CEF window doesn't reliably
 // expose a `/json` page target once the forced `persist:default` partition falls back to the
-// shared global context (an upstream gap; see @wdio/electrobun-service "Framework gaps"), so
+// shared global context (an upstream gap; see #320), so
 // the bridge would have nothing to attach to. Staggering behind the first view's dom-ready
 // avoids the global-context creation race that otherwise leaves the main view unpainted.
 // Windows (WebView2): a single window exposes `/json` cleanly, so the second window is

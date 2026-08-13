@@ -13,7 +13,7 @@
 // root_cache_path is the user-data-dir, which keeps the forced persist:default
 // partition profile creatable. That makes instances share root_cache_path, so this is
 // single-instance only (maxInstances=1); multiremote stays blocked pending an upstream
-// CEF fix (see the agent-os plan "Framework gaps").
+// CEF fix (see #320).
 //
 // E2E-validation gap: clone/spawn/teardown can only be exercised against a real
 // built CEF bundle (none in unit tests). Unit tests mock node:child_process /

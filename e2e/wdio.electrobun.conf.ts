@@ -96,7 +96,7 @@ const testType = (process.env.TEST_TYPE as string) || 'standard';
 let specs: string[] = [];
 let exclude: string[] = [];
 // Pinned to 1: multiremote is blocked upstream (CEF can't isolate ≥2 instances —
-// see the agent-os plan "Framework gaps"). Electrobun is single-instance for now.
+// see #320). Electrobun is single-instance for now.
 let maxInstances = 1;
 
 // CI runs ONLY `standard` (see ci.yml — the macOS matrix is `['standard']`). The
@@ -179,7 +179,7 @@ export const config = {
   // (needed because a single CEF window doesn't reliably expose a `/json` target) trips CEF's
   // failed-profile → global-context fallback, which surfaces as either an unpainted
   // `#app-title` or a "Timeout of new browser info response" on the second frame — for
-  // that app instance's whole lifetime (see the plan "Framework gaps"). mochaOpts.retries
+  // that app instance's whole lifetime (see #320). mochaOpts.retries
   // can't escape it (same instance); a spec-FILE retry re-spawns a fresh CEF instance.
   // Bumped to 3 (4 attempts/spec) — at 2 the gate occasionally exhausted retries on a
   // run with an elevated CEF-timeout rate. Drop back once the upstream fix lands.

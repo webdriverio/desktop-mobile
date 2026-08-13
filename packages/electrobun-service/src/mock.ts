@@ -1,7 +1,7 @@
 // createMock — the workhorse behind browser.electrobun.mock(target).
 //
 // An Electrobun mock is two cooperating objects (see
-// agent-os/standards/global/mock-architecture.md):
+// docs/architecture/mock-architecture.md):
 //
 //   1. The "outer mock" — a vitest-flavoured fn() from @wdio/native-spy that
 //      lives in the WDIO worker. Tests inspect it via mock.mock.calls/results.
