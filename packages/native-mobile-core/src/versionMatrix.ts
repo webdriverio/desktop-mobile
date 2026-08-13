@@ -2,9 +2,10 @@
 //
 // Appium drivers pin to the Appium *server* major, so `ensureAppiumDriver` installs the
 // matrix-specified driver version for the detected server major rather than letting npm
-// resolution drift. Keep these ranges in sync with `e2e/package.json` — a unit test
-// guards the drift. Add a new row (not a new range on an existing row) when supporting a
-// new Appium major.
+// resolution drift. Keep each driver *major* in sync with `e2e/package.json` — a unit test
+// guards the drift at major granularity, so routine patch/minor bumps in e2e flow through
+// but a driver-major bump (a compatibility change we ship to users) must land here too.
+// Add a new row (not a new range on an existing row) when supporting a new Appium major.
 
 export interface DriverSpec {
   /** Appium driver short-name (the registry key + automationName lineage), e.g. `'uiautomator2'`. */
@@ -27,7 +28,7 @@ export const APPIUM_MATRIX: AppiumCompat[] = [
     appiumMajor: 3,
     drivers: {
       uiautomator2: { name: 'uiautomator2', source: 'appium-uiautomator2-driver', version: '^8.2.2' },
-      xcuitest: { name: 'xcuitest', source: 'appium-xcuitest-driver', version: '^11.17.7' },
+      xcuitest: { name: 'xcuitest', source: 'appium-xcuitest-driver', version: '^12.1.4' },
       flutter: { name: 'flutter', source: 'appium-flutter-driver', version: '^3.9.1' },
     },
   },

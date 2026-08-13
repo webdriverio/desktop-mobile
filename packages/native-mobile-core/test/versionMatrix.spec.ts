@@ -7,7 +7,8 @@ import { APPIUM_MATRIX, driverSpecFor, supportedAppiumMajors } from '../src/vers
 // driver bump there should only ever require editing the matrix itself — not these specs.
 const e2ePkg = JSON.parse(readFileSync(new URL('../../../e2e/package.json', import.meta.url), 'utf8'));
 const e2eDevDeps = e2ePkg.devDependencies as Record<string, string>;
-const e2eAppiumMajor = Number.parseInt(e2eDevDeps.appium.replace(/^\D*/, ''), 10);
+const majorOf = (range: string) => Number.parseInt(range.replace(/^\D*/, ''), 10);
+const e2eAppiumMajor = majorOf(e2eDevDeps.appium);
 
 describe('versionMatrix', () => {
   it('should resolve a known driver spec for the supported Appium major', () => {
@@ -26,14 +27,17 @@ describe('versionMatrix', () => {
     expect(supportedAppiumMajors()).toContain(e2eAppiumMajor);
   });
 
-  // Drift guard: the matrix must track the Appium major and driver ranges e2e actually installs
-  // against, so a bump in e2e that the matrix misses fails here rather than silently installing
-  // a stale driver. A new Appium major surfaces as a missing row, which needs a deliberate add.
-  it('should match the Appium major and driver ranges pinned in e2e/package.json', () => {
+  // Drift guard: the matrix must track the Appium major and each driver *major* e2e actually
+  // installs against, so a driver-major bump in e2e (a compatibility change we ship to users)
+  // fails here rather than silently pinning a stale major — while routine patch/minor bumps in
+  // e2e flow through untouched. A new Appium major surfaces as a missing row needing a deliberate add.
+  it('should match the Appium major and driver majors pinned in e2e/package.json', () => {
     const row = APPIUM_MATRIX.find((r) => r.appiumMajor === e2eAppiumMajor);
     expect(row).toBeDefined();
     for (const spec of Object.values(row?.drivers ?? {})) {
-      expect(e2eDevDeps[spec.source]).toBe(spec.version);
+      const installed = e2eDevDeps[spec.source];
+      expect(installed, `${spec.source} is missing from e2e/package.json devDependencies`).toBeDefined();
+      expect(majorOf(installed as string)).toBe(majorOf(spec.version));
     }
   });
 });
