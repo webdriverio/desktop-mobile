@@ -54,6 +54,10 @@ jobs:
   package:
     name: Run
     runs-on: ${{ inputs.os }}
+    # Backstop for anything the per-command bound in test-package.ts can't see. The
+    # slowest of these jobs runs ~15 minutes; without a limit a wedged step inherits
+    # GitHub's 6-hour default.
+    timeout-minutes: 45
     steps:
       # Standard checkout with SSH key for private repositories
       - name: 👷 Checkout Repository
