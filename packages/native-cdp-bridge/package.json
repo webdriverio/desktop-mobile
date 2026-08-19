@@ -43,12 +43,12 @@
     "ws": "^8.21.1"
   },
   "devDependencies": {
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@types/ws": "^8.18.1",
     "@vitest/coverage-v8": "^4.1.10",
     "@wdio/bundler": "workspace:*",
     "cross-env": "^10.1.0",
-    "devtools-protocol": "^0.0.1672245",
+    "devtools-protocol": "^0.0.1680125",
     "get-port": "^7.1.0",
     "nock": "^14.0.17",
     "shx": "^0.4.0",
