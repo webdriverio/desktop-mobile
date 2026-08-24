@@ -200,10 +200,14 @@ async fn generate_test_logs(app: tauri::AppHandle) -> Result<(), String> {
     ];
 
     for (level, message) in logs {
-        // Emit to the main webview window (for frontend listener)
         let _ = app.emit("backend-log", &format!("[{}] {}", level, message));
-        // Also print to stderr which tauri-driver captures
         eprintln!("[{}] {}", level, message);
+        // Under CrabNebula on macOS the app is a .app bundle with detached stderr, so the
+        // eprintln! above never reaches the test; the webview event is the path that does.
+        let _ = app.emit(
+            "wdio-log",
+            serde_json::json!({ "source": "backend", "level": level.to_lowercase(), "message": message }),
+        );
     }
 
     Ok(())
