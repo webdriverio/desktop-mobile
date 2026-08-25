@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.1.2",
+    "@types/node": "^26.2.0",
     "@wdio/appium-service": "^9.30.1",
     "@wdio/cli": "^9.30.1",
     "@wdio/globals": "^9.29.1",
@@ -19,8 +19,8 @@
     "@wdio/react-native-service": "workspace:*",
     "@wdio/spec-reporter": "^9.30.1",
     "appium": "^3.6.0",
-    "appium-uiautomator2-driver": "^8.2.2",
-    "appium-xcuitest-driver": "^12.1.4",
+    "appium-uiautomator2-driver": "^8.5.0",
+    "appium-xcuitest-driver": "^12.7.0",
     "typescript": "^6.0.3"
   }
 }
