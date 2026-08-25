@@ -118,7 +118,7 @@ export interface ReactNativeServiceAPI {
    *
    * @example
    * ```js
-   * const isHermes = await browser.reactNative.execute(() => typeof HermesInternal === 'object');
+   * const isHermes = await browser.reactNative.execute((rn) => typeof rn.HermesInternal === 'object');
    * ```
    */
   execute<ReturnValue, InnerArguments extends unknown[]>(
@@ -362,6 +362,12 @@ export interface ReactNativeCapabilities {
   'appium:appActivity'?: string;
   /** iOS: launch by bundle id instead of an app path. */
   'appium:bundleId'?: string;
+  /**
+   * Arbitrary Appium tuning keys (WDA/simulator timeouts, `appium:newCommandTimeout`,
+   * `appium:isHeadless`, …). Modelled generically so real configs don't need a local
+   * superset of this type — the keys above stay strictly typed.
+   */
+  [key: `appium:${string}`]: unknown;
   'wdio:reactNativeServiceOptions'?: ReactNativeServiceOptions;
 }
 

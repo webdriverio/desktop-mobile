@@ -2,7 +2,7 @@ import { appendFileSync, existsSync, globSync, mkdirSync, statSync } from 'node:
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import type { ReactNativeServiceOptions } from '@wdio/native-types';
+import type { ReactNativeCapabilities, ReactNativeServiceOptions } from '@wdio/native-types';
 
 import { getLogDirName } from './lib/utils.js';
 
@@ -105,27 +105,7 @@ const reactNativeServiceOptions: ReactNativeServiceOptions = {
   doctor: { strict: true },
 };
 
-// Local superset of the shipped `ReactNativeCapabilities`, which does not model the iOS/WDA
-// tuning keys below. Duplicated in fixtures/package-tests/react-native-app/wdio.conf.ts;
-// drop both once #574 lands.
-type ReactNativeCapability = {
-  platformName: 'Android' | 'iOS';
-  'appium:automationName': 'UiAutomator2' | 'XCUITest';
-  'appium:app': string;
-  'appium:newCommandTimeout': number;
-  'appium:deviceName'?: string;
-  'appium:udid'?: string;
-  'appium:wdaLaunchTimeout'?: number;
-  'appium:simulatorStartupTimeout'?: number;
-  'appium:usePreinstalledWDA'?: boolean;
-  'appium:prebuiltWDAPath'?: string;
-  'appium:wdaStartupRetries'?: number;
-  'appium:wdaStartupRetryInterval'?: number;
-  'appium:isHeadless'?: boolean;
-  'wdio:reactNativeServiceOptions': ReactNativeServiceOptions;
-};
-
-const capabilities: ReactNativeCapability[] = [
+const capabilities: ReactNativeCapabilities[] = [
   {
     platformName: isIos ? 'iOS' : 'Android',
     'appium:automationName': isIos ? 'XCUITest' : 'UiAutomator2',
