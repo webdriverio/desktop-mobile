@@ -224,6 +224,12 @@ Port resolution order:
 | POST | `/session/{id}/window/minimize` | Minimize |
 | POST | `/session/{id}/window/fullscreen` | Fullscreen |
 
+`Get Window Rect` and `Set Window Rect` use CSS pixels, as required by the
+[W3C WebDriver Window Rect commands](https://www.w3.org/TR/webdriver2/#set-window-rect).
+On desktop platforms, the plugin converts Tauri's physical outer-window bounds
+using the window's current display scale factor. Position changes are completed
+before a requested size is applied, including moves between displays.
+
 ### Frames
 | Method | Endpoint | Description |
 |--------|----------|-------------|

@@ -5,7 +5,9 @@ use tauri::webview::Cookie as TauriCookie;
 use tauri::{Runtime, WebviewWindow};
 
 #[cfg(desktop)]
-use tauri::{PhysicalPosition, PhysicalSize};
+use tauri::Listener;
+#[cfg(desktop)]
+use tauri::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 
 use tauri::Manager;
 
@@ -30,6 +32,152 @@ pub struct WindowRect {
     pub y: i32,
     pub width: u32,
     pub height: u32,
+}
+
+#[cfg(desktop)]
+fn physical_window_rect_to_logical(
+    position: PhysicalPosition<i32>,
+    size: PhysicalSize<u32>,
+    scale_factor: f64,
+) -> WindowRect {
+    let position = position.to_logical::<i32>(scale_factor);
+    let size = size.to_logical::<u32>(scale_factor);
+
+    WindowRect {
+        x: position.x,
+        y: position.y,
+        width: size.width,
+        height: size.height,
+    }
+}
+
+#[cfg(desktop)]
+fn physical_window_chrome_to_logical(
+    outer: PhysicalSize<u32>,
+    inner: PhysicalSize<u32>,
+    scale_factor: f64,
+) -> LogicalSize<u32> {
+    PhysicalSize::new(
+        outer.width.saturating_sub(inner.width),
+        outer.height.saturating_sub(inner.height),
+    )
+    .to_logical(scale_factor)
+}
+
+#[cfg(desktop)]
+const WINDOW_CHANGE_EVENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+
+/// Apply a native window change and wait for Tauri to confirm it via `event_name`.
+///
+/// Only a failure of the native call itself is an error. A window manager may clamp or
+/// ignore a request, in which case the confirming event never arrives — `Set Window Rect`
+/// is best-effort, so callers report the rect the window actually ended up with instead
+/// of failing the command.
+#[cfg(desktop)]
+async fn apply_window_change<R, F>(
+    window: &WebviewWindow<R>,
+    event_name: &'static str,
+    operation: &'static str,
+    change: F,
+) -> Result<(), WebDriverErrorResponse>
+where
+    R: Runtime,
+    F: FnOnce() -> tauri::Result<()>,
+{
+    let (sender, receiver) = tokio::sync::oneshot::channel();
+    let listener_id = window.once(event_name, move |_| {
+        let _ = sender.send(());
+    });
+
+    if let Err(error) = change() {
+        window.unlisten(listener_id);
+        return Err(WebDriverErrorResponse::unknown_error(&format!(
+            "Failed to {operation}: {error}"
+        )));
+    }
+
+    match tokio::time::timeout(WINDOW_CHANGE_EVENT_TIMEOUT, receiver).await {
+        Ok(Ok(())) => {}
+        Ok(Err(_)) => {
+            tracing::debug!("Window event listener closed while waiting to {operation}");
+        }
+        Err(_) => {
+            window.unlisten(listener_id);
+            tracing::debug!("Timed out waiting to {operation}");
+        }
+    }
+
+    Ok(())
+}
+
+#[cfg(all(test, desktop))]
+mod window_rect_tests {
+    use super::*;
+
+    #[test]
+    fn converts_physical_window_rect_at_common_scale_factors() {
+        let cases = [
+            (
+                PhysicalPosition::new(-200, 150),
+                PhysicalSize::new(720, 540),
+                1.0,
+                WindowRect {
+                    x: -200,
+                    y: 150,
+                    width: 720,
+                    height: 540,
+                },
+            ),
+            (
+                PhysicalPosition::new(-151, 251),
+                PhysicalSize::new(1000, 750),
+                1.25,
+                WindowRect {
+                    x: -121,
+                    y: 201,
+                    width: 800,
+                    height: 600,
+                },
+            ),
+            (
+                PhysicalPosition::new(-400, 300),
+                PhysicalSize::new(1440, 1080),
+                2.0,
+                WindowRect {
+                    x: -200,
+                    y: 150,
+                    width: 720,
+                    height: 540,
+                },
+            ),
+        ];
+
+        for (position, size, scale_factor, expected) in cases {
+            let actual = physical_window_rect_to_logical(position, size, scale_factor);
+
+            assert_eq!(actual.x, expected.x);
+            assert_eq!(actual.y, expected.y);
+            assert_eq!(actual.width, expected.width);
+            assert_eq!(actual.height, expected.height);
+        }
+    }
+
+    #[test]
+    fn converts_physical_window_chrome_before_subtracting_it() {
+        let retina_chrome = physical_window_chrome_to_logical(
+            PhysicalSize::new(1440, 1080),
+            PhysicalSize::new(1440, 1032),
+            2.0,
+        );
+        let fractional_chrome = physical_window_chrome_to_logical(
+            PhysicalSize::new(1251, 1001),
+            PhysicalSize::new(1000, 750),
+            1.25,
+        );
+
+        assert_eq!(retina_chrome, LogicalSize::new(0, 24));
+        assert_eq!(fractional_chrome, LogicalSize::new(201, 201));
+    }
 }
 
 /// Frame identifier for switching frames
@@ -469,10 +617,9 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         );
         let result = self.evaluate_js(&script).await?;
 
-        let value = result
-            .get("value")
-            .cloned()
-            .ok_or_else(|| WebDriverErrorResponse::unknown_error("element center script returned no value"))?;
+        let value = result.get("value").cloned().ok_or_else(|| {
+            WebDriverErrorResponse::unknown_error("element center script returned no value")
+        })?;
 
         #[derive(serde::Deserialize)]
         struct Center {
@@ -1472,17 +1619,25 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Get window rectangle (position and size)
     #[cfg(desktop)]
     async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        if let Ok(position) = self.window().outer_position() {
-            if let Ok(size) = self.window().outer_size() {
-                return Ok(WindowRect {
-                    x: position.x,
-                    y: position.y,
-                    width: size.width,
-                    height: size.height,
-                });
-            }
-        }
-        Ok(WindowRect::default())
+        let scale_factor = self.window().scale_factor().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!(
+                "Failed to get window scale factor: {error}"
+            ))
+        })?;
+        let position = self.window().outer_position().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!(
+                "Failed to get window position: {error}"
+            ))
+        })?;
+        let size = self.window().outer_size().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!("Failed to get window size: {error}"))
+        })?;
+
+        Ok(physical_window_rect_to_logical(
+            position,
+            size,
+            scale_factor,
+        ))
     }
 
     #[cfg(mobile)]
@@ -1496,38 +1651,79 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     ) -> Result<WindowRect, WebDriverErrorResponse> {
         // Exit fullscreen/maximized state before setting rect
         // Otherwise the window manager may ignore our size/position request
-        if self.window().is_fullscreen().unwrap_or(false) {
-            let _ = self.window().set_fullscreen(false);
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-        if self.window().is_maximized().unwrap_or(false) {
-            let _ = self.window().unmaximize();
-            tokio::time::sleep(std::time::Duration::from_millis(50)).await;
-        }
-
-        let _ = self
-            .window()
-            .set_position(PhysicalPosition::new(rect.x, rect.y));
-
-        // Calculate chrome/decoration size to set outer size correctly
-        // On Windows/Linux, set_size sets inner size, but we want to set outer size
-        let (chrome_width, chrome_height) = if let (Ok(outer), Ok(inner)) =
-            (self.window().outer_size(), self.window().inner_size())
-        {
-            (
-                outer.width.saturating_sub(inner.width),
-                outer.height.saturating_sub(inner.height),
+        let is_fullscreen = self.window().is_fullscreen().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!(
+                "Failed to query window fullscreen state: {error}"
+            ))
+        })?;
+        if is_fullscreen {
+            apply_window_change(
+                self.window(),
+                "tauri://resize",
+                "exit window fullscreen state",
+                || self.window().set_fullscreen(false),
             )
-        } else {
-            (0, 0)
-        };
+            .await?;
+        }
+        let is_maximized = self.window().is_maximized().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!(
+                "Failed to query window maximized state: {error}"
+            ))
+        })?;
+        if is_maximized {
+            apply_window_change(
+                self.window(),
+                "tauri://resize",
+                "restore maximized window",
+                || self.window().unmaximize(),
+            )
+            .await?;
+        }
 
-        // Set inner size = requested outer size - chrome
-        let inner_width = rect.width.saturating_sub(chrome_width);
-        let inner_height = rect.height.saturating_sub(chrome_height);
-        let _ = self
-            .window()
-            .set_size(PhysicalSize::new(inner_width, inner_height));
+        let scale_factor = self.window().scale_factor().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!(
+                "Failed to get window scale factor: {error}"
+            ))
+        })?;
+        let position = self.window().outer_position().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!(
+                "Failed to get window position: {error}"
+            ))
+        })?;
+        let outer_size = self.window().outer_size().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!(
+                "Failed to get outer window size: {error}"
+            ))
+        })?;
+        let inner_size = self.window().inner_size().map_err(|error| {
+            WebDriverErrorResponse::unknown_error(&format!(
+                "Failed to get inner window size: {error}"
+            ))
+        })?;
+
+        let current_rect = physical_window_rect_to_logical(position, outer_size, scale_factor);
+        let chrome_size = physical_window_chrome_to_logical(outer_size, inner_size, scale_factor);
+
+        if rect.x != current_rect.x || rect.y != current_rect.y {
+            apply_window_change(self.window(), "tauri://move", "set window position", || {
+                self.window()
+                    .set_position(LogicalPosition::new(rect.x, rect.y))
+            })
+            .await?;
+        }
+
+        if rect.width != current_rect.width || rect.height != current_rect.height {
+            // Tauri sets the inner size. Chrome is measured in logical pixels before any
+            // display move so physical metrics from different scale factors are never mixed.
+            let inner_size = LogicalSize::new(
+                rect.width.saturating_sub(chrome_size.width),
+                rect.height.saturating_sub(chrome_size.height),
+            );
+            apply_window_change(self.window(), "tauri://resize", "set window size", || {
+                self.window().set_size(inner_size)
+            })
+            .await?;
+        }
 
         self.get_window_rect().await
     }
@@ -1535,8 +1731,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Maximize window
     #[cfg(desktop)]
     async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        let _ = self.window().maximize();
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        apply_window_change(self.window(), "tauri://resize", "maximize window", || {
+            self.window().maximize()
+        })
+        .await?;
         self.get_window_rect().await
     }
 
@@ -1550,8 +1748,13 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Set window to fullscreen
     #[cfg(desktop)]
     async fn fullscreen_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        let _ = self.window().set_fullscreen(true);
-        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+        apply_window_change(
+            self.window(),
+            "tauri://resize",
+            "enter window fullscreen state",
+            || self.window().set_fullscreen(true),
+        )
+        .await?;
         self.get_window_rect().await
     }
 
