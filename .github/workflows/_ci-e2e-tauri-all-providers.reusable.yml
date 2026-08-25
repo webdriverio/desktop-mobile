@@ -557,16 +557,12 @@ jobs:
           #  - Windows: WebView2 Runtime 150 dropped the CDP --remote-debugging-port for
           #    elevated hosts (runners run as admin), breaking the msedgedriver-based
           #    official + crabnebula providers. See https://github.com/webdriverio/desktop-mobile/issues/542.
-          #  - macOS: the macos-26 image (26.4) broke the closed-source CrabNebula
-          #    driver's session setup. See https://github.com/webdriverio/desktop-mobile/issues/540.
           allow_official=false; official_reason=""
           allow_crabnebula=false; crabnebula_reason=""
           case "$RUNNER_OS" in
             Windows)
               allow_official=true;   official_reason="WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542"
               allow_crabnebula=true; crabnebula_reason="WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542" ;;
-            macOS)
-              allow_crabnebula=true; crabnebula_reason="macos-26 image (26.4) broke the CrabNebula driver; see https://github.com/webdriverio/desktop-mobile/issues/540" ;;
           esac
 
           check_result "Official" "$official" "$allow_official" "$official_reason"
