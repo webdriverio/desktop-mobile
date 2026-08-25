@@ -59,7 +59,7 @@ export const config = {
 ```ts
 // a spec
 it('should run code in the Hermes realm', async () => {
-  const inHermes = await browser.reactNative.execute(() => typeof HermesInternal !== 'undefined');
+  const inHermes = await browser.reactNative.execute((rn) => typeof rn.HermesInternal !== 'undefined');
   expect(inHermes).toBe(true);
 });
 

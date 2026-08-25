@@ -229,6 +229,12 @@ export interface FlutterCapabilities {
   'appium:bundleId'?: string;
   /** Pin the Dart VM Service port (deterministic discovery; iOS-friendly). */
   'appium:dartVmServicePort'?: number;
+  /**
+   * Arbitrary Appium tuning keys (WDA/simulator timeouts, `appium:isHeadless`, …).
+   * Modelled generically so real configs don't need a local superset of this type —
+   * the keys above stay strictly typed.
+   */
+  [key: `appium:${string}`]: unknown;
   'wdio:flutterServiceOptions'?: FlutterServiceOptions;
 }
 
