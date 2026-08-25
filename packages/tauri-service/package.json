@@ -68,7 +68,7 @@
     "@types/debug": "^4.1.12",
     "@types/node": "^26.1.2",
     "@wdio/bundler": "workspace:*",
-    "recast": "^0.23.19",
+    "recast": "^0.24.0",
     "shx": "^0.4.0",
     "terser": "^5.49.0",
     "typescript": "^6.0.3",
