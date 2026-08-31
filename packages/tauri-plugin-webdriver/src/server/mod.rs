@@ -1,8 +1,8 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock as SyncRwLock};
 
-use tauri::{AppHandle, Runtime, Webview, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, Runtime, Webview, WebviewWindow};
 use tokio::runtime::Runtime as TokioRuntime;
 use tokio::sync::RwLock;
 
@@ -21,6 +21,7 @@ struct WindowCache<T> {
 struct WindowCacheState<T> {
     windows: HashMap<String, CachedWindow<T>>,
     closing: HashMap<String, u64>,
+    lifecycles: HashMap<String, VecDeque<u64>>,
     next_generation: u64,
 }
 
@@ -35,14 +36,21 @@ impl<T: Clone> WindowCache<T> {
             state: SyncRwLock::new(WindowCacheState {
                 windows: HashMap::new(),
                 closing: HashMap::new(),
+                lifecycles: HashMap::new(),
                 next_generation: 0,
             }),
         }
     }
 
-    fn next_generation(&self) -> u64 {
+    fn track(&self, label: &str) -> u64 {
         let mut state = self.state.write().expect("WindowCache poisoned");
-        Self::allocate_generation(&mut state)
+        let generation = Self::allocate_generation(&mut state);
+        state
+            .lifecycles
+            .entry(label.to_string())
+            .or_default()
+            .push_back(generation);
+        generation
     }
 
     fn publish(&self, label: String, value: T, generation: u64) -> bool {
@@ -138,6 +146,25 @@ impl<T: Clone> WindowCache<T> {
                 *closing_generation = (*closing_generation).max(generation);
             })
             .or_insert(generation);
+    }
+
+    fn destroyed_label(&self, window_label: &str) {
+        let generation = {
+            let mut state = self.state.write().expect("WindowCache poisoned");
+            let generations = match state.lifecycles.get_mut(window_label) {
+                Some(generations) => generations,
+                None => return,
+            };
+            let generation = match generations.pop_front() {
+                Some(generation) => generation,
+                None => return,
+            };
+            if generations.is_empty() {
+                state.lifecycles.remove(window_label);
+            }
+            generation
+        };
+        self.destroyed(window_label, generation);
     }
 
     fn contains(&self, window_label: &str) -> bool {
@@ -242,14 +269,7 @@ impl<R: Runtime> WindowRegistry<R> {
         let Some(webview_window) = webview.app_handle().get_webview_window(&label) else {
             return false;
         };
-        let generation = self.windows.next_generation();
-        let windows = Arc::clone(self);
-        let destroyed_label = label.clone();
-        window.on_window_event(move |event| {
-            if matches!(event, WindowEvent::Destroyed) {
-                windows.destroyed(&destroyed_label, generation);
-            }
-        });
+        let generation = self.windows.track(&label);
         self.windows.publish(label, webview_window, generation)
     }
 
@@ -269,8 +289,8 @@ impl<R: Runtime> WindowRegistry<R> {
         self.windows.rollback_close(window_label, generation);
     }
 
-    fn destroyed(&self, window_label: &str, generation: u64) {
-        self.windows.destroyed(window_label, generation);
+    pub(crate) fn destroyed_label(&self, window_label: &str) {
+        self.windows.destroyed_label(window_label);
     }
 
     fn contains(&self, window_label: &str) -> bool {
@@ -287,7 +307,7 @@ mod tests {
     use super::WindowCache;
 
     fn publish<T: Clone>(cached: &WindowCache<T>, label: &str, value: T) -> u64 {
-        let generation = cached.next_generation();
+        let generation = cached.track(label);
         assert!(cached.publish(label.to_string(), value, generation));
         generation
     }
@@ -353,18 +373,21 @@ mod tests {
         let (_, closing_generation) = cached.begin_close("main").unwrap();
         cached.commit_close("main", closing_generation);
         let new_generation = publish(&cached, "main", 2);
-        cached.destroyed("main", old_generation);
+        cached.destroyed_label("main");
 
         assert_ne!(old_generation, new_generation);
         assert_eq!(cached.get("main"), Some(2));
+
+        cached.destroyed_label("main");
+        assert!(!cached.contains("main"));
     }
 
     #[test]
     fn should_reject_a_registration_destroyed_before_it_is_published() {
         let cached = WindowCache::new();
-        let generation = cached.next_generation();
+        let generation = cached.track("main");
 
-        cached.destroyed("main", generation);
+        cached.destroyed_label("main");
 
         assert!(!cached.publish("main".to_string(), 1, generation));
         assert!(!cached.contains("main"));
@@ -373,11 +396,12 @@ mod tests {
     #[test]
     fn should_reject_an_older_registration_that_finishes_after_a_newer_one() {
         let cached = WindowCache::new();
-        let older_generation = cached.next_generation();
-        let newer_generation = cached.next_generation();
+        let older_generation = cached.track("main");
+        let newer_generation = cached.track("main");
 
         assert!(cached.publish("main".to_string(), 2, newer_generation));
         assert!(!cached.publish("main".to_string(), 1, older_generation));
+        cached.destroyed_label("main");
 
         assert_eq!(cached.get("main"), Some(2));
     }

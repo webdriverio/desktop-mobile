@@ -1,6 +1,6 @@
 use tauri::{
     plugin::{Builder, TauriPlugin},
-    Manager, Runtime,
+    Manager, RunEvent, Runtime, WindowEvent,
 };
 
 #[cfg(desktop)]
@@ -45,6 +45,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
     let windows = std::sync::Arc::new(server::WindowRegistry::new());
     let server_start = std::sync::Arc::new(std::sync::Once::new());
+    let event_windows = std::sync::Arc::clone(&windows);
 
     Builder::new("wdio-webdriver")
         .setup(move |app, api| {
@@ -86,6 +87,16 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
                     server::start(app_handle, port, server_windows);
                     tracing::info!("WDIO WebDriver plugin initialized on port {port}");
                 });
+            }
+        })
+        .on_event(move |_app, event| {
+            if let RunEvent::WindowEvent {
+                label,
+                event: WindowEvent::Destroyed,
+                ..
+            } = event
+            {
+                event_windows.destroyed_label(label);
             }
         })
         .build()
