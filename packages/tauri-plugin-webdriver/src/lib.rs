@@ -43,6 +43,9 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 /// This ignores the `TAURI_WEBDRIVER_PORT` environment variable.
 #[must_use]
 pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
+    let windows = std::sync::Arc::new(server::WindowRegistry::new());
+    let server_windows = std::sync::Arc::clone(&windows);
+
     Builder::new("wdio-webdriver")
         .setup(move |app, api| {
             #[cfg(mobile)]
@@ -63,7 +66,9 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
 
             // Arc so the (non-generic) objc2 message handler can hold its own clone; see eval_channel.
             #[cfg(target_os = "macos")]
-            app.manage(std::sync::Arc::new(eval_channel::EvalResultRegistry::default()));
+            app.manage(std::sync::Arc::new(
+                eval_channel::EvalResultRegistry::default(),
+            ));
 
             // Start the macOS headless run-loop pump early (before any webview loads); Once-guarded,
             // so the on_webview_ready registration remains a fallback. See #540.
@@ -72,12 +77,13 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
 
             // Start the WebDriver HTTP server
             let app_handle = app.app_handle().clone();
-            server::start(app_handle, port);
+            server::start(app_handle, port, std::sync::Arc::clone(&server_windows));
             tracing::info!("WDIO WebDriver plugin initialized on port {port}");
 
             Ok(())
         })
-        .on_webview_ready(|webview| {
+        .on_webview_ready(move |webview| {
+            windows.register(&webview);
             platform::register_webview_handlers(&webview);
         })
         .build()

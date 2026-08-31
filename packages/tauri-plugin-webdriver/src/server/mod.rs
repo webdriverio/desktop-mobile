@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock as SyncRwLock};
 
-use tauri::{AppHandle, Manager, Runtime, WebviewWindow};
+use tauri::{AppHandle, Manager, Runtime, Webview, WebviewWindow, WindowEvent};
 use tokio::runtime::Runtime as TokioRuntime;
 use tokio::sync::RwLock;
 
@@ -15,34 +15,59 @@ use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::{SessionManager, Timeouts};
 
 struct WindowCache<T> {
-    windows: HashMap<String, T>,
+    windows: SyncRwLock<HashMap<String, T>>,
 }
 
 impl<T: Clone> WindowCache<T> {
     fn new() -> Self {
         Self {
-            windows: HashMap::new(),
+            windows: SyncRwLock::new(HashMap::new()),
         }
     }
 
-    fn merge(&mut self, live_windows: impl IntoIterator<Item = (String, T)>) {
-        self.windows.extend(live_windows);
+    fn merge(&self, live_windows: impl IntoIterator<Item = (String, T)>) {
+        self.merge_with(|| live_windows);
+    }
+
+    fn merge_with<I>(&self, get_live_windows: impl FnOnce() -> I)
+    where
+        I: IntoIterator<Item = (String, T)>,
+    {
+        self.windows
+            .write()
+            .expect("WindowCache poisoned")
+            .extend(get_live_windows());
     }
 
     fn get(&self, window_label: &str) -> Option<T> {
-        self.windows.get(window_label).cloned()
+        self.windows
+            .read()
+            .expect("WindowCache poisoned")
+            .get(window_label)
+            .cloned()
     }
 
-    fn remove(&mut self, window_label: &str) {
-        self.windows.remove(window_label);
+    fn remove(&self, window_label: &str) {
+        self.windows
+            .write()
+            .expect("WindowCache poisoned")
+            .remove(window_label);
     }
 
     fn contains(&self, window_label: &str) -> bool {
-        self.windows.contains_key(window_label)
+        self.windows
+            .read()
+            .expect("WindowCache poisoned")
+            .contains_key(window_label)
     }
 
     fn labels(&self) -> Vec<String> {
-        self.windows.keys().cloned().collect()
+        self.windows
+            .read()
+            .expect("WindowCache poisoned")
+            .keys()
+            .cloned()
+            .collect()
     }
 }
 
@@ -50,41 +75,31 @@ impl<T: Clone> WindowCache<T> {
 pub struct AppState<R: Runtime> {
     pub app: AppHandle<R>,
     pub sessions: RwLock<SessionManager>,
-    // Tauri can stop enumerating a parent WebviewWindow after it gains child webviews.
-    windows: SyncRwLock<WindowCache<WebviewWindow<R>>>,
+    windows: Arc<WindowRegistry<R>>,
 }
 
 impl<R: Runtime + 'static> AppState<R> {
-    pub fn new(app: AppHandle<R>) -> Self {
+    pub fn new(app: AppHandle<R>, windows: Arc<WindowRegistry<R>>) -> Self {
         let state = Self {
             app,
             sessions: RwLock::new(SessionManager::new()),
-            windows: SyncRwLock::new(WindowCache::new()),
+            windows,
         };
         state.refresh_windows();
         state
     }
 
     fn refresh_windows(&self) {
-        self.windows
-            .write()
-            .expect("AppState window cache poisoned")
-            .merge(self.app.webview_windows());
+        self.windows.refresh(&self.app);
     }
 
     fn get_window(&self, window_label: &str) -> Option<WebviewWindow<R>> {
         self.refresh_windows();
-        self.windows
-            .read()
-            .expect("AppState window cache poisoned")
-            .get(window_label)
+        self.windows.get(window_label)
     }
 
     pub fn remove_window_label(&self, window_label: &str) {
-        self.windows
-            .write()
-            .expect("AppState window cache poisoned")
-            .remove(window_label);
+        self.windows.remove(window_label);
     }
 
     /// Get a platform executor for a specific window by label
@@ -102,27 +117,82 @@ impl<R: Runtime + 'static> AppState<R> {
     /// Whether a window with this label has been registered
     pub fn has_window_label(&self, window_label: &str) -> bool {
         self.refresh_windows();
-        self.windows
-            .read()
-            .expect("AppState window cache poisoned")
-            .contains(window_label)
+        self.windows.contains(window_label)
     }
 
     /// Get all window labels
     pub fn get_window_labels(&self) -> Vec<String> {
         self.refresh_windows();
-        let windows = self.windows.read().expect("AppState window cache poisoned");
-        windows.labels()
+        self.windows.labels()
+    }
+}
+
+/// Retains top-level windows that Tauri stops enumerating after they gain child webviews.
+pub(crate) struct WindowRegistry<R: Runtime> {
+    windows: WindowCache<WebviewWindow<R>>,
+}
+
+impl<R: Runtime> WindowRegistry<R> {
+    pub(crate) fn new() -> Self {
+        Self {
+            windows: WindowCache::new(),
+        }
+    }
+
+    pub(crate) fn register(self: &Arc<Self>, webview: &Webview<R>) {
+        let window = webview.window();
+        if webview.label() != window.label() {
+            return;
+        }
+
+        let label = window.label().to_string();
+        let Some(webview_window) = webview.app_handle().get_webview_window(&label) else {
+            return;
+        };
+        self.merge([(label.clone(), webview_window)]);
+
+        let windows = Arc::clone(self);
+        window.on_window_event(move |event| {
+            if matches!(event, WindowEvent::Destroyed) {
+                windows.remove(&label);
+            }
+        });
+    }
+
+    fn merge(&self, live_windows: impl IntoIterator<Item = (String, WebviewWindow<R>)>) {
+        self.windows.merge(live_windows);
+    }
+
+    fn refresh(&self, app: &AppHandle<R>) {
+        self.windows.merge_with(|| app.webview_windows());
+    }
+
+    fn get(&self, window_label: &str) -> Option<WebviewWindow<R>> {
+        self.windows.get(window_label)
+    }
+
+    fn remove(&self, window_label: &str) {
+        self.windows.remove(window_label);
+    }
+
+    fn contains(&self, window_label: &str) -> bool {
+        self.windows.contains(window_label)
+    }
+
+    fn labels(&self) -> Vec<String> {
+        self.windows.labels()
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::WindowCache;
+    use std::sync::{mpsc, Arc};
+    use std::thread;
 
     #[test]
     fn should_preserve_a_cached_main_window_when_live_enumeration_loses_it() {
-        let mut cached = WindowCache::new();
+        let cached = WindowCache::new();
         cached.merge([("main".to_string(), 1)]);
 
         cached.merge(std::iter::empty());
@@ -132,7 +202,7 @@ mod tests {
 
     #[test]
     fn should_remove_a_closed_window_from_the_cache() {
-        let mut cached = WindowCache::new();
+        let cached = WindowCache::new();
         cached.merge([("main".to_string(), 1)]);
 
         cached.remove("main");
@@ -142,7 +212,7 @@ mod tests {
 
     #[test]
     fn should_merge_windows_discovered_later_without_inventing_child_handles() {
-        let mut cached = WindowCache::new();
+        let cached = WindowCache::new();
         cached.merge([("main".to_string(), 1)]);
 
         cached.merge([("settings".to_string(), 2)]);
@@ -152,10 +222,36 @@ mod tests {
         assert_eq!(cached.get("settings"), Some(2));
         assert!(!cached.contains("child-webview"));
     }
+
+    #[test]
+    fn should_not_restore_a_window_removed_during_a_live_refresh() {
+        let cached = Arc::new(WindowCache::new());
+        cached.merge([("main".to_string(), 1)]);
+        let (refresh_started_tx, refresh_started_rx) = mpsc::channel();
+        let (continue_refresh_tx, continue_refresh_rx) = mpsc::channel();
+
+        let refresh_cache = Arc::clone(&cached);
+        let refresh = thread::spawn(move || {
+            refresh_cache.merge_with(|| {
+                refresh_started_tx.send(()).unwrap();
+                continue_refresh_rx.recv().unwrap();
+                [("main".to_string(), 1)]
+            });
+        });
+        refresh_started_rx.recv().unwrap();
+
+        let remove_cache = Arc::clone(&cached);
+        let remove = thread::spawn(move || remove_cache.remove("main"));
+        continue_refresh_tx.send(()).unwrap();
+
+        refresh.join().unwrap();
+        remove.join().unwrap();
+        assert!(!cached.contains("main"));
+    }
 }
 
 /// Start the `WebDriver` HTTP server on the specified port
-pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
+pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16, windows: Arc<WindowRegistry<R>>) {
     std::thread::spawn(move || {
         let rt = match TokioRuntime::new() {
             Ok(rt) => rt,
@@ -166,7 +262,7 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
         };
 
         rt.block_on(async {
-            let state = Arc::new(AppState::new(app));
+            let state = Arc::new(AppState::new(app, windows));
             let router = router::create_router(state);
 
             // On Android, bind to all interfaces for WiFi accessibility
