@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock as SyncRwLock};
 
-use tauri::{AppHandle, Runtime, Webview, WebviewWindow};
+use tauri::{AppHandle, Manager, Runtime, Webview, WebviewWindow, Window};
 use tokio::runtime::Runtime as TokioRuntime;
 use tokio::sync::RwLock;
 
@@ -21,6 +21,7 @@ struct WindowCache<T> {
 struct WindowCacheState<T> {
     windows: HashMap<String, CachedWindow<T>>,
     closing: HashMap<String, u64>,
+    registrations: HashMap<String, VecDeque<u64>>,
     lifecycles: HashMap<String, VecDeque<u64>>,
     next_generation: u64,
 }
@@ -36,21 +37,49 @@ impl<T: Clone> WindowCache<T> {
             state: SyncRwLock::new(WindowCacheState {
                 windows: HashMap::new(),
                 closing: HashMap::new(),
+                registrations: HashMap::new(),
                 lifecycles: HashMap::new(),
                 next_generation: 0,
             }),
         }
     }
 
-    fn track(&self, label: &str) -> u64 {
+    fn reserve(&self, label: &str) -> u64 {
         let mut state = self.state.write().expect("WindowCache poisoned");
         let generation = Self::allocate_generation(&mut state);
+        state
+            .registrations
+            .entry(label.to_string())
+            .or_default()
+            .push_back(generation);
         state
             .lifecycles
             .entry(label.to_string())
             .or_default()
             .push_back(generation);
         generation
+    }
+
+    fn publish_reserved_with(&self, label: &str, create_value: impl FnOnce() -> Option<T>) -> bool {
+        let generation = {
+            let mut state = self.state.write().expect("WindowCache poisoned");
+            let registrations = match state.registrations.get_mut(label) {
+                Some(registrations) => registrations,
+                None => return false,
+            };
+            let generation = match registrations.pop_front() {
+                Some(generation) => generation,
+                None => return false,
+            };
+            if registrations.is_empty() {
+                state.registrations.remove(label);
+            }
+            generation
+        };
+        match create_value() {
+            Some(value) => self.publish(label.to_string(), value, generation),
+            None => false,
+        }
     }
 
     fn publish(&self, label: String, value: T, generation: u64) -> bool {
@@ -138,6 +167,12 @@ impl<T: Clone> WindowCache<T> {
             .is_some_and(|window| window.generation == generation)
         {
             state.windows.remove(window_label);
+        }
+        if let Some(registrations) = state.registrations.get_mut(window_label) {
+            registrations.retain(|registration| *registration != generation);
+            if registrations.is_empty() {
+                state.registrations.remove(window_label);
+            }
         }
         state
             .closing
@@ -259,18 +294,14 @@ impl<R: Runtime> WindowRegistry<R> {
         }
     }
 
-    pub(crate) fn register(self: &Arc<Self>, webview: &Webview<R>) -> bool {
-        let window = webview.window();
-        if webview.label() != window.label() {
-            return false;
-        }
+    pub(crate) fn reserve(&self, window: Window<R>) {
+        self.windows.reserve(window.label());
+    }
 
-        let label = window.label().to_string();
-        let Some(webview_window) = webview.app_handle().get_webview_window(&label) else {
-            return false;
-        };
-        let generation = self.windows.track(&label);
-        self.windows.publish(label, webview_window, generation)
+    pub(crate) fn register(&self, webview: &Webview<R>) -> bool {
+        let label = webview.label();
+        self.windows
+            .publish_reserved_with(label, || webview.app_handle().get_webview_window(label))
     }
 
     fn get(&self, window_label: &str) -> Option<WebviewWindow<R>> {
@@ -307,8 +338,8 @@ mod tests {
     use super::WindowCache;
 
     fn publish<T: Clone>(cached: &WindowCache<T>, label: &str, value: T) -> u64 {
-        let generation = cached.track(label);
-        assert!(cached.publish(label.to_string(), value, generation));
+        let generation = cached.reserve(label);
+        assert!(cached.publish_reserved_with(label, || Some(value)));
         generation
     }
 
@@ -385,24 +416,51 @@ mod tests {
     #[test]
     fn should_reject_a_registration_destroyed_before_it_is_published() {
         let cached = WindowCache::new();
-        let generation = cached.track("main");
+        cached.reserve("main");
 
         cached.destroyed_label("main");
 
-        assert!(!cached.publish("main".to_string(), 1, generation));
+        assert!(!cached.publish_reserved_with("main", || Some(1)));
         assert!(!cached.contains("main"));
     }
 
     #[test]
-    fn should_reject_an_older_registration_that_finishes_after_a_newer_one() {
+    fn should_preserve_a_new_pending_registration_after_an_old_destroy() {
         let cached = WindowCache::new();
-        let older_generation = cached.track("main");
-        let newer_generation = cached.track("main");
+        cached.reserve("main");
+        cached.reserve("main");
 
-        assert!(cached.publish("main".to_string(), 2, newer_generation));
-        assert!(!cached.publish("main".to_string(), 1, older_generation));
         cached.destroyed_label("main");
 
+        assert!(cached.publish_reserved_with("main", || Some(2)));
+        assert_eq!(cached.get("main"), Some(2));
+    }
+
+    #[test]
+    fn should_ignore_an_unreserved_child_without_creating_its_window() {
+        let cached = WindowCache::new();
+        publish(&cached, "main", 1);
+        let mut factory_called = false;
+
+        assert!(!cached.publish_reserved_with("child", || {
+            factory_called = true;
+            Some(2)
+        }));
+        assert!(!factory_called);
+        assert!(!cached.contains("child"));
+    }
+
+    #[test]
+    fn should_publish_same_label_registrations_in_lifecycle_order() {
+        let cached = WindowCache::new();
+        let older_generation = cached.reserve("main");
+        let newer_generation = cached.reserve("main");
+
+        assert!(cached.publish_reserved_with("main", || Some(1)));
+        assert!(cached.publish_reserved_with("main", || Some(2)));
+        cached.destroyed_label("main");
+
+        assert_ne!(older_generation, newer_generation);
         assert_eq!(cached.get("main"), Some(2));
     }
 }

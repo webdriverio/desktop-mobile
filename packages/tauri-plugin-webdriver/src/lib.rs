@@ -44,6 +44,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 #[must_use]
 pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
     let windows = std::sync::Arc::new(server::WindowRegistry::new());
+    let ready_windows = std::sync::Arc::clone(&windows);
     let server_start = std::sync::Arc::new(std::sync::Once::new());
     let event_windows = std::sync::Arc::clone(&windows);
 
@@ -78,9 +79,12 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
 
             Ok(())
         })
+        .on_window_ready(move |window| {
+            ready_windows.reserve(window);
+        })
         .on_webview_ready(move |webview| {
-            platform::register_webview_handlers(&webview);
             if windows.register(&webview) {
+                platform::register_webview_handlers(&webview);
                 let app_handle = webview.app_handle().clone();
                 let server_windows = std::sync::Arc::clone(&windows);
                 server_start.call_once(move || {
