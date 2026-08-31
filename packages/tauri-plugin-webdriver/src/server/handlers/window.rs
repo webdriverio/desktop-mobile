@@ -83,19 +83,17 @@ pub async fn close_window<R: Runtime>(
         let current_window = session.current_window.clone();
         drop(sessions);
 
-        if let Some(window) = state.get_window(&current_window) {
-            window
-                .destroy()
-                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+        let Some((window, generation)) = state.begin_close_window(&current_window) else {
+            return Err(WebDriverErrorResponse::no_such_window());
+        };
 
-            let mut handles = state.get_window_labels();
-            handles.retain(|label| label != &current_window);
-            state.remove_window_label(&current_window);
-
-            Ok(WebDriverResponse::success(handles))
-        } else {
-            Err(WebDriverErrorResponse::no_such_window())
+        if let Err(error) = window.destroy() {
+            state.rollback_close_window(&current_window, generation);
+            return Err(WebDriverErrorResponse::unknown_error(&error.to_string()));
         }
+
+        state.commit_close_window(&current_window, generation);
+        Ok(WebDriverResponse::success(state.get_window_labels()))
     }
 }
 

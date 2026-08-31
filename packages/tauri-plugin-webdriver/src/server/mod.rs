@@ -15,13 +15,28 @@ use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::{SessionManager, Timeouts};
 
 struct WindowCache<T> {
-    windows: SyncRwLock<HashMap<String, T>>,
+    state: SyncRwLock<WindowCacheState<T>>,
+}
+
+struct WindowCacheState<T> {
+    windows: HashMap<String, CachedWindow<T>>,
+    closing: HashMap<String, u64>,
+    next_generation: u64,
+}
+
+struct CachedWindow<T> {
+    generation: u64,
+    value: T,
 }
 
 impl<T: Clone> WindowCache<T> {
     fn new() -> Self {
         Self {
-            windows: SyncRwLock::new(HashMap::new()),
+            state: SyncRwLock::new(WindowCacheState {
+                windows: HashMap::new(),
+                closing: HashMap::new(),
+                next_generation: 0,
+            }),
         }
     }
 
@@ -33,41 +48,116 @@ impl<T: Clone> WindowCache<T> {
     where
         I: IntoIterator<Item = (String, T)>,
     {
-        self.windows
-            .write()
-            .expect("WindowCache poisoned")
-            .extend(get_live_windows());
+        let mut state = self.state.write().expect("WindowCache poisoned");
+        for (label, value) in get_live_windows() {
+            if state.closing.contains_key(&label) {
+                continue;
+            }
+
+            if let Some(cached) = state.windows.get_mut(&label) {
+                cached.value = value;
+                continue;
+            }
+
+            let generation = Self::next_generation(&mut state);
+            state
+                .windows
+                .insert(label, CachedWindow { generation, value });
+        }
+    }
+
+    fn register(&self, label: String, value: T) -> u64 {
+        let mut state = self.state.write().expect("WindowCache poisoned");
+        let generation = Self::next_generation(&mut state);
+        state.closing.remove(&label);
+        state
+            .windows
+            .insert(label, CachedWindow { generation, value });
+        generation
     }
 
     fn get(&self, window_label: &str) -> Option<T> {
-        self.windows
-            .read()
-            .expect("WindowCache poisoned")
+        let state = self.state.read().expect("WindowCache poisoned");
+        if state.closing.contains_key(window_label) {
+            return None;
+        }
+        state
+            .windows
             .get(window_label)
+            .map(|window| &window.value)
             .cloned()
     }
 
-    fn remove(&self, window_label: &str) {
-        self.windows
-            .write()
-            .expect("WindowCache poisoned")
-            .remove(window_label);
+    fn begin_close(&self, window_label: &str) -> Option<(T, u64)> {
+        let mut state = self.state.write().expect("WindowCache poisoned");
+        if state.closing.contains_key(window_label) {
+            return None;
+        }
+        let (value, generation) = state
+            .windows
+            .get(window_label)
+            .map(|window| (window.value.clone(), window.generation))?;
+        state.closing.insert(window_label.to_string(), generation);
+        Some((value, generation))
+    }
+
+    fn commit_close(&self, window_label: &str, generation: u64) {
+        let mut state = self.state.write().expect("WindowCache poisoned");
+        if state.closing.get(window_label) != Some(&generation) {
+            return;
+        }
+        if state
+            .windows
+            .get(window_label)
+            .is_some_and(|window| window.generation == generation)
+        {
+            state.windows.remove(window_label);
+        }
+    }
+
+    fn rollback_close(&self, window_label: &str, generation: u64) {
+        let mut state = self.state.write().expect("WindowCache poisoned");
+        if state.closing.get(window_label) == Some(&generation) {
+            state.closing.remove(window_label);
+        }
+    }
+
+    fn destroyed(&self, window_label: &str, generation: u64) {
+        let mut state = self.state.write().expect("WindowCache poisoned");
+        if state
+            .windows
+            .get(window_label)
+            .is_some_and(|window| window.generation == generation)
+        {
+            state.windows.remove(window_label);
+        }
+        if state.closing.get(window_label) == Some(&generation) {
+            state.closing.remove(window_label);
+        }
     }
 
     fn contains(&self, window_label: &str) -> bool {
-        self.windows
-            .read()
-            .expect("WindowCache poisoned")
-            .contains_key(window_label)
+        let state = self.state.read().expect("WindowCache poisoned");
+        !state.closing.contains_key(window_label) && state.windows.contains_key(window_label)
     }
 
     fn labels(&self) -> Vec<String> {
-        self.windows
-            .read()
-            .expect("WindowCache poisoned")
+        let state = self.state.read().expect("WindowCache poisoned");
+        state
+            .windows
             .keys()
+            .filter(|label| !state.closing.contains_key(*label))
             .cloned()
             .collect()
+    }
+
+    fn next_generation(state: &mut WindowCacheState<T>) -> u64 {
+        let generation = state.next_generation;
+        state.next_generation = state
+            .next_generation
+            .checked_add(1)
+            .expect("WindowCache generation overflowed");
+        generation
     }
 }
 
@@ -98,8 +188,17 @@ impl<R: Runtime + 'static> AppState<R> {
         self.windows.get(window_label)
     }
 
-    pub fn remove_window_label(&self, window_label: &str) {
-        self.windows.remove(window_label);
+    fn begin_close_window(&self, window_label: &str) -> Option<(WebviewWindow<R>, u64)> {
+        self.refresh_windows();
+        self.windows.begin_close(window_label)
+    }
+
+    fn commit_close_window(&self, window_label: &str, generation: u64) {
+        self.windows.commit_close(window_label, generation);
+    }
+
+    fn rollback_close_window(&self, window_label: &str, generation: u64) {
+        self.windows.rollback_close(window_label, generation);
     }
 
     /// Get a platform executor for a specific window by label
@@ -149,18 +248,14 @@ impl<R: Runtime> WindowRegistry<R> {
         let Some(webview_window) = webview.app_handle().get_webview_window(&label) else {
             return;
         };
-        self.merge([(label.clone(), webview_window)]);
+        let generation = self.windows.register(label.clone(), webview_window);
 
         let windows = Arc::clone(self);
         window.on_window_event(move |event| {
             if matches!(event, WindowEvent::Destroyed) {
-                windows.remove(&label);
+                windows.destroyed(&label, generation);
             }
         });
-    }
-
-    fn merge(&self, live_windows: impl IntoIterator<Item = (String, WebviewWindow<R>)>) {
-        self.windows.merge(live_windows);
     }
 
     fn refresh(&self, app: &AppHandle<R>) {
@@ -171,8 +266,20 @@ impl<R: Runtime> WindowRegistry<R> {
         self.windows.get(window_label)
     }
 
-    fn remove(&self, window_label: &str) {
-        self.windows.remove(window_label);
+    fn begin_close(&self, window_label: &str) -> Option<(WebviewWindow<R>, u64)> {
+        self.windows.begin_close(window_label)
+    }
+
+    fn commit_close(&self, window_label: &str, generation: u64) {
+        self.windows.commit_close(window_label, generation);
+    }
+
+    fn rollback_close(&self, window_label: &str, generation: u64) {
+        self.windows.rollback_close(window_label, generation);
+    }
+
+    fn destroyed(&self, window_label: &str, generation: u64) {
+        self.windows.destroyed(window_label, generation);
     }
 
     fn contains(&self, window_label: &str) -> bool {
@@ -187,8 +294,6 @@ impl<R: Runtime> WindowRegistry<R> {
 #[cfg(test)]
 mod tests {
     use super::WindowCache;
-    use std::sync::{mpsc, Arc};
-    use std::thread;
 
     #[test]
     fn should_preserve_a_cached_main_window_when_live_enumeration_loses_it() {
@@ -205,7 +310,8 @@ mod tests {
         let cached = WindowCache::new();
         cached.merge([("main".to_string(), 1)]);
 
-        cached.remove("main");
+        let (_, generation) = cached.begin_close("main").unwrap();
+        cached.commit_close("main", generation);
 
         assert!(!cached.contains("main"));
     }
@@ -224,29 +330,42 @@ mod tests {
     }
 
     #[test]
-    fn should_not_restore_a_window_removed_during_a_live_refresh() {
-        let cached = Arc::new(WindowCache::new());
+    fn should_not_restore_a_closing_window_from_a_stale_live_snapshot() {
+        let cached = WindowCache::new();
         cached.merge([("main".to_string(), 1)]);
-        let (refresh_started_tx, refresh_started_rx) = mpsc::channel();
-        let (continue_refresh_tx, continue_refresh_rx) = mpsc::channel();
 
-        let refresh_cache = Arc::clone(&cached);
-        let refresh = thread::spawn(move || {
-            refresh_cache.merge_with(|| {
-                refresh_started_tx.send(()).unwrap();
-                continue_refresh_rx.recv().unwrap();
-                [("main".to_string(), 1)]
-            });
-        });
-        refresh_started_rx.recv().unwrap();
+        let (_, generation) = cached.begin_close("main").unwrap();
+        cached.commit_close("main", generation);
+        cached.merge([("main".to_string(), 1)]);
 
-        let remove_cache = Arc::clone(&cached);
-        let remove = thread::spawn(move || remove_cache.remove("main"));
-        continue_refresh_tx.send(()).unwrap();
-
-        refresh.join().unwrap();
-        remove.join().unwrap();
         assert!(!cached.contains("main"));
+    }
+
+    #[test]
+    fn should_restore_a_window_when_destroy_fails() {
+        let cached = WindowCache::new();
+        cached.merge([("main".to_string(), 1)]);
+
+        let (_, generation) = cached.begin_close("main").unwrap();
+        assert!(!cached.contains("main"));
+        cached.rollback_close("main", generation);
+
+        assert_eq!(cached.get("main"), Some(1));
+    }
+
+    #[test]
+    fn should_keep_a_new_window_when_an_old_window_with_the_same_label_is_destroyed() {
+        let cached = WindowCache::new();
+        let old_generation = cached.register("main".to_string(), 1);
+        let (_, closing_generation) = cached.begin_close("main").unwrap();
+        cached.commit_close("main", closing_generation);
+        cached.merge([("main".to_string(), 1)]);
+
+        let new_generation = cached.register("main".to_string(), 2);
+        cached.destroyed("main", old_generation);
+
+        assert_ne!(old_generation, new_generation);
+        assert_eq!(cached.get("main"), Some(2));
     }
 }
 
