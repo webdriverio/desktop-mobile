@@ -4,7 +4,7 @@ use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
-use tauri::{Manager, Runtime};
+use tauri::Runtime;
 
 use crate::platform::WindowRect;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
@@ -57,8 +57,7 @@ pub async fn get_window_handles<R: Runtime>(
     let _session = sessions.get(&session_id)?;
     drop(sessions);
 
-    // Return all window labels as handles
-    let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
+    let handles = state.get_window_labels();
 
     Ok(WebDriverResponse::success(handles))
 }
@@ -84,14 +83,14 @@ pub async fn close_window<R: Runtime>(
         let current_window = session.current_window.clone();
         drop(sessions);
 
-        // Close the current window
-        if let Some(window) = state.app.webview_windows().get(&current_window).cloned() {
+        if let Some(window) = state.get_window(&current_window) {
             window
                 .destroy()
                 .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
 
-            // Return remaining window handles
-            let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
+            let mut handles = state.get_window_labels();
+            handles.retain(|label| label != &current_window);
+            state.remove_window_label(&current_window);
 
             Ok(WebDriverResponse::success(handles))
         } else {
@@ -109,8 +108,7 @@ pub async fn switch_to_window<R: Runtime>(
     let mut sessions = state.sessions.write().await;
     let session = sessions.get_mut(&session_id)?;
 
-    // Verify the window exists
-    if !state.app.webview_windows().contains_key(&request.handle) {
+    if !state.has_window_label(&request.handle) {
         return Err(WebDriverErrorResponse::no_such_window());
     }
 
