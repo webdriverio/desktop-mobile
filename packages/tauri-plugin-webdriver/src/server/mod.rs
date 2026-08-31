@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock as SyncRwLock};
 
-use tauri::{AppHandle, Manager, Runtime, Webview, WebviewWindow, WindowEvent};
+use tauri::{AppHandle, Runtime, Webview, WebviewWindow, WindowEvent};
 use tokio::runtime::Runtime as TokioRuntime;
 use tokio::sync::RwLock;
 
@@ -40,40 +40,29 @@ impl<T: Clone> WindowCache<T> {
         }
     }
 
-    fn merge(&self, live_windows: impl IntoIterator<Item = (String, T)>) {
-        self.merge_with(|| live_windows);
+    fn next_generation(&self) -> u64 {
+        let mut state = self.state.write().expect("WindowCache poisoned");
+        Self::allocate_generation(&mut state)
     }
 
-    fn merge_with<I>(&self, get_live_windows: impl FnOnce() -> I)
-    where
-        I: IntoIterator<Item = (String, T)>,
-    {
+    fn publish(&self, label: String, value: T, generation: u64) -> bool {
         let mut state = self.state.write().expect("WindowCache poisoned");
-        for (label, value) in get_live_windows() {
-            if state.closing.contains_key(&label) {
-                continue;
-            }
-
-            if let Some(cached) = state.windows.get_mut(&label) {
-                cached.value = value;
-                continue;
-            }
-
-            let generation = Self::next_generation(&mut state);
-            state
-                .windows
-                .insert(label, CachedWindow { generation, value });
+        if state
+            .windows
+            .get(&label)
+            .is_some_and(|window| window.generation > generation)
+            || state
+                .closing
+                .get(&label)
+                .is_some_and(|closing_generation| *closing_generation >= generation)
+        {
+            return false;
         }
-    }
-
-    fn register(&self, label: String, value: T) -> u64 {
-        let mut state = self.state.write().expect("WindowCache poisoned");
-        let generation = Self::next_generation(&mut state);
         state.closing.remove(&label);
         state
             .windows
             .insert(label, CachedWindow { generation, value });
-        generation
+        true
     }
 
     fn get(&self, window_label: &str) -> Option<T> {
@@ -127,13 +116,28 @@ impl<T: Clone> WindowCache<T> {
         if state
             .windows
             .get(window_label)
+            .is_some_and(|window| window.generation > generation)
+            || state
+                .closing
+                .get(window_label)
+                .is_some_and(|closing_generation| *closing_generation > generation)
+        {
+            return;
+        }
+        if state
+            .windows
+            .get(window_label)
             .is_some_and(|window| window.generation == generation)
         {
             state.windows.remove(window_label);
         }
-        if state.closing.get(window_label) == Some(&generation) {
-            state.closing.remove(window_label);
-        }
+        state
+            .closing
+            .entry(window_label.to_string())
+            .and_modify(|closing_generation| {
+                *closing_generation = (*closing_generation).max(generation);
+            })
+            .or_insert(generation);
     }
 
     fn contains(&self, window_label: &str) -> bool {
@@ -151,7 +155,7 @@ impl<T: Clone> WindowCache<T> {
             .collect()
     }
 
-    fn next_generation(state: &mut WindowCacheState<T>) -> u64 {
+    fn allocate_generation(state: &mut WindowCacheState<T>) -> u64 {
         let generation = state.next_generation;
         state.next_generation = state
             .next_generation
@@ -170,26 +174,18 @@ pub struct AppState<R: Runtime> {
 
 impl<R: Runtime + 'static> AppState<R> {
     pub fn new(app: AppHandle<R>, windows: Arc<WindowRegistry<R>>) -> Self {
-        let state = Self {
+        Self {
             app,
             sessions: RwLock::new(SessionManager::new()),
             windows,
-        };
-        state.refresh_windows();
-        state
-    }
-
-    fn refresh_windows(&self) {
-        self.windows.refresh(&self.app);
+        }
     }
 
     fn get_window(&self, window_label: &str) -> Option<WebviewWindow<R>> {
-        self.refresh_windows();
         self.windows.get(window_label)
     }
 
     fn begin_close_window(&self, window_label: &str) -> Option<(WebviewWindow<R>, u64)> {
-        self.refresh_windows();
         self.windows.begin_close(window_label)
     }
 
@@ -215,13 +211,11 @@ impl<R: Runtime + 'static> AppState<R> {
 
     /// Whether a window with this label has been registered
     pub fn has_window_label(&self, window_label: &str) -> bool {
-        self.refresh_windows();
         self.windows.contains(window_label)
     }
 
     /// Get all window labels
     pub fn get_window_labels(&self) -> Vec<String> {
-        self.refresh_windows();
         self.windows.labels()
     }
 }
@@ -238,28 +232,25 @@ impl<R: Runtime> WindowRegistry<R> {
         }
     }
 
-    pub(crate) fn register(self: &Arc<Self>, webview: &Webview<R>) {
+    pub(crate) fn register(self: &Arc<Self>, webview: &Webview<R>) -> bool {
         let window = webview.window();
         if webview.label() != window.label() {
-            return;
+            return false;
         }
 
         let label = window.label().to_string();
         let Some(webview_window) = webview.app_handle().get_webview_window(&label) else {
-            return;
+            return false;
         };
-        let generation = self.windows.register(label.clone(), webview_window);
-
+        let generation = self.windows.next_generation();
         let windows = Arc::clone(self);
+        let destroyed_label = label.clone();
         window.on_window_event(move |event| {
             if matches!(event, WindowEvent::Destroyed) {
-                windows.destroyed(&label, generation);
+                windows.destroyed(&destroyed_label, generation);
             }
         });
-    }
-
-    fn refresh(&self, app: &AppHandle<R>) {
-        self.windows.merge_with(|| app.webview_windows());
+        self.windows.publish(label, webview_window, generation)
     }
 
     fn get(&self, window_label: &str) -> Option<WebviewWindow<R>> {
@@ -295,12 +286,16 @@ impl<R: Runtime> WindowRegistry<R> {
 mod tests {
     use super::WindowCache;
 
-    #[test]
-    fn should_preserve_a_cached_main_window_when_live_enumeration_loses_it() {
-        let cached = WindowCache::new();
-        cached.merge([("main".to_string(), 1)]);
+    fn publish<T: Clone>(cached: &WindowCache<T>, label: &str, value: T) -> u64 {
+        let generation = cached.next_generation();
+        assert!(cached.publish(label.to_string(), value, generation));
+        generation
+    }
 
-        cached.merge(std::iter::empty());
+    #[test]
+    fn should_preserve_a_cached_main_window_after_live_enumeration_loses_it() {
+        let cached = WindowCache::new();
+        publish(&cached, "main", 1);
 
         assert_eq!(cached.get("main"), Some(1));
     }
@@ -308,7 +303,7 @@ mod tests {
     #[test]
     fn should_remove_a_closed_window_from_the_cache() {
         let cached = WindowCache::new();
-        cached.merge([("main".to_string(), 1)]);
+        publish(&cached, "main", 1);
 
         let (_, generation) = cached.begin_close("main").unwrap();
         cached.commit_close("main", generation);
@@ -317,11 +312,10 @@ mod tests {
     }
 
     #[test]
-    fn should_merge_windows_discovered_later_without_inventing_child_handles() {
+    fn should_register_later_top_level_windows_without_inventing_child_handles() {
         let cached = WindowCache::new();
-        cached.merge([("main".to_string(), 1)]);
-
-        cached.merge([("settings".to_string(), 2)]);
+        publish(&cached, "main", 1);
+        publish(&cached, "settings", 2);
 
         assert_eq!(cached.labels().len(), 2);
         assert_eq!(cached.get("main"), Some(1));
@@ -332,11 +326,10 @@ mod tests {
     #[test]
     fn should_not_restore_a_closing_window_from_a_stale_live_snapshot() {
         let cached = WindowCache::new();
-        cached.merge([("main".to_string(), 1)]);
+        publish(&cached, "main", 1);
 
         let (_, generation) = cached.begin_close("main").unwrap();
         cached.commit_close("main", generation);
-        cached.merge([("main".to_string(), 1)]);
 
         assert!(!cached.contains("main"));
     }
@@ -344,7 +337,7 @@ mod tests {
     #[test]
     fn should_restore_a_window_when_destroy_fails() {
         let cached = WindowCache::new();
-        cached.merge([("main".to_string(), 1)]);
+        publish(&cached, "main", 1);
 
         let (_, generation) = cached.begin_close("main").unwrap();
         assert!(!cached.contains("main"));
@@ -356,15 +349,36 @@ mod tests {
     #[test]
     fn should_keep_a_new_window_when_an_old_window_with_the_same_label_is_destroyed() {
         let cached = WindowCache::new();
-        let old_generation = cached.register("main".to_string(), 1);
+        let old_generation = publish(&cached, "main", 1);
         let (_, closing_generation) = cached.begin_close("main").unwrap();
         cached.commit_close("main", closing_generation);
-        cached.merge([("main".to_string(), 1)]);
-
-        let new_generation = cached.register("main".to_string(), 2);
+        let new_generation = publish(&cached, "main", 2);
         cached.destroyed("main", old_generation);
 
         assert_ne!(old_generation, new_generation);
+        assert_eq!(cached.get("main"), Some(2));
+    }
+
+    #[test]
+    fn should_reject_a_registration_destroyed_before_it_is_published() {
+        let cached = WindowCache::new();
+        let generation = cached.next_generation();
+
+        cached.destroyed("main", generation);
+
+        assert!(!cached.publish("main".to_string(), 1, generation));
+        assert!(!cached.contains("main"));
+    }
+
+    #[test]
+    fn should_reject_an_older_registration_that_finishes_after_a_newer_one() {
+        let cached = WindowCache::new();
+        let older_generation = cached.next_generation();
+        let newer_generation = cached.next_generation();
+
+        assert!(cached.publish("main".to_string(), 2, newer_generation));
+        assert!(!cached.publish("main".to_string(), 1, older_generation));
+
         assert_eq!(cached.get("main"), Some(2));
     }
 }

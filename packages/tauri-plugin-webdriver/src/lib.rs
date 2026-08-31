@@ -44,7 +44,7 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 #[must_use]
 pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
     let windows = std::sync::Arc::new(server::WindowRegistry::new());
-    let server_windows = std::sync::Arc::clone(&windows);
+    let server_start = std::sync::Arc::new(std::sync::Once::new());
 
     Builder::new("wdio-webdriver")
         .setup(move |app, api| {
@@ -75,16 +75,18 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
             #[cfg(target_os = "macos")]
             platform::start_runloop_pump_early(app.app_handle());
 
-            // Start the WebDriver HTTP server
-            let app_handle = app.app_handle().clone();
-            server::start(app_handle, port, std::sync::Arc::clone(&server_windows));
-            tracing::info!("WDIO WebDriver plugin initialized on port {port}");
-
             Ok(())
         })
         .on_webview_ready(move |webview| {
-            windows.register(&webview);
             platform::register_webview_handlers(&webview);
+            if windows.register(&webview) {
+                let app_handle = webview.app_handle().clone();
+                let server_windows = std::sync::Arc::clone(&windows);
+                server_start.call_once(move || {
+                    server::start(app_handle, port, server_windows);
+                    tracing::info!("WDIO WebDriver plugin initialized on port {port}");
+                });
+            }
         })
         .build()
 }
