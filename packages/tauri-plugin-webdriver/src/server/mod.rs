@@ -2,7 +2,7 @@ use std::collections::{HashMap, VecDeque};
 use std::net::SocketAddr;
 use std::sync::{Arc, RwLock as SyncRwLock};
 
-use tauri::{AppHandle, Manager, Runtime, Webview, WebviewWindow, Window};
+use tauri::{Manager, Runtime, Webview, WebviewWindow, Window};
 use tokio::runtime::Runtime as TokioRuntime;
 use tokio::sync::RwLock;
 
@@ -229,15 +229,13 @@ impl<T: Clone> WindowCache<T> {
 
 /// Shared state for the `WebDriver` server
 pub struct AppState<R: Runtime> {
-    pub app: AppHandle<R>,
     pub sessions: RwLock<SessionManager>,
     windows: Arc<WindowRegistry<R>>,
 }
 
 impl<R: Runtime + 'static> AppState<R> {
-    pub fn new(app: AppHandle<R>, windows: Arc<WindowRegistry<R>>) -> Self {
+    pub fn new(windows: Arc<WindowRegistry<R>>) -> Self {
         Self {
-            app,
             sessions: RwLock::new(SessionManager::new()),
             windows,
         }
@@ -331,6 +329,49 @@ impl<R: Runtime> WindowRegistry<R> {
     fn labels(&self) -> Vec<String> {
         self.windows.labels()
     }
+}
+
+/// Start the `WebDriver` HTTP server on the specified port
+pub fn start<R: Runtime + 'static>(port: u16, windows: Arc<WindowRegistry<R>>) {
+    std::thread::spawn(move || {
+        let rt = match TokioRuntime::new() {
+            Ok(rt) => rt,
+            Err(e) => {
+                tracing::error!("Failed to create Tokio runtime for WebDriver server: {}", e);
+                return;
+            }
+        };
+
+        rt.block_on(async {
+            let state = Arc::new(AppState::new(windows));
+            let router = router::create_router(state);
+
+            // On Android, bind to all interfaces for WiFi accessibility
+            // On other platforms, bind to localhost only for security
+            #[cfg(target_os = "android")]
+            let addr = SocketAddr::from(([0, 0, 0, 0], port));
+            #[cfg(not(target_os = "android"))]
+            let addr = SocketAddr::from(([127, 0, 0, 1], port));
+
+            let listener = match tokio::net::TcpListener::bind(addr).await {
+                Ok(l) => l,
+                Err(e) => {
+                    tracing::error!(
+                        "Failed to bind WebDriver server to {} — port may already be in use: {}",
+                        addr,
+                        e
+                    );
+                    return;
+                }
+            };
+
+            tracing::info!("WebDriver server listening on http://{}", addr);
+
+            if let Err(e) = axum::serve(listener, router).await {
+                tracing::error!("WebDriver server error: {}", e);
+            }
+        });
+    });
 }
 
 #[cfg(test)]
@@ -463,47 +504,4 @@ mod tests {
         assert_ne!(older_generation, newer_generation);
         assert_eq!(cached.get("main"), Some(2));
     }
-}
-
-/// Start the `WebDriver` HTTP server on the specified port
-pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16, windows: Arc<WindowRegistry<R>>) {
-    std::thread::spawn(move || {
-        let rt = match TokioRuntime::new() {
-            Ok(rt) => rt,
-            Err(e) => {
-                tracing::error!("Failed to create Tokio runtime for WebDriver server: {}", e);
-                return;
-            }
-        };
-
-        rt.block_on(async {
-            let state = Arc::new(AppState::new(app, windows));
-            let router = router::create_router(state);
-
-            // On Android, bind to all interfaces for WiFi accessibility
-            // On other platforms, bind to localhost only for security
-            #[cfg(target_os = "android")]
-            let addr = SocketAddr::from(([0, 0, 0, 0], port));
-            #[cfg(not(target_os = "android"))]
-            let addr = SocketAddr::from(([127, 0, 0, 1], port));
-
-            let listener = match tokio::net::TcpListener::bind(addr).await {
-                Ok(l) => l,
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to bind WebDriver server to {} — port may already be in use: {}",
-                        addr,
-                        e
-                    );
-                    return;
-                }
-            };
-
-            tracing::info!("WebDriver server listening on http://{}", addr);
-
-            if let Err(e) = axum::serve(listener, router).await {
-                tracing::error!("WebDriver server error: {}", e);
-            }
-        });
-    });
 }

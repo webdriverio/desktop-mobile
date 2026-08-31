@@ -85,10 +85,9 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
         .on_webview_ready(move |webview| {
             if windows.register(&webview) {
                 platform::register_webview_handlers(&webview);
-                let app_handle = webview.app_handle().clone();
                 let server_windows = std::sync::Arc::clone(&windows);
                 server_start.call_once(move || {
-                    server::start(app_handle, port, server_windows);
+                    server::start(port, server_windows);
                     tracing::info!("WDIO WebDriver plugin initialized on port {port}");
                 });
             }
