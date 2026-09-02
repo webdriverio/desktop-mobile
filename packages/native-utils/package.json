@@ -66,14 +66,14 @@
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.1.2",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@types/node": "^26.4.0",
+    "@vitest/coverage-v8": "^4.1.11",
     "@wdio/bundler": "workspace:*",
     "@wdio/native-types": "workspace:*",
     "shx": "^0.4.0",
     "tsx": "^4.23.5",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "files": [
     "dist",
