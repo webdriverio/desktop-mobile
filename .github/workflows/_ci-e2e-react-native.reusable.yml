@@ -113,7 +113,7 @@ jobs:
       # RN 0.76 targets JDK 17 (and Gradle 8.x — no foojay/IBM_SEMERU trap, which only
       # bites Gradle 9 + foojay-resolver < 1.0; revisit the pin if RN is bumped to 0.8x).
       - name: ☕ Setup JDK 17
-        uses: actions/setup-java@v5
+        uses: actions/setup-java@v6
         with:
           distribution: 'zulu'
           java-version: '17'
