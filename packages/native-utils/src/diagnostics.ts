@@ -153,7 +153,7 @@ export interface LinuxLibrary {
 }
 
 // `ldconfig` lives in /sbin or /usr/sbin (often off a non-root PATH) on
-// Debian/Ubuntu/Fedora and in /usr/bin on usr-merged Arch/Void.
+// Debian/Ubuntu/Fedora and in /usr/bin on Arch/Void.
 const LDCONFIG_CANDIDATES = ['ldconfig', '/usr/sbin/ldconfig', '/sbin/ldconfig'];
 
 // A cache entry: `<soname> (<abi tags>) => <path>`, e.g.
