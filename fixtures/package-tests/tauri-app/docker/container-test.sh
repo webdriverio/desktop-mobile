@@ -130,11 +130,34 @@ npx tauri build --debug
 echo '=== Running Tauri package test ==='
 # Capture the exit code instead of letting set -e abort here, so the wdio
 # session logs are still copied out on failure -- that is exactly when they
-# are needed.
+# are needed. Tee to a file so the #617 guard below can inspect the launcher's
+# diagnostic output (PIPESTATUS[0] is wdio's code, not tee's).
 set +e
-npx wdio run wdio.conf.ts
-TEST_EXIT=$?
+npx wdio run wdio.conf.ts 2>&1 | tee /workspace/logs-output/wdio-run.log
+TEST_EXIT=${PIPESTATUS[0]}
 set -e
+
+# Regression guard for issue #617: the Linux-dependency diagnostic must not
+# report an installed system library as missing. libgtk-3.so.0 is always present
+# in a Tauri container (system WebKitGTK depends on GTK 3), so if it appears in
+# the diagnostic's "Missing:" list the soname check has false-positived -- which
+# is exactly what the old dpkg name check did on the Debian/Ubuntu t64 rename and
+# on every non-dpkg distro (fedora/arch/void).
+echo '=== Regression guard (issue #617): installed libraries must not be reported missing ==='
+LDCONFIG_BIN=''
+for c in ldconfig /usr/sbin/ldconfig /sbin/ldconfig; do
+    if command -v "$c" > /dev/null 2>&1; then LDCONFIG_BIN="$c"; break; fi
+done
+if [ -z "$LDCONFIG_BIN" ]; then
+    echo 'SKIP: no ldconfig found; cannot run #617 guard'
+elif ! "$LDCONFIG_BIN" -p 2>/dev/null | grep -q 'libgtk-3\.so\.0'; then
+    echo 'SKIP: libgtk-3.so.0 not in ldconfig cache; cannot run #617 guard'
+elif grep -Eq 'Missing:.*libgtk-3\.so\.0' /workspace/logs-output/wdio-run.log; then
+    echo 'FAIL: libgtk-3.so.0 is installed but the diagnostic reported it missing (issue #617 regression)'
+    TEST_EXIT=1
+else
+    echo 'OK: installed libgtk-3.so.0 was not falsely reported missing'
+fi
 
 echo '=== Copying logs to mounted volume ==='
 # Absolute path: CWD is the app dir at this point, so a repo-relative

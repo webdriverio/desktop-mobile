@@ -141,38 +141,96 @@ export function diagnoseSharedLibraries(binaryPath: string): DiagnosticResult[] 
   return results;
 }
 
-export function diagnoseLinuxDependencies(requiredPackages: string[]): DiagnosticResult[] {
+export interface LinuxLibrary {
+  /** Runtime soname to look up in the shared-library cache, e.g. `libcups.so.2`. */
+  soname: string;
+  /** Debian/Ubuntu package that provides it — used only for the install hint. */
+  aptPackage: string;
+}
+
+// `ldconfig` lives in /sbin or /usr/sbin (often off a non-root PATH) on
+// Debian/Ubuntu/Fedora and in /usr/bin on usr-merged Arch/Void. `ldconfig -p`
+// only reads the cache, so it needs no privileges — we just have to find it.
+const LDCONFIG_CANDIDATES = ['ldconfig', '/usr/sbin/ldconfig', '/sbin/ldconfig'];
+
+/**
+ * Read the shared-library cache (`ldconfig -p`) into a set of sonames, or
+ * `undefined` when no `ldconfig` is available (musl/Alpine, minimal containers).
+ */
+function readSharedLibraryCache(): Set<string> | undefined {
+  for (const bin of LDCONFIG_CANDIDATES) {
+    try {
+      const output = execFileSync(bin, ['-p'], {
+        encoding: 'utf8',
+        timeout: 2000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      const sonames = new Set<string>();
+      for (const line of output.split('\n')) {
+        // e.g. `\tlibcups.so.2 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libcups.so.2`
+        const soname = line.trim().split(' ')[0];
+        if (soname.includes('.so')) {
+          sonames.add(soname);
+        }
+      }
+      return sonames;
+    } catch {
+      // Try the next candidate path; fall through to undefined if none work.
+    }
+  }
+  return undefined;
+}
+
+/**
+ * Check that each library's soname is resolvable via the `ldconfig` cache.
+ *
+ * Checks sonames rather than package names on purpose: package names drift
+ * across distros and transitions (the Debian/Ubuntu 64-bit `time_t` rename that
+ * turned `libcups2` into `libcups2t64`, issue #617), but the soname
+ * (`libcups.so.2`) is unchanged and is what the app actually dlopens. It also
+ * frees the check from any one package manager, so it works the same on
+ * dpkg, rpm, pacman and xbps systems.
+ */
+export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): DiagnosticResult[] {
   if (process.platform !== 'linux') {
     return [];
   }
 
-  const results: DiagnosticResult[] = [];
-  const missing: string[] = [];
-
-  for (const pkg of requiredPackages) {
-    try {
-      execFileSync('dpkg', ['-s', pkg], { timeout: 1000, stdio: 'ignore' });
-    } catch {
-      missing.push(pkg);
-    }
+  const cache = readSharedLibraryCache();
+  if (!cache) {
+    // Without the cache we can't tell present from missing — skip rather than
+    // emit false "missing" warnings on systems that lack `ldconfig`.
+    return [
+      {
+        category: 'Linux Dependencies',
+        status: 'ok',
+        message: 'Skipped — shared-library cache (ldconfig) unavailable',
+      },
+    ];
   }
+
+  const missing = libraries.filter((lib) => !cache.has(lib.soname));
 
   if (missing.length > 0) {
-    results.push({
-      category: 'Linux Dependencies',
-      status: 'warn',
-      message: `${missing.length} packages may be missing`,
-      details: `Missing: ${missing.join(', ')}\nInstall with: sudo apt-get install ${missing.join(' ')}`,
-    });
-  } else {
-    results.push({
-      category: 'Linux Dependencies',
-      status: 'ok',
-      message: 'All required packages installed',
-    });
+    const sonames = missing.map((lib) => lib.soname).join(', ');
+    const packages = missing.map((lib) => lib.aptPackage).join(' ');
+    return [
+      {
+        category: 'Linux Dependencies',
+        status: 'warn',
+        message: `${missing.length} librar${missing.length === 1 ? 'y' : 'ies'} may be missing`,
+        details: `Missing: ${sonames}\nOn Debian/Ubuntu, install with: sudo apt-get install ${packages}`,
+      },
+    ];
   }
 
-  return results;
+  return [
+    {
+      category: 'Linux Dependencies',
+      status: 'ok',
+      message: 'All required libraries found',
+    },
+  ];
 }
 
 export function diagnoseDiskSpace(): DiagnosticResult[] {

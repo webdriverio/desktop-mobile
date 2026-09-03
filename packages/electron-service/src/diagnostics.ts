@@ -6,24 +6,25 @@ import {
   diagnoseDisplay,
   diagnoseLinuxDependencies,
   diagnosePlatform,
+  type LinuxLibrary,
 } from '@wdio/native-utils';
 
 const log = createLogger('electron-service');
 
-const ELECTRON_LINUX_PACKAGES = [
-  'libgtk-3-0',
-  'libgbm1',
-  'libasound2',
-  'libatk-bridge2.0-0',
-  'libcups2',
-  'libdrm2',
-  'libxkbcommon0',
-  'libxcomposite1',
-  'libxdamage1',
-  'libxrandr2',
-  'libnss3',
-  'libnspr4',
-  'libatk1.0-0',
+const ELECTRON_LINUX_LIBRARIES: LinuxLibrary[] = [
+  { soname: 'libgtk-3.so.0', aptPackage: 'libgtk-3-0' },
+  { soname: 'libgbm.so.1', aptPackage: 'libgbm1' },
+  { soname: 'libasound.so.2', aptPackage: 'libasound2' },
+  { soname: 'libatk-bridge-2.0.so.0', aptPackage: 'libatk-bridge2.0-0' },
+  { soname: 'libcups.so.2', aptPackage: 'libcups2' },
+  { soname: 'libdrm.so.2', aptPackage: 'libdrm2' },
+  { soname: 'libxkbcommon.so.0', aptPackage: 'libxkbcommon0' },
+  { soname: 'libXcomposite.so.1', aptPackage: 'libxcomposite1' },
+  { soname: 'libXdamage.so.1', aptPackage: 'libxdamage1' },
+  { soname: 'libXrandr.so.2', aptPackage: 'libxrandr2' },
+  { soname: 'libnss3.so', aptPackage: 'libnss3' },
+  { soname: 'libnspr4.so', aptPackage: 'libnspr4' },
+  { soname: 'libatk-1.0.so.0', aptPackage: 'libatk1.0-0' },
 ];
 
 export interface ElectronDiagnosticsOptions {
@@ -54,7 +55,7 @@ export async function diagnoseElectronEnvironment(
     results.push(...diagnoseChromiumVersion(options.chromiumVersion));
   }
 
-  results.push(...diagnoseLinuxDependencies(ELECTRON_LINUX_PACKAGES));
+  results.push(...diagnoseLinuxDependencies(ELECTRON_LINUX_LIBRARIES));
   results.push(...diagnoseDiskSpace());
 
   log.debug('Diagnostics complete');

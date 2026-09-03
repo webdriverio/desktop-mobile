@@ -1,10 +1,16 @@
+import { execFileSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { diagnoseBinary } from '../src/diagnostics.js';
+import { diagnoseBinary, diagnoseLinuxDependencies, type LinuxLibrary } from '../src/diagnostics.js';
 
 vi.mock('node:fs', async (importActual) => {
   const actual = await importActual<typeof import('node:fs')>();
   return { ...actual, statSync: vi.fn() };
+});
+
+vi.mock('node:child_process', async (importActual) => {
+  const actual = await importActual<typeof import('node:child_process')>();
+  return { ...actual, execFileSync: vi.fn() };
 });
 
 vi.mock('../src/log.js', () => import('./__mock__/log.js'));
@@ -45,5 +51,84 @@ describe('diagnoseBinary', () => {
     setPlatform('darwin');
     stubMode(0o755);
     expect(binaryPermissions('/app/app')?.status).toBe('ok');
+  });
+});
+
+// A representative subset — the check is list-agnostic, so the shape matters,
+// not the exact members. libcups.so.2 is the #617 poster child (its package,
+// libcups2, becomes libcups2t64 on Debian Trixie / Ubuntu 24.04+).
+const LIBS: LinuxLibrary[] = [
+  { soname: 'libgtk-3.so.0', aptPackage: 'libgtk-3-0' },
+  { soname: 'libcups.so.2', aptPackage: 'libcups2' },
+  { soname: 'libnss3.so', aptPackage: 'libnss3' },
+];
+
+// Mimic `ldconfig -p`: a header line then one tab-indented entry per soname.
+const ldconfigCache = (sonames: string[]): string =>
+  [
+    `${sonames.length} libs found in the cache \`/etc/ld.so.cache'`,
+    ...sonames.map((s) => `\t${s} (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/${s}`),
+  ].join('\n');
+
+const linuxDeps = (libs: LinuxLibrary[]) =>
+  diagnoseLinuxDependencies(libs).find((r) => r.category === 'Linux Dependencies');
+
+describe('diagnoseLinuxDependencies', () => {
+  const realPlatform = process.platform;
+
+  afterEach(() => {
+    setPlatform(realPlatform);
+    vi.clearAllMocks();
+  });
+
+  it('returns nothing on non-Linux platforms', () => {
+    setPlatform('darwin');
+    expect(diagnoseLinuxDependencies(LIBS)).toEqual([]);
+  });
+
+  it('reports ok when every soname resolves in the ldconfig cache', () => {
+    setPlatform('linux');
+    vi.mocked(execFileSync).mockReturnValue(ldconfigCache(LIBS.map((l) => l.soname)));
+    expect(linuxDeps(LIBS)?.status).toBe('ok');
+  });
+
+  it('does not false-warn on the Debian/Ubuntu t64 package rename (issue #617)', () => {
+    setPlatform('linux');
+    // Package is libcups2t64, but the soname libcups.so.2 is unchanged, so the
+    // cache still lists it — the check must pass with no warning.
+    vi.mocked(execFileSync).mockReturnValue(ldconfigCache(LIBS.map((l) => l.soname)));
+    expect(linuxDeps(LIBS)?.status).toBe('ok');
+  });
+
+  it('warns and names the missing soname and its apt package', () => {
+    setPlatform('linux');
+    vi.mocked(execFileSync).mockReturnValue(ldconfigCache(['libgtk-3.so.0', 'libnss3.so']));
+    const result = linuxDeps(LIBS);
+    expect(result?.status).toBe('warn');
+    expect(result?.message).toBe('1 library may be missing');
+    expect(result?.details).toContain('libcups.so.2');
+    expect(result?.details).toContain('libcups2');
+  });
+
+  it('skips instead of false-warning when ldconfig is unavailable (musl/minimal images)', () => {
+    setPlatform('linux');
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw Object.assign(new Error('spawn ldconfig ENOENT'), { code: 'ENOENT' });
+    });
+    const result = linuxDeps(LIBS);
+    expect(result?.status).toBe('ok');
+    expect(result?.message).toMatch(/skipped/i);
+  });
+
+  it('falls back to an absolute ldconfig path when it is not on PATH', () => {
+    setPlatform('linux');
+    // First candidate (`ldconfig`, bare) is not on the PATH; the /usr/sbin path resolves.
+    vi.mocked(execFileSync).mockImplementation((bin) => {
+      if (bin === 'ldconfig') {
+        throw Object.assign(new Error('spawn ldconfig ENOENT'), { code: 'ENOENT' });
+      }
+      return ldconfigCache(LIBS.map((l) => l.soname));
+    });
+    expect(linuxDeps(LIBS)?.status).toBe('ok');
   });
 });
