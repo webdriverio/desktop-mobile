@@ -823,8 +823,10 @@ export default class TauriLaunchService {
       await this.ensureEmbeddedServersHealthy();
     }
 
-    // Run environment diagnostics
-    await this.diagnoseEnvironment(this.appBinaryPath);
+    await this.diagnoseEnvironment(
+      this.appBinaryPath,
+      mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']),
+    );
 
     log.debug(`Tauri worker session started: ${cid}`);
   }
@@ -903,10 +905,8 @@ export default class TauriLaunchService {
   /**
    * Diagnose the environment before running tests
    */
-  private async diagnoseEnvironment(binaryPath: string): Promise<void> {
-    const results = await diagnoseTauriEnvironment(binaryPath, {
-      autoInstallTauriDriver: this.options.autoInstallTauriDriver,
-    });
+  private async diagnoseEnvironment(binaryPath: string, options: TauriServiceOptions): Promise<void> {
+    const results = await diagnoseTauriEnvironment(binaryPath, options);
     formatDiagnosticResults(results);
   }
 

@@ -9,6 +9,7 @@ import {
   isErr,
 } from '@wdio/native-utils';
 import { ensureTauriDriver, ensureWebKitWebDriver } from './driverManager.js';
+import { isEmbeddedProvider } from './embeddedProvider.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service');
@@ -47,12 +48,18 @@ export async function diagnoseTauriEnvironment(
 }
 
 async function diagnoseDriver(options: TauriServiceOptions): Promise<DiagnosticResult[]> {
-  const results: DiagnosticResult[] = [];
-  const driverOptions: TauriServiceOptions = {
-    autoInstallTauriDriver: options.autoInstallTauriDriver,
-  };
+  if (isEmbeddedProvider(options)) {
+    return [
+      {
+        category: 'Tauri Driver',
+        status: 'ok',
+        message: 'Embedded WebDriver server (tauri-plugin-wdio-webdriver) — no external driver required',
+      },
+    ];
+  }
 
-  const driverResult = await ensureTauriDriver(driverOptions);
+  const results: DiagnosticResult[] = [];
+  const driverResult = await ensureTauriDriver(options);
 
   if (isErr(driverResult)) {
     results.push({
