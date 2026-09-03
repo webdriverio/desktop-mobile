@@ -64,8 +64,7 @@ const LIBS: LinuxLibrary[] = [
   { soname: 'libnss3.so', aptPackage: 'libnss3' },
 ];
 
-// Mimic `ldconfig -p` output. The tests pin the arch to x64, so entries are
-// tagged x86-64 to match (the foreign-arch test overrides the tag).
+// Mimic `ldconfig -p` output.
 const ldconfigCache = (sonames: string[], archTag = 'x86-64'): string =>
   [
     `${sonames.length} libs found in the cache \`/etc/ld.so.cache'`,
