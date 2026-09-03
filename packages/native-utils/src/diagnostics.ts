@@ -141,16 +141,19 @@ export function diagnoseSharedLibraries(binaryPath: string): DiagnosticResult[] 
   return results;
 }
 
+/**
+ * A shared library the app needs. We check sonames, not package names, because
+ * sonames work across distros and don't drift the way package names do (see
+ * https://github.com/webdriverio/desktop-mobile/issues/617). `aptPackage` is
+ * only for the Debian/Ubuntu install hint.
+ */
 export interface LinuxLibrary {
-  /** Runtime soname to look up in the shared-library cache, e.g. `libcups.so.2`. */
   soname: string;
-  /** Debian/Ubuntu package that provides it — used only for the install hint. */
   aptPackage: string;
 }
 
 // `ldconfig` lives in /sbin or /usr/sbin (often off a non-root PATH) on
-// Debian/Ubuntu/Fedora and in /usr/bin on usr-merged Arch/Void. `ldconfig -p`
-// only reads the cache, so it needs no privileges — we just have to find it.
+// Debian/Ubuntu/Fedora and in /usr/bin on usr-merged Arch/Void.
 const LDCONFIG_CANDIDATES = ['ldconfig', '/usr/sbin/ldconfig', '/sbin/ldconfig'];
 
 // A cache entry: `<soname> (<abi tags>) => <path>`, e.g.
@@ -175,10 +178,6 @@ type LibraryCache =
   | { status: 'unavailable' } // no `ldconfig` binary found
   | { status: 'error'; message: string }; // `ldconfig` present but failed to run
 
-/**
- * Read the shared-library cache (`ldconfig -p`) into a set of sonames for the
- * host architecture.
- */
 function readSharedLibraryCache(): LibraryCache {
   const archTag = hostArchTag();
   let operationalError: string | undefined;
@@ -213,11 +212,6 @@ function readSharedLibraryCache(): LibraryCache {
   return operationalError ? { status: 'error', message: operationalError } : { status: 'unavailable' };
 }
 
-/**
- * Check that each library's soname is resolvable via the `ldconfig` cache.
- *
- * Sonames work across distros and, unlike package names, don't drift (#617).
- */
 export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): DiagnosticResult[] {
   if (process.platform !== 'linux') {
     return [];
