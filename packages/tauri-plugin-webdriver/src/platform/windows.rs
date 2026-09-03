@@ -435,6 +435,21 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
             self.call_cdp_method("Input.dispatchKeyEvent", &up.to_params_json())
                 .await?;
         }
+
+        // CDP typing fires `input` natively per keystroke but not `change` (that needs a blur, and
+        // the element stays focused). The shared JS path dispatches `change` for inputs/textareas at
+        // the end, so emit it here too — otherwise change-driven validation wouldn't run and this
+        // Windows path would diverge from every other one.
+        let change_script = format!(
+            r"(function() {{
+                var el = window.{js_var};
+                if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {{
+                    el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+                return true;
+            }})()"
+        );
+        self.evaluate_js(&change_script).await?;
         Ok(())
     }
 
