@@ -110,10 +110,13 @@ export function applyBootCapDefaults(capability: Record<string, unknown>, platfo
   }
 
   // iOS: generous ceilings for a cold WDA build / slow sim boot; tighten by pinning a
-  // prebuilt WDA (derivedDataPath + usePrebuiltWDA) yourself. isHeadless only in CI —
-  // a local run wants the visible Simulator window.
+  // prebuilt WDA (derivedDataPath + usePrebuiltWDA) yourself.
   setIfUnset('appium:wdaLaunchTimeout', 720000);
   setIfUnset('appium:simulatorStartupTimeout', 240000);
+  // CI boots the sim headless (simctl); without isHeadless, XCUITest restarts it with the
+  // window visible — a slow re-boot that raced simulatorStartupTimeout. A local run wants
+  // the visible window.
+  // https://github.com/webdriverio/desktop-mobile/issues/359
   if (process.env.CI) {
     setIfUnset('appium:isHeadless', true);
   }

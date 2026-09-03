@@ -121,24 +121,9 @@ const capabilities: ReactNativeCapabilities[] = [
           // as "failed to finish booting" even though our `bootstatus -b` step passed (#359). CI
           // exports RN_IOS_UDID from the boot step; omitted locally (appium resolves by name).
           ...(process.env.RN_IOS_UDID ? { 'appium:udid': process.env.RN_IOS_UDID } : {}),
-          // wdaLaunchTimeout is a ceiling, not a delay. CI pre-builds WDA into RN_WDA_DD (reused
-          // via usePreinstalledWDA below — simctl install/launch) so the first session just launches
-          // it — fast, a tight ceiling is fine. Without a prebuilt WDA (local) appium compiles it on
-          // the first session (several minutes), so the wait must stay generous. connectionRetryTimeout
-          // below tracks this.
-          // Prebuilt WDA just launches (no compile), so a tight per-attempt ceiling lets several
-          // startup retries fit inside connectionRetryTimeout below.
-          'appium:wdaLaunchTimeout': process.env.RN_WDA_DD ? 120000 : 720000,
-          // CI boots the sim headless (simctl). Without isHeadless, XCUITest restarts it on
-          // session-create "with the Simulator window visible" — a ~225s GUI re-boot on a
-          // display-less runner that raced the 240s ceiling below and was the proven root cause
-          // of the #359 first-session flake (the appium debug log showed "booted in 230.541s").
-          // Headless skips that restart and reuses the already-booted sim. CI-only: a local run
-          // still wants the visible window, and appium boots its own sim there.
-          ...(process.env.CI ? { 'appium:isHeadless': true } : {}),
-          // Safety margin for appium's boot monitor on a cold/slow runner; with isHeadless above
-          // the redundant restart is gone, so this ceiling should no longer be approached in CI.
-          'appium:simulatorStartupTimeout': 240000,
+          // wdaLaunchTimeout + simulatorStartupTimeout + isHeadless are intentionally omitted
+          // so native-mobile-core's applyBootCapDefaults actually fills them in.
+          // https://github.com/webdriverio/desktop-mobile/issues/428
           // WDA on GitHub-Actions sims often fails to come up on the first attempt (ECONNREFUSED
           // 8100 / session-create timeout); appium's default is only 2 startup retries — bump it.
           'appium:wdaStartupRetries': 5,
