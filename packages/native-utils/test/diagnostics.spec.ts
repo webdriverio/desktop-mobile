@@ -59,8 +59,7 @@ describe('diagnoseBinary', () => {
 });
 
 // A representative subset — the check is list-agnostic, so the shape matters,
-// not the exact members. libcups.so.2 is the #617 poster child (its package,
-// libcups2, becomes libcups2t64 on Debian Trixie / Ubuntu 24.04+).
+// not the exact members.
 const LIBS: LinuxLibrary[] = [
   { soname: 'libgtk-3.so.0', aptPackage: 'libgtk-3-0' },
   { soname: 'libcups.so.2', aptPackage: 'libcups2' },

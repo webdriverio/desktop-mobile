@@ -130,8 +130,8 @@ npx tauri build --debug
 echo '=== Running Tauri package test ==='
 # Capture the exit code instead of letting set -e abort here, so the wdio
 # session logs are still copied out on failure -- that is exactly when they
-# are needed. Tee to a file so the #617 guard below can inspect the launcher's
-# diagnostic output (PIPESTATUS[0] is wdio's code, not tee's).
+# are needed. Tee to a log the guard below greps; PIPESTATUS[0] is wdio's
+# exit code, not tee's.
 set +e
 npx wdio run wdio.conf.ts 2>&1 | tee /workspace/logs-output/wdio-run.log
 TEST_EXIT=${PIPESTATUS[0]}
