@@ -1,22 +1,14 @@
 //! Keyboard input mapping — shared, platform-agnostic building blocks.
 //!
-//! Two consumers:
-//! - the default [`PlatformExecutor`](super::executor::PlatformExecutor) key methods
-//!   (macOS/Linux, and the Windows in-frame fallback) build JS that dispatches a synthetic
-//!   `KeyboardEvent` via the `build_*_script` helpers; and
-//! - the Windows executor, which turns a WebDriver key into a CDP `Input.dispatchKeyEvent`
-//!   parameter object via [`to_cdp_key_event`] so the renderer receives a *trusted*
-//!   (`isTrusted: true`) key — the JS path is untrusted, which Blink/WebView2 refuses at its
-//!   trusted-input gates (CloseWatcher/`<dialog>` Escape, popups, fullscreen). See #612.
-//!
-//! The pure mapping lives here (not in the `#[cfg(windows)]` executor) so it compiles and is
-//! unit-tested on every OS.
+//! The `build_*_script` helpers dispatch synthetic, untrusted `KeyboardEvent`s; Blink/WebView2
+//! refuses those at its trusted-input gates (CloseWatcher / `<dialog>` Escape, popups, fullscreen),
+//! so the Windows executor instead maps keys to CDP `Input.dispatchKeyEvent` params
+//! ([`to_cdp_key_event`]), which arrive trusted. Kept out of the `#[cfg(windows)]` executor so it
+//! unit-tests on every OS.
 
 use super::executor::ModifierState;
 
-/// Maps a WebDriver special-key value (the `\u{E0xx}` private-use block) to
-/// `(key, code, keyCode)`. Returns `None` for a printable character, which the
-/// regular-key path handles.
+/// Maps a WebDriver special-key value to `(key, code, keyCode)`.
 pub fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
     let mapped = match key {
         "\u{E007}" => ("Enter", "Enter", 13),
@@ -46,13 +38,12 @@ pub fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
         "\u{E009}" => ("Control", "ControlLeft", 17),
         "\u{E00A}" => ("Alt", "AltLeft", 18),
         "\u{E03D}" => ("Meta", "MetaLeft", 91),
-        _ => return None,
+        _ => return None, // printable character
     };
     Some(mapped)
 }
 
-/// Derive the `KeyboardEvent.code` for a printable character (`a` -> `KeyA`, `5` -> `Digit5`,
-/// otherwise the character verbatim).
+/// The `KeyboardEvent.code` for a printable character.
 pub fn regular_key_code_for(key: &str) -> String {
     let ch = key.chars().next().unwrap_or(' ');
     let upper = ch.to_ascii_uppercase();
@@ -65,9 +56,8 @@ pub fn regular_key_code_for(key: &str) -> String {
     }
 }
 
-/// Build the JS that dispatches a synthetic special-key `KeyboardEvent` against the active
-/// element (with the value/selection/radio side-effects the untrusted event can't drive on its
-/// own). `js_key`/`js_code`/`key_code` come from [`map_special_key`].
+/// JS dispatching a synthetic special-key `KeyboardEvent` plus the value/selection/radio
+/// side-effects an untrusted event can't drive itself. Args come from [`map_special_key`].
 pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_down: bool) -> String {
     let event_type = if is_down { "keydown" } else { "keyup" };
 
@@ -205,9 +195,8 @@ pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_d
     }
 }
 
-/// Build the JS that dispatches a synthetic printable-character `KeyboardEvent` with modifier
-/// state (and, for a bare keydown, the value/`input` side-effect on inputs/textareas, plus
-/// Ctrl/Meta+A select-all).
+/// JS dispatching a synthetic printable-character `KeyboardEvent` plus the input-value mutation
+/// and Ctrl/Meta+A select-all an untrusted event can't drive itself.
 pub fn build_regular_key_script(key: &str, code: &str, is_down: bool, modifiers: &ModifierState) -> String {
     let ch = key.chars().next().unwrap_or(' ');
     let key_code = ch as u32;
@@ -327,8 +316,7 @@ pub fn build_regular_key_script(key: &str, code: &str, is_down: bool, modifiers:
     }
 }
 
-/// Build the JS that focuses an element and appends `text` to it (the untrusted send-keys path
-/// for inputs/textareas/contenteditable).
+/// JS that focuses an element and appends `text` (inputs/textareas/contenteditable).
 pub fn build_send_keys_script(js_var: &str, text: &str) -> String {
     let escaped = text.replace('\\', "\\\\").replace('`', "\\`").replace('$', "\\$");
     format!(
@@ -377,18 +365,15 @@ pub fn build_send_keys_script(js_var: &str, text: &str) -> String {
 #[cfg(any(target_os = "windows", test))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CdpKeyEvent {
-    /// CDP event type: `keyDown` or `keyUp`.
     pub event_type: &'static str,
-    /// `KeyboardEvent.key`.
     pub key: String,
-    /// `KeyboardEvent.code`.
     pub code: String,
-    /// Windows virtual key code (also sent as `nativeVirtualKeyCode`).
+    /// Also sent as `nativeVirtualKeyCode`.
     pub windows_virtual_key_code: u32,
     /// CDP modifier bitmask (Alt=1, Ctrl=2, Meta=4, Shift=8).
     pub modifiers: u32,
-    /// Text the key inserts, when it produces a character; `None` for pure control/navigation
-    /// keys and for key-up. Setting it makes the renderer insert the character natively.
+    /// The character the key inserts, set only when it produces one (`None` for control/navigation
+    /// keys and key-up); its presence is what makes the renderer insert the character.
     pub text: Option<String>,
 }
 
@@ -431,8 +416,7 @@ pub fn cdp_modifiers(modifiers: &ModifierState) -> u32 {
     bits
 }
 
-/// Virtual key code for a printable character (letters/digits map to their VK; other
-/// characters rely on `text` and carry VK 0).
+/// Virtual key code for a printable character; non-alphanumerics carry 0 and rely on `text`.
 #[cfg(any(target_os = "windows", test))]
 fn printable_virtual_key_code(ch: char) -> u32 {
     if ch.is_ascii_alphabetic() {
@@ -451,7 +435,7 @@ pub fn to_cdp_key_event(key: &str, is_down: bool, modifiers: &ModifierState) -> 
     let cdp_mods = cdp_modifiers(modifiers);
 
     if let Some((js_key, js_code, key_code)) = map_special_key(key) {
-        // Only keys that produce a character carry text; Enter inserts CR, Space a space.
+        // Enter/Space produce a character; other special keys don't.
         let text = if is_down {
             match js_key {
                 "Enter" => Some("\r".to_string()),
@@ -471,8 +455,7 @@ pub fn to_cdp_key_event(key: &str, is_down: bool, modifiers: &ModifierState) -> 
         }
     } else {
         let ch = key.chars().next().unwrap_or(' ');
-        // Suppress inserted text under a Ctrl/Alt/Meta chord, matching the JS path (a shortcut,
-        // not typing). Shift is still typing.
+        // No text under a Ctrl/Alt/Meta chord (a shortcut, not typing); Shift still types.
         let text = if is_down && !modifiers.ctrl && !modifiers.alt && !modifiers.meta {
             Some(key.to_string())
         } else {
