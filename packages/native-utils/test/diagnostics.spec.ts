@@ -73,7 +73,7 @@ const LIBS: LinuxLibrary[] = [
 const hostArchTag = (): string =>
   (({ x64: 'x86-64', arm64: 'aarch64' }) as Record<string, string>)[process.arch] ?? 'x86-64';
 
-// Mimic `ldconfig -p`: a header line then one tab-indented entry per soname.
+// Mimic `ldconfig -p` output.
 const ldconfigCache = (sonames: string[], archTag = hostArchTag()): string =>
   [
     `${sonames.length} libs found in the cache \`/etc/ld.so.cache'`,
@@ -93,18 +93,18 @@ describe('diagnoseLinuxDependencies', () => {
     vi.clearAllMocks();
   });
 
-  it('returns nothing on non-Linux platforms', () => {
+  it('should return nothing on non-Linux platforms', () => {
     setPlatform('darwin');
     expect(diagnoseLinuxDependencies(LIBS)).toEqual([]);
   });
 
-  it('reports ok when every soname resolves in the ldconfig cache', () => {
+  it('should report ok when every soname resolves in the ldconfig cache', () => {
     setPlatform('linux');
     vi.mocked(execFileSync).mockReturnValue(ldconfigCache(LIBS.map((l) => l.soname)));
     expect(linuxDeps(LIBS)?.status).toBe('ok');
   });
 
-  it('does not false-warn on the Debian/Ubuntu t64 package rename (issue #617)', () => {
+  it('should not false-warn on the Debian/Ubuntu t64 package rename (issue #617)', () => {
     setPlatform('linux');
     // Package is libcups2t64, but the soname libcups.so.2 is unchanged, so the
     // cache still lists it — the check must pass with no warning.
@@ -112,7 +112,7 @@ describe('diagnoseLinuxDependencies', () => {
     expect(linuxDeps(LIBS)?.status).toBe('ok');
   });
 
-  it('warns and names the missing soname and its apt package', () => {
+  it('should warn and name the missing soname and its apt package', () => {
     setPlatform('linux');
     vi.mocked(execFileSync).mockReturnValue(ldconfigCache(['libgtk-3.so.0', 'libnss3.so']));
     const result = linuxDeps(LIBS);
@@ -122,7 +122,7 @@ describe('diagnoseLinuxDependencies', () => {
     expect(result?.details).toContain('libcups2');
   });
 
-  it('skips instead of false-warning when ldconfig is unavailable (musl/minimal images)', () => {
+  it('should skip instead of false-warning when ldconfig is unavailable (musl/minimal images)', () => {
     setPlatform('linux');
     vi.mocked(execFileSync).mockImplementation(() => {
       throw Object.assign(new Error('spawn ldconfig ENOENT'), { code: 'ENOENT' });
@@ -132,7 +132,7 @@ describe('diagnoseLinuxDependencies', () => {
     expect(result?.message).toMatch(/skipped/i);
   });
 
-  it('falls back to an absolute ldconfig path when it is not on PATH', () => {
+  it('should fall back to an absolute ldconfig path when it is not on PATH', () => {
     setPlatform('linux');
     // First candidate (`ldconfig`, bare) is not on the PATH; the /usr/sbin path resolves.
     vi.mocked(execFileSync).mockImplementation((bin) => {
@@ -144,7 +144,7 @@ describe('diagnoseLinuxDependencies', () => {
     expect(linuxDeps(LIBS)?.status).toBe('ok');
   });
 
-  it('does not count a library present only for a foreign architecture as found', () => {
+  it('should not count a library present only for a foreign architecture as found', () => {
     setPlatform('linux');
     setArch('x64');
     // Every soname is in the cache, but tagged for aarch64 only — an x64 binary
@@ -160,7 +160,7 @@ describe('diagnoseLinuxDependencies', () => {
     expect(result?.details).toContain('libcups.so.2');
   });
 
-  it('warns (not ok) when ldconfig is present but fails to run', () => {
+  it('should warn (not ok) when ldconfig is present but fails to run', () => {
     setPlatform('linux');
     // Non-ENOENT failure (e.g. a timeout) means ldconfig exists but could not
     // run — that must surface as a warning, not a silent passing check.

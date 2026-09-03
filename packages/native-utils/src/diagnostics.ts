@@ -236,8 +236,8 @@ export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): Diagnostic
   const cache = readSharedLibraryCache();
 
   if (cache.status === 'unavailable') {
-    // No `ldconfig` at all (musl/Alpine, minimal images) — we genuinely can't
-    // check, so skip quietly rather than emit false "missing" warnings.
+    // No `ldconfig` at all (musl/Alpine, minimal images) — skip quietly rather
+    // than emit false "missing" warnings.
     return [
       {
         category: 'Linux Dependencies',
