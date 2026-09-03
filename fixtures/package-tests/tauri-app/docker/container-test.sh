@@ -147,7 +147,7 @@ if [ -z "$LDCONFIG_BIN" ]; then
 elif ! "$LDCONFIG_BIN" -p 2>/dev/null | grep -q 'libgtk-3\.so\.0'; then
     echo 'SKIP: libgtk-3.so.0 not in ldconfig cache; cannot run guard'
 elif grep -Eq 'Missing:.*libgtk-3\.so\.0' /workspace/logs-output/wdio-run.log; then
-    echo 'FAIL: libgtk-3.so.0 is installed but the diagnostic reported it missing (issue #617 regression)'
+    echo 'FAIL: libgtk-3.so.0 is installed but the diagnostic reported it missing'
     TEST_EXIT=1
 else
     echo 'OK: installed libgtk-3.so.0 was not falsely reported missing'

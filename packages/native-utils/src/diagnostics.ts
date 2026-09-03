@@ -143,7 +143,7 @@ export function diagnoseSharedLibraries(binaryPath: string): DiagnosticResult[] 
 
 /**
  * A shared library the app needs. We check sonames, not package names, because
- * sonames work across distros and don't drift the way package names do (see
+ * sonames work across distros and don't drift like package names (see
  * https://github.com/webdriverio/desktop-mobile/issues/617). `aptPackage` is
  * only for the Debian/Ubuntu install hint.
  */
@@ -160,14 +160,6 @@ const LDCONFIG_CANDIDATES = ['ldconfig', '/usr/sbin/ldconfig', '/sbin/ldconfig']
 // `libcups.so.2 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libcups.so.2`.
 const LDCONFIG_ENTRY = /^(\S+\.so\S*)\s+\(([^)]*)\)/;
 
-/**
- * The `ldconfig` ABI tag for the running architecture, or `undefined` when we
- * don't map it. Used to ignore libraries present only for a *foreign*
- * architecture on a multiarch host — those can't be loaded by the app's native
- * binary. Only the architectures we ship on are mapped; on anything else we
- * don't filter, so an unrecognised tag can never turn an installed library into
- * a false "missing".
- */
 function hostArchTag(): string | undefined {
   const tags: Partial<Record<NodeJS.Architecture, string>> = { x64: 'x86-64', arm64: 'aarch64' };
   return tags[process.arch];
@@ -196,6 +188,8 @@ function readSharedLibraryCache(): LibraryCache {
           continue;
         }
         const [, soname, tags] = match;
+        // Only count a soname built for the host arch — a foreign-arch copy on
+        // a multiarch host can't be loaded.
         if (!archTag || tags.toLowerCase().includes(archTag)) {
           sonames.add(soname);
         }
