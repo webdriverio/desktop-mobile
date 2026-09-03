@@ -135,6 +135,8 @@ jobs:
       crates: |
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
+      test_crates: |
+        packages/tauri-plugin-webdriver
 
   clippy-tauri-crates-windows:
     name: Clippy Tauri Crates [Windows]
@@ -147,6 +149,8 @@ jobs:
       crates: |
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
+      test_crates: |
+        packages/tauri-plugin-webdriver
 
   clippy-tauri-crates-macos-arm:
     name: Clippy Tauri Crates [macOS-ARM]
@@ -158,6 +162,8 @@ jobs:
       os: 'macos-latest'
       crates: |
         packages/tauri-plugin
+        packages/tauri-plugin-webdriver
+      test_crates: |
         packages/tauri-plugin-webdriver
 
   # Lint the Dioxus Rust crates. Linux-only for now, matching the v1 scope of
