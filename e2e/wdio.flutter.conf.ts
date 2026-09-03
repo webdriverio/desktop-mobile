@@ -118,9 +118,8 @@ const capabilities: FlutterCapability[] = [
           // Omitted locally (appium resolves by name).
           ...(process.env.FLUTTER_IOS_UDID ? { 'appium:udid': process.env.FLUTTER_IOS_UDID } : {}),
           // wdaLaunchTimeout + simulatorStartupTimeout are intentionally omitted so
-          // native-mobile-core's applyBootCapDefaults (720000 / 240000, apply-if-unset) is
-          // exercised end-to-end on this leg (#428) instead of only in unit tests. The generous
-          // default wdaLaunchTimeout replaces the prior FLUTTER_WDA_DD-conditional 120000 ceiling.
+          // native-mobile-core's applyBootCapDefaults (apply-if-unset) is exercised
+          // end-to-end on this leg (#428), not just in unit tests.
           // WDA on GitHub-Actions sims often fails to come up on the first attempt (ECONNREFUSED
           // 8100 / session-create timeout). appium's default is only 2 startup retries — bump it.
           'appium:wdaStartupRetries': 5,
