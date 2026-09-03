@@ -134,7 +134,7 @@ describe('diagnoseLinuxDependencies', () => {
   });
 
   it('should not count a library present only for a foreign architecture as found', () => {
-    // In the cache but tagged aarch64 only — an x64 binary can't load them.
+    // In the cache, but tagged aarch64 while the host is x64.
     vi.mocked(execFileSync).mockReturnValue(
       ldconfigCache(
         LIBS.map((l) => l.soname),
