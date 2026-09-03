@@ -105,8 +105,7 @@ describe('diagnoseLinuxDependencies', () => {
 
   it('should not false-warn on the Debian/Ubuntu t64 package rename (issue #617)', () => {
     setPlatform('linux');
-    // Package is libcups2t64, but the soname libcups.so.2 is unchanged, so the
-    // cache still lists it — the check must pass with no warning.
+    // Package is libcups2t64, but the soname libcups.so.2 is unchanged, so it's still cached.
     vi.mocked(execFileSync).mockReturnValue(ldconfigCache(LIBS.map((l) => l.soname)));
     expect(linuxDeps(LIBS)?.status).toBe('ok');
   });
@@ -133,7 +132,6 @@ describe('diagnoseLinuxDependencies', () => {
 
   it('should fall back to an absolute ldconfig path when it is not on PATH', () => {
     setPlatform('linux');
-    // First candidate (`ldconfig`, bare) is not on the PATH; the /usr/sbin path resolves.
     vi.mocked(execFileSync).mockImplementation((bin) => {
       if (bin === 'ldconfig') {
         throw Object.assign(new Error('spawn ldconfig ENOENT'), { code: 'ENOENT' });
@@ -146,8 +144,7 @@ describe('diagnoseLinuxDependencies', () => {
   it('should not count a library present only for a foreign architecture as found', () => {
     setPlatform('linux');
     setArch('x64');
-    // Every soname is in the cache, but tagged for aarch64 only — an x64 binary
-    // cannot load them, so they must be reported missing, not found.
+    // In the cache but tagged aarch64 only — an x64 binary can't load them.
     vi.mocked(execFileSync).mockReturnValue(
       ldconfigCache(
         LIBS.map((l) => l.soname),
@@ -161,8 +158,6 @@ describe('diagnoseLinuxDependencies', () => {
 
   it('should warn (not ok) when ldconfig is present but fails to run', () => {
     setPlatform('linux');
-    // Non-ENOENT failure (e.g. a timeout) means ldconfig exists but could not
-    // run — that must surface as a warning, not a silent passing check.
     vi.mocked(execFileSync).mockImplementation(() => {
       throw Object.assign(new Error('spawnSync /usr/sbin/ldconfig ETIMEDOUT'), { code: 'ETIMEDOUT' });
     });
