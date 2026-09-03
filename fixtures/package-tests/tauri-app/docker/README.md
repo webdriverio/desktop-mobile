@@ -214,12 +214,12 @@ cat /tmp/docker-test-ubuntu.log
 - **Pros:** Most documented, stable, wide tooling support, GitHub Actions default
 - **Cons:** Some packages may lag behind latest
 
-### Debian 12 (Bookworm)
+### Debian 13 (Trixie)
 - **Use case:** Production builds, long-term stability
 - **Pros:** Rock-solid, conservative updates, excellent for production
 - **Cons:** Slightly older packages than Ubuntu
 
-### Fedora 40+
+### Fedora 44
 - **Use case:** Development, RHEL-based workflows
 - **Pros:** Latest stable packages, upstream for RHEL, modern environment
 - **Cons:** More frequent updates, shorter support lifecycle
