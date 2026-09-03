@@ -1212,10 +1212,9 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
     /// Dispatch a pointer/mouse event
     ///
-    /// These are synthetic (`isTrusted: false`) like the pre-#612 key path. If a
-    /// click-activation-gated web API (popups, clipboard, fullscreen) is ever reported not
-    /// working on Windows/WebView2, the remedy is the same as #612: route through CDP
-    /// (`Input.dispatchMouseEvent`) so the click is trusted and grants user activation.
+    /// These are synthetic (`isTrusted: false`). If a click-activation-gated web API (popups,
+    /// clipboard, fullscreen) is ever reported broken on Windows/WebView2, the remedy is to route
+    /// through CDP (`Input.dispatchMouseEvent`) so the click is trusted and grants user activation.
     async fn dispatch_pointer_event(
         &self,
         event_type: PointerEventType,

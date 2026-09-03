@@ -118,7 +118,7 @@
       <div class="dialog-section">
         <button type="button" id="open-dialog">Open Dialog</button>
         <dialog id="test-dialog" class="test-dialog">
-          <p>Modal dialog — Escape should close it (#612).</p>
+          <p>Modal dialog — Escape should close it.</p>
           <button type="button" id="dialog-close" class="dialog-close" autofocus>Close</button>
         </dialog>
       </div>
@@ -229,11 +229,8 @@
         updateCounter();
       });
 
-      // Modal <dialog> + Escape close-request instrumentation (#612).
-      // On Windows/WebView2 the pre-fix JS-synthesized Escape arrives isTrusted:false and Blink's
-      // CloseWatcher never fires cancel/close, so the dialog stays open. The CDP key path makes the
-      // key trusted. __dialogEvents lets a spec assert both the outcome (dialog closed) and the
-      // mechanism (a trusted keydown reached the page).
+      // __dialogEvents records keydown/keyup/cancel with isTrusted so a spec can assert not just
+      // that the dialog closed but that a trusted key reached the page.
       const openDialogButton = document.getElementById('open-dialog');
       const testDialog = document.getElementById('test-dialog');
       const dialogCloseButton = document.getElementById('dialog-close');

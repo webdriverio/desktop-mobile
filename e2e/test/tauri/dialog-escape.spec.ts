@@ -4,14 +4,9 @@ import { Key } from 'webdriverio';
 import '@wdio/native-types';
 
 /**
- * #612 — a synthesized Escape must close a modal `<dialog>` opened with `showModal()`.
- *
- * The embedded driver used to dispatch keys as JS `KeyboardEvent`s (`isTrusted: false`). On
- * Windows/WebView2 (Blink) CloseWatcher ignores an untrusted Escape, so the dialog never closed;
- * macOS/WKWebView and Linux/WebKitGTK are lenient and close it anyway, and the external
- * (msedgedriver / WebKitWebDriver) path sends trusted keys. The Windows CDP key path makes the
- * Escape trusted. The behavioural specs run on every provider/OS — they were RED only on
- * Windows + embedded before the fix.
+ * The trusted-event assertion is gated to Windows + embedded, the only path that routes keys
+ * through CDP; Blink needs a trusted Escape to close a modal `<dialog>`, while WebKit (macOS/Linux)
+ * closes on the untrusted synthetic key too.
  */
 
 const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded' | 'external' | undefined;
@@ -45,23 +40,20 @@ async function waitForDialogClosed() {
   );
 }
 
-describe('modal <dialog> Escape close-request (#612)', () => {
-  it('browser.keys(Escape) closes the modal dialog', async () => {
+describe('modal <dialog> Escape close-request', () => {
+  it('should close the modal dialog when Escape is sent via browser.keys', async () => {
     await openDialog();
     await browser.keys(Key.Escape);
     await waitForDialogClosed();
   });
 
-  it('key Actions API (down/up Escape) closes the modal dialog', async () => {
+  it('should close the modal dialog when Escape is sent via the Actions API', async () => {
     await openDialog();
     await browser.action('key').down(Key.Escape).up(Key.Escape).perform();
     await waitForDialogClosed();
   });
 
-  // Mechanism guard: only the Windows + embedded path is the one the fix newly routes through CDP
-  // to make keys trusted. Elsewhere the key is untrusted (WebKit closes anyway) or already trusted
-  // (external msedgedriver), so asserting isTrusted there would test the platform, not the fix.
-  it('Escape reaches the page as a trusted event on Windows/WebView2 (embedded)', async function () {
+  it('should deliver Escape as a trusted event on Windows/WebView2 (embedded)', async function () {
     if (!(process.platform === 'win32' && driverProvider === 'embedded')) {
       this.skip();
     }
