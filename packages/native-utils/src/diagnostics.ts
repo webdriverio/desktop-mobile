@@ -236,8 +236,7 @@ export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): Diagnostic
   const cache = readSharedLibraryCache();
 
   if (cache.status === 'unavailable') {
-    // No `ldconfig` at all (musl/Alpine, minimal images) — skip quietly rather
-    // than emit false "missing" warnings.
+    // No `ldconfig` at all (musl/Alpine, minimal images).
     return [
       {
         category: 'Linux Dependencies',
@@ -248,8 +247,7 @@ export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): Diagnostic
   }
 
   if (cache.status === 'error') {
-    // `ldconfig` exists but failed (timeout, permissions, …). Surface it as a
-    // warning so a genuinely missing dependency isn't silently marked ok.
+    // `ldconfig` exists but failed (timeout, permissions, …).
     return [
       {
         category: 'Linux Dependencies',

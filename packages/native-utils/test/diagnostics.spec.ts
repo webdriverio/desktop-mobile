@@ -1,6 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { statSync } from 'node:fs';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { diagnoseBinary, diagnoseLinuxDependencies, type LinuxLibrary } from '../src/diagnostics.js';
 
 vi.mock('node:fs', async (importActual) => {
@@ -58,22 +58,15 @@ describe('diagnoseBinary', () => {
   });
 });
 
-// A representative subset — the check is list-agnostic, so the shape matters,
-// not the exact members.
 const LIBS: LinuxLibrary[] = [
   { soname: 'libgtk-3.so.0', aptPackage: 'libgtk-3-0' },
   { soname: 'libcups.so.2', aptPackage: 'libcups2' },
   { soname: 'libnss3.so', aptPackage: 'libnss3' },
 ];
 
-// The ldconfig ABI tag for the running arch, so mock entries survive the
-// arch filter on whatever host runs the tests (x64 or arm64; anything else is
-// unfiltered, so the tag is irrelevant there).
-const hostArchTag = (): string =>
-  (({ x64: 'x86-64', arm64: 'aarch64' }) as Record<string, string>)[process.arch] ?? 'x86-64';
-
-// Mimic `ldconfig -p` output.
-const ldconfigCache = (sonames: string[], archTag = hostArchTag()): string =>
+// Mimic `ldconfig -p` output. The tests pin the arch to x64, so entries are
+// tagged x86-64 to match (the foreign-arch test overrides the tag).
+const ldconfigCache = (sonames: string[], archTag = 'x86-64'): string =>
   [
     `${sonames.length} libs found in the cache \`/etc/ld.so.cache'`,
     ...sonames.map((s) => `\t${s} (libc6,${archTag}) => /usr/lib/${archTag}-linux-gnu/${s}`),
@@ -85,6 +78,11 @@ const linuxDeps = (libs: LinuxLibrary[]) =>
 describe('diagnoseLinuxDependencies', () => {
   const realPlatform = process.platform;
   const realArch = process.arch;
+
+  beforeEach(() => {
+    setPlatform('linux');
+    setArch('x64');
+  });
 
   afterEach(() => {
     setPlatform(realPlatform);
@@ -98,20 +96,17 @@ describe('diagnoseLinuxDependencies', () => {
   });
 
   it('should report ok when every soname resolves in the ldconfig cache', () => {
-    setPlatform('linux');
     vi.mocked(execFileSync).mockReturnValue(ldconfigCache(LIBS.map((l) => l.soname)));
     expect(linuxDeps(LIBS)?.status).toBe('ok');
   });
 
-  it('should not false-warn on the Debian/Ubuntu t64 package rename (issue #617)', () => {
-    setPlatform('linux');
+  it('should not false-warn on the Debian/Ubuntu t64 package rename', () => {
     // Package is libcups2t64, but the soname libcups.so.2 is unchanged, so it's still cached.
     vi.mocked(execFileSync).mockReturnValue(ldconfigCache(LIBS.map((l) => l.soname)));
     expect(linuxDeps(LIBS)?.status).toBe('ok');
   });
 
   it('should warn and name the missing soname and its apt package', () => {
-    setPlatform('linux');
     vi.mocked(execFileSync).mockReturnValue(ldconfigCache(['libgtk-3.so.0', 'libnss3.so']));
     const result = linuxDeps(LIBS);
     expect(result?.status).toBe('warn');
@@ -121,7 +116,6 @@ describe('diagnoseLinuxDependencies', () => {
   });
 
   it('should skip instead of false-warning when ldconfig is unavailable (musl/minimal images)', () => {
-    setPlatform('linux');
     vi.mocked(execFileSync).mockImplementation(() => {
       throw Object.assign(new Error('spawn ldconfig ENOENT'), { code: 'ENOENT' });
     });
@@ -131,7 +125,6 @@ describe('diagnoseLinuxDependencies', () => {
   });
 
   it('should fall back to an absolute ldconfig path when it is not on PATH', () => {
-    setPlatform('linux');
     vi.mocked(execFileSync).mockImplementation((bin) => {
       if (bin === 'ldconfig') {
         throw Object.assign(new Error('spawn ldconfig ENOENT'), { code: 'ENOENT' });
@@ -142,8 +135,6 @@ describe('diagnoseLinuxDependencies', () => {
   });
 
   it('should not count a library present only for a foreign architecture as found', () => {
-    setPlatform('linux');
-    setArch('x64');
     // In the cache but tagged aarch64 only — an x64 binary can't load them.
     vi.mocked(execFileSync).mockReturnValue(
       ldconfigCache(
@@ -157,7 +148,6 @@ describe('diagnoseLinuxDependencies', () => {
   });
 
   it('should warn (not ok) when ldconfig is present but fails to run', () => {
-    setPlatform('linux');
     vi.mocked(execFileSync).mockImplementation(() => {
       throw Object.assign(new Error('spawnSync /usr/sbin/ldconfig ETIMEDOUT'), { code: 'ETIMEDOUT' });
     });
