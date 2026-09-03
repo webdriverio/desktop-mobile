@@ -19,6 +19,10 @@ const setPlatform = (platform: NodeJS.Platform): void => {
   Object.defineProperty(process, 'platform', { value: platform, configurable: true });
 };
 
+const setArch = (arch: NodeJS.Architecture): void => {
+  Object.defineProperty(process, 'arch', { value: arch, configurable: true });
+};
+
 const stubMode = (mode: number, size = 100 * 1024 * 1024): void => {
   vi.mocked(statSync).mockReturnValue({ mode, size } as unknown as ReturnType<typeof statSync>);
 };
@@ -63,11 +67,17 @@ const LIBS: LinuxLibrary[] = [
   { soname: 'libnss3.so', aptPackage: 'libnss3' },
 ];
 
+// The ldconfig ABI tag for the running arch, so mock entries survive the
+// arch filter on whatever host runs the tests (x64 or arm64; anything else is
+// unfiltered, so the tag is irrelevant there).
+const hostArchTag = (): string =>
+  (({ x64: 'x86-64', arm64: 'aarch64' }) as Record<string, string>)[process.arch] ?? 'x86-64';
+
 // Mimic `ldconfig -p`: a header line then one tab-indented entry per soname.
-const ldconfigCache = (sonames: string[]): string =>
+const ldconfigCache = (sonames: string[], archTag = hostArchTag()): string =>
   [
     `${sonames.length} libs found in the cache \`/etc/ld.so.cache'`,
-    ...sonames.map((s) => `\t${s} (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/${s}`),
+    ...sonames.map((s) => `\t${s} (libc6,${archTag}) => /usr/lib/${archTag}-linux-gnu/${s}`),
   ].join('\n');
 
 const linuxDeps = (libs: LinuxLibrary[]) =>
@@ -75,9 +85,11 @@ const linuxDeps = (libs: LinuxLibrary[]) =>
 
 describe('diagnoseLinuxDependencies', () => {
   const realPlatform = process.platform;
+  const realArch = process.arch;
 
   afterEach(() => {
     setPlatform(realPlatform);
+    setArch(realArch);
     vi.clearAllMocks();
   });
 
@@ -130,5 +142,33 @@ describe('diagnoseLinuxDependencies', () => {
       return ldconfigCache(LIBS.map((l) => l.soname));
     });
     expect(linuxDeps(LIBS)?.status).toBe('ok');
+  });
+
+  it('does not count a library present only for a foreign architecture as found', () => {
+    setPlatform('linux');
+    setArch('x64');
+    // Every soname is in the cache, but tagged for aarch64 only — an x64 binary
+    // cannot load them, so they must be reported missing, not found.
+    vi.mocked(execFileSync).mockReturnValue(
+      ldconfigCache(
+        LIBS.map((l) => l.soname),
+        'aarch64',
+      ),
+    );
+    const result = linuxDeps(LIBS);
+    expect(result?.status).toBe('warn');
+    expect(result?.details).toContain('libcups.so.2');
+  });
+
+  it('warns (not ok) when ldconfig is present but fails to run', () => {
+    setPlatform('linux');
+    // Non-ENOENT failure (e.g. a timeout) means ldconfig exists but could not
+    // run — that must surface as a warning, not a silent passing check.
+    vi.mocked(execFileSync).mockImplementation(() => {
+      throw Object.assign(new Error('spawnSync /usr/sbin/ldconfig ETIMEDOUT'), { code: 'ETIMEDOUT' });
+    });
+    const result = linuxDeps(LIBS);
+    expect(result?.status).toBe('warn');
+    expect(result?.message).toMatch(/could not check/i);
   });
 });

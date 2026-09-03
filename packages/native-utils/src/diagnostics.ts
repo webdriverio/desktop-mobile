@@ -153,11 +153,38 @@ export interface LinuxLibrary {
 // only reads the cache, so it needs no privileges — we just have to find it.
 const LDCONFIG_CANDIDATES = ['ldconfig', '/usr/sbin/ldconfig', '/sbin/ldconfig'];
 
+// A cache entry: `<soname> (<abi tags>) => <path>`, e.g.
+// `libcups.so.2 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libcups.so.2`.
+const LDCONFIG_ENTRY = /^(\S+\.so\S*)\s+\(([^)]*)\)/;
+
 /**
- * Read the shared-library cache (`ldconfig -p`) into a set of sonames, or
- * `undefined` when no `ldconfig` is available (musl/Alpine, minimal containers).
+ * The `ldconfig` ABI tag for the running architecture, or `undefined` when we
+ * don't map it. Used to ignore libraries present only for a *foreign*
+ * architecture on a multiarch host — those can't be loaded by the app's native
+ * binary. Only the architectures we ship on are mapped; on anything else we
+ * don't filter, so an unrecognised tag can never turn an installed library into
+ * a false "missing".
  */
-function readSharedLibraryCache(): Set<string> | undefined {
+function hostArchTag(): string | undefined {
+  const tags: Partial<Record<NodeJS.Architecture, string>> = { x64: 'x86-64', arm64: 'aarch64' };
+  return tags[process.arch];
+}
+
+type LibraryCache =
+  | { status: 'ok'; sonames: Set<string> }
+  | { status: 'unavailable' } // no `ldconfig` binary found
+  | { status: 'error'; message: string }; // `ldconfig` present but failed to run
+
+/**
+ * Read the shared-library cache (`ldconfig -p`) into a set of sonames for the
+ * host architecture. Distinguishes "no `ldconfig`" (musl/Alpine, minimal
+ * containers) from "`ldconfig` present but failed" (timeout, permissions) so
+ * the caller doesn't report an operational failure as a passing check.
+ */
+function readSharedLibraryCache(): LibraryCache {
+  const archTag = hostArchTag();
+  let operationalError: string | undefined;
+
   for (const bin of LDCONFIG_CANDIDATES) {
     try {
       const output = execFileSync(bin, ['-p'], {
@@ -167,18 +194,28 @@ function readSharedLibraryCache(): Set<string> | undefined {
       });
       const sonames = new Set<string>();
       for (const line of output.split('\n')) {
-        // e.g. `\tlibcups.so.2 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libcups.so.2`
-        const soname = line.trim().split(' ')[0];
-        if (soname.includes('.so')) {
+        const match = line.trim().match(LDCONFIG_ENTRY);
+        if (!match) {
+          continue;
+        }
+        const [, soname, tags] = match;
+        if (!archTag || tags.toLowerCase().includes(archTag)) {
           sonames.add(soname);
         }
       }
-      return sonames;
-    } catch {
-      // Try the next candidate path; fall through to undefined if none work.
+      return { status: 'ok', sonames };
+    } catch (error) {
+      // ENOENT just means this path isn't the binary — try the next candidate.
+      // Any other failure (timeout, EACCES, non-zero exit) means `ldconfig` is
+      // present but couldn't run: remember it so we surface it rather than let
+      // an operational failure masquerade as "not installed".
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        operationalError = error instanceof Error ? error.message : String(error);
+      }
     }
   }
-  return undefined;
+
+  return operationalError ? { status: 'error', message: operationalError } : { status: 'unavailable' };
 }
 
 /**
@@ -197,19 +234,33 @@ export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): Diagnostic
   }
 
   const cache = readSharedLibraryCache();
-  if (!cache) {
-    // Without the cache we can't tell present from missing — skip rather than
-    // emit false "missing" warnings on systems that lack `ldconfig`.
+
+  if (cache.status === 'unavailable') {
+    // No `ldconfig` at all (musl/Alpine, minimal images) — we genuinely can't
+    // check, so skip quietly rather than emit false "missing" warnings.
     return [
       {
         category: 'Linux Dependencies',
         status: 'ok',
-        message: 'Skipped — shared-library cache (ldconfig) unavailable',
+        message: 'Skipped — ldconfig not available',
       },
     ];
   }
 
-  const missing = libraries.filter((lib) => !cache.has(lib.soname));
+  if (cache.status === 'error') {
+    // `ldconfig` exists but failed (timeout, permissions, …). Surface it as a
+    // warning so a genuinely missing dependency isn't silently marked ok.
+    return [
+      {
+        category: 'Linux Dependencies',
+        status: 'warn',
+        message: 'Could not check Linux dependencies',
+        details: `ldconfig failed: ${cache.message}`,
+      },
+    ];
+  }
+
+  const missing = libraries.filter((lib) => !cache.sonames.has(lib.soname));
 
   if (missing.length > 0) {
     const sonames = missing.map((lib) => lib.soname).join(', ');
