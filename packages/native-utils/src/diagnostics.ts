@@ -221,12 +221,7 @@ function readSharedLibraryCache(): LibraryCache {
 /**
  * Check that each library's soname is resolvable via the `ldconfig` cache.
  *
- * Checks sonames rather than package names on purpose: package names drift
- * across distros and transitions (the Debian/Ubuntu 64-bit `time_t` rename that
- * turned `libcups2` into `libcups2t64`, issue #617), but the soname
- * (`libcups.so.2`) is unchanged and is what the app actually dlopens. It also
- * frees the check from any one package manager, so it works the same on
- * dpkg, rpm, pacman and xbps systems.
+ * Sonames work across distros and, unlike package names, don't drift (#617).
  */
 export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): DiagnosticResult[] {
   if (process.platform !== 'linux') {
@@ -247,7 +242,7 @@ export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): Diagnostic
   }
 
   if (cache.status === 'error') {
-    // `ldconfig` exists but failed (timeout, permissions, …).
+    // `ldconfig` exists but failed.
     return [
       {
         category: 'Linux Dependencies',
