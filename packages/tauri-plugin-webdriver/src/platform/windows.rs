@@ -196,14 +196,8 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
         }
     }
 
-    /// Call a Chrome DevTools Protocol method against the `WebView2` (e.g. `Input.dispatchKeyEvent`).
-    ///
-    /// Unlike the JS eval path, CDP-injected input arrives `isTrusted: true`, which Blink requires
-    /// at its trusted-input gates (CloseWatcher / `<dialog>` Escape, popups, fullscreen). See #612.
-    ///
-    /// Serializes on the same per-window `ScriptExecutionLocks` as `evaluate_js`: a CDP call and an
-    /// in-flight `ExecuteScript` both touch the same `CoreWebView2`, and concurrent access can
-    /// silently drop completion handlers.
+    /// Call a Chrome DevTools Protocol method against the `WebView2` (e.g. `Input.dispatchKeyEvent`),
+    /// serialized on `ScriptExecutionLocks` like `evaluate_js`.
     async fn call_cdp_method(
         &self,
         method: &str,
@@ -340,13 +334,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
     }
 
     // =========================================================================
-    // Keyboard input — CDP (trusted) at top level, JS fallback inside frames
-    //
-    // The default trait impls dispatch synthetic KeyboardEvents (isTrusted: false), which Blink
-    // (WebView2) refuses at its trusted-input gates (CloseWatcher / <dialog> Escape, popups,
-    // fullscreen). Routing top-level key input through CDP Input.dispatchKeyEvent makes it
-    // trusted. CDP has no frame/realm parameter, so a switched-into frame (non-empty
-    // frame_context) keeps the JS path — frame-correct, if untrusted. See #612.
+    // Keyboard input: CDP at top level (trusted); a switched-into frame falls back to the JS path
+    // because CDP Input.dispatchKeyEvent takes no frame parameter.
     // =========================================================================
 
     async fn dispatch_key_event(
@@ -403,10 +392,9 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
             self.evaluate_js(&script).await?;
             return Ok(());
         }
-        // Focus the element and move the caret to the end, then type each character as a trusted
-        // CDP key so inputs behave like real typing and value/trusted-input gates fire. The
-        // caret-to-end keeps addValue's append semantics (the JS path did `el.value + text`);
-        // setSelectionRange throws on non-text inputs (number/email), hence the try/catch. See #612.
+        // Focus, then move the caret to the end so per-character CDP typing appends (matching the
+        // JS path's `el.value + text`). setSelectionRange throws on non-text inputs (number/email),
+        // hence the try/catch.
         let focus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
@@ -436,10 +424,9 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
                 .await?;
         }
 
-        // CDP typing fires `input` natively per keystroke but not `change` (that needs a blur, and
-        // the element stays focused). The shared JS path dispatches `change` for inputs/textareas at
-        // the end, so emit it here too — otherwise change-driven validation wouldn't run and this
-        // Windows path would diverge from every other one.
+        // CDP typing fires `input` per keystroke but not `change` (no blur — the element stays
+        // focused). The JS path dispatches `change` for inputs/textareas, so match it here or
+        // change-driven validation wouldn't run on this path.
         let change_script = format!(
             r"(function() {{
                 var el = window.{js_var};
