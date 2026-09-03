@@ -188,8 +188,7 @@ function readSharedLibraryCache(): LibraryCache {
           continue;
         }
         const [, soname, tags] = match;
-        // Only count a soname built for the host arch — a foreign-arch copy on
-        // a multiarch host can't be loaded.
+        // A soname present only for a foreign arch (multiarch host) can't be loaded.
         if (!archTag || tags.toLowerCase().includes(archTag)) {
           sonames.add(soname);
         }
