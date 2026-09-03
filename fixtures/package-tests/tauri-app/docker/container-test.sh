@@ -136,21 +136,16 @@ npx wdio run wdio.conf.ts 2>&1 | tee /workspace/logs-output/wdio-run.log
 TEST_EXIT=${PIPESTATUS[0]} # wdio's exit code
 set -e
 
-# Regression guard for issue #617: the Linux-dependency diagnostic must not
-# report an installed system library as missing. libgtk-3.so.0 is always present
-# in a Tauri container (system WebKitGTK depends on GTK 3), so if it appears in
-# the diagnostic's "Missing:" list the soname check has false-positived -- which
-# is exactly what the old dpkg name check did on the Debian/Ubuntu t64 rename and
-# on every non-dpkg distro (fedora/arch/void).
-echo '=== Regression guard (issue #617): installed libraries must not be reported missing ==='
+# libgtk-3.so.0 is guaranteed present in a Tauri container (WebKitGTK needs GTK 3).
+echo '=== Regression guard: installed libraries must not be reported missing ==='
 LDCONFIG_BIN=''
 for c in ldconfig /usr/sbin/ldconfig /sbin/ldconfig; do
     if command -v "$c" > /dev/null 2>&1; then LDCONFIG_BIN="$c"; break; fi
 done
 if [ -z "$LDCONFIG_BIN" ]; then
-    echo 'SKIP: no ldconfig found; cannot run #617 guard'
+    echo 'SKIP: no ldconfig found; cannot run guard'
 elif ! "$LDCONFIG_BIN" -p 2>/dev/null | grep -q 'libgtk-3\.so\.0'; then
-    echo 'SKIP: libgtk-3.so.0 not in ldconfig cache; cannot run #617 guard'
+    echo 'SKIP: libgtk-3.so.0 not in ldconfig cache; cannot run guard'
 elif grep -Eq 'Missing:.*libgtk-3\.so\.0' /workspace/logs-output/wdio-run.log; then
     echo 'FAIL: libgtk-3.so.0 is installed but the diagnostic reported it missing (issue #617 regression)'
     TEST_EXIT=1
