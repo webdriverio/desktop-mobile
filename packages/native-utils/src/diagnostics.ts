@@ -177,9 +177,7 @@ type LibraryCache =
 
 /**
  * Read the shared-library cache (`ldconfig -p`) into a set of sonames for the
- * host architecture. Distinguishes "no `ldconfig`" (musl/Alpine, minimal
- * containers) from "`ldconfig` present but failed" (timeout, permissions) so
- * the caller doesn't report an operational failure as a passing check.
+ * host architecture.
  */
 function readSharedLibraryCache(): LibraryCache {
   const archTag = hostArchTag();
@@ -206,9 +204,6 @@ function readSharedLibraryCache(): LibraryCache {
       return { status: 'ok', sonames };
     } catch (error) {
       // ENOENT just means this path isn't the binary — try the next candidate.
-      // Any other failure (timeout, EACCES, non-zero exit) means `ldconfig` is
-      // present but couldn't run: remember it so we surface it rather than let
-      // an operational failure masquerade as "not installed".
       if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
         operationalError = error instanceof Error ? error.message : String(error);
       }
