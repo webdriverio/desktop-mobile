@@ -7,8 +7,12 @@ import { assertLogContains, findLogEntries, getLogDirName, readWdioLogs, waitFor
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
-// Detect driver provider - backend/frontend logs from app stderr are not captured by CrabNebula
+// Driver provider selects the per-provider log directory (getLogDirName).
 const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded' | undefined;
+
+// CrabNebula forwards an isolated session's app stdout/stderr lazily, so its logs can take
+// well over 10s to arrive; the busy standard suite flushes far faster. Give these specs headroom.
+const CN_LOG_TIMEOUT_MS = 30000;
 
 function getMultiremoteLogDir() {
   const logDirName = getLogDirName('multiremote', 'tauri', driverProvider);
@@ -29,7 +33,11 @@ describe('Tauri Log Integration - Multiremote', () => {
 
     // Wait for logs to be captured
     const logDir = getMultiremoteLogDir();
-    const logsCaptured = await waitForLog(logDir, /\[Tauri:Backend:(browserA|browserB)\].*INFO level log/i, 10000);
+    const logsCaptured = await waitForLog(
+      logDir,
+      /\[Tauri:Backend:(browserA|browserB)\].*INFO level log/i,
+      CN_LOG_TIMEOUT_MS,
+    );
     if (!logsCaptured) {
       throw new Error('Backend logs not captured within timeout');
     }
@@ -75,7 +83,7 @@ describe('Tauri Log Integration - Multiremote', () => {
 
     // Wait for logs to be captured
     const logDir = getMultiremoteLogDir();
-    const logsCaptured = await waitForLog(logDir, markerA, 10000);
+    const logsCaptured = await waitForLog(logDir, markerA, CN_LOG_TIMEOUT_MS);
     if (!logsCaptured) {
       throw new Error('Frontend logs not captured within timeout');
     }
@@ -110,7 +118,7 @@ describe('Tauri Log Integration - Multiremote', () => {
 
     // Wait for logs to be captured
     const logDir = getMultiremoteLogDir();
-    const logsCaptured = await waitForLog(logDir, /\[Tauri:Backend:browserA\]/, 10000);
+    const logsCaptured = await waitForLog(logDir, /\[Tauri:Backend:browserA\]/, CN_LOG_TIMEOUT_MS);
     if (!logsCaptured) {
       throw new Error('Logs not captured within timeout');
     }
