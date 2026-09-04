@@ -6,13 +6,13 @@ use tokio::sync::oneshot;
 
 /// Correlates DirectEval results the webview reports back out-of-band, keyed by id.
 ///
-/// The macOS DirectEval path runs its script via `callAsyncJavaScript` to keep the run loop pumping
-/// (so the app's own `core.invoke` IPC resolves on a headless runner) but must NOT read the result
-/// from that call's completion handler — macOS 26.4's WebKit reclaims it intermittently. Instead the
-/// script posts `{ id, result }` to a `WKScriptMessageHandler`, which calls `complete` to wake the
-/// executor awaiting `register`. Mirrors the Windows `AsyncScriptState` native-handler pattern.
-/// Removable once the upstream reclaim is resolved:
-/// https://github.com/webdriverio/desktop-mobile/issues/540
+/// The macOS DirectEval path dispatches its script fire-and-forget via `evaluateJavaScript` (no
+/// completion handler) and takes the result solely from here: the script posts `{ id, result }` to a
+/// `WKScriptMessageHandler`, which calls `complete` to wake the executor awaiting `register`. The
+/// app's own `core.invoke` IPC is kept resolving on a headless runner by the standalone main run-loop
+/// pump (`start_runloop_pump`), not by holding a `callAsyncJavaScript` activity open — so there is no
+/// completion for macOS 26.x WebKit to reclaim. Mirrors the Windows `AsyncScriptState` native-handler
+/// pattern. https://github.com/webdriverio/desktop-mobile/issues/569
 #[derive(Default)]
 pub struct EvalResultRegistry {
     pending: Mutex<HashMap<String, oneshot::Sender<Value>>>,

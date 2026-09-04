@@ -46,64 +46,6 @@ impl<R: Runtime> MacOSExecutor<R> {
             frame_context,
         }
     }
-
-    /// Dispatch one `callAsyncJavaScript` attempt of a DirectEval wrapper. The returned receiver fires
-    /// when macOS 26.4's WebKit reclaims the completion with no value — the signal `execute_direct_eval`
-    /// uses to re-dispatch. When the completion *does* carry a value, it is delivered to `registry` as a
-    /// fallback for a lost message-handler post (first-write-wins keeps the post authoritative).
-    fn dispatch_eval_attempt(
-        &self,
-        wrapper: &str,
-        id: &str,
-        registry: &Arc<EvalResultRegistry>,
-        attempt: usize,
-    ) -> Result<oneshot::Receiver<()>, String> {
-        let (fail_tx, fail_rx) = oneshot::channel::<()>();
-        let wrapper = wrapper.to_owned();
-        let id = id.to_owned();
-        let registry = registry.clone();
-        // `RcBlock` is `Fn` but `Sender::send` consumes self, so guard the one-shot send (WebKit calls
-        // the completion once; this just makes a double-call harmless). Same pattern as `evaluate_js`.
-        let fail_tx = Arc::new(std::sync::Mutex::new(Some(fail_tx)));
-
-        self.window
-            .with_webview(move |webview| unsafe {
-                let wk_webview: &WKWebView = &*webview.inner().cast();
-                let ns_script = NSString::from_str(&wrapper);
-                let mtm = MainThreadMarker::new_unchecked();
-                let empty_dict: Retained<NSDictionary<NSString, AnyObject>> = NSDictionary::new();
-                let content_world = WKContentWorld::pageWorld(mtm);
-
-                let block = RcBlock::new(move |result: *mut AnyObject, error: *mut NSError| {
-                    if !error.is_null() {
-                        tracing::debug!(
-                            "DirectEval completion reclaimed (attempt {attempt}): {}",
-                            describe_ns_error(&*error)
-                        );
-                        if let Ok(mut guard) = fail_tx.lock() {
-                            if let Some(tx) = guard.take() {
-                                let _ = tx.send(());
-                            }
-                        }
-                        return;
-                    }
-                    if !result.is_null() {
-                        registry.complete(&id, ns_object_to_json(&*result));
-                    }
-                });
-
-                wk_webview.callAsyncJavaScript_arguments_inFrame_inContentWorld_completionHandler(
-                    &ns_script,
-                    Some(&empty_dict),
-                    None,
-                    &content_world,
-                    Some(&block),
-                );
-            })
-            .map_err(|e| e.to_string())?;
-
-        Ok(fail_rx)
-    }
 }
 
 /// Register `WKWebView` handlers at webview creation time.
@@ -360,29 +302,26 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
         }
     }
 
-    /// DirectEval (`/wdio/eval`) with out-of-band result delivery + reclaim recovery.
+    /// DirectEval (`/wdio/eval`) with out-of-band result delivery.
     ///
-    /// Each attempt is dispatched by `dispatch_eval_attempt` via `callAsyncJavaScript`, which keeps the
-    /// run loop pumping — on a headless runner the app's own `core.invoke` IPC response only completes
-    /// while WebKit holds a run-loop activity. The result is delivered primarily out-of-band: the
-    /// wrapper posts `{ id, result }` to the `wdioEvalResult` `WKScriptMessageHandler`, which completes
-    /// the `oneshot` awaited here. macOS 26.4's WebKit intermittently reclaims the `callAsyncJavaScript`
-    /// completion ("Completion handler for function call is no longer reachable"); usually the post
-    /// still lands, but sometimes the script never posts and this would otherwise dead-wait to the
-    /// script timeout (#540 residual). Two guards recover it without changing the happy path:
-    ///   1. **Fallback delivery** — when the completion *does* fire with a value, `dispatch_eval_attempt`
-    ///      hands it to the same registry (first-write-wins keeps the post authoritative), so a lost
-    ///      post resolves instead of dead-waiting.
-    ///   2. **Bounded re-dispatch** — when the completion is reclaimed with *no* value and no post lands
-    ///      within `RECLAIM_GRACE`, re-run the script (up to `MAX_ATTEMPTS`). The grace lets a racing
-    ///      post settle first; a genuine re-dispatch *re-executes* the script, so a non-idempotent eval
-    ///      could double-apply — acceptable for the read-style evals `execute` runs in practice.
-    /// The whole sequence is bounded by `deadline`. Mirrors the Windows native-handler path
-    /// (`AsyncScriptState`). https://github.com/webdriverio/desktop-mobile/issues/540
+    /// Dispatched fire-and-forget via `evaluateJavaScript` with **no** completion handler: the wrapper's
+    /// synchronous prefix kicks off the script (e.g. the app's own `core.invoke` IPC) and registers
+    /// `__report`, then returns immediately. The result is delivered purely out-of-band — `__report`
+    /// posts `{ id, result }` to the `wdioEvalResult` `WKScriptMessageHandler`, which completes the
+    /// `oneshot` awaited here. On a headless runner the app's main run loop would otherwise park and
+    /// `core.invoke` would never resolve; the standalone `NSTimer` pump (`start_runloop_pump`) services
+    /// the loop instead, so no held-open `callAsyncJavaScript` activity is needed to keep it turning.
+    ///
+    /// Because nothing holds the completion open, macOS 26.x's WebKit has no completion to reclaim
+    /// ("Completion handler for function call is no longer reachable"), which is what previously forced
+    /// the retry/fallback/grace machinery here — and, with it, the re-execution (double-apply) hazard.
+    /// This path has no retry, so a script (and any mocks it hits) runs exactly once. Mirrors the
+    /// Windows native-handler path (`AsyncScriptState`).
+    /// https://github.com/webdriverio/desktop-mobile/issues/569 (removes the #540/#553 machinery)
     ///
     /// `wrapScriptForDirectEval` produces a callback-style script (`arguments[last]` is its
-    /// done-callback); `__report` forwards the result to the message handler then `resolve`s so the
-    /// `callAsyncJavaScript` promise settles.
+    /// done-callback); `__report` forwards the result to the message handler. Unlike the old
+    /// `callAsyncJavaScript` path, there is no Promise to settle, so `__report` only posts.
     async fn execute_direct_eval(&self, script: &str) -> Result<Value, WebDriverErrorResponse> {
         use std::sync::atomic::{AtomicU64, Ordering};
         static COUNTER: AtomicU64 = AtomicU64::new(0);
@@ -394,59 +333,52 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
             .state::<Arc<EvalResultRegistry>>()
             .inner()
             .clone();
-        let mut rx = registry.register(id.clone());
+        let rx = registry.register(id.clone());
 
         // id is alphanumeric + '_', so it needs no escaping in the JS string literal below.
+        // evaluateJavaScript runs this as a plain script (not a function body), so it must be an
+        // expression/statement, not `return ...`.
         let wrapper = format!(
-            r#"return new Promise((resolve) => {{
+            r#"(function () {{
   var __report = function (r) {{
     try {{ window.webkit.messageHandlers.wdioEvalResult.postMessage({{ id: "{id}", result: r }}); }} catch (e) {{}}
-    resolve(r);
   }};
   (function () {{ {script} }}).apply(null, [__report]);
-}});"#
+}})();"#
         );
 
-        const MAX_ATTEMPTS: usize = 3;
-        // After a reclaim, wait this long for a racing message-handler post before re-running.
-        const RECLAIM_GRACE: std::time::Duration = std::time::Duration::from_millis(750);
-        let deadline =
-            tokio::time::Instant::now() + std::time::Duration::from_millis(self.timeouts.script_ms);
-        let channel_closed = || WebDriverErrorResponse::unknown_error("Eval result channel closed");
+        let dispatch = self.window.with_webview(move |webview| unsafe {
+            let wk_webview: &WKWebView = &*webview.inner().cast();
+            let ns_script = NSString::from_str(&wrapper);
+            // Fire-and-forget: passing no completion handler means WebKit holds nothing open to reclaim.
+            wk_webview.evaluateJavaScript_completionHandler(
+                &ns_script,
+                None::<&DynBlock<dyn Fn(*mut AnyObject, *mut NSError)>>,
+            );
+        });
 
-        // Retry only when WebKit reclaims the completion before a result was delivered; `timeout_at`
-        // bounds the whole sequence, so `Elapsed` (below) is the single script-timeout path.
-        let settled = tokio::time::timeout_at(deadline, async {
-            for attempt in 0..MAX_ATTEMPTS {
-                let fail_rx = self
-                    .dispatch_eval_attempt(&wrapper, &id, &registry, attempt)
-                    .map_err(|e| WebDriverErrorResponse::javascript_error(&e, None))?;
-                tokio::select! {
-                    r = &mut rx => return r.map_err(|_| channel_closed()),
-                    _ = fail_rx => {
-                        if attempt + 1 == MAX_ATTEMPTS {
-                            // Last attempt reclaimed: keep waiting for a late post until the deadline.
-                            return (&mut rx).await.map_err(|_| channel_closed());
-                        }
-                        // Race a late post against the grace: if the script actually ran and posts
-                        // here, return it — re-dispatching would execute the script (and any mocks it
-                        // hits) a second time. Only re-dispatch once the grace elapses with no result.
-                        tokio::select! {
-                            r = &mut rx => return r.map_err(|_| channel_closed()),
-                            _ = tokio::time::sleep(RECLAIM_GRACE) => {}
-                        }
-                    }
-                }
-            }
-            Err(WebDriverErrorResponse::script_timeout()) // unreachable: the final attempt returns above
-        })
-        .await;
-
-        let result = settled.unwrap_or_else(|_elapsed| Err(WebDriverErrorResponse::script_timeout()));
-        if result.is_err() {
+        if let Err(e) = dispatch {
             registry.cancel(&id);
+            return Err(WebDriverErrorResponse::javascript_error(
+                &e.to_string(),
+                None,
+            ));
         }
-        result
+
+        let timeout = std::time::Duration::from_millis(self.timeouts.script_ms);
+        match tokio::time::timeout(timeout, rx).await {
+            Ok(Ok(value)) => Ok(value),
+            Ok(Err(_)) => {
+                registry.cancel(&id);
+                Err(WebDriverErrorResponse::unknown_error(
+                    "Eval result channel closed",
+                ))
+            }
+            Err(_) => {
+                registry.cancel(&id);
+                Err(WebDriverErrorResponse::script_timeout())
+            }
+        }
     }
 
     // =========================================================================
