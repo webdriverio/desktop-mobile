@@ -30,10 +30,6 @@ const appBinaryPath = resolveTauriFixtureBinary(appDir);
 // Get driver provider from environment
 const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded';
 
-// CrabNebula forwards an isolated session's app stdout/stderr lazily, so its logs can take
-// well over 10s to arrive; the busy standard suite flushes far faster. Give these specs headroom.
-const CN_LOG_TIMEOUT_MS = 30000;
-
 // Create session options with log capture enabled
 const sessionOptions = createTauriCapabilities(appBinaryPath, {
   appArgs: ['foo', 'bar=baz'],
@@ -86,7 +82,7 @@ try {
   await browser.tauri.execute(({ core }) => core.invoke('generate_test_logs'));
 
   // Wait for backend logs to appear (match [Tauri:Backend] or [Tauri:Backend:worker-id])
-  const backendLogsFound = await waitForLog(logDir, /\[Tauri:Backend[^\]]*\].*INFO level log/i, CN_LOG_TIMEOUT_MS);
+  const backendLogsFound = await waitForLog(logDir, /\[Tauri:Backend[^\]]*\].*INFO level log/i, 10000);
   if (!backendLogsFound) {
     throw new Error('Backend logs not captured within timeout');
   }
@@ -120,11 +116,7 @@ try {
   });
 
   // Wait for frontend logs to appear
-  const frontendLogsFound = await waitForLog(
-    logDir,
-    /\[Tauri:Frontend[^\]]*\].*Standalone frontend INFO/i,
-    CN_LOG_TIMEOUT_MS,
-  );
+  const frontendLogsFound = await waitForLog(logDir, /\[Tauri:Frontend[^\]]*\].*Standalone frontend INFO/i, 10000);
   if (!frontendLogsFound) {
     throw new Error('Frontend logs not captured within timeout');
   }
@@ -141,7 +133,7 @@ try {
   await browser.tauri.execute(({ core }) => core.invoke('generate_test_logs'));
 
   // Wait for backend logs to appear (match [Tauri:Backend] or [Tauri:Backend:worker-id])
-  const backendFilterLogsFound = await waitForLog(logDir, /\[Tauri:Backend[^\]]*\].*INFO.*log/i, CN_LOG_TIMEOUT_MS);
+  const backendFilterLogsFound = await waitForLog(logDir, /\[Tauri:Backend[^\]]*\].*INFO.*log/i, 10000);
   if (!backendFilterLogsFound) {
     throw new Error('Backend logs not captured within timeout');
   }
