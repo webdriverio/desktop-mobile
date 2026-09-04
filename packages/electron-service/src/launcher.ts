@@ -346,7 +346,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           uniqueBinaryPaths.add(appBinaryPath);
         }
 
-        // The map had no entry — ask the binary directly (#578).
+        // The map had no entry — probe the binary (see https://github.com/webdriverio/desktop-mobile/issues/578).
         if (!chromiumVersion && electronVersion && appBinaryPath) {
           chromiumVersion = await probeChromiumVersion(appBinaryPath);
         }
