@@ -225,8 +225,8 @@ importers:
   fixtures/e2e-apps/electrobun:
     dependencies:
       electrobun:
-        specifier: 1.18.1
-        version: 1.18.1(supports-color@8.1.1)
+        specifier: 2.0.1
+        version: 2.0.1
     devDependencies:
       '@types/bun':
         specifier: 1.3.14
@@ -5116,6 +5116,11 @@ packages:
 
   electrobun@1.18.1:
     resolution: {integrity: sha512-tgZ+WKGskn/1/Y5i1mpVCCkgRa1O31Tz7MIArBTK44GfPzT43uOq9c/HvxdQGrLeZV8ZvjK1lQrwqSXCgh6tvA==}
+    hasBin: true
+
+  electrobun@2.0.1:
+    resolution: {integrity: sha512-1+OjJ0tMemjVrUEsh/AhmxnqUNpyCfJslCbcWOvkogFJuNVMmTlWMzyZem/Ts/7lg8f7ULWu8uuQBsKeGQsu7A==}
+    engines: {node: '>=18'}
     hasBin: true
 
   electron-builder-squirrel-windows@26.15.3:
@@ -12863,6 +12868,8 @@ snapshots:
       three: 0.165.0
     transitivePeerDependencies:
       - supports-color
+
+  electrobun@2.0.1: {}
 
   electron-builder-squirrel-windows@26.15.3(dmg-builder@26.15.3)(supports-color@8.1.1):
     dependencies:
