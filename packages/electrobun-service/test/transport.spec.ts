@@ -39,9 +39,18 @@ describe('resolveTransport', () => {
     expect(resolveTransport(app('native-cefless'), 'win32')).toBe('webview2');
   });
 
-  it('should return undefined on Linux (WebKitGTK exposes no CDP) and any other platform', () => {
+  it('should return webkitgtk on Linux for the native renderer (W3C WebDriver)', () => {
+    expect(resolveTransport(app('native'), 'linux')).toBe('webkitgtk');
+    expect(resolveTransport(app(undefined), 'linux')).toBe('webkitgtk');
+    expect(resolveTransport(app(''), 'linux')).toBe('webkitgtk');
+  });
+
+  it('should return undefined on Linux for an explicit CEF build (CEF serves no /json there)', () => {
     expect(resolveTransport(app('cef'), 'linux')).toBeUndefined();
-    expect(resolveTransport(app('native'), 'linux')).toBeUndefined();
+  });
+
+  it('should return undefined on any other platform', () => {
+    expect(resolveTransport(app('native'), 'freebsd' as NodeJS.Platform)).toBeUndefined();
     expect(resolveTransport(app(undefined), 'freebsd' as NodeJS.Platform)).toBeUndefined();
   });
 });

@@ -329,7 +329,8 @@ describe('ElectrobunLaunchService', () => {
       const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
       expect(error).toBeInstanceOf(SevereServiceError);
       expect((error as Error).message).toContain('win32');
-      expect((error as Error).message).toContain('issues/317');
+      // A CEF build off macOS is guided to the native renderer (it serves no /json there).
+      expect((error as Error).message).toContain('defaultRenderer: "native"');
     });
   });
 
