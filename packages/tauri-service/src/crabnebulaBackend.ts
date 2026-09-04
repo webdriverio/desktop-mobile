@@ -111,7 +111,6 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
     let startupTimeout: NodeJS.Timeout;
     let stdoutRl: ReturnType<typeof createInterface> | undefined;
     let stderrRl: ReturnType<typeof createInterface> | undefined;
-    const streamHandlers: ReturnType<typeof createInterface>[] = [];
 
     const cleanup = () => {
       clearTimeout(startupTimeout);
@@ -123,31 +122,27 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
         stderrRl.close();
         stderrRl = undefined;
       }
-      for (const handler of streamHandlers) {
-        handler.close();
-      }
-      streamHandlers.length = 0;
     };
 
-    // Setup log capture for frontend/backend logs if enabled
+    // Persistent forwarding capture, kept for the backend's lifetime: the app's logs reach the
+    // launcher only through the backend's piped stdout/stderr and arrive during the test (well
+    // after "ready"), so this reader stays attached and ends only when the backend process exits.
     if (serviceOptions?.captureFrontendLogs || serviceOptions?.captureBackendLogs) {
       if (proc.stdout) {
-        const stdoutHandler = createLogCapture({
+        createLogCapture({
           stream: proc.stdout,
           identifier: 'crabnebula-backend',
           options: serviceOptions,
           instanceId: options.instanceId,
         });
-        if (stdoutHandler) streamHandlers.push(stdoutHandler);
       }
       if (proc.stderr) {
-        const stderrHandler = createLogCapture({
+        createLogCapture({
           stream: proc.stderr,
           identifier: 'crabnebula-backend',
           options: serviceOptions,
           instanceId: options.instanceId,
         });
-        if (stderrHandler) streamHandlers.push(stderrHandler);
       }
       log.debug('Log capture enabled for CrabNebula test-runner-backend');
     }
