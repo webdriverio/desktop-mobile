@@ -773,8 +773,8 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E tests — macOS (CEF), single CDP-attach provider (no provider matrix).
-  # Windows (WebView2) runs as a separate gating job below; Linux is NOT run (CEF serves
-  # no /json off macOS; native WebKitGTK needs upstream blackboardsh/electrobun#467).
+  # Windows (WebView2) and Linux (WebKitGTK/W3C) run as separate jobs below — Windows gating,
+  # Linux non-gating for now (electrobun 2.0.1 landed WebKitGTK automation, #467).
   #
   # Test-type matrix: 'standard' (api/application/execute/logging/mock),
   # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
@@ -1254,9 +1254,10 @@ jobs:
       - e2e-dioxus-macos-arm
       # Electrobun gates: macOS CEF `standard`, plus Windows WebView2 `standard` + `window`
       # + `multiremote` (multi-window AND per-instance isolation work on WebView2 — no
-      # persist:default gap — so they run where CEF is local-only / single-instance). Linux
-      # is not run (CEF serves no /json; native WebKitGTK needs upstream automation #467).
-      # deeplink stays local-only (also upstream-gated on Windows — #465).
+      # persist:default gap — so they run where CEF is local-only / single-instance). The Linux
+      # WebKitGTK/W3C leg (e2e-electrobun-linux) runs but is NON-GATING for now — omitted from
+      # this needs-list until proven green (mirrors how Windows started). deeplink stays
+      # local-only (also upstream-gated on Windows/Linux — #465).
       - e2e-electrobun-macos-arm
       # React Native — Android emulator + iOS simulator E2E are required gates.
       - e2e-react-native-linux

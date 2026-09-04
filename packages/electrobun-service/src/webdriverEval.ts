@@ -14,20 +14,23 @@ import { SERVICE_NAME } from './constants.js';
 const log = createLogger(SERVICE_NAME, 'bridge');
 
 /** Outcome of evaluating an expression in the page (never throws for a page-level JS error). */
-type EvalOutcome = { ok: true; value: unknown } | { ok: false; error: string };
+type EvalOutcome = { ok: true; value: unknown; undef?: boolean } | { ok: false; error: string };
 
 /**
  * Evaluate an expression string in the app's realm over W3C `/execute/async` and resolve its
  * (awaited) value, or an error string for a page-level rejection. The expression is inlined
  * into the async script BODY (not `eval`/`Function`), so it works under a page CSP that forbids
  * `unsafe-eval`. `awaitPromise` semantics match CDP: the value is unwrapped from a Promise.
+ *
+ * `undef` flags a genuine `undefined` result so the caller can distinguish it from `null` —
+ * WebDriver serialises a bare `undefined` as `null`, unlike CDP's returnByValue.
  */
 async function runInPage(browser: WebdriverIO.Browser, expression: string): Promise<EvalOutcome> {
   // The W3C async script receives an injected callback as its last argument.
   const body =
     'var done = arguments[arguments.length - 1];' +
     `Promise.resolve().then(function () { return (${expression}); }).then(` +
-    'function (v) { done({ ok: true, value: v }); },' +
+    'function (v) { done({ ok: true, value: v, undef: v === undefined }); },' +
     'function (e) { done({ ok: false, error: String((e && e.stack) || e) }); });';
   return (await browser.executeAsync(body)) as EvalOutcome;
 }
@@ -53,7 +56,9 @@ export class WebDriverEvalBridge {
     }
     const outcome = await runInPage(this.browser, params.expression);
     if (outcome.ok) {
-      return { result: { value: outcome.value } };
+      // Preserve a genuine `undefined` result (WebDriver would otherwise surface it as `null`),
+      // matching the CDP path so the execute surface is convergent across transports.
+      return { result: { value: outcome.undef ? undefined : outcome.value } };
     }
     // Page-level JS error → mirror CDP's exceptionDetails so the caller wraps it with context.
     return { exceptionDetails: { text: outcome.error, exception: { description: outcome.error } } };
@@ -65,6 +70,11 @@ export class WebDriverEvalBridge {
  * `window.__WDIO_ELECTROBUN_LOGS__`, and return a reader that drains the buffer and forwards
  * entries to the WDIO logger. Frontend log capture without CDP console events (the WebKitGTK
  * path has none). Best-effort: injection/read failures are logged, not fatal.
+ *
+ * NOTE: the shim is per-document — a full-page navigation resets `window`, so entries logged
+ * before a navigation are lost from the buffer. Cross-navigation frontend logs still surface
+ * via the driver's stdout (electrobun forwards `console.*` there), which the launcher pipes to
+ * the logger; this shim is the structured, in-page supplement to that live stream.
  */
 export async function installConsoleShim(browser: WebdriverIO.Browser): Promise<() => Promise<void>> {
   const installScript =
@@ -96,7 +106,9 @@ export async function installConsoleShim(browser: WebdriverIO.Browser): Promise<
       )) as unknown as Array<{ level: string; args: string[] }>;
       for (const entry of entries ?? []) {
         const line = `[webview] ${entry.args.join(' ')}`;
-        const level = entry.level === 'debug' ? 'debug' : entry.level === 'error' ? 'error' : 'info';
+        // Preserve the console severity where the logger has a matching level; console.log and
+        // unknown levels fall back to info.
+        const level = ['debug', 'info', 'warn', 'error'].includes(entry.level) ? entry.level : 'info';
         (log as unknown as Record<string, (msg: string) => void>)[level]?.(line);
       }
     } catch (error) {

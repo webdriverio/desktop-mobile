@@ -426,6 +426,27 @@ describe('ElectrobunWorkerService', () => {
       expect(browser.switchToWindow).toHaveBeenCalledWith('h1');
     });
 
+    it('should reject switchWindow for an unrecognised label (not silently target main)', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      await expect((browser as unknown as Installed).electrobun.switchWindow('typo')).rejects.toThrow(
+        /unrecognised window label/,
+      );
+      expect(browser.switchToWindow).not.toHaveBeenCalled();
+    });
+
+    it('should preserve undefined from execute (WebDriver would surface it as null)', async () => {
+      const browser = makeW3CBrowser();
+      browser.executeAsync.mockResolvedValue({ ok: true, undef: true });
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const result = await (browser as unknown as Installed).electrobun.execute(() => undefined);
+      expect(result).toBeUndefined();
+    });
+
     it('should install the console shim and drain it on teardown', async () => {
       const browser = makeW3CBrowser();
       const service = new ElectrobunWorkerService({}, {});

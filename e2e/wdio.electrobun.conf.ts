@@ -185,10 +185,11 @@ export const config = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  // Electrobun is CDP-attach: the app binary is spawned from the worker process
-  // (no separate driver in the launcher needing a display), so the Electron
-  // headless approach applies — let @wdio/xvfb auto-manage Xvfb on Linux rather
-  // than wrapping the whole command with xvfb-run (the Wry tauri/dioxus path).
+  // autoXvfb lets @wdio/xvfb manage Xvfb for the worker process on Linux (the Electron
+  // headless approach). macOS CEF / Windows WebView2 are CDP-attach and need nothing more.
+  // The Linux WebKitGTK path spawns WebKitWebDriver from the launcher (which then launches the
+  // app) — autoXvfb does NOT cover launcher-spawned processes, so the service wraps that driver
+  // in `xvfb-run -a` itself (webkitDriver.ts), mirroring the CEF app spawn in nativeMode.ts.
   autoXvfb: true,
   services: ['electrobun'],
   framework: 'mocha',

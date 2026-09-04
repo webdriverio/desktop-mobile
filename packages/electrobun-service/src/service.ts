@@ -253,13 +253,18 @@ function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: 
   log.debug('Installed browser.electrobun.*');
 }
 
-/** Map a window label ('main', 'window-1', …) to a W3C window-handle index. */
+/**
+ * Map a window label ('main', 'window-1', …) to a W3C window-handle index, or -1 for an
+ * unrecognised label (so the caller rejects rather than silently targeting window 0). NOTE:
+ * W3C `getWindowHandles` order is unspecified, so index→window is best-effort — multi-window on
+ * Linux is experimental (see the README). Single-window ('standard') runs never index past 0.
+ */
 function w3cWindowIndex(label: string): number {
   if (label === 'main') {
     return 0;
   }
   const match = /^window-(\d+)$/.exec(label);
-  return match ? Number.parseInt(match[1], 10) : 0;
+  return match ? Number.parseInt(match[1], 10) : -1;
 }
 
 /**
@@ -279,12 +284,17 @@ function installApiW3C(
     execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
       execute<R, A>(bridge, script, ...args),
     switchWindow: async (label: string) => {
-      const handles = await browser.getWindowHandles();
       const index = w3cWindowIndex(label);
+      if (index < 0) {
+        throw new Error(
+          `browser.electrobun.switchWindow("${label}"): unrecognised window label (expected "main" or "window-<n>").`,
+        );
+      }
+      const handles = await browser.getWindowHandles();
       const handle = handles[index];
       if (!handle) {
         throw new Error(
-          `browser.electrobun.switchWindow("${label}"): no window at index ${index} (open windows: ${handles.length})`,
+          `browser.electrobun.switchWindow("${label}"): no window at index ${index} (open windows: ${handles.length}).`,
         );
       }
       await browser.switchToWindow(handle);

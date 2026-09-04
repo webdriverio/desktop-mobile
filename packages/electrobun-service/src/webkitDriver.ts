@@ -116,17 +116,36 @@ export async function spawnWebKitWebDriver(opts: {
   readyTimeoutMs?: number;
 }): Promise<WebKitDriverProcess> {
   const host = opts.host ?? '127.0.0.1';
-  log.debug(`Spawning WebKitWebDriver: ${opts.driverPath} ${webKitWebDriverArgs(host, opts.port).join(' ')}`);
-  const child = spawn(opts.driverPath, webKitWebDriverArgs(host, opts.port), {
-    stdio: ['ignore', 'pipe', 'pipe'],
-  });
+  const driverArgs = webKitWebDriverArgs(host, opts.port);
+
+  // Linux CI runners are headless, and WebKitWebDriver launches a GTK app that needs an X
+  // display ("Failed to open X11 display" otherwise → New Session hangs). WDIO's autoXvfb
+  // covers the worker process, NOT this launcher-spawned driver, so run it under `xvfb-run -a`
+  // (a throwaway X server) — mirroring the CEF app spawn in nativeMode.ts. This driver only
+  // runs on Linux; the guard keeps a local non-Linux run (there is none today) direct.
+  const useXvfb = process.platform === 'linux';
+  const command = useXvfb ? 'xvfb-run' : opts.driverPath;
+  const spawnArgs = useXvfb ? ['-a', opts.driverPath, ...driverArgs] : driverArgs;
+
+  log.debug(`Spawning WebKitWebDriver: ${command} ${spawnArgs.join(' ')}`);
+  const child = spawn(command, spawnArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
   child.stdout?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver] ${chunk.toString().trimEnd()}`));
   child.stderr?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver:err] ${chunk.toString().trimEnd()}`));
   child.on('exit', (code) => log.debug(`WebKitWebDriver exited with code ${code}`));
+  // A spawn failure (ENOENT/EACCES) emits 'error'; without a handler Node re-throws it as an
+  // uncaught exception and crashes the launcher. Always handle it.
+  child.on('error', (error) => log.warn(`WebKitWebDriver process error: ${(error as Error).message}`));
 
   const handle: WebKitDriverProcess = { process: child, host, port: opts.port };
+  // Fail the readiness wait fast on a spawn error rather than blocking for the full timeout.
+  const spawnFailed = new Promise<never>((_, reject) => {
+    child.once('error', (error: Error) =>
+      reject(new Error(`Failed to spawn WebKitWebDriver (${command}): ${error.message}`)),
+    );
+  });
+  spawnFailed.catch(() => {}); // no-op catch: avoids an unhandled rejection if 'error' fires post-readiness
   try {
-    await waitForWebKitWebDriverReady(host, opts.port, opts.readyTimeoutMs);
+    await Promise.race([waitForWebKitWebDriverReady(host, opts.port, opts.readyTimeoutMs), spawnFailed]);
   } catch (error) {
     await stopWebKitWebDriver(handle).catch(() => {});
     throw error;
