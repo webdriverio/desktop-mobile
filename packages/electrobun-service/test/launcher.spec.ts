@@ -54,6 +54,7 @@ vi.mock('../src/webkitDriver.js', () => ({
     process: { pid: 5555, exitCode: null, signalCode: null, kill: vi.fn() },
     host: '127.0.0.1',
     port: 9333,
+    detached: true,
   })),
   stopWebKitWebDriver: vi.fn().mockResolvedValue(undefined),
 }));

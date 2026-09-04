@@ -22,6 +22,8 @@ export interface WebKitDriverProcess {
   process: ChildProcess;
   host: string;
   port: number;
+  /** Spawned detached (its own process group) so teardown can kill the whole xvfb-run tree. */
+  detached: boolean;
 }
 
 // Common install locations, tried after `which`. The `webkit2gtk-driver` package installs
@@ -128,7 +130,11 @@ export async function spawnWebKitWebDriver(opts: {
   const spawnArgs = useXvfb ? ['-a', opts.driverPath, ...driverArgs] : driverArgs;
 
   log.debug(`Spawning WebKitWebDriver: ${command} ${spawnArgs.join(' ')}`);
-  const child = spawn(command, spawnArgs, { stdio: ['ignore', 'pipe', 'pipe'] });
+  // Detach on Linux so xvfb-run becomes its own process-group leader: `xvfb-run` does NOT forward
+  // signals to WebKitWebDriver (its child) or the app (WebKitWebDriver's child), so killing just
+  // the xvfb-run pid orphans them — across retries the orphaned apps + X servers pile up and
+  // starve the runner (New Session then times out). Detaching lets teardown kill the whole group.
+  const child = spawn(command, spawnArgs, { stdio: ['ignore', 'pipe', 'pipe'], detached: useXvfb });
   child.stdout?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver] ${chunk.toString().trimEnd()}`));
   child.stderr?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver:err] ${chunk.toString().trimEnd()}`));
   child.on('exit', (code) => log.debug(`WebKitWebDriver exited with code ${code}`));
@@ -136,7 +142,7 @@ export async function spawnWebKitWebDriver(opts: {
   // uncaught exception and crashes the launcher. Always handle it.
   child.on('error', (error) => log.warn(`WebKitWebDriver process error: ${(error as Error).message}`));
 
-  const handle: WebKitDriverProcess = { process: child, host, port: opts.port };
+  const handle: WebKitDriverProcess = { process: child, host, port: opts.port, detached: useXvfb };
   // Fail the readiness wait fast on a spawn error rather than blocking for the full timeout.
   const spawnFailed = new Promise<never>((_, reject) => {
     child.once('error', (error: Error) =>
@@ -159,19 +165,33 @@ export async function spawnWebKitWebDriver(opts: {
  * to release a session on teardown, so the SIGKILL fallback matters.
  */
 export async function stopWebKitWebDriver(handle: WebKitDriverProcess, killTimeoutMs = KILL_TIMEOUT_MS): Promise<void> {
-  const { process: child } = handle;
+  const { process: child, detached } = handle;
   if (child.exitCode !== null || child.signalCode !== null) {
     return;
   }
+  // Signal the whole process GROUP (negative pid) when detached, so xvfb-run + WebKitWebDriver +
+  // the app all die — killing only the xvfb-run pid leaves the driver and app orphaned. Falls
+  // back to the single child if the group is already gone or we didn't detach.
+  const signalTree = (signal: NodeJS.Signals) => {
+    try {
+      if (detached && child.pid !== undefined) {
+        process.kill(-child.pid, signal);
+        return;
+      }
+    } catch {
+      // group gone / not a leader — fall through to the direct kill
+    }
+    child.kill(signal);
+  };
   await new Promise<void>((resolve) => {
     const timer = setTimeout(() => {
-      child.kill('SIGKILL');
+      signalTree('SIGKILL');
       resolve();
     }, killTimeoutMs);
     child.once('exit', () => {
       clearTimeout(timer);
       resolve();
     });
-    child.kill('SIGTERM');
+    signalTree('SIGTERM');
   });
 }
