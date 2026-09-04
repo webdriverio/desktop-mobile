@@ -109,8 +109,7 @@ const capabilities: FlutterCapability[] = [
     // iOS: appium-flutter-driver wraps appium-xcuitest, which launches WebDriverAgent. CI
     // pre-builds WDA into FLUTTER_WDA_DD; reuse it (usePreinstalledWDA — simctl install/launch) so
     // the first session just launches it — fast, no per-session xcodebuild (which under WDIO's
-    // undici client dropped the POST /session socket on the RN leg). Generous sim-boot ceiling for
-    // cold/slow runners.
+    // undici client dropped the POST /session socket on the RN leg).
     ...(isIos
       ? {
           'appium:deviceName': process.env.FLUTTER_IOS_DEVICE ?? 'iPhone 17',
@@ -118,11 +117,9 @@ const capabilities: FlutterCapability[] = [
           // so appium doesn't independently resolve the deviceName to a different instance (#359).
           // Omitted locally (appium resolves by name).
           ...(process.env.FLUTTER_IOS_UDID ? { 'appium:udid': process.env.FLUTTER_IOS_UDID } : {}),
-          'appium:simulatorStartupTimeout': 240000,
-          // Prebuilt WDA just launches (no compile), so a tight per-attempt ceiling lets several
-          // startup retries fit inside connectionRetryTimeout below; non-prebuilt (local) must
-          // allow the multi-minute compile.
-          'appium:wdaLaunchTimeout': process.env.FLUTTER_WDA_DD ? 120000 : 720000,
+          // wdaLaunchTimeout + simulatorStartupTimeout are intentionally omitted so
+          // native-mobile-core's applyBootCapDefaults actually fills them in.
+          // https://github.com/webdriverio/desktop-mobile/issues/428
           // WDA on GitHub-Actions sims often fails to come up on the first attempt (ECONNREFUSED
           // 8100 / session-create timeout). appium's default is only 2 startup retries — bump it.
           'appium:wdaStartupRetries': 5,
