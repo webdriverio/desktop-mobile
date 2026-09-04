@@ -5,8 +5,7 @@ import type { Options } from '@wdio/types';
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
 // Force onPrepare's last-resort binary probe: a fork `browserVersion` the map can't resolve, plus an
-// explicit binary path (a fork version would break auto-detection). The session boots only if the
-// probe reads Chromium off the packaged binary.
+// explicit binary path (a fork version would break auto-detection).
 // See https://github.com/webdriverio/desktop-mobile/issues/578
 const appBinaryPath = await getElectronBinaryPath(__dirname);
 
