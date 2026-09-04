@@ -75,6 +75,48 @@ If mismatch detected:
 - Caches in temp directory: `%TEMP%\msedgedriver\{majorVersion}\`
 - Adds to process PATH for test execution
 
+## Fixed-version WebView2 runtimes
+
+By default the service matches msedgedriver to the machine's **Evergreen** WebView2 runtime (read from the registry). But a Tauri app can ship against a **fixed-version WebView2 runtime** — a supported distribution mode (`bundle.windows.webviewInstallMode: "fixedRuntime"`, or the `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` environment variable). When the app renders with a fixed runtime that differs from the installed Evergreen, matching against Evergreen downloads the wrong driver and session creation fails:
+
+```
+session not created: This version of Microsoft Edge WebDriver only supports Microsoft Edge version 150
+Current browser version is 149.0.4022.98 ... tauri-e2e-app.exe
+```
+
+The service resolves the target version in this precedence order:
+
+1. **Explicit pin** — the `edgeDriverVersion` service option, or the `EDGEDRIVER_VERSION` environment variable, is used as the exact msedgedriver version verbatim (a CI escape hatch for the next Evergreen drift that breaks automation).
+2. **Fixed-version runtime folder** — if `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, the runtime version is read from the `msedgewebview2.exe` in that folder, and the driver is matched to it. This is read from the service `env` option first, then `process.env`, mirroring what the app actually receives.
+3. **Evergreen** — the installed runtime from the registry (the default, and the canary that catches runtime regressions).
+
+### Pin the exact driver version
+
+```javascript
+services: [
+  ['tauri', {
+    application: './dist/my-app.exe',
+    edgeDriverVersion: '149.0.4022.98', // or set EDGEDRIVER_VERSION in the environment
+  }]
+]
+```
+
+### Drive a fixed-version runtime
+
+```javascript
+services: [
+  ['tauri', {
+    application: './dist/my-app.exe',
+    env: {
+      // The app renders with this runtime; the driver is matched to it automatically.
+      WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\path\\to\\fixed-version-runtime',
+    },
+  }]
+]
+```
+
+> Windows-only. macOS (WKWebView) and Linux (WebKitGTK) have no separately-versioned driver to mismatch.
+
 ## Troubleshooting
 
 ### "Could not detect Edge version"
@@ -144,6 +186,12 @@ interface TauriServiceOptions {
    * @platform Windows only
    */
   autoDownloadEdgeDriver?: boolean;
+  /**
+   * Pin the exact msedgedriver version to download, bypassing runtime detection.
+   * Also honoured via the EDGEDRIVER_VERSION environment variable.
+   * @platform Windows only
+   */
+  edgeDriverVersion?: string;
 }
 ```
 
