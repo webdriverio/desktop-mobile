@@ -10,7 +10,7 @@ import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
 import { ElectrobunMockStore } from './mockStore.js';
 import type { ElectrobunServiceOptions } from './types.js';
-import { installConsoleShim, WebDriverEvalBridge } from './webdriverEval.js';
+import { createWebDriverEvalBridge, installConsoleShim, type WebDriverEvalBridge } from './webdriverEval.js';
 
 const log = createLogger(SERVICE_NAME, 'service');
 
@@ -137,7 +137,7 @@ export default class ElectrobunWorkerService {
   /** Install `browser.electrobun.*` over the W3C session (Linux/WebKitGTK path). */
   private async attachW3CInstance(browser: WebdriverIO.Browser): Promise<void> {
     log.info('Installing browser.electrobun.* over W3C WebDriver (WebKitGTK)');
-    const evalBridge = new WebDriverEvalBridge(browser);
+    const evalBridge = createWebDriverEvalBridge(browser);
     const mockStore = new ElectrobunMockStore();
     this.mockStores.push(mockStore);
     // Frontend log capture without CDP console events: buffer console.* in-page, drain to the

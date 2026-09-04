@@ -16,8 +16,15 @@ function getLogDir() {
 // log when `captureBackendLogs` is set (wdio.electrobun.conf.ts). The fixture's
 // Bun backend (fixtures/e2e-apps/electrobun/src/bun/index.ts) prints '[e2e]'
 // startup lines, which the launcher tags with a '[backend]' prefix.
+// Backend log capture works on the CDP paths (macOS CEF / Windows WebView2), where the service
+// spawns the app and forwards its stdout. On Linux the WebKitGTK/W3C driver owns the app process
+// (the service never spawns it), so `captureBackendLogs` structured capture is not wired there —
+// skip these on Linux. (Live backend/frontend logs still surface via the driver's stdout; see the
+// README limitation row.)
+const describeBackend = process.platform === 'linux' ? describe.skip : describe;
+
 describe('Electrobun Log Integration', () => {
-  describe('Backend Log Capture', () => {
+  describeBackend('Backend Log Capture', () => {
     it('should capture the Bun backend stdout in the WDIO log', async () => {
       await browser.waitUntil(
         async () => {

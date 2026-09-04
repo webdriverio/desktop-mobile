@@ -26,8 +26,16 @@ vi.mock('@wdio/native-cdp-bridge', () => ({
   },
 }));
 
+// Keep the real WebDriverEvalBridge + installConsoleShim; stub the factory so tests inject a
+// poster instead of doing raw /execute/async HTTP.
+vi.mock('../src/webdriverEval.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/webdriverEval.js')>();
+  return { ...actual, createWebDriverEvalBridge: vi.fn() };
+});
+
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import ElectrobunWorkerService from '../src/service.js';
+import { createWebDriverEvalBridge, WebDriverEvalBridge } from '../src/webdriverEval.js';
 
 type Installed = { electrobun: ElectrobunServiceAPI };
 
@@ -360,23 +368,24 @@ describe('ElectrobunWorkerService', () => {
   describe('W3C (WebKitGTK) mode', () => {
     const w3cCap = { 'webkitgtk:browserOptions': { binary: '/app/bin/launcher', args: ['--automation'] } };
 
-    function makeW3CBrowser(): WebdriverIO.Browser & {
-      executeAsync: ReturnType<typeof vi.fn>;
-      execute: ReturnType<typeof vi.fn>;
-    } {
+    // The raw /execute/async poster the WebDriverEvalBridge calls; returns a W3C `{ value }`.
+    let poster: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      poster = vi.fn().mockResolvedValue({ value: { ok: true, value: undefined } });
+      vi.mocked(createWebDriverEvalBridge).mockImplementation(() => new WebDriverEvalBridge(poster));
+    });
+
+    function makeW3CBrowser(): WebdriverIO.Browser & { execute: ReturnType<typeof vi.fn> } {
       return {
         isMultiremote: false,
         sessionId: 'w3c',
+        options: { protocol: 'http', hostname: '127.0.0.1', port: 9333 },
         // execute (sync) backs the console shim install + drain; return [] so drain is a no-op.
         execute: vi.fn().mockResolvedValue([]),
-        // executeAsync backs the W3C eval channel (execute + mock).
-        executeAsync: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
         getWindowHandles: vi.fn().mockResolvedValue(['h0', 'h1']),
         switchToWindow: vi.fn().mockResolvedValue(undefined),
-      } as unknown as WebdriverIO.Browser & {
-        executeAsync: ReturnType<typeof vi.fn>;
-        execute: ReturnType<typeof vi.fn>;
-      };
+      } as unknown as WebdriverIO.Browser & { execute: ReturnType<typeof vi.fn> };
     }
 
     it('should install browser.electrobun over W3C without a CDP bridge', async () => {
@@ -393,25 +402,27 @@ describe('ElectrobunWorkerService', () => {
       }
     });
 
-    it('should run execute over browser.executeAsync (W3C eval channel)', async () => {
+    it('should run execute over the raw /execute/async poster (W3C eval channel)', async () => {
       const browser = makeW3CBrowser();
-      browser.executeAsync.mockResolvedValue({ ok: true, value: 7 });
+      poster.mockResolvedValue({ value: { ok: true, value: 7 } });
       const service = new ElectrobunWorkerService({}, {});
       await service.before(w3cCap, [], browser);
 
       const result = await (browser as unknown as Installed).electrobun.execute(() => 7);
 
       expect(result).toBe(7);
-      expect(browser.executeAsync).toHaveBeenCalled();
+      expect(poster).toHaveBeenCalled();
     });
 
-    it('should surface a page-level error from execute', async () => {
+    it('should surface a page-level error message from execute', async () => {
       const browser = makeW3CBrowser();
-      browser.executeAsync.mockResolvedValue({ ok: false, error: 'ReferenceError: boom' });
+      poster.mockResolvedValue({ value: { ok: false, error: 'Test error from execute' } });
       const service = new ElectrobunWorkerService({}, {});
       await service.before(w3cCap, [], browser);
 
-      await expect((browser as unknown as Installed).electrobun.execute(() => 1)).rejects.toThrow(/boom/);
+      await expect((browser as unknown as Installed).electrobun.execute(() => 1)).rejects.toThrow(
+        /Test error from execute/,
+      );
     });
 
     it('should list and switch windows via W3C handles', async () => {
@@ -439,7 +450,7 @@ describe('ElectrobunWorkerService', () => {
 
     it('should preserve undefined from execute (WebDriver would surface it as null)', async () => {
       const browser = makeW3CBrowser();
-      browser.executeAsync.mockResolvedValue({ ok: true, undef: true });
+      poster.mockResolvedValue({ value: { ok: true, undef: true } });
       const service = new ElectrobunWorkerService({}, {});
       await service.before(w3cCap, [], browser);
 
@@ -470,8 +481,8 @@ describe('ElectrobunWorkerService', () => {
       const mock = await (browser as unknown as Installed).electrobun.mock('api.fetchData');
 
       expect(mock).toBeDefined();
-      // The inner-recorder install script ran over W3C (executeAsync), not a CDP bridge.
-      expect(browser.executeAsync).toHaveBeenCalled();
+      // The inner-recorder install script ran over the raw /execute/async poster, not a CDP bridge.
+      expect(poster).toHaveBeenCalled();
       expect(cdpBridgeCtor).not.toHaveBeenCalled();
     });
   });
