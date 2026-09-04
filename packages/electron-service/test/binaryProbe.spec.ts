@@ -73,4 +73,14 @@ describe('probeChromiumVersion', () => {
     expect(b).toBe('150.0.7871.129');
     expect(mockExecFile).toHaveBeenCalledTimes(1);
   });
+
+  it('should not cache a failed probe (retries on a later call)', async () => {
+    stubExecFile((cb) => cb(new Error('spawn ETIMEDOUT'), ''));
+    await expect(probeChromiumVersion('/app/electron')).resolves.toBeUndefined();
+
+    // The binary recovered — a later call re-probes rather than returning the cached failure.
+    stubExecFile((cb) => cb(null, '150.0.7871.129\n'));
+    await expect(probeChromiumVersion('/app/electron')).resolves.toBe('150.0.7871.129');
+    expect(mockExecFile).toHaveBeenCalledTimes(2);
+  });
 });

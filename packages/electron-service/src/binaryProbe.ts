@@ -26,6 +26,13 @@ export function probeChromiumVersion(binaryPath: string): Promise<string | undef
   if (!pending) {
     pending = runProbe(binaryPath);
     probeCache.set(binaryPath, pending);
+    // Cache a success (a binary's Chromium version is stable) but not a failure — a transient
+    // spawn/timeout/fuse-read failure must not poison later retries for the same binary.
+    void pending.then((version) => {
+      if (version === undefined && probeCache.get(binaryPath) === pending) {
+        probeCache.delete(binaryPath);
+      }
+    });
   }
   return pending;
 }
