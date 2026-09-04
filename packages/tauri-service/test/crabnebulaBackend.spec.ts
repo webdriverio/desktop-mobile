@@ -109,7 +109,7 @@ describe('CrabNebula Backend', () => {
       const promise = startTestRunnerBackend({ port: 3000 });
 
       setImmediate(() => {
-        mockProc.stdout?.emit('data', Buffer.from('Server listening on port 3000\n'));
+        mockProc.emit('spawn');
       });
 
       const result = await promise;
@@ -129,7 +129,7 @@ describe('CrabNebula Backend', () => {
       expect(result.port).toBe(3000);
     }, 10000);
 
-    it('should resolve when backend emits capitalised "Listening" (real backend message format)', async () => {
+    it('should resolve when the process spawns, before any stdout line', async () => {
       vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
       process.env.CN_API_KEY = 'test-api-key-long-enough';
       vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
@@ -137,73 +137,33 @@ describe('CrabNebula Backend', () => {
       const promise = startTestRunnerBackend({ port: 3000 });
 
       setImmediate(() => {
-        mockProc.stdout?.emit(
-          'data',
-          Buffer.from('2026-04-23T15:10:08.434112Z  INFO test_runner_backend: Listening on 127.0.0.1:3000\n'),
-        );
+        mockProc.emit('spawn');
       });
 
       const result = await promise;
       expect(result.port).toBe(3000);
     }, 10000);
 
-    it('should resolve when backend emits capitalised "Ready"', async () => {
+    it('should keep the log-capture pipes flowing after ready (never pause them)', async () => {
       vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
       process.env.CN_API_KEY = 'test-api-key-long-enough';
       vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
 
-      const promise = startTestRunnerBackend({ port: 3000 });
+      const promise = startTestRunnerBackend({
+        port: 3000,
+        serviceOptions: { captureBackendLogs: true },
+      });
 
       setImmediate(() => {
-        mockProc.stdout?.emit('data', Buffer.from('Server Ready\n'));
+        mockProc.emit('spawn');
       });
 
-      const result = await promise;
-      expect(result.port).toBe(3000);
-    }, 10000);
-
-    it('should not resolve early on an unrelated stdout line', async () => {
-      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
-      process.env.CN_API_KEY = 'test-api-key-long-enough';
-      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
-
-      vi.useFakeTimers();
-
-      const promise = startTestRunnerBackend({ port: 3000 });
-      let resolved = false;
-      promise.then(() => {
-        resolved = true;
-      });
-
-      mockProc.stdout?.emit('data', Buffer.from('Initializing...\n'));
-      await vi.advanceTimersByTimeAsync(0);
-      expect(resolved).toBe(false);
-
-      vi.advanceTimersByTime(15000);
       await promise;
-      expect(resolved).toBe(true);
 
-      vi.useRealTimers();
-    });
-
-    it('should resolve on timeout even without ready message', async () => {
-      vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');
-      process.env.CN_API_KEY = 'test-api-key-long-enough';
-      vi.mocked(spawn).mockReturnValue(mockProc as ChildProcess);
-
-      vi.useFakeTimers();
-
-      const promise = startTestRunnerBackend({ port: 3000 });
-
-      vi.advanceTimersByTime(15000);
-
-      const result = await promise;
-
-      expect(result.proc).toBe(mockProc);
-      expect(result.port).toBe(3000);
-
-      vi.useRealTimers();
-    });
+      // Readiness must never pause a pipe — that would drop the forwarded app logs mid-test.
+      expect(mockProc.stdout?.pause).not.toHaveBeenCalled();
+      expect(mockProc.stderr?.pause).not.toHaveBeenCalled();
+    }, 10000);
 
     it('should reject if process exits with error', async () => {
       vi.mocked(driverManager.findTestRunnerBackend).mockReturnValue('/mock/backend');

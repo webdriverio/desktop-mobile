@@ -1,5 +1,4 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { createInterface } from 'node:readline';
 import { createLogger } from '@wdio/native-utils';
 import { findTestRunnerBackend } from './driverManager.js';
 import { createLogCapture } from './logCapture.js';
@@ -107,88 +106,49 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
       },
     });
 
-    let isReady = false;
-    let startupTimeout: NodeJS.Timeout;
-    let stdoutRl: ReturnType<typeof createInterface> | undefined;
-    let stderrRl: ReturnType<typeof createInterface> | undefined;
-    const streamHandlers: ReturnType<typeof createInterface>[] = [];
-
-    const cleanup = () => {
-      clearTimeout(startupTimeout);
-      if (stdoutRl) {
-        stdoutRl.close();
-        stdoutRl = undefined;
+    let settled = false;
+    const safeResolve = () => {
+      if (!settled) {
+        settled = true;
+        resolve({ proc, port });
       }
-      if (stderrRl) {
-        stderrRl.close();
-        stderrRl = undefined;
+    };
+    const safeReject = (error: Error) => {
+      if (!settled) {
+        settled = true;
+        reject(error);
       }
-      for (const handler of streamHandlers) {
-        handler.close();
-      }
-      streamHandlers.length = 0;
     };
 
-    // Setup log capture for frontend/backend logs if enabled
-    if (serviceOptions?.captureFrontendLogs || serviceOptions?.captureBackendLogs) {
-      if (proc.stdout) {
-        const stdoutHandler = createLogCapture({
-          stream: proc.stdout,
-          identifier: 'crabnebula-backend',
-          options: serviceOptions,
-          instanceId: options.instanceId,
-        });
-        if (stdoutHandler) streamHandlers.push(stdoutHandler);
-      }
-      if (proc.stderr) {
-        const stderrHandler = createLogCapture({
-          stream: proc.stderr,
-          identifier: 'crabnebula-backend',
-          options: serviceOptions,
-          instanceId: options.instanceId,
-        });
-        if (stderrHandler) streamHandlers.push(stderrHandler);
-      }
-      log.debug('Log capture enabled for CrabNebula test-runner-backend');
-    }
-
-    // Handle stdout for ready detection
-    if (proc.stdout) {
-      stdoutRl = createInterface({ input: proc.stdout });
-      stdoutRl.on('line', (line: string) => {
-        log.info(`[test-runner-backend stdout] ${line}`);
-
-        // Detect ready state — case-insensitive to handle "Listening", "listening", etc.
-        const lowered = line.toLowerCase();
-        if (lowered.includes('listening') || lowered.includes('ready') || lowered.includes('started')) {
-          if (!isReady) {
-            isReady = true;
-            cleanup();
-            resolve({ proc, port });
-          }
-        }
-      });
-    }
-
-    // Handle stderr
-    if (proc.stderr) {
-      stderrRl = createInterface({ input: proc.stderr });
-      stderrRl.on('line', (line: string) => {
-        log.error(`[test-runner-backend stderr] ${line}`);
-      });
-    }
-
-    proc.on('error', (error: Error) => {
-      if (!isReady) {
-        cleanup();
-        reject(new Error(`Failed to start test-runner-backend: ${error.message}`));
-      }
+    // These pipes carry the app's logs for the whole test, long after startup, so
+    // the reader lives as long as the backend. Readiness is the caller's
+    // waitTestRunnerBackendReady() TCP poll, so spawn is signal enough to resolve.
+    const captureOptions = serviceOptions ?? ({} as TauriServiceOptions);
+    createLogCapture({
+      stream: proc.stdout,
+      identifier: 'crabnebula-backend',
+      options: captureOptions,
+      instanceId: options.instanceId,
+    });
+    createLogCapture({
+      stream: proc.stderr,
+      identifier: 'crabnebula-backend',
+      options: captureOptions,
+      instanceId: options.instanceId,
     });
 
-    proc.on('exit', (code: number | null) => {
-      if (!isReady && code !== 0) {
-        cleanup();
-        reject(
+    proc.once('spawn', () => {
+      log.info(`test-runner-backend spawned (PID: ${proc.pid ?? 'unknown'})`);
+      safeResolve();
+    });
+
+    proc.once('error', (error: Error) => {
+      safeReject(new Error(`Failed to start test-runner-backend: ${error.message}`));
+    });
+
+    proc.once('exit', (code: number | null) => {
+      if (code !== 0) {
+        safeReject(
           new Error(
             `test-runner-backend exited with code ${code}. ` +
               'Ensure CN_API_KEY is valid and the service is accessible.',
@@ -196,16 +156,6 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
         );
       }
     });
-
-    // Timeout fallback - assume ready after timeout even if no message detected
-    startupTimeout = setTimeout(() => {
-      if (!isReady) {
-        log.warn('test-runner-backend startup timeout, assuming ready');
-        isReady = true;
-        cleanup();
-        resolve({ proc, port });
-      }
-    }, 10000);
   });
 }
 

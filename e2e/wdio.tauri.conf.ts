@@ -122,22 +122,6 @@ switch (envContext.testType) {
     break;
 }
 
-// CrabNebula: the standard logging specs can't pass (test-runner-backend doesn't forward the app's
-// stdout/stderr — #179), so they stay excluded. logging.crabnebula-tripwire.spec.ts runs in their
-// place and flips red if that ever changes.
-if (envContext.driverProvider === 'crabnebula') {
-  exclude.push(
-    './test/tauri/logging.spec.ts',
-    './test/tauri/logging.tauri-driver.spec.ts',
-    './test/tauri/multiremote/logging.spec.ts',
-  );
-}
-// #179 is macOS-specific — CrabNebula forwards logs fine on Linux/Windows and under every other
-// provider, where the tripwire's inverse assertion would false-fire. Run it only on macOS+crabnebula.
-if (process.platform !== 'darwin' || envContext.driverProvider !== 'crabnebula') {
-  exclude.push('./test/tauri/logging.crabnebula-tripwire.spec.ts');
-}
-
 // Configure capabilities
 type TauriCapability = {
   browserName?: 'tauri';
