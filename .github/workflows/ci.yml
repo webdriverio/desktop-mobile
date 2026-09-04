@@ -250,10 +250,10 @@ jobs:
   # ~150MB CEF download. macOS is the validated CEF platform; Windows builds the native
   # WebView2 renderer in the sibling job below (bundleCEF:false → no CEF download).
   #
-  # Linux is NOT built/run: its CEF can't recover from the chrome-runtime persist:default
-  # profile failure (the global-context fallback serves no /json), and native WebKitGTK
-  # needs upstream W3C automation (blackboardsh/electrobun#467). Re-add a Linux leg once
-  # one of those lands (#320 CEF / #317 native).
+  # Linux builds the native WebKitGTK renderer (bundleCEF:false → no CEF download), driven
+  # over W3C WebDriver (WebKitWebDriver) — unblocked by electrobun 2.0.1 (#467). The e2e leg
+  # is NON-GATING for now (a proof leg, like Windows started) until it's proven green; it is
+  # not yet in ci-status.needs. CEF-on-Linux stays unsupported (#320).
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
@@ -278,6 +278,17 @@ jobs:
     secrets: inherit
     with:
       os: 'windows-latest'
+
+  # Electrobun E2E app [Linux] — native WebKitGTK renderer (bundleCEF:false → no CEF
+  # download). Driven over W3C WebDriver in the e2e leg below (non-gating proof leg).
+  build-electrobun-e2e-app-linux:
+    name: Build Electrobun E2E App [Linux]
+    needs: [detect-changes]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
 
   # macOS (CEF) + Windows (WebView2). The package-test fixture build mirrors the e2e build
   # (Bun, tar artifact); Windows builds the native WebView2 renderer (no CEF download).
@@ -964,6 +975,29 @@ jobs:
     secrets: inherit
     with:
       os: 'windows-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+
+  # ────────────────────────────────────────────────────────────────────────
+  # Electrobun E2E tests — Linux (native WebKitGTK over W3C WebDriver). NON-GATING proof leg
+  # (not in ci-status.needs) until proven green — mirrors how the Windows WebView2 leg started.
+  # 'standard' only for now (window/multiremote follow once the single-window path is solid).
+  # ────────────────────────────────────────────────────────────────────────
+  e2e-electrobun-linux:
+    name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
+    needs: [detect-changes, build, build-electrobun-e2e-app-linux]
+    if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard']
+    uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
       node-version: '24'
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}

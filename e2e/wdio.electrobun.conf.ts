@@ -138,22 +138,18 @@ const electrobunServiceOptions: ElectrobunServiceOptions = {
 };
 
 const baseCapability: ElectrobunCapability = {
-  // CDP-attach: the launcher rewrites this 'electrobun' → 'chrome' (CEF/macOS) or
-  // 'MicrosoftEdge' (WebView2/Windows) and sets the debuggerAddress onto the
-  // capability in onWorkerStart.
+  // The launcher rewrites this 'electrobun' per platform: → 'chrome' (CEF/macOS, CDP),
+  // 'MicrosoftEdge' (WebView2/Windows, CDP), or deletes it and points hostname/port at
+  // WebKitWebDriver (WebKitGTK/Linux, W3C) — all in onPrepare/onWorkerStart.
   browserName: 'electrobun',
-  // CEF (macOS) bundles Chromium 147 (147.0.7727.118); pin the driver to that major
-  // so WDIO doesn't fetch the latest (148+), which refuses to attach with "only
-  // supports Chrome version N". Matching the major is what matters (spike
-  // RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin. The Windows WebView2 path
-  // omits this — the launcher pins browserVersion to the detected WebView2 *runtime* version
-  // instead, since msedgedriver must match the runtime (which can lag the Edge browser WDIO
-  // would otherwise auto-match). It also forces CLASSIC WebDriver: Edge defaults to
-  // WebDriver BiDi, whose session resets the app's only webview to about:blank (a
-  // "BiDi-CDP Mapper" target appears and the content target vanishes), so the CDP bridge
-  // finds no content. Classic attach leaves the `views://` page intact, as chromedriver
-  // does for CEF.
-  ...(process.platform === 'win32' ? { 'wdio:enforceWebDriverClassic': true } : { browserVersion: '147' }),
+  // macOS/CEF bundles a specific Chromium major; pin the driver to it so WDIO doesn't fetch a
+  // newer major that refuses to attach ("only supports Chrome version N"). Bump alongside the
+  // Electrobun/CEF pin. Windows (WebView2) and Linux (WebKitGTK) DON'T pin a browserVersion:
+  //  - Windows: the launcher pins msedgedriver to the detected WebView2 *runtime* version, and
+  //    forces CLASSIC WebDriver (Edge's default BiDi session resets the webview to about:blank).
+  //  - Linux: WebKitWebDriver is a classic W3C driver the launcher connects to directly — a
+  //    Chromium browserVersion is meaningless. Classic is forced (here + by the launcher).
+  ...(process.platform === 'darwin' ? { browserVersion: '147' } : { 'wdio:enforceWebDriverClassic': true }),
   'wdio:electrobunServiceOptions': electrobunServiceOptions,
 };
 

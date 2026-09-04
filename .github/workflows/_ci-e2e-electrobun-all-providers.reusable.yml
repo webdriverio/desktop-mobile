@@ -55,18 +55,19 @@ jobs:
         with:
           node-version: ${{ inputs.node-version }}
 
-      # CEF + native-wrapper runtime dependencies on Linux. libwebkit2gtk-4.1-0 is
-      # required even though we use the CEF renderer: electrobun's libNativeWrapper.so
-      # links webkit2gtk (it supports both renderers), so it won't dlopen without it
-      # ("libwebkit2gtk-4.1.so.0: cannot open shared object file"). The rest are CEF's
-      # Chromium runtime libs.
-      - name: 🐧 Install CEF Runtime Dependencies (Linux)
+      # Linux drives the native WebKitGTK renderer over W3C WebDriver:
+      #  - webkit2gtk-driver provides the WebKitWebDriver binary the service spawns;
+      #  - libwebkit2gtk-4.1-0 is the renderer runtime (electrobun's libNativeWrapper.so
+      #    links webkit2gtk, so it won't dlopen without it);
+      #  - the rest are shared GTK/NSS/X runtime libs the app needs.
+      - name: 🐧 Install WebKitGTK Runtime Dependencies (Linux)
         if: runner.os == 'Linux'
         shell: bash
         run: |
           sudo apt-get update
           sudo apt-get install -y \
             xvfb \
+            webkit2gtk-driver \
             libwebkit2gtk-4.1-0 \
             libayatana-appindicator3-1 \
             libnss3 \
