@@ -4,11 +4,9 @@ import type { Options } from '@wdio/types';
 
 const __dirname = path.dirname(new URL(import.meta.url).pathname);
 
-// Resolve the real packaged binary up front (using the actually-installed Electron version), then
-// hand it to the service explicitly. Paired with a fork `browserVersion` that the Electron→Chromium
-// map cannot resolve, this forces onPrepare's last-resort binary probe (#578): the session only
-// boots if the probe reads the Chromium version off the packaged binary — otherwise onPrepare
-// throws before any session starts.
+// Force onPrepare's last-resort binary probe (#578): a fork `browserVersion` the map can't resolve,
+// plus an explicit binary path (a fork version would break auto-detection). The session boots only
+// if the probe reads Chromium off the packaged binary.
 const appBinaryPath = await getElectronBinaryPath(__dirname);
 
 export const config: Options.Testrunner = {

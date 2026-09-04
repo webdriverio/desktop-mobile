@@ -73,18 +73,14 @@ export interface RunAsNodeCheckResult {
 }
 
 /**
- * Checks whether the Electron binary may be run as a plain Node process (the
- * `RunAsNode` fuse). The Chromium-version probe sets `ELECTRON_RUN_AS_NODE=1`
- * and runs the binary with `-p`; if this fuse is disabled that env var is
- * ignored and the binary would launch the real GUI, so the probe must not run.
+ * Whether the Electron binary may run as a plain Node process (the `RunAsNode`
+ * fuse). The Chromium probe runs `ELECTRON_RUN_AS_NODE=1 <binary> -p …`; if this
+ * fuse is disabled the env var is ignored and the binary launches its real GUI,
+ * so the probe must be skipped.
  *
- * Failing open on an unreadable fuse is safe: a disabled `RunAsNode` fuse is
- * always readable (that is how it gets flipped) and is caught below, so a read
- * failure means either no fuses at all (the env var is honoured) or an
+ * Fail-open is safe: a disabled fuse is always readable (that is how it is
+ * flipped), so a read failure means either no fuses (env var honoured) or an
  * inaccessible binary (the probe's own exec then fails harmlessly).
- *
- * @param binaryPath - Path to the Electron binary
- * @returns whether the binary may be run as a Node CLI
  */
 export async function checkRunAsNodeFuse(binaryPath: string): Promise<RunAsNodeCheckResult> {
   try {

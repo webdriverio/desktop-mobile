@@ -4,8 +4,7 @@ import { checkRunAsNodeFuse } from './fuses.js';
 
 const log = createLogger('electron-service', 'probe');
 
-// `onPrepare` maps over every capability concurrently and capabilities commonly
-// share a binary, so cache the in-flight promise per binary path to dedupe probes.
+// Dedupe probes of a shared binary: onPrepare probes every capability concurrently.
 const probeCache = new Map<string, Promise<string | undefined>>();
 
 const PROBE_TIMEOUT_MS = 10_000;
@@ -18,8 +17,7 @@ const CHROMIUM_VERSION_PATTERN = /^\d+\.\d+\.\d+/;
  * builds, or a release newer than the bundled map when the online lookup is
  * unavailable. `-p` does not load the app's main script, so no app code runs.
  *
- * Returns `undefined` on any failure (RunAsNode fuse disabled, spawn error,
- * timeout, unparseable output) so the caller falls through to its existing error.
+ * Returns `undefined` on any failure, so the caller falls through to its existing error.
  */
 export function probeChromiumVersion(binaryPath: string): Promise<string | undefined> {
   let pending = probeCache.get(binaryPath);

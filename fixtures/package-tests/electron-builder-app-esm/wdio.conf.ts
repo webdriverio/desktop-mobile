@@ -6,7 +6,7 @@ const __dirname = path.dirname(new URL(import.meta.url).pathname);
 export const config: Options.Testrunner = {
   runner: 'local',
   specs: ['./test/**/*.spec.ts'],
-  // The probe scenario runs under wdio.probe.conf.ts (a fork browserVersion + explicit binary).
+  // The probe scenario has its own config, wdio.probe.conf.ts.
   exclude: ['./test/probe.spec.ts'],
   maxInstances: 1,
   capabilities: [

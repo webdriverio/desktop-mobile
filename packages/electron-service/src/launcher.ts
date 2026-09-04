@@ -255,7 +255,6 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
     await Promise.all(
       caps.map(async (cap) => {
         const electronVersion = cap.browserVersion || localElectronVersion || '';
-        // Map lookup first; a binary probe below fills this in when the map has no entry.
         let chromiumVersion: string | undefined = await getChromiumVersion(electronVersion);
 
         (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:electronVersion'] = electronVersion;
@@ -347,8 +346,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           uniqueBinaryPaths.add(appBinaryPath);
         }
 
-        // Last resort — the Electron→Chromium map had no entry (nightly / fork, or a release newer
-        // than the bundled map when the online lookup is down). Ask the binary itself. (#578)
+        // The map had no entry — ask the binary directly (#578).
         if (!chromiumVersion && electronVersion && appBinaryPath) {
           chromiumVersion = await probeChromiumVersion(appBinaryPath);
         }

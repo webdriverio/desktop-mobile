@@ -19,7 +19,6 @@ vi.mock('@wdio/native-utils', () => import('./mocks/native-utils.js'));
 
 import { probeChromiumVersion, resetProbeCache } from '../src/binaryProbe.js';
 
-// Drive the mocked execFile callback: `execFile(bin, args, opts, cb)`.
 const stubExecFile = (impl: (cb: (err: Error | null, stdout: string) => void) => void): void => {
   mockExecFile.mockImplementation(((_bin, _args, _opts, cb) => impl(cb)) as typeof execFileType);
 };
