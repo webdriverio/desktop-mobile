@@ -356,4 +356,102 @@ describe('ElectrobunWorkerService', () => {
       expect((instanceB as unknown as Partial<Installed>).electrobun).toBeDefined();
     });
   });
+
+  describe('W3C (WebKitGTK) mode', () => {
+    const w3cCap = { 'webkitgtk:browserOptions': { binary: '/app/bin/launcher', args: ['--automation'] } };
+
+    function makeW3CBrowser(): WebdriverIO.Browser & {
+      executeAsync: ReturnType<typeof vi.fn>;
+      execute: ReturnType<typeof vi.fn>;
+    } {
+      return {
+        isMultiremote: false,
+        sessionId: 'w3c',
+        // execute (sync) backs the console shim install + drain; return [] so drain is a no-op.
+        execute: vi.fn().mockResolvedValue([]),
+        // executeAsync backs the W3C eval channel (execute + mock).
+        executeAsync: vi.fn().mockResolvedValue({ ok: true, value: undefined }),
+        getWindowHandles: vi.fn().mockResolvedValue(['h0', 'h1']),
+        switchToWindow: vi.fn().mockResolvedValue(undefined),
+      } as unknown as WebdriverIO.Browser & {
+        executeAsync: ReturnType<typeof vi.fn>;
+        execute: ReturnType<typeof vi.fn>;
+      };
+    }
+
+    it('should install browser.electrobun over W3C without a CDP bridge', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+
+      await service.before(w3cCap, [], browser);
+
+      expect(cdpBridgeCtor).not.toHaveBeenCalled();
+      const { electrobun } = browser as unknown as Installed;
+      expect(electrobun).toBeDefined();
+      for (const name of ['execute', 'mock', 'switchWindow', 'listWindows', 'clearAllMocks']) {
+        expect(typeof (electrobun as unknown as Record<string, unknown>)[name]).toBe('function');
+      }
+    });
+
+    it('should run execute over browser.executeAsync (W3C eval channel)', async () => {
+      const browser = makeW3CBrowser();
+      browser.executeAsync.mockResolvedValue({ ok: true, value: 7 });
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const result = await (browser as unknown as Installed).electrobun.execute(() => 7);
+
+      expect(result).toBe(7);
+      expect(browser.executeAsync).toHaveBeenCalled();
+    });
+
+    it('should surface a page-level error from execute', async () => {
+      const browser = makeW3CBrowser();
+      browser.executeAsync.mockResolvedValue({ ok: false, error: 'ReferenceError: boom' });
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      await expect((browser as unknown as Installed).electrobun.execute(() => 1)).rejects.toThrow(/boom/);
+    });
+
+    it('should list and switch windows via W3C handles', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const windows = await (browser as unknown as Installed).electrobun.listWindows();
+      expect(windows).toEqual(['main', 'window-1']);
+
+      await (browser as unknown as Installed).electrobun.switchWindow('window-1');
+      expect(browser.switchToWindow).toHaveBeenCalledWith('h1');
+    });
+
+    it('should install the console shim and drain it on teardown', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      // The shim install script runs during before().
+      const installed = browser.execute.mock.calls.some((c) => String(c[0]).includes('__WDIO_ELECTROBUN_LOGS__'));
+      expect(installed).toBe(true);
+
+      const callsBefore = browser.execute.mock.calls.length;
+      await service.after();
+      // Drain evaluates once more to read + clear the buffer.
+      expect(browser.execute.mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+
+    it('should create a mock over the W3C eval channel', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const mock = await (browser as unknown as Installed).electrobun.mock('api.fetchData');
+
+      expect(mock).toBeDefined();
+      // The inner-recorder install script ran over W3C (executeAsync), not a CDP bridge.
+      expect(browser.executeAsync).toHaveBeenCalled();
+      expect(cdpBridgeCtor).not.toHaveBeenCalled();
+    });
+  });
 });
