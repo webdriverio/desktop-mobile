@@ -22,6 +22,7 @@ vi.mock('../../src/appBuildInfo.js', () => ({ getAppBuildInfo: vi.fn() }));
 vi.mock('../../src/binaryPath.js', () => ({ getBinaryPath: vi.fn() }));
 vi.mock('../../src/electronVersion.js', () => ({ getElectronVersion: vi.fn() }));
 vi.mock('../../src/versions.js', () => ({ getChromiumVersion: vi.fn() }));
+vi.mock('../../src/binaryProbe.js', () => ({ probeChromiumVersion: vi.fn().mockResolvedValue(undefined) }));
 vi.mock('../../src/pathResolver.js', () => ({ resolveAppPaths: vi.fn() }));
 vi.mock('../../src/apparmor.js', () => ({ applyApparmorWorkaround: vi.fn() }));
 vi.mock('../../src/diagnostics.js', () => ({ diagnoseElectronEnvironment: vi.fn().mockResolvedValue([]) }));
@@ -50,6 +51,7 @@ import getPort from 'get-port';
 import { applyApparmorWorkaround } from '../../src/apparmor.js';
 import { getAppBuildInfo } from '../../src/appBuildInfo.js';
 import { getBinaryPath } from '../../src/binaryPath.js';
+import { probeChromiumVersion } from '../../src/binaryProbe.js';
 import { ElectronCdpBridge } from '../../src/bridge.js';
 import { getElectronVersion } from '../../src/electronVersion.js';
 import ElectronLaunchService from '../../src/launcher.js';
@@ -99,6 +101,7 @@ describe('launcher → worker handshake (browser mode)', () => {
 
     expect(getElectronVersion).not.toHaveBeenCalled();
     expect(getChromiumVersion).not.toHaveBeenCalled();
+    expect(probeChromiumVersion).not.toHaveBeenCalled();
     expect(resolveAppPaths).not.toHaveBeenCalled();
     expect(getBinaryPath).not.toHaveBeenCalled();
     expect(getAppBuildInfo).not.toHaveBeenCalled();

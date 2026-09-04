@@ -12,6 +12,7 @@ export type LogArea =
   | 'utils'
   | 'e2e'
   | 'fuses'
+  | 'probe'
   | 'window'
   | 'triggerDeeplink';
 

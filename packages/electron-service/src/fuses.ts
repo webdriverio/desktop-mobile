@@ -65,3 +65,58 @@ export async function checkInspectFuse(binaryPath: string): Promise<FuseCheckRes
     };
   }
 }
+
+export interface RunAsNodeCheckResult {
+  canRunAsNode: boolean;
+  fuseValue?: number;
+  error?: string;
+}
+
+/**
+ * Checks whether the Electron binary may be run as a plain Node process (the
+ * `RunAsNode` fuse). The Chromium-version probe sets `ELECTRON_RUN_AS_NODE=1`
+ * and runs the binary with `-p`; if this fuse is disabled that env var is
+ * ignored and the binary would launch the real GUI, so the probe must not run.
+ *
+ * Failing open on an unreadable fuse is safe: a disabled `RunAsNode` fuse is
+ * always readable (that is how it gets flipped) and is caught below, so a read
+ * failure means either no fuses at all (the env var is honoured) or an
+ * inaccessible binary (the probe's own exec then fails harmlessly).
+ *
+ * @param binaryPath - Path to the Electron binary
+ * @returns whether the binary may be run as a Node CLI
+ */
+export async function checkRunAsNodeFuse(binaryPath: string): Promise<RunAsNodeCheckResult> {
+  try {
+    log.debug(`Checking RunAsNode fuse for: ${binaryPath}`);
+
+    // biome-ignore lint/suspicious/noTsIgnore: @electron/fuses types may not resolve in all environments (e.g. CI)
+    // @ts-ignore
+    const { getCurrentFuseWire, FuseVersion, FuseV1Options, FuseState } = await import('@electron/fuses');
+    const config = await getCurrentFuseWire(binaryPath);
+
+    if (!config) {
+      return { canRunAsNode: true };
+    }
+
+    if (config.version === FuseVersion.V1) {
+      const runAsNodeFuse = config[FuseV1Options.RunAsNode];
+      log.debug(`RunAsNode fuse value: ${runAsNodeFuse}`);
+
+      if (runAsNodeFuse === FuseState.DISABLE) {
+        log.warn('RunAsNode fuse is disabled - skipping Chromium version probe to avoid launching the app');
+        return { canRunAsNode: false, fuseValue: runAsNodeFuse };
+      }
+
+      return { canRunAsNode: true, fuseValue: runAsNodeFuse };
+    }
+
+    return { canRunAsNode: true };
+  } catch (error) {
+    log.debug(`Failed to check RunAsNode fuse: ${error instanceof Error ? error.message : String(error)}`);
+    return {
+      canRunAsNode: true,
+      error: `Could not verify fuse configuration: ${error instanceof Error ? error.message : String(error)}`,
+    };
+  }
+}
