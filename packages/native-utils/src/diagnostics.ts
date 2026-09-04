@@ -141,38 +141,122 @@ export function diagnoseSharedLibraries(binaryPath: string): DiagnosticResult[] 
   return results;
 }
 
-export function diagnoseLinuxDependencies(requiredPackages: string[]): DiagnosticResult[] {
+/**
+ * A shared library the app needs. We check sonames, not package names, because
+ * sonames work across distros and don't drift like package names (see
+ * https://github.com/webdriverio/desktop-mobile/issues/617). `aptPackage` is
+ * only for the Debian/Ubuntu install hint.
+ */
+export interface LinuxLibrary {
+  soname: string;
+  aptPackage: string;
+}
+
+// `ldconfig` lives in /sbin or /usr/sbin (often off a non-root PATH) on
+// Debian/Ubuntu/Fedora and in /usr/bin on Arch/Void.
+const LDCONFIG_CANDIDATES = ['ldconfig', '/usr/sbin/ldconfig', '/sbin/ldconfig'];
+
+// A cache entry: `<soname> (<abi tags>) => <path>`, e.g.
+// `libcups.so.2 (libc6,x86-64) => /usr/lib/x86_64-linux-gnu/libcups.so.2`.
+const LDCONFIG_ENTRY = /^(\S+\.so\S*)\s+\(([^)]*)\)/;
+
+function hostArchTag(): string | undefined {
+  const tags: Partial<Record<NodeJS.Architecture, string>> = { x64: 'x86-64', arm64: 'aarch64' };
+  return tags[process.arch];
+}
+
+type LibraryCache =
+  | { status: 'ok'; sonames: Set<string> }
+  | { status: 'unavailable' } // no `ldconfig` binary found
+  | { status: 'error'; message: string }; // `ldconfig` present but failed to run
+
+function readSharedLibraryCache(): LibraryCache {
+  const archTag = hostArchTag();
+  let operationalError: string | undefined;
+
+  for (const bin of LDCONFIG_CANDIDATES) {
+    try {
+      const output = execFileSync(bin, ['-p'], {
+        encoding: 'utf8',
+        timeout: 2000,
+        stdio: ['ignore', 'pipe', 'ignore'],
+      });
+      const sonames = new Set<string>();
+      for (const line of output.split('\n')) {
+        const match = line.trim().match(LDCONFIG_ENTRY);
+        if (!match) {
+          continue;
+        }
+        const [, soname, tags] = match;
+        // A soname present only for a foreign arch (multiarch host) can't be loaded.
+        if (!archTag || tags.toLowerCase().includes(archTag)) {
+          sonames.add(soname);
+        }
+      }
+      return { status: 'ok', sonames };
+    } catch (error) {
+      // ENOENT just means this path isn't the binary — try the next candidate.
+      if ((error as NodeJS.ErrnoException).code !== 'ENOENT') {
+        operationalError = error instanceof Error ? error.message : String(error);
+      }
+    }
+  }
+
+  return operationalError ? { status: 'error', message: operationalError } : { status: 'unavailable' };
+}
+
+export function diagnoseLinuxDependencies(libraries: LinuxLibrary[]): DiagnosticResult[] {
   if (process.platform !== 'linux') {
     return [];
   }
 
-  const results: DiagnosticResult[] = [];
-  const missing: string[] = [];
+  const cache = readSharedLibraryCache();
 
-  for (const pkg of requiredPackages) {
-    try {
-      execFileSync('dpkg', ['-s', pkg], { timeout: 1000, stdio: 'ignore' });
-    } catch {
-      missing.push(pkg);
-    }
+  if (cache.status === 'unavailable') {
+    // No `ldconfig` at all (musl/Alpine, minimal images).
+    return [
+      {
+        category: 'Linux Dependencies',
+        status: 'ok',
+        message: 'Skipped — ldconfig not available',
+      },
+    ];
   }
+
+  if (cache.status === 'error') {
+    // `ldconfig` exists but failed.
+    return [
+      {
+        category: 'Linux Dependencies',
+        status: 'warn',
+        message: 'Could not check Linux dependencies',
+        details: `ldconfig failed: ${cache.message}`,
+      },
+    ];
+  }
+
+  const missing = libraries.filter((lib) => !cache.sonames.has(lib.soname));
 
   if (missing.length > 0) {
-    results.push({
-      category: 'Linux Dependencies',
-      status: 'warn',
-      message: `${missing.length} packages may be missing`,
-      details: `Missing: ${missing.join(', ')}\nInstall with: sudo apt-get install ${missing.join(' ')}`,
-    });
-  } else {
-    results.push({
-      category: 'Linux Dependencies',
-      status: 'ok',
-      message: 'All required packages installed',
-    });
+    const sonames = missing.map((lib) => lib.soname).join(', ');
+    const packages = missing.map((lib) => lib.aptPackage).join(' ');
+    return [
+      {
+        category: 'Linux Dependencies',
+        status: 'warn',
+        message: `${missing.length} librar${missing.length === 1 ? 'y' : 'ies'} may be missing`,
+        details: `Missing: ${sonames}\nOn Debian/Ubuntu, install with: sudo apt-get install ${packages}`,
+      },
+    ];
   }
 
-  return results;
+  return [
+    {
+      category: 'Linux Dependencies',
+      status: 'ok',
+      message: 'All required libraries found',
+    },
+  ];
 }
 
 export function diagnoseDiskSpace(): DiagnosticResult[] {

@@ -7,6 +7,7 @@ import {
   diagnoseLinuxDependencies,
   diagnosePlatform,
   isErr,
+  type LinuxLibrary,
 } from '@wdio/native-utils';
 import { ensureTauriDriver, ensureWebKitWebDriver } from './driverManager.js';
 import { isEmbeddedProvider } from './embeddedProvider.js';
@@ -14,17 +15,17 @@ import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service');
 
-const TAURI_LINUX_PACKAGES = [
-  'libgtk-3-0',
-  'libgbm1',
-  'libasound2',
-  'libatk-bridge2.0-0',
-  'libcups2',
-  'libdrm2',
-  'libxkbcommon0',
-  'libxcomposite1',
-  'libxdamage1',
-  'libxrandr2',
+const TAURI_LINUX_LIBRARIES: LinuxLibrary[] = [
+  { soname: 'libgtk-3.so.0', aptPackage: 'libgtk-3-0' },
+  { soname: 'libgbm.so.1', aptPackage: 'libgbm1' },
+  { soname: 'libasound.so.2', aptPackage: 'libasound2' },
+  { soname: 'libatk-bridge-2.0.so.0', aptPackage: 'libatk-bridge2.0-0' },
+  { soname: 'libcups.so.2', aptPackage: 'libcups2' },
+  { soname: 'libdrm.so.2', aptPackage: 'libdrm2' },
+  { soname: 'libxkbcommon.so.0', aptPackage: 'libxkbcommon0' },
+  { soname: 'libXcomposite.so.1', aptPackage: 'libxcomposite1' },
+  { soname: 'libXdamage.so.1', aptPackage: 'libxdamage1' },
+  { soname: 'libXrandr.so.2', aptPackage: 'libxrandr2' },
 ];
 
 export async function diagnoseTauriEnvironment(
@@ -38,7 +39,7 @@ export async function diagnoseTauriEnvironment(
   results.push(...diagnosePlatform());
   results.push(...diagnoseDisplay());
   results.push(...diagnoseBinary(binaryPath));
-  results.push(...diagnoseLinuxDependencies(TAURI_LINUX_PACKAGES));
+  results.push(...diagnoseLinuxDependencies(TAURI_LINUX_LIBRARIES));
   results.push(...(await diagnoseDriver(options)));
   results.push(...(await diagnoseWebKit()));
   results.push(...diagnoseDiskSpace());
