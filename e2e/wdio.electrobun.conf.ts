@@ -183,7 +183,11 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 10000,
-  connectionRetryTimeout: 120000,
+  // On Linux/WebKitGTK a New Session (which launches the app under the driver) very
+  // occasionally hangs the full timeout before attaching (~1 in 6 specs). Fail that fast (45s —
+  // a healthy New Session is a few seconds) so the spec-file retry re-spawns a fresh app rather
+  // than burning the full 120s per attempt. macOS/Windows (CDP-attach) keep 120s.
+  connectionRetryTimeout: process.platform === 'linux' ? 45_000 : 120_000,
   connectionRetryCount: 3,
   // autoXvfb lets @wdio/xvfb manage Xvfb for the worker process on Linux (the Electron
   // headless approach). macOS CEF / Windows WebView2 are CDP-attach and need nothing more.
