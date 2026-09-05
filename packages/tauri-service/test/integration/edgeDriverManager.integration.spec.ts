@@ -50,6 +50,38 @@ describe.skipIf(!runtime)('edgeDriverManager fixed-version runtime (Windows)', (
   // Guaranteed present by the skipIf gate above; narrow once for the type-checker.
   const rt = runtime as NonNullable<typeof runtime>;
 
+  // TEMP (#539): diagnose why detectFixedRuntimeVersion returns undefined on the Windows runner —
+  // captures the raw powershell FileVersion read (timing/stdout/stderr/error). Remove once known.
+  it('DIAGNOSTIC: raw FileVersion read on this runner', async () => {
+    const { execFile } = await import('node:child_process');
+    const exe = join(rt.versionDir, RUNTIME_EXE);
+    console.error(`[PROBE-DIAG] platform=${process.platform} versionDir=${rt.versionDir} exeExists=${existsSync(exe)}`);
+
+    const psPath = exe.replace(/'/g, "''");
+    const started = Date.now();
+    await new Promise<void>((resolve) => {
+      execFile(
+        'powershell.exe',
+        ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${psPath}').VersionInfo.FileVersion`],
+        { encoding: 'utf8', timeout: 5000 },
+        (error, stdout, stderr) => {
+          const e = error as (Error & { code?: unknown; signal?: unknown; killed?: unknown }) | null;
+          console.error(
+            `[PROBE-DIAG] powershell ms=${Date.now() - started} ` +
+              `error=${e ? JSON.stringify({ message: e.message, code: e.code, signal: e.signal, killed: e.killed }) : 'null'} ` +
+              `stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`,
+          );
+          resolve();
+        },
+      );
+    });
+
+    console.error(
+      `[PROBE-DIAG] detectFixedRuntimeVersion=${JSON.stringify(await detectFixedRuntimeVersion(rt.versionDir))}`,
+    );
+    expect(true).toBe(true);
+  });
+
   it('should read the runtime version from a folder holding msedgewebview2.exe', async () => {
     const version = await detectFixedRuntimeVersion(rt.versionDir);
     expect(version).toMatch(VERSION_PATTERN);
