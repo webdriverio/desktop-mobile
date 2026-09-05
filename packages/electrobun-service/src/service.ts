@@ -40,12 +40,7 @@ export default class ElectrobunWorkerService {
   private mockStores: ElectrobunMockStore[] = [];
   /** Console-shim drains (Linux/W3C path only), flushed to the logger on teardown. */
   private consoleDrains: Array<() => Promise<void>> = [];
-  /**
-   * App launcher paths driven over W3C (WebKitGTK), captured to reap the app tree on teardown.
-   * WebKitWebDriver can't cleanly close the app's controlled webview, so `DELETE /session` hangs
-   * (~120s) unless the app is already gone — killing it in `after` (before WDIO's deleteSession)
-   * makes teardown return in milliseconds and reaps the process tree.
-   */
+  /** App launcher paths driven over W3C (WebKitGTK), reaped on teardown — see `reapW3CApps`. */
   private w3cAppBinaries: string[] = [];
 
   constructor(options: ElectrobunServiceOptions, capabilities: unknown) {
@@ -150,14 +145,11 @@ export default class ElectrobunWorkerService {
     await syncWebDriverWindow(browser, bridge);
   }
 
-  /** Install `browser.electrobun.*` over the W3C session (Linux/WebKitGTK path). */
   private async attachW3CInstance(browser: WebdriverIO.Browser): Promise<void> {
     log.info('Installing browser.electrobun.* over W3C WebDriver (WebKitGTK)');
     const evalBridge = createWebDriverEvalBridge(browser);
     const mockStore = new ElectrobunMockStore();
     this.mockStores.push(mockStore);
-    // Frontend log capture without CDP console events: buffer console.* in-page, drain to the
-    // logger on teardown. (Live frontend logs also surface via the driver's stdout.)
     const drain = await installConsoleShim(browser);
     this.consoleDrains.push(drain);
     installApiW3C(browser, evalBridge, mockStore);
@@ -209,7 +201,6 @@ export default class ElectrobunWorkerService {
   }
 
   private async closeBridges(): Promise<void> {
-    // Flush any buffered frontend console entries (W3C path) before tearing down the session.
     for (const drain of this.consoleDrains) {
       await drain().catch(() => {});
     }
@@ -308,9 +299,9 @@ function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: 
 
 /**
  * Map a window label ('main', 'window-1', …) to a W3C window-handle index, or -1 for an
- * unrecognised label (so the caller rejects rather than silently targeting window 0). NOTE:
- * W3C `getWindowHandles` order is unspecified, so index→window is best-effort — multi-window on
- * Linux is experimental (see the README). Single-window ('standard') runs never index past 0.
+ * unrecognised label (so the caller rejects rather than silently targeting window 0). W3C
+ * `getWindowHandles` order is unspecified, so index→window is best-effort; the single-window
+ * 'standard' runs never index past 0.
  */
 function w3cWindowIndex(label: string): number {
   if (label === 'main') {

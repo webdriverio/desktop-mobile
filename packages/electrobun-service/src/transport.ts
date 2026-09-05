@@ -22,15 +22,9 @@ import type { ResolvedElectrobunApp } from './electrobunConfig.js';
 export type ElectrobunTransport = 'cef' | 'webview2' | 'webkitgtk';
 
 /**
- * Decide the transport for a resolved app on a platform, or `undefined` when the
- * platform/renderer has no usable automation surface (caller fails fast).
- *
- * - macOS → `'cef'`.
- * - Windows → `'webview2'`, UNLESS the bundle is explicitly CEF (CEF-on-Windows serves no
- *   `/json`), which yields `undefined`.
- * - Linux → `'webkitgtk'` for the native renderer, UNLESS the bundle is explicitly CEF
- *   (CEF-on-Linux serves no `/json`), which yields `undefined`.
- * - Anything else → `undefined`.
+ * Decide the transport for a resolved app on a platform, or `undefined` when there's no usable
+ * automation surface — an explicit CEF build off macOS, or a non-desktop platform — so the caller
+ * fails fast.
  */
 export function resolveTransport(
   app: ResolvedElectrobunApp,
@@ -43,12 +37,9 @@ export function resolveTransport(
     return 'cef';
   }
   if (platform === 'win32') {
-    // Windows drives the native WebView2 renderer; an explicit CEF build is unsupported there.
     return renderer === 'cef' ? undefined : 'webview2';
   }
   if (platform === 'linux') {
-    // Linux drives the native WebKitGTK renderer over W3C WebDriver; an explicit CEF build is
-    // unsupported there (serves no /json).
     return renderer === 'cef' ? undefined : 'webkitgtk';
   }
   return undefined;

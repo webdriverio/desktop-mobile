@@ -252,8 +252,7 @@ jobs:
   #
   # Linux builds the native WebKitGTK renderer (bundleCEF:false → no CEF download), driven
   # over W3C WebDriver (WebKitWebDriver) — unblocked by electrobun 2.0.1 (#467). The e2e leg
-  # is GATING (in ci-status.needs), proven green across 3 consecutive runs. CEF-on-Linux stays
-  # unsupported (#320).
+  # is GATING (in ci-status.needs). CEF-on-Linux stays unsupported (#320).
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
@@ -983,8 +982,8 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E tests — Linux (native WebKitGTK over W3C WebDriver). GATING (in
-  # ci-status.needs) — proven green across 3 consecutive runs. 'standard' only for now
-  # (window/multiremote follow once the single-window path is solid).
+  # ci-status.needs). 'standard' only for now (window/multiremote follow once the single-window
+  # path is solid).
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-linux:
     name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}

@@ -28,11 +28,8 @@ export function cefRendererRequired(platform: NodeJS.Platform = process.platform
 
 /**
  * Thrown by the launcher in native mode when the current platform/renderer has no usable
- * automation surface. Driven native renderers: macOS via CEF (CDP), Windows via the WebView2
- * (Chromium) system renderer (CDP), Linux via the native WebKitGTK renderer (W3C WebDriver,
- * electrobun ≥ 2.0.1). A CEF build off macOS serves no `/json`, and non-desktop platforms have
- * no surface at all. Fail fast with an actionable message rather than letting the user hit a
- * cryptic attach timeout.
+ * automation surface — an explicit CEF build off macOS (serves no `/json`), or a non-desktop
+ * platform. Fails fast with an actionable message rather than a cryptic attach timeout.
  */
 export function nativeRendererUnsupportedPlatform(
   platform: NodeJS.Platform = process.platform,

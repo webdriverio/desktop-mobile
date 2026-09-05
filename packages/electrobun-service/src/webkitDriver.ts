@@ -17,7 +17,6 @@ import { SERVICE_NAME } from './constants.js';
 
 const log = createLogger(SERVICE_NAME, 'driver');
 
-/** A spawned `WebKitWebDriver` process bound to a host:port. */
 export interface WebKitDriverProcess {
   process: ChildProcess;
   host: string;
@@ -123,8 +122,7 @@ export async function spawnWebKitWebDriver(opts: {
   // Linux CI runners are headless, and WebKitWebDriver launches a GTK app that needs an X
   // display ("Failed to open X11 display" otherwise → New Session hangs). WDIO's autoXvfb
   // covers the worker process, NOT this launcher-spawned driver, so run it under `xvfb-run -a`
-  // (a throwaway X server) — mirroring the CEF app spawn in nativeMode.ts. This driver only
-  // runs on Linux; the guard keeps a local non-Linux run (there is none today) direct.
+  // (a throwaway X server) — mirroring the CEF app spawn in nativeMode.ts.
   const useXvfb = process.platform === 'linux';
   const command = useXvfb ? 'xvfb-run' : opts.driverPath;
   const spawnArgs = useXvfb ? ['-a', opts.driverPath, ...driverArgs] : driverArgs;

@@ -23,7 +23,7 @@ const log = createLogger(SERVICE_NAME, 'bridge');
 /** Outcome our in-page script resolves `done` with (never a raw throw — WebKit reports those). */
 type EvalOutcome = { ok: true; value: unknown; undef?: boolean } | { ok: false; error: string };
 
-/** Posts a script to `/execute/async` and returns the parsed W3C response `{ value }`. */
+/** Runs an in-page script over `/execute/async`; injected so tests can supply a fake. */
 export type ExecuteAsyncPoster = (script: string) => Promise<{ value: unknown }>;
 
 /** The minimal CDP response shape `evaluateInActiveTarget` reads. */
@@ -111,16 +111,15 @@ export function createWebDriverEvalBridge(browser: WebdriverIO.Browser): WebDriv
   const hostname = options.hostname ?? '127.0.0.1';
   const port = options.port ?? 4444;
   // The launcher connects WDIO to WebKitWebDriver at the session root ('/'), so the base is
-  // protocol://host:port. sessionId is the live W3C session.
+  // just protocol://host:port.
   const baseUrl = `${protocol}://${hostname}:${port}`;
   return new WebDriverEvalBridge(httpExecuteAsyncPoster(baseUrl, browser.sessionId));
 }
 
 /**
- * Install a `console.*` shim in the app's page that buffers entries on
- * `window.__WDIO_ELECTROBUN_LOGS__`, and return a reader that drains the buffer and forwards
- * entries to the WDIO logger. Frontend log capture without CDP console events. These scripts
- * never throw, so plain `browser.execute` is fine here (unlike the eval channel above).
+ * Frontend log capture without CDP console events: a `console.*` shim buffers entries in-page,
+ * and the returned reader drains them to the WDIO logger. These scripts never throw, so plain
+ * `browser.execute` is fine here (unlike the eval channel above).
  *
  * NOTE: the shim is per-document — a full-page navigation resets `window`, so entries logged
  * before a navigation are lost from the buffer. Cross-navigation frontend logs still surface via

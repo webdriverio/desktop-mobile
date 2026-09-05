@@ -70,9 +70,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
    */
   private webkitDriverPath?: string;
   /**
-   * Spawned `WebKitWebDriver` processes keyed by worker cid (WebKitGTK/W3C transport). Unlike
-   * the CDP path — where the service spawns the app — here the driver launches the app, so we
-   * track the driver for teardown; killing it tears the app down too.
+   * Spawned `WebKitWebDriver` processes keyed by worker cid (WebKitGTK/W3C transport). Unlike the
+   * CDP path — where the service spawns the app — here the driver launches the app, so we track
+   * the driver to stop it on teardown.
    */
   private webkitDriversByCid = new Map<string, WebKitDriverProcess[]>();
 
