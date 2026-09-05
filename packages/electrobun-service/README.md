@@ -7,13 +7,11 @@ It mirrors the surface of the sibling services (`@wdio/electron-service`,
 `@wdio/tauri-service`, `@wdio/dioxus-service`): `browser.electrobun.execute`,
 Vitest-style mocking, log capture, browser mode, and standalone sessions.
 
-> **Status: `0.x.y`, pre-1.0 — macOS (CEF) + Windows (native WebView2) + Linux (WebKitGTK).**
-> Windows uses the native WebView2 (Chromium) renderer over CDP — no CEF — and runs multi-window
-> + multiremote. **Linux** drives the native WebKitGTK renderer over W3C WebDriver (electrobun ≥
-> 2.0.1; gated in CI); it needs `webkit2gtk-driver` installed and is single-window. This is still
-> a `0.x` release because the **macOS CEF** path has multiremote/deeplink blocked by an upstream
-> limitation. See [Known limitations](#known-limitations). `1.0` is reserved for full parity
-> once those gaps are filled ([#317](https://github.com/webdriverio/desktop-mobile/issues/317) +
+> **Status: `0.x.y`, pre-1.0 — macOS (CEF), Windows (native WebView2), and Linux (WebKitGTK).**
+> See [Automation coverage](#automation-coverage-os--renderer) for the per-OS matrix. It's still a
+> `0.x` release because the **macOS CEF** path has multiremote and deeplink blocked upstream; `1.0`
+> is reserved for full parity once those gaps are filled
+> ([#317](https://github.com/webdriverio/desktop-mobile/issues/317) +
 > [#320](https://github.com/webdriverio/desktop-mobile/issues/320) track the work).
 
 ## Installation
@@ -35,9 +33,9 @@ Build each OS with its drivable renderer:
 | **macOS** | CEF (bundled Chromium) | CDP | Chromedriver attach | ✅ supported — recommended macOS path |
 | **macOS** | WKWebView (native) | none (local Web Inspector only) | — | ❌ unsupported — no remote automation surface; build with CEF. A future self-shipped embedded driver is tracked in [#629](https://github.com/webdriverio/desktop-mobile/issues/629). |
 | **Windows** | WebView2 (native, Chromium) | CDP | msedgedriver attach (classic) | ✅ supported — multi-window + multiremote |
-| **Windows** | CEF (bundled Chromium) | — | — | ❌ unsupported — CEF can't create its profile on Windows; use the native renderer |
-| **Linux** | WebKitGTK (native) | W3C WebDriver | `WebKitWebDriver` (classic) | ✅ supported (electrobun ≥ 2.0.1) — needs `webkit2gtk-driver` installed; single-window |
-| **Linux** | CEF (bundled Chromium) | — | — | ❌ unsupported — CEF serves no `/json` off macOS ([upstream #380](https://github.com/blackboardsh/electrobun/issues/380)); use the native renderer |
+| **Windows** | CEF | — | — | ❌ unsupported — CEF can't create its profile on Windows; use the native renderer |
+| **Linux** | WebKitGTK (native) | W3C WebDriver | `WebKitWebDriver` (classic) | ✅ supported — single-window ([requirements](#linux-webkitgtk-requirements)) |
+| **Linux** | CEF | — | — | ❌ unsupported — CEF serves no `/json` off macOS ([upstream #380](https://github.com/blackboardsh/electrobun/issues/380)); use the native renderer |
 
 ```ts
 // electrobun.config.ts — build each OS with its drivable renderer
@@ -50,9 +48,8 @@ export default {
 };
 ```
 
-A build with the **wrong renderer for its OS** is an explicit, documented unsupported
-configuration — the launcher fails fast with a clear error (WKWebView on macOS, or a CEF build
-on Windows/Linux where it serves no `/json`).
+A build with the **wrong renderer for its OS** (the ❌ rows above) is an explicit, documented
+unsupported configuration — the launcher fails fast with a clear error.
 
 ### Linux (WebKitGTK) requirements
 
@@ -66,7 +63,7 @@ sudo apt-get install webkit2gtk-driver xvfb            # Debian/Ubuntu
 # pacman -S webkit2gtk-driver xorg-server-xvfb         # Arch
 ```
 
-It requires **electrobun ≥ 2.0.1**, which exposes WebKitGTK automation upstream
+Native Linux support requires **electrobun ≥ 2.0.1**, which exposes WebKitGTK automation upstream
 ([blackboardsh/electrobun#467](https://github.com/blackboardsh/electrobun/issues/467)). No CDP
 bridge is used on Linux — `browser.electrobun.execute` and mocking run over the W3C session.
 
@@ -113,20 +110,15 @@ Browser mode also supports the optional **`devServer`** service option — the l
 
 ## Known limitations
 
-Most of these are **upstream Electrobun/CEF limitations**, not service bugs — the
-service code implements the full surface and is unit-tested. On **macOS**, CEF's
-chrome-runtime can't create the `persist:default` profile its `BrowserWindow` forces and
-falls back to a global browser context (macOS recovers and serves `/json`; a CEF build off
-macOS does not — so **Windows** uses the native WebView2 renderer over CDP and **Linux** uses
-the native WebKitGTK renderer over W3C WebDriver instead). The upstream CEF fixes and what each
-unblocks are tracked in [#320](https://github.com/webdriverio/desktop-mobile/issues/320); the
-non-CEF (native-renderer) track is
-[#317](https://github.com/webdriverio/desktop-mobile/issues/317).
+Most of these are **upstream Electrobun/CEF limitations**, not service bugs — the service code
+implements the full surface and is unit-tested. The macOS root cause: CEF's chrome-runtime can't
+create the `persist:default` profile its `BrowserWindow` forces and falls back to a global browser
+context, which folds parallel instances together (blocking multiremote). Upstream CEF fixes are
+tracked in [#320](https://github.com/webdriverio/desktop-mobile/issues/320); the non-CEF
+(native-renderer) track is [#317](https://github.com/webdriverio/desktop-mobile/issues/317).
 
 | Area | Status |
 |---|---|
-| **Windows** | ✅ supported via the native **WebView2** (Chromium) renderer over CDP — no CEF (build `bundleCEF: false` / `defaultRenderer: 'native'`, the Electrobun default). |
-| **Linux** | ✅ supported via the native **WebKitGTK** renderer over W3C WebDriver (`WebKitWebDriver`, electrobun ≥ 2.0.1; gated in CI). Build `bundleCEF: false` / `defaultRenderer: 'native'`; install `webkit2gtk-driver`. Single-window (`switchWindow`/`listWindows` are best-effort). A CEF build on Linux is unsupported (serves no `/json`). |
 | multiremote / parallel workers | ✅ Windows (WebView2 isolates each instance — its own process + `LOCALAPPDATA` data dir); ✅ Linux parallel workers (each gets its own `WebKitWebDriver` + app); ❌ macOS CEF (shared `root_cache_path` → instance folding). Linux multiremote (multiple instances per worker) not yet wired. |
 | `switchWindow` / `listWindows` (multi-window) | ✅ on Windows (WebView2, gated in CI); ⚠️ macOS CEF unreliable (2-window global-context race — run locally); ⚠️ Linux best-effort (W3C window handles, mapped by order). |
 | `triggerDeeplink` | ⚠️ macOS — unreliable (no open-url routing to the spawned instance); ❌ Windows/Linux — upstream-blocked: Electrobun registers URL schemes + wires `open-url` macOS-only ([blackboardsh/electrobun#465](https://github.com/blackboardsh/electrobun/issues/465)). |
