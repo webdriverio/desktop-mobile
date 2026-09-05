@@ -50,8 +50,7 @@ if (isWindows) {
 }
 // Linux (WebKitGTK/W3C): single window on purpose. The automation session attaches to the
 // primary app view; a second BrowserWindow can race the `create-web-view` handshake under CI
-// load (New Session timeouts). The 'standard' suite is single-window — Linux multi-window is
-// gated off for now (see the service README).
+// load (New Session timeouts).
 
 // Deeplink handler — `open wdio-electrobun://<path>` (macOS), routed via the
 // urlSchemes entry in electrobun.config.ts. Surface the URL into the main view

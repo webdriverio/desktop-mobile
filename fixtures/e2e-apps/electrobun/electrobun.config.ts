@@ -17,7 +17,7 @@ export default {
       entrypoint: 'src/bun/index.ts',
     },
     // Two views drive the multi-window surface (switchWindow / listWindows): the
-    // main counter window plus a second window with its own CEF page target.
+    // main counter window plus a second window with its own page target.
     views: {
       mainview: {
         entrypoint: 'src/mainview/index.ts',
