@@ -112,7 +112,6 @@ async function readFileVersion(filePath: string): Promise<string | undefined> {
 const FIXED_RUNTIME_EXE = 'msedgewebview2.exe';
 const VERSION_DIR = /^\d+\.\d+\.\d+\.\d+$/;
 
-/** Order dotted numeric versions highest-first (use as an `Array#sort` comparator). */
 function compareVersionsDesc(a: string, b: string): number {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);
@@ -180,7 +179,7 @@ const EDGEDRIVER_VERSION_ENV = 'EDGEDRIVER_VERSION';
  *   1. an explicit driver pin (`edgeDriverVersion` option / `EDGEDRIVER_VERSION`) — used verbatim;
  *   2. a fixed-version runtime folder (`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`) — the app renders with
  *      that runtime, not the machine's Evergreen, so its version is what the driver must match;
- *   3. the Evergreen runtime from the registry (the default, and the canary for runtime regressions).
+ *   3. the Evergreen runtime from the registry (the default).
  * The folder env is read from `options.env` first, then `process.env`, matching how the app receives
  * it (`{ ...process.env, ...options.env }`). Returns undefined when nothing resolves.
  */
