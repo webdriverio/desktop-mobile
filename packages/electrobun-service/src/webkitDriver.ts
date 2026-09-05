@@ -4,7 +4,7 @@
 // Chromedriver attaches, `WebKitWebDriver` is itself the W3C server and it LAUNCHES the app.
 
 import { type ChildProcess, execSync, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 
 import { createLogger } from '@wdio/native-utils';
 
@@ -18,6 +18,8 @@ export interface WebKitDriverProcess {
   port: number;
   /** Spawned detached (its own process group) so teardown can kill the whole xvfb-run tree. */
   detached: boolean;
+  /** Per-instance bundle-clone dirs to remove on teardown. */
+  cleanupDirs?: string[];
 }
 
 // The `webkit2gtk-driver` package installs `/usr/bin/WebKitWebDriver`; the versioned libdir
@@ -163,4 +165,12 @@ export async function stopWebKitWebDriver(handle: WebKitDriverProcess, killTimeo
     });
     signalTree('SIGTERM');
   });
+
+  for (const dir of handle.cleanupDirs ?? []) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch (error) {
+      log.warn(`Could not remove bundle clone ${dir}: ${(error as Error).message}`);
+    }
+  }
 }

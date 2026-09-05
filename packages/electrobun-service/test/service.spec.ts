@@ -504,6 +504,34 @@ describe('ElectrobunWorkerService', () => {
       }
     });
 
+    it('should reap each instance clone independently on a Linux/W3C multiremote teardown', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      try {
+        const instanceA = makeW3CBrowser();
+        const instanceB = makeW3CBrowser();
+        const mrBrowser = {
+          isMultiremote: true,
+          instances: ['browserA', 'browserB'],
+          getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+        } as unknown as WebdriverIO.MultiRemoteBrowser;
+        const caps = {
+          browserA: { capabilities: { 'webkitgtk:browserOptions': { binary: '/tmp/clone-a/Demo/bin/launcher' } } },
+          browserB: { capabilities: { 'webkitgtk:browserOptions': { binary: '/tmp/clone-b/Demo/bin/launcher' } } },
+        };
+        const service = new ElectrobunWorkerService({}, {});
+        await service.before(caps, [], mrBrowser);
+        execFileSyncMock.mockClear();
+
+        await service.after();
+
+        expect(execFileSyncMock).toHaveBeenCalledWith('pkill', ['-9', '-f', '^/tmp/clone-a/Demo/'], expect.anything());
+        expect(execFileSyncMock).toHaveBeenCalledWith('pkill', ['-9', '-f', '^/tmp/clone-b/Demo/'], expect.anything());
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+
     it('should escape regex metacharacters in the reap pattern (no pkill injection)', async () => {
       const originalPlatform = process.platform;
       Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
