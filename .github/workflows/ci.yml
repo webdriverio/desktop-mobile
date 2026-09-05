@@ -247,12 +247,8 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E app — macOS (CEF bundle, no Rust crates). The CEF fixture build is
   # the biggest unknown in this pipeline: a beta Bun/CEF toolchain that pulls a
-  # ~150MB CEF download. macOS is the validated CEF platform; Windows builds the native
-  # WebView2 renderer in the sibling job below (bundleCEF:false → no CEF download).
-  #
-  # Linux builds the native WebKitGTK renderer (bundleCEF:false → no CEF download), driven
-  # over W3C WebDriver (WebKitWebDriver) — unblocked by electrobun 2.0.1 (#467). The e2e leg
-  # is GATING (in ci-status.needs). CEF-on-Linux stays unsupported (#320).
+  # ~150MB CEF download. macOS is the validated CEF platform; Windows and Linux build the
+  # native renderer (bundleCEF:false → no CEF download) in the sibling jobs below.
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
@@ -264,10 +260,9 @@ jobs:
       os: 'macos-latest'
 
   # ────────────────────────────────────────────────────────────────────────
-  # Electrobun E2E app [Windows] — built with the native WebView2 renderer
-  # (bundleCEF:false → no CEF download). The service injects --remote-debugging-port via
-  # WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS and attaches over CDP (msedgedriver), no upstream
-  # dependency. Gating (in ci-status.needs), alongside the macOS CEF build.
+  # Electrobun E2E app [Windows] — built with the native WebView2 renderer. The service injects
+  # --remote-debugging-port via WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS and attaches over CDP
+  # (msedgedriver), no upstream dependency.
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-windows:
     name: Build Electrobun E2E App [Windows]
@@ -278,8 +273,8 @@ jobs:
     with:
       os: 'windows-latest'
 
-  # Electrobun E2E app [Linux] — native WebKitGTK renderer (bundleCEF:false → no CEF
-  # download). Driven over W3C WebDriver in the (gating) e2e leg below.
+  # Electrobun E2E app [Linux] — native WebKitGTK renderer, driven over W3C WebDriver in the
+  # e2e leg below.
   build-electrobun-e2e-app-linux:
     name: Build Electrobun E2E App [Linux]
     needs: [detect-changes]
@@ -772,8 +767,7 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E tests — macOS (CEF), single CDP-attach provider (no provider matrix).
-  # Windows (WebView2) and Linux (WebKitGTK/W3C) run as separate jobs below — all gating
-  # (electrobun 2.0.1 landed WebKitGTK automation, #467).
+  # Windows (WebView2) and Linux (WebKitGTK/W3C) run as separate jobs below.
   #
   # Test-type matrix: 'standard' (api/application/execute/logging/mock),
   # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
@@ -960,7 +954,7 @@ jobs:
   # Electrobun E2E [Windows] — WebView2 over CDP (msedgedriver, classic WebDriver). Runs
   # `standard`, `window` (multi-window), and `multiremote` (two isolated WebView2 instances in
   # one worker — each its own process + LOCALAPPDATA data dir) — all capabilities CEF lacks, so
-  # they run on Windows where CEF is local-only / single-instance. Gating (in ci-status.needs).
+  # they run on Windows where CEF is local-only / single-instance.
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-windows:
     name: E2E - Electrobun [Windows] - ${{ matrix.test-type }}
@@ -981,9 +975,7 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
-  # Electrobun E2E tests — Linux (native WebKitGTK over W3C WebDriver). GATING (in
-  # ci-status.needs). 'standard' only for now (window/multiremote follow once the single-window
-  # path is solid).
+  # Electrobun E2E tests — Linux (native WebKitGTK over W3C WebDriver).
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-linux:
     name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
@@ -1251,10 +1243,8 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
-      # Electrobun gates: macOS CEF `standard`, Linux WebKitGTK/W3C `standard`, plus Windows
-      # WebView2 `standard` + `window` + `multiremote` (multi-window AND per-instance isolation
-      # work on WebView2 — no persist:default gap — so they run where CEF is local-only /
-      # single-instance). deeplink stays local-only (upstream-gated on Windows/Linux — #465).
+      # Electrobun gates: macOS CEF `standard`, Linux WebKitGTK/W3C `standard`, Windows WebView2
+      # `standard` + `window` + `multiremote`.
       - e2e-electrobun-macos-arm
       - e2e-electrobun-linux
       # React Native — Android emulator + iOS simulator E2E are required gates.
