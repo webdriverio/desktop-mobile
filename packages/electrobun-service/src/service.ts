@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { dirname } from 'node:path';
+
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
@@ -37,6 +40,13 @@ export default class ElectrobunWorkerService {
   private mockStores: ElectrobunMockStore[] = [];
   /** Console-shim drains (Linux/W3C path only), flushed to the logger on teardown. */
   private consoleDrains: Array<() => Promise<void>> = [];
+  /**
+   * App launcher paths driven over W3C (WebKitGTK), captured to reap the app tree on teardown.
+   * WebKitWebDriver can't cleanly close the app's controlled webview, so `DELETE /session` hangs
+   * (~120s) unless the app is already gone — killing it in `after` (before WDIO's deleteSession)
+   * makes teardown return in milliseconds and reaps the process tree.
+   */
+  private w3cAppBinaries: string[] = [];
 
   constructor(options: ElectrobunServiceOptions, capabilities: unknown) {
     const capOptions = (capabilities as { 'wdio:electrobunServiceOptions'?: ElectrobunServiceOptions })[
@@ -78,7 +88,13 @@ export default class ElectrobunWorkerService {
     // side-channel. The launcher marks this path with a `webkitgtk:browserOptions` capability.
     // Drive the app over W3C `browser.execute` (via the eval adapter), reusing the CDP
     // execute/mock machinery unchanged.
-    if ((capabilities as { 'webkitgtk:browserOptions'?: unknown } | undefined)?.['webkitgtk:browserOptions']) {
+    const w3cOptions = (capabilities as { 'webkitgtk:browserOptions'?: { binary?: string } } | undefined)?.[
+      'webkitgtk:browserOptions'
+    ];
+    if (w3cOptions) {
+      if (w3cOptions.binary) {
+        this.w3cAppBinaries.push(w3cOptions.binary);
+      }
       await this.attachW3CInstance(browser);
       return;
     }
@@ -148,11 +164,42 @@ export default class ElectrobunWorkerService {
   }
 
   async after(): Promise<void> {
+    // Drain the console shim (needs the session alive) and close bridges FIRST, then reap the app
+    // — `after` runs before WDIO's deleteSession, so reaping here makes that DELETE return in ms.
     await this.closeBridges();
+    this.reapW3CApps();
   }
 
   async afterSession(): Promise<void> {
     await this.closeBridges();
+    this.reapW3CApps();
+  }
+
+  /**
+   * Kill the WebKitGTK app tree(s) driven this session (Linux/W3C only). WebKitWebDriver can't
+   * cleanly close the app's controlled webview, so `DELETE /session` otherwise hangs ~120s.
+   * Matches only the app's own bundle path; on Linux the WebKitGTK path is single-instance.
+   */
+  private reapW3CApps(): void {
+    if (process.platform !== 'linux' || this.w3cAppBinaries.length === 0) {
+      return;
+    }
+    for (const binary of this.w3cAppBinaries) {
+      const bundleRoot = dirname(dirname(binary)); // <bundle>/bin/launcher -> <bundle>
+      // Safety: a too-generic pattern (e.g. '/', '/bin') would pkill unrelated processes. Only
+      // match against a specific, deep absolute path.
+      if (!bundleRoot.startsWith('/') || bundleRoot.length < 8 || bundleRoot.split('/').filter(Boolean).length < 2) {
+        log.warn(`Skipping WebKitGTK app reap: bundle path too generic to match safely (${bundleRoot})`);
+        continue;
+      }
+      try {
+        execFileSync('pkill', ['-9', '-f', bundleRoot], { stdio: 'ignore' });
+        log.debug(`Reaped WebKitGTK app tree under ${bundleRoot}`);
+      } catch {
+        // pkill exits non-zero when nothing matched (already gone) — not an error.
+      }
+    }
+    this.w3cAppBinaries = [];
   }
 
   private async closeBridges(): Promise<void> {

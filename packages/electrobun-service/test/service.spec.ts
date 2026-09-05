@@ -26,6 +26,10 @@ vi.mock('@wdio/native-cdp-bridge', () => ({
   },
 }));
 
+// Mock execFileSync so the Linux app-reap (pkill) can be asserted without spawning anything.
+const execFileSyncMock = vi.hoisted(() => vi.fn());
+vi.mock('node:child_process', () => ({ execFileSync: execFileSyncMock }));
+
 // Keep the real WebDriverEvalBridge + installConsoleShim; stub the factory so tests inject a
 // poster instead of doing raw /execute/async HTTP.
 vi.mock('../src/webdriverEval.js', async (importOriginal) => {
@@ -471,6 +475,53 @@ describe('ElectrobunWorkerService', () => {
       await service.after();
       // Drain evaluates once more to read + clear the buffer.
       expect(browser.execute.mock.calls.length).toBeGreaterThan(callsBefore);
+    });
+
+    it('should reap the WebKitGTK app tree on Linux teardown (unblocks deleteSession)', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      try {
+        const browser = makeW3CBrowser();
+        // A realistic, specific bundle path (the reap guards against too-generic paths like /app).
+        const cap = {
+          'webkitgtk:browserOptions': {
+            binary: '/home/runner/build/WDIOElectrobunE2E-dev/bin/launcher',
+            args: ['--automation'],
+          },
+        };
+        const service = new ElectrobunWorkerService({}, {});
+        await service.before(cap, [], browser);
+        execFileSyncMock.mockClear();
+
+        await service.after();
+
+        // pkill matches the app bundle root so WDIO's subsequent deleteSession returns fast.
+        expect(execFileSyncMock).toHaveBeenCalledWith(
+          'pkill',
+          ['-9', '-f', '/home/runner/build/WDIOElectrobunE2E-dev'],
+          expect.anything(),
+        );
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+
+    it('should NOT reap for a too-generic bundle path (safety guard)', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      try {
+        const browser = makeW3CBrowser();
+        // binary '/app/bin/launcher' -> bundle root '/app' (too short) -> skipped.
+        const service = new ElectrobunWorkerService({}, {});
+        await service.before(w3cCap, [], browser);
+        execFileSyncMock.mockClear();
+
+        await service.after();
+
+        expect(execFileSyncMock).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
     });
 
     it('should create a mock over the W3C eval channel', async () => {
