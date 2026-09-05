@@ -22,19 +22,20 @@ npm install --save-dev @wdio/electrobun-service
 
 ## Automation coverage (OS × renderer)
 
-The service drives each platform through whatever automation surface its renderer exposes:
-**CDP** for the Chromium renderers (macOS CEF, Windows WebView2 — the launcher spawns the app
-and a Chromedriver attaches via `debuggerAddress`), and **W3C WebDriver** for Linux's native
-WebKitGTK renderer (`WebKitWebDriver` launches the app and the worker drives it directly).
-Build each OS with its drivable renderer:
+Electrobun renders through either the **OS's native webview** (WKWebView on macOS, WebView2 on
+Windows, WebKitGTK on Linux) or a **bundled CEF** (Chromium) renderer. The service drives whichever
+exposes an automation surface: **CDP** for the Chromium-based renderers — macOS CEF and Windows
+WebView2, where the launcher spawns the app and a Chromedriver attaches via `debuggerAddress` — and
+**W3C WebDriver** for Linux WebKitGTK, where `WebKitWebDriver` launches the app and drives it
+directly. Build each OS with its drivable renderer:
 
 | OS | Renderer | Automation surface | Transport | Status |
 |---|---|---|---|---|
-| **macOS** | CEF (bundled Chromium) | CDP | Chromedriver attach | ✅ supported — recommended macOS path |
-| **macOS** | WKWebView (native) | none (local Web Inspector only) | — | ❌ unsupported — no remote automation surface; build with CEF. A future self-shipped embedded driver is tracked in [#629](https://github.com/webdriverio/desktop-mobile/issues/629). |
-| **Windows** | WebView2 (native, Chromium) | CDP | msedgedriver attach (classic) | ✅ supported — multi-window + multiremote |
+| **macOS** | CEF | CDP | Chromedriver attach | ✅ supported — recommended macOS path |
+| **macOS** | WKWebView | none (local Web Inspector only) | — | ❌ unsupported — no remote automation surface; build with CEF. A future self-shipped embedded driver is tracked in [#629](https://github.com/webdriverio/desktop-mobile/issues/629). |
+| **Windows** | WebView2 | CDP | msedgedriver attach (classic) | ✅ supported — multi-window + multiremote |
 | **Windows** | CEF | — | — | ❌ unsupported — CEF can't create its profile on Windows; use the native renderer |
-| **Linux** | WebKitGTK (native) | W3C WebDriver | `WebKitWebDriver` (classic) | ✅ supported — single-window ([requirements](#linux-webkitgtk-requirements)) |
+| **Linux** | WebKitGTK | W3C WebDriver | `WebKitWebDriver` (classic) | ✅ supported — single-window ([requirements](#linux-webkitgtk-requirements)) |
 | **Linux** | CEF | — | — | ❌ unsupported — CEF serves no `/json` off macOS ([upstream #380](https://github.com/blackboardsh/electrobun/issues/380)); use the native renderer |
 
 ```ts
@@ -42,7 +43,7 @@ Build each OS with its drivable renderer:
 export default {
   build: {
     mac: { bundleCEF: true, defaultRenderer: 'cef' }, // WKWebView can't be driven → CEF (CDP)
-    win: { bundleCEF: false, defaultRenderer: 'native' }, // WebView2 (Chromium) over CDP
+    win: { bundleCEF: false, defaultRenderer: 'native' }, // WebView2 over CDP
     linux: { bundleCEF: false, defaultRenderer: 'native' }, // WebKitGTK over W3C WebDriver
   },
 };
