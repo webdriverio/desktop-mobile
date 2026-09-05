@@ -57,13 +57,13 @@ on Windows/Linux where it serves no `/json`).
 ### Linux (WebKitGTK) requirements
 
 The Linux path drives the native WebKitGTK renderer over **W3C WebDriver** via
-**`WebKitWebDriver`**, which the service spawns to launch and drive the app. Install it from
-the `webkit2gtk-driver` package:
+**`WebKitWebDriver`**, which the service spawns under `xvfb-run` to launch and drive the app on
+headless machines. Install both the WebKitGTK driver and Xvfb:
 
 ```sh
-sudo apt-get install webkit2gtk-driver   # Debian/Ubuntu
-# dnf install webkit2gtk-driver           # Fedora
-# pacman -S webkit2gtk-driver             # Arch
+sudo apt-get install webkit2gtk-driver xvfb            # Debian/Ubuntu
+# dnf install webkit2gtk-driver xorg-x11-server-Xvfb   # Fedora
+# pacman -S webkit2gtk-driver xorg-server-xvfb         # Arch
 ```
 
 It requires **electrobun ≥ 2.0.1**, which exposes WebKitGTK automation upstream

@@ -186,14 +186,20 @@ export default class ElectrobunWorkerService {
     }
     for (const binary of this.w3cAppBinaries) {
       const bundleRoot = dirname(dirname(binary)); // <bundle>/bin/launcher -> <bundle>
-      // Safety: a too-generic pattern (e.g. '/', '/bin') would pkill unrelated processes. Only
-      // match against a specific, deep absolute path.
+      // Safety: a too-generic pattern (e.g. '/', '/bin') would match unrelated processes. Only
+      // match a specific, deep absolute path.
       if (!bundleRoot.startsWith('/') || bundleRoot.length < 8 || bundleRoot.split('/').filter(Boolean).length < 2) {
         log.warn(`Skipping WebKitGTK app reap: bundle path too generic to match safely (${bundleRoot})`);
         continue;
       }
+      // `pkill -f` treats the pattern as an unanchored regex, so (1) escape regex metacharacters
+      // in the path — an unescaped `.`/`+`/`(` etc. could mis-match — and (2) anchor to the
+      // command-line start with a trailing slash. The app's own processes (launcher, cottontail)
+      // have argv0 under `<bundle>/bin/…`, so `^<bundle>/` matches only them — never an unrelated
+      // process that merely mentions the path in a later argument, nor a sibling like `<bundle>-x`.
+      const pattern = `^${bundleRoot.replace(/[.^$*+?()[\]{}|\\]/g, '\\$&')}/`;
       try {
-        execFileSync('pkill', ['-9', '-f', bundleRoot], { stdio: 'ignore' });
+        execFileSync('pkill', ['-9', '-f', pattern], { stdio: 'ignore' });
         log.debug(`Reaped WebKitGTK app tree under ${bundleRoot}`);
       } catch {
         // pkill exits non-zero when nothing matched (already gone) — not an error.

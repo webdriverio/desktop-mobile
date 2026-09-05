@@ -495,10 +495,36 @@ describe('ElectrobunWorkerService', () => {
 
         await service.after();
 
-        // pkill matches the app bundle root so WDIO's subsequent deleteSession returns fast.
+        // pkill matches the app bundle root (escaped + anchored to argv0) so WDIO's subsequent
+        // deleteSession returns fast without risking unrelated processes.
         expect(execFileSyncMock).toHaveBeenCalledWith(
           'pkill',
-          ['-9', '-f', '/home/runner/build/WDIOElectrobunE2E-dev'],
+          ['-9', '-f', '^/home/runner/build/WDIOElectrobunE2E-dev/'],
+          expect.anything(),
+        );
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+
+    it('should escape regex metacharacters in the reap pattern (no pkill injection)', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      try {
+        const browser = makeW3CBrowser();
+        const cap = {
+          'webkitgtk:browserOptions': { binary: '/home/runner/b/My.App+v2/bin/launcher', args: ['--automation'] },
+        };
+        const service = new ElectrobunWorkerService({}, {});
+        await service.before(cap, [], browser);
+        execFileSyncMock.mockClear();
+
+        await service.after();
+
+        // `.` and `+` are escaped; anchored to argv0 under the bundle dir.
+        expect(execFileSyncMock).toHaveBeenCalledWith(
+          'pkill',
+          ['-9', '-f', '^/home/runner/b/My\\.App\\+v2/'],
           expect.anything(),
         );
       } finally {
