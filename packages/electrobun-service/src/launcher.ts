@@ -182,7 +182,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
 
     // Neither macOS nor Linux isolates ≥2 app instances of one bundle: CEF (macOS) shares a single
     // cache root and races (#320); the WebKitGTK (Linux) apps launch from the same bundle path and
-    // teardown reaps by that path (service.ts), so one worker's cleanup SIGKILLs its siblings.
+    // teardown reaps by that path (service.ts), so one worker's cleanup SIGKILLs its siblings (#633).
     // WebView2 (Windows) isolates each worker, so it needs no guard. WDIO's default maxInstances is
     // 100, so this can't be a hard error — warn and let the user pin maxInstances: 1.
     if ((process.platform === 'darwin' || process.platform === 'linux') && (config.maxInstances ?? 1) > 1) {
