@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { WebDriverEvalBridge } from '../src/webdriverEval.js';
+const logSpies = vi.hoisted(() => ({
+  info: vi.fn(),
+  warn: vi.fn(),
+  error: vi.fn(),
+  debug: vi.fn(),
+}));
+vi.mock('@wdio/native-utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wdio/native-utils')>();
+  return { ...actual, createLogger: () => logSpies };
+});
+
+import { installConsoleShim, WebDriverEvalBridge } from '../src/webdriverEval.js';
 
 const bridge = (poster: (script: string) => Promise<{ value: unknown }>) => new WebDriverEvalBridge(poster);
 
@@ -42,5 +53,53 @@ describe('WebDriverEvalBridge', () => {
     await expect(
       bridge(vi.fn()).send('Page.navigate', { expression: '' } as unknown as { expression: string }),
     ).rejects.toThrow(/Runtime\.evaluate/);
+  });
+});
+
+describe('installConsoleShim', () => {
+  it('should drain buffered console entries into the logger as [webview] lines at mapped levels', async () => {
+    for (const spy of Object.values(logSpies)) {
+      spy.mockClear();
+    }
+    // The shim buffers { level, args } per entry; drain must forward each to the logger, mapping
+    // console levels to logger levels (unknown / 'log' → info) and prefixing '[webview]'.
+    const buffer = [
+      { level: 'log', args: ['hello', 'world'] },
+      { level: 'info', args: ['fyi'] },
+      { level: 'warn', args: ['careful'] },
+      { level: 'error', args: ['boom'] },
+      { level: 'debug', args: ['trace-me'] },
+      { level: 'weird', args: ['fallback'] },
+    ];
+    const execute = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce(buffer);
+    const browser = { execute } as unknown as WebdriverIO.Browser;
+
+    const drain = await installConsoleShim(browser);
+    await drain();
+
+    expect(logSpies.info).toHaveBeenCalledWith('[webview] hello world');
+    expect(logSpies.info).toHaveBeenCalledWith('[webview] fyi');
+    expect(logSpies.info).toHaveBeenCalledWith('[webview] fallback');
+    expect(logSpies.warn).toHaveBeenCalledWith('[webview] careful');
+    expect(logSpies.error).toHaveBeenCalledWith('[webview] boom');
+    expect(logSpies.debug).toHaveBeenCalledWith('[webview] trace-me');
+
+    // Drain reads and clears the per-document buffer.
+    expect(String(execute.mock.calls[1][0])).toContain('window.__WDIO_ELECTROBUN_LOGS__ = []');
+  });
+
+  it('should emit nothing when the buffer is empty', async () => {
+    for (const spy of Object.values(logSpies)) {
+      spy.mockClear();
+    }
+    const execute = vi.fn().mockResolvedValueOnce(true).mockResolvedValueOnce([]);
+    const browser = { execute } as unknown as WebdriverIO.Browser;
+
+    const drain = await installConsoleShim(browser);
+    await drain();
+
+    for (const spy of Object.values(logSpies)) {
+      expect(spy).not.toHaveBeenCalled();
+    }
   });
 });

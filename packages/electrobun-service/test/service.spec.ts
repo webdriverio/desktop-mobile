@@ -467,9 +467,14 @@ describe('ElectrobunWorkerService', () => {
       const installed = browser.execute.mock.calls.some((c) => String(c[0]).includes('__WDIO_ELECTROBUN_LOGS__'));
       expect(installed).toBe(true);
 
+      // Teardown must drain a populated buffer (not the empty default), so the buffer→logger path
+      // actually runs; the emission itself is asserted in webdriverEval.spec.
+      browser.execute.mockResolvedValueOnce([{ level: 'warn', args: ['from teardown'] }]);
       const callsBefore = browser.execute.mock.calls.length;
       await service.after();
-      expect(browser.execute.mock.calls.length).toBeGreaterThan(callsBefore);
+
+      const drainCall = browser.execute.mock.calls.slice(callsBefore).find((c) => String(c[0]).includes('return l'));
+      expect(drainCall).toBeDefined();
     });
 
     it('should reap the WebKitGTK app tree on Linux teardown (unblocks deleteSession)', async () => {
