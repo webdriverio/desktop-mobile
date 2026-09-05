@@ -40,9 +40,9 @@ Published packages, grouped by release maturity. Status reflects the npm dist-ta
 > Feature surface limited by upstream gaps; not yet at parity with the services above.
 
 #### [@wdio/electrobun-service](./packages/electrobun-service) — v0.1.x
-**Platforms:** macOS 14+ (CEF), Windows 11+ (WebView2); Linux blocked upstream\
-**Highlights:** drives two renderers — **macOS via CEF** (CDP) and **Windows via the native WebView2** (Chromium over CDP, no CEF) — the latter also running the multi-window suite that CEF can't on CI.\
-**Caveats:** **Linux** blocked upstream (CEF serves no `/json`; the WebKitGTK renderer needs upstream W3C-WebDriver automation — [electrobun#467](https://github.com/blackboardsh/electrobun/issues/467)); **deeplink on Windows** and **deeplink/multiremote on the macOS CEF path** are upstream-blocked. Each upstream fix re-enables a platform/feature, graduating toward `1.0` at full parity. Tracked in [#317](https://github.com/webdriverio/desktop-mobile/issues/317) (non-CEF) + [#320](https://github.com/webdriverio/desktop-mobile/issues/320) (CEF). See the [package README](./packages/electrobun-service).\
+**Platforms:** macOS 14+ (CEF), Windows 11+ (WebView2), Linux (WebKitGTK)\
+**Highlights:** drives three renderers — **macOS via CEF** (CDP), **Windows via the native WebView2** (Chromium over CDP, no CEF), and **Linux via the native WebKitGTK** (W3C WebDriver, electrobun ≥ 2.0.1, single-window); Windows also runs the multi-window suite that CEF can't on CI.\
+**Caveats:** **deeplink on Windows** and **deeplink/multiremote on the macOS CEF path** are upstream-blocked ([#320](https://github.com/webdriverio/desktop-mobile/issues/320)); macOS **WKWebView** has no automation surface, so a self-shipped embedded driver is deferred ([#629](https://github.com/webdriverio/desktop-mobile/issues/629)). Each upstream fix re-enables a feature, graduating toward `1.0` at full parity. See the [package README](./packages/electrobun-service).\
 [![npm downloads](https://img.shields.io/npm/dm/@wdio/electrobun-service)](https://npmjs.com/package/@wdio/electrobun-service)
 
 ---
