@@ -59,38 +59,6 @@ export async function detectWebView2Version(): Promise<string | undefined> {
   }
 }
 
-/**
- * Detect WebView2 version from Tauri binary (legacy method - may not work correctly)
- * Tauri apps use an embedded/fixed WebView2 runtime, not the system Edge
- * @deprecated Use detectWebView2Version() instead for more reliable detection
- */
-export async function detectWebView2VersionFromBinary(binaryPath?: string): Promise<string | undefined> {
-  if (process.platform !== 'win32' || !binaryPath) {
-    return undefined;
-  }
-
-  try {
-    const { stdout } = await execFileAsync(
-      'powershell.exe',
-      ['-Command', '(Get-Item $args[0]).VersionInfo.FileVersion', binaryPath],
-      {
-        encoding: 'utf8',
-        timeout: 5000,
-      },
-    );
-
-    const version = stdout.trim();
-    if (version && /^\d+\.\d+\.\d+/.test(version)) {
-      log.debug(`Detected file version ${version} from Tauri binary ${binaryPath}`);
-      return version;
-    }
-  } catch (error) {
-    log.debug(`Could not extract version from binary: ${error}`);
-  }
-
-  return undefined;
-}
-
 /** Read a Windows file's FileVersion (e.g. `150.0.4022.98`). Windows-only. */
 async function readFileVersion(filePath: string): Promise<string | undefined> {
   try {
@@ -102,9 +70,10 @@ async function readFileVersion(filePath: string): Promise<string | undefined> {
       ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${psPath}').VersionInfo.FileVersion`],
       { encoding: 'utf8', timeout: 5000 },
     );
-    const version = stdout.trim();
-    if (/^\d+\.\d+\.\d+/.test(version)) {
-      return version;
+    // Return only the numeric prefix — FileVersion can carry trailing text (e.g. "150.0.0 (rc)").
+    const match = stdout.trim().match(/^\d+\.\d+\.\d+(?:\.\d+)?/);
+    if (match) {
+      return match[0];
     }
   } catch (error) {
     log.debug(`Could not read file version from ${filePath}: ${error}`);
@@ -114,8 +83,11 @@ async function readFileVersion(filePath: string): Promise<string | undefined> {
 
 const FIXED_RUNTIME_EXE = 'msedgewebview2.exe';
 const VERSION_DIR = /^\d+\.\d+\.\d+\.\d+$/;
+/** A complete, injection-safe version string (digits and dots only, 2–4 parts). */
+const VERSION_RE = /^\d+(?:\.\d+){1,3}$/;
 
-function compareVersionsDesc(a: string, b: string): number {
+/** Order dotted numeric versions highest-first (an `Array#sort` comparator). */
+export function compareVersionsDesc(a: string, b: string): number {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);
   for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
@@ -191,7 +163,12 @@ export async function resolveTargetEdgeVersion(
 ): Promise<ResolvedEdgeVersion | undefined> {
   const override = options.edgeDriverVersion ?? process.env[EDGEDRIVER_VERSION_ENV];
   if (override) {
-    return { version: override, source: 'override' };
+    if (VERSION_RE.test(override)) {
+      return { version: override, source: 'override' };
+    }
+    log.warn(
+      `Ignoring edgeDriverVersion/${EDGEDRIVER_VERSION_ENV} "${override}" — expected a numeric version like 149.0.4022.98.`,
+    );
   }
 
   const fixedFolder = options.env?.[WEBVIEW2_FOLDER_ENV] ?? process.env[WEBVIEW2_FOLDER_ENV];
@@ -361,7 +338,10 @@ async function getDriverVersionForEdge(edgeVersion: string): Promise<string> {
  * When `exactVersion` is set, `edgeVersion` is treated as the exact driver version and the
  * Microsoft `LATEST_RELEASE_<major>` lookup is skipped.
  */
-export async function downloadMsEdgeDriver(edgeVersion: string, exactVersion = false): Promise<string> {
+export async function downloadMsEdgeDriver(
+  edgeVersion: string,
+  exactVersion = false,
+): Promise<{ path: string; version: string }> {
   const majorVersion = getMajorVersion(edgeVersion);
   // Use random temp directory name to prevent symlink attacks
   const randomSuffix = randomBytes(8).toString('hex');
@@ -375,12 +355,13 @@ export async function downloadMsEdgeDriver(edgeVersion: string, exactVersion = f
   // Get the correct driver version from Microsoft (unless an exact version was pinned).
   const driverVersion = exactVersion ? edgeVersion : await getDriverVersionForEdge(edgeVersion);
 
-  // Create PowerShell script for downloading
+  // Create PowerShell script for downloading. Double any embedded single quotes so a version can't
+  // break out of the string literal (mirrors readFileVersion; belt-and-suspenders over VERSION_RE).
   const psScript = `
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Faster downloads
-$driverVersion = '${driverVersion}'
-$edgeVersion = '${edgeVersion}'
+$driverVersion = '${driverVersion.replace(/'/g, "''")}'
+$edgeVersion = '${edgeVersion.replace(/'/g, "''")}'
 $downloadDir = '${downloadDir.replace(/\\/g, '\\\\')}'
 $driverPath = '${driverPath.replace(/\\/g, '\\\\')}'
 
@@ -441,7 +422,7 @@ try {
 
     if (existsSync(driverPath)) {
       log.info(`Successfully downloaded msedgedriver ${driverVersion} (for Edge ${edgeVersion}) to ${driverPath}`);
-      return driverPath;
+      return { path: driverPath, version: driverVersion };
     }
 
     throw new Error('Download completed but driver not found');
@@ -509,14 +490,14 @@ export async function ensureMsEdgeDriver(
   if (autoDownload) {
     try {
       log.info(`Attempting to download msedgedriver ${edgeVersion}...`);
-      const downloadedPath = await downloadMsEdgeDriver(edgeVersion, source === 'override');
+      const downloaded = await downloadMsEdgeDriver(edgeVersion, source === 'override');
 
-      process.env.PATH = `${join(downloadedPath, '..')}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}`;
+      process.env.PATH = `${join(downloaded.path, '..')}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}`;
 
-      log.info(`✅ Downloaded and configured msedgedriver ${edgeVersion}`);
+      log.info(`✅ Downloaded and configured msedgedriver ${downloaded.version}`);
       return Ok({
-        driverPath: downloadedPath,
-        driverVersion: edgeVersion,
+        driverPath: downloaded.path,
+        driverVersion: downloaded.version,
         edgeVersion,
         method: 'downloaded' as const,
       });

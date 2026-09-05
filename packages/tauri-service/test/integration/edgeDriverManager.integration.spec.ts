@@ -1,7 +1,11 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { detectFixedRuntimeVersion, resolveTargetEdgeVersion } from '../../src/edgeDriverManager.js';
+import {
+  compareVersionsDesc,
+  detectFixedRuntimeVersion,
+  resolveTargetEdgeVersion,
+} from '../../src/edgeDriverManager.js';
 
 /**
  * Real-Windows proof for the fixed-version WebView2 runtime path (#539). Rather than download a
@@ -27,10 +31,10 @@ function findInstalledRuntime(): { versionDir: string; applicationDir: string; v
     if (!existsSync(applicationDir)) {
       continue;
     }
-    // Match the resolver: when several runtime versions coexist, the newest wins.
+    // Reuse the resolver's own comparator so "newest wins" can't diverge from production.
     const [version] = readdirSync(applicationDir)
       .filter((entry) => VERSION_DIR.test(entry) && existsSync(join(applicationDir, entry, RUNTIME_EXE)))
-      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+      .sort(compareVersionsDesc);
     if (version) {
       return { versionDir: join(applicationDir, version), applicationDir, version };
     }

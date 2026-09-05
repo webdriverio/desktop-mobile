@@ -281,7 +281,8 @@ describe('Edge Driver Manager', () => {
       vi.mocked(existsSync).mockReturnValue(true);
 
       const result = await downloadMsEdgeDriver('143.0.3650.139');
-      expect(result).toContain('msedgedriver.exe');
+      expect(result.path).toContain('msedgedriver.exe');
+      expect(result.version).toBe('143.0.3650.139');
     });
 
     it('should throw when download fails', async () => {
@@ -340,6 +341,14 @@ describe('Edge Driver Manager', () => {
       expect(await detectFixedRuntimeVersion('C:\\FixedRuntime')).toBe('149.0.4022.98');
     });
 
+    it('should return only the numeric prefix when FileVersion carries trailing text', async () => {
+      const { existsSync } = await import('node:fs');
+      vi.mocked(existsSync).mockImplementation((p: any) => String(p).endsWith('msedgewebview2.exe'));
+      await mockVersionInfo('149.0.4022.98 (release)');
+
+      expect(await detectFixedRuntimeVersion('C:\\FixedRuntime')).toBe('149.0.4022.98');
+    });
+
     it('should fall back to a versioned subdirectory when the runtime is nested', async () => {
       const { existsSync, readdirSync } = await import('node:fs');
       // Direct exe missing; a `<version>/msedgewebview2.exe` subdir exists.
@@ -389,6 +398,14 @@ describe('Edge Driver Manager', () => {
     it('should honour EDGEDRIVER_VERSION from the environment', async () => {
       process.env.EDGEDRIVER_VERSION = '148.0.1.2';
       expect(await resolveTargetEdgeVersion()).toEqual({ version: '148.0.1.2', source: 'override' });
+    });
+
+    it('should ignore a malformed edgeDriverVersion and fall through to the registry', async () => {
+      await mockExecRegistry('150.0.4000.0');
+      expect(await resolveTargetEdgeVersion({ edgeDriverVersion: "1'; Remove-Item C:\\x" })).toEqual({
+        version: '150.0.4000.0',
+        source: 'evergreen',
+      });
     });
 
     it('should resolve the fixed-version runtime folder from options.env', async () => {
