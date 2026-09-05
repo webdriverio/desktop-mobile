@@ -38,9 +38,7 @@ export default class ElectrobunWorkerService {
   private options: ElectrobunServiceOptions;
   private bridges: CdpBridge[] = [];
   private mockStores: ElectrobunMockStore[] = [];
-  /** Console-shim drains (Linux/W3C path only), flushed to the logger on teardown. */
   private consoleDrains: Array<() => Promise<void>> = [];
-  /** App launcher paths driven over W3C (WebKitGTK), reaped on teardown — see `reapW3CApps`. */
   private w3cAppBinaries: string[] = [];
 
   constructor(options: ElectrobunServiceOptions, capabilities: unknown) {
@@ -79,10 +77,8 @@ export default class ElectrobunWorkerService {
   }
 
   private async attachInstance(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
-    // Linux/W3C (WebKitGTK): the WDIO session IS the WebKitWebDriver session — there is no CDP
-    // side-channel. The launcher marks this path with a `webkitgtk:browserOptions` capability.
-    // Drive the app over W3C `browser.execute` (via the eval adapter), reusing the CDP
-    // execute/mock machinery unchanged.
+    // Linux/W3C: no CDP side-channel — the WDIO session IS the WebKitWebDriver session, flagged
+    // by the launcher's `webkitgtk:browserOptions` cap.
     const w3cOptions = (capabilities as { 'webkitgtk:browserOptions'?: { binary?: string } } | undefined)?.[
       'webkitgtk:browserOptions'
     ];
@@ -156,8 +152,8 @@ export default class ElectrobunWorkerService {
   }
 
   async after(): Promise<void> {
-    // Drain the console shim (needs the session alive) and close bridges FIRST, then reap the app
-    // — `after` runs before WDIO's deleteSession, so reaping here makes that DELETE return in ms.
+    // `after` runs before WDIO's deleteSession, so reaping the app here makes that DELETE return
+    // in ms (not ~120s). closeBridges() first — the console-shim drain needs the session alive.
     await this.closeBridges();
     this.reapW3CApps();
   }
@@ -298,10 +294,8 @@ function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: 
 }
 
 /**
- * Map a window label ('main', 'window-1', …) to a W3C window-handle index, or -1 for an
- * unrecognised label (so the caller rejects rather than silently targeting window 0). W3C
- * `getWindowHandles` order is unspecified, so index→window is best-effort; the single-window
- * 'standard' runs never index past 0.
+ * -1 for an unrecognised label so `switchWindow` rejects instead of silently targeting window 0.
+ * W3C `getWindowHandles` order is unspecified, so the index→window mapping is best-effort.
  */
 function w3cWindowIndex(label: string): number {
   if (label === 'main') {
@@ -311,12 +305,6 @@ function w3cWindowIndex(label: string): number {
   return match ? Number.parseInt(match[1], 10) : -1;
 }
 
-/**
- * Install `browser.electrobun.*` for the W3C (WebKitGTK) transport. `execute` and `mock` reuse
- * the CDP machinery unchanged via the `WebDriverEvalBridge` adapter (only its `send` is used);
- * window switching goes through W3C window handles, and `triggerDeeplink` stays unsupported off
- * macOS (the shared command already throws).
- */
 function installApiW3C(
   browser: WebdriverIO.Browser,
   evalBridge: WebDriverEvalBridge,

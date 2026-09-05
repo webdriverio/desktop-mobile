@@ -1,12 +1,8 @@
 // Spawn + manage `WebKitWebDriver` for the Linux WebKitGTK (W3C WebDriver) transport.
 //
-// Unlike the CDP-attach path (macOS CEF / Windows WebView2), where the service spawns the app
-// and a Chromedriver attaches, WebKitGTK inverts this: `WebKitWebDriver` is the W3C server, and
-// it LAUNCHES the app (via `webkitgtk:browserOptions.binary` + `--automation`) when the worker
-// creates a session. So the launcher spawns this driver per worker and points WDIO's connection
-// at it (hostname/port); the driver owns the app process. No Rust intermediary is needed —
-// electrobun 2.0.1 exposes WebKitGTK automation upstream (#467), so the app is driven the same
-// way `WebKitWebDriver` drives MiniBrowser.
+// Unlike the CDP-attach path (macOS CEF / Windows WebView2), where the service spawns the app and a
+// Chromedriver attaches, `WebKitWebDriver` is itself the W3C server and it LAUNCHES the app (via
+// `webkitgtk:browserOptions.binary` + `--automation`).
 
 import { type ChildProcess, execSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -34,11 +30,6 @@ const COMMON_DRIVER_PATHS = [
   '/usr/lib/webkit2gtk-4.0/WebKitWebDriver',
 ];
 
-/**
- * Locate the `WebKitWebDriver` binary on Linux (PATH first, then common install paths), or
- * `undefined` if not found / not on Linux. The launcher turns `undefined` into an actionable
- * install error (`webKitWebDriverNotFound`).
- */
 export function getWebKitWebDriverPath(platform: NodeJS.Platform = process.platform): string | undefined {
   if (platform !== 'linux') {
     return undefined;
@@ -61,21 +52,13 @@ export function getWebKitWebDriverPath(platform: NodeJS.Platform = process.platf
   return undefined;
 }
 
-/**
- * Build the `WebKitWebDriver` CLI args. IMPORTANT: the flags are equals-form — `--port=N`,
- * `--host=H`. Space-form (`--port N`) makes WebKitWebDriver print usage and exit 1.
- */
+/** IMPORTANT: equals-form flags. Space-form (`--port N`) makes WebKitWebDriver print usage and exit 1. */
 export function webKitWebDriverArgs(host: string, port: number): string[] {
   return [`--host=${host}`, `--port=${port}`];
 }
 
-/** How long to wait after SIGTERM before escalating to SIGKILL (longer on CI). */
 const KILL_TIMEOUT_MS = process.env.CI ? 10_000 : 5_000;
 
-/**
- * Poll `WebKitWebDriver`'s `/status` until it reports ready, or throw on timeout. `fetchImpl`
- * is injectable for tests.
- */
 export async function waitForWebKitWebDriverReady(
   host: string,
   port: number,
@@ -106,10 +89,7 @@ export async function waitForWebKitWebDriverReady(
   );
 }
 
-/**
- * Spawn `WebKitWebDriver` on `port` and wait until it is ready to accept sessions. The app is
- * NOT launched here — the driver launches it when the worker opens its session.
- */
+/** The app is NOT launched here — the driver launches it when the worker opens its session. */
 export async function spawnWebKitWebDriver(opts: {
   driverPath: string;
   port: number;
@@ -137,7 +117,7 @@ export async function spawnWebKitWebDriver(opts: {
   child.stderr?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver:err] ${chunk.toString().trimEnd()}`));
   child.on('exit', (code) => log.debug(`WebKitWebDriver exited with code ${code}`));
   // A spawn failure (ENOENT/EACCES) emits 'error'; without a handler Node re-throws it as an
-  // uncaught exception and crashes the launcher. Always handle it.
+  // uncaught exception and crashes the launcher.
   child.on('error', (error) => log.warn(`WebKitWebDriver process error: ${(error as Error).message}`));
 
   const handle: WebKitDriverProcess = { process: child, host, port: opts.port, detached: useXvfb };
@@ -147,7 +127,7 @@ export async function spawnWebKitWebDriver(opts: {
       reject(new Error(`Failed to spawn WebKitWebDriver (${command}): ${error.message}`)),
     );
   });
-  spawnFailed.catch(() => {}); // no-op catch: avoids an unhandled rejection if 'error' fires post-readiness
+  spawnFailed.catch(() => {}); // avoids an unhandled rejection if 'error' fires after readiness
   try {
     await Promise.race([waitForWebKitWebDriverReady(host, opts.port, opts.readyTimeoutMs), spawnFailed]);
   } catch (error) {
@@ -157,11 +137,7 @@ export async function spawnWebKitWebDriver(opts: {
   return handle;
 }
 
-/**
- * Stop a `WebKitWebDriver` process: SIGTERM, then SIGKILL if it doesn't exit within the
- * timeout. Killing the driver also tears down the app it launched. WebKitWebDriver can be slow
- * to release a session on teardown, so the SIGKILL fallback matters.
- */
+/** SIGTERM then SIGKILL — the fallback matters because WebKitWebDriver can be slow to release a session. */
 export async function stopWebKitWebDriver(handle: WebKitDriverProcess, killTimeoutMs = KILL_TIMEOUT_MS): Promise<void> {
   const { process: child, detached } = handle;
   if (child.exitCode !== null || child.signalCode !== null) {

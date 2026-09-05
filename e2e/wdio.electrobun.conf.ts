@@ -138,9 +138,8 @@ const electrobunServiceOptions: ElectrobunServiceOptions = {
 };
 
 const baseCapability: ElectrobunCapability = {
-  // The launcher rewrites this 'electrobun' per platform: → 'chrome' (CEF/macOS, CDP),
-  // 'MicrosoftEdge' (WebView2/Windows, CDP), or deletes it and points hostname/port at
-  // WebKitWebDriver (WebKitGTK/Linux, W3C) — all in onPrepare/onWorkerStart.
+  // 'electrobun' is a placeholder the launcher rewrites per platform (chrome / MicrosoftEdge, or
+  // deleted for the WebKitGTK/W3C path).
   browserName: 'electrobun',
   // macOS/CEF bundles a specific Chromium major; pin the driver to it so WDIO doesn't fetch a
   // newer major that refuses to attach ("only supports Chrome version N"). Bump alongside the

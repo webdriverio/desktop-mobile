@@ -26,11 +26,7 @@ export function cefRendererRequired(platform: NodeJS.Platform = process.platform
   );
 }
 
-/**
- * Thrown by the launcher in native mode when the current platform/renderer has no usable
- * automation surface — an explicit CEF build off macOS (serves no `/json`), or a non-desktop
- * platform. Fails fast with an actionable message rather than a cryptic attach timeout.
- */
+/** Thrown in native mode when there's no automation surface: a CEF build off macOS, or a non-desktop platform. */
 export function nativeRendererUnsupportedPlatform(
   platform: NodeJS.Platform = process.platform,
   renderer?: string,
@@ -48,11 +44,7 @@ export function nativeRendererUnsupportedPlatform(
   );
 }
 
-/**
- * Thrown by the launcher when driving the Linux WebKitGTK renderer but the `WebKitWebDriver`
- * binary (from the `webkit2gtk-driver` package) can't be found. The W3C transport spawns this
- * driver to launch and drive the app, so it is a hard prerequisite on Linux.
- */
+/** Thrown when `WebKitWebDriver` (the `webkit2gtk-driver` package) is missing — required for the Linux W3C transport. */
 export function webKitWebDriverNotFound(): Error {
   return new SevereServiceError(
     '@wdio/electrobun-service could not find WebKitWebDriver, required to drive the Linux WebKitGTK ' +

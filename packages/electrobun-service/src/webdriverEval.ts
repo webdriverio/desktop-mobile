@@ -23,20 +23,17 @@ const log = createLogger(SERVICE_NAME, 'bridge');
 /** Outcome our in-page script resolves `done` with (never a raw throw — WebKit reports those). */
 type EvalOutcome = { ok: true; value: unknown; undef?: boolean } | { ok: false; error: string };
 
-/** Runs an in-page script over `/execute/async`; injected so tests can supply a fake. */
 export type ExecuteAsyncPoster = (script: string) => Promise<{ value: unknown }>;
 
-/** The minimal CDP response shape `evaluateInActiveTarget` reads. */
 interface RuntimeEvaluateResponse {
   result?: { value?: unknown };
   exceptionDetails?: { text?: string; exception?: { description?: string } };
 }
 
 /**
- * Wrap an expression so it ALWAYS calls `done` with an outcome — never lets an exception reach
- * the automation context (WebKit reports any throw as a command error). `undef` flags a genuine
- * `undefined` (WebDriver would otherwise serialise it as `null`). The callback is the W3C
- * `/execute/async` injected last argument.
+ * Wrap an expression so it ALWAYS calls `done` with an outcome — never lets an exception reach the
+ * automation context (WebKit reports any throw as a command error). `undef` flags a genuine
+ * `undefined` (WebDriver would otherwise serialise it as `null`).
  */
 function buildScript(expression: string): string {
   return (
@@ -48,7 +45,6 @@ function buildScript(expression: string): string {
   );
 }
 
-/** Build a raw `/execute/async` poster from the session's connection details. */
 export function httpExecuteAsyncPoster(baseUrl: string, sessionId: string): ExecuteAsyncPoster {
   const transport = baseUrl.startsWith('https') ? https : http;
   return (script) =>
@@ -77,10 +73,6 @@ export function httpExecuteAsyncPoster(baseUrl: string, sessionId: string): Exec
     });
 }
 
-/**
- * A CdpBridge-shaped adapter satisfying the single method `execute`/`createMock` use
- * (`send('Runtime.evaluate', { expression })`), backed by a raw `/execute/async` poster.
- */
 export class WebDriverEvalBridge {
   constructor(private readonly post: ExecuteAsyncPoster) {}
 
@@ -93,7 +85,6 @@ export class WebDriverEvalBridge {
     if (value && typeof value === 'object' && 'ok' in value) {
       const outcome = value as EvalOutcome;
       if (outcome.ok) {
-        // Preserve a genuine `undefined` (WebDriver would surface it as `null`) — matches CDP.
         return { result: { value: outcome.undef ? undefined : outcome.value } };
       }
       return { exceptionDetails: { text: outcome.error, exception: { description: outcome.error } } };
@@ -104,27 +95,22 @@ export class WebDriverEvalBridge {
   }
 }
 
-/** Build a `WebDriverEvalBridge` from a live WDIO session (its connection host/port + sessionId). */
 export function createWebDriverEvalBridge(browser: WebdriverIO.Browser): WebDriverEvalBridge {
   const options = browser.options as { protocol?: string; hostname?: string; port?: number; path?: string };
   const protocol = options.protocol ?? 'http';
   const hostname = options.hostname ?? '127.0.0.1';
   const port = options.port ?? 4444;
-  // The launcher connects WDIO to WebKitWebDriver at the session root ('/'), so the base is
-  // just protocol://host:port.
   const baseUrl = `${protocol}://${hostname}:${port}`;
   return new WebDriverEvalBridge(httpExecuteAsyncPoster(baseUrl, browser.sessionId));
 }
 
 /**
- * Frontend log capture without CDP console events: a `console.*` shim buffers entries in-page,
- * and the returned reader drains them to the WDIO logger. These scripts never throw, so plain
- * `browser.execute` is fine here (unlike the eval channel above).
+ * Frontend log capture without CDP console events. Unlike the eval channel above, these scripts
+ * never throw, so plain `browser.execute` is fine.
  *
  * NOTE: the shim is per-document — a full-page navigation resets `window`, so entries logged
  * before a navigation are lost from the buffer. Cross-navigation frontend logs still surface via
- * the driver's stdout (electrobun forwards `console.*` there), which the launcher pipes to the
- * logger; this shim is the structured, in-page supplement to that live stream.
+ * the driver's stdout (electrobun forwards `console.*` there), which the launcher pipes to the logger.
  */
 export async function installConsoleShim(browser: WebdriverIO.Browser): Promise<() => Promise<void>> {
   const installScript =
@@ -156,8 +142,6 @@ export async function installConsoleShim(browser: WebdriverIO.Browser): Promise<
       )) as unknown as Array<{ level: string; args: string[] }>;
       for (const entry of entries ?? []) {
         const line = `[webview] ${entry.args.join(' ')}`;
-        // Preserve the console severity where the logger has a matching level; console.log and
-        // unknown levels fall back to info.
         const level = ['debug', 'info', 'warn', 'error'].includes(entry.level) ? entry.level : 'info';
         (log as unknown as Record<string, (msg: string) => void>)[level]?.(line);
       }

@@ -32,7 +32,6 @@ describe('WebDriverEvalBridge', () => {
     const poster = vi.fn().mockResolvedValue({ value: { ok: true, value: 1 } });
     await bridge(poster).send('Runtime.evaluate', { expression: 'doThing()' });
     const script = poster.mock.calls[0][0] as string;
-    // Callback is the injected last arg; the user expression is inlined; done is always called.
     expect(script).toContain('arguments[arguments.length - 1]');
     expect(script).toContain('(doThing())');
     expect(script).toContain('done({ ok: true');

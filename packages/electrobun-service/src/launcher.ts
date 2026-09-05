@@ -28,10 +28,9 @@ const log = createLogger(SERVICE_NAME, 'launcher');
 /**
  * Main-process launcher for `@wdio/electrobun-service`.
  *
- * Electrobun is a CDP-attach framework: the launcher spawns the app binary and the worker
- * attaches over CDP via `debuggerAddress`. It extends `BaseLauncher` to reuse
- * `@wdio/native-core`'s port/process/log infra. The CDP transport is per platform
- * (see `resolveTransport`):
+ * Extends `BaseLauncher` to reuse `@wdio/native-core`'s port/process/log infra. The transport is
+ * per platform (see `resolveTransport`); macOS/Windows are CDP-attach (the launcher spawns the app
+ * and the worker attaches over CDP via `debuggerAddress`), Linux is W3C (the driver launches the app):
  *  - **macOS → CEF** (Chromium), driven by **chromedriver** (`browserName: 'chrome'`,
  *    `goog:chromeOptions.debuggerAddress`). Single-instance (`maxInstances=1`): CEF can't
  *    isolate the forced `persist:default` profile per worker, so we do NOT redirect the cache
@@ -40,15 +39,18 @@ const log = createLogger(SERVICE_NAME, 'launcher');
  *  - **Windows → native WebView2** (Edge-based Chromium), driven by **msedgedriver**
  *    (`browserName: 'MicrosoftEdge'`, `ms:edgeOptions.debuggerAddress`). Isolates per instance
  *    (its own `LOCALAPPDATA` data root), so parallel workers + multiremote work.
- *  - **Linux** has no CDP/automation surface yet → unsupported (fail fast). See #320.
+ *  - **Linux → native WebKitGTK** over W3C WebDriver (electrobun >= 2.0.1, #467), driven by
+ *    **WebKitWebDriver**, which launches the app itself — no CDP, no app spawn here.
  *
  * Native-mode flow:
  *  - `onPrepare`: resolve each bundle + pick its transport; CEF-verify (CEF only); force
- *    `browserName`; pin the driver to the WebView2 runtime version (WebView2 only).
- *  - `onWorkerStart`: allocate a port; spawn the app — CEF clones the bundle and pins the port
- *    into the clone's `build.json`, WebView2 injects `--remote-debugging-port` via env — wait
- *    for `/json`, then set the `debuggerAddress`.
- *  - `onComplete`: kill spawned apps + clean temp dirs.
+ *    `browserName` (WebKitGTK deletes it + forces classic); pin the driver to the WebView2 runtime
+ *    version (WebView2 only); resolve WebKitWebDriver once (WebKitGTK only).
+ *  - `onWorkerStart`: allocate a port; CDP paths spawn the app (CEF clones the bundle and pins the
+ *    port into the clone's `build.json`, WebView2 injects `--remote-debugging-port` via env) then
+ *    wait for `/json` and set the `debuggerAddress`; WebKitGTK spawns the driver and sets
+ *    hostname/port instead.
+ *  - `onComplete`: kill spawned apps/drivers + clean temp dirs.
  */
 export default class ElectrobunLaunchService extends BaseLauncher {
   private browserMode = false;
@@ -64,16 +66,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
    * stragglers (e.g. a worker that never reported end).
    */
   private spawnedAppsByCid = new Map<string, ElectrobunAppProcess[]>();
-  /**
-   * Resolved `WebKitWebDriver` path for the Linux WebKitGTK (W3C) transport, set in onPrepare
-   * when any app resolves to that transport.
-   */
   private webkitDriverPath?: string;
-  /**
-   * Spawned `WebKitWebDriver` processes keyed by worker cid (WebKitGTK/W3C transport). Unlike the
-   * CDP path — where the service spawns the app — here the driver launches the app, so we track
-   * the driver to stop it on teardown.
-   */
   private webkitDriversByCid = new Map<string, WebKitDriverProcess[]>();
 
   constructor(
@@ -183,11 +176,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       return;
     }
 
-    // Native renderer automation covers macOS (CEF/CDP), Windows (WebView2/CDP), and Linux
-    // (WebKitGTK/W3C WebDriver, electrobun >= 2.0.1). Non-desktop platforms have no surface at
-    // all — fail fast here, before touching the bundle. Browser mode is unaffected (it already
-    // returned above). The per-app renderer→transport decision (and the CEF-off-macOS rejection)
-    // happens in the resolve loop below.
+    // Only desktop platforms have an automation surface — fail fast before touching the bundle.
     if (process.platform !== 'darwin' && process.platform !== 'win32' && process.platform !== 'linux') {
       throw nativeRendererUnsupportedPlatform(process.platform);
     }
@@ -226,11 +215,10 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       }
       this.resolvedApps.push(app);
       if (transport === 'webkitgtk') {
-        // W3C WebDriver: WDIO connects directly to WebKitWebDriver (hostname/port set per worker
-        // in onWorkerStart). Set the static caps here:
+        // W3C static caps (hostname/port are set per worker in onWorkerStart):
         //  - delete browserName (else WDIO tries to provision a Chromium driver);
         //  - enforce classic — WebKitWebDriver has no BiDi, so skip the failing BiDi handshake;
-        //  - browserOptions.binary + `--automation`: WebKitWebDriver LAUNCHES the app, and the
+        //  - browserOptions.binary + `--automation`: WebKitWebDriver launches the app, and the
         //    flag makes electrobun opt the webview into automation (2.0.1, #467).
         const w3cCap = cap as Record<string, unknown>;
         delete w3cCap.browserName;
@@ -266,9 +254,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       }
     }
 
-    // WebKitGTK (Linux/W3C): resolve WebKitWebDriver once, up front, so a missing driver fails
-    // with an actionable install error before any worker starts (rather than a per-worker spawn
-    // failure). The driver launches the app when the worker opens its session.
+    // Resolve WebKitWebDriver once so a missing driver fails fast, before any worker starts.
     if (this.resolvedApps.some((app) => resolveTransport(app) === 'webkitgtk')) {
       this.webkitDriverPath = getWebKitWebDriverPath();
       if (!this.webkitDriverPath) {
@@ -316,17 +302,14 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       const instanceOptions = mergeServiceOptions(this.options, getServiceOptionsFromCapability(cap));
       const port = await this.portManager.allocatePort(this.options.remoteDebuggingPort ?? DEFAULT_DEBUG_PORT_BASE);
 
-      // WebKitGTK (Linux/W3C): the driver launches the app, so spawn WebKitWebDriver on the
-      // allocated port and point WDIO's connection at it — no app spawn / CDP wait here. Each
-      // worker gets its own driver + app, so parallel workers isolate cleanly.
+      // W3C: the driver launches the app — no app spawn / CDP wait here (unlike the CDP path).
       if (resolveTransport(app) === 'webkitgtk') {
-        // webkitDriverPath is resolved (and validated) in onPrepare whenever any app is webkitgtk.
         const driver = await this.spawnWebKitDriver(this.webkitDriverPath ?? '', port);
         const drivers = this.webkitDriversByCid.get(cid) ?? [];
         drivers.push(driver);
         this.webkitDriversByCid.set(cid, drivers);
-        // hostname/port are connection params (not capabilities): WDIO connects to WebKitWebDriver
-        // as a classic W3C remote end. Set here because the port is allocated per worker.
+        // hostname/port are connection params (not capabilities), set per worker as the port is
+        // allocated here.
         const w3cCap = cap as Record<string, unknown>;
         w3cCap.hostname = driver.host;
         w3cCap.port = driver.port;
@@ -334,7 +317,6 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         continue;
       }
 
-      // CDP-attach (cef/webview2): spawn the app; a Chromedriver attaches via debuggerAddress.
       // The allocated port is pinned into the per-worker bundle clone inside spawnApp — the CEF
       // port is fixed per bundle (a launch arg does NOT work, see RESEARCH_FINDINGS), so the
       // clone is what makes parallel workers safe.
@@ -379,7 +361,6 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         });
       }
     }
-    // WebKitGTK/W3C: kill the driver (which tears down the app it launched).
     const drivers = this.webkitDriversByCid.get(cid);
     if (drivers) {
       this.webkitDriversByCid.delete(cid);

@@ -47,7 +47,6 @@ vi.mock('../src/webview2Version.js', () => ({
   detectWebView2RuntimeVersion: vi.fn(() => '148.0.3967.83'),
 }));
 
-// Mock the WebKitGTK (Linux/W3C) driver so no real WebKitWebDriver process is spawned.
 vi.mock('../src/webkitDriver.js', () => ({
   getWebKitWebDriverPath: vi.fn(() => '/usr/bin/WebKitWebDriver'),
   spawnWebKitWebDriver: vi.fn(async () => ({
@@ -59,7 +58,6 @@ vi.mock('../src/webkitDriver.js', () => ({
   stopWebKitWebDriver: vi.fn().mockResolvedValue(undefined),
 }));
 
-/** A resolved Linux native (WebKitGTK) app for the W3C-path tests. */
 const linuxNativeApp = {
   binaryPath: '/apps/Demo/bin/launcher',
   bundlePath: '/apps/Demo',
@@ -323,7 +321,6 @@ describe('ElectrobunLaunchService', () => {
 
       await launcher.onPrepare(baseConfig, caps);
 
-      // W3C: no CEF verify, WebKitWebDriver resolved once, browserName deleted, classic forced.
       expect(vi.mocked(verifyCefRenderer)).not.toHaveBeenCalled();
       expect(vi.mocked(getWebKitWebDriverPath)).toHaveBeenCalledTimes(1);
       const cap = caps[0] as Record<string, unknown>;
@@ -394,7 +391,6 @@ describe('ElectrobunLaunchService', () => {
       const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
       expect(error).toBeInstanceOf(SevereServiceError);
       expect((error as Error).message).toContain('win32');
-      // A CEF build off macOS is guided to the native renderer (it serves no /json there).
       expect((error as Error).message).toContain('defaultRenderer: "native"');
     });
   });
@@ -439,7 +435,6 @@ describe('ElectrobunLaunchService', () => {
       const cap: ElectrobunCapabilities = {};
       await launcher.onWorkerStart('0-0', [cap]);
 
-      // W3C: WebKitWebDriver launches the app, so the service does NOT spawn the app itself.
       expect(vi.mocked(spawnElectrobunApp)).not.toHaveBeenCalled();
       expect(vi.mocked(spawnWebKitWebDriver)).toHaveBeenCalledTimes(1);
       const w3cCap = cap as Record<string, unknown>;
@@ -526,7 +521,6 @@ describe('ElectrobunLaunchService', () => {
 
     it('should throw SevereServiceError when no app was resolved (onPrepare skipped)', async () => {
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
-      // Note: onPrepare intentionally NOT called.
       await expect(launcher.onWorkerStart('0-0', [{}])).rejects.toThrow(/no resolved Electrobun app/);
     });
 
