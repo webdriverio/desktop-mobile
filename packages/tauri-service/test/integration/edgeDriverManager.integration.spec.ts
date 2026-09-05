@@ -50,6 +50,36 @@ describe.skipIf(!runtime)('edgeDriverManager fixed-version runtime (Windows)', (
   // Guaranteed present by the skipIf gate above; narrow once for the type-checker.
   const rt = runtime as NonNullable<typeof runtime>;
 
+  // TEMP (#539): measure the TRUE powershell FileVersion-read duration under the parallel Windows CI
+  // load (2 spawns → cold vs warm). 70s cap per spawn, 150s test timeout so vitest doesn't abort
+  // first. Remove once the duration is known.
+  it('DIAGNOSTIC: raw FileVersion read timing on this runner', async () => {
+    const { execFile } = await import('node:child_process');
+    const exe = join(rt.versionDir, RUNTIME_EXE);
+    console.error(`[PROBE-DIAG] platform=${process.platform} exe=${exe} exeExists=${existsSync(exe)}`);
+    const psPath = exe.replace(/'/g, "''");
+    for (const attempt of [1, 2]) {
+      const started = Date.now();
+      await new Promise<void>((resolve) => {
+        execFile(
+          'powershell.exe',
+          ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${psPath}').VersionInfo.FileVersion`],
+          { encoding: 'utf8', timeout: 70000 },
+          (error, stdout, stderr) => {
+            const e = error as (Error & { code?: unknown; signal?: unknown; killed?: unknown }) | null;
+            console.error(
+              `[PROBE-DIAG] attempt=${attempt} ms=${Date.now() - started} ` +
+                `error=${e ? JSON.stringify({ message: e.message, code: e.code, signal: e.signal, killed: e.killed }) : 'null'} ` +
+                `stdout=${JSON.stringify(stdout)} stderr=${JSON.stringify(stderr)}`,
+            );
+            resolve();
+          },
+        );
+      });
+    }
+    expect(true).toBe(true);
+  }, 150_000);
+
   it('should read the runtime version from a folder holding msedgewebview2.exe', async () => {
     const version = await detectFixedRuntimeVersion(rt.versionDir);
     expect(version).toMatch(VERSION_PATTERN);
