@@ -62,8 +62,8 @@ export async function detectWebView2Version(): Promise<string | undefined> {
 /** Read a Windows file's FileVersion (e.g. `150.0.4022.98`). Windows-only. */
 async function readFileVersion(filePath: string): Promise<string | undefined> {
   try {
-    // Embed the path in the -Command string (single quotes doubled): a trailing argv token does
-    // not populate $args under -Command, so `(Get-Item $args[0])` reads an empty path and fails.
+    // Embed the path in the -Command string: a trailing argv token does not populate $args under
+    // -Command, so `(Get-Item $args[0])` reads an empty path and fails.
     const psPath = filePath.replace(/'/g, "''");
     const { stdout } = await execFileAsync(
       'powershell.exe',
@@ -83,10 +83,10 @@ async function readFileVersion(filePath: string): Promise<string | undefined> {
 
 const FIXED_RUNTIME_EXE = 'msedgewebview2.exe';
 const VERSION_DIR = /^\d+\.\d+\.\d+\.\d+$/;
-/** A complete, injection-safe version string (digits and dots only, 2–4 parts). */
+/** A complete, injection-safe version string. */
 const VERSION_RE = /^\d+(?:\.\d+){1,3}$/;
 
-/** Order dotted numeric versions highest-first (an `Array#sort` comparator). */
+/** Order dotted numeric versions highest-first. */
 export function compareVersionsDesc(a: string, b: string): number {
   const pa = a.split('.').map(Number);
   const pb = b.split('.').map(Number);
@@ -116,8 +116,8 @@ export async function detectFixedRuntimeVersion(folder?: string): Promise<string
   }
 
   try {
-    // Several `<version>/msedgewebview2.exe` subdirs can coexist; pick the highest so selection is
-    // deterministic rather than dependent on readdir order (which could resolve a stale runtime).
+    // Several `<version>/msedgewebview2.exe` subdirs can coexist; pick the highest so a stale
+    // runtime can't win on readdir order.
     const [newest] = readdirSync(folder)
       .filter((entry) => VERSION_DIR.test(entry) && existsSync(join(folder, entry, FIXED_RUNTIME_EXE)))
       .sort(compareVersionsDesc);
@@ -356,7 +356,7 @@ export async function downloadMsEdgeDriver(
   const driverVersion = exactVersion ? edgeVersion : await getDriverVersionForEdge(edgeVersion);
 
   // Create PowerShell script for downloading. Double any embedded single quotes so a version can't
-  // break out of the string literal (mirrors readFileVersion; belt-and-suspenders over VERSION_RE).
+  // break out of the string literal (belt-and-suspenders over VERSION_RE).
   const psScript = `
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Faster downloads
