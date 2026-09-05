@@ -94,9 +94,12 @@ export async function detectWebView2VersionFromBinary(binaryPath?: string): Prom
 /** Read a Windows PE file's FileVersion (e.g. `150.0.4022.98`). Windows-only. */
 async function readFileVersion(filePath: string): Promise<string | undefined> {
   try {
+    // Embed the path in the -Command string (single quotes doubled): a trailing argv token does
+    // not populate $args under -Command, so `(Get-Item $args[0])` reads an empty path and fails.
+    const psPath = filePath.replace(/'/g, "''");
     const { stdout } = await execFileAsync(
       'powershell.exe',
-      ['-Command', '(Get-Item $args[0]).VersionInfo.FileVersion', filePath],
+      ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${psPath}').VersionInfo.FileVersion`],
       { encoding: 'utf8', timeout: 5000 },
     );
     const version = stdout.trim();

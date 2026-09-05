@@ -361,7 +361,7 @@ describe('Edge Driver Manager', () => {
       // Echo the version embedded in the queried exe path so we can tell which subdir was chosen.
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, args: string[], _opts: any, callback: any) => {
         if (typeof _opts === 'function') callback = _opts;
-        const match = (Array.isArray(args) ? String(args[2]) : '').match(/(\d+\.\d+\.\d+\.\d+)/);
+        const match = (Array.isArray(args) ? args.join(' ') : '').match(/(\d+\.\d+\.\d+\.\d+)/);
         callback?.(null, `${match ? match[1] : '0.0.0.0'}\n`, '');
         return {} as any;
       }) as any);
@@ -417,9 +417,9 @@ describe('Edge Driver Manager', () => {
       vi.mocked(existsSync).mockImplementation((p: any) => String(p).endsWith('msedgewebview2.exe'));
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, args: string[], _opts: any, callback: any) => {
         if (typeof _opts === 'function') callback = _opts;
-        const filePath = Array.isArray(args) ? String(args[2]) : '';
-        if (filePath.includes('OptionRuntime')) callback?.(null, '149.0.4022.98\n', '');
-        else if (filePath.includes('ProcessRuntime')) callback?.(null, '130.0.0.0\n', '');
+        const command = Array.isArray(args) ? args.join(' ') : '';
+        if (command.includes('OptionRuntime')) callback?.(null, '149.0.4022.98\n', '');
+        else if (command.includes('ProcessRuntime')) callback?.(null, '130.0.0.0\n', '');
         else callback?.(new Error('unexpected'), '', '');
         return {} as any;
       }) as any);
@@ -474,7 +474,7 @@ describe('Edge Driver Manager', () => {
       }) as any);
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, args: string[], _opts: any, callback: any) => {
         if (typeof _opts === 'function') callback = _opts;
-        if (Array.isArray(args) && String(args[1]).includes('VersionInfo.FileVersion'))
+        if (Array.isArray(args) && args.some((a) => String(a).includes('VersionInfo.FileVersion')))
           callback?.(null, '149.0.4022.98\n', '');
         else callback?.(null, 'SUCCESS', '');
         return {} as any;
@@ -580,7 +580,7 @@ describe('Edge Driver Manager', () => {
     const { execFile } = await import('node:child_process');
     vi.mocked(execFile as any).mockImplementation(((_cmd: string, args: string[], _opts: any, callback: any) => {
       if (typeof _opts === 'function') callback = _opts;
-      if (Array.isArray(args) && String(args[1]).includes('VersionInfo.FileVersion')) {
+      if (Array.isArray(args) && args.some((a) => String(a).includes('VersionInfo.FileVersion'))) {
         callback?.(null, `${version}\n`, '');
       } else {
         callback?.(new Error('unexpected'), '', '');

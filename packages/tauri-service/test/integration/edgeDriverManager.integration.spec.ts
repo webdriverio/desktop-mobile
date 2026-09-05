@@ -38,41 +38,34 @@ function findInstalledRuntime(): { versionDir: string; applicationDir: string; v
   return undefined;
 }
 
-describe.skipIf(process.platform !== 'win32')('edgeDriverManager fixed-version runtime (Windows)', () => {
-  const runtime = findInstalledRuntime();
+// Resolve once at load; the suite runs only on Windows with a real runtime present, and reports an
+// honest skip otherwise rather than a passing no-op.
+const runtime = process.platform === 'win32' ? findInstalledRuntime() : undefined;
 
-  it('should read the runtime version from a folder holding msedgewebview2.exe', async (ctx) => {
-    if (!runtime) {
-      ctx.skip();
-      return;
-    }
-    const version = await detectFixedRuntimeVersion(runtime.versionDir);
+describe.skipIf(!runtime)('edgeDriverManager fixed-version runtime (Windows)', () => {
+  // Guaranteed present by the skipIf gate above; narrow once for the type-checker.
+  const rt = runtime as NonNullable<typeof runtime>;
+
+  it('should read the runtime version from a folder holding msedgewebview2.exe', async () => {
+    const version = await detectFixedRuntimeVersion(rt.versionDir);
     expect(version).toMatch(VERSION_PATTERN);
     // The install dir is named by the runtime version, so the file version shares its major.
-    expect(version?.split('.')[0]).toBe(runtime.version.split('.')[0]);
+    expect(version?.split('.')[0]).toBe(rt.version.split('.')[0]);
   });
 
-  it('should find the runtime via the versioned-subdirectory fallback', async (ctx) => {
-    if (!runtime) {
-      ctx.skip();
-      return;
-    }
+  it('should find the runtime via the versioned-subdirectory fallback', async () => {
     // Point at the parent Application dir → the `<version>/msedgewebview2.exe` subdir scan. The
     // fallback must resolve the same runtime a direct read of that subdir yields, not merely "some
     // version-shaped string" — otherwise a scan that picked the wrong nested version would pass.
-    const direct = await detectFixedRuntimeVersion(runtime.versionDir);
-    const viaFallback = await detectFixedRuntimeVersion(runtime.applicationDir);
+    const direct = await detectFixedRuntimeVersion(rt.versionDir);
+    const viaFallback = await detectFixedRuntimeVersion(rt.applicationDir);
     expect(viaFallback).toMatch(VERSION_PATTERN);
     expect(viaFallback).toBe(direct);
   });
 
-  it('should report source "fixed-runtime" for WEBVIEW2_BROWSER_EXECUTABLE_FOLDER', async (ctx) => {
-    if (!runtime) {
-      ctx.skip();
-      return;
-    }
+  it('should report source "fixed-runtime" for WEBVIEW2_BROWSER_EXECUTABLE_FOLDER', async () => {
     const resolved = await resolveTargetEdgeVersion({
-      env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: runtime.versionDir },
+      env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: rt.versionDir },
     });
     expect(resolved?.source).toBe('fixed-runtime');
     expect(resolved?.version).toMatch(VERSION_PATTERN);
