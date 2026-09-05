@@ -23,8 +23,8 @@ const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'electrobun');
  * environment subdir (dev/canary/stable) is not fixed across the beta toolchain,
  * so we glob for the first `.app` rather than hardcoding a subpath. CI can pin an
  * exact bundle via `ELECTROBUN_APP_PATH` (set after the build step) to avoid any
- * ambiguity. macOS is the only validated platform (see the service's
- * RESEARCH_FINDINGS); the Windows/Linux bundle layout is unverified.
+ * ambiguity. macOS is the only validated platform; the Windows/Linux bundle layout
+ * is unverified.
  */
 function resolveElectrobunAppPath(dir: string): string {
   const override = process.env.ELECTROBUN_APP_PATH;

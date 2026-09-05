@@ -5,7 +5,7 @@ name: Build Electrobun E2E App
 # CEF. The CEF toolchain is a beta/unverified path: `electrobun build` downloads a
 # ~150MB CEF framework, so the build is slower and more network-dependent than the
 # other e2e-app builds. macOS is the only validated platform; Windows/Linux bundle
-# layout is unverified (see packages/electrobun-service RESEARCH_FINDINGS).
+# layout is unverified.
 
 permissions:
   contents: read

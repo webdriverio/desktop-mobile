@@ -314,7 +314,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       }
 
       // spawnApp pins the port into a per-worker bundle clone — CEF's debug port is fixed per
-      // bundle, so a launch arg can't set it (see RESEARCH_FINDINGS).
+      // bundle, so a launch arg can't set it.
       const spawned = this.spawnApp(app, port, instanceOptions, cid);
       workerApps.push(spawned);
 
