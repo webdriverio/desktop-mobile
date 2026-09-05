@@ -65,10 +65,12 @@ async function readFileVersion(filePath: string): Promise<string | undefined> {
     // Embed the path in the -Command string: a trailing argv token does not populate $args under
     // -Command, so `(Get-Item $args[0])` reads an empty path and fails.
     const psPath = filePath.replace(/'/g, "''");
+    // 15s, not a couple: powershell cold-start under parallel CI load can exceed 5s, and a timeout
+    // kill (empty stdout) silently drops the fixed-runtime probe to the Evergreen fallback.
     const { stdout } = await execFileAsync(
       'powershell.exe',
       ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${psPath}').VersionInfo.FileVersion`],
-      { encoding: 'utf8', timeout: 5000 },
+      { encoding: 'utf8', timeout: 15000 },
     );
     // Return only the numeric prefix — FileVersion can carry trailing text (e.g. "150.0.0 (rc)").
     const match = stdout.trim().match(/^\d+\.\d+\.\d+(?:\.\d+)?/);
