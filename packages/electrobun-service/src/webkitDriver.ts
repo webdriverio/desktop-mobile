@@ -1,8 +1,7 @@
 // Spawn + manage `WebKitWebDriver` for the Linux WebKitGTK (W3C WebDriver) transport.
 //
 // Unlike the CDP-attach path (macOS CEF / Windows WebView2), where the service spawns the app and a
-// Chromedriver attaches, `WebKitWebDriver` is itself the W3C server and it LAUNCHES the app (via
-// `webkitgtk:browserOptions.binary` + `--automation`).
+// Chromedriver attaches, `WebKitWebDriver` is itself the W3C server and it LAUNCHES the app.
 
 import { type ChildProcess, execSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -21,8 +20,8 @@ export interface WebKitDriverProcess {
   detached: boolean;
 }
 
-// Common install locations, tried after `which`. The `webkit2gtk-driver` package installs
-// `/usr/bin/WebKitWebDriver`; the versioned libdir paths cover distros that don't symlink it.
+// The `webkit2gtk-driver` package installs `/usr/bin/WebKitWebDriver`; the versioned libdir
+// paths cover distros that don't symlink it.
 const COMMON_DRIVER_PATHS = [
   '/usr/bin/WebKitWebDriver',
   '/usr/local/bin/WebKitWebDriver',
@@ -72,8 +71,7 @@ export async function waitForWebKitWebDriverReady(
       const res = await fetchImpl(`http://${host}:${port}/status`);
       if (res.ok) {
         const body = (await res.json()) as { value?: { ready?: boolean } };
-        // WebKitWebDriver reports `{ value: { ready, message } }`; treat a 200 with a value as
-        // usable even if `ready` is momentarily false — New Session then blocks until ready.
+        // A 200 with a `value` is enough; New Session blocks until ready, so a transient `ready: false` is fine.
         if (body?.value) {
           return;
         }
@@ -89,7 +87,6 @@ export async function waitForWebKitWebDriverReady(
   );
 }
 
-/** The app is NOT launched here — the driver launches it when the worker opens its session. */
 export async function spawnWebKitWebDriver(opts: {
   driverPath: string;
   port: number;
@@ -99,10 +96,9 @@ export async function spawnWebKitWebDriver(opts: {
   const host = opts.host ?? '127.0.0.1';
   const driverArgs = webKitWebDriverArgs(host, opts.port);
 
-  // Linux CI runners are headless, and WebKitWebDriver launches a GTK app that needs an X
-  // display ("Failed to open X11 display" otherwise → New Session hangs). WDIO's autoXvfb
-  // covers the worker process, NOT this launcher-spawned driver, so run it under `xvfb-run -a`
-  // (a throwaway X server) — mirroring the CEF app spawn in nativeMode.ts.
+  // Linux CI runners are headless and WebKitWebDriver launches a GTK app that needs an X display.
+  // WDIO's autoXvfb wraps the worker process, NOT this launcher-spawned driver, so run it under
+  // `xvfb-run -a` — mirroring the CEF app spawn in nativeMode.ts.
   const useXvfb = process.platform === 'linux';
   const command = useXvfb ? 'xvfb-run' : opts.driverPath;
   const spawnArgs = useXvfb ? ['-a', opts.driverPath, ...driverArgs] : driverArgs;
@@ -111,17 +107,16 @@ export async function spawnWebKitWebDriver(opts: {
   // Detach on Linux so xvfb-run becomes its own process-group leader: `xvfb-run` does NOT forward
   // signals to WebKitWebDriver (its child) or the app (WebKitWebDriver's child), so killing just
   // the xvfb-run pid orphans them — across retries the orphaned apps + X servers pile up and
-  // starve the runner (New Session then times out). Detaching lets teardown kill the whole group.
+  // starve the runner. Detaching lets teardown kill the whole group.
   const child = spawn(command, spawnArgs, { stdio: ['ignore', 'pipe', 'pipe'], detached: useXvfb });
   child.stdout?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver] ${chunk.toString().trimEnd()}`));
   child.stderr?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver:err] ${chunk.toString().trimEnd()}`));
   child.on('exit', (code) => log.debug(`WebKitWebDriver exited with code ${code}`));
-  // A spawn failure (ENOENT/EACCES) emits 'error'; without a handler Node re-throws it as an
-  // uncaught exception and crashes the launcher.
+  // Without this handler an 'error' event (e.g. spawn ENOENT) crashes the launcher as an uncaught exception.
   child.on('error', (error) => log.warn(`WebKitWebDriver process error: ${(error as Error).message}`));
 
   const handle: WebKitDriverProcess = { process: child, host, port: opts.port, detached: useXvfb };
-  // Fail the readiness wait fast on a spawn error rather than blocking for the full timeout.
+  // If the spawn errors, reject immediately instead of waiting out the full readiness timeout.
   const spawnFailed = new Promise<never>((_, reject) => {
     child.once('error', (error: Error) =>
       reject(new Error(`Failed to spawn WebKitWebDriver (${command}): ${error.message}`)),
@@ -137,13 +132,13 @@ export async function spawnWebKitWebDriver(opts: {
   return handle;
 }
 
-/** SIGTERM then SIGKILL — the fallback matters because WebKitWebDriver can be slow to release a session. */
+/** SIGTERM, then SIGKILL to force exit when WebKitWebDriver is slow to release the session. */
 export async function stopWebKitWebDriver(handle: WebKitDriverProcess, killTimeoutMs = KILL_TIMEOUT_MS): Promise<void> {
   const { process: child, detached } = handle;
   if (child.exitCode !== null || child.signalCode !== null) {
     return;
   }
-  // Signal the whole process GROUP (negative pid) when detached, so xvfb-run + WebKitWebDriver +
+  // When detached, signal the process group with a negative pid, so xvfb-run + WebKitWebDriver +
   // the app all die — killing only the xvfb-run pid leaves the driver and app orphaned. Falls
   // back to the single child if the group is already gone or we didn't detach.
   const signalTree = (signal: NodeJS.Signals) => {
@@ -153,7 +148,7 @@ export async function stopWebKitWebDriver(handle: WebKitDriverProcess, killTimeo
         return;
       }
     } catch {
-      // group gone / not a leader — fall through to the direct kill
+      // the process group is already gone — fall through to the direct kill
     }
     child.kill(signal);
   };
