@@ -205,6 +205,17 @@ describe('ElectrobunLaunchService', () => {
       expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
     });
 
+    it('should warn (not throw) when maxInstances > 1 on Linux — WebKitGTK apps share the bundle', async () => {
+      setPlatform('linux');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare({ maxInstances: 2 } as Parameters<typeof launcher.onPrepare>[0], caps);
+
+      expect(logMocks.warn).toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
+    });
+
     it('should pin browserVersion to the WebView2 runtime version on the Windows WebView2 path', async () => {
       setPlatform('win32');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
