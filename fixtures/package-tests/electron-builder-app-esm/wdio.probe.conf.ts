@@ -1,8 +1,9 @@
 import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { getElectronBinaryPath } from '@wdio/electron-service';
 import type { Options } from '@wdio/types';
 
-const __dirname = path.dirname(new URL(import.meta.url).pathname);
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
 // Force onPrepare's last-resort binary probe: a fork `browserVersion` the map can't resolve, plus an
 // explicit binary path (a fork version would break auto-detection).

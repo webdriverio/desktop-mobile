@@ -22,7 +22,9 @@ const CHROMIUM_VERSION_PATTERN = /^\d+\.\d+\.\d+/;
 export function probeChromiumVersion(binaryPath: string): Promise<string | undefined> {
   let pending = probeCache.get(binaryPath);
   if (!pending) {
-    pending = runProbe(binaryPath);
+    // Guard the "resolves undefined on failure" contract: a stray rejection must not surface as an
+    // unhandled rejection, a cached rejected promise, or a fatal onPrepare error.
+    pending = runProbe(binaryPath).catch(() => undefined);
     probeCache.set(binaryPath, pending);
     // Cache a success (a binary's Chromium version is stable) but not a failure — a transient
     // spawn/timeout/fuse-read failure must not poison later retries for the same binary.
@@ -61,12 +63,21 @@ async function runProbe(binaryPath: string): Promise<string | undefined> {
           log.debug(`Chromium version probe failed for ${binaryPath}: ${error.message}`);
           return resolve(undefined);
         }
-        const version = stdout.trim();
-        if (CHROMIUM_VERSION_PATTERN.test(version)) {
+        // Take the last version-shaped line: an inherited NODE_OPTIONS preload can print to stdout
+        // before the `-p` result, so the version isn't guaranteed to lead (or be all of) stdout.
+        const version = stdout
+          .trim()
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .reverse()
+          .find((line) => CHROMIUM_VERSION_PATTERN.test(line));
+        if (version) {
           log.debug(`Probed Chromium v${version} from ${binaryPath}`);
           return resolve(version);
         }
-        log.debug(`Chromium version probe returned unexpected output for ${binaryPath}: ${JSON.stringify(version)}`);
+        log.debug(
+          `Chromium version probe returned unexpected output for ${binaryPath}: ${JSON.stringify(stdout.trim())}`,
+        );
         resolve(undefined);
       },
     );

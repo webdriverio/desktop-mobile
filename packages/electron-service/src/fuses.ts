@@ -78,9 +78,11 @@ export interface RunAsNodeCheckResult {
  * fuse is disabled the env var is ignored and the binary launches its real GUI,
  * so the probe must be skipped.
  *
- * Fail-open is safe: a disabled fuse is always readable (that is how it is
- * flipped), so a read failure means either no fuses (env var honoured) or an
- * inaccessible binary (the probe's own exec then fails harmlessly).
+ * Fail-open on a read error: usually that means no fuses (env var honoured) or
+ * an inaccessible binary (the probe's own exec then fails harmlessly). The rare
+ * exception is a fuse wire this @electron/fuses can't parse — a disabled fuse
+ * could then be probed and briefly flash the GUI — but failing closed would skip
+ * the probe for every unreadable-but-fine binary, defeating its purpose.
  */
 export async function checkRunAsNodeFuse(binaryPath: string): Promise<RunAsNodeCheckResult> {
   try {
