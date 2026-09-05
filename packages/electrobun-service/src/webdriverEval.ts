@@ -5,11 +5,11 @@
 // exposes the one method those code paths use (`send('Runtime.evaluate', …)`), so the entire
 // execute + mock + inner-recorder machinery is reused verbatim over W3C.
 //
-// IMPORTANT: it posts to `/execute/async` DIRECTLY (raw HTTP), not via WDIO's
-// `browser.executeAsync`/`executeAsyncScript`. WDIO wraps the script and turns a page-level
-// throw into a WebDriverError that surfaces the JSC stack (which omits the message), breaking
-// error propagation. The raw endpoint honours our in-page `try/catch → done({ok,error})`
-// protocol and returns a clean message — verified against WebKitWebDriver directly.
+// IMPORTANT: posts to `/execute/async` DIRECTLY (raw HTTP), not via WDIO's
+// `browser.executeAsync`/`executeAsyncScript`. Those turn a page-level throw into a WebDriverError
+// whose message is lost on WebKit — the JSC error stack carries no message — so the real error
+// never reaches us. Instead the injected script never throws: it catches and hands back
+// `{ ok, error }` via `done` (see `buildScript`), which we read straight off the raw response.
 
 import http from 'node:http';
 import https from 'node:https';
@@ -20,7 +20,6 @@ import { SERVICE_NAME } from './constants.js';
 
 const log = createLogger(SERVICE_NAME, 'bridge');
 
-/** Outcome our in-page script resolves `done` with (never a raw throw — WebKit reports those). */
 type EvalOutcome = { ok: true; value: unknown; undef?: boolean } | { ok: false; error: string };
 
 export type ExecuteAsyncPoster = (script: string) => Promise<{ value: unknown }>;
