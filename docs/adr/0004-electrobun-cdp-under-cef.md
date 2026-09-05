@@ -7,6 +7,10 @@ Date: 2026-08-03
 Accepted — retroactively documenting the Electrobun service architecture validated in the
 Phase-0 spike and shipped in [#314](https://github.com/webdriverio/desktop-mobile/pull/314).
 
+**Amended by [ADR-0005](./0005-electrobun-2-only-linux-webkitgtk.md)** — adopting Electrobun 2.0+
+adds a Linux WebKitGTK path over **W3C WebDriver**, so "the default WebKit renderer is unsupported"
+no longer holds universally (Linux only; macOS WKWebView still has no automation surface).
+
 ## Context
 
 An Electrobun app can render with either its **default WebKit renderer** or an opt-in **CEF**

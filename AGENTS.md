@@ -10,7 +10,7 @@ This is a monorepo providing WebdriverIO services for automated testing of nativ
 - **Electron** - `@wdio/electron-service` (v10.x)
 - **Tauri** - `@wdio/tauri-service` (v1.x)
 - **Dioxus** - `@wdio/dioxus-service` (v1.x)
-- **Electrobun** - `@wdio/electrobun-service` (v0.1.x — **macOS** via CEF + **Windows** via the native WebView2 renderer (CDP), incl. multi-window/multiremote; **Linux** upstream-blocked, and deeplink/multiremote blocked on the macOS CEF path — see the package README)
+- **Electrobun** - `@wdio/electrobun-service` (v0.1.x, **electrobun ≥ 2.0.1** — **macOS** via CEF + **Windows** via the native WebView2 renderer (CDP), incl. multi-window/multiremote + **Linux** via the native WebKitGTK renderer (W3C WebDriver, single-window); deeplink/multiremote on the macOS CEF path blocked upstream — see the package README)
 - **React Native** - `@wdio/react-native-service` (v1.0.0-next.x — **Android** + **iOS**; native find/tap via Appium (UiAutomator2/XCUITest); `execute` + `mock` via Hermes CDP (debug/Metro build); full mock, deeplink, context switching, logs, parallel workers (multiremote not yet — see #446))
 - **Flutter** - `@wdio/flutter-service` (v1.0.0-next.x — **Android** + **iOS**; native find/tap via appium-flutter-driver (`FLUTTER` context); `execute` (Dart expression) + `mock` (Tier-2 cooperative `wdio_flutter` Dart contract) via the Dart VM Service (debug/profile build); full mock, deeplink, context switching, logs, parallel workers (multiremote not yet — see #446)). Built on `@wdio/native-mobile-core`.
 
