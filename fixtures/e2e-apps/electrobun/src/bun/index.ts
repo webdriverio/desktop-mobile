@@ -1,8 +1,7 @@
 import { app, BrowserWindow } from 'electrobun/bun';
 
-// Bun (main-process) backend for the Electrobun E2E fixture. The renderer follows the per-OS
-// electrobun.config.ts default (CEF on macOS, native WebView2 on Windows, native WebKitGTK on
-// Linux), so no per-window `renderer` is set here.
+// Bun backend for the Electrobun E2E fixture. The renderer follows the per-OS
+// electrobun.config.ts default, so no per-window `renderer` is set here.
 //
 // macOS (CEF): open TWO windows, STAGGERED — the second only after the main view's DOM is ready.
 // Two are needed so the CDP bridge can enumerate a 'window-1' target: a lone CEF window doesn't
