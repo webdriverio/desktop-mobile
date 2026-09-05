@@ -426,7 +426,10 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         let change_script = format!(
             r"(function() {{
                 var el = window.{js_var};
-                if (el && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {{
+                if (!el || !el.isConnected) {{
+                    throw new Error('stale element reference');
+                }}
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {{
                     el.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 }}
                 return true;
