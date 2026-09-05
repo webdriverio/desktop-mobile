@@ -16,6 +16,7 @@ let options: ElectronServiceOptions;
 let getBinaryPath: Mock<() => Promise<BinaryPathResult>>;
 let getAppBuildInfo: Mock<() => Promise<AppBuildInfo>>;
 let getElectronVersion: Mock<() => Promise<string>>;
+let probeChromiumVersion: Mock<() => Promise<string | undefined>>;
 let readPackageUp: Mock<
   (options?: {
     cwd?: string;
@@ -65,6 +66,7 @@ vi.mock('@wdio/native-utils', async () => {
 vi.mock('../src/appBuildInfo.js', () => ({ getAppBuildInfo: vi.fn() }));
 vi.mock('../src/binaryPath.js', () => ({ getBinaryPath: vi.fn() }));
 vi.mock('../src/electronVersion.js', () => ({ getElectronVersion: vi.fn() }));
+vi.mock('../src/binaryProbe.js', () => ({ probeChromiumVersion: vi.fn() }));
 
 vi.mock('get-port', async () => {
   return {
@@ -83,6 +85,10 @@ beforeEach(async () => {
   getBinaryPath = binaryPathMod.getBinaryPath as Mock<() => Promise<BinaryPathResult>>;
   getAppBuildInfo = appBuildInfoMod.getAppBuildInfo as Mock<() => Promise<AppBuildInfo>>;
   getElectronVersion = electronVersionMod.getElectronVersion as Mock<() => Promise<string>>;
+  const binaryProbeMod = await import('../src/binaryProbe.js');
+  probeChromiumVersion = binaryProbeMod.probeChromiumVersion as Mock<() => Promise<string | undefined>>;
+  // Default: the probe finds nothing, so the map remains the sole resolver unless a test overrides it.
+  probeChromiumVersion.mockResolvedValue(undefined);
   readPackageUp = nativeUtils.readPackageUp as Mock<
     (
       ...args: unknown[]
@@ -579,6 +585,41 @@ describe('Electron Launch Service', () => {
           'wdio:electronVersion': 'some-version',
           'wdio:enforceWebDriverClassic': true,
         });
+      });
+
+      it('should resolve the Chromium version by probing the binary when the map has no entry', async () => {
+        // 'some-version' is not in the headers map, so onPrepare falls back to probing the binary.
+        probeChromiumVersion.mockResolvedValueOnce('150.0.7871.129');
+        const capabilities: WebdriverIO.Capabilities[] = [
+          {
+            browserName: 'electron',
+            browserVersion: 'some-version',
+          },
+        ];
+        await instance?.onPrepare({} as never, capabilities);
+        expect(probeChromiumVersion).toHaveBeenCalledWith('workspace/my-test-app/dist/my-test-app');
+        expect(capabilities[0]).toEqual({
+          browserName: 'chrome',
+          browserVersion: '150.0.7871.129',
+          'goog:chromeOptions': {
+            args: [],
+            binary: 'workspace/my-test-app/dist/my-test-app',
+            windowTypes: ['app', 'webview'],
+          },
+          'wdio:chromedriverOptions': {},
+          'wdio:electronServiceOptions': {},
+          'wdio:chromiumVersion': '150.0.7871.129',
+          'wdio:electronVersion': 'some-version',
+          'wdio:enforceWebDriverClassic': true,
+        });
+      });
+
+      it('should not probe the binary when the map resolves the Chromium version', async () => {
+        (getElectronVersion as Mock).mockResolvedValueOnce('26.0.0');
+        const capabilities: WebdriverIO.Capabilities[] = [{ browserName: 'electron' }];
+        await instance?.onPrepare({} as never, capabilities);
+        expect((capabilities[0] as Record<string, unknown>)['wdio:chromiumVersion']).toBe('116.0.5845.82');
+        expect(probeChromiumVersion).not.toHaveBeenCalled();
       });
 
       it('should use the Electron version from the local package dependencies when browserVersion is not provided', async () => {

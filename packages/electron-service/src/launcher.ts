@@ -23,6 +23,7 @@ import type { Capabilities, Options, Services } from '@wdio/types';
 import getPort from 'get-port';
 import { SevereServiceError } from 'webdriverio';
 import { applyApparmorWorkaround } from './apparmor.js';
+import { probeChromiumVersion } from './binaryProbe.js';
 import {
   getChromedriverOptions,
   getChromeOptions,
@@ -254,16 +255,8 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
     await Promise.all(
       caps.map(async (cap) => {
         const electronVersion = cap.browserVersion || localElectronVersion || '';
-        const chromiumVersion = await getChromiumVersion(electronVersion);
-        if (!electronVersion) {
-          log.warn('Could not determine the Electron version under test');
-        } else if (chromiumVersion) {
-          log.info(`Found Electron v${electronVersion} with Chromedriver v${chromiumVersion}`);
-        } else {
-          log.warn(`Found Electron v${electronVersion}, but no matching Chromedriver version is known`);
-        }
+        let chromiumVersion: string | undefined = await getChromiumVersion(electronVersion);
 
-        (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:chromiumVersion'] = chromiumVersion;
         (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:electronVersion'] = electronVersion;
 
         if (Number.parseInt(electronVersion.split('.')[0], 10) < 26 && !cap['wdio:chromedriverOptions']?.binary) {
@@ -352,6 +345,21 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         if (appBinaryPath) {
           uniqueBinaryPaths.add(appBinaryPath);
         }
+
+        // The map had no entry — probe the binary (see https://github.com/webdriverio/desktop-mobile/issues/578).
+        if (!chromiumVersion && electronVersion && appBinaryPath) {
+          chromiumVersion = await probeChromiumVersion(appBinaryPath);
+        }
+
+        if (!electronVersion) {
+          log.warn('Could not determine the Electron version under test');
+        } else if (chromiumVersion) {
+          log.info(`Found Electron v${electronVersion} with Chromedriver v${chromiumVersion}`);
+        } else {
+          log.warn(`Found Electron v${electronVersion}, but no matching Chromedriver version is known`);
+        }
+
+        (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:chromiumVersion'] = chromiumVersion;
 
         cap.browserName = 'chrome';
         cap['goog:chromeOptions'] = getChromeOptions({ appBinaryPath, appArgs }, cap);

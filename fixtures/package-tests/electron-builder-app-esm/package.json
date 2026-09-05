@@ -11,7 +11,7 @@
     "build": "electron-vite build && electron-builder",
     "preview": "electron-vite preview",
     "start": "electron .",
-    "test": "cross-env DEBUG=wdio-electron-service wdio run wdio.conf.ts",
+    "test": "cross-env DEBUG=wdio-electron-service wdio run wdio.conf.ts && cross-env DEBUG=wdio-electron-service wdio run wdio.probe.conf.ts",
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
