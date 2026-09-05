@@ -19,8 +19,6 @@ export async function checkInspectFuse(binaryPath: string): Promise<FuseCheckRes
   try {
     log.debug(`Checking EnableNodeCliInspectArguments fuse for: ${binaryPath}`);
 
-    // biome-ignore lint/suspicious/noTsIgnore: @electron/fuses types may not resolve in all environments (e.g. CI)
-    // @ts-ignore
     const { getCurrentFuseWire, FuseVersion, FuseV1Options, FuseState } = await import('@electron/fuses');
     const config = await getCurrentFuseWire(binaryPath);
 
@@ -88,8 +86,6 @@ export async function checkRunAsNodeFuse(binaryPath: string): Promise<RunAsNodeC
   try {
     log.debug(`Checking RunAsNode fuse for: ${binaryPath}`);
 
-    // biome-ignore lint/suspicious/noTsIgnore: @electron/fuses types may not resolve in all environments (e.g. CI)
-    // @ts-ignore
     const { getCurrentFuseWire, FuseVersion, FuseV1Options, FuseState } = await import('@electron/fuses');
     const config = await getCurrentFuseWire(binaryPath);
 
