@@ -7,7 +7,7 @@ It mirrors the surface of the sibling services (`@wdio/electron-service`,
 `@wdio/tauri-service`, `@wdio/dioxus-service`): `browser.electrobun.execute`,
 Vitest-style mocking, log capture, browser mode, and standalone sessions.
 
-> **Status: `0.1.0`, pre-1.0 — macOS (CEF) + Windows (native WebView2) + Linux (WebKitGTK).**
+> **Status: `0.x.y`, pre-1.0 — macOS (CEF) + Windows (native WebView2) + Linux (WebKitGTK).**
 > Windows uses the native WebView2 (Chromium) renderer over CDP — no CEF — and runs multi-window
 > + multiremote. **Linux** drives the native WebKitGTK renderer over W3C WebDriver (electrobun ≥
 > 2.0.1; gated in CI); it needs `webkit2gtk-driver` installed and is single-window. This is still
