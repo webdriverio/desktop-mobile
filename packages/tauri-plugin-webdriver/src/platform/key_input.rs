@@ -60,13 +60,11 @@ pub fn regular_key_code_for(key: &str) -> String {
 pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_down: bool) -> String {
     let event_type = if is_down { "keydown" } else { "keyup" };
 
-    // For special keys that modify input (Backspace, Delete), handle value changes
     if is_down && (js_key == "Backspace" || js_key == "Delete") {
         format!(
             r"(function() {{
                     var activeEl = document.activeElement || document.body;
 
-                    // Dispatch keydown event
                     var keydownEvent = new KeyboardEvent('keydown', {{
                         key: '{js_key}',
                         code: '{js_code}',
@@ -77,7 +75,6 @@ pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_d
                     }});
                     activeEl.dispatchEvent(keydownEvent);
 
-                    // If active element is an input or textarea, handle deletion
                     if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {{
                         var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
                             activeEl.tagName === 'INPUT'
@@ -92,12 +89,9 @@ pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_d
                         var newValue;
                         var inputType;
 
-                        // Check if there's a selection
                         if (selStart !== selEnd) {{
-                            // Delete selection
                             newValue = currentValue.slice(0, selStart) + currentValue.slice(selEnd);
                             inputType = 'deleteContentBackward';
-                            // Set cursor position after deletion
                             nativeInputValueSetter.call(activeEl, newValue);
                             activeEl.setSelectionRange(selStart, selStart);
                         }} else if ('{js_key}' === 'Backspace' && selStart > 0) {{
@@ -111,10 +105,9 @@ pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_d
                             nativeInputValueSetter.call(activeEl, newValue);
                             activeEl.setSelectionRange(selStart, selStart);
                         }} else {{
-                            return true; // Nothing to delete
+                            return true;
                         }}
 
-                        // Dispatch input event
                         var inputEvent = new InputEvent('input', {{
                             bubbles: true,
                             cancelable: true,
@@ -129,13 +122,11 @@ pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_d
     } else if is_down
         && (js_key == "ArrowDown" || js_key == "ArrowUp" || js_key == "ArrowLeft" || js_key == "ArrowRight")
     {
-        // Handle arrow keys on radio buttons for navigation
         let go_forward = js_key == "ArrowDown" || js_key == "ArrowRight";
         format!(
             r#"(function() {{
                     var activeEl = document.activeElement || document.body;
 
-                    // Dispatch keydown event first
                     var keydownEvent = new KeyboardEvent('keydown', {{
                         key: '{js_key}',
                         code: '{js_code}',
@@ -146,7 +137,6 @@ pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_d
                     }});
                     activeEl.dispatchEvent(keydownEvent);
 
-                    // If active element is a radio button, handle navigation
                     if (activeEl.tagName === 'INPUT' && activeEl.type === 'radio' && activeEl.name) {{
                         var name = activeEl.name;
                         var radios = Array.from(document.querySelectorAll("input[type='radio'][name='" + name + "']"));
@@ -155,10 +145,8 @@ pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_d
                         if (currentIndex !== -1 && radios.length > 1) {{
                             var nextIndex;
                             if ({go_forward}) {{
-                                // ArrowDown/ArrowRight - go to next
                                 nextIndex = (currentIndex + 1) % radios.length;
                             }} else {{
-                                // ArrowUp/ArrowLeft - go to previous
                                 nextIndex = (currentIndex - 1 + radios.length) % radios.length;
                             }}
 
@@ -166,7 +154,6 @@ pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_d
                             nextRadio.checked = true;
                             nextRadio.focus();
 
-                            // Dispatch change event
                             var changeEvent = new Event('change', {{ bubbles: true }});
                             nextRadio.dispatchEvent(changeEvent);
                         }}
@@ -209,16 +196,13 @@ pub fn build_regular_key_script(key: &str, code: &str, is_down: bool, modifiers:
     let shift_key = modifiers.shift;
     let alt_key = modifiers.alt;
 
-    // Check for Ctrl+A or Meta+A (select all)
     let is_select_all = is_down && (ch == 'a' || ch == 'A') && (ctrl_key || meta_key);
 
     if is_select_all {
-        // Handle Ctrl+A / Meta+A: select all text
         format!(
             r"(function() {{
                     var activeEl = document.activeElement || document.body;
 
-                    // Dispatch keydown event with modifiers
                     var keydownEvent = new KeyboardEvent('keydown', {{
                         key: '{escaped_key}',
                         code: '{escaped_code}',
@@ -233,7 +217,6 @@ pub fn build_regular_key_script(key: &str, code: &str, is_down: bool, modifiers:
                     }});
                     activeEl.dispatchEvent(keydownEvent);
 
-                    // Select all text in input/textarea
                     if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {{
                         activeEl.select();
                     }} else {{
@@ -244,12 +227,10 @@ pub fn build_regular_key_script(key: &str, code: &str, is_down: bool, modifiers:
                 }})()"
         )
     } else if is_down {
-        // For keydown events on printable characters, update input value
         format!(
             r"(function() {{
                     var activeEl = document.activeElement || document.body;
 
-                    // Dispatch keydown event with modifiers
                     var keydownEvent = new KeyboardEvent('keydown', {{
                         key: '{escaped_key}',
                         code: '{escaped_code}',
@@ -264,8 +245,6 @@ pub fn build_regular_key_script(key: &str, code: &str, is_down: bool, modifiers:
                     }});
                     activeEl.dispatchEvent(keydownEvent);
 
-                    // If active element is an input or textarea, update value and dispatch input event
-                    // Only do this for non-modifier key combos
                     if (!{ctrl_key} && !{meta_key} && !{alt_key}) {{
                         if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {{
                             var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
@@ -278,7 +257,6 @@ pub fn build_regular_key_script(key: &str, code: &str, is_down: bool, modifiers:
                             var newValue = activeEl.value + '{escaped_key}';
                             nativeInputValueSetter.call(activeEl, newValue);
 
-                            // Dispatch input event
                             var inputEvent = new InputEvent('input', {{
                                 bubbles: true,
                                 cancelable: true,
@@ -606,7 +584,6 @@ mod tests {
         assert!(script.contains("key: 'a'"));
         assert!(script.contains("inputType: 'insertText'"));
 
-        // Ctrl+A select-all branch.
         let select_all = build_regular_key_script("a", "KeyA", true, &mods(true, false, false, false));
         assert!(select_all.contains("activeEl.select()"));
     }
