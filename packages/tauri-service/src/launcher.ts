@@ -281,7 +281,12 @@ export default class TauriLaunchService {
     if (process.platform === 'win32' && firstResolvedBinaryPath !== undefined) {
       const autoDownloadEdgeDriver = this.options.autoDownloadEdgeDriver ?? true;
       log.debug('Checking Edge WebDriver compatibility...');
-      const edgeDriverResult = await ensureMsEdgeDriver(firstResolvedBinaryPath, autoDownloadEdgeDriver);
+      // Read the version pin / fixed-runtime folder from the global options: msedgedriver is
+      // machine-global, so per-capability overrides don't apply to this single shared check.
+      const edgeDriverResult = await ensureMsEdgeDriver(firstResolvedBinaryPath, autoDownloadEdgeDriver, {
+        edgeDriverVersion: this.options.edgeDriverVersion,
+        env: this.options.env,
+      });
 
       if (isErr(edgeDriverResult)) {
         const errorMsg = edgeDriverResult.error.message;

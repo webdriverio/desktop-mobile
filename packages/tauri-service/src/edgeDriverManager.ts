@@ -1,6 +1,6 @@
 import { exec, execFile } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readdirSync, unlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -59,33 +59,137 @@ export async function detectWebView2Version(): Promise<string | undefined> {
   }
 }
 
+/** Read a Windows file's FileVersion (e.g. `150.0.4022.98`). Windows-only. */
+async function readFileVersion(filePath: string): Promise<string | undefined> {
+  try {
+    // Embed the path in the -Command string: a trailing argv token does not populate $args under
+    // -Command, so `(Get-Item $args[0])` reads an empty path and fails.
+    const psPath = filePath.replace(/'/g, "''");
+    // Default 15s, overridable via WDIO_EDGE_PROBE_TIMEOUT_MS: a timeout kill (empty stdout) silently
+    // drops the fixed-runtime probe to the Evergreen fallback, and powershell can be starved for tens
+    // of seconds on a heavily parallel CI runner where a version read is otherwise ~1s.
+    const timeoutMs = Number(process.env.WDIO_EDGE_PROBE_TIMEOUT_MS) || 15000;
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      ['-NoProfile', '-Command', `(Get-Item -LiteralPath '${psPath}').VersionInfo.FileVersion`],
+      { encoding: 'utf8', timeout: timeoutMs },
+    );
+    // Return only the numeric prefix — FileVersion can carry trailing text (e.g. "150.0.0 (rc)").
+    const match = stdout.trim().match(/^\d+\.\d+\.\d+(?:\.\d+)?/);
+    if (match) {
+      return match[0];
+    }
+  } catch (error) {
+    log.debug(`Could not read file version from ${filePath}: ${error}`);
+  }
+  return undefined;
+}
+
+const FIXED_RUNTIME_EXE = 'msedgewebview2.exe';
+const VERSION_DIR = /^\d+\.\d+\.\d+\.\d+$/;
+/** A complete, injection-safe version string. */
+const VERSION_RE = /^\d+(?:\.\d+){1,3}$/;
+
+/** Order dotted numeric versions highest-first. */
+export function compareVersionsDesc(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pb[i] ?? 0) - (pa[i] ?? 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+  return 0;
+}
+
 /**
- * Detect WebView2 version from Tauri binary (legacy method - may not work correctly)
- * Tauri apps use an embedded/fixed WebView2 runtime, not the system Edge
- * @deprecated Use detectWebView2Version() instead for more reliable detection
+ * Resolve the WebView2 runtime version an app is pinned to via a fixed-version runtime folder
+ * (`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`). The folder holds `msedgewebview2.exe`, whose FileVersion
+ * is the runtime version; some layouts nest it under a versioned subdir, so fall back to scanning.
+ * Windows-only; returns undefined off Windows or when the runtime binary can't be found/read.
  */
-export async function detectWebView2VersionFromBinary(binaryPath?: string): Promise<string | undefined> {
-  if (process.platform !== 'win32' || !binaryPath) {
+export async function detectFixedRuntimeVersion(folder?: string): Promise<string | undefined> {
+  if (process.platform !== 'win32' || !folder) {
     return undefined;
   }
 
-  try {
-    const { stdout } = await execFileAsync(
-      'powershell.exe',
-      ['-Command', '(Get-Item $args[0]).VersionInfo.FileVersion', binaryPath],
-      {
-        encoding: 'utf8',
-        timeout: 5000,
-      },
-    );
+  const direct = join(folder, FIXED_RUNTIME_EXE);
+  if (existsSync(direct)) {
+    return readFileVersion(direct);
+  }
 
-    const version = stdout.trim();
-    if (version && /^\d+\.\d+\.\d+/.test(version)) {
-      log.debug(`Detected file version ${version} from Tauri binary ${binaryPath}`);
-      return version;
+  try {
+    // Several `<version>/msedgewebview2.exe` subdirs can coexist; pick the highest so a stale
+    // runtime can't win on readdir order.
+    const [newest] = readdirSync(folder)
+      .filter((entry) => VERSION_DIR.test(entry) && existsSync(join(folder, entry, FIXED_RUNTIME_EXE)))
+      .sort(compareVersionsDesc);
+    if (newest) {
+      return readFileVersion(join(folder, newest, FIXED_RUNTIME_EXE));
     }
-  } catch (error) {
-    log.debug(`Could not extract version from binary: ${error}`);
+  } catch {
+    // Folder unreadable — fall through to undefined.
+  }
+
+  return undefined;
+}
+
+export type EdgeVersionSource = 'override' | 'fixed-runtime' | 'evergreen';
+
+export interface ResolveEdgeVersionOptions {
+  /** Explicit msedgedriver version pin. */
+  edgeDriverVersion?: string;
+  /** The app's runtime env; the resolver reads `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` from it. */
+  env?: Record<string, string>;
+}
+
+export interface ResolvedEdgeVersion {
+  /** The Edge/WebView2 runtime version, or — when `source` is `'override'` — the exact driver version. */
+  version: string;
+  source: EdgeVersionSource;
+}
+
+const WEBVIEW2_FOLDER_ENV = 'WEBVIEW2_BROWSER_EXECUTABLE_FOLDER';
+const EDGEDRIVER_VERSION_ENV = 'EDGEDRIVER_VERSION';
+
+/**
+ * Decide which Edge/WebView2 version msedgedriver should match, in precedence order:
+ *   1. an explicit driver pin (`edgeDriverVersion` option / `EDGEDRIVER_VERSION`) — used verbatim;
+ *   2. a fixed-version runtime folder (`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`) — the app renders with
+ *      that runtime, not the machine's Evergreen, so its version is what the driver must match;
+ *   3. the Evergreen runtime from the registry (the default).
+ * The folder env is read with the app's own precedence — `options.env` over `process.env`
+ * (`{ ...process.env, ...options.env }`) — so the resolver sees the folder the app actually uses.
+ */
+export async function resolveTargetEdgeVersion(
+  options: ResolveEdgeVersionOptions = {},
+): Promise<ResolvedEdgeVersion | undefined> {
+  const override = options.edgeDriverVersion ?? process.env[EDGEDRIVER_VERSION_ENV];
+  if (override) {
+    if (VERSION_RE.test(override)) {
+      return { version: override, source: 'override' };
+    }
+    log.warn(
+      `Ignoring edgeDriverVersion/${EDGEDRIVER_VERSION_ENV} "${override}" — expected a numeric version like 149.0.4022.98.`,
+    );
+  }
+
+  const fixedFolder = options.env?.[WEBVIEW2_FOLDER_ENV] ?? process.env[WEBVIEW2_FOLDER_ENV];
+  if (fixedFolder) {
+    const version = await detectFixedRuntimeVersion(fixedFolder);
+    if (version) {
+      return { version, source: 'fixed-runtime' };
+    }
+    log.warn(
+      `${WEBVIEW2_FOLDER_ENV} is set (${fixedFolder}) but no readable ${FIXED_RUNTIME_EXE} was found ` +
+        'in it — falling back to the Evergreen runtime version.',
+    );
+  }
+
+  const evergreen = await detectWebView2Version();
+  if (evergreen) {
+    return { version: evergreen, source: 'evergreen' };
   }
 
   return undefined;
@@ -234,9 +338,14 @@ async function getDriverVersionForEdge(edgeVersion: string): Promise<string> {
 }
 
 /**
- * Download msedgedriver for a specific Edge version
+ * Download msedgedriver for a specific Edge version.
+ * When `exactVersion` is set, `edgeVersion` is treated as the exact driver version and the
+ * Microsoft `LATEST_RELEASE_<major>` lookup is skipped.
  */
-export async function downloadMsEdgeDriver(edgeVersion: string): Promise<string> {
+export async function downloadMsEdgeDriver(
+  edgeVersion: string,
+  exactVersion = false,
+): Promise<{ path: string; version: string }> {
   const majorVersion = getMajorVersion(edgeVersion);
   // Use random temp directory name to prevent symlink attacks
   const randomSuffix = randomBytes(8).toString('hex');
@@ -247,15 +356,16 @@ export async function downloadMsEdgeDriver(edgeVersion: string): Promise<string>
   // Create directory with restrictive permissions (owner-only access)
   mkdirSync(downloadDir, { recursive: true, mode: 0o700 });
 
-  // Get the correct driver version from Microsoft
-  const driverVersion = await getDriverVersionForEdge(edgeVersion);
+  // Get the correct driver version from Microsoft (unless an exact version was pinned).
+  const driverVersion = exactVersion ? edgeVersion : await getDriverVersionForEdge(edgeVersion);
 
-  // Create PowerShell script for downloading
+  // Create PowerShell script for downloading. Double any embedded single quotes so a version can't
+  // break out of the string literal (belt-and-suspenders over VERSION_RE).
   const psScript = `
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'  # Faster downloads
-$driverVersion = '${driverVersion}'
-$edgeVersion = '${edgeVersion}'
+$driverVersion = '${driverVersion.replace(/'/g, "''")}'
+$edgeVersion = '${edgeVersion.replace(/'/g, "''")}'
 $downloadDir = '${downloadDir.replace(/\\/g, '\\\\')}'
 $driverPath = '${driverPath.replace(/\\/g, '\\\\')}'
 
@@ -316,7 +426,7 @@ try {
 
     if (existsSync(driverPath)) {
       log.info(`Successfully downloaded msedgedriver ${driverVersion} (for Edge ${edgeVersion}) to ${driverPath}`);
-      return driverPath;
+      return { path: driverPath, version: driverVersion };
     }
 
     throw new Error('Download completed but driver not found');
@@ -340,27 +450,35 @@ try {
  * Ensure msedgedriver is available and matches Edge version
  * This is the main entry point for Edge driver management
  */
-export async function ensureMsEdgeDriver(_tauriBinaryPath?: string, autoDownload = true): Promise<EdgeDriverResult> {
+export async function ensureMsEdgeDriver(
+  _tauriBinaryPath?: string,
+  autoDownload = true,
+  options: ResolveEdgeVersionOptions = {},
+): Promise<EdgeDriverResult> {
   if (process.platform !== 'win32') {
     return Ok({ method: 'skipped' as const });
   }
 
   log.info('Checking Edge WebDriver compatibility...');
 
-  const edgeVersion = await detectWebView2Version();
-  if (!edgeVersion) {
-    log.warn('Could not detect WebView2 runtime version - skipping driver check');
+  const resolved = await resolveTargetEdgeVersion(options);
+  if (!resolved) {
+    log.warn('Could not determine the WebView2 runtime version - skipping driver check');
     return Ok({ method: 'skipped' as const });
   }
 
-  log.info(`Detected WebView2 runtime version: ${edgeVersion}`);
+  const { version: edgeVersion, source } = resolved;
+  log.info(`Target Edge/WebView2 version ${edgeVersion} (source: ${source})`);
   const edgeMajor = getMajorVersion(edgeVersion);
 
   const existing = await findMsEdgeDriver();
   if (existing.path && existing.version) {
-    const driverMajor = getMajorVersion(existing.version);
+    // An explicit pin (`source: 'override'`) must match the driver exactly; the runtime-derived
+    // paths only need the shared major, since Edge and its driver drift in the lower version parts.
+    const compatible =
+      source === 'override' ? existing.version === edgeVersion : getMajorVersion(existing.version) === edgeMajor;
 
-    if (driverMajor === edgeMajor) {
+    if (compatible) {
       log.info(`✅ msedgedriver ${existing.version} matches Edge ${edgeVersion}`);
       return Ok({
         driverPath: existing.path,
@@ -376,14 +494,14 @@ export async function ensureMsEdgeDriver(_tauriBinaryPath?: string, autoDownload
   if (autoDownload) {
     try {
       log.info(`Attempting to download msedgedriver ${edgeVersion}...`);
-      const downloadedPath = await downloadMsEdgeDriver(edgeVersion);
+      const downloaded = await downloadMsEdgeDriver(edgeVersion, source === 'override');
 
-      process.env.PATH = `${join(downloadedPath, '..')}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}`;
+      process.env.PATH = `${join(downloaded.path, '..')}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}`;
 
-      log.info(`✅ Downloaded and configured msedgedriver ${edgeVersion}`);
+      log.info(`✅ Downloaded and configured msedgedriver ${downloaded.version}`);
       return Ok({
-        driverPath: downloadedPath,
-        driverVersion: edgeVersion,
+        driverPath: downloaded.path,
+        driverVersion: downloaded.version,
         edgeVersion,
         method: 'downloaded' as const,
       });

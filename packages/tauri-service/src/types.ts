@@ -43,6 +43,14 @@ export interface TauriServiceOptions extends BaseTauriServiceOptions {
    */
   autoDownloadEdgeDriver?: boolean;
   /**
+   * Pin the exact msedgedriver version to download on Windows (e.g. `'149.0.4022.98'`), bypassing
+   * runtime detection. A CI escape hatch for the next Evergreen WebView2 drift that breaks
+   * automation. Otherwise the runtime version is auto-detected — from a fixed-version runtime folder
+   * when `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, else the machine's Evergreen runtime.
+   * `EDGEDRIVER_VERSION` in the environment does the same. Windows-only.
+   */
+  edgeDriverVersion?: string;
+  /**
    * Log directory for standalone mode
    * Full path where log files should be written
    * If not specified, uses logs/standalone-{appDirName}/ in current working directory
@@ -76,6 +84,11 @@ export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions
    * @default true
    */
   autoDownloadEdgeDriver?: boolean;
+  /**
+   * Pin the exact msedgedriver version to download on Windows, bypassing runtime detection
+   * (also honoured via `EDGEDRIVER_VERSION`). Windows-only. See {@link TauriServiceOptions.edgeDriverVersion}.
+   */
+  edgeDriverVersion?: string;
 }
 
 /**
