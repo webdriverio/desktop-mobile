@@ -3,8 +3,7 @@
 //! The `build_*_script` helpers dispatch synthetic, untrusted `KeyboardEvent`s; Blink/WebView2
 //! refuses those at its trusted-input gates (CloseWatcher / `<dialog>` Escape, popups, fullscreen),
 //! so the Windows executor instead maps keys to CDP `Input.dispatchKeyEvent` params
-//! ([`to_cdp_key_event`]), which arrive trusted. Kept out of the `#[cfg(windows)]` executor so it
-//! unit-tests on every OS.
+//! ([`to_cdp_key_event`]), which arrive trusted.
 
 use super::executor::ModifierState;
 
@@ -57,7 +56,7 @@ pub fn regular_key_code_for(key: &str) -> String {
 }
 
 /// JS dispatching a synthetic special-key `KeyboardEvent` plus the value/selection/radio
-/// side-effects an untrusted event can't drive itself. Args come from [`map_special_key`].
+/// side-effects an untrusted event can't drive itself.
 pub fn build_special_key_script(js_key: &str, js_code: &str, key_code: u32, is_down: bool) -> String {
     let event_type = if is_down { "keydown" } else { "keyup" };
 
