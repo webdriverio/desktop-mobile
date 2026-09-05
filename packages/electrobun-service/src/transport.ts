@@ -1,5 +1,5 @@
 // Transport by platform + renderer. macOS → CEF (WKWebView exposes no CDP); Windows → native
-// WebView2 (Chromium/CDP); Linux → native WebKitGTK over W3C WebDriver (electrobun 2.0.1, #467).
+// WebView2 (Chromium/CDP); Linux → native WebKitGTK over W3C WebDriver.
 // A CEF build serves no `/json` off macOS, so CEF-on-Windows/Linux is unsupported.
 
 import type { ResolvedElectrobunApp } from './electrobunConfig.js';
