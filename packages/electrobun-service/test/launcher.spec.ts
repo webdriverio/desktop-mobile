@@ -47,6 +47,26 @@ vi.mock('../src/webview2Version.js', () => ({
   detectWebView2RuntimeVersion: vi.fn(() => '148.0.3967.83'),
 }));
 
+vi.mock('../src/webkitDriver.js', () => ({
+  getWebKitWebDriverPath: vi.fn(() => '/usr/bin/WebKitWebDriver'),
+  spawnWebKitWebDriver: vi.fn(async () => ({
+    process: { pid: 5555, exitCode: null, signalCode: null, kill: vi.fn() },
+    host: '127.0.0.1',
+    port: 9333,
+    detached: true,
+  })),
+  stopWebKitWebDriver: vi.fn().mockResolvedValue(undefined),
+}));
+
+const linuxNativeApp = {
+  binaryPath: '/apps/Demo/bin/launcher',
+  bundlePath: '/apps/Demo',
+  resourcesDir: '/apps/Demo/Resources',
+  buildJsonPath: '/apps/Demo/Resources/build.json',
+  identifier: 'com.example.demo',
+  renderer: 'native',
+};
+
 vi.mock('@wdio/native-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-core')>()),
   startManagedDevServer: vi.fn(),
@@ -57,6 +77,7 @@ import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } fro
 import ElectrobunLaunchService from '../src/launcher.js';
 import { spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions } from '../src/types.js';
+import { getWebKitWebDriverPath, spawnWebKitWebDriver, stopWebKitWebDriver } from '../src/webkitDriver.js';
 import { detectWebView2RuntimeVersion } from '../src/webview2Version.js';
 
 const baseConfig = {} as Parameters<ElectrobunLaunchService['onPrepare']>[0];
@@ -184,6 +205,17 @@ describe('ElectrobunLaunchService', () => {
       expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
     });
 
+    it('should warn (not throw) when maxInstances > 1 on Linux — WebKitGTK apps share the bundle', async () => {
+      setPlatform('linux');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare({ maxInstances: 2 } as Parameters<typeof launcher.onPrepare>[0], caps);
+
+      expect(logMocks.warn).toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
+    });
+
     it('should pin browserVersion to the WebView2 runtime version on the Windows WebView2 path', async () => {
       setPlatform('win32');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
@@ -292,8 +324,49 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(resolveElectrobunApp)).toHaveBeenCalledWith('/apps/PerCap.app');
     });
 
-    it('should fail fast with a SevereServiceError in native mode on Linux (no CDP surface yet)', async () => {
+    it('should drive Linux via WebKitGTK/W3C for the native renderer (no browserName, classic)', async () => {
       setPlatform('linux');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher', appArgs: ['--flag'] });
+      const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
+
+      await launcher.onPrepare(baseConfig, caps);
+
+      expect(vi.mocked(verifyCefRenderer)).not.toHaveBeenCalled();
+      expect(vi.mocked(getWebKitWebDriverPath)).toHaveBeenCalledTimes(1);
+      const cap = caps[0] as Record<string, unknown>;
+      expect(cap.browserName).toBeUndefined();
+      expect(cap['wdio:enforceWebDriverClassic']).toBe(true);
+      expect(cap['webkitgtk:browserOptions']).toEqual({
+        binary: '/apps/Demo/bin/launcher',
+        args: ['--automation', '--flag'],
+      });
+    });
+
+    it('should reject a CEF-built bundle on Linux (CEF serves no /json there)', async () => {
+      setPlatform('linux');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce({ ...linuxNativeApp, renderer: 'cef' });
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
+
+      const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
+      expect(error).toBeInstanceOf(SevereServiceError);
+      expect((error as Error).message).toContain('linux');
+      expect((error as Error).message).toContain('defaultRenderer: "native"');
+    });
+
+    it('should fail fast with an install hint when WebKitWebDriver is missing on Linux', async () => {
+      setPlatform('linux');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
+      vi.mocked(getWebKitWebDriverPath).mockReturnValueOnce(undefined);
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
+
+      const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
+      expect(error).toBeInstanceOf(SevereServiceError);
+      expect((error as Error).message).toContain('webkit2gtk-driver');
+    });
+
+    it('should fail fast with a SevereServiceError in native mode on an unsupported platform', async () => {
+      setPlatform('freebsd' as NodeJS.Platform);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
 
       await expect(launcher.onPrepare(baseConfig, [{}])).rejects.toThrow(SevereServiceError);
@@ -329,7 +402,7 @@ describe('ElectrobunLaunchService', () => {
       const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
       expect(error).toBeInstanceOf(SevereServiceError);
       expect((error as Error).message).toContain('win32');
-      expect((error as Error).message).toContain('issues/317');
+      expect((error as Error).message).toContain('defaultRenderer: "native"');
     });
   });
 
@@ -362,6 +435,35 @@ describe('ElectrobunLaunchService', () => {
       // Edge reads debuggerAddress from ms:edgeOptions, not goog:chromeOptions.
       expect(cap['ms:edgeOptions']).toEqual({ debuggerAddress: `127.0.0.1:${spawnArg.port}` });
       expect(cap['goog:chromeOptions']).toBeUndefined();
+    });
+
+    it('should spawn WebKitWebDriver and set connection host/port on the Linux/W3C path', async () => {
+      setPlatform('linux');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
+      await launcher.onPrepare(baseConfig, [{}]);
+
+      const cap: ElectrobunCapabilities = {};
+      await launcher.onWorkerStart('0-0', [cap]);
+
+      expect(vi.mocked(spawnElectrobunApp)).not.toHaveBeenCalled();
+      expect(vi.mocked(spawnWebKitWebDriver)).toHaveBeenCalledTimes(1);
+      const w3cCap = cap as Record<string, unknown>;
+      expect(w3cCap.hostname).toBe('127.0.0.1');
+      expect(w3cCap.port).toBe(9333);
+      expect(w3cCap['goog:chromeOptions']).toBeUndefined();
+    });
+
+    it('should stop WebKitWebDriver on worker end (Linux/W3C)', async () => {
+      setPlatform('linux');
+      vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
+      await launcher.onPrepare(baseConfig, [{}]);
+      await launcher.onWorkerStart('0-0', [{}]);
+
+      await launcher.onWorkerEnd('0-0');
+
+      expect(vi.mocked(stopWebKitWebDriver)).toHaveBeenCalledTimes(1);
     });
 
     it('should spawn one app per instance for a multiremote capability record', async () => {
@@ -430,7 +532,6 @@ describe('ElectrobunLaunchService', () => {
 
     it('should throw SevereServiceError when no app was resolved (onPrepare skipped)', async () => {
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
-      // Note: onPrepare intentionally NOT called.
       await expect(launcher.onWorkerStart('0-0', [{}])).rejects.toThrow(/no resolved Electrobun app/);
     });
 

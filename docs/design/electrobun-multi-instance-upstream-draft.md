@@ -7,7 +7,7 @@
 `@wdio/electrobun-service` multiremote/parallel test execution needs to run multiple
 concurrent instances of the same app. Today that requires a workaround (per-worker
 `.app` clone + `build.json` port edit + distinct `CFFIXED_USER_HOME`). A launch-time
-override would make it first-class. See RESEARCH_FINDINGS.md for the mechanism.
+override would make it first-class.
 
 ## Existing adjacent issues (searched — none covers this exact need)
 - **#445** Make CEF remote debugging opt-in — same `settings.remote_debugging_port` code path (security framing, not a runtime port override).

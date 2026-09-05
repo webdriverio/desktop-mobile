@@ -6,8 +6,8 @@
 //
 // macOS-only in 0.x: Electrobun registers `app.urlSchemes` via the generated
 // Info.plist `CFBundleURLTypes`, and `open <url>` reaches the running app's
-// open-url handler. Windows/Linux deeplink support isn't available upstream yet
-// (RESEARCH_FINDINGS §6), so this rejects there with a documented-gap error.
+// open-url handler. Windows/Linux deeplink support isn't available upstream yet, so this
+// rejects there with a documented-gap error.
 
 import { executeDeeplinkCommand, getPlatformCommand, validateDeeplinkUrl } from '@wdio/native-core';
 import { createLogger } from '@wdio/native-utils';

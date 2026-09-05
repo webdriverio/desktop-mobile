@@ -26,26 +26,31 @@ export function cefRendererRequired(platform: NodeJS.Platform = process.platform
   );
 }
 
-/**
- * Thrown by the launcher in native mode when the current platform has no usable CDP
- * surface for the app's renderer. Driven native renderers: macOS via CEF, Windows via
- * the WebView2 (Chromium) system renderer over CDP. Linux's WebKitGTK exposes no
- * CDP/automation surface yet, and a CEF build on Windows/Linux serves no `/json`. Fail
- * fast with an actionable message rather than letting the user hit a cryptic CDP-attach
- * timeout.
- */
+/** Thrown in native mode when there's no automation surface: a CEF build off macOS, or a non-desktop platform. */
 export function nativeRendererUnsupportedPlatform(
   platform: NodeJS.Platform = process.platform,
   renderer?: string,
 ): Error {
+  const cefOffMac = (platform === 'win32' || platform === 'linux') && renderer === 'cef';
   return new SevereServiceError(
     `@wdio/electrobun-service cannot drive this Electrobun app in native mode on ${platform}` +
       (renderer ? ` (renderer: ${renderer})` : '') +
-      '. Supported native renderers: macOS via CEF, Windows via the WebView2 system renderer (CDP). ' +
-      'Linux (WebKitGTK) has no CDP/automation surface yet — tracked in ' +
-      'https://github.com/webdriverio/desktop-mobile/issues/317. On Windows, build with the native ' +
-      'renderer (bundleCEF: false / defaultRenderer: "native"); a CEF build there exposes no /json ' +
-      "endpoint. Otherwise run on macOS, or use browser mode (mode: 'browser').",
+      '. Supported native renderers: macOS via CEF, Windows via the WebView2 system renderer (CDP), ' +
+      'Linux via the native WebKitGTK renderer (W3C WebDriver, electrobun >= 2.0.1). ' +
+      (cefOffMac
+        ? `A CEF build exposes no /json endpoint on ${platform} — build with the native renderer instead ` +
+          '(bundleCEF: false / defaultRenderer: "native"), which is the Electrobun default.'
+        : "This platform has no automation surface — run on macOS/Windows/Linux, or use browser mode (mode: 'browser')."),
+  );
+}
+
+/** Thrown when `WebKitWebDriver` (the `webkit2gtk-driver` package) is missing — required for the Linux W3C transport. */
+export function webKitWebDriverNotFound(): Error {
+  return new SevereServiceError(
+    '@wdio/electrobun-service could not find WebKitWebDriver, required to drive the Linux WebKitGTK ' +
+      'renderer over W3C WebDriver. Install it with `sudo apt-get install webkit2gtk-driver` ' +
+      '(Debian/Ubuntu; `dnf install webkit2gtk-driver`, `pacman -S webkit2gtk-driver`, or your ' +
+      "distribution's equivalent), or put WebKitWebDriver on PATH.",
   );
 }
 

@@ -23,8 +23,8 @@ const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'electrobun');
  * environment subdir (dev/canary/stable) is not fixed across the beta toolchain,
  * so we glob for the first `.app` rather than hardcoding a subpath. CI can pin an
  * exact bundle via `ELECTROBUN_APP_PATH` (set after the build step) to avoid any
- * ambiguity. macOS is the only validated platform (see the service's
- * RESEARCH_FINDINGS); the Windows/Linux bundle layout is unverified.
+ * ambiguity. macOS is the only validated platform; the Windows/Linux bundle layout
+ * is unverified.
  */
 function resolveElectrobunAppPath(dir: string): string {
   const override = process.env.ELECTROBUN_APP_PATH;
@@ -138,22 +138,16 @@ const electrobunServiceOptions: ElectrobunServiceOptions = {
 };
 
 const baseCapability: ElectrobunCapability = {
-  // CDP-attach: the launcher rewrites this 'electrobun' → 'chrome' (CEF/macOS) or
-  // 'MicrosoftEdge' (WebView2/Windows) and sets the debuggerAddress onto the
-  // capability in onWorkerStart.
+  // 'electrobun' is a placeholder the launcher rewrites per platform (chrome / MicrosoftEdge, or
+  // deleted for the WebKitGTK/W3C path).
   browserName: 'electrobun',
-  // CEF (macOS) bundles Chromium 147 (147.0.7727.118); pin the driver to that major
-  // so WDIO doesn't fetch the latest (148+), which refuses to attach with "only
-  // supports Chrome version N". Matching the major is what matters (spike
-  // RESEARCH_FINDINGS §2). Bump alongside the Electrobun/CEF pin. The Windows WebView2 path
-  // omits this — the launcher pins browserVersion to the detected WebView2 *runtime* version
-  // instead, since msedgedriver must match the runtime (which can lag the Edge browser WDIO
-  // would otherwise auto-match). It also forces CLASSIC WebDriver: Edge defaults to
-  // WebDriver BiDi, whose session resets the app's only webview to about:blank (a
-  // "BiDi-CDP Mapper" target appears and the content target vanishes), so the CDP bridge
-  // finds no content. Classic attach leaves the `views://` page intact, as chromedriver
-  // does for CEF.
-  ...(process.platform === 'win32' ? { 'wdio:enforceWebDriverClassic': true } : { browserVersion: '147' }),
+  // macOS/CEF bundles a specific Chromium major; pin the driver to it so WDIO doesn't fetch a
+  // newer major that refuses to attach ("only supports Chrome version N"). Bump alongside the
+  // Electrobun/CEF pin. Windows and Linux pin no browserVersion and force classic WebDriver:
+  //  - Windows: classic avoids Edge's default BiDi session, which resets the webview to about:blank;
+  //    the launcher pins msedgedriver to the detected WebView2 runtime version.
+  //  - Linux: WebKitWebDriver is a classic W3C driver with no Chromium version to pin.
+  ...(process.platform === 'darwin' ? { browserVersion: '147' } : { 'wdio:enforceWebDriverClassic': true }),
   'wdio:electrobunServiceOptions': electrobunServiceOptions,
 };
 
@@ -187,12 +181,14 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 10000,
-  connectionRetryTimeout: 120000,
+  // On Linux/WebKitGTK a New Session occasionally hangs the full timeout before attaching
+  // (~1 in 6 specs). Fail fast at 45s (a healthy New Session takes a few seconds) so the spec-file
+  // retry re-spawns a fresh app instead of burning ~120s per attempt.
+  connectionRetryTimeout: process.platform === 'linux' ? 45_000 : 120_000,
   connectionRetryCount: 3,
-  // Electrobun is CDP-attach: the app binary is spawned from the worker process
-  // (no separate driver in the launcher needing a display), so the Electron
-  // headless approach applies — let @wdio/xvfb auto-manage Xvfb on Linux rather
-  // than wrapping the whole command with xvfb-run (the Wry tauri/dioxus path).
+  // autoXvfb lets @wdio/xvfb run Xvfb for the worker process on Linux. The Linux WebKitGTK path
+  // also spawns WebKitWebDriver from the launcher, which autoXvfb does NOT cover, so the service
+  // wraps that driver in `xvfb-run -a` itself (webkitDriver.ts).
   autoXvfb: true,
   services: ['electrobun'],
   framework: 'mocha',

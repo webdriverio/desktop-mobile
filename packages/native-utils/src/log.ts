@@ -6,6 +6,7 @@ export type LogArea =
   | 'launcher'
   | 'session'
   | 'bridge'
+  | 'driver'
   | 'mock'
   | 'bundler'
   | 'config'

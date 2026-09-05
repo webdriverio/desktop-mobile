@@ -5,6 +5,7 @@ import {
   cefRendererRequired,
   deeplinkUnsupportedOnPlatform,
   nativeRendererUnsupportedPlatform,
+  webKitWebDriverNotFound,
 } from '../src/errors.js';
 
 describe('cefRendererRequired', () => {
@@ -31,22 +32,38 @@ describe('nativeRendererUnsupportedPlatform', () => {
   });
 
   it('should name the unsupported platform and the supported renderers', () => {
-    const err = nativeRendererUnsupportedPlatform('linux');
-    expect(err.message).toContain('linux');
+    const err = nativeRendererUnsupportedPlatform('freebsd' as NodeJS.Platform);
+    expect(err.message).toContain('freebsd');
     expect(err.message).toContain('CEF');
     expect(err.message).toContain('WebView2');
+    expect(err.message).toContain('WebKitGTK');
   });
 
-  it('should include the renderer when given (e.g. a CEF build on Windows)', () => {
+  it('should include the renderer when given (e.g. a CEF build off macOS)', () => {
     const err = nativeRendererUnsupportedPlatform('win32', 'cef');
     expect(err.message).toContain('win32');
     expect(err.message).toContain('renderer: cef');
   });
 
-  it('should point to browser mode and the #317 native-renderer follow-up', () => {
-    const err = nativeRendererUnsupportedPlatform('linux');
+  it('should guide a CEF build off macOS to the native renderer', () => {
+    for (const platform of ['win32', 'linux'] as const) {
+      const err = nativeRendererUnsupportedPlatform(platform, 'cef');
+      expect(err.message).toContain('defaultRenderer: "native"');
+    }
+  });
+
+  it('should point an unsupported platform to browser mode', () => {
+    const err = nativeRendererUnsupportedPlatform('freebsd' as NodeJS.Platform);
     expect(err.message).toContain("mode: 'browser'");
-    expect(err.message).toContain('issues/317');
+  });
+});
+
+describe('webKitWebDriverNotFound', () => {
+  it('should be a SevereServiceError naming the install package', () => {
+    const err = webKitWebDriverNotFound();
+    expect(err).toBeInstanceOf(SevereServiceError);
+    expect(err.message).toContain('WebKitWebDriver');
+    expect(err.message).toContain('webkit2gtk-driver');
   });
 });
 

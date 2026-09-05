@@ -1,23 +1,22 @@
 import { app, BrowserWindow } from 'electrobun/bun';
 
-// Bun (main-process) backend for the Electrobun E2E fixture. The renderer follows the
-// per-OS electrobun.config.ts default (CEF on macOS/Linux, native WebView2 on Windows),
-// so no per-window `renderer` is set here.
+// Bun backend for the Electrobun E2E fixture. The renderer follows the per-OS
+// electrobun.config.ts default, so no per-window `renderer` is set here.
 //
-// macOS/Linux (CEF): open TWO windows, STAGGERED — the second only after the main view's
-// DOM is ready. Two are needed so the CDP bridge can enumerate a 'window-1' target: a lone
-// CEF window doesn't reliably expose a `/json` page target after the forced `persist:default`
-// partition falls back to the shared global context (an upstream gap, see #320).
-// Opening both concurrently races that fallback — a browser can spawn a
-// separate top-level window instead of embedding via SetAsChild, leaving mainview's DOM
-// unpainted ("#app-title never rendered" → flaky). Staggering lets mainview embed + paint
-// cleanly first. The bridge labels content targets in registration order: first = 'main'
-// (mainview), next = 'window-1' (secondview).
+// macOS (CEF): open TWO windows, STAGGERED — the second only after the main view's DOM is ready.
+// Two are needed so the CDP bridge can enumerate a 'window-1' target: a lone CEF window doesn't
+// reliably expose a `/json` page target after the forced `persist:default` partition falls back
+// to the shared global context (an upstream gap, see #320). Opening both concurrently races that
+// fallback — a browser can spawn a separate top-level window instead of embedding via SetAsChild,
+// leaving mainview's DOM unpainted ("#app-title never rendered" → flaky). Staggering lets mainview
+// embed + paint cleanly first. The bridge labels content targets in registration order: first =
+// 'main' (mainview), next = 'window-1' (secondview).
 //
-// Windows (WebView2): no persist:default race, so the second window opens immediately
-// (concurrently) rather than staggered behind dom-ready.
+// Windows (WebView2): no persist:default race, so the second window opens immediately.
+// Linux (WebKitGTK/W3C): SINGLE window — see the note at the window logic below.
 
 const isWindows = process.platform === 'win32';
+const isMac = process.platform === 'darwin';
 
 const mainWindow = new BrowserWindow({
   title: 'WDIO Electrobun E2E — Main',
@@ -37,8 +36,8 @@ const openSecondWindow = (): void => {
 
 if (isWindows) {
   openSecondWindow();
-} else {
-  // CEF: stagger the second window behind mainview's dom-ready (see the note above).
+} else if (isMac) {
+  // macOS CEF: stagger the second window behind mainview's dom-ready (see the note above).
   let secondOpened = false;
   mainWindow.webview.on('dom-ready', () => {
     if (secondOpened) {
@@ -48,6 +47,9 @@ if (isWindows) {
     openSecondWindow();
   });
 }
+// Linux (WebKitGTK/W3C): single window on purpose. The automation session attaches to the
+// primary app view; a second BrowserWindow can race the `create-web-view` handshake under CI
+// load (New Session timeouts).
 
 // Deeplink handler — `open wdio-electrobun://<path>` (macOS), routed via the
 // urlSchemes entry in electrobun.config.ts. Surface the URL into the main view

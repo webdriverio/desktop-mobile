@@ -1,3 +1,6 @@
+import { execFileSync } from 'node:child_process';
+import { dirname } from 'node:path';
+
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
@@ -10,6 +13,7 @@ import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
 import { ElectrobunMockStore } from './mockStore.js';
 import type { ElectrobunServiceOptions } from './types.js';
+import { createWebDriverEvalBridge, installConsoleShim, type WebDriverEvalBridge } from './webdriverEval.js';
 
 const log = createLogger(SERVICE_NAME, 'service');
 
@@ -34,6 +38,8 @@ export default class ElectrobunWorkerService {
   private options: ElectrobunServiceOptions;
   private bridges: CdpBridge[] = [];
   private mockStores: ElectrobunMockStore[] = [];
+  private consoleDrains: Array<() => Promise<void>> = [];
+  private w3cAppBinaries: string[] = [];
 
   constructor(options: ElectrobunServiceOptions, capabilities: unknown) {
     const capOptions = (capabilities as { 'wdio:electrobunServiceOptions'?: ElectrobunServiceOptions })[
@@ -71,6 +77,19 @@ export default class ElectrobunWorkerService {
   }
 
   private async attachInstance(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
+    // Linux/W3C: no CDP side-channel — the WDIO session IS the WebKitWebDriver session, flagged
+    // by the launcher's `webkitgtk:browserOptions` cap.
+    const w3cOptions = (capabilities as { 'webkitgtk:browserOptions'?: { binary?: string } } | undefined)?.[
+      'webkitgtk:browserOptions'
+    ];
+    if (w3cOptions) {
+      if (w3cOptions.binary) {
+        this.w3cAppBinaries.push(w3cOptions.binary);
+      }
+      await this.attachW3CInstance(browser);
+      return;
+    }
+
     // The launcher sets debuggerAddress under `goog:chromeOptions` for the CEF/chromedriver
     // path and under `ms:edgeOptions` for the WebView2/Edge (msedgedriver) path — read both.
     const caps = capabilities as
@@ -122,15 +141,63 @@ export default class ElectrobunWorkerService {
     await syncWebDriverWindow(browser, bridge);
   }
 
+  private async attachW3CInstance(browser: WebdriverIO.Browser): Promise<void> {
+    log.info('Installing browser.electrobun.* over W3C WebDriver (WebKitGTK)');
+    const evalBridge = createWebDriverEvalBridge(browser);
+    const mockStore = new ElectrobunMockStore();
+    this.mockStores.push(mockStore);
+    const drain = await installConsoleShim(browser);
+    this.consoleDrains.push(drain);
+    installApiW3C(browser, evalBridge, mockStore);
+  }
+
   async after(): Promise<void> {
+    // `after` runs before WDIO's deleteSession, so reaping the app here lets that DELETE return fast.
+    // closeBridges() first — the console-shim drain needs the session still alive.
     await this.closeBridges();
+    this.reapW3CApps();
   }
 
   async afterSession(): Promise<void> {
     await this.closeBridges();
+    this.reapW3CApps();
+  }
+
+  /**
+   * Kill the WebKitGTK app tree(s) driven this session (Linux/W3C only). Without this,
+   * WebKitWebDriver can't cleanly close the app's controlled webview and `DELETE /session` hangs ~120s.
+   */
+  private reapW3CApps(): void {
+    if (process.platform !== 'linux' || this.w3cAppBinaries.length === 0) {
+      return;
+    }
+    for (const binary of this.w3cAppBinaries) {
+      const bundleRoot = dirname(dirname(binary)); // <bundle>/bin/launcher -> <bundle>
+      // Safety: skip a too-generic bundle path (e.g. `/`, `/bin`) that could match unrelated processes.
+      if (!bundleRoot.startsWith('/') || bundleRoot.length < 8 || bundleRoot.split('/').filter(Boolean).length < 2) {
+        log.warn(`Skipping WebKitGTK app reap: bundle path too generic to match safely (${bundleRoot})`);
+        continue;
+      }
+      // `pkill -f` matches the pattern as an unanchored regex over the whole command line, so escape
+      // the path's regex metacharacters and anchor with `^…/`. The trailing slash pins the match to
+      // the app's own processes (argv0 under `<bundle>/bin/…`) — not a process that mentions the path
+      // in a later argument, nor a `<bundle>-x` sibling.
+      const pattern = `^${bundleRoot.replace(/[.^$*+?()[\]{}|\\]/g, '\\$&')}/`;
+      try {
+        execFileSync('pkill', ['-9', '-f', pattern], { stdio: 'ignore' });
+        log.debug(`Reaped WebKitGTK app tree under ${bundleRoot}`);
+      } catch {
+        // pkill exits non-zero when nothing matched — not an error.
+      }
+    }
+    this.w3cAppBinaries = [];
   }
 
   private async closeBridges(): Promise<void> {
+    for (const drain of this.consoleDrains) {
+      await drain().catch(() => {});
+    }
+    this.consoleDrains = [];
     for (const bridge of this.bridges) {
       await bridge.close().catch((error: Error) => {
         log.warn(`Failed to close CDP bridge: ${error.message}`);
@@ -221,4 +288,55 @@ function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: 
   };
   (browser as unknown as { electrobun: ElectrobunServiceAPI }).electrobun = electrobun;
   log.debug('Installed browser.electrobun.*');
+}
+
+function w3cWindowIndex(label: string): number {
+  if (label === 'main') {
+    return 0;
+  }
+  const match = /^window-(\d+)$/.exec(label);
+  // -1 (not 0) for an unrecognised label so `switchWindow` rejects instead of targeting window 0.
+  return match ? Number.parseInt(match[1], 10) : -1;
+}
+
+function installApiW3C(
+  browser: WebdriverIO.Browser,
+  evalBridge: WebDriverEvalBridge,
+  mockStore: ElectrobunMockStore,
+): void {
+  // Safe cast: execute/mock only call `send('Runtime.evaluate', …)`, which WebDriverEvalBridge implements.
+  const bridge = evalBridge as unknown as CdpBridge;
+  const electrobun: ElectrobunServiceAPI = {
+    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
+      execute<R, A>(bridge, script, ...args),
+    switchWindow: async (label: string) => {
+      const index = w3cWindowIndex(label);
+      if (index < 0) {
+        throw new Error(
+          `browser.electrobun.switchWindow("${label}"): unrecognised window label (expected "main" or "window-<n>").`,
+        );
+      }
+      const handles = await browser.getWindowHandles();
+      const handle = handles[index];
+      if (!handle) {
+        throw new Error(
+          `browser.electrobun.switchWindow("${label}"): no window at index ${index} (open windows: ${handles.length}).`,
+        );
+      }
+      await browser.switchToWindow(handle);
+    },
+    listWindows: async () => {
+      const handles = await browser.getWindowHandles();
+      return handles.map((_, i) => (i === 0 ? 'main' : `window-${i}`));
+    },
+    mock: (target: string) => mock(target, bridge, mockStore),
+    isMockFunction: ((targetOrFn: unknown) =>
+      isMockFunction(targetOrFn, mockStore)) as ElectrobunServiceAPI['isMockFunction'],
+    clearAllMocks: (prefix?: string) => clearAllMocks(mockStore, prefix),
+    resetAllMocks: (prefix?: string) => resetAllMocks(mockStore, prefix),
+    restoreAllMocks: (prefix?: string) => restoreAllMocks(mockStore, prefix),
+    triggerDeeplink: (url: string) => triggerDeeplink(url),
+  };
+  (browser as unknown as { electrobun: ElectrobunServiceAPI }).electrobun = electrobun;
+  log.debug('Installed browser.electrobun.* (W3C/WebKitGTK)');
 }

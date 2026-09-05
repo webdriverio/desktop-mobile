@@ -26,8 +26,19 @@ vi.mock('@wdio/native-cdp-bridge', () => ({
   },
 }));
 
+const execFileSyncMock = vi.hoisted(() => vi.fn());
+vi.mock('node:child_process', () => ({ execFileSync: execFileSyncMock }));
+
+// Keep the real WebDriverEvalBridge + installConsoleShim; stub the factory so tests inject a
+// poster instead of doing raw /execute/async HTTP.
+vi.mock('../src/webdriverEval.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/webdriverEval.js')>();
+  return { ...actual, createWebDriverEvalBridge: vi.fn() };
+});
+
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import ElectrobunWorkerService from '../src/service.js';
+import { createWebDriverEvalBridge, WebDriverEvalBridge } from '../src/webdriverEval.js';
 
 type Installed = { electrobun: ElectrobunServiceAPI };
 
@@ -354,6 +365,196 @@ describe('ElectrobunWorkerService', () => {
       expect(cdpBridgeCtor).toHaveBeenCalledTimes(2);
       expect((instanceA as unknown as Partial<Installed>).electrobun).toBeDefined();
       expect((instanceB as unknown as Partial<Installed>).electrobun).toBeDefined();
+    });
+  });
+
+  describe('W3C (WebKitGTK) mode', () => {
+    const w3cCap = { 'webkitgtk:browserOptions': { binary: '/app/bin/launcher', args: ['--automation'] } };
+
+    let poster: ReturnType<typeof vi.fn>;
+
+    beforeEach(() => {
+      poster = vi.fn().mockResolvedValue({ value: { ok: true, value: undefined } });
+      vi.mocked(createWebDriverEvalBridge).mockImplementation(() => new WebDriverEvalBridge(poster));
+    });
+
+    function makeW3CBrowser(): WebdriverIO.Browser & { execute: ReturnType<typeof vi.fn> } {
+      return {
+        isMultiremote: false,
+        sessionId: 'w3c',
+        options: { protocol: 'http', hostname: '127.0.0.1', port: 9333 },
+        execute: vi.fn().mockResolvedValue([]),
+        getWindowHandles: vi.fn().mockResolvedValue(['h0', 'h1']),
+        switchToWindow: vi.fn().mockResolvedValue(undefined),
+      } as unknown as WebdriverIO.Browser & { execute: ReturnType<typeof vi.fn> };
+    }
+
+    it('should install browser.electrobun over W3C without a CDP bridge', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+
+      await service.before(w3cCap, [], browser);
+
+      expect(cdpBridgeCtor).not.toHaveBeenCalled();
+      const { electrobun } = browser as unknown as Installed;
+      expect(electrobun).toBeDefined();
+      for (const name of ['execute', 'mock', 'switchWindow', 'listWindows', 'clearAllMocks']) {
+        expect(typeof (electrobun as unknown as Record<string, unknown>)[name]).toBe('function');
+      }
+    });
+
+    it('should run execute over the raw /execute/async poster (W3C eval channel)', async () => {
+      const browser = makeW3CBrowser();
+      poster.mockResolvedValue({ value: { ok: true, value: 7 } });
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const result = await (browser as unknown as Installed).electrobun.execute(() => 7);
+
+      expect(result).toBe(7);
+      expect(poster).toHaveBeenCalled();
+    });
+
+    it('should surface a page-level error message from execute', async () => {
+      const browser = makeW3CBrowser();
+      poster.mockResolvedValue({ value: { ok: false, error: 'Test error from execute' } });
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      await expect((browser as unknown as Installed).electrobun.execute(() => 1)).rejects.toThrow(
+        /Test error from execute/,
+      );
+    });
+
+    it('should list and switch windows via W3C handles', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const windows = await (browser as unknown as Installed).electrobun.listWindows();
+      expect(windows).toEqual(['main', 'window-1']);
+
+      await (browser as unknown as Installed).electrobun.switchWindow('window-1');
+      expect(browser.switchToWindow).toHaveBeenCalledWith('h1');
+    });
+
+    it('should reject switchWindow for an unrecognised label (not silently target main)', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      await expect((browser as unknown as Installed).electrobun.switchWindow('typo')).rejects.toThrow(
+        /unrecognised window label/,
+      );
+      expect(browser.switchToWindow).not.toHaveBeenCalled();
+    });
+
+    it('should preserve undefined from execute (WebDriver would surface it as null)', async () => {
+      const browser = makeW3CBrowser();
+      poster.mockResolvedValue({ value: { ok: true, undef: true } });
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const result = await (browser as unknown as Installed).electrobun.execute(() => undefined);
+      expect(result).toBeUndefined();
+    });
+
+    it('should install the console shim and drain it on teardown', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const installed = browser.execute.mock.calls.some((c) => String(c[0]).includes('__WDIO_ELECTROBUN_LOGS__'));
+      expect(installed).toBe(true);
+
+      // Teardown must drain a populated buffer (not the empty default), so the buffer→logger path
+      // actually runs; the emission itself is asserted in webdriverEval.spec.
+      browser.execute.mockResolvedValueOnce([{ level: 'warn', args: ['from teardown'] }]);
+      const callsBefore = browser.execute.mock.calls.length;
+      await service.after();
+
+      const drainCall = browser.execute.mock.calls.slice(callsBefore).find((c) => String(c[0]).includes('return l'));
+      expect(drainCall).toBeDefined();
+    });
+
+    it('should reap the WebKitGTK app tree on Linux teardown (unblocks deleteSession)', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      try {
+        const browser = makeW3CBrowser();
+        const cap = {
+          'webkitgtk:browserOptions': {
+            binary: '/home/runner/build/WDIOElectrobunE2E-dev/bin/launcher',
+            args: ['--automation'],
+          },
+        };
+        const service = new ElectrobunWorkerService({}, {});
+        await service.before(cap, [], browser);
+        execFileSyncMock.mockClear();
+
+        await service.after();
+
+        expect(execFileSyncMock).toHaveBeenCalledWith(
+          'pkill',
+          ['-9', '-f', '^/home/runner/build/WDIOElectrobunE2E-dev/'],
+          expect.anything(),
+        );
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+
+    it('should escape regex metacharacters in the reap pattern (no pkill injection)', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      try {
+        const browser = makeW3CBrowser();
+        const cap = {
+          'webkitgtk:browserOptions': { binary: '/home/runner/b/My.App+v2/bin/launcher', args: ['--automation'] },
+        };
+        const service = new ElectrobunWorkerService({}, {});
+        await service.before(cap, [], browser);
+        execFileSyncMock.mockClear();
+
+        await service.after();
+
+        expect(execFileSyncMock).toHaveBeenCalledWith(
+          'pkill',
+          ['-9', '-f', '^/home/runner/b/My\\.App\\+v2/'],
+          expect.anything(),
+        );
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+
+    it('should NOT reap for a too-generic bundle path (safety guard)', async () => {
+      const originalPlatform = process.platform;
+      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      try {
+        const browser = makeW3CBrowser();
+        const service = new ElectrobunWorkerService({}, {});
+        await service.before(w3cCap, [], browser);
+        execFileSyncMock.mockClear();
+
+        await service.after();
+
+        expect(execFileSyncMock).not.toHaveBeenCalled();
+      } finally {
+        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      }
+    });
+
+    it('should create a mock over the W3C eval channel', async () => {
+      const browser = makeW3CBrowser();
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(w3cCap, [], browser);
+
+      const mock = await (browser as unknown as Installed).electrobun.mock('api.fetchData');
+
+      expect(mock).toBeDefined();
+      expect(poster).toHaveBeenCalled();
+      expect(cdpBridgeCtor).not.toHaveBeenCalled();
     });
   });
 });

@@ -3,9 +3,9 @@
 //
 // Electrobun reads the CDP port EXCLUSIVELY from the bundle's
 // `Contents/Resources/build.json` `chromiumFlags["remote-debugging-port"]` at
-// runtime (a `--remote-debugging-port` launch arg does NOT reach CEF — see the
-// Phase 0 RESEARCH_FINDINGS). So to control the port the launcher writes it into
-// build.json. CEF's [9222, 9232] auto-scan is only a fallback when unset.
+// runtime (a `--remote-debugging-port` launch arg does NOT reach CEF). So to control
+// the port the launcher writes it into build.json. CEF's [9222, 9232] auto-scan is
+// only a fallback when unset.
 //
 // macOS is the validated platform. Windows/Linux bundle layout is unverified, so
 // resolution + the CEF check there are best-effort and guarded by existence
