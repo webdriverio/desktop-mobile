@@ -27,10 +27,12 @@ function findInstalledRuntime(): { versionDir: string; applicationDir: string; v
     if (!existsSync(applicationDir)) {
       continue;
     }
-    for (const entry of readdirSync(applicationDir)) {
-      if (VERSION_DIR.test(entry) && existsSync(join(applicationDir, entry, RUNTIME_EXE))) {
-        return { versionDir: join(applicationDir, entry), applicationDir, version: entry };
-      }
+    // Match the resolver: when several runtime versions coexist, the newest wins.
+    const [version] = readdirSync(applicationDir)
+      .filter((entry) => VERSION_DIR.test(entry) && existsSync(join(applicationDir, entry, RUNTIME_EXE)))
+      .sort((a, b) => b.localeCompare(a, undefined, { numeric: true }));
+    if (version) {
+      return { versionDir: join(applicationDir, version), applicationDir, version };
     }
   }
   return undefined;
@@ -39,7 +41,7 @@ function findInstalledRuntime(): { versionDir: string; applicationDir: string; v
 describe.skipIf(process.platform !== 'win32')('edgeDriverManager fixed-version runtime (Windows)', () => {
   const runtime = findInstalledRuntime();
 
-  it('reads the runtime version from a folder holding msedgewebview2.exe', async (ctx) => {
+  it('should read the runtime version from a folder holding msedgewebview2.exe', async (ctx) => {
     if (!runtime) {
       ctx.skip();
       return;
@@ -50,17 +52,21 @@ describe.skipIf(process.platform !== 'win32')('edgeDriverManager fixed-version r
     expect(version?.split('.')[0]).toBe(runtime.version.split('.')[0]);
   });
 
-  it('finds the runtime via the versioned-subdirectory fallback', async (ctx) => {
+  it('should find the runtime via the versioned-subdirectory fallback', async (ctx) => {
     if (!runtime) {
       ctx.skip();
       return;
     }
-    // Point at the parent Application dir → the `<version>/msedgewebview2.exe` subdir scan.
-    const version = await detectFixedRuntimeVersion(runtime.applicationDir);
-    expect(version).toMatch(VERSION_PATTERN);
+    // Point at the parent Application dir → the `<version>/msedgewebview2.exe` subdir scan. The
+    // fallback must resolve the same runtime a direct read of that subdir yields, not merely "some
+    // version-shaped string" — otherwise a scan that picked the wrong nested version would pass.
+    const direct = await detectFixedRuntimeVersion(runtime.versionDir);
+    const viaFallback = await detectFixedRuntimeVersion(runtime.applicationDir);
+    expect(viaFallback).toMatch(VERSION_PATTERN);
+    expect(viaFallback).toBe(direct);
   });
 
-  it('resolveTargetEdgeVersion reports source "fixed-runtime" for WEBVIEW2_BROWSER_EXECUTABLE_FOLDER', async (ctx) => {
+  it('should report source "fixed-runtime" for WEBVIEW2_BROWSER_EXECUTABLE_FOLDER', async (ctx) => {
     if (!runtime) {
       ctx.skip();
       return;

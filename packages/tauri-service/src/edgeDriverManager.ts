@@ -112,6 +112,19 @@ async function readFileVersion(filePath: string): Promise<string | undefined> {
 const FIXED_RUNTIME_EXE = 'msedgewebview2.exe';
 const VERSION_DIR = /^\d+\.\d+\.\d+\.\d+$/;
 
+/** Order dotted numeric versions highest-first (use as an `Array#sort` comparator). */
+function compareVersionsDesc(a: string, b: string): number {
+  const pa = a.split('.').map(Number);
+  const pb = b.split('.').map(Number);
+  for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+    const diff = (pb[i] ?? 0) - (pa[i] ?? 0);
+    if (diff !== 0) {
+      return diff;
+    }
+  }
+  return 0;
+}
+
 /**
  * Resolve the WebView2 runtime version an app is pinned to via a fixed-version runtime folder
  * (`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`). The folder holds `msedgewebview2.exe`, whose FileVersion
@@ -129,11 +142,13 @@ export async function detectFixedRuntimeVersion(folder?: string): Promise<string
   }
 
   try {
-    for (const entry of readdirSync(folder)) {
-      const nested = join(folder, entry, FIXED_RUNTIME_EXE);
-      if (VERSION_DIR.test(entry) && existsSync(nested)) {
-        return readFileVersion(nested);
-      }
+    // Several `<version>/msedgewebview2.exe` subdirs can coexist; pick the highest so selection is
+    // deterministic rather than dependent on readdir order (which could resolve a stale runtime).
+    const [newest] = readdirSync(folder)
+      .filter((entry) => VERSION_DIR.test(entry) && existsSync(join(folder, entry, FIXED_RUNTIME_EXE)))
+      .sort(compareVersionsDesc);
+    if (newest) {
+      return readFileVersion(join(folder, newest, FIXED_RUNTIME_EXE));
     }
   } catch {
     // Folder unreadable — fall through to undefined.
@@ -471,9 +486,12 @@ export async function ensureMsEdgeDriver(
 
   const existing = await findMsEdgeDriver();
   if (existing.path && existing.version) {
-    const driverMajor = getMajorVersion(existing.version);
+    // An explicit pin (`source: 'override'`) must match the driver exactly; the runtime-derived
+    // paths only need the shared major, since Edge and its driver drift in the lower version parts.
+    const compatible =
+      source === 'override' ? existing.version === edgeVersion : getMajorVersion(existing.version) === edgeMajor;
 
-    if (driverMajor === edgeMajor) {
+    if (compatible) {
       log.info(`✅ msedgedriver ${existing.version} matches Edge ${edgeVersion}`);
       return Ok({
         driverPath: existing.path,
