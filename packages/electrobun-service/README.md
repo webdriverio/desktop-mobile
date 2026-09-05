@@ -120,7 +120,7 @@ tracked in [#320](https://github.com/webdriverio/desktop-mobile/issues/320); the
 
 | Area | Status |
 |---|---|
-| multiremote / parallel workers | ✅ Windows — WebView2 isolates each instance, so parallel workers and multiremote both work; ✅ Linux parallel workers, each with its own `WebKitWebDriver` + app; ⚠️ Linux multiremote (multiple instances per worker) not yet wired; ❌ macOS CEF — instances fold together, per the root cause above. |
+| multiremote / parallel workers | ✅ Windows — WebView2 isolates each instance, so parallel workers and multiremote both work; ✅ Linux — WebKitGTK clones the bundle per instance (each gets its own `WebKitWebDriver` + app), so parallel workers and multiremote both work; ❌ macOS CEF — instances fold together, per the root cause above. |
 | `switchWindow` / `listWindows` | ✅ Windows; ⚠️ macOS CEF unreliable — two windows race in the shared global context, so run locally; ⚠️ Linux best-effort — W3C window handles mapped by order. |
 | `triggerDeeplink` | ⚠️ macOS unreliable — no `open-url` routing to the spawned instance; ❌ Windows/Linux upstream-blocked — Electrobun registers URL schemes and wires `open-url` macOS-only ([blackboardsh/electrobun#465](https://github.com/blackboardsh/electrobun/issues/465)). |
 | single-window apps | ⚠️ a lone CEF window doesn't reliably appear in `/json`, so the bridge can intermittently find no target to attach to. Opening a second window stabilises target exposure — the fixtures open it staggered behind the first window's `dom-ready`. |

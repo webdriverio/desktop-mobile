@@ -1,3 +1,6 @@
+import { rmSync } from 'node:fs';
+import { posix } from 'node:path';
+
 import {
   BaseLauncher,
   closeLogWriter,
@@ -11,7 +14,13 @@ import type { Options } from '@wdio/types';
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
 import { type ResolvedElectrobunApp, resolveElectrobunApp, verifyCefRenderer } from './electrobunConfig.js';
 import { nativeRendererUnsupportedPlatform, SevereServiceError, webKitWebDriverNotFound } from './errors.js';
-import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from './nativeMode.js';
+import {
+  cloneAppBundle,
+  type ElectrobunAppProcess,
+  spawnElectrobunApp,
+  stopElectrobunApp,
+  waitForCdpReady,
+} from './nativeMode.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import { resolveTransport } from './transport.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
@@ -180,17 +189,15 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       throw nativeRendererUnsupportedPlatform(process.platform);
     }
 
-    // Neither macOS nor Linux isolates ≥2 app instances of one bundle: CEF (macOS) shares a single
-    // cache root and races (#320); the WebKitGTK (Linux) apps launch from the same bundle path and
-    // teardown reaps by that path (service.ts), so one worker's cleanup SIGKILLs its siblings (#633).
-    // WebView2 (Windows) isolates each worker, so it needs no guard. WDIO's default maxInstances is
-    // 100, so this can't be a hard error — warn and let the user pin maxInstances: 1.
-    if ((process.platform === 'darwin' || process.platform === 'linux') && (config.maxInstances ?? 1) > 1) {
-      const reason =
-        process.platform === 'darwin'
-          ? 'Electrobun CEF on macOS is single-instance: parallel workers share one CEF cache root and race ("Cannot create profile" / CDP timeouts)'
-          : 'Electrobun on Linux shares one WebKitGTK app bundle: parallel workers launch from the same path and teardown reaps by it, cross-killing siblings';
-      log.warn(`maxInstances is ${config.maxInstances}, but ${reason}. Pin maxInstances: 1.`);
+    // CEF (macOS) can't isolate ≥2 app instances — they share one cache root and race. Linux and
+    // Windows isolate each instance, so parallel workers + multiremote are safe there. WDIO's default
+    // maxInstances is 100, so this can't be a hard error — warn and let the user pin maxInstances: 1.
+    // See https://github.com/webdriverio/desktop-mobile/issues/320
+    if (process.platform === 'darwin' && (config.maxInstances ?? 1) > 1) {
+      log.warn(
+        `maxInstances is ${config.maxInstances}, but Electrobun CEF on macOS is single-instance: parallel ` +
+          'workers share one CEF cache root and race ("Cannot create profile" / CDP timeouts). Pin maxInstances: 1.',
+      );
     }
 
     // Native mode: resolve each bundle and pick its transport (the capability is set per transport
@@ -303,16 +310,34 @@ export default class ElectrobunLaunchService extends BaseLauncher {
 
       // W3C: the driver launches the app — no app spawn / CDP wait here (unlike the CDP path).
       if (resolveTransport(app) === 'webkitgtk') {
-        const driver = await this.spawnWebKitDriver(this.webkitDriverPath ?? '', port);
+        // Clone the bundle per instance so each app launches from a distinct path. The worker's
+        // teardown reap (service.ts) is scoped to this binary's bundle path, so distinct clones let
+        // parallel workers and multiremote instances reap independently instead of cross-killing
+        // siblings that share one bundle. See https://github.com/webdriverio/desktop-mobile/issues/633
+        const { cloneParentDir, clonedBundlePath } = cloneAppBundle(app.bundlePath);
+        // webkitgtk is Linux-only, so rebase with posix to keep forward slashes regardless of host OS.
+        const clonedBinaryPath = posix.join(clonedBundlePath, posix.relative(app.bundlePath, app.binaryPath));
+
+        let driver: WebKitDriverProcess;
+        try {
+          driver = await this.spawnWebKitDriver(this.webkitDriverPath ?? '', port);
+        } catch (error) {
+          rmSync(cloneParentDir, { recursive: true, force: true });
+          throw error;
+        }
+        driver.cleanupDirs = [cloneParentDir];
         const drivers = this.webkitDriversByCid.get(cid) ?? [];
         drivers.push(driver);
         this.webkitDriversByCid.set(cid, drivers);
-        // hostname/port are connection params (not capabilities), set per worker as the port is
-        // allocated here.
+
         const w3cCap = cap as Record<string, unknown>;
+        // hostname/port are connection params (not capabilities), set per worker with the allocated port.
         w3cCap.hostname = driver.host;
         w3cCap.port = driver.port;
-        log.info(`Worker ${cid}: WebKitWebDriver on ${driver.host}:${driver.port} → ${app.binaryPath}`);
+        const w3cOptions = (w3cCap['webkitgtk:browserOptions'] ?? {}) as Record<string, unknown>;
+        w3cCap['webkitgtk:browserOptions'] = { ...w3cOptions, binary: clonedBinaryPath };
+
+        log.info(`Worker ${cid}: WebKitWebDriver on ${driver.host}:${driver.port} → ${clonedBinaryPath}`);
         continue;
       }
 

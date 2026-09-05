@@ -95,9 +95,9 @@ const testType = (process.env.TEST_TYPE as string) || 'standard';
 
 let specs: string[] = [];
 let exclude: string[] = [];
-// Pinned to 1: multiremote is blocked upstream (CEF can't isolate ≥2 instances —
-// see #320). Electrobun is single-instance for now.
-let maxInstances = 1;
+// macOS CEF is single-instance; Linux WebKitGTK and Windows WebView2 isolate per instance, so their
+// standard suite runs parallel workers.
+let maxInstances = process.platform === 'darwin' ? 1 : 2;
 
 // CI runs ONLY `standard` (see ci.yml — the macOS matrix is `['standard']`). The
 // `window` (multi-window) and `deeplink` cases are kept for LOCAL runs
@@ -108,9 +108,9 @@ switch (testType) {
     specs = ['./test/electrobun/window.spec.ts'];
     break;
   case 'multiremote':
-    // Two independent instances in one worker — WebView2 isolates each (per-instance data
-    // dir), which CEF can't, so this runs on Windows only.
+    // Two instances in ONE worker, so maxInstances stays 1 (the ≥2 are instances, not workers).
     specs = ['./test/electrobun/multiremote/*.spec.ts'];
+    maxInstances = 1;
     break;
   case 'deeplink':
     // Deeplink tests dispatch the OS protocol handler and must not race parallel apps.
@@ -151,8 +151,8 @@ const baseCapability: ElectrobunCapability = {
   'wdio:electrobunServiceOptions': electrobunServiceOptions,
 };
 
-// Multiremote drives two independent instances in one worker (each gets its own WebView2
-// process, port, and data dir); the other test types use the single-instance array shape.
+// Multiremote uses the { instanceName: { capabilities } } record shape; the other test types use
+// the single-instance array.
 const capabilities =
   testType === 'multiremote'
     ? { instanceA: { capabilities: { ...baseCapability } }, instanceB: { capabilities: { ...baseCapability } } }
