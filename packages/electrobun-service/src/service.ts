@@ -152,8 +152,8 @@ export default class ElectrobunWorkerService {
   }
 
   async after(): Promise<void> {
-    // `after` runs before WDIO's deleteSession, so reaping the app here makes that DELETE return
-    // in ms (not ~120s). closeBridges() first — the console-shim drain needs the session alive.
+    // `after` runs before WDIO's deleteSession, so reaping the app here lets that DELETE return fast.
+    // closeBridges() first — the console-shim drain needs the session still alive.
     await this.closeBridges();
     this.reapW3CApps();
   }
@@ -164,9 +164,8 @@ export default class ElectrobunWorkerService {
   }
 
   /**
-   * Kill the WebKitGTK app tree(s) driven this session (Linux/W3C only). WebKitWebDriver can't
-   * cleanly close the app's controlled webview, so `DELETE /session` otherwise hangs ~120s.
-   * Matches only the app's own bundle path; on Linux the WebKitGTK path is single-instance.
+   * Kill the WebKitGTK app tree(s) driven this session (Linux/W3C only). Without this,
+   * WebKitWebDriver can't cleanly close the app's controlled webview and `DELETE /session` hangs ~120s.
    */
   private reapW3CApps(): void {
     if (process.platform !== 'linux' || this.w3cAppBinaries.length === 0) {
@@ -174,23 +173,21 @@ export default class ElectrobunWorkerService {
     }
     for (const binary of this.w3cAppBinaries) {
       const bundleRoot = dirname(dirname(binary)); // <bundle>/bin/launcher -> <bundle>
-      // Safety: a too-generic pattern (e.g. '/', '/bin') would match unrelated processes. Only
-      // match a specific, deep absolute path.
+      // Safety: skip a too-generic bundle path (e.g. `/`, `/bin`) that could match unrelated processes.
       if (!bundleRoot.startsWith('/') || bundleRoot.length < 8 || bundleRoot.split('/').filter(Boolean).length < 2) {
         log.warn(`Skipping WebKitGTK app reap: bundle path too generic to match safely (${bundleRoot})`);
         continue;
       }
-      // `pkill -f` treats the pattern as an unanchored regex, so (1) escape regex metacharacters
-      // in the path — an unescaped `.`/`+`/`(` etc. could mis-match — and (2) anchor to the
-      // command-line start with a trailing slash. The app's own processes (launcher, cottontail)
-      // have argv0 under `<bundle>/bin/…`, so `^<bundle>/` matches only them — never an unrelated
-      // process that merely mentions the path in a later argument, nor a sibling like `<bundle>-x`.
+      // `pkill -f` matches the pattern as an unanchored regex over the whole command line, so escape
+      // the path's regex metacharacters and anchor with `^…/`. The trailing slash pins the match to
+      // the app's own processes (argv0 under `<bundle>/bin/…`) — not a process that mentions the path
+      // in a later argument, nor a `<bundle>-x` sibling.
       const pattern = `^${bundleRoot.replace(/[.^$*+?()[\]{}|\\]/g, '\\$&')}/`;
       try {
         execFileSync('pkill', ['-9', '-f', pattern], { stdio: 'ignore' });
         log.debug(`Reaped WebKitGTK app tree under ${bundleRoot}`);
       } catch {
-        // pkill exits non-zero when nothing matched (already gone) — not an error.
+        // pkill exits non-zero when nothing matched — not an error.
       }
     }
     this.w3cAppBinaries = [];
@@ -293,15 +290,12 @@ function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: 
   log.debug('Installed browser.electrobun.*');
 }
 
-/**
- * -1 for an unrecognised label so `switchWindow` rejects instead of silently targeting window 0.
- * W3C `getWindowHandles` order is unspecified, so the index→window mapping is best-effort.
- */
 function w3cWindowIndex(label: string): number {
   if (label === 'main') {
     return 0;
   }
   const match = /^window-(\d+)$/.exec(label);
+  // -1 (not 0) for an unrecognised label so `switchWindow` rejects instead of targeting window 0.
   return match ? Number.parseInt(match[1], 10) : -1;
 }
 
@@ -310,7 +304,7 @@ function installApiW3C(
   evalBridge: WebDriverEvalBridge,
   mockStore: ElectrobunMockStore,
 ): void {
-  // Only `send('Runtime.evaluate', …)` is exercised by execute/mock — the adapter satisfies it.
+  // Safe cast: execute/mock only call `send('Runtime.evaluate', …)`, which WebDriverEvalBridge implements.
   const bridge = evalBridge as unknown as CdpBridge;
   const electrobun: ElectrobunServiceAPI = {
     execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
