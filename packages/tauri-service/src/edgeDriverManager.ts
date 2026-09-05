@@ -91,7 +91,7 @@ export async function detectWebView2VersionFromBinary(binaryPath?: string): Prom
   return undefined;
 }
 
-/** Read a Windows PE file's FileVersion (e.g. `150.0.4022.98`). Windows-only. */
+/** Read a Windows file's FileVersion (e.g. `150.0.4022.98`). Windows-only. */
 async function readFileVersion(filePath: string): Promise<string | undefined> {
   try {
     // Embed the path in the -Command string (single quotes doubled): a trailing argv token does
@@ -162,9 +162,9 @@ export async function detectFixedRuntimeVersion(folder?: string): Promise<string
 export type EdgeVersionSource = 'override' | 'fixed-runtime' | 'evergreen';
 
 export interface ResolveEdgeVersionOptions {
-  /** Explicit msedgedriver version pin (service option `edgeDriverVersion`). */
+  /** Explicit msedgedriver version pin. */
   edgeDriverVersion?: string;
-  /** Env passed to the driver/app process (service option `env`); mirrors the app's runtime env. */
+  /** The app's runtime env; the resolver reads `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` from it. */
   env?: Record<string, string>;
 }
 
@@ -183,8 +183,8 @@ const EDGEDRIVER_VERSION_ENV = 'EDGEDRIVER_VERSION';
  *   2. a fixed-version runtime folder (`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`) — the app renders with
  *      that runtime, not the machine's Evergreen, so its version is what the driver must match;
  *   3. the Evergreen runtime from the registry (the default).
- * The folder env is read from `options.env` first, then `process.env`, matching how the app receives
- * it (`{ ...process.env, ...options.env }`). Returns undefined when nothing resolves.
+ * The folder env is read with the app's own precedence — `options.env` over `process.env`
+ * (`{ ...process.env, ...options.env }`) — so the resolver sees the folder the app actually uses.
  */
 export async function resolveTargetEdgeVersion(
   options: ResolveEdgeVersionOptions = {},
@@ -359,7 +359,7 @@ async function getDriverVersionForEdge(edgeVersion: string): Promise<string> {
 /**
  * Download msedgedriver for a specific Edge version.
  * When `exactVersion` is set, `edgeVersion` is treated as the exact driver version and the
- * Microsoft `LATEST_RELEASE_<major>` lookup is skipped (used for an explicit `edgeDriverVersion` pin).
+ * Microsoft `LATEST_RELEASE_<major>` lookup is skipped.
  */
 export async function downloadMsEdgeDriver(edgeVersion: string, exactVersion = false): Promise<string> {
   const majorVersion = getMajorVersion(edgeVersion);

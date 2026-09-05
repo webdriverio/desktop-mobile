@@ -9,7 +9,7 @@ import { detectFixedRuntimeVersion, resolveTargetEdgeVersion } from '../../src/e
  * this points the resolver at the runner's already-installed Evergreen runtime — a real folder
  * holding a real `msedgewebview2.exe` — and asserts we read its true FileVersion off disk. That is
  * the genuinely novel/risky part of the fix; the msedgedriver download + session boot are already
- * covered by the Tauri Windows E2E. Skips honestly (not passes) if no runtime is present.
+ * covered by the Tauri Windows E2E. Skips honestly if no runtime is present.
  */
 
 const VERSION_DIR = /^\d+\.\d+\.\d+\.\d+$/;
