@@ -364,6 +364,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
             .await
     }
 
+    /// Only reached in-frame (from `dispatch_key_event`); top-level keys dispatch via CDP there.
     async fn dispatch_regular_key(
         &self,
         key: &str,
@@ -371,15 +372,10 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         is_down: bool,
         modifiers: &ModifierState,
     ) -> Result<(), WebDriverErrorResponse> {
-        if !self.frame_context.is_empty() {
-            let script =
-                crate::platform::key_input::build_regular_key_script(key, code, is_down, modifiers);
-            self.evaluate_js(&script).await?;
-            return Ok(());
-        }
-        let event = crate::platform::key_input::to_cdp_key_event(key, is_down, modifiers);
-        self.call_cdp_method("Input.dispatchKeyEvent", &event.to_params_json())
-            .await
+        let script =
+            crate::platform::key_input::build_regular_key_script(key, code, is_down, modifiers);
+        self.evaluate_js(&script).await?;
+        Ok(())
     }
 
     async fn send_keys_to_element(
