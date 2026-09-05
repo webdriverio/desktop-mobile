@@ -252,8 +252,8 @@ jobs:
   #
   # Linux builds the native WebKitGTK renderer (bundleCEF:false → no CEF download), driven
   # over W3C WebDriver (WebKitWebDriver) — unblocked by electrobun 2.0.1 (#467). The e2e leg
-  # is NON-GATING for now (a proof leg, like Windows started) until it's proven green; it is
-  # not yet in ci-status.needs. CEF-on-Linux stays unsupported (#320).
+  # is GATING (in ci-status.needs), proven green across 3 consecutive runs. CEF-on-Linux stays
+  # unsupported (#320).
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
@@ -280,7 +280,7 @@ jobs:
       os: 'windows-latest'
 
   # Electrobun E2E app [Linux] — native WebKitGTK renderer (bundleCEF:false → no CEF
-  # download). Driven over W3C WebDriver in the e2e leg below (non-gating proof leg).
+  # download). Driven over W3C WebDriver in the (gating) e2e leg below.
   build-electrobun-e2e-app-linux:
     name: Build Electrobun E2E App [Linux]
     needs: [detect-changes]
@@ -773,8 +773,8 @@ jobs:
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E tests — macOS (CEF), single CDP-attach provider (no provider matrix).
-  # Windows (WebView2) and Linux (WebKitGTK/W3C) run as separate jobs below — Windows gating,
-  # Linux non-gating for now (electrobun 2.0.1 landed WebKitGTK automation, #467).
+  # Windows (WebView2) and Linux (WebKitGTK/W3C) run as separate jobs below — all gating
+  # (electrobun 2.0.1 landed WebKitGTK automation, #467).
   #
   # Test-type matrix: 'standard' (api/application/execute/logging/mock),
   # 'window' (two CEF views), 'deeplink' (macOS-only; auto-skips elsewhere).
@@ -982,9 +982,9 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   # ────────────────────────────────────────────────────────────────────────
-  # Electrobun E2E tests — Linux (native WebKitGTK over W3C WebDriver). NON-GATING proof leg
-  # (not in ci-status.needs) until proven green — mirrors how the Windows WebView2 leg started.
-  # 'standard' only for now (window/multiremote follow once the single-window path is solid).
+  # Electrobun E2E tests — Linux (native WebKitGTK over W3C WebDriver). GATING (in
+  # ci-status.needs) — proven green across 3 consecutive runs. 'standard' only for now
+  # (window/multiremote follow once the single-window path is solid).
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-linux:
     name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
@@ -1252,13 +1252,12 @@ jobs:
       - e2e-dioxus-linux
       - e2e-dioxus-windows
       - e2e-dioxus-macos-arm
-      # Electrobun gates: macOS CEF `standard`, plus Windows WebView2 `standard` + `window`
-      # + `multiremote` (multi-window AND per-instance isolation work on WebView2 — no
-      # persist:default gap — so they run where CEF is local-only / single-instance). The Linux
-      # WebKitGTK/W3C leg (e2e-electrobun-linux) runs but is NON-GATING for now — omitted from
-      # this needs-list until proven green (mirrors how Windows started). deeplink stays
-      # local-only (also upstream-gated on Windows/Linux — #465).
+      # Electrobun gates: macOS CEF `standard`, Linux WebKitGTK/W3C `standard`, plus Windows
+      # WebView2 `standard` + `window` + `multiremote` (multi-window AND per-instance isolation
+      # work on WebView2 — no persist:default gap — so they run where CEF is local-only /
+      # single-instance). deeplink stays local-only (upstream-gated on Windows/Linux — #465).
       - e2e-electrobun-macos-arm
+      - e2e-electrobun-linux
       # React Native — Android emulator + iOS simulator E2E are required gates.
       - e2e-react-native-linux
       - e2e-react-native-ios-macos-old-arch
@@ -1308,6 +1307,7 @@ jobs:
       - build-dioxus-e2e-app-macos-arm
       - build-electrobun-e2e-app-macos-arm
       - build-electrobun-e2e-app-windows
+      - build-electrobun-e2e-app-linux
       - build-electrobun-package-app-macos-arm
       - build-electrobun-package-app-windows
       - build-dioxus-package-app-linux

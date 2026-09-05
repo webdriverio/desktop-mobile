@@ -7,11 +7,11 @@ It mirrors the surface of the sibling services (`@wdio/electron-service`,
 `@wdio/tauri-service`, `@wdio/dioxus-service`): `browser.electrobun.execute`,
 Vitest-style mocking, log capture, browser mode, and standalone sessions.
 
-> **Status: `0.1.0`, pre-1.0 — macOS (CEF) + Windows (native WebView2), Linux (WebKitGTK)
-> experimental.** Windows uses the native WebView2 (Chromium) renderer over CDP — no CEF — and
-> runs multi-window + multiremote. **Linux** drives the native WebKitGTK renderer over W3C
-> WebDriver (electrobun ≥ 2.0.1); it needs `webkit2gtk-driver` installed. This is still a `0.x`
-> release because the **macOS CEF** path has multiremote/deeplink blocked by an upstream
+> **Status: `0.1.0`, pre-1.0 — macOS (CEF) + Windows (native WebView2) + Linux (WebKitGTK).**
+> Windows uses the native WebView2 (Chromium) renderer over CDP — no CEF — and runs multi-window
+> + multiremote. **Linux** drives the native WebKitGTK renderer over W3C WebDriver (electrobun ≥
+> 2.0.1; gated in CI); it needs `webkit2gtk-driver` installed and is single-window. This is still
+> a `0.x` release because the **macOS CEF** path has multiremote/deeplink blocked by an upstream
 > limitation. See [Known limitations](#known-limitations). `1.0` is reserved for full parity
 > once those gaps are filled ([#317](https://github.com/webdriverio/desktop-mobile/issues/317) +
 > [#320](https://github.com/webdriverio/desktop-mobile/issues/320) track the work).
@@ -36,7 +36,7 @@ Build each OS with its drivable renderer:
 | **macOS** | WKWebView (native) | none (local Web Inspector only) | — | ❌ unsupported — no remote automation surface; build with CEF. A future self-shipped embedded driver is tracked in [#629](https://github.com/webdriverio/desktop-mobile/issues/629). |
 | **Windows** | WebView2 (native, Chromium) | CDP | msedgedriver attach (classic) | ✅ supported — multi-window + multiremote |
 | **Windows** | CEF (bundled Chromium) | — | — | ❌ unsupported — CEF can't create its profile on Windows; use the native renderer |
-| **Linux** | WebKitGTK (native) | W3C WebDriver | `WebKitWebDriver` (classic) | 🧪 experimental (electrobun ≥ 2.0.1) — needs `webkit2gtk-driver` installed |
+| **Linux** | WebKitGTK (native) | W3C WebDriver | `WebKitWebDriver` (classic) | ✅ supported (electrobun ≥ 2.0.1) — needs `webkit2gtk-driver` installed; single-window |
 | **Linux** | CEF (bundled Chromium) | — | — | ❌ unsupported — CEF serves no `/json` off macOS ([upstream #380](https://github.com/blackboardsh/electrobun/issues/380)); use the native renderer |
 
 ```ts
@@ -126,7 +126,7 @@ non-CEF (native-renderer) track is
 | Area | Status |
 |---|---|
 | **Windows** | ✅ supported via the native **WebView2** (Chromium) renderer over CDP — no CEF (build `bundleCEF: false` / `defaultRenderer: 'native'`, the Electrobun default). |
-| **Linux** | 🧪 experimental — the native **WebKitGTK** renderer over W3C WebDriver (`WebKitWebDriver`, electrobun ≥ 2.0.1). Build `bundleCEF: false` / `defaultRenderer: 'native'`; install `webkit2gtk-driver`. A CEF build on Linux is unsupported (serves no `/json`). |
+| **Linux** | ✅ supported via the native **WebKitGTK** renderer over W3C WebDriver (`WebKitWebDriver`, electrobun ≥ 2.0.1; gated in CI). Build `bundleCEF: false` / `defaultRenderer: 'native'`; install `webkit2gtk-driver`. Single-window (`switchWindow`/`listWindows` are best-effort). A CEF build on Linux is unsupported (serves no `/json`). |
 | multiremote / parallel workers | ✅ Windows (WebView2 isolates each instance — its own process + `LOCALAPPDATA` data dir); ✅ Linux parallel workers (each gets its own `WebKitWebDriver` + app); ❌ macOS CEF (shared `root_cache_path` → instance folding). Linux multiremote (multiple instances per worker) not yet wired. |
 | `switchWindow` / `listWindows` (multi-window) | ✅ on Windows (WebView2, gated in CI); ⚠️ macOS CEF unreliable (2-window global-context race — run locally); ⚠️ Linux best-effort (W3C window handles, mapped by order). |
 | `triggerDeeplink` | ⚠️ macOS — unreliable (no open-url routing to the spawned instance); ❌ Windows/Linux — upstream-blocked: Electrobun registers URL schemes + wires `open-url` macOS-only ([blackboardsh/electrobun#465](https://github.com/blackboardsh/electrobun/issues/465)). |
