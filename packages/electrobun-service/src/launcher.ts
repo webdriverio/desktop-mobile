@@ -39,8 +39,8 @@ const log = createLogger(SERVICE_NAME, 'launcher');
  *  - **Windows → native WebView2** (Edge-based Chromium), driven by **msedgedriver**
  *    (`browserName: 'MicrosoftEdge'`, `ms:edgeOptions.debuggerAddress`). Isolates per instance
  *    (its own `LOCALAPPDATA` data root), so parallel workers + multiremote work.
- *  - **Linux → native WebKitGTK** over W3C WebDriver (electrobun >= 2.0.1, #467), driven by
- *    **WebKitWebDriver**, which launches the app itself — no CDP, no app spawn here.
+ *  - **Linux → native WebKitGTK** over W3C WebDriver, driven by **WebKitWebDriver**, which
+ *    launches the app itself — no CDP, no app spawn here.
  *
  * Native-mode flow:
  *  - `onPrepare`: resolve each bundle + pick its transport; CEF-verify (CEF only); force
@@ -77,10 +77,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     const basePort = options.remoteDebuggingPort ?? DEFAULT_DEBUG_PORT_BASE;
     super({
       basePort,
-      // Electrobun is CDP-attach: there is no separate native driver process, so
-      // baseNativePort is nominal. Anchored alongside basePort, clear of CEF's
-      // [9222, 9232] auto-scan range so PortManager never hands out a port CEF
-      // might grab for an un-pinned app.
+      // Nothing binds baseNativePort, so it's nominal — anchor it alongside basePort,
+      // clear of CEF's [9222, 9232] auto-scan range so PortManager never hands out a
+      // port CEF might grab for an un-pinned app.
       baseNativePort: basePort + 1,
     });
     // Don't serialise the full testrunner config/capabilities — they can carry
@@ -181,10 +180,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       throw nativeRendererUnsupportedPlatform(process.platform);
     }
 
-    // CEF (macOS) can't isolate ≥2 app instances (shared root_cache_path → instance folding;
-    // upstream-blocked, #320), so parallel workers race there. WebView2 (Windows) isolates
-    // each instance (its own LOCALAPPDATA data root), so parallel workers + multiremote work —
-    // only warn on macOS. WDIO's default maxInstances is 100, so this can't be a hard error.
+    // CEF (macOS) can't isolate ≥2 app instances, so parallel workers race there (#320); WebView2
+    // (Windows) isolates each, so only macOS warns. WDIO's default maxInstances is 100, so this
+    // can't be a hard error.
     if (process.platform === 'darwin' && (config.maxInstances ?? 1) > 1) {
       log.warn(
         `maxInstances is ${config.maxInstances}, but Electrobun CEF on macOS is single-instance: parallel ` +
@@ -192,11 +190,10 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       );
     }
 
-    // Native mode: resolve each bundle, pick its CDP transport, force chrome capability.
-    // The spawn (CEF clone+port-pin, or WebView2 env-var injection) happens in
-    // onWorkerStart so each worker gets a freshly allocated port.
-    // WebView2 (Windows) only: detect the installed runtime version once so the loop can pin
-    // msedgedriver to it (see the per-cap note below). Off Windows this is skipped.
+    // Native mode: resolve each bundle and pick its transport (the capability is set per transport
+    // below). Spawning happens in onWorkerStart so each worker gets a freshly allocated port.
+    // WebView2 only: detect the runtime version once here so the loop can pin msedgedriver to it
+    // (see the per-cap note below).
     const webview2Version = process.platform === 'win32' ? detectWebView2RuntimeVersion() : undefined;
     let warnedNoWebView2Version = false;
     this.resolvedApps = [];
@@ -219,7 +216,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         //  - delete browserName (else WDIO tries to provision a Chromium driver);
         //  - enforce classic — WebKitWebDriver has no BiDi, so skip the failing BiDi handshake;
         //  - browserOptions.binary + `--automation`: WebKitWebDriver launches the app, and the
-        //    flag makes electrobun opt the webview into automation (2.0.1, #467).
+        //    flag makes electrobun opt the webview into automation.
         const w3cCap = cap as Record<string, unknown>;
         delete w3cCap.browserName;
         w3cCap['wdio:enforceWebDriverClassic'] = true;
@@ -288,9 +285,8 @@ export default class ElectrobunLaunchService extends BaseLauncher {
 
     for (let i = 0; i < capsList.length; i++) {
       const cap = capsList[i];
-      // The resolved bundle is the source template; each worker (cid) clones it
-      // and pins its own port inside spawnApp, so one resolved app safely drives
-      // any number of parallel workers.
+      // The resolved bundle is a shared template: one resolved app safely drives any number of
+      // parallel workers, each spawned with its own freshly allocated port.
       const app = this.resolvedApps[i] ?? this.resolvedApps[0];
       if (!app) {
         throw new SevereServiceError(
@@ -317,9 +313,8 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         continue;
       }
 
-      // The allocated port is pinned into the per-worker bundle clone inside spawnApp — the CEF
-      // port is fixed per bundle (a launch arg does NOT work, see RESEARCH_FINDINGS), so the
-      // clone is what makes parallel workers safe.
+      // spawnApp pins the port into a per-worker bundle clone — CEF's debug port is fixed per
+      // bundle, so a launch arg can't set it (see RESEARCH_FINDINGS).
       const spawned = this.spawnApp(app, port, instanceOptions, cid);
       workerApps.push(spawned);
 
