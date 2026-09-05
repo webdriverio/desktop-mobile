@@ -143,11 +143,10 @@ const baseCapability: ElectrobunCapability = {
   browserName: 'electrobun',
   // macOS/CEF bundles a specific Chromium major; pin the driver to it so WDIO doesn't fetch a
   // newer major that refuses to attach ("only supports Chrome version N"). Bump alongside the
-  // Electrobun/CEF pin. Windows (WebView2) and Linux (WebKitGTK) DON'T pin a browserVersion:
-  //  - Windows: the launcher pins msedgedriver to the detected WebView2 *runtime* version, and
-  //    forces CLASSIC WebDriver (Edge's default BiDi session resets the webview to about:blank).
-  //  - Linux: WebKitWebDriver is a classic W3C driver the launcher connects to directly — a
-  //    Chromium browserVersion is meaningless. Classic is forced (here + by the launcher).
+  // Electrobun/CEF pin. Windows and Linux pin no browserVersion and force classic WebDriver:
+  //  - Windows: classic avoids Edge's default BiDi session, which resets the webview to about:blank;
+  //    the launcher pins msedgedriver to the detected WebView2 runtime version.
+  //  - Linux: WebKitWebDriver is a classic W3C driver with no Chromium version to pin.
   ...(process.platform === 'darwin' ? { browserVersion: '147' } : { 'wdio:enforceWebDriverClassic': true }),
   'wdio:electrobunServiceOptions': electrobunServiceOptions,
 };
@@ -182,17 +181,14 @@ export const config = {
   specFileRetriesDeferred: false,
   baseUrl: '',
   waitforTimeout: 10000,
-  // On Linux/WebKitGTK a New Session (which launches the app under the driver) very
-  // occasionally hangs the full timeout before attaching (~1 in 6 specs). Fail that fast (45s —
-  // a healthy New Session is a few seconds) so the spec-file retry re-spawns a fresh app rather
-  // than burning the full 120s per attempt. macOS/Windows (CDP-attach) keep 120s.
+  // On Linux/WebKitGTK a New Session occasionally hangs the full timeout before attaching
+  // (~1 in 6 specs). Fail fast at 45s (a healthy New Session takes a few seconds) so the spec-file
+  // retry re-spawns a fresh app instead of burning ~120s per attempt.
   connectionRetryTimeout: process.platform === 'linux' ? 45_000 : 120_000,
   connectionRetryCount: 3,
-  // autoXvfb lets @wdio/xvfb manage Xvfb for the worker process on Linux (the Electron
-  // headless approach). macOS CEF / Windows WebView2 are CDP-attach and need nothing more.
-  // The Linux WebKitGTK path spawns WebKitWebDriver from the launcher (which then launches the
-  // app) — autoXvfb does NOT cover launcher-spawned processes, so the service wraps that driver
-  // in `xvfb-run -a` itself (webkitDriver.ts), mirroring the CEF app spawn in nativeMode.ts.
+  // autoXvfb lets @wdio/xvfb run Xvfb for the worker process on Linux. The Linux WebKitGTK path
+  // also spawns WebKitWebDriver from the launcher, which autoXvfb does NOT cover, so the service
+  // wraps that driver in `xvfb-run -a` itself (webkitDriver.ts).
   autoXvfb: true,
   services: ['electrobun'],
   framework: 'mocha',

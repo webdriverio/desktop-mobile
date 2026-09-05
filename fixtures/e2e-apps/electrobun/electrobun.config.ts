@@ -1,10 +1,8 @@
 import type { ElectrobunConfig } from 'electrobun';
 
-// macOS builds with CEF — the renderer that exposes a CDP endpoint there; the service pins
-// the remote-debugging port into the built bundle's build.json at launch. Windows and Linux
-// build with the native renderer: Windows = WebView2 (Chromium) over CDP (the service injects
-// --remote-debugging-port via WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS); Linux = WebKitGTK over
-// W3C WebDriver (WebKitWebDriver, electrobun >= 2.0.1). No CEF off macOS — it serves no /json.
+// macOS builds with CEF (the only renderer that exposes a CDP endpoint there); Windows and Linux
+// build with the native renderer — WebView2 (Chromium) over CDP on Windows, WebKitGTK over W3C
+// WebDriver on Linux. No CEF off macOS: it serves no /json.
 const bundleCEF = true;
 
 export default {
@@ -37,15 +35,10 @@ export default {
       defaultRenderer: 'cef',
     },
     win: {
-      // Native WebView2 (Chromium) renderer — driven over CDP by @wdio/electrobun-service
-      // via an injected --remote-debugging-port. No CEF bundle on Windows.
       bundleCEF: false,
       defaultRenderer: 'native',
     },
     linux: {
-      // Native WebKitGTK renderer — driven over W3C WebDriver (WebKitWebDriver) by
-      // @wdio/electrobun-service once the app opts into automation (electrobun 2.0.1, #467).
-      // No CEF on Linux (it serves no /json).
       bundleCEF: false,
       defaultRenderer: 'native',
     },
