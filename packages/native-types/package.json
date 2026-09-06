@@ -34,7 +34,7 @@
   },
   "devDependencies": {
     "@electron-forge/shared-types": "^7.11.2",
-    "@electron/packager": "^20.0.4",
+    "@electron/packager": "^20.3.0",
     "@types/node": "^26.4.1",
     "@wdio/bundler": "workspace:*",
     "@wdio/globals": "catalog:default",
