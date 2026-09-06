@@ -1,4 +1,4 @@
-import type { IncomingMessage } from 'node:http';
+import type { IncomingMessage, RequestOptions } from 'node:http';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
@@ -91,7 +91,7 @@ function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO
 }
 
 function simulateHealthyDriver() {
-  mockHttpGet.mockImplementation((_url: string, callback: (res: IncomingMessage) => void) => {
+  mockHttpGet.mockImplementation((_url: string, _options: RequestOptions, callback: (res: IncomingMessage) => void) => {
     const mockResponse = {
       statusCode: 200,
       resume: vi.fn(),
@@ -607,6 +607,117 @@ describe('session', () => {
       await init(capabilities);
 
       expect(TauriWorkerService).toHaveBeenCalledWith({}, capabilities);
+    });
+  });
+
+  describe('standalone cancellation and failed startup cleanup', () => {
+    beforeEach(() => {
+      simulateHealthyDriver();
+      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
+        caps.hostname = '127.0.0.1';
+        caps.port = 4445;
+      });
+      mockRemote.mockResolvedValue(createMockBrowser());
+    });
+
+    it('rejects a pre-aborted signal without starting the launcher', async () => {
+      const cause = new Error('cancelled');
+      await expect(init({}, { abortSignal: AbortSignal.abort(cause) })).rejects.toBe(cause);
+      expect(TauriLaunchService).not.toHaveBeenCalled();
+      expect(mockRemote).not.toHaveBeenCalled();
+    });
+
+    it('preserves a non-Error cancellation reason as the cause', async () => {
+      await expect(init({}, { abortSignal: AbortSignal.abort('cancelled') })).rejects.toMatchObject({
+        message: 'Tauri WebDriver lifecycle aborted',
+        cause: 'cancelled',
+      });
+    });
+
+    it.each(['prepare', 'worker', 'remote', 'before'] as const)(
+      'cleans up when %s fails and preserves the original failure',
+      async (stage) => {
+        const error = new Error(`${stage} failed`);
+        const hook = { prepare: mockOnPrepare, worker: mockOnWorkerStart, remote: mockRemote, before: mockBefore }[
+          stage
+        ];
+        hook.mockRejectedValueOnce(error);
+        await expect(init({})).rejects.toBe(error);
+        expect(mockOnComplete).toHaveBeenCalledOnce();
+      },
+    );
+
+    it.each(['prepare', 'worker', 'remote', 'before'] as const)(
+      'observes cancellation after %s resolves',
+      async (stage) => {
+        const controller = new AbortController();
+        const reason = new Error('cancelled at stage boundary');
+        const browser = createMockBrowser();
+        const hook = { prepare: mockOnPrepare, worker: mockOnWorkerStart, remote: mockRemote, before: mockBefore }[
+          stage
+        ];
+        hook.mockImplementationOnce(async () => {
+          controller.abort(reason);
+          return stage === 'remote' ? browser : undefined;
+        });
+        await expect(init({}, { abortSignal: controller.signal })).rejects.toBe(reason);
+        expect(mockOnComplete).toHaveBeenCalledOnce();
+        expect(browser.deleteSession).toHaveBeenCalledTimes(stage === 'remote' ? 1 : 0);
+        expect(mockOnWorkerStart).toHaveBeenCalledTimes(stage === 'prepare' ? 0 : 1);
+        expect(mockRemote).toHaveBeenCalledTimes(['prepare', 'worker'].includes(stage) ? 0 : 1);
+      },
+    );
+
+    it('waits for launcher cleanup before rejecting startup', async () => {
+      const error = new Error('prepare failed');
+      mockOnPrepare.mockRejectedValueOnce(error);
+      let finishCleanup!: () => void;
+      mockOnComplete.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishCleanup = resolve;
+          }),
+      );
+      let settled = false;
+      const result = init({}).catch((failure: unknown) => {
+        settled = true;
+        return failure;
+      });
+      await vi.waitFor(() => expect(mockOnComplete).toHaveBeenCalledOnce());
+      expect(settled).toBe(false);
+      finishCleanup();
+      expect(await result).toBe(error);
+    });
+
+    it('preserves startup, session cleanup and launcher cleanup failures', async () => {
+      const startup = new Error('worker service failed');
+      const sessionCleanup = new Error('delete session failed');
+      const launcherCleanup = new Error('process did not exit');
+      const browser = createMockBrowser({ deleteSession: vi.fn().mockRejectedValue(sessionCleanup) });
+      mockRemote.mockResolvedValueOnce(browser);
+      mockBefore.mockRejectedValueOnce(startup);
+      mockOnComplete.mockRejectedValueOnce(launcherCleanup);
+      await expect(init({})).rejects.toMatchObject({
+        cause: startup,
+        errors: [startup, sessionCleanup, launcherCleanup],
+      });
+      expect(mockOnComplete).toHaveBeenCalledOnce();
+    });
+
+    it('preserves request cancellation alongside the lifecycle signal', async () => {
+      const lifecycle = new AbortController();
+      const request = new AbortController();
+      await init({}, { abortSignal: lifecycle.signal });
+      const options = mockRemote.mock.calls[0][0] as {
+        transformRequest: (request: RequestInit) => RequestInit;
+      };
+      const transformed = options.transformRequest({ method: 'POST', signal: request.signal });
+      expect(transformed.method).toBe('POST');
+      request.abort(new Error('request timeout'));
+      expect(transformed.signal?.reason).toBe(request.signal.reason);
+      const next = options.transformRequest({ method: 'GET' });
+      lifecycle.abort(new Error('lifecycle cancelled'));
+      expect(next.signal?.reason).toBe(lifecycle.signal.reason);
     });
   });
 

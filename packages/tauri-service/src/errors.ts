@@ -1,3 +1,5 @@
+import { SevereServiceError } from 'webdriverio';
+
 export enum ErrorCode {
   DRIVER_NOT_FOUND = 'DRIVER_NOT_FOUND',
   DRIVER_INSTALL_FAILED = 'DRIVER_INSTALL_FAILED',
@@ -68,4 +70,20 @@ export function isTauriServiceError(error: unknown): error is TauriServiceError 
 
 export function hasErrorCode(error: unknown, code: ErrorCode): boolean {
   return isTauriServiceError(error) && error.code === code;
+}
+
+export function throwIfAborted(signal?: AbortSignal): void {
+  if (signal?.aborted) {
+    throw signal.reason instanceof Error
+      ? signal.reason
+      : new Error('Tauri WebDriver lifecycle aborted', { cause: signal.reason });
+  }
+}
+
+export function severeServiceError(message: string, cause: unknown): Error {
+  const detail = cause instanceof Error ? cause.message : String(cause);
+  const error = new SevereServiceError(`${message}: ${detail}`);
+  // SevereServiceError does not forward ErrorOptions to Error.
+  Object.defineProperty(error, 'cause', { value: cause, configurable: true, writable: true });
+  return error;
 }

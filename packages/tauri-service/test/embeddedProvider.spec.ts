@@ -160,7 +160,13 @@ describe('startEmbeddedDriver', () => {
 
     mockProc = new EventEmitter() as EventEmitter & Partial<ChildProcess>;
     Object.defineProperty(mockProc, 'pid', { value: 12345, configurable: true });
-    mockProc.kill = vi.fn().mockReturnValue(true);
+    mockProc.exitCode = null;
+    mockProc.signalCode = null;
+    mockProc.kill = vi.fn().mockImplementation((signal: NodeJS.Signals) => {
+      mockProc.signalCode = signal;
+      mockProc.emit('exit', null, signal);
+      return true;
+    });
     mockProc.stdout = Object.assign(new EventEmitter(), {
       resume: vi.fn(),
       pause: vi.fn(),
@@ -209,7 +215,12 @@ describe('startEmbeddedDriver', () => {
   });
 
   it('should reject on spawn error', async () => {
-    globalThis.fetch = vi.fn().mockImplementation(() => new Promise(() => {}));
+    globalThis.fetch = vi.fn().mockImplementation(
+      (_url, { signal }: RequestInit) =>
+        new Promise((_, reject) => {
+          signal?.addEventListener('abort', () => reject(signal.reason), { once: true });
+        }),
+    );
 
     const promise = startEmbeddedDriver('/path/to/nonexistent', 4445, {});
 
@@ -314,5 +325,163 @@ describe('stopEmbeddedDriver', () => {
     await expect(
       stopEmbeddedDriver({ proc: mockChild as ChildProcess, logHandlers: [throwingHandler] }),
     ).resolves.toBeUndefined();
+  });
+});
+
+describe('embedded lifecycle races', () => {
+  let child: ChildProcess;
+  const originalFetch = globalThis.fetch;
+  const originalPlatform = process.platform;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    vi.clearAllMocks();
+    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    child = Object.assign(new EventEmitter(), {
+      pid: 12345,
+      exitCode: null,
+      signalCode: null,
+      stdout: null,
+      stderr: null,
+      kill: vi.fn((signal: NodeJS.Signals) => {
+        child.signalCode = signal;
+        child.emit('exit', null, signal);
+        return true;
+      }),
+    }) as unknown as ChildProcess;
+    vi.mocked(spawn).mockReturnValue(child);
+  });
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch;
+    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    vi.useRealTimers();
+  });
+
+  function stallFetch() {
+    const requests: AbortSignal[] = [];
+    globalThis.fetch = vi.fn().mockImplementation((_url, { signal }: { signal: AbortSignal }) => {
+      requests.push(signal);
+      return new Promise((_, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+      });
+    });
+    return requests;
+  }
+
+  it('does not spawn for a pre-aborted signal', async () => {
+    const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
+    const reason = new Error('already cancelled');
+    await expect(startEmbeddedDriver('/app', 4445, {}, undefined, AbortSignal.abort(reason))).rejects.toBe(reason);
+    expect(spawn).not.toHaveBeenCalled();
+  });
+
+  it('aborts the in-flight poll and waits for child exit before rejecting', async () => {
+    const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
+    const { getEventListeners } = await import('node:events');
+    const requests = stallFetch();
+    vi.mocked(child.kill).mockReturnValue(true);
+    const controller = new AbortController();
+    const reason = new Error('cancelled');
+    let settled = false;
+    const result = startEmbeddedDriver('/app', 4445, {}, undefined, controller.signal).catch((error: unknown) => {
+      settled = true;
+      return error;
+    });
+    controller.abort(reason);
+    await vi.advanceTimersByTimeAsync(0);
+    expect(requests[0].aborted).toBe(true);
+    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
+    expect(settled).toBe(false);
+    child.exitCode = 0;
+    child.emit('exit', 0, null);
+    expect(await result).toBe(reason);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    expect(child.listenerCount('exit')).toBe(0);
+    expect(child.listenerCount('error')).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('enforces startTimeout even while the HTTP request is stalled', async () => {
+    const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
+    const requests = stallFetch();
+    const result = startEmbeddedDriver('/app', 4445, { startTimeout: 20 }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(20);
+    expect(await result).toMatchObject({ message: expect.stringContaining('within 20ms') });
+    expect(requests[0].aborted).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('stops polling immediately when the child exits during startup', async () => {
+    const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
+    const requests = stallFetch();
+    const result = startEmbeddedDriver('/app', 4445, {});
+    child.exitCode = 42;
+    child.emit('exit', 42, null);
+    await expect(result).rejects.toThrow('code=42');
+    expect(requests[0].aborted).toBe(true);
+    expect(child.kill).not.toHaveBeenCalled();
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('preserves both startup and kill errors', async () => {
+    const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
+    stallFetch();
+    const controller = new AbortController();
+    const cause = new Error('cancelled');
+    const cleanup = new Error('permission denied');
+    vi.mocked(child.kill).mockImplementation(() => {
+      throw cleanup;
+    });
+    const result = startEmbeddedDriver('/app', 4445, {}, undefined, controller.signal);
+    controller.abort(cause);
+    await expect(result).rejects.toMatchObject({ cause, errors: [cause, cleanup] });
+    expect(child.listenerCount('exit')).toBe(0);
+    expect(child.listenerCount('error')).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('removes startup listeners and timers when ready', async () => {
+    const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
+    const { getEventListeners } = await import('node:events');
+    globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ value: { ready: true } }) });
+    const controller = new AbortController();
+    await startEmbeddedDriver('/app', 4445, {}, undefined, controller.signal);
+    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    expect(child.listenerCount('exit')).toBe(0);
+    expect(child.listenerCount('error')).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+    controller.abort();
+    expect(child.kill).not.toHaveBeenCalled();
+  });
+
+  it('rejects if a child still has not exited after SIGKILL and removes its waiters', async () => {
+    const { stopEmbeddedDriver } = await import('../src/embeddedProvider.js');
+    vi.mocked(child.kill).mockReturnValue(false);
+    const stopped = stopEmbeddedDriver({ proc: child, logHandlers: [] }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(child.kill).toHaveBeenLastCalledWith('SIGKILL');
+    await vi.advanceTimersByTimeAsync(1000);
+    expect(await stopped).toMatchObject({ message: expect.stringContaining('did not exit after SIGKILL') });
+    expect(child.listenerCount('exit')).toBe(0);
+    expect(child.listenerCount('error')).toBe(0);
+    expect(vi.getTimerCount()).toBe(0);
+  });
+
+  it('waits for exit after SIGKILL instead of returning when the signal is sent', async () => {
+    const { stopEmbeddedDriver } = await import('../src/embeddedProvider.js');
+    vi.mocked(child.kill).mockReturnValue(true);
+    let stopped = false;
+    const result = stopEmbeddedDriver({ proc: child, logHandlers: [] }).then(() => {
+      stopped = true;
+    });
+    await vi.advanceTimersByTimeAsync(5000);
+    expect(child.kill).toHaveBeenLastCalledWith('SIGKILL');
+    expect(stopped).toBe(false);
+    child.signalCode = 'SIGKILL';
+    child.emit('exit', null, 'SIGKILL');
+    await result;
+    expect(stopped).toBe(true);
+    expect(vi.getTimerCount()).toBe(0);
   });
 });
