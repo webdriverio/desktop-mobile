@@ -1,6 +1,6 @@
 {
   "name": "@wdio/native-core",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Shared launcher, driver lifecycle, log capture, and port management for WebdriverIO native desktop services",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/native-core",
   "license": "MIT",
