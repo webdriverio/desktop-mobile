@@ -1,61 +1,47 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import type { Interface as ReadlineInterface } from 'node:readline';
+import { setTimeout as sleep } from 'node:timers/promises';
 import { createLogger } from '@wdio/native-utils';
+import { throwIfAborted } from './errors.js';
 import { createLogCapture } from './logCapture.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
 
-/**
- * Sleep for a given number of milliseconds
- */
-function sleep(ms: number): Promise<void> {
-  return new Promise((resolve) => setTimeout(resolve, ms));
-}
-
-/**
- * Poll the WebDriver status endpoint until ready or timeout
- */
-async function pollWebDriverStatus(port: number, timeoutMs: number = 30000): Promise<void> {
-  const startTime = Date.now();
+async function pollWebDriverStatus(port: number, signal: AbortSignal): Promise<void> {
   const statusUrl = `http://127.0.0.1:${port}/status`;
-
   log.debug(`Polling WebDriver status at ${statusUrl}...`);
 
   let attempt = 0;
-  while (Date.now() - startTime < timeoutMs) {
+  while (true) {
+    throwIfAborted(signal);
+    const request = new AbortController();
+    const onAbort = () => request.abort(signal.reason);
+    signal.addEventListener('abort', onAbort, { once: true });
+    const timer = setTimeout(() => request.abort(), 5000);
     try {
-      const response = await fetch(statusUrl, { signal: AbortSignal.timeout(5000) });
+      const response = await fetch(statusUrl, { signal: request.signal });
       if (response.ok) {
         const data = (await response.json()) as { value?: { ready?: boolean } };
-        // W3C WebDriver status response: { value: { ready: boolean } }
+        throwIfAborted(signal);
         if (data?.value?.ready === true) {
           log.info(`WebDriver server ready on port ${port}`);
           return;
         }
-        // Log every 10th poll (~5s at 500ms cadence) instead of every cycle
-        if (attempt % 10 === 0) {
-          log.debug(`WebDriver server not ready yet (attempt ${attempt + 1}): ${JSON.stringify(data)}`);
-        }
+      } else {
+        await response.body?.cancel();
       }
     } catch {
-      // Connection refused or timeout - server not ready yet
-      if (attempt % 10 === 0) {
-        log.debug(`WebDriver status poll failed (attempt ${attempt + 1}), retrying...`);
-      }
+      throwIfAborted(signal);
+    } finally {
+      clearTimeout(timer);
+      signal.removeEventListener('abort', onAbort);
     }
-
-    attempt++;
-    await sleep(500);
+    if (attempt++ % 10 === 0) {
+      log.debug(`WebDriver server not ready yet (attempt ${attempt}), retrying...`);
+    }
+    await sleep(500, undefined, { signal });
   }
-
-  throw new Error(
-    `Embedded WebDriver server did not become ready on port ${port} within ${timeoutMs}ms. ` +
-      `If you have installed tauri-plugin-wdio-webdriver, ensure it is registered in your Tauri app: ` +
-      `app.plugin(tauri_plugin_wdio_webdriver::init()) in lib.rs. ` +
-      `If you are not using the embedded plugin, set driverProvider: 'external' in your service options. ` +
-      `To use a different port, set embeddedPort in your service options or the TAURI_WEBDRIVER_PORT env var.`,
-  );
 }
 
 /**
@@ -90,7 +76,9 @@ export async function startEmbeddedDriver(
   port: number,
   options: TauriServiceOptions,
   instanceId?: string,
+  abortSignal?: AbortSignal,
 ): Promise<EmbeddedDriverInfo> {
+  throwIfAborted(abortSignal);
   const appArgs = options.appArgs || [];
 
   // Set TAURI_WEBDRIVER_PORT env var to configure the embedded server port
@@ -105,89 +93,74 @@ export async function startEmbeddedDriver(
   // Spawn the app directly
   const child = spawnTauriApp(appBinaryPath, appArgs, env);
 
-  // Set up log handlers for stdout/stderr
   const logHandlers: ReadlineInterface[] = [];
-  const identifier = `embedded-${port}`;
+  const startup = new AbortController();
+  const onAbort = () => startup.abort(abortSignal?.reason);
+  abortSignal?.addEventListener('abort', onAbort, { once: true });
+  if (abortSignal?.aborted) onAbort();
 
-  const stdoutHandler = createLogCapture({
-    stream: child.stdout,
-    identifier,
-    options,
-    instanceId,
-  });
-  if (stdoutHandler) logHandlers.push(stdoutHandler);
-
-  const stderrHandler = createLogCapture({
-    stream: child.stderr,
-    identifier,
-    options,
-    instanceId,
-  });
-  if (stderrHandler) logHandlers.push(stderrHandler);
-
-  // Helper to clean up resources
-  const cleanup = () => {
-    for (const handler of logHandlers) {
-      handler.close();
-    }
-    child.kill('SIGTERM');
-  };
-
-  // Wait for the embedded WebDriver server to be ready
-  // Use 60s timeout for CI environments where apps can take longer to start
   const startTimeout = options.startTimeout || 60000;
-
-  // Create a promise that rejects on spawn error (e.g., ENOENT)
-  const spawnErrorPromise = new Promise<never>((_, reject) => {
-    child.once('error', (err) => {
-      cleanup();
-      reject(
+  const timer = setTimeout(
+    () =>
+      startup.abort(
         new Error(
-          `Failed to spawn Tauri app "${appBinaryPath}": ${err.message}. ` +
-            `Ensure the application binary exists and is executable. ` +
-            `If you are not using the embedded plugin, set driverProvider: 'external' in your service options.`,
+          `Embedded WebDriver server did not become ready on port ${port} within ${startTimeout}ms. ` +
+            `If you have installed tauri-plugin-wdio-webdriver, ensure it is registered in your Tauri app: ` +
+            `app.plugin(tauri_plugin_wdio_webdriver::init()) in lib.rs. ` +
+            `If you are not using the embedded plugin, set driverProvider: 'external' in your service options. ` +
+            `To use a different port, set embeddedPort in your service options or the TAURI_WEBDRIVER_PORT env var.`,
         ),
-      );
-    });
-  });
-
-  // Reject if the app exits before the WebDriver server becomes ready.
-  // Without this, a crashed/early-exiting app shows up as a generic poll timeout
-  // with no exit code or signal, leaving the user with no signal to debug.
-  let exitHandler: ((code: number | null, signal: NodeJS.Signals | null) => void) | undefined;
-  const earlyExitPromise = new Promise<never>((_, reject) => {
-    exitHandler = (code, signal) => {
-      reject(
-        new Error(
-          `Tauri app exited before the embedded WebDriver server became ready ` +
-            `(code=${code}, signal=${signal}). ` +
-            `The app likely crashed during startup. ` +
-            `Set captureBackendLogs: true in wdio:tauriServiceOptions to see the app's stderr.`,
-        ),
-      );
-    };
-    child.once('exit', exitHandler);
-  });
-
-  // Create a promise that resolves when the server is ready
-  const readyPromise = pollWebDriverStatus(port, startTimeout).then(async () => {
-    // On Windows, add a small delay after ready to allow WebView2 to fully stabilize
-    if (process.platform === 'win32') {
-      await sleep(500);
-    }
-  });
+      ),
+    startTimeout,
+  );
+  const onError = (error: Error) =>
+    startup.abort(
+      new Error(
+        `Failed to spawn Tauri app "${appBinaryPath}": ${error.message}. ` +
+          `Ensure the application binary exists and is executable. ` +
+          `If you are not using the embedded plugin, set driverProvider: 'external' in your service options.`,
+        { cause: error },
+      ),
+    );
+  const onExit = (code: number | null, signal: NodeJS.Signals | null) =>
+    startup.abort(
+      new Error(
+        `Tauri app exited before the embedded WebDriver server became ready ` +
+          `(code=${code}, signal=${signal}). ` +
+          `The app likely crashed during startup. ` +
+          `Set captureBackendLogs: true in wdio:tauriServiceOptions to see the app's stderr.`,
+      ),
+    );
+  child.once('error', onError);
+  child.once('exit', onExit);
 
   try {
-    // Race between ready, spawn error, early exit, and timeout
-    await Promise.race([readyPromise, spawnErrorPromise, earlyExitPromise]);
-  } catch (error) {
-    cleanup();
-    throw error;
-  } finally {
-    // Detach the exit listener so a normal later exit doesn't surface as an unhandled rejection
-    if (exitHandler) {
-      child.removeListener('exit', exitHandler);
+    for (const stream of [child.stdout, child.stderr]) {
+      const handler = createLogCapture({ stream, identifier: `embedded-${port}`, options, instanceId });
+      if (handler) logHandlers.push(handler);
     }
+    await pollWebDriverStatus(port, startup.signal);
+    if (process.platform === 'win32') {
+      await sleep(500, undefined, { signal: startup.signal });
+    }
+    throwIfAborted(startup.signal);
+  } catch (error) {
+    startup.abort(error);
+    const cause =
+      startup.signal.reason instanceof Error
+        ? startup.signal.reason
+        : new Error('Tauri WebDriver lifecycle aborted', { cause: startup.signal.reason });
+    try {
+      await stopEmbeddedDriver({ proc: child, logHandlers });
+    } catch (cleanupError) {
+      throw new AggregateError([cause, cleanupError], 'Embedded WebDriver startup and cleanup failed', { cause });
+    }
+    throw cause;
+  } finally {
+    clearTimeout(timer);
+    abortSignal?.removeEventListener('abort', onAbort);
+    child.removeListener('error', onError);
+    child.removeListener('exit', onExit);
   }
 
   return { proc: child, logHandlers };
@@ -249,39 +222,62 @@ export async function stopEmbeddedDriver(info: EmbeddedDriverInfo): Promise<void
     return;
   }
 
-  // Wait for the 'exit' event with a hard timeout. Event-based waiting avoids
-  // a setTimeout poll loop that would register many short-lived libuv timer
-  // handles during shutdown.
-  const gracefulTimeout = 5000;
-  const exited = new Promise<boolean>((resolve) => {
-    const onExit = () => resolve(true);
-    child.once('exit', onExit);
-    const timer = setTimeout(() => {
-      child.removeListener('exit', onExit);
-      resolve(false);
-    }, gracefulTimeout);
-    // Allow Node to exit even if this timer is still pending.
-    timer.unref();
-  });
-
-  child.kill('SIGTERM');
-  if (await exited) {
+  if (await signalAndWaitForExit(child, 'SIGTERM', 5000)) {
     log.debug('Embedded driver exited gracefully');
     return;
   }
 
-  // Force kill if still running
   log.warn('Embedded driver did not exit gracefully, forcing kill...');
-  child.kill('SIGKILL');
+  if (!(await signalAndWaitForExit(child, 'SIGKILL', 1000))) {
+    throw new Error(`Embedded driver process ${child.pid} did not exit after SIGKILL`);
+  }
+}
+
+function signalAndWaitForExit(child: ChildProcess, signal: NodeJS.Signals, timeoutMs: number): Promise<boolean> {
+  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      clearTimeout(timer);
+      child.removeListener('exit', onExit);
+      child.removeListener('error', onError);
+    };
+    const onExit = () => {
+      cleanup();
+      resolve(true);
+    };
+    const onError = (error: Error) => {
+      cleanup();
+      reject(error);
+    };
+    const timer = setTimeout(() => {
+      cleanup();
+      resolve(false);
+    }, timeoutMs);
+    timer.unref();
+    // Register before kill: a child can exit as soon as the signal is sent.
+    child.once('exit', onExit);
+    child.once('error', onError);
+    try {
+      child.kill(signal);
+      if (child.exitCode !== null || child.signalCode !== null) onExit();
+    } catch (error) {
+      cleanup();
+      reject(error);
+    }
+  });
 }
 
 /**
  * Check if the embedded WebDriver server is reachable on the given port
  */
-export async function checkEmbeddedServerAlive(port: number, timeoutMs: number = 2000): Promise<boolean> {
+export async function checkEmbeddedServerAlive(
+  port: number,
+  timeoutMs: number = 2000,
+  abortSignal?: AbortSignal,
+): Promise<boolean> {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/status`, {
-      signal: AbortSignal.timeout(timeoutMs),
+      signal: AbortSignal.any([AbortSignal.timeout(timeoutMs), ...(abortSignal ? [abortSignal] : [])]),
     });
     return response.ok;
   } catch {

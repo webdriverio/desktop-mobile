@@ -438,3 +438,16 @@ describe('DriverPool', () => {
     });
   });
 });
+
+describe('native driver resolution', () => {
+  it.each([undefined, '/mock/webkit-driver'])('caches lazy resolution even when it returns %s', async (path) => {
+    const { DriverPool } = await import('../src/driverPool.js');
+    const { getWebKitWebDriverPath } = await import('../src/pathResolver.js');
+    vi.mocked(getWebKitWebDriverPath).mockClear().mockReturnValue(path);
+    const pool = new DriverPool({});
+    expect(getWebKitWebDriverPath).not.toHaveBeenCalled();
+    await pool.startDriver({ mode: 'worker', identifier: 'one', port: 4444, nativePort: 4445 });
+    await pool.startDriver({ mode: 'worker', identifier: 'two', port: 4446, nativePort: 4447 });
+    expect(getWebKitWebDriverPath).toHaveBeenCalledOnce();
+  });
+});

@@ -498,6 +498,26 @@ await browser.deleteSession();
 
 ---
 
+### Cancellation
+
+Pass an `AbortSignal` as `globalOptions.abortSignal` to cancel standalone startup and subsequent WebDriver requests. Embedded startup cancels pending `/status` requests and readiness delays, then waits for the app to exit. Startup failures reject after launcher cleanup settles. If startup and cleanup both fail, an `AggregateError` preserves the startup error in `cause` and all failures in `errors`.
+
+```typescript
+import { cleanupWdioSession, startWdioSession } from '@wdio/tauri-service';
+
+const browser = await startWdioSession(
+  { 'tauri:options': { application: './path/to/app' } },
+  { abortSignal: AbortSignal.timeout(60_000) },
+);
+try {
+  console.log(await browser.getTitle());
+} finally {
+  await cleanupWdioSession(browser);
+}
+```
+
+After startup succeeds, call `cleanupWdioSession` even if the signal has aborted; cancelling requests does not itself stop the app. Keep the signal in the standalone call's global options, outside capabilities or serialized WDIO runner configuration. External driver setup observes cancellation between launcher stages.
+
 ### `cleanupWdioSession(browser)`
 
 Clean up a Tauri session started with `startWdioSession`.
