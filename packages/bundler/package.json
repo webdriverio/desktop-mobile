@@ -49,12 +49,12 @@
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.1.2",
-    "@vitest/coverage-v8": "^4.1.10",
+    "@types/node": "^26.4.1",
+    "@vitest/coverage-v8": "^4.1.11",
     "shx": "^0.4.0",
-    "terser": "^5.49.0",
+    "terser": "^5.51.2",
     "tsx": "^4.23.5",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.11"
   },
   "files": [
     "dist",
