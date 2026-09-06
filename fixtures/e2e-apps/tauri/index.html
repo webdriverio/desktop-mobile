@@ -78,6 +78,24 @@
         border-radius: 4px;
         font-family: 'SF Mono', Monaco, 'Cascadia Code', monospace;
       }
+      .dialog-section {
+        margin-top: 2rem;
+      }
+      .test-dialog {
+        border: none;
+        border-radius: 15px;
+        padding: 30px;
+        color: #333;
+        box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4);
+      }
+      .test-dialog::backdrop {
+        background: rgba(0, 0, 0, 0.4);
+      }
+      .test-dialog .dialog-close {
+        background: #764ba2;
+        border: none;
+        color: white;
+      }
     </style>
   </head>
   <body>
@@ -95,6 +113,14 @@
         <p>This is a basic Tauri application for WebDriverIO testing.</p>
         <div class="status" id="status">Ready for testing</div>
         <button type="button" id="switch-main-window" class="switch-main-window" style="display:none">Continue to Main</button>
+      </div>
+
+      <div class="dialog-section">
+        <button type="button" id="open-dialog">Open Dialog</button>
+        <dialog id="test-dialog" class="test-dialog">
+          <p>Modal dialog — Escape should close it.</p>
+          <button type="button" id="dialog-close" class="dialog-close" autofocus>Close</button>
+        </dialog>
       </div>
     </div>
 
@@ -201,6 +227,35 @@
       resetButton.addEventListener('click', () => {
         count = 0;
         updateCounter();
+      });
+
+      // __dialogEvents records keydown/keyup/cancel with isTrusted so a spec can assert not just
+      // that the dialog closed but that a trusted key reached the page.
+      const openDialogButton = document.getElementById('open-dialog');
+      const testDialog = document.getElementById('test-dialog');
+      const dialogCloseButton = document.getElementById('dialog-close');
+
+      window.__dialogEvents = [];
+      function recordDialogEvent(phase, ev) {
+        window.__dialogEvents.push({
+          phase,
+          type: ev.type,
+          key: ev.key,
+          isTrusted: ev.isTrusted,
+          defaultPrevented: ev.defaultPrevented,
+        });
+      }
+      window.addEventListener('keydown', (ev) => recordDialogEvent('window-capture', ev), true);
+      window.addEventListener('keyup', (ev) => recordDialogEvent('window-capture', ev), true);
+      testDialog.addEventListener('cancel', (ev) => recordDialogEvent('dialog', ev));
+      testDialog.addEventListener('close', (ev) => recordDialogEvent('dialog', ev));
+
+      openDialogButton.addEventListener('click', () => {
+        window.__dialogEvents = [];
+        testDialog.showModal();
+      });
+      dialogCloseButton.addEventListener('click', () => {
+        testDialog.close();
       });
 
       // Initialize

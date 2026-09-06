@@ -24,6 +24,11 @@ on:
         description: 'Newline-separated crate directories to lint (also used as the rust-cache workspaces)'
         required: true
         type: string
+      test_crates:
+        description: 'Newline-separated crate directories to `cargo test --lib` after linting (a subset of `crates`). Empty to skip.'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   clippy:
@@ -85,4 +90,23 @@ jobs:
             fi
             echo "::endgroup::"
           done <<< "$CRATES"
+          exit "$status"
+
+      - name: 🧪 Run cargo test
+        if: inputs.test_crates != ''
+        shell: bash
+        env:
+          TEST_CRATES: ${{ inputs.test_crates }}
+        run: |
+          set -euo pipefail
+          status=0
+          while IFS= read -r crate; do
+            [ -n "$crate" ] || continue
+            echo "::group::cargo test ($crate)"
+            if ! cargo test --manifest-path "$crate/Cargo.toml" --lib; then
+              echo "::error file=$crate/Cargo.toml::cargo test failed for $crate"
+              status=1
+            fi
+            echo "::endgroup::"
+          done <<< "$TEST_CRATES"
           exit "$status"
