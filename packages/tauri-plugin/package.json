@@ -1,6 +1,6 @@
 {
   "name": "@wdio/tauri-plugin",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Tauri plugin providing execute and mocking capabilities for WebDriverIO testing",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/tauri-plugin",
   "type": "module",
