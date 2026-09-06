@@ -22,7 +22,7 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
-import { getWebKitWebDriverPath } from './pathResolver.js';
+import { severeServiceError, throwIfAborted } from './errors.js';
 import { PortManager } from './portManager.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
@@ -126,7 +126,7 @@ export default class TauriLaunchService {
     const basePort = options.tauriDriverPort || 4444;
     this.portManager = new PortManager(basePort, 4445);
     this.backendPortManager = new PortManager(options.crabnebulaBackendPort ?? 3000, 3001);
-    this.driverPool = new DriverPool(options, options.nativeDriverPath || getWebKitWebDriverPath());
+    this.driverPool = new DriverPool(options, options.nativeDriverPath);
   }
 
   /**
@@ -278,7 +278,7 @@ export default class TauriLaunchService {
     // resolved. msedgedriver is a single machine-global driver, so one check
     // (matched to the first resolved binary) covers every instance. Keep this
     // outside the resolution loop: a break here would skip the remaining caps.
-    if (process.platform === 'win32' && firstResolvedBinaryPath !== undefined) {
+    if (!isEmbedded && process.platform === 'win32' && firstResolvedBinaryPath !== undefined) {
       const autoDownloadEdgeDriver = this.options.autoDownloadEdgeDriver ?? true;
       log.debug('Checking Edge WebDriver compatibility...');
       // Read the version pin / fixed-runtime folder from the global options: msedgedriver is
@@ -411,11 +411,17 @@ export default class TauriLaunchService {
 
           // Spawn the app with embedded WebDriver
           try {
-            const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, instanceId);
+            const driverInfo = await startEmbeddedDriver(
+              appBinaryPath,
+              embeddedPort,
+              instanceOptions,
+              instanceId,
+              this.options.abortSignal,
+            );
             this.embeddedProcesses.set(instanceId, driverInfo);
             this.embeddedConfigs.set(instanceId, { appBinaryPath, port: embeddedPort, options: instanceOptions });
           } catch (error) {
-            throw new SevereServiceError(`Failed to start embedded WebDriver for ${key}: ${(error as Error).message}`);
+            throw severeServiceError(`Failed to start embedded WebDriver for ${key}`, error);
           }
 
           // Update capabilities to connect to the embedded WebDriver server
@@ -596,13 +602,17 @@ export default class TauriLaunchService {
 
         // Spawn the app with embedded WebDriver
         try {
-          const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, String(i));
+          const driverInfo = await startEmbeddedDriver(
+            appBinaryPath,
+            embeddedPort,
+            instanceOptions,
+            String(i),
+            this.options.abortSignal,
+          );
           this.embeddedProcesses.set(String(i), driverInfo);
           this.embeddedConfigs.set(String(i), { appBinaryPath, port: embeddedPort, options: instanceOptions });
         } catch (error) {
-          throw new SevereServiceError(
-            `Failed to start embedded WebDriver for instance ${i}: ${(error as Error).message}`,
-          );
+          throw severeServiceError(`Failed to start embedded WebDriver for instance ${i}`, error);
         }
 
         // Update capabilities to connect to the embedded WebDriver server
@@ -828,10 +838,12 @@ export default class TauriLaunchService {
       await this.ensureEmbeddedServersHealthy();
     }
 
-    await this.diagnoseEnvironment(
-      this.appBinaryPath,
-      mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']),
-    );
+    if (!this.isEmbeddedMode) {
+      await this.diagnoseEnvironment(
+        this.appBinaryPath,
+        mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']),
+      );
+    }
 
     log.debug(`Tauri worker session started: ${cid}`);
   }
@@ -846,7 +858,13 @@ export default class TauriLaunchService {
    */
   private async ensureEmbeddedServersHealthy(): Promise<void> {
     for (const [instanceId, config] of this.embeddedConfigs) {
-      const isAlive = await checkEmbeddedServerAlive(config.port, config.options.statusPollTimeout);
+      throwIfAborted(this.options.abortSignal);
+      const isAlive = await checkEmbeddedServerAlive(
+        config.port,
+        config.options.statusPollTimeout,
+        this.options.abortSignal,
+      );
+      throwIfAborted(this.options.abortSignal);
       if (!isAlive) {
         await this.restartEmbeddedServer(instanceId, config);
       } else {
@@ -865,20 +883,21 @@ export default class TauriLaunchService {
     log.warn(`Embedded WebDriver on port ${config.port} (instance: ${instanceId}) is unreachable — restarting...`);
     const existing = this.embeddedProcesses.get(instanceId);
     if (existing) {
-      try {
-        await stopEmbeddedDriver(existing);
-      } catch {
-        // Process may already be dead; ignore
-      }
+      await stopEmbeddedDriver(existing);
+      this.embeddedProcesses.delete(instanceId);
     }
     try {
-      const newInfo = await startEmbeddedDriver(config.appBinaryPath, config.port, config.options, instanceId);
+      const newInfo = await startEmbeddedDriver(
+        config.appBinaryPath,
+        config.port,
+        config.options,
+        instanceId,
+        this.options.abortSignal,
+      );
       this.embeddedProcesses.set(instanceId, newInfo);
       log.info(`✅ Embedded WebDriver restarted on port ${config.port} (instance: ${instanceId})`);
     } catch (error) {
-      throw new SevereServiceError(
-        `Failed to restart embedded WebDriver on port ${config.port}: ${(error as Error).message}`,
-      );
+      throw severeServiceError(`Failed to restart embedded WebDriver on port ${config.port}`, error);
     }
   }
 
@@ -895,7 +914,13 @@ export default class TauriLaunchService {
     const PROBE_INTERVAL_MS = 500;
     for (let i = 0; i < PROBE_COUNT; i++) {
       await new Promise<void>((resolve) => setTimeout(resolve, PROBE_INTERVAL_MS));
-      const isAlive = await checkEmbeddedServerAlive(config.port, config.options.statusPollTimeout);
+      throwIfAborted(this.options.abortSignal);
+      const isAlive = await checkEmbeddedServerAlive(
+        config.port,
+        config.options.statusPollTimeout,
+        this.options.abortSignal,
+      );
+      throwIfAborted(this.options.abortSignal);
       if (!isAlive) {
         log.warn(
           `Embedded WebDriver on port ${config.port} died during stability check (probe ${i + 1}/${PROBE_COUNT}), restarting...`,
@@ -1077,18 +1102,20 @@ export default class TauriLaunchService {
       this.testRunnerBackend = undefined;
     }
 
+    const embeddedCleanupErrors: unknown[] = [];
     // Stop embedded driver processes if using embedded provider
     if (this.isEmbeddedMode) {
       log.info(`Stopping ${this.embeddedProcesses.size} embedded driver process(es)...`);
       for (const [key, process] of this.embeddedProcesses) {
         try {
           await stopEmbeddedDriver(process);
+          this.embeddedProcesses.delete(key);
           log.debug(`Stopped embedded driver: ${key}`);
         } catch (error) {
           log.warn(`Failed to stop embedded driver ${key}: ${error}`);
+          embeddedCleanupErrors.push(error);
         }
       }
-      this.embeddedProcesses.clear();
     }
 
     await this.driverPool.stopAll();
@@ -1096,6 +1123,15 @@ export default class TauriLaunchService {
     this.embeddedConfigs.clear();
     this.portManager.clear();
     this.backendPortManager.clear();
+
+    if (embeddedCleanupErrors.length === 1) {
+      throw embeddedCleanupErrors[0];
+    }
+    if (embeddedCleanupErrors.length > 1) {
+      throw new AggregateError(embeddedCleanupErrors, 'Failed to stop embedded driver processes', {
+        cause: embeddedCleanupErrors[0],
+      });
+    }
 
     log.debug('Tauri service completed');
   }

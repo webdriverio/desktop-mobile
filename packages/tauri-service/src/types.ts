@@ -71,6 +71,12 @@ export interface TauriServiceOptions extends BaseTauriServiceOptions {
  */
 export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions {
   /**
+   * Cancel standalone startup and subsequent WebDriver requests.
+   * Startup rejects after launcher cleanup settles. After successful startup,
+   * call cleanupWdioSession to stop the app, including after cancellation.
+   */
+  abortSignal?: AbortSignal;
+  /**
    * Environment variables to pass to the spawned tauri-driver process
    */
   env?: Record<string, string>;
