@@ -23,7 +23,7 @@
     "@wdio/mocha-framework": "^9.30.1",
     "@wdio/spec-reporter": "^9.30.1",
     "cross-env": "^10.1.0",
-    "electron": "43.2.0",
+    "electron": "43.6.0",
     "electron-builder": "26.15.3",
     "electron-vite": "6.0.0-beta.1",
     "typescript": "^6.0.3"

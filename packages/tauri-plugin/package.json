@@ -39,15 +39,15 @@
   },
   "dependencies": {
     "@tauri-apps/api": "2.11.1",
-    "@tauri-apps/plugin-log": "2.9.0",
+    "@tauri-apps/plugin-log": "2.9.1",
     "@wdio/native-spy": "workspace:*",
     "@wdio/native-utils": "workspace:*"
   },
   "devDependencies": {
     "@vitest/coverage-v8": "4.1.11",
-    "esbuild": "^0.28.1",
+    "esbuild": "^0.28.2",
     "jsdom": "^30.0.1",
-    "tsx": "^4.23.5",
+    "tsx": "^4.23.13",
     "typescript": "^6.0.3",
     "vitest": "4.1.11"
   },
