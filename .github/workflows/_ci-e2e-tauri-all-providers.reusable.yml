@@ -577,20 +577,8 @@ jobs:
             esac
           }
 
-          # Known upstream/environmental breakages of the third-party CDP/WebDriver
-          # providers; embedded (in-process, immune) stays required and is our signal.
-          #  - Windows: WebView2 Runtime 150 dropped the CDP --remote-debugging-port for
-          #    elevated hosts (runners run as admin), breaking the msedgedriver-based
-          #    official + crabnebula providers. See https://github.com/webdriverio/desktop-mobile/issues/542.
-          #    Those two providers now re-run de-elevated via gsudo (see the setup step); the allow-fail
-          #    below is retained only until CI confirms the de-elevation works, then flips to required.
           allow_official=false; official_reason=""
           allow_crabnebula=false; crabnebula_reason=""
-          case "$RUNNER_OS" in
-            Windows)
-              allow_official=true;   official_reason="WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542"
-              allow_crabnebula=true; crabnebula_reason="WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542" ;;
-          esac
 
           check_result "Official" "$official" "$allow_official" "$official_reason"
           check_result "Embedded" "$embedded"
