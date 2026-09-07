@@ -248,14 +248,27 @@ jobs:
       # Run package tests using test-package.ts script
       # All apps are built in isolated environments (Electron always, Tauri if not skipBuild)
       # Tauri uses skipBuild to copy pre-built binaries from separate build jobs
+      # WebView2 Runtime 150+ drops WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (which carries
+      # --remote-debugging-port) when the host is elevated, and GitHub runners run as admin, so the
+      # WebView2/CDP-driven Tauri + Electrobun package tests time out on Windows. Re-run those two
+      # de-elevated (Medium integrity) via gsudo, which restores the env var (see the tauri/electrobun
+      # arms below). See https://github.com/tauri-apps/wry/issues/1782 and issue #542.
+      - name: 🪟 De-elevation setup — gsudo (Windows)
+        if: runner.os == 'Windows' && (inputs.service == 'tauri' || inputs.service == 'electrobun')
+        shell: pwsh
+        run: |
+          winget install gerardog.gsudo --accept-source-agreements --accept-package-agreements --disable-interactivity
+          # winget updates the persisted PATH but not this session's — refresh so we can locate gsudo
+          # now, and hand its dir to later steps via GITHUB_PATH.
+          $env:PATH = [Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [Environment]::GetEnvironmentVariable('PATH','User')
+          $gsudo = (Get-Command gsudo -ErrorAction Stop).Source
+          Split-Path $gsudo | Add-Content -Path $env:GITHUB_PATH
+          & $gsudo --version
+          # The de-elevated test tree still writes into the workspace the elevated runner created.
+          icacls "$env:GITHUB_WORKSPACE" /grant "Everyone:(OI)(CI)F"
+
       - name: 🧪 Execute Package Tests
         id: package-tests
-        # WebView2 Runtime 150 dropped the CDP --remote-debugging-port for elevated
-        # hosts (Windows runners run as admin), breaking the WebView2/CDP-driven Tauri
-        # and Electrobun package tests on Windows (session creation times out). Allow
-        # those two on Windows only until the fixes land; every other service/OS stays
-        # required. See https://github.com/webdriverio/desktop-mobile/issues/542
-        continue-on-error: ${{ (inputs.service == 'tauri' || inputs.service == 'electrobun') && runner.os == 'Windows' }}
         shell: bash
         env:
           # Enable Rust backtraces for debugging Tauri/GTK issues
@@ -287,6 +300,8 @@ jobs:
                 # Use 16-bit color depth to avoid pixbuf issues with GTK/WebKit (same as E2E)
                 xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
                   pnpm run test:package:tauri -- --skip-build
+              elif [[ "${{ runner.os }}" == "Windows" ]]; then
+                gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run test:package:tauri -- --skip-build"
               else
                 pnpm run test:package:tauri -- --skip-build
               fi
@@ -309,20 +324,19 @@ jobs:
               fi
               ;;
             electrobun)
-              # macOS-only (CEF). Uses the pre-built bundle extracted above; no xvfb (macOS).
-              echo "Running Electrobun package tests (macOS-only; using the pre-built CEF bundle)"
-              pnpm run test:package:electrobun -- --skip-build
+              # macOS (CEF) + Windows (native WebView2); uses the pre-built bundle extracted above.
+              echo "Running Electrobun package tests (using the pre-built bundle)"
+              if [[ "${{ runner.os }}" == "Windows" ]]; then
+                gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run test:package:electrobun -- --skip-build"
+              else
+                pnpm run test:package:electrobun -- --skip-build
+              fi
               ;;
             *)
               echo "Invalid service: $SERVICE"
               exit 1
               ;;
           esac
-
-      - name: ⚠️ Note allowed WebView2-150 Windows failure
-        if: always() && (inputs.service == 'tauri' || inputs.service == 'electrobun') && runner.os == 'Windows' && steps.package-tests.outcome == 'failure'
-        shell: bash
-        run: echo "::warning::${{ inputs.service }} Windows package test failed — allowed (WebView2 150 elevated-host regression; see https://github.com/webdriverio/desktop-mobile/issues/542)"
 
       # Upload logs as artifacts for later analysis (same as E2E tests)
       # This helps debug issues without cluttering the GitHub Actions console
