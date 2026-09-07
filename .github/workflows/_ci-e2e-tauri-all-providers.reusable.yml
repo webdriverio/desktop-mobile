@@ -321,6 +321,27 @@ jobs:
             core.setOutput('embedded', `test:e2e:tauri-basic-embedded${suffix}`);
             core.setOutput('crabnebula', `test:e2e:tauri-basic-crabnebula${suffix}`);
 
+      # WebView2 Runtime 150+ drops WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS (how msedgedriver injects
+      # --remote-debugging-port) when the host is elevated, and GitHub runners run as admin — so the
+      # msedgedriver-based Official + CrabNebula providers time out at session creation. gsudo lets us
+      # re-run those provider steps de-elevated (Medium integrity), which restores the env var.
+      # See https://github.com/tauri-apps/wry/issues/1782 and issue #542. Embedded is in-process and
+      # immune, so it stays elevated and untouched.
+      - name: 🪟 De-elevation setup — gsudo (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          winget install gerardog.gsudo --accept-source-agreements --accept-package-agreements --disable-interactivity
+          # winget updates the persisted PATH but not this session's — refresh so we can locate gsudo
+          # now, and hand its dir to later steps via GITHUB_PATH (a fresh step shell won't see the
+          # winget PATH change otherwise).
+          $env:PATH = [Environment]::GetEnvironmentVariable('PATH','Machine') + ';' + [Environment]::GetEnvironmentVariable('PATH','User')
+          $gsudo = (Get-Command gsudo -ErrorAction Stop).Source
+          Split-Path $gsudo | Add-Content -Path $env:GITHUB_PATH
+          & $gsudo --version
+          # The de-elevated test tree still writes into the workspace the elevated runner created.
+          icacls "$env:GITHUB_WORKSPACE" /grant "Everyone:(OI)(CI)F"
+
       # ══════════════════════════════════════════════════════════════
       # PROVIDER 1: OFFICIAL (tauri-driver) — skipped on macOS
       # ══════════════════════════════════════════════════════════════
@@ -351,6 +372,8 @@ jobs:
           if ($env:RUNNER_OS -eq "Linux") {
             xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" `
               pnpm run ${{ steps.gen-test.outputs.official }}
+          } elseif ($env:RUNNER_OS -eq "Windows") {
+            gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run ${{ steps.gen-test.outputs.official }}"
           } else {
             pnpm run ${{ steps.gen-test.outputs.official }}
           }
@@ -454,6 +477,8 @@ jobs:
           if ($env:RUNNER_OS -eq "Linux") {
             xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" `
               pnpm run ${{ steps.gen-test.outputs.crabnebula }}
+          } elseif ($env:RUNNER_OS -eq "Windows") {
+            gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run ${{ steps.gen-test.outputs.crabnebula }}"
           } else {
             pnpm run ${{ steps.gen-test.outputs.crabnebula }}
           }
@@ -557,6 +582,8 @@ jobs:
           #  - Windows: WebView2 Runtime 150 dropped the CDP --remote-debugging-port for
           #    elevated hosts (runners run as admin), breaking the msedgedriver-based
           #    official + crabnebula providers. See https://github.com/webdriverio/desktop-mobile/issues/542.
+          #    Those two providers now re-run de-elevated via gsudo (see the setup step); the allow-fail
+          #    below is retained only until CI confirms the de-elevation works, then flips to required.
           allow_official=false; official_reason=""
           allow_crabnebula=false; crabnebula_reason=""
           case "$RUNNER_OS" in
