@@ -471,6 +471,53 @@ describe('nativeMode', () => {
     });
   });
 
+  describe('stopElectrobunApp on Windows', () => {
+    it('should taskkill the whole process tree instead of proc.kill-ing only the direct child', async () => {
+      setPlatform('win32');
+      execFileSyncMock.mockImplementation((command: string) => {
+        // taskkill reaps the tree; mark the process gone so the reap-wait doesn't spin.
+        if (command === 'taskkill') {
+          proc.exitCode = 0;
+        }
+      });
+
+      await stopElectrobunApp({
+        proc: proc as unknown as import('node:child_process').ChildProcess,
+        cleanupDirs: [USER_HOME, CLONE_PARENT],
+        port: 9333,
+        logHandlers: [],
+      });
+
+      expect(execFileSyncMock).toHaveBeenCalledWith('taskkill', ['/pid', '4321', '/T', '/F'], { stdio: 'ignore' });
+      expect(proc.kill).not.toHaveBeenCalled();
+      expect(rmSyncMock).toHaveBeenCalledWith(USER_HOME, { recursive: true, force: true });
+      expect(rmSyncMock).toHaveBeenCalledWith(CLONE_PARENT, { recursive: true, force: true });
+    });
+
+    it('should fall back to SIGKILL when taskkill fails', async () => {
+      setPlatform('win32');
+      execFileSyncMock.mockImplementation((command: string) => {
+        if (command === 'taskkill') {
+          throw new Error('taskkill not found');
+        }
+      });
+      proc.kill.mockImplementation(() => {
+        proc.signalCode = 'SIGKILL';
+        return true;
+      });
+
+      await stopElectrobunApp({
+        proc: proc as unknown as import('node:child_process').ChildProcess,
+        cleanupDirs: [USER_HOME],
+        port: 9333,
+        logHandlers: [],
+      });
+
+      expect(proc.kill).toHaveBeenCalledWith('SIGKILL');
+      expect(rmSyncMock).toHaveBeenCalledWith(USER_HOME, { recursive: true, force: true });
+    });
+  });
+
   describe('waitForCdpReady', () => {
     afterEach(() => {
       vi.unstubAllGlobals();
