@@ -422,11 +422,27 @@ jobs:
         run: node e2e/scripts/show-logs.ts --provider embedded
 
       # ══════════════════════════════════════════════════════════════
-      # PROVIDER 3: CRABNEBULA
+      # PROVIDER 3: CRABNEBULA — skipped on macOS without CN_API_KEY
       # ══════════════════════════════════════════════════════════════
 
+      # Only macOS needs CN_API_KEY; the Windows and Linux drivers run without one.
+      # Forked pull requests never receive repository secrets, so gate the provider on the
+      # key being present instead of failing the job. See packages/tauri-service/docs/crabnebula-setup.md.
+      - name: 🔑 Check CrabNebula Credentials
+        id: cn-key
+        shell: bash
+        env:
+          CN_API_KEY: ${{ secrets.CN_API_KEY }}
+        run: |
+          if [ "$RUNNER_OS" != "macOS" ] || [ -n "$CN_API_KEY" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::Skipping CrabNebula provider on macOS — CN_API_KEY is unavailable (secrets are not exposed to forked pull requests)."
+          fi
+
       - name: 🧹 Cleanup [CrabNebula]
-        if: always()
+        if: always() && steps.cn-key.outputs.run == 'true'
         shell: bash
         run: |
           echo "Cleaning up before CrabNebula provider tests..."
@@ -442,6 +458,7 @@ jobs:
 
       - name: 🧪 E2E Tests [CrabNebula]
         id: test-crabnebula
+        if: steps.cn-key.outputs.run == 'true'
         continue-on-error: true
         shell: pwsh
         working-directory: e2e
@@ -459,7 +476,7 @@ jobs:
           }
 
       - name: 🧹 Post-cleanup [CrabNebula]
-        if: always()
+        if: always() && steps.cn-key.outputs.run == 'true'
         shell: bash
         run: |
           echo "Cleaning up after CrabNebula provider tests..."
@@ -474,7 +491,7 @@ jobs:
           fi
 
       - name: 🐛 Debug Information [CrabNebula]
-        if: always()
+        if: always() && steps.cn-key.outputs.run == 'true'
         shell: bash
         run: node e2e/scripts/show-logs.ts --provider crabnebula
 
