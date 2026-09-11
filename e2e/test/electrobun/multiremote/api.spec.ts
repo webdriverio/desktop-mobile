@@ -1,10 +1,8 @@
 import { expect, multiRemoteBrowser } from '@wdio/globals';
 import '@wdio/native-types';
 
-// Two independent Electrobun instances driven in one worker (multiremote). WebView2 isolates
-// each instance (its own process + `LOCALAPPDATA` data dir), which the CEF renderer can't — so
-// this suite is Windows-only (run via `TEST_TYPE=multiremote`). The fixture loads `mainview`
-// (with `#app-title`) in each instance.
+// Two independent Electrobun instances in one worker (multiremote). Run via `TEST_TYPE=multiremote`
+// (Windows + Linux). The fixture loads `mainview` (with `#app-title`) in each instance.
 //
 // The per-instance API (`getInstance(name).electrobun.*`) is the multiremote guarantee — each
 // instance is independently addressable and drivable. A root fan-out (`browser.electrobun.execute`
