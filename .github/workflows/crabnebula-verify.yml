@@ -91,25 +91,33 @@ jobs:
           if [ "$IS_FORK" != "false" ]; then
             # Classify defensively; a transient API/classifier failure fails safe to pending
             # (recoverable by re-run/push), never a false green and never an unposted required check.
-            run_tauri=""; run_lint_only=""
+            run_tauri=""; run_lint_only=""; truncated=false
             # Capture each API call's exit code explicitly (assignment exit == command exit). A pipe
             # would swallow a gh failure and yield "[]", so both fetches must succeed before we trust
-            # the file list; otherwise run_tauri stays empty -> pending. The Files API caps at 3000
-            # files, so if the PR changed more than that the list is truncated and could miss Tauri
-            # paths -> stay unclassified -> pending. (Below the cap, changed_files can differ from the
-            # list length on binary/rename accounting without being truncated, so don't gate on that.)
+            # the file list; otherwise run_tauri stays empty -> pending. The Files API caps at 3000 files
+            # (same cap as scripts/fork-risk-scan.ts); above it the list is truncated and could miss Tauri
+            # paths, so we can't auto-classify -> route to the manual path. (Below the cap, changed_files
+            # can differ from the list length on binary/rename accounting without being truncated.)
+            # GITHUB_STEP_SUMMARY=/dev/null so detect-changes.ts's service table doesn't pollute the gate.
             if files_raw="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null)" \
                && total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null)"; then
               if [ "$total" -le 3000 ]; then
                 files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
                 tmp="$(mktemp)"
-                if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null 2>&1; then
+                if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" GITHUB_STEP_SUMMARY=/dev/null node scripts/detect-changes.ts >/dev/null 2>&1; then
                   run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
                   run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
                 fi
+              else
+                truncated=true
               fi
             fi
-            if [ -z "$run_tauri" ]; then
+            if [ "$truncated" = "true" ]; then
+              # >3000 files: re-running/pushing won't change the count, so don't imply it will — the
+              # only escape is the manual attestation path.
+              state=pending
+              desc="Too many files to classify automatically (>3000) — review, then add crabnebula:verified."
+            elif [ -z "$run_tauri" ]; then
               state=pending
               desc="Gate could not classify changes — re-run the job or push to retry."
             elif [ "$run_tauri" = "true" ] && [ "$run_lint_only" != "true" ]; then
@@ -147,8 +155,15 @@ jobs:
           ALLOW: ${{ env.AUTHORIZED_LABELERS }}
         run: |
           if echo "$ALLOW" | jq -e --arg s "$SENDER" 'index($s) != null' >/dev/null; then
-            gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
-              -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL"
+            # Retry like the other status posts: a transient failure must not leave the required check
+            # stranded at pending while the present label can no longer re-fire a `labeled` event.
+            posted=false
+            for _ in 1 2 3; do
+              if gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
+                -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL"; then posted=true; break; fi
+              sleep 5
+            done
+            [ "$posted" = true ] || { echo "::error::Failed to post verified status after retries."; exit 1; }
           else
             echo "::warning::Unauthorized labeler $SENDER applied crabnebula:verified — removing."
             gh api -X DELETE "repos/$REPO/issues/$PR/labels/crabnebula%3Averified" || true

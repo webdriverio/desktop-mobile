@@ -66,14 +66,18 @@ try {
     );
   }
 } catch {
-  // Fail closed: without the authoritative count we can't rule out Files-API truncation hiding files,
-  // so flag it high-severity (which reds the status) rather than pass a possibly-incomplete scan.
+  // The count is a completeness check. The returned list already reveals truncation: below the 3000
+  // cap it holds every file, so a failed count fetch is benign (a note). At/above the cap truncation is
+  // possible and unconfirmable, so fail closed with an error (reds the status) — don't red a benign PR.
+  const atCap = files.length >= 3000;
   add(
     '',
     1,
-    'error',
+    atCap ? 'error' : 'note',
     'scan/count-unavailable',
-    'Could not fetch the file count — scan completeness is unverified; review manually.',
+    atCap
+      ? 'File count unavailable and the returned list hit the API cap — completeness unverified; review manually.'
+      : 'File count unavailable, but the returned list is below the API cap, so the scan is complete.',
   );
 }
 
