@@ -16,6 +16,7 @@ permissions:
   contents: read
   security-events: write
   statuses: write
+  pull-requests: read # the scanner reads the PR's files/metadata via the pulls API
 
 concurrency:
   group: fork-risk-scan-${{ github.event.pull_request.number }}

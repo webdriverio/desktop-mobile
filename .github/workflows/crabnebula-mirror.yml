@@ -92,15 +92,15 @@ jobs:
           fi
           echo "branch=$BR" >> "$GITHUB_OUTPUT"
 
-      # always() + mirror.outcome == 'failure' so an aborted git op (fetch/checkout under set -e, which
-      # sets no marker) still cleans up rather than wedging the label. The explicit markers give a
-      # precise message; any other failure gets a generic one.
+      # always() + outcome failure/cancelled so an aborted git op (fetch/checkout under set -e, which
+      # sets no marker) or a manual cancel still cleans up rather than wedging the label. The explicit
+      # markers give a precise message; any other non-success outcome gets a generic one.
       - name: Report and stop (head moved, conflict, nothing to verify, or setup failure)
         if: >-
           always() &&
           (steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true' ||
            steps.mirror.outputs.pushfail == 'true' || steps.mirror.outputs.empty == 'true' ||
-           steps.mirror.outcome == 'failure')
+           steps.mirror.outcome == 'failure' || steps.mirror.outcome == 'cancelled')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -156,9 +156,11 @@ jobs:
             echo "::error::Failed to dispatch the keyed run; cleaned up $BR and the label."
             exit 1
           fi
+          # Non-critical (the run is dispatched; its report posts the terminal status) — guard with
+          # || true so a transient failure here can't abort the step before the label is dropped below.
           gh api "repos/$REPO/statuses/$SHA" -f state=pending -f context='CrabNebula / macOS' \
             -f description='Keyed macOS CrabNebula run dispatched on the reviewed commit.' \
-            -f target_url="$PR_URL"
+            -f target_url="$PR_URL" || true
           gh api "repos/$REPO/issues/$PR/comments" -f body="🔑 macOS CrabNebula verification dispatched for \`${SHA:0:7}\` on \`${BR}\`. Result will post back as the \`CrabNebula / macOS\` check." || true
           # Drop the label now that the run is dispatched: the keyed run no longer needs it (it carries
           # pr/sha inputs), and if that run is cancelled before its report job the label won't wedge.
