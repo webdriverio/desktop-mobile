@@ -10,8 +10,7 @@ name: CrabNebula Mirror Run
 # review — this only executes a decision already made.
 #
 # A commit status is ultimately writable by any write-access user via the REST API, so this gate is a
-# process control among trusted maintainers, not a hard boundary. `authorize` still restricts who can
-# drive this workflow to the mirror bot or a CRABNEBULA_LABELERS login; see the security doc.
+# process control among trusted maintainers, not a hard boundary — see the security doc.
 
 on:
   workflow_dispatch:
