@@ -434,23 +434,24 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
             ));
         }
 
-        // Re-secure focus before each special key and report whether it landed. The target was
-        // focusable at entry, so this only fails if it detaches mid-sequence — then there is no
-        // valid target for the key, so it is skipped (never dispatched to another control).
-        let verify_focus_script = format!(
+        // Best-effort refocus before each special key: bring focus back to the target (an append or
+        // a prior key may have moved it). The trusted key is then dispatched regardless of where
+        // focus ended up — per the WebDriver Element Send Keys algorithm, keyboard input follows
+        // focus, so if a handler redirects focus mid-sequence the key lands on the active element
+        // (as a physical keypress would) rather than being dropped or forced onto a stale target.
+        // The target was confirmed keyboard-interactable at entry (ElementNotInteractable
+        // otherwise); printable text is committed element-targeted via the JS append, independent
+        // of focus.
+        let refocus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
-                if (!el || !el.isConnected) {{
-                    return false;
+                if (el && el.isConnected) {{
+                    el.focus();
                 }}
-                el.focus();
-                return document.activeElement === el;
+                return true;
             }})()"
         );
 
-        // Printable runs go through the focus-independent JS append (keeps the text on the target);
-        // special keys dispatch as trusted CDP events. No multi-character CDP typing loop, so a
-        // focus-moving handler can no longer redirect text into another control.
         let no_mods = ModifierState::default();
         for segment in &segments {
             match segment {
@@ -459,18 +460,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
                     self.evaluate_js(&script).await?;
                 }
                 KeySegment::Special(key) => {
-                    let target_focused = self
-                        .evaluate_js(&verify_focus_script)
-                        .await?
-                        .get("value")
-                        .and_then(Value::as_bool)
-                        .unwrap_or(false);
-                    if !target_focused {
-                        // The target detached mid-sequence: no valid element to deliver the key to.
-                        // Skip it — never dispatch to whatever control now holds focus. Best-effort,
-                        // no throw (earlier keystrokes already committed).
-                        continue;
-                    }
+                    self.evaluate_js(&refocus_script).await?;
                     let down = crate::platform::key_input::to_cdp_key_event(key, true, &no_mods);
                     self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
                         .await?;
