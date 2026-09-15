@@ -21,8 +21,11 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
+          # A mirror branch's tip is a merge/pin commit created at mirror time, so its committer date is
+          # the branch's creation time — an active verification (minutes) is never near the 1-day cutoff.
+          # --paginate so more than one page (30) of orphans is still swept.
           cutoff=$(date -u -d '1 day ago' +%s)
-          gh api "repos/$REPO/git/matching-refs/heads/crabnebula-verify/" --jq '.[].ref' | while read -r ref; do
+          gh api --paginate "repos/$REPO/git/matching-refs/heads/crabnebula-verify/" --jq '.[].ref' | while read -r ref; do
             br="${ref#refs/heads/}"
             d=$(gh api "repos/$REPO/commits/$br" --jq '.commit.committer.date' 2>/dev/null) || continue
             ts=$(date -u -d "$d" +%s 2>/dev/null) || continue

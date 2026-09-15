@@ -85,17 +85,21 @@ jobs:
           if [ "$IS_FORK" = "true" ]; then
             # Classify defensively; a transient API/classifier failure fails safe to pending
             # (recoverable by re-run/push), never a false green and never an unposted required check.
-            files_json="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null | jq -R . | jq -s -c . 2>/dev/null || true)"
-            # The Files API caps at 3000 files; if the PR changed more than we received, the list is
-            # truncated and could miss Tauri paths — leave run_tauri empty so we fail safe to pending.
-            total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null || echo 0)"
-            got="$(echo "$files_json" | jq 'length' 2>/dev/null || echo 0)"
             run_tauri=""; run_lint_only=""
-            if [ -n "$files_json" ] && [ "$got" -ge "$total" ]; then
-              tmp="$(mktemp)"
-              if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null 2>&1; then
-                run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
-                run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
+            # Capture each API call's exit code explicitly (assignment exit == command exit). A pipe
+            # would swallow a gh failure and yield "[]", so both fetches must succeed before we trust
+            # the file list; otherwise run_tauri stays empty -> pending. The Files API caps at 3000
+            # files, so require got >= total (else the list is truncated and could miss Tauri paths).
+            if files_raw="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null)" \
+               && total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null)"; then
+              files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
+              got="$(printf '%s' "$files_json" | jq 'length')"
+              if [ "$got" -ge "$total" ]; then
+                tmp="$(mktemp)"
+                if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null 2>&1; then
+                  run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
+                  run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
+                fi
               fi
             fi
             if [ -z "$run_tauri" ]; then
@@ -107,11 +111,14 @@ jobs:
             fi
           fi
           echo "fork=$IS_FORK -> $state"
-          gh api "repos/$REPO/statuses/$SHA" \
-            -f state="$state" \
-            -f context='CrabNebula / macOS' \
-            -f description="$desc" \
-            -f target_url="$PR_URL"
+          # Retry: this posts the required check, so a transient failure must not strand the PR at
+          # "Expected" (there's no other job to re-post it until the next push).
+          for _ in 1 2 3; do
+            if gh api "repos/$REPO/statuses/$SHA" \
+              -f state="$state" -f context='CrabNebula / macOS' \
+              -f description="$desc" -f target_url="$PR_URL"; then break; fi
+            sleep 5
+          done
 
   # Manual attestation: an authorized crabnebula:verified labeler posts success; an unauthorized one
   # is removed and posts nothing.

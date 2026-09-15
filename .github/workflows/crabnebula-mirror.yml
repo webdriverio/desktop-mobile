@@ -69,11 +69,16 @@ jobs:
           git checkout origin/main -- .github
           git add -A .github
           git commit -m "chore: pin .github to main for keyed verification" >/dev/null 2>&1 || true
-          git push --force origin "$BR"
+          # Guard the push: if it fails, set -e would abort here and skip the report step (implicit
+          # success()), leaving the label wedged. Handle it so the report step can clean up.
+          if ! git push --force origin "$BR"; then
+            echo "pushfail=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           echo "branch=$BR" >> "$GITHUB_OUTPUT"
 
-      - name: Report and stop (head moved or merge conflict)
-        if: steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true'
+      - name: Report and stop (head moved, conflict, or push failure)
+        if: steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true' || steps.mirror.outputs.pushfail == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -81,18 +86,22 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           MOVED: ${{ steps.mirror.outputs.moved }}
+          PUSHFAIL: ${{ steps.mirror.outputs.pushfail }}
         run: |
           if [ "$MOVED" = "true" ]; then
             desc='Cannot verify: the PR head moved since the label. Re-review, then re-apply crabnebula:run.'
+          elif [ "$PUSHFAIL" = "true" ]; then
+            desc='Cannot verify: could not create the verification branch. Re-apply crabnebula:run to retry.'
           else
             desc='Cannot verify: PR conflicts with main. Rebase, then re-apply crabnebula:run.'
           fi
           gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
             -f description="$desc" -f target_url="$PR_URL" || true
+          # Remove the label so a re-apply fires a fresh labeled event (re-adding a present label does not).
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
 
       - name: Dispatch keyed run and mark pending
-        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true'
+        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -101,11 +110,15 @@ jobs:
           BR: ${{ steps.mirror.outputs.branch }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          # If the dispatch fails the run never starts, and its report job (which deletes the branch)
-          # never runs — so clean up the pushed branch here to avoid orphaning it.
+          # If the dispatch fails the run never starts, and its report job never runs — so clean up the
+          # branch, drop the label (so a re-apply fires a fresh event), and post a failure status here.
           if ! gh workflow run crabnebula-mirror-run.yml --ref "$BR" -f pr="$PR" -f sha="$SHA"; then
             gh api "repos/$REPO/git/refs/heads/${BR}" -X DELETE || true
-            echo "::error::Failed to dispatch the keyed run; cleaned up $BR."
+            gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+            gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
+              -f description='Could not start the keyed verification — re-apply crabnebula:run to retry.' \
+              -f target_url="$PR_URL" || true
+            echo "::error::Failed to dispatch the keyed run; cleaned up $BR and the label."
             exit 1
           fi
           gh api "repos/$REPO/statuses/$SHA" -f state=pending -f context='CrabNebula / macOS' \

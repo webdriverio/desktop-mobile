@@ -45,6 +45,25 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
   findings.push({ file, line, level, rule, message });
 };
 
+// The Files API caps at 3000 files; if the PR changed more than we received, files beyond the cap are
+// unscanned — flag it so the truncation isn't a silent blind spot (parity with crabnebula-verify.yml).
+try {
+  const total = Number(
+    execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}`, '--jq', '.changed_files'], { encoding: 'utf8' }).trim(),
+  );
+  if (Number.isFinite(total) && total > files.length) {
+    add(
+      '',
+      1,
+      'error',
+      'scan/truncated',
+      `PR changed ${total} files but only ${files.length} were returned — files beyond the API cap were not scanned. Review manually.`,
+    );
+  }
+} catch {
+  /* if the count can't be fetched, per-file scanning still runs */
+}
+
 // Added lines from a GitHub API patch (hunks only — no +++/--- file headers), with new-file line
 // numbers. Because there are no file headers, an added line whose content starts with '+' (e.g. '++i')
 // is captured correctly rather than mistaken for a header.
@@ -248,12 +267,21 @@ const sarif = {
           rules: [],
         },
       },
-      results: findings.map((f) => ({
-        ruleId: f.rule,
-        level: f.level,
-        message: { text: f.message },
-        locations: [{ physicalLocation: { artifactLocation: { uri: f.file }, region: { startLine: f.line } } }],
-      })),
+      results: findings.map((f) => {
+        const result: {
+          ruleId: string;
+          level: Level;
+          message: { text: string };
+          locations?: { physicalLocation: { artifactLocation: { uri: string }; region: { startLine: number } } }[];
+        } = { ruleId: f.rule, level: f.level, message: { text: f.message } };
+        // PR-level findings (e.g. truncation) have no file — SARIF allows a result without locations.
+        if (f.file) {
+          result.locations = [
+            { physicalLocation: { artifactLocation: { uri: f.file }, region: { startLine: f.line } } },
+          ];
+        }
+        return result;
+      }),
     },
   ],
 };
