@@ -89,7 +89,13 @@ jobs:
           BR: ${{ steps.mirror.outputs.branch }}
           PR_URL: ${{ github.event.pull_request.html_url }}
         run: |
-          gh workflow run crabnebula-mirror-run.yml --ref "$BR" -f pr="$PR" -f sha="$SHA"
+          # If the dispatch fails the run never starts, and its report job (which deletes the branch)
+          # never runs — so clean up the pushed branch here to avoid orphaning it.
+          if ! gh workflow run crabnebula-mirror-run.yml --ref "$BR" -f pr="$PR" -f sha="$SHA"; then
+            gh api "repos/$REPO/git/refs/heads/${BR}" -X DELETE || true
+            echo "::error::Failed to dispatch the keyed run; cleaned up $BR."
+            exit 1
+          fi
           gh api "repos/$REPO/statuses/$SHA" -f state=pending -f context='CrabNebula / macOS' \
             -f description='Keyed macOS CrabNebula run dispatched on the reviewed commit.' \
             -f target_url="$PR_URL"

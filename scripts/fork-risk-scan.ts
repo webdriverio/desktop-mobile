@@ -1,6 +1,7 @@
-// Static supply-chain risk scan for fork PRs, run BEFORE any secret reaches a runner. Reads the
-// PR's changed files (never executes them) to arm the human review, which is the real control:
-// findings are heuristics, so a clean scan never authorises a secret-bearing run on its own.
+// Static supply-chain risk scan for fork PRs, run BEFORE any secret reaches a runner. Reads the PR's
+// changed files and diffs via the GitHub API — it never fetches or executes fork code, and nothing
+// from the fork touches the runner. It arms the human review, which is the real control: findings are
+// heuristics, so a clean scan never authorises a secret-bearing run on its own.
 // See docs/security/crabnebula-fork-verification.md for the flow that consumes it.
 
 import { execFileSync } from 'node:child_process';
@@ -15,59 +16,57 @@ interface Finding {
   message: string;
 }
 
-const BASE = process.env.BASE_SHA;
-const HEAD = process.env.HEAD_SHA;
+const REPO = process.env.REPO;
+const PR = process.env.PR;
 const SARIF_OUT = process.env.SARIF_OUT || 'fork-risk-scan.sarif';
 
-if (!BASE || !HEAD) {
-  console.error('BASE_SHA and HEAD_SHA are required');
+if (!REPO || !PR) {
+  console.error('REPO and PR are required');
   process.exit(1);
 }
 
-const git = (args: string[]): string => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+interface PrFile {
+  filename: string;
+  status: string;
+  patch?: string;
+}
 
-const changedFiles = git(['diff', '--name-only', `${BASE}...${HEAD}`])
+// One file object per line (NDJSON) across all pages. gh uses GH_TOKEN from the environment.
+const files: PrFile[] = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}/files`, '--paginate', '--jq', '.[]'], {
+  encoding: 'utf8',
+  maxBuffer: 128 * 1024 * 1024,
+})
   .split('\n')
-  .map((f) => f.trim())
-  .filter(Boolean);
+  .filter(Boolean)
+  .map((l) => JSON.parse(l) as PrFile);
 
 const findings: Finding[] = [];
 const add = (file: string, line: number, level: Level, rule: string, message: string): void => {
   findings.push({ file, line, level, rule, message });
 };
 
-// Added lines only, with real new-file line numbers from the hunk headers, so findings reflect what
-// the PR introduces rather than pre-existing content.
+// Added lines from a GitHub API patch (hunks only — no +++/--- file headers), with new-file line
+// numbers. Because there are no file headers, an added line whose content starts with '+' (e.g. '++i')
+// is captured correctly rather than mistaken for a header.
 interface AddedLine {
   line: number;
   content: string;
 }
-const addedCache = new Map<string, AddedLine[]>();
-const addedLines = (file: string): AddedLine[] => {
-  const cached = addedCache.get(file);
-  if (cached) return cached;
+const addedLines = (patch: string | undefined): AddedLine[] => {
+  if (!patch) return [];
   const out: AddedLine[] = [];
-  let raw = '';
-  try {
-    raw = git(['diff', '--unified=0', `${BASE}...${HEAD}`, '--', file]);
-  } catch {
-    addedCache.set(file, out);
-    return out;
-  }
   let newLine = 0;
-  for (const l of raw.split('\n')) {
+  for (const l of patch.split('\n')) {
     const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(l);
     if (h) {
       newLine = Number(h[1]);
-      continue;
-    }
-    if (l.startsWith('+++')) continue;
-    if (l.startsWith('+')) {
+    } else if (l.startsWith('+')) {
       out.push({ line: newLine, content: l.slice(1) });
       newLine++;
+    } else if (!l.startsWith('-') && !l.startsWith('\\')) {
+      newLine++; // context line
     }
   }
-  addedCache.set(file, out);
   return out;
 };
 
@@ -86,7 +85,7 @@ const exfilPatterns: { rule: string; re: RegExp; level: Level; msg: string }[] =
   },
   {
     rule: 'secret/env-read',
-    re: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|process\.env(\.|\s*\[)|std::env::var|printenv|env\s*\|/,
+    re: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|process\.env\b|std::env|printenv|env\s*\|/,
     level: 'warning',
     msg: 'Environment/secret access in an added line.',
   },
@@ -98,38 +97,59 @@ const exfilPatterns: { rule: string; re: RegExp; level: Level; msg: string }[] =
   },
 ];
 
-for (const file of changedFiles) {
+for (const { filename, status, patch } of files) {
+  // Deletions add nothing executable — don't fire filename rules on them.
+  if (status === 'removed') continue;
+  const added = addedLines(patch);
+
   // Workflow / action files run with CI privileges — and in a keyed run resolve from the merged
   // branch, so a fork edit here could reach secrets.
-  if (/^\.github\/workflows\/.*\.ya?ml$/.test(file) || /(^|\/)action\.ya?ml$/.test(file)) {
-    add(file, 1, 'error', 'ci/workflow-file', 'Workflow/action file changed — runs with CI privileges. Scrutinise.');
+  if (/^\.github\/workflows\/.*\.ya?ml$/.test(filename) || /(^|\/)action\.ya?ml$/.test(filename)) {
+    add(
+      filename,
+      1,
+      'error',
+      'ci/workflow-file',
+      'Workflow/action file changed — runs with CI privileges. Scrutinise.',
+    );
   }
 
   // Lockfile: flag non-registry sources (tarball / git / non-registry URL) — the top supply-chain
   // exfiltration vector. Plain registry entries carry only an integrity hash, so they don't match.
-  if (/(^|\/)pnpm-lock\.yaml$/.test(file)) {
-    const nonRegistry = addedLines(file).filter(
-      ({ content }) =>
-        /\b(tarball:|git\+|type:\s*git|\brepo:)/i.test(content) ||
-        (/https?:\/\//.test(content) && !/registry\.(npmjs\.org|yarnpkg\.com)/i.test(content)),
-    );
-    add(
-      file,
-      nonRegistry[0]?.line ?? 1,
-      nonRegistry.length ? 'error' : 'note',
-      'dep/lockfile-changed',
-      nonRegistry.length
-        ? `Lockfile adds ${nonRegistry.length} non-registry source(s) — inspect each.`
-        : 'Lockfile changed (registry sources only).',
-    );
+  if (/(^|\/)pnpm-lock\.yaml$/.test(filename)) {
+    if (!patch) {
+      add(
+        filename,
+        1,
+        'warning',
+        'dep/lockfile-changed',
+        'Lockfile changed but the diff was too large for the API to return — review sources manually.',
+      );
+    } else {
+      const nonRegistry = added.filter(
+        ({ content }) =>
+          /\b(tarball:|git\+|type:\s*git|\brepo:)/i.test(content) ||
+          (/https?:\/\//.test(content) && !/registry\.(npmjs\.org|yarnpkg\.com)/i.test(content)),
+      );
+      add(
+        filename,
+        nonRegistry[0]?.line ?? 1,
+        nonRegistry.length ? 'error' : 'note',
+        'dep/lockfile-changed',
+        nonRegistry.length
+          ? `Lockfile adds ${nonRegistry.length} non-registry source(s) — inspect each.`
+          : 'Lockfile changed (registry sources only).',
+      );
+    }
   }
 
-  if (/(^|\/)package\.json$/.test(file)) {
-    for (const { line, content } of addedLines(file)) {
+  // package.json install-time lifecycle scripts added by this PR.
+  if (/(^|\/)package\.json$/.test(filename)) {
+    for (const { line, content } of added) {
       const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:/.exec(content);
       if (m)
         add(
-          file,
+          filename,
           line,
           'error',
           'lifecycle/install-script',
@@ -138,19 +158,20 @@ for (const file of changedFiles) {
     }
   }
 
-  if (/(^|\/)build\.rs$/.test(file))
+  // Rust build hooks run at compile time in the E2E job.
+  if (/(^|\/)build\.rs$/.test(filename))
     add(
-      file,
+      filename,
       1,
       'error',
       'rust/build-script',
       'Rust build.rs changed — executes at compile time in the E2E job. Inspect for network/env access.',
     );
-  if (/(^|\/)Cargo\.toml$/.test(file)) {
-    for (const { line, content } of addedLines(file)) {
+  if (/(^|\/)Cargo\.toml$/.test(filename)) {
+    for (const { line, content } of added) {
       if (/\[build-dependencies\]/.test(content)) {
         add(
-          file,
+          filename,
           line,
           'warning',
           'rust/build-deps',
@@ -161,13 +182,22 @@ for (const file of changedFiles) {
     }
   }
 
-  // Exfiltration-shaped patterns in added lines (all matches).
-  if (/\.(ts|tsx|js|mjs|cjs|rs|sh|bash|yml|yaml|toml)$/.test(file)) {
-    for (const { line, content } of addedLines(file)) {
-      for (const { rule, re, level, msg } of exfilPatterns) {
-        if (re.test(content)) add(file, line, level, rule, msg);
-      }
+  // Exfiltration-shaped patterns in added lines of ANY changed file (all matches).
+  for (const { line, content } of added) {
+    for (const { rule, re, level, msg } of exfilPatterns) {
+      if (re.test(content)) add(filename, line, level, rule, msg);
     }
+  }
+
+  // A code/script file with no patch (too large for the API) escaped content scanning — flag it.
+  if (!patch && /\.(ts|tsx|cts|mts|js|jsx|mjs|cjs|rs|sh|bash|zsh|ps1|psm1|bat|cmd|py|rb)$/.test(filename)) {
+    add(
+      filename,
+      1,
+      'warning',
+      'scan/unscanned',
+      'Changed file too large for the API to return a diff — content not scanned; review manually.',
+    );
   }
 }
 

@@ -27,19 +27,10 @@ jobs:
     if: github.event.pull_request.head.repo.fork == true
     runs-on: ubuntu-latest
     steps:
-      # Default pull_request_target checkout is the BASE branch — the trusted scanner, not the
-      # fork's copy. Do not change the ref.
+      # Checkout only gives us the trusted scanner (scripts/fork-risk-scan.ts). The scan reads the
+      # PR's files + diffs from the GitHub API — it never fetches or checks out fork code.
       - name: Checkout base (trusted scanner)
         uses: actions/checkout@v7
-        with:
-          fetch-depth: 0
-
-      # Fetch the PR head as objects only (no checkout, no execution) so the scanner can diff
-      # base...head and read head blobs via `git show`.
-      - name: Fetch PR head objects
-        env:
-          PR: ${{ github.event.pull_request.number }}
-        run: git fetch --no-tags origin "pull/${PR}/head"
 
       - name: Setup Node.js
         uses: actions/setup-node@v7
@@ -49,13 +40,14 @@ jobs:
       - name: Run static risk scan
         id: scan
         env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }}
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
           SARIF_OUT: fork-risk-scan.sarif
         run: node scripts/fork-risk-scan.ts
 
-      # continue-on-error: a missing Code Scanning setup must not fail the scan.
       - name: Upload SARIF to Code Scanning
+        id: sarif
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
@@ -64,7 +56,8 @@ jobs:
           sha: ${{ github.event.pull_request.head.sha }}
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
-      # Always post, even if the scan step errored, so the status never silently goes missing.
+      # Always post, even if the scan errored, so the status never silently goes missing; and if the
+      # SARIF upload failed, say so — the "details in the Security tab" claim would otherwise be false.
       - name: Post terse public status
         if: always()
         env:
@@ -73,12 +66,17 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           SCAN_OUTCOME: ${{ steps.scan.outcome }}
+          SARIF_OUTCOME: ${{ steps.sarif.outcome }}
           FINDINGS: ${{ steps.scan.outputs.findings }}
           HIGH: ${{ steps.scan.outputs.high }}
         run: |
           if [ "$SCAN_OUTCOME" != "success" ]; then
             gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
               -f description="Risk scan errored — review the run." -f target_url="$PR_URL"
+          elif [ "$SARIF_OUTCOME" != "success" ]; then
+            gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
+              -f description="${FINDINGS} item(s) flagged, but SARIF upload failed — detail unavailable. Review the run." \
+              -f target_url="$PR_URL"
           else
             gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='Fork Risk Scan' \
               -f description="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab)." \

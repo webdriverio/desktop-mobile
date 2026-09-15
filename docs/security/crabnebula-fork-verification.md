@@ -69,14 +69,17 @@ onto `crabnebula-verify/pr-<N>`, `crabnebula-mirror-run.yml` runs macOS CrabNebu
 the result posts back as `CrabNebula / macOS`. Applying the label **is** authorizing a keyed run of
 the fork's code — only apply it once the diff review is done.
 
-**Manual (`crabnebula:verified`):** run macOS CrabNebula yourself against the exact reviewed code —
-pull the PR into an internal branch where `CN_API_KEY` is available:
+**Manual (`crabnebula:verified`):** for when you've confirmed macOS CrabNebula passes by your own
+means. Note that a bare `git push` of an internal branch does **not** run CI — `ci.yml`'s `push`
+trigger is limited to `main`. To run it in CI, pull the reviewed code into an internal branch and
+open a PR from it (an internal PR gets the key, so the Tauri E2E runs CrabNebula):
 ```bash
 git fetch origin pull/<PR>/head:verify-<PR>
-git switch verify-<PR>
-git push origin verify-<PR>      # internal branch → CrabNebula runs with the key
+git push origin verify-<PR>
+gh pr create --base main --head verify-<PR> --title "verify #<PR>" --body "CrabNebula verification"
 ```
-When it passes, apply `crabnebula:verified` and the gate goes green.
+When macOS CrabNebula passes there (or you've otherwise confirmed it), apply `crabnebula:verified` to
+the fork PR. In most cases prefer the automated `crabnebula:run` path above.
 
 ## If you suspect the key leaked
 
@@ -111,3 +114,7 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 - The automated run exercises embedded + CrabNebula (official auto-skips on macOS), not CrabNebula in
   strict isolation. Embedded runs without the key, so it adds no exposure; a strict CN-only path would
   need an `only_provider` input on the reusable.
+- The gate classifies the PR from the **Files API** list (so it never fetches fork code) rather than
+  the pipeline's git-diff. For normal PRs these match; they can differ only on API truncation (>3000
+  files) or rare rename/merge edge cases. Using git-diff would reintroduce the head fetch this design
+  removes, so the API source is deliberate.

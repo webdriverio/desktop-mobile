@@ -36,6 +36,10 @@ on:
         description: 'Cache key to use for downloading Tauri app binaries'
         type: string
         required: false
+      require_crabnebula:
+        description: 'Fail the job if the CrabNebula leg is skipped (used by the keyed verification run)'
+        type: boolean
+        default: false
     # Declared so a caller can pass a subset explicitly (the CrabNebula mirror run passes only
     # CN_API_KEY). `secrets: inherit` callers are unaffected — inherit passes everything regardless.
     secrets:
@@ -611,6 +615,13 @@ jobs:
           check_result "Official" "$official" "$allow_official" "$official_reason"
           check_result "Embedded" "$embedded"
           check_result "CrabNebula" "$crabnebula" "$allow_crabnebula" "$crabnebula_reason"
+
+          # For the keyed verification run, a skipped CrabNebula leg (e.g. CN_API_KEY missing) must
+          # NOT count as verified — otherwise the gate greenlights a PR whose CrabNebula never ran.
+          if [ "${{ inputs.require_crabnebula }}" = "true" ] && [ "${{ steps.cn-key.outputs.run }}" != "true" ]; then
+            echo "::error::CrabNebula verification was required but the leg did not run (CN_API_KEY missing?)"
+            failed=true
+          fi
 
           if [ "$failed" = "true" ]; then
             exit 1

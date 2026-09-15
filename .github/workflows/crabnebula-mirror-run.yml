@@ -29,9 +29,6 @@ permissions:
   statuses: write
   pull-requests: write
 
-env:
-  AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '["goosewobbler"]' }}
-
 jobs:
   # Only the gated mirror bot (dispatched via crabnebula-mirror.yml) or an allowlisted login may
   # drive a keyed run — a direct workflow_dispatch by any other write-access user is refused here.
@@ -53,17 +50,23 @@ jobs:
     with:
       os: 'macos-latest'
 
-  # Runs the macOS providers (official auto-skips; embedded is the immune baseline; CrabNebula is
-  # the leg under test). The reusable's Check Provider Results gates on CrabNebula passing.
+  # Runs every macOS Tauri test-type (matching internal CI), all providers (official auto-skips;
+  # embedded is the immune baseline; CrabNebula is the leg under test). require_crabnebula makes a
+  # skipped CrabNebula leg (e.g. CN_API_KEY missing) a failure, not a false pass.
   e2e:
     needs: [build, build-app]
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
     uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
     secrets:
       CN_API_KEY: ${{ secrets.CN_API_KEY }}
     with:
       os: 'macos-latest'
       node-version: '24'
-      test-type: 'standard'
+      test-type: ${{ matrix.test-type }}
+      require_crabnebula: true
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -83,12 +86,14 @@ jobs:
           RESULT: ${{ needs.e2e.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
+          # The run covers all test-types and both macOS providers (embedded + CrabNebula), so a
+          # failure isn't necessarily the CrabNebula leg — point to the run rather than misattribute.
           if [ "$RESULT" = "success" ]; then
-            state=success; icon='✅'; desc="macOS CrabNebula passed on the reviewed commit."
+            state=success; icon='✅'; desc="macOS CrabNebula verification passed on the reviewed commit."
           elif [ "$RESULT" = "skipped" ]; then
-            state=failure; icon='❌'; desc="macOS CrabNebula could not run (build failed) — see the run."
+            state=failure; icon='❌'; desc="macOS CrabNebula verification could not run (build failed) — see the run."
           else
-            state=failure; icon='❌'; desc="macOS CrabNebula failed on the reviewed commit — see the run."
+            state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
           fi
           gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
             -f description="$desc" -f target_url="$RUN_URL"
