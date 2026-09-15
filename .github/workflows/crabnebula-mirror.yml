@@ -3,7 +3,7 @@ name: CrabNebula Mirror Dispatch
 # Phase 2 of docs/security/crabnebula-fork-verification.md. When an authorized reviewer applies
 # `crabnebula:run` to a fork PR (after reviewing the diff), this mirrors the reviewed fork head —
 # merged onto main so the internal workflows are present — to crabnebula-verify/pr-<N> and dispatches
-# the keyed run. This job runs NO fork code: it only git-merges (a file-level op) and pushes.
+# the keyed run. This job runs NO fork code — only file-level git operations and a push.
 #
 # The authorization is enforced here in the job `if`, not just by crabnebula-verify.yml removing the
 # label, because label removal races the mirror. GitHub has no per-label permission, so the allowlist
@@ -50,7 +50,6 @@ jobs:
           git fetch --no-tags origin "pull/${PR}/head"
           BR="crabnebula-verify/pr-${PR}"
           git checkout -B "$BR" origin/main
-          # git merge is file-level — no fork code executes here.
           if ! git merge --no-ff --no-edit "$HEAD_SHA"; then
             git merge --abort || true
             echo "conflict=true" >> "$GITHUB_OUTPUT"

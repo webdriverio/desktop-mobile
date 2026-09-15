@@ -37,7 +37,7 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
 };
 
 // Added lines only, with real new-file line numbers from the hunk headers, so findings reflect what
-// the PR introduces rather than pre-existing content already in the file.
+// the PR introduces rather than pre-existing content.
 interface AddedLine {
   line: number;
   content: string;
@@ -95,7 +95,7 @@ const exfilPatterns: { rule: string; re: RegExp; level: Level; msg: string }[] =
 
 for (const file of changedFiles) {
   // Workflow / action files run with CI privileges — and in a keyed run resolve from the merged
-  // branch, so a fork edit here could reach secrets. Scrutinise any change to them.
+  // branch, so a fork edit here could reach secrets.
   if (/^\.github\/workflows\/.*\.ya?ml$/.test(file) || /(^|\/)action\.ya?ml$/.test(file)) {
     add(file, 1, 'error', 'ci/workflow-file', 'Workflow/action file changed — runs with CI privileges. Scrutinise.');
   }
@@ -119,7 +119,6 @@ for (const file of changedFiles) {
     );
   }
 
-  // package.json install-time lifecycle scripts added by this PR.
   if (/(^|\/)package\.json$/.test(file)) {
     for (const { line, content } of addedLines(file)) {
       const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:/.exec(content);
@@ -134,7 +133,6 @@ for (const file of changedFiles) {
     }
   }
 
-  // Rust build hooks run at compile time in the E2E job.
   if (/(^|\/)build\.rs$/.test(file))
     add(
       file,

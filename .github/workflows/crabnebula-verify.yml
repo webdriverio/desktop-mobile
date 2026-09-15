@@ -32,10 +32,9 @@ env:
   AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '["goosewobbler"]' }}
 
 jobs:
-  # On first sight or new code, (re)post the required status. Pending for a fork PR that touches
-  # Tauri (macOS CrabNebula is skipped on forks); success otherwise. A new push also clears stale
-  # attestation labels. Uses the real detect-changes.ts classifier so it can't drift from what
-  # actually routes a PR to the Tauri E2E pipeline.
+  # (Re)post the required status on new code: pending for a fork PR that touches Tauri, success
+  # otherwise, via the real detect-changes.ts classifier so it can't drift from what routes a PR to
+  # the Tauri E2E pipeline. A new push also clears stale attestation labels.
   reset-on-code:
     if: contains(fromJSON('["opened","reopened","synchronize"]'), github.event.action)
     runs-on: ubuntu-latest
@@ -87,9 +86,8 @@ jobs:
             -f description="$desc" \
             -f target_url="$PR_URL"
 
-  # Manual attestation. An authorized labeler applying crabnebula:verified posts success directly;
-  # an unauthorized application is removed and posts nothing. The status is never derived from the
-  # label's presence, so a removal that races or fails cannot greenlight the gate.
+  # Manual attestation: an authorized crabnebula:verified labeler posts success; an unauthorized one
+  # is removed and posts nothing.
   verify-label:
     if: github.event.action == 'labeled' && github.event.label.name == 'crabnebula:verified'
     runs-on: ubuntu-latest
