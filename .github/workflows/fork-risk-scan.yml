@@ -52,7 +52,7 @@ jobs:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
           SARIF_OUT: fork-risk-scan.sarif
-        run: node scripts/fork-risk-scan.mjs
+        run: node scripts/fork-risk-scan.ts
 
       # continue-on-error: a missing Code Scanning setup must not fail the scan.
       - name: Upload SARIF to Code Scanning

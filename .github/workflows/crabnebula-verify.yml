@@ -83,6 +83,7 @@ jobs:
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+          ACTION: ${{ github.event.action }}
         run: |
           files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
           tauri=false
@@ -90,6 +91,9 @@ jobs:
           if echo "$files" | grep -qE '^packages/tauri-(service|plugin)|^fixtures/e2e-apps/tauri/|^e2e/.*tauri|^packages/native-(utils|types|cdp-bridge|spy)/|^pnpm-lock\.yaml$'; then tauri=true; fi
           verified=false
           if gh api "repos/$REPO/issues/$PR/labels" --jq '.[].name' | grep -qx 'crabnebula:verified'; then verified=true; fi
+          # A push voids attestation. On synchronize, treat as unverified regardless of the label —
+          # void-on-push clears it in parallel, and reading it here would race.
+          if [ "$ACTION" = "synchronize" ]; then verified=false; fi
 
           state=success
           desc="Not applicable (internal PR or no Tauri changes)."

@@ -69,13 +69,21 @@ jobs:
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           if [ "$RESULT" = "success" ]; then
-            state=success; desc="macOS CrabNebula passed on the reviewed commit."
+            state=success; icon='✅'; desc="macOS CrabNebula passed on the reviewed commit."
+          elif [ "$RESULT" = "skipped" ]; then
+            state=failure; icon='❌'; desc="macOS CrabNebula could not run (build failed) — see the run."
           else
-            state=failure; desc="macOS CrabNebula failed on the reviewed commit — see the run."
+            state=failure; icon='❌'; desc="macOS CrabNebula failed on the reviewed commit — see the run."
           fi
           gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
             -f description="$desc" -f target_url="$RUN_URL"
-          gh api "repos/$REPO/issues/$PR/comments" -f body="$( [ "$state" = success ] && echo '✅' || echo '❌' ) macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
-          # A re-run must be re-authorized: drop the label and the throwaway branch.
+          gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
+          # On success apply crabnebula:verified so the result survives later gate re-runs (which read
+          # only that label). This bot label change uses GITHUB_TOKEN, so it triggers neither the gate
+          # nor the labeler guard — it simply persists for the next human-triggered gate evaluation.
+          if [ "$state" = "success" ]; then
+            gh api "repos/$REPO/issues/$PR/labels" -f 'labels[]=crabnebula:verified' >/dev/null || true
+          fi
+          # A re-run must be re-authorized: drop the trigger label and the throwaway branch.
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
           gh api "repos/$REPO/git/refs/heads/crabnebula-verify/pr-${PR}" -X DELETE || true

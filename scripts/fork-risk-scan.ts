@@ -2,11 +2,18 @@
 // PR's changed files (never executes them) to arm the human review, which is the real control:
 // findings are heuristics, so a clean scan never authorises a secret-bearing run on its own.
 // See docs/security/crabnebula-fork-verification.md for the flow that consumes it.
-//
-// Plain .mjs, not a typed scripts/*.ts, so it stays off the classifier's typecheck/test surface.
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
+
+type Level = 'error' | 'warning' | 'note';
+interface Finding {
+  file: string;
+  line: number;
+  level: Level;
+  rule: string;
+  message: string;
+}
 
 const BASE = process.env.BASE_SHA;
 const HEAD = process.env.HEAD_SHA;
@@ -17,20 +24,21 @@ if (!BASE || !HEAD) {
   process.exit(1);
 }
 
-const git = (args) => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+const git = (args: string[]): string => execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
 const changedFiles = git(['diff', '--name-only', `${BASE}...${HEAD}`])
   .split('\n')
   .map((f) => f.trim())
   .filter(Boolean);
 
-/** @type {{file: string, line: number, level: 'error'|'warning'|'note', rule: string, message: string}[]} */
-const findings = [];
-const add = (file, line, level, rule, message) => findings.push({ file, line, level, rule, message });
+const findings: Finding[] = [];
+const add = (file: string, line: number, level: Level, rule: string, message: string): void => {
+  findings.push({ file, line, level, rule, message });
+};
 
 // The working tree is the base checkout, so read the fork's version from git objects — this
 // keeps the fork's files off disk entirely.
-const safeRead = (file) => {
+const safeRead = (file: string): string => {
   try {
     return execFileSync('git', ['show', `${HEAD}:${file}`], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
   } catch {
@@ -38,11 +46,11 @@ const safeRead = (file) => {
   }
 };
 
-const lineOf = (text, index) => text.slice(0, index).split('\n').length;
+const lineOf = (text: string, index: number): number => text.slice(0, index).split('\n').length;
 
 // Lockfile changes are the top supply-chain exfiltration vector.
 if (changedFiles.includes('pnpm-lock.yaml')) {
-  let addedDepLines = [];
+  let addedDepLines: string[] = [];
   try {
     addedDepLines = git(['diff', `${BASE}...${HEAD}`, '--', 'pnpm-lock.yaml'])
       .split('\n')
@@ -103,7 +111,7 @@ for (const file of changedFiles) {
   // Exfiltration-shaped patterns in any changed source.
   if (/\.(ts|tsx|js|mjs|cjs|rs|sh|bash|yml|yaml|toml)$/.test(file)) {
     const text = safeRead(file);
-    const patterns = [
+    const patterns: { rule: string; re: RegExp; level: Level; msg: string }[] = [
       {
         rule: 'net/outbound-command',
         re: /\b(curl|wget|nc|netcat|scp|Invoke-WebRequest|iwr)\b/,
