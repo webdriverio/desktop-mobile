@@ -422,14 +422,14 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
 
         // CDP typing fires `input` per keystroke but not `change` (no blur — the element stays
         // focused). The JS path dispatches `change` for inputs/textareas, so match it here or
-        // change-driven validation wouldn't run on this path.
+        // change-driven validation wouldn't run on this path. Best-effort: if an `input` handler
+        // detached the element mid-type the typing already committed via CDP, so skip the change
+        // rather than throw — a stale-element error here reports failure after the side effects
+        // landed and duplicates the typing on a caller retry.
         let change_script = format!(
             r"(function() {{
                 var el = window.{js_var};
-                if (!el || !el.isConnected) {{
-                    throw new Error('stale element reference');
-                }}
-                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {{
+                if (el && el.isConnected && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {{
                     el.dispatchEvent(new Event('change', {{ bubbles: true }}));
                 }}
                 return true;
