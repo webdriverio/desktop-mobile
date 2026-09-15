@@ -1,7 +1,7 @@
-// Static risk scan for fork PRs touching the Tauri service, run BEFORE CN_API_KEY reaches a
-// runner. Reads the PR's changed files (never executes them) to arm the human review, which is
-// the real control: findings are heuristics, so a clean scan never authorises a keyed run on its
-// own. See docs/security/crabnebula-fork-verification.md.
+// Static supply-chain risk scan for fork PRs, run BEFORE any secret reaches a runner. Reads the
+// PR's changed files (never executes them) to arm the human review, which is the real control:
+// findings are heuristics, so a clean scan never authorises a secret-bearing run on its own.
+// See docs/security/crabnebula-fork-verification.md for the flow that consumes it.
 //
 // Plain .mjs, not a typed scripts/*.ts, so it stays off the classifier's typecheck/test surface.
 
@@ -23,28 +23,6 @@ const changedFiles = git(['diff', '--name-only', `${BASE}...${HEAD}`])
   .split('\n')
   .map((f) => f.trim())
   .filter(Boolean);
-
-// Which changed paths leave macOS CrabNebula as the uncovered surface on a fork PR. Duplicated
-// from scripts/detect-changes.ts run_tauri on purpose: the privileged scanner can't read that job.
-const TAURI_GLOBS = [
-  /^packages\/tauri-service\//,
-  /^packages\/tauri-plugin/,
-  /^fixtures\/e2e-apps\/tauri\//,
-  /^e2e\/.*tauri/i,
-];
-// Shared packages affect Tauri too.
-const SHARED_GLOBS = [/^packages\/native-(utils|types|cdp-bridge|spy)\//, /^pnpm-lock\.yaml$/, /^package\.json$/];
-const CRABNEBULA_GLOBS = [
-  /crabnebula/i,
-  /^packages\/tauri-service\/src\/(driverManager|pluginValidator)\.ts$/,
-  /^packages\/tauri-service\/docs\/crabnebula-setup\.md$/,
-];
-
-const matchesAny = (file, globs) => globs.some((re) => re.test(file));
-
-const tauriTouched = changedFiles.some((f) => matchesAny(f, TAURI_GLOBS) || matchesAny(f, SHARED_GLOBS));
-const crabnebulaTouched = changedFiles.some((f) => matchesAny(f, CRABNEBULA_GLOBS));
-const tier = crabnebulaTouched ? 'hard' : tauriTouched ? 'soft' : 'none';
 
 /** @type {{file: string, line: number, level: 'error'|'warning'|'note', rule: string, message: string}[]} */
 const findings = [];
@@ -165,7 +143,7 @@ const sarif = {
     {
       tool: {
         driver: {
-          name: 'crabnebula-fork-risk-scan',
+          name: 'fork-risk-scan',
           informationUri:
             'https://github.com/webdriverio/desktop-mobile/blob/main/docs/security/crabnebula-fork-verification.md',
           rules: [],
@@ -184,14 +162,9 @@ const sarif = {
 writeFileSync(SARIF_OUT, JSON.stringify(sarif, null, 2));
 
 const high = findings.filter((f) => f.level === 'error').length;
-console.error(
-  `tier=${tier} findings=${findings.length} high=${high} tauri=${tauriTouched} crabnebula=${crabnebulaTouched}`,
-);
+console.error(`findings=${findings.length} high=${high}`);
 for (const f of findings) console.error(`  [${f.level}] ${f.rule} ${f.file}:${f.line} — ${f.message}`);
 
 if (process.env.GITHUB_OUTPUT) {
-  appendFileSync(
-    process.env.GITHUB_OUTPUT,
-    `tier=${tier}\nfindings=${findings.length}\nhigh=${high}\ntauri=${tauriTouched}\ncrabnebula=${crabnebulaTouched}\n`,
-  );
+  appendFileSync(process.env.GITHUB_OUTPUT, `findings=${findings.length}\nhigh=${high}\n`);
 }

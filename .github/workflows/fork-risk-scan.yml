@@ -1,12 +1,12 @@
 name: Fork Risk Scan
 
-# Static risk scan feeding the human review before any keyed CrabNebula verification. Runs NO PR
-# code: the scanner is the trusted base-branch copy and reads the fork's files from git objects, so
-# nothing from the PR head runs or lands on disk. See docs/security/crabnebula-fork-verification.md.
+# Static supply-chain risk scan for every fork PR, feeding the human review before any secret-bearing
+# verification (e.g. the CrabNebula flow). Runs NO PR code: the scanner is the trusted base-branch
+# copy and reads the fork's files from git objects, so nothing from the PR head runs or lands on disk.
 #
-# pull_request_target is required — a fork pull_request token is read-only and cannot upload SARIF
-# or post a status — and is safe only because no PR code runs. Findings go to the private Security
-# tab (Code Scanning), not a public comment, so a prober gets no detection oracle.
+# pull_request_target is required — a fork pull_request token is read-only and cannot upload SARIF or
+# post a status — and is safe only because no PR code runs. Findings go to the private Security tab
+# (Code Scanning), not a public comment, so a prober gets no detection oracle.
 
 on:
   pull_request_target:
@@ -23,7 +23,7 @@ concurrency:
 
 jobs:
   scan:
-    # Fork PRs only. Internal PRs have the key and run CrabNebula for real; nothing to scan.
+    # Fork PRs only — supply-chain risk is an external-contributor concern; internal PRs are trusted.
     if: github.event.pull_request.head.repo.fork == true
     runs-on: ubuntu-latest
     steps:
@@ -60,7 +60,7 @@ jobs:
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: fork-risk-scan.sarif
-          category: crabnebula-fork-risk
+          category: fork-risk
           sha: ${{ github.event.pull_request.head.sha }}
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
@@ -70,16 +70,11 @@ jobs:
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
-          TIER: ${{ steps.scan.outputs.tier }}
           FINDINGS: ${{ steps.scan.outputs.findings }}
           HIGH: ${{ steps.scan.outputs.high }}
         run: |
-          desc="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab)."
-          if [ "$TIER" = "none" ]; then
-            desc="No Tauri-affecting changes detected."
-          fi
           gh api "repos/$REPO/statuses/$SHA" \
             -f state=success \
             -f context='Fork Risk Scan' \
-            -f description="$desc" \
+            -f description="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab)." \
             -f target_url="$PR_URL"

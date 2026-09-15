@@ -28,15 +28,17 @@ untrusted.
 
 | Workflow | Trigger | Does |
 |---|---|---|
-| `crabnebula-fork-scan.yml` | fork PR opened/updated | Static risk scan (no code executed). Detail → **Security tab** (Code Scanning, maintainer-only). Public surface = a terse `Fork Risk Scan` status with a count only. |
+| `fork-risk-scan.yml` | any fork PR opened/updated | General supply-chain risk scan (no code executed). Detail → **Security tab** (Code Scanning, maintainer-only). Public surface = a terse `Fork Risk Scan` status with a count only. |
 | `crabnebula-verify.yml` | PR opened/updated/labeled | Posts the required `CrabNebula / macOS` status; enforces the labeler allowlist; voids attestation on new pushes. |
 | `crabnebula-mirror.yml` | authorized `crabnebula:run` label | Mirrors the reviewed fork head (merged onto main) to `crabnebula-verify/pr-<N>` and dispatches the keyed run. Runs no fork code. |
 | `crabnebula-mirror-run.yml` | dispatched by the mirror | Builds and runs macOS CrabNebula with the key, reports the result back as `CrabNebula / macOS`, deletes the branch. |
 
 `CrabNebula / macOS` states:
-- **success** — internal PR, or no Tauri changes, or an authorized `crabnebula:verified` label is present.
-- **pending (blocks merge)** — fork PR touching the CrabNebula path, not yet verified.
-- **success with a note** — fork PR touching Tauri but not the CrabNebula path (soft tier; embedded/official/Linux covered it).
+- **success** — internal PR, no Tauri changes, or an authorized `crabnebula:verified` label is present.
+- **pending (blocks merge)** — any fork PR that touches Tauri and isn't yet verified.
+
+Every fork Tauri PR blocks until verified — macOS CrabNebula is skipped on all of them, and a green
+embedded run doesn't prove CrabNebula passes.
 
 ## The review checklist (clear before applying `crabnebula:verified`)
 

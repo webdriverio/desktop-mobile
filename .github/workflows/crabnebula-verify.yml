@@ -85,10 +85,9 @@ jobs:
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
           files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
-          tauri=false; crab=false
+          tauri=false
           # Conservative mirror of scripts/detect-changes.ts run_tauri; shared packages count.
           if echo "$files" | grep -qE '^packages/tauri-(service|plugin)|^fixtures/e2e-apps/tauri/|^e2e/.*tauri|^packages/native-(utils|types|cdp-bridge|spy)/|^pnpm-lock\.yaml$'; then tauri=true; fi
-          if echo "$files" | grep -qiE 'crabnebula'; then crab=true; fi
           verified=false
           if gh api "repos/$REPO/issues/$PR/labels" --jq '.[].name' | grep -qx 'crabnebula:verified'; then verified=true; fi
 
@@ -97,14 +96,12 @@ jobs:
           if [ "$IS_FORK" = "true" ] && [ "$tauri" = "true" ]; then
             if [ "$verified" = "true" ]; then
               desc="macOS CrabNebula verified by an authorized maintainer."
-            elif [ "$crab" = "true" ]; then
+            else
               state=pending
               desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula:verified."
-            else
-              desc="macOS CrabNebula skipped on fork; embedded/official/Linux ran. Verify before merge if needed."
             fi
           fi
-          echo "fork=$IS_FORK tauri=$tauri crabnebula=$crab verified=$verified -> $state"
+          echo "fork=$IS_FORK tauri=$tauri verified=$verified -> $state"
           gh api "repos/$REPO/statuses/$SHA" \
             -f state="$state" \
             -f context='CrabNebula / macOS' \
