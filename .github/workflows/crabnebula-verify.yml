@@ -101,16 +101,23 @@ jobs:
             # GITHUB_STEP_SUMMARY=/dev/null so detect-changes.ts's service table doesn't pollute the gate.
             if files_raw="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null)" \
                && total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null)"; then
-              if [ "$total" -le 3000 ]; then
-                files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
-                tmp="$(mktemp)"
-                if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" GITHUB_STEP_SUMMARY=/dev/null node scripts/detect-changes.ts >/dev/null 2>&1; then
-                  run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
-                  run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
-                fi
-              else
-                truncated=true
-              fi
+              # Guard that the count is a plain integer before the numeric test — an empty/odd value
+              # (fetch exits 0 but returns an unexpected shape) must not fall through to the >3000 branch
+              # and mislabel the PR; leave it unclassified so the generic "couldn't classify" message shows.
+              case "$total" in
+                '' | *[!0-9]*) : ;;
+                *)
+                  if [ "$total" -le 3000 ]; then
+                    files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
+                    tmp="$(mktemp)"
+                    if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" GITHUB_STEP_SUMMARY=/dev/null node scripts/detect-changes.ts >/dev/null 2>&1; then
+                      run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
+                      run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
+                    fi
+                  else
+                    truncated=true
+                  fi ;;
+              esac
             fi
             if [ "$truncated" = "true" ]; then
               # >3000 files: re-running/pushing won't change the count, so don't imply it will — the

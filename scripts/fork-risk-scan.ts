@@ -111,17 +111,21 @@ const addedLines = (patch: string | undefined): AddedLine[] => {
 // a network call in the same file; named secrets and outbound shell commands are high-signal enough
 // to flag alone.
 const rx = {
-  // Full-env dumps: printenv, and the `env` command when piped/redirected/standalone. The lookbehind
-  // excludes `process.env` / `.env` / `NODE_ENV`, so only the shell dump matches, not env-var reads.
-  secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv|(?<![.\w])env\b(?=\s*(?:\||>|$))/,
-  outbound: /\b(curl|wget|nc|netcat|scp|Invoke-WebRequest|iwr)\b/,
+  // Full-env dumps: printenv, and the `env` command only when piped/redirected (env | / env >) — the
+  // exfil forms. The lookbehind excludes process.env/.env/NODE_ENV; requiring a pipe/redirect avoids a
+  // plain trailing identifier like `const cfg = env` matching (a bare standalone env just prints).
+  secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv|(?<![.\w])env\s*(?:\||>)/,
+  // nc is a common variable name, so require it to look like a netcat invocation (followed by an arg),
+  // not a bare identifier; the longer commands are distinctive enough to match plain.
+  outbound: /\b(curl|wget|netcat|scp|Invoke-WebRequest|iwr)\b|\bnc\s+[^=\s]/,
   envRead: /process\.env\b|std::env|os\.environ|\$env:/,
   // Broad HTTP-client coverage so a full-env exfil (env-egress) isn't missed by client choice: distinct
-  // libs by name, common-word libs only in call form, plus http.get (not just .request) and requests.*.
+  // libs by name, common-word libs only as a bare call (not x.request()/x.got(), which are usually not
+  // network), plus http.get (not just .request) and requests.*.
   http: new RegExp(
     [
       '\\b(fetch|axios|undici|superagent|XMLHttpRequest|reqwest|ureq|httpx|aiohttp|urllib|Invoke-RestMethod)\\b',
-      '\\b(got|needle|request)\\s*\\(',
+      '(?<![.\\w])(got|needle|request)\\s*\\(',
       '\\brequests\\.(get|post|put|patch|request)\\b',
       '\\bhttps?\\.(request|get)\\b',
       '\\bhttp\\.client\\b',
@@ -151,12 +155,15 @@ for (const { filename, status, patch, additions } of files) {
   // exfiltration vector. Plain registry entries carry only an integrity hash, so they don't match.
   if (/(^|\/)pnpm-lock\.yaml$/.test(filename)) {
     if (!patch) {
+      // Fail closed: the lockfile is the top supply-chain vector and, with no diff, we can't tell
+      // whether a non-registry source was added — so error (reds the status), matching scan/truncated
+      // and scan/count-unavailable, rather than pass an unscannable lockfile as green.
       add(
         filename,
         1,
-        'warning',
+        'error',
         'dep/lockfile-changed',
-        'Lockfile changed but the diff was too large for the API to return — review sources manually.',
+        'Lockfile changed but the diff was too large for the API to return — sources unscanned; review manually.',
       );
     } else {
       const nonRegistry = added.filter(
