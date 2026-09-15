@@ -34,7 +34,7 @@ untrusted.
 |---|---|---|
 | `fork-risk-scan.yml` | any fork PR opened/updated | General supply-chain risk scan (no code executed). Detail → **Security tab** (Code Scanning, maintainer-only). Public surface = a terse `Fork Risk Scan` status with a count only. |
 | `crabnebula-verify.yml` | PR opened/updated/labeled | Posts the required `CrabNebula / macOS` status; enforces the labeler allowlist; voids attestation on new pushes. |
-| `crabnebula-mirror.yml` | authorized `crabnebula:run` label | Mirrors the reviewed fork head (merged onto main) to `crabnebula-verify/pr-<N>` and dispatches the keyed run. Runs no fork code. |
+| `crabnebula-mirror.yml` | authorized `crabnebula:run` label | Mirrors the reviewed fork head (squash-merged onto main) to a fresh per-dispatch `crabnebula-verify/pr-<N>-<run-id>` branch and dispatches the keyed run. Runs no fork code. |
 | `crabnebula-mirror-run.yml` | dispatched by the mirror | Builds and runs macOS CrabNebula with the key, reports the result back as `CrabNebula / macOS`, deletes the branch. |
 
 `CrabNebula / macOS` states:
@@ -65,8 +65,9 @@ pick a path — both only count from a login in `CRABNEBULA_LABELERS`, and a new
 the label, so re-verify.
 
 **Automated (`crabnebula:run`) — prefer this.** Apply the label. `crabnebula-mirror.yml` mirrors the
-reviewed head onto `crabnebula-verify/pr-<N>`, `crabnebula-mirror-run.yml` runs macOS CrabNebula with
-**only `CN_API_KEY`** (build jobs get no secrets), and the result posts back as `CrabNebula / macOS`.
+reviewed head onto a fresh per-dispatch `crabnebula-verify/pr-<N>-<run-id>` branch, `crabnebula-mirror-run.yml`
+runs macOS CrabNebula with **only `CN_API_KEY`** (build jobs get no secrets), and the result posts back
+as `CrabNebula / macOS`.
 Applying the label **is** authorizing a keyed run of the fork's code — only apply it once the diff
 review is done. This path has the narrowest exposure and should be the default.
 

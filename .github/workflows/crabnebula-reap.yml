@@ -1,6 +1,6 @@
 name: CrabNebula Reap Stale Branches
 
-# Sweeps throwaway crabnebula-verify/pr-<N> mirror branches (created by crabnebula-mirror.yml) that a
+# Sweeps throwaway crabnebula-verify/pr-<N>-<run-id> mirror branches (created by crabnebula-mirror.yml) that a
 # cancelled or non-reporting keyed run left behind. Verifications finish in minutes, so anything older
 # than a day is stale. This makes the mirror-run's own cleanup non-critical: orphans are reaped here.
 

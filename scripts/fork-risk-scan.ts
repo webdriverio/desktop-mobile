@@ -224,11 +224,14 @@ for (const { filename, status, patch, additions } of files) {
   const env = first(rx.envRead);
   const http = first(rx.http);
   const enc = first(rx.encode);
+  // Error (reds the gate status), not warning: a fork's added code naming CN_API_KEY/TURBO_TOKEN/
+  // DEPLOY_KEY is the exact key-theft this gate guards, so it must not pass as a skimmed-past green.
+  // The softer shapes below stay advisory to keep the list low-noise.
   if (sec)
     add(
       filename,
       sec.line,
-      'warning',
+      'error',
       'secret/named',
       'A named secret (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY) is referenced in an added line.',
     );

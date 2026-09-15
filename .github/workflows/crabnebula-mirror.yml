@@ -2,8 +2,9 @@ name: CrabNebula Mirror Dispatch
 
 # Phase 2 of docs/security/crabnebula-fork-verification.md. When an authorized reviewer applies
 # `crabnebula:run` to a fork PR (after reviewing the diff), this mirrors the reviewed fork head —
-# merged onto main so the internal workflows are present — to crabnebula-verify/pr-<N> and dispatches
-# the keyed run. This job runs NO fork code — only file-level git operations and a push.
+# merged onto main so the internal workflows are present — to a fresh, immutable per-dispatch branch
+# crabnebula-verify/pr-<N>-<run-id> and dispatches the keyed run. This job runs NO fork code — only
+# file-level git operations and a push.
 #
 # The authorization is enforced here in the job `if`, not just by crabnebula-verify.yml removing the
 # label, because label removal races the mirror. GitHub has no per-label permission, so the allowlist
@@ -55,25 +56,29 @@ jobs:
             echo "moved=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          BR="crabnebula-verify/pr-${PR}"
+          # One immutable branch per dispatch (run-id suffix): a re-apply never force-pushes over a
+          # branch an earlier run is still using, so no run can test a revision other than the one it
+          # reports. This run's report step deletes it; the reaper sweeps any orphan.
+          BR="crabnebula-verify/pr-${PR}-${GITHUB_RUN_ID}"
           git checkout -B "$BR" origin/main
-          # --no-commit so the .github pin lands INSIDE the single merge commit. Committing a separate
-          # commit that touches .github/workflows would make GITHUB_TOKEN's push fail (no workflows
-          # scope); keeping the merge commit's .github identical to main means the push has no workflow
-          # change and is allowed — and the keyed run still resolves CI machinery from main, not the fork.
-          if ! git merge --no-ff --no-commit --no-edit "$HEAD_SHA"; then
-            git merge --abort || true
+          # Squash-merge (single parent = main), not a real merge: a 2-parent merge commit would carry
+          # the fork's ancestor commits as pushed objects, and if any of them edited .github/workflows
+          # the GITHUB_TOKEN push is rejected (no workflows scope) even when the tip's .github matches
+          # main. A squash pushes just one commit off main; we still pin its .github to main, so the push
+          # has no workflow change and the keyed run resolves CI machinery from main, not the fork.
+          if ! git merge --squash "$HEAD_SHA"; then
+            git reset --hard >/dev/null 2>&1 || true
             echo "conflict=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
           # rm before checkout so fork-ADDED workflow files (not in main) are removed, not just overwritten.
           rm -rf .github
           git checkout origin/main -- .github
-          git add -A .github
-          git commit --no-edit >/dev/null
+          git add -A
+          git commit -m 'Mirror reviewed fork head onto main for CrabNebula verification' >/dev/null
           # Guard the push: if it fails, set -e would abort here and skip the report step (implicit
           # success()), leaving the label wedged. Handle it so the report step can clean up.
-          if ! git push --force origin "$BR"; then
+          if ! git push origin "$BR"; then
             echo "pushfail=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi

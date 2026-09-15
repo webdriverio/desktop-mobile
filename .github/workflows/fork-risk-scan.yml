@@ -46,35 +46,42 @@ jobs:
           SARIF_OUT: fork-risk-scan.sarif
         run: node scripts/fork-risk-scan.ts
 
-      # Code scanning wants sha to be the tip of ref — for refs/pull/N/merge that's the merge commit,
-      # not head.sha. Resolve it so the upload isn't rejected for a mismatched sha/ref pairing.
-      - name: Resolve PR merge commit
+      # Code scanning wants sha to be the tip of ref. Prefer the merge commit on refs/pull/N/merge; if
+      # the PR is unmergeable, fall back to the PR head so the Security tab is still populated.
+      - name: Resolve upload target (merge commit, else PR head)
         id: mergesha
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
           # merge_commit_sha is computed asynchronously and is often null right after `opened`; poll
-          # briefly so the SARIF upload isn't skipped just because mergeability wasn't ready yet.
+          # briefly so we don't fall back to head just because mergeability wasn't ready yet.
           sha=""
           for _ in 1 2 3 4 5; do
             sha="$(gh api "repos/$REPO/pulls/$PR" --jq '.merge_commit_sha // empty' 2>/dev/null || true)"
             [ -n "$sha" ] && break
             sleep 5
           done
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          if [ -n "$sha" ]; then
+            { echo "sha=$sha"; echo "ref=refs/pull/$PR/merge"; } >> "$GITHUB_OUTPUT"
+          else
+            # Unmergeable (e.g. conflicts with main): upload against the PR head instead of skipping, so
+            # the per-finding detail lands in the Security tab — a conflicting diff is exactly when the
+            # reviewer needs it. head.sha is the tip of refs/pull/N/head, so the pairing is valid.
+            { echo "sha=$HEAD_SHA"; echo "ref=refs/pull/$PR/head"; echo "fallback=true"; } >> "$GITHUB_OUTPUT"
+          fi
 
       - name: Upload SARIF to Code Scanning
         id: sarif
-        if: steps.mergesha.outputs.sha != ''
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: fork-risk-scan.sarif
           category: fork-risk
           sha: ${{ steps.mergesha.outputs.sha }}
-          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+          ref: ${{ steps.mergesha.outputs.ref }}
 
       # Post on success or failure so a scan error still surfaces (with a note if the SARIF upload
       # failed); skip on cancellation so a superseded run doesn't post a spurious "errored" status.
@@ -87,17 +94,17 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           SCAN_OUTCOME: ${{ steps.scan.outcome }}
           SARIF_OUTCOME: ${{ steps.sarif.outcome }}
-          MERGE_SHA: ${{ steps.mergesha.outputs.sha }}
+          FALLBACK: ${{ steps.mergesha.outputs.fallback }}
           FINDINGS: ${{ steps.scan.outputs.findings }}
           HIGH: ${{ steps.scan.outputs.high }}
         run: |
-          # A missing merge sha means the PR isn't mergeable yet (upload was skipped, not failed).
+          # Note when the detail was uploaded against the PR head because the PR isn't mergeable.
           suffix=""
-          [ -z "$MERGE_SHA" ] && suffix=" (SARIF pending — PR not yet mergeable)"
+          [ "$FALLBACK" = "true" ] && suffix=" (scanned against PR head — not mergeable)"
           if [ "$SCAN_OUTCOME" != "success" ]; then
             gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
               -f description="Risk scan errored — review the run." -f target_url="$PR_URL"
-          elif [ -n "$MERGE_SHA" ] && [ "$SARIF_OUTCOME" != "success" ]; then
+          elif [ "$SARIF_OUTCOME" != "success" ]; then
             gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
               -f description="${FINDINGS} item(s) flagged, but SARIF upload failed — detail unavailable. Review the run." \
               -f target_url="$PR_URL"

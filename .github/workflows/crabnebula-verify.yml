@@ -78,11 +78,13 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
-          # Internal PRs are always success (macOS CrabNebula runs for real there) — post it without
-          # classifying, so no checkout/API/classifier failure can strand an internal PR at "Expected".
+          # Only an explicit fork == false is internal (success without classifying, so no
+          # checkout/API/classifier failure strands an internal PR at "Expected"). A fork — or a null
+          # head.repo (deleted/detached fork) rendering empty — takes the fork path and fails closed,
+          # matching ci.yml's `fork != true`; a null must never green-light this required check.
           state=success
           desc="Not applicable (internal PR or no Tauri changes)."
-          if [ "$IS_FORK" = "true" ]; then
+          if [ "$IS_FORK" != "false" ]; then
             # Classify defensively; a transient API/classifier failure fails safe to pending
             # (recoverable by re-run/push), never a false green and never an unposted required check.
             run_tauri=""; run_lint_only=""
