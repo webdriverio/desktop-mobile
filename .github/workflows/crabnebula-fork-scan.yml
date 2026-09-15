@@ -1,0 +1,85 @@
+name: Fork Risk Scan
+
+# Static risk scan feeding the human review before any keyed CrabNebula verification. Runs NO PR
+# code: the scanner is the trusted base-branch copy and reads the fork's files from git objects, so
+# nothing from the PR head runs or lands on disk. See docs/security/crabnebula-fork-verification.md.
+#
+# pull_request_target is required — a fork pull_request token is read-only and cannot upload SARIF
+# or post a status — and is safe only because no PR code runs. Findings go to the private Security
+# tab (Code Scanning), not a public comment, so a prober gets no detection oracle.
+
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+
+permissions:
+  contents: read
+  security-events: write
+  statuses: write
+
+concurrency:
+  group: fork-risk-scan-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  scan:
+    # Fork PRs only. Internal PRs have the key and run CrabNebula for real; nothing to scan.
+    if: github.event.pull_request.head.repo.fork == true
+    runs-on: ubuntu-latest
+    steps:
+      # Default pull_request_target checkout is the BASE branch — the trusted scanner, not the
+      # fork's copy. Do not change the ref.
+      - name: Checkout base (trusted scanner)
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      # Fetch the PR head as objects only (no checkout, no execution) so the scanner can diff
+      # base...head and read head blobs via `git show`.
+      - name: Fetch PR head objects
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: git fetch --no-tags origin "pull/${PR}/head"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Run static risk scan
+        id: scan
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          SARIF_OUT: fork-risk-scan.sarif
+        run: node scripts/fork-risk-scan.mjs
+
+      # continue-on-error: a missing Code Scanning setup must not fail the scan.
+      - name: Upload SARIF to Code Scanning
+        continue-on-error: true
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: fork-risk-scan.sarif
+          category: crabnebula-fork-risk
+          sha: ${{ github.event.pull_request.head.sha }}
+          ref: refs/pull/${{ github.event.pull_request.number }}/merge
+
+      - name: Post terse public status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          TIER: ${{ steps.scan.outputs.tier }}
+          FINDINGS: ${{ steps.scan.outputs.findings }}
+          HIGH: ${{ steps.scan.outputs.high }}
+        run: |
+          desc="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab)."
+          if [ "$TIER" = "none" ]; then
+            desc="No Tauri-affecting changes detected."
+          fi
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state=success \
+            -f context='Fork Risk Scan' \
+            -f description="$desc" \
+            -f target_url="$PR_URL"

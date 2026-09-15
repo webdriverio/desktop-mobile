@@ -1,0 +1,112 @@
+name: CrabNebula macOS Gate
+
+# Closes the fork coverage gap: on a fork PR the macOS CrabNebula E2E leg is skipped (no CN_API_KEY
+# for forks), so it could otherwise merge green without ever running. This posts a required
+# `CrabNebula / macOS` status that blocks such a PR until a maintainer verifies it and applies the
+# `crabnebula-verified` label. See docs/security/crabnebula-fork-verification.md.
+#
+# Trust model: GitHub has no per-label permission, so a label's presence is not a boundary — it is
+# enforced here, where only a login in CRABNEBULA_LABELERS can make a sensitive label stick.
+#
+# pull_request_target for the writable statuses/labels token; this workflow runs NO PR code.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: write
+
+concurrency:
+  group: crabnebula-verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  # Logins allowed to attest a verification — keep this to the people who do the fork-diff review,
+  # NOT all repo admins. Set repo variable CRABNEBULA_LABELERS (a JSON array of logins) to override.
+  AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '["goosewobbler"]' }}
+
+jobs:
+  # Enforce the labeler allowlist.
+  guard-labeler:
+    if: >-
+      github.event.action == 'labeled' &&
+      (github.event.label.name == 'crabnebula-verified' || github.event.label.name == 'crabnebula:run')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Reject unauthorized labeler
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          LABEL: ${{ github.event.label.name }}
+          SENDER: ${{ github.event.sender.login }}
+          ALLOW: ${{ env.AUTHORIZED_LABELERS }}
+        run: |
+          if echo "$ALLOW" | jq -e --arg s "$SENDER" 'index($s) != null' >/dev/null; then
+            echo "$SENDER is authorized to apply $LABEL."
+            exit 0
+          fi
+          echo "::warning::Unauthorized labeler $SENDER applied '$LABEL' — removing. Authorized: $ALLOW"
+          enc=$(jq -rn --arg l "$LABEL" '$l|@uri')
+          gh api -X DELETE "repos/$REPO/issues/$PR/labels/$enc" || true
+
+  # A new push voids any prior attestation — it was pinned to the reviewed SHA.
+  void-on-push:
+    if: github.event.action == 'synchronize'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clear CrabNebula labels on new commits
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          for L in crabnebula-verified crabnebula:run; do
+            enc=$(jq -rn --arg l "$L" '$l|@uri')
+            gh api -X DELETE "repos/$REPO/issues/$PR/labels/$enc" >/dev/null 2>&1 || true
+          done
+          echo "Cleared CrabNebula labels after new push (attestation is SHA-pinned)."
+
+  # Always post the required `CrabNebula / macOS` status, even on internal/non-Tauri PRs, so the
+  # merge box never shows a bare "Expected".
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Evaluate gate and post status
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          files=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename')
+          tauri=false; crab=false
+          # Conservative mirror of scripts/detect-changes.ts run_tauri; shared packages count.
+          if echo "$files" | grep -qE '^packages/tauri-(service|plugin)|^fixtures/e2e-apps/tauri/|^e2e/.*tauri|^packages/native-(utils|types|cdp-bridge|spy)/|^pnpm-lock\.yaml$'; then tauri=true; fi
+          if echo "$files" | grep -qiE 'crabnebula'; then crab=true; fi
+          verified=false
+          if gh api "repos/$REPO/issues/$PR/labels" --jq '.[].name' | grep -qx 'crabnebula-verified'; then verified=true; fi
+
+          state=success
+          desc="Not applicable (internal PR or no Tauri changes)."
+          if [ "$IS_FORK" = "true" ] && [ "$tauri" = "true" ]; then
+            if [ "$verified" = "true" ]; then
+              desc="macOS CrabNebula verified by an authorized maintainer."
+            elif [ "$crab" = "true" ]; then
+              state=pending
+              desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula-verified."
+            else
+              desc="macOS CrabNebula skipped on fork; embedded/official/Linux ran. Verify before merge if needed."
+            fi
+          fi
+          echo "fork=$IS_FORK tauri=$tauri crabnebula=$crab verified=$verified -> $state"
+          gh api "repos/$REPO/statuses/$SHA" \
+            -f state="$state" \
+            -f context='CrabNebula / macOS' \
+            -f description="$desc" \
+            -f target_url="$PR_URL"
