@@ -54,13 +54,22 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
-        run: echo "sha=$(gh api "repos/$REPO/pulls/$PR" --jq '.merge_commit_sha // empty')" >> "$GITHUB_OUTPUT"
+        run: |
+          # merge_commit_sha is computed asynchronously and is often null right after `opened`; poll
+          # briefly so the SARIF upload isn't skipped just because mergeability wasn't ready yet.
+          sha=""
+          for _ in 1 2 3 4 5; do
+            sha="$(gh api "repos/$REPO/pulls/$PR" --jq '.merge_commit_sha // empty' 2>/dev/null || true)"
+            [ -n "$sha" ] && break
+            sleep 5
+          done
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
 
       - name: Upload SARIF to Code Scanning
         id: sarif
         if: steps.mergesha.outputs.sha != ''
         continue-on-error: true
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: fork-risk-scan.sarif
           category: fork-risk

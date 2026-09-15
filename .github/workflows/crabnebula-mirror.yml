@@ -77,8 +77,14 @@ jobs:
           fi
           echo "branch=$BR" >> "$GITHUB_OUTPUT"
 
-      - name: Report and stop (head moved, conflict, or push failure)
-        if: steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true' || steps.mirror.outputs.pushfail == 'true'
+      # always() + mirror.outcome == 'failure' so an aborted git op (fetch/checkout under set -e, which
+      # sets no marker) still cleans up rather than wedging the label. The explicit markers give a
+      # precise message; any other failure gets a generic one.
+      - name: Report and stop (head moved, conflict, or setup failure)
+        if: >-
+          always() &&
+          (steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true' ||
+           steps.mirror.outputs.pushfail == 'true' || steps.mirror.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -87,13 +93,16 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           MOVED: ${{ steps.mirror.outputs.moved }}
           PUSHFAIL: ${{ steps.mirror.outputs.pushfail }}
+          CONFLICT: ${{ steps.mirror.outputs.conflict }}
         run: |
           if [ "$MOVED" = "true" ]; then
             desc='Cannot verify: the PR head moved since the label. Re-review, then re-apply crabnebula:run.'
           elif [ "$PUSHFAIL" = "true" ]; then
             desc='Cannot verify: could not create the verification branch. Re-apply crabnebula:run to retry.'
-          else
+          elif [ "$CONFLICT" = "true" ]; then
             desc='Cannot verify: PR conflicts with main. Rebase, then re-apply crabnebula:run.'
+          else
+            desc='Cannot verify: the mirror step failed to set up. Re-apply crabnebula:run to retry.'
           fi
           gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
             -f description="$desc" -f target_url="$PR_URL" || true

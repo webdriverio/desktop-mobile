@@ -64,22 +64,19 @@ Always review the diff against the checklist above (scan output in the Security 
 pick a path — both only count from a login in `CRABNEBULA_LABELERS`, and a new push to the PR clears
 the label, so re-verify.
 
-**Automated (`crabnebula:run`):** apply the label. `crabnebula-mirror.yml` mirrors the reviewed head
-onto `crabnebula-verify/pr-<N>`, `crabnebula-mirror-run.yml` runs macOS CrabNebula with the key, and
-the result posts back as `CrabNebula / macOS`. Applying the label **is** authorizing a keyed run of
-the fork's code — only apply it once the diff review is done.
+**Automated (`crabnebula:run`) — prefer this.** Apply the label. `crabnebula-mirror.yml` mirrors the
+reviewed head onto `crabnebula-verify/pr-<N>`, `crabnebula-mirror-run.yml` runs macOS CrabNebula with
+**only `CN_API_KEY`** (build jobs get no secrets), and the result posts back as `CrabNebula / macOS`.
+Applying the label **is** authorizing a keyed run of the fork's code — only apply it once the diff
+review is done. This path has the narrowest exposure and should be the default.
 
-**Manual (`crabnebula:verified`):** for when you've confirmed macOS CrabNebula passes by your own
-means. Note that a bare `git push` of an internal branch does **not** run CI — `ci.yml`'s `push`
-trigger is limited to `main`. To run it in CI, pull the reviewed code into an internal branch and
-open a PR from it (an internal PR gets the key, so the Tauri E2E runs CrabNebula):
-```bash
-git fetch origin pull/<PR>/head:verify-<PR>
-git push origin verify-<PR>
-gh pr create --base main --head verify-<PR> --title "verify #<PR>" --body "CrabNebula verification"
-```
-When macOS CrabNebula passes there (or you've otherwise confirmed it), apply `crabnebula:verified` to
-the fork PR. In most cases prefer the automated `crabnebula:run` path above.
+**Manual (`crabnebula:verified`) — only if you accept the wider exposure.** For confirming macOS
+CrabNebula some other way, then attesting. ⚠️ Do **not** verify by opening an internal PR from the
+fork's code: an internal PR runs `ci.yml` with `secrets: inherit`, so the fork's `build.rs` / lifecycle
+scripts / test code execute with the **full** internal secret set (`TURBO_TOKEN`, `DEPLOY_KEY`), not
+just `CN_API_KEY` — strictly more exposure than the automated path. Prefer running the CrabNebula E2E
+**locally** (with the key, on the reviewed checkout) and no repo secrets, then apply `crabnebula:verified`.
+(A bare `git push` of an internal branch runs no CI anyway — `ci.yml`'s `push` trigger is `main`-only.)
 
 ## If you suspect the key leaked
 

@@ -57,11 +57,18 @@ try {
       1,
       'error',
       'scan/truncated',
-      `PR changed ${total} files but only ${files.length} were returned — files beyond the API cap were not scanned. Review manually.`,
+      `PR changed ${total} files; only ${files.length} scanned (API cap) — review the rest manually.`,
     );
   }
 } catch {
-  /* if the count can't be fetched, per-file scanning still runs */
+  // Can't confirm completeness — surface it rather than silently passing a possibly-truncated scan.
+  add(
+    '',
+    1,
+    'warning',
+    'scan/count-unavailable',
+    'Could not fetch the file count — scan completeness is unverified; review manually.',
+  );
 }
 
 // Added lines from a GitHub API patch (hunks only — no +++/--- file headers), with new-file line
@@ -289,8 +296,9 @@ const sarif = {
 writeFileSync(SARIF_OUT, JSON.stringify(sarif, null, 2));
 
 const high = findings.filter((f) => f.level === 'error').length;
+// Only the counts go to the (public) run log — the per-finding detail goes to the private SARIF, so
+// the log isn't a detection oracle a prober can iterate against.
 console.error(`findings=${findings.length} high=${high}`);
-for (const f of findings) console.error(`  [${f.level}] ${f.rule} ${f.file}:${f.line} — ${f.message}`);
 
 if (process.env.GITHUB_OUTPUT) {
   appendFileSync(process.env.GITHUB_OUTPUT, `findings=${findings.length}\nhigh=${high}\n`);
