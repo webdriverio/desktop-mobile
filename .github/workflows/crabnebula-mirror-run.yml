@@ -98,12 +98,15 @@ jobs:
             state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
           fi
           # Retry the terminal status: a transient failure must not silently strand the SHA at pending.
+          posted=false
           for _ in 1 2 3; do
             if gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
-              -f description="$desc" -f target_url="$RUN_URL"; then break; fi
+              -f description="$desc" -f target_url="$RUN_URL"; then posted=true; break; fi
             sleep 5
           done
           gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
-          # A re-run must be re-authorized: drop the trigger label and the throwaway branch.
+          # A re-run must be re-authorized: drop the trigger label and the throwaway branch (always, so
+          # nothing is orphaned), then fail the job if the terminal status never posted so it's visible.
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
           gh api "repos/$REPO/git/refs/heads/crabnebula-verify/pr-${PR}" -X DELETE || true
+          [ "$posted" = true ] || { echo "::error::Failed to post terminal status after retries."; exit 1; }

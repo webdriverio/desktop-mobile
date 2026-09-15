@@ -29,9 +29,13 @@ interface PrFile {
   filename: string;
   status: string;
   patch?: string;
+  additions?: number;
 }
 
 // One file object per line (NDJSON) across all pages. gh uses GH_TOKEN from the environment.
+// Intentionally NOT wrapped: without the file list there is nothing to scan, so a failure here should
+// hard-error (the workflow then posts a red "scan errored" status) rather than pass a false-clean scan.
+// The changed_files count below is optional, so it degrades to a warning instead.
 const files: PrFile[] = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}/files`, '--paginate', '--jq', '.[]'], {
   encoding: 'utf8',
   maxBuffer: 128 * 1024 * 1024,
@@ -45,13 +49,14 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
   findings.push({ file, line, level, rule, message });
 };
 
-// The Files API caps at 3000 files; if the PR changed more than we received, files beyond the cap are
-// unscanned — flag it so the truncation isn't a silent blind spot (parity with crabnebula-verify.yml).
+// The Files API caps at 3000 files. Key the truncation flag on that cap (total > 3000), not on
+// total != files.length — the changed_files count can legitimately diverge from the list length on
+// large diffs (binary/rename accounting) without anything being truncated.
 try {
   const total = Number(
     execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}`, '--jq', '.changed_files'], { encoding: 'utf8' }).trim(),
   );
-  if (Number.isFinite(total) && total > files.length) {
+  if (Number.isFinite(total) && total > 3000) {
     add(
       '',
       1,
@@ -108,7 +113,7 @@ const rx = {
   encode: /base64|atob|btoa|from_base64/,
 };
 
-for (const { filename, status, patch } of files) {
+for (const { filename, status, patch, additions } of files) {
   // Deletions add nothing executable — don't fire filename rules on them.
   if (status === 'removed') continue;
   const added = addedLines(patch);
@@ -257,6 +262,18 @@ for (const { filename, status, patch } of files) {
       'warning',
       'scan/unscanned',
       'Changed file too large for the API to return a diff — content not scanned; review manually.',
+    );
+  }
+
+  // A present-but-truncated patch (GitHub caps very large patches) is only partially scanned — the
+  // returned added-line count falls short of the file's total additions. Flag the blind spot.
+  if (patch && typeof additions === 'number' && added.length < additions) {
+    add(
+      filename,
+      1,
+      'warning',
+      'scan/partial-diff',
+      `Only ${added.length} of ${additions} added lines were in the diff — the rest are unscanned; review manually.`,
     );
   }
 }

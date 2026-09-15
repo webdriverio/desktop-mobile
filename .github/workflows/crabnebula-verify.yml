@@ -89,12 +89,13 @@ jobs:
             # Capture each API call's exit code explicitly (assignment exit == command exit). A pipe
             # would swallow a gh failure and yield "[]", so both fetches must succeed before we trust
             # the file list; otherwise run_tauri stays empty -> pending. The Files API caps at 3000
-            # files, so require got >= total (else the list is truncated and could miss Tauri paths).
+            # files, so if the PR changed more than that the list is truncated and could miss Tauri
+            # paths -> stay unclassified -> pending. (Below the cap, changed_files can differ from the
+            # list length on binary/rename accounting without being truncated, so don't gate on that.)
             if files_raw="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null)" \
                && total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null)"; then
-              files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
-              got="$(printf '%s' "$files_json" | jq 'length')"
-              if [ "$got" -ge "$total" ]; then
+              if [ "$total" -le 3000 ]; then
+                files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
                 tmp="$(mktemp)"
                 if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null 2>&1; then
                   run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
@@ -112,13 +113,16 @@ jobs:
           fi
           echo "fork=$IS_FORK -> $state"
           # Retry: this posts the required check, so a transient failure must not strand the PR at
-          # "Expected" (there's no other job to re-post it until the next push).
+          # "Expected". If all attempts fail, exit non-zero so the job goes red (visible + re-runnable)
+          # rather than exiting 0 with the check never posted.
+          posted=false
           for _ in 1 2 3; do
             if gh api "repos/$REPO/statuses/$SHA" \
               -f state="$state" -f context='CrabNebula / macOS' \
-              -f description="$desc" -f target_url="$PR_URL"; then break; fi
+              -f description="$desc" -f target_url="$PR_URL"; then posted=true; break; fi
             sleep 5
           done
+          [ "$posted" = true ] || { echo "::error::Failed to post CrabNebula / macOS status after retries."; exit 1; }
 
   # Manual attestation: an authorized crabnebula:verified labeler posts success; an unauthorized one
   # is removed and posts nothing.

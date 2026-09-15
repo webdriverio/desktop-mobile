@@ -57,18 +57,20 @@ jobs:
           fi
           BR="crabnebula-verify/pr-${PR}"
           git checkout -B "$BR" origin/main
-          if ! git merge --no-ff --no-edit "$HEAD_SHA"; then
+          # --no-commit so the .github pin lands INSIDE the single merge commit. Committing a separate
+          # commit that touches .github/workflows would make GITHUB_TOKEN's push fail (no workflows
+          # scope); keeping the merge commit's .github identical to main means the push has no workflow
+          # change and is allowed — and the keyed run still resolves CI machinery from main, not the fork.
+          if ! git merge --no-ff --no-commit --no-edit "$HEAD_SHA"; then
             git merge --abort || true
             echo "conflict=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          # Pin all CI machinery to main: the keyed run resolves this workflow AND the E2E reusable
-          # from $BR, so a fork's own .github edits would otherwise execute with the key. rm before
-          # checkout so fork-ADDED files (not present in main) are removed too, not just overwritten.
+          # rm before checkout so fork-ADDED workflow files (not in main) are removed, not just overwritten.
           rm -rf .github
           git checkout origin/main -- .github
           git add -A .github
-          git commit -m "chore: pin .github to main for keyed verification" >/dev/null 2>&1 || true
+          git commit --no-edit >/dev/null
           # Guard the push: if it fails, set -e would abort here and skip the report step (implicit
           # success()), leaving the label wedged. Handle it so the report step can clean up.
           if ! git push --force origin "$BR"; then
@@ -134,3 +136,7 @@ jobs:
             -f description='Keyed macOS CrabNebula run dispatched on the reviewed commit.' \
             -f target_url="$PR_URL"
           gh api "repos/$REPO/issues/$PR/comments" -f body="🔑 macOS CrabNebula verification dispatched for \`${SHA:0:7}\` on \`${BR}\`. Result will post back as the \`CrabNebula / macOS\` check." || true
+          # Drop the label now that the run is dispatched: the keyed run no longer needs it (it carries
+          # pr/sha inputs), and if that run is cancelled before its report job the label won't wedge.
+          # A re-apply then fires a fresh labeled event to retry.
+          gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
