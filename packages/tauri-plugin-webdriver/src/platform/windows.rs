@@ -409,8 +409,27 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         );
         self.evaluate_js(&focus_script).await?;
 
+        // CDP dispatches to whatever is focused, not to a target element. Re-assert focus on the
+        // stored element before each subsequent character so a focus-moving `input` handler (e.g.
+        // autotab between OTP fields) can't redirect the rest of the text — the JS path commits the
+        // whole value into the stored element, and cross-platform parity keeps it there. Best-effort
+        // and no caret reset: don't throw if the element detached mid-type (the typing already
+        // committed), and leave the caret alone so navigation keys in `addValue` still work.
+        let refocus_script = format!(
+            r"(function() {{
+                var el = window.{js_var};
+                if (el && el.isConnected) {{
+                    el.focus();
+                }}
+                return true;
+            }})()"
+        );
+
         let no_mods = ModifierState::default();
-        for ch in text.chars() {
+        for (i, ch) in text.chars().enumerate() {
+            if i > 0 {
+                self.evaluate_js(&refocus_script).await?;
+            }
             let key = ch.to_string();
             let down = crate::platform::key_input::to_cdp_key_event(&key, true, &no_mods);
             self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
