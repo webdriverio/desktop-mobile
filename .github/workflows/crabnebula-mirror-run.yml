@@ -72,11 +72,11 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       tauri_cache_key: ${{ needs.build-app.outputs.cache_key }}
 
-  # always() so the branch/label are cleaned up even if authorize/e2e was skipped or failed — never
-  # orphan the mirror branch. The result status is only posted when the run was authorized.
+  # Only an authorized run reports + cleans up, so an unauthorized dispatch can't grief a victim PR's
+  # label/branch. Orphans from a cancelled/failed-authorize run are swept by crabnebula-reap.yml.
   report:
     needs: [authorize, e2e]
-    if: always()
+    if: always() && needs.authorize.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Report result to the PR and clean up
@@ -85,28 +85,25 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ inputs.pr }}
           SHA: ${{ inputs.sha }}
-          AUTH: ${{ needs.authorize.result }}
           RESULT: ${{ needs.e2e.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          if [ "$AUTH" = "success" ]; then
-            # The run covers all test-types and both macOS providers (embedded + CrabNebula), so a
-            # failure isn't necessarily the CrabNebula leg — point to the run rather than misattribute.
-            if [ "$RESULT" = "success" ]; then
-              state=success; icon='✅'; desc="macOS CrabNebula verification passed on the reviewed commit."
-            elif [ "$RESULT" = "skipped" ]; then
-              state=failure; icon='❌'; desc="macOS CrabNebula verification could not run (build failed) — see the run."
-            else
-              state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
-            fi
-            # Retry the terminal status: a transient failure must not silently strand the SHA at pending.
-            for _ in 1 2 3; do
-              if gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
-                -f description="$desc" -f target_url="$RUN_URL"; then break; fi
-              sleep 5
-            done
-            gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
+          # The run covers all test-types and both macOS providers (embedded + CrabNebula), so a
+          # failure isn't necessarily the CrabNebula leg — point to the run rather than misattribute.
+          if [ "$RESULT" = "success" ]; then
+            state=success; icon='✅'; desc="macOS CrabNebula verification passed on the reviewed commit."
+          elif [ "$RESULT" = "skipped" ]; then
+            state=failure; icon='❌'; desc="macOS CrabNebula verification could not run (build failed) — see the run."
+          else
+            state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
           fi
-          # Always clean up (harmless if absent): a re-run must be re-authorized.
+          # Retry the terminal status: a transient failure must not silently strand the SHA at pending.
+          for _ in 1 2 3; do
+            if gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
+              -f description="$desc" -f target_url="$RUN_URL"; then break; fi
+            sleep 5
+          done
+          gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
+          # A re-run must be re-authorized: drop the trigger label and the throwaway branch.
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
           gh api "repos/$REPO/git/refs/heads/crabnebula-verify/pr-${PR}" -X DELETE || true

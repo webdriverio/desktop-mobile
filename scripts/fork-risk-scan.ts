@@ -114,7 +114,9 @@ for (const { filename, status, patch } of files) {
       const nonRegistry = added.filter(
         ({ content }) =>
           /\b(tarball:|git\+|type:\s*git|\brepo:)/i.test(content) ||
-          (/https?:\/\//.test(content) && !/registry\.(npmjs\.org|yarnpkg\.com)/i.test(content)),
+          // Anchor the registry host to //<host>/ so a lookalike like registry.npmjs.org.evil.com
+          // (substring match) doesn't slip past the non-registry catch-all.
+          (/https?:\/\//.test(content) && !/\/\/(registry\.npmjs\.org|registry\.yarnpkg\.com)\//i.test(content)),
       );
       add(
         filename,
@@ -165,7 +167,10 @@ for (const { filename, status, patch } of files) {
           'rust/build-deps',
           'Cargo [build-dependencies] added — runs at compile time. Review.',
         );
-      else if (/\{[^}]*\b(git|path)\s*=/.test(content))
+      // A git/path SOURCE value (URL, or a filesystem path with a slash) in either the inline-table
+      // `{ git = "url" }` or expanded `[deps.x]\ngit = "url"` form. Matches the source, not a bare
+      // version, so a registry crate literally named `git`/`path` (git = "0.2") doesn't false-positive.
+      else if (/\bgit\s*=\s*["'][^"']*(:\/\/|@|\.git)/.test(content) || /\bpath\s*=\s*["'][^"']*\//.test(content))
         add(
           filename,
           line,

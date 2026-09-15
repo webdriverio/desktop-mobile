@@ -78,23 +78,27 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           SCAN_OUTCOME: ${{ steps.scan.outcome }}
           SARIF_OUTCOME: ${{ steps.sarif.outcome }}
+          MERGE_SHA: ${{ steps.mergesha.outputs.sha }}
           FINDINGS: ${{ steps.scan.outputs.findings }}
           HIGH: ${{ steps.scan.outputs.high }}
         run: |
+          # A missing merge sha means the PR isn't mergeable yet (upload was skipped, not failed).
+          suffix=""
+          [ -z "$MERGE_SHA" ] && suffix=" (SARIF pending — PR not yet mergeable)"
           if [ "$SCAN_OUTCOME" != "success" ]; then
             gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
               -f description="Risk scan errored — review the run." -f target_url="$PR_URL"
-          elif [ "$SARIF_OUTCOME" != "success" ]; then
+          elif [ -n "$MERGE_SHA" ] && [ "$SARIF_OUTCOME" != "success" ]; then
             gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
               -f description="${FINDINGS} item(s) flagged, but SARIF upload failed — detail unavailable. Review the run." \
               -f target_url="$PR_URL"
           elif [ "${HIGH:-0}" -gt 0 ]; then
             # High-severity findings show a red (non-blocking) check so they aren't skimmed past as green.
             gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='Fork Risk Scan' \
-              -f description="${HIGH} high-risk item(s) of ${FINDINGS} — review the Security tab before verifying." \
+              -f description="${HIGH} high-risk item(s) of ${FINDINGS} — review the Security tab before verifying.${suffix}" \
               -f target_url="$PR_URL"
           else
             gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='Fork Risk Scan' \
-              -f description="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab)." \
+              -f description="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab).${suffix}" \
               -f target_url="$PR_URL"
           fi

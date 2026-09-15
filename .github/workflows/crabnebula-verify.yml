@@ -54,8 +54,10 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Clear stale attestation labels on new commits
-        if: github.event.action == 'synchronize'
+      - name: Clear stale attestation labels
+        # On a new push and on reopen — a stale crabnebula:verified label can't be re-applied to
+        # re-verify (re-adding a present label fires no `labeled` event), so it must be cleared.
+        if: github.event.action == 'synchronize' || github.event.action == 'reopened'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -84,8 +86,12 @@ jobs:
             # Classify defensively; a transient API/classifier failure fails safe to pending
             # (recoverable by re-run/push), never a false green and never an unposted required check.
             files_json="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null | jq -R . | jq -s -c . 2>/dev/null || true)"
+            # The Files API caps at 3000 files; if the PR changed more than we received, the list is
+            # truncated and could miss Tauri paths — leave run_tauri empty so we fail safe to pending.
+            total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null || echo 0)"
+            got="$(echo "$files_json" | jq 'length' 2>/dev/null || echo 0)"
             run_tauri=""; run_lint_only=""
-            if [ -n "$files_json" ]; then
+            if [ -n "$files_json" ] && [ "$got" -ge "$total" ]; then
               tmp="$(mktemp)"
               if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null 2>&1; then
                 run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
