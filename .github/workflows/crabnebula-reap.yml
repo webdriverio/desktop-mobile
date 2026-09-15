@@ -30,6 +30,14 @@ jobs:
             d=$(gh api "repos/$REPO/commits/$br" --jq '.commit.committer.date' 2>/dev/null) || continue
             ts=$(date -u -d "$d" +%s 2>/dev/null) || continue
             if [ "$ts" -lt "$cutoff" ]; then
+              # Belt-and-braces for a rare multi-hour runner backlog: never delete a ref a keyed run
+              # still needs for checkout.
+              active=$(gh api "repos/$REPO/actions/runs?branch=$br&per_page=100" \
+                --jq '[.workflow_runs[] | select(.status=="queued" or .status=="in_progress")] | length' 2>/dev/null || echo 0)
+              if [ "${active:-0}" -gt 0 ]; then
+                echo "Skipping $br — $active active run(s) still reference it"
+                continue
+              fi
               echo "Reaping $br (last commit $d)"
               gh api -X DELETE "repos/$REPO/git/refs/heads/$br" || true
             fi

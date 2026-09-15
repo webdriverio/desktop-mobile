@@ -29,6 +29,13 @@ permissions:
   statuses: write
   pull-requests: write
 
+# cancel-in-progress so a re-dispatched keyed run can't race an in-flight one on the shared,
+# force-pushed crabnebula-verify/pr-<N> branch — the latest reviewed head wins. The cancelled run's
+# report is skipped, but the new run's terminal status and the dispatch's pending status cover the gap.
+concurrency:
+  group: crabnebula-mirror-run-${{ inputs.pr }}
+  cancel-in-progress: true
+
 jobs:
   # Only the gated mirror bot (dispatched via crabnebula-mirror.yml) or an allowlisted login may
   # drive a keyed run — a direct workflow_dispatch by any other write-access user is refused here.

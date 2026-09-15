@@ -66,11 +66,12 @@ try {
     );
   }
 } catch {
-  // Can't confirm completeness — surface it rather than silently passing a possibly-truncated scan.
+  // Fail closed: without the authoritative count we can't rule out Files-API truncation hiding files,
+  // so flag it high-severity (which reds the status) rather than pass a possibly-incomplete scan.
   add(
     '',
     1,
-    'warning',
+    'error',
     'scan/count-unavailable',
     'Could not fetch the file count — scan completeness is unverified; review manually.',
   );
@@ -108,7 +109,7 @@ const addedLines = (patch: string | undefined): AddedLine[] => {
 const rx = {
   secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv/,
   outbound: /\b(curl|wget|nc|netcat|scp|Invoke-WebRequest|iwr)\b/,
-  envRead: /process\.env\b|std::env/,
+  envRead: /process\.env\b|std::env|os\.environ|\$env:/,
   http: /\b(fetch|XMLHttpRequest|https?\.request|net\.connect|reqwest|ureq)\b/,
   encode: /base64|atob|btoa|from_base64/,
 };
