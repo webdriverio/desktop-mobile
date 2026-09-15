@@ -398,10 +398,10 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
             return Ok(());
         }
 
-        // Top-level text containing special keys. Entry guard: focus the target and move the caret
-        // to the end (append semantics). This is the only place a stale error is safe on this path —
-        // no side effect has landed yet. setSelectionRange throws on non-text inputs, hence the
-        // try/catch.
+        // Top-level text containing special keys. Entry guard: focus the target, move the caret to
+        // the end (append semantics), and report whether focus actually landed on it. Runs before
+        // any side effect — the only place errors are safe on this path. A stale element throws;
+        // setSelectionRange throws on non-text inputs, hence the try/catch.
         let focus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
@@ -415,15 +415,28 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
                         el.setSelectionRange(end, end);
                     }}
                 }} catch (e) {{}}
-                return true;
+                return document.activeElement === el;
             }})()"
         );
-        self.evaluate_js(&focus_script).await?;
+        let target_focusable = self
+            .evaluate_js(&focus_script)
+            .await?
+            .get("value")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if !target_focusable {
+            // A `focus`/`focusin` handler refuses focus on the target, so a trusted special key
+            // (needed for Escape's dialog close, Enter's submit, …) cannot be delivered to it and no
+            // browser-default action can fire. Fail here — before any keystroke commits — rather
+            // than commit the text and silently omit the key effect while reporting success.
+            return Err(WebDriverErrorResponse::element_not_interactable(
+                "element does not accept keyboard focus, so the requested key cannot be sent to it",
+            ));
+        }
 
-        // Focus the target before each special key and report whether focus actually landed on it.
-        // Keys correctly follow focus, so a trusted key must only be dispatched while the target
-        // holds focus — otherwise a `focus`/`focusin` handler that redirects, or a detached element,
-        // would deliver it to another control. Never throws: earlier keystrokes already committed.
+        // Re-secure focus before each special key and report whether it landed. The target was
+        // focusable at entry, so this only fails if it detaches mid-sequence — then there is no
+        // valid target for the key, so it is skipped (never dispatched to another control).
         let verify_focus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
@@ -452,25 +465,18 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
                         .get("value")
                         .and_then(Value::as_bool)
                         .unwrap_or(false);
-                    if target_focused {
-                        // Target holds focus: dispatch the trusted CDP key (Escape closes dialogs,
-                        // Enter submits, …), which lands on the focused target.
-                        let down = crate::platform::key_input::to_cdp_key_event(key, true, &no_mods);
-                        self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
-                            .await?;
-                        let up = crate::platform::key_input::to_cdp_key_event(key, false, &no_mods);
-                        self.call_cdp_method("Input.dispatchKeyEvent", &up.to_params_json())
-                            .await?;
-                    } else {
-                        // Focus could not be secured (a focus/focusin handler redirected it). Fall
-                        // back to dispatching the key on the stored element directly — element-
-                        // targeted like the text path, so the key reaches the element it was
-                        // directed at and never another control, at the cost of being untrusted.
-                        // (If the element detached the fallback is a no-op — no valid target left.)
-                        let script =
-                            crate::platform::key_input::build_special_key_on_element_script(js_var, key);
-                        self.evaluate_js(&script).await?;
+                    if !target_focused {
+                        // The target detached mid-sequence: no valid element to deliver the key to.
+                        // Skip it — never dispatch to whatever control now holds focus. Best-effort,
+                        // no throw (earlier keystrokes already committed).
+                        continue;
                     }
+                    let down = crate::platform::key_input::to_cdp_key_event(key, true, &no_mods);
+                    self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
+                        .await?;
+                    let up = crate::platform::key_input::to_cdp_key_event(key, false, &no_mods);
+                    self.call_cdp_method("Input.dispatchKeyEvent", &up.to_params_json())
+                        .await?;
                 }
             }
         }
