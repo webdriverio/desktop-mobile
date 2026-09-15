@@ -420,16 +420,18 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         );
         self.evaluate_js(&focus_script).await?;
 
-        // Best-effort refocus before each special key so it acts on the target — keys correctly
-        // follow focus, unlike text. Never throws: if the element detached mid-sequence the earlier
-        // keystrokes already committed.
-        let refocus_script = format!(
+        // Focus the target before each special key and report whether focus actually landed on it.
+        // Keys correctly follow focus, so a trusted key must only be dispatched while the target
+        // holds focus — otherwise a `focus`/`focusin` handler that redirects, or a detached element,
+        // would deliver it to another control. Never throws: earlier keystrokes already committed.
+        let verify_focus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
-                if (el && el.isConnected) {{
-                    el.focus();
+                if (!el || !el.isConnected) {{
+                    return false;
                 }}
-                return true;
+                el.focus();
+                return document.activeElement === el;
             }})()"
         );
 
@@ -444,7 +446,18 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
                     self.evaluate_js(&script).await?;
                 }
                 KeySegment::Special(key) => {
-                    self.evaluate_js(&refocus_script).await?;
+                    let target_focused = self
+                        .evaluate_js(&verify_focus_script)
+                        .await?
+                        .get("value")
+                        .and_then(Value::as_bool)
+                        .unwrap_or(false);
+                    if !target_focused {
+                        // Focus could not be secured on the target (a focus/focusin handler
+                        // redirected it, or the element detached). Skip rather than deliver the key
+                        // to another control — best-effort, no throw.
+                        continue;
+                    }
                     let down = crate::platform::key_input::to_cdp_key_event(key, true, &no_mods);
                     self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
                         .await?;
