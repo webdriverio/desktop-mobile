@@ -472,6 +472,10 @@ jobs:
       # key being present instead of failing the job. See packages/tauri-service/docs/crabnebula-setup.md.
       - name: 🔑 Check CrabNebula Credentials
         id: cn-key
+        # always() so a failure in an earlier always() debug step can't skip this and leave run='' —
+        # which would skip CrabNebula and make the require_crabnebula gate fail with a misleading
+        # "CN_API_KEY missing?" instead of the real cause. Consumers already gate on always() + run.
+        if: always()
         shell: bash
         env:
           CN_API_KEY: ${{ secrets.CN_API_KEY }}

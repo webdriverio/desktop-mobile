@@ -40,9 +40,9 @@ concurrency:
 jobs:
   # Only the gated mirror bot (dispatched via crabnebula-mirror.yml) or an allowlisted login may
   # drive a keyed run — a direct workflow_dispatch by any other write-access user is refused here.
-  # Fallback default kept in sync with crabnebula-verify.yml / crabnebula-mirror.yml; CRABNEBULA_LABELERS is authoritative.
+  # Unset CRABNEBULA_LABELERS falls back to [] → fail closed (only the bot); see crabnebula-verify.yml.
   authorize:
-    if: github.actor == 'github-actions[bot]' || contains(fromJSON(vars.CRABNEBULA_LABELERS || '["goosewobbler"]'), github.actor)
+    if: github.actor == 'github-actions[bot]' || contains(fromJSON(vars.CRABNEBULA_LABELERS || '[]'), github.actor)
     runs-on: ubuntu-latest
     steps:
       - run: echo "Authorized dispatch by ${{ github.actor }}"

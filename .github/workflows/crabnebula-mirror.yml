@@ -25,13 +25,12 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Fallback default kept in sync with crabnebula-verify.yml / crabnebula-mirror-run.yml;
-  # CRABNEBULA_LABELERS is authoritative.
+  # Unset CRABNEBULA_LABELERS falls back to [] → fail closed (no one authorised); see crabnebula-verify.yml.
   mirror:
     if: >-
       github.event.label.name == 'crabnebula:run' &&
       github.event.pull_request.head.repo.fork == true &&
-      contains(fromJSON(vars.CRABNEBULA_LABELERS || '["goosewobbler"]'), github.event.sender.login)
+      contains(fromJSON(vars.CRABNEBULA_LABELERS || '[]'), github.event.sender.login)
     runs-on: ubuntu-latest
     steps:
       # Default pull_request_target checkout is the trusted BASE (main). Do not check out fork code.

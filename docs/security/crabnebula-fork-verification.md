@@ -92,10 +92,13 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 
 - **Branch protection:** add `CrabNebula / macOS` to the required status checks on `main`. **This is
   load-bearing** — without it, a fork Tauri PR merges green with no macOS CrabNebula coverage (the
-  leg is skipped on forks), a silent gap instead of a visible red.
+  leg is skipped on forks), a silent gap instead of a visible red. After enabling it, **re-trigger any
+  already-open fork Tauri PRs** (push, or close/reopen) — the gate posts on PR events, so PRs open at
+  rollout otherwise sit at "Expected — waiting for status" until their next push.
 - **Labels:** create `crabnebula:verified` and `crabnebula:run`.
-- **Repo variable:** set `CRABNEBULA_LABELERS` to a JSON array of the reviewer logins (default: `["goosewobbler"]`).
-  Keep it to people who actually perform the review — **not** all repo admins.
+- **Repo variable (required):** set `CRABNEBULA_LABELERS` to a JSON array of the reviewer logins. Keep
+  it to people who actually perform the review — **not** all repo admins. There is no hardcoded
+  default: until it is set the allowlist is empty, so no one can attest or start a keyed run (fail-closed).
 - **Code Scanning** enabled so SARIF alerts land in the Security tab (free on public repos).
 - **`CN_API_KEY`** available as a repository secret (already the case for internal CI). The reusable
   step-scopes it to the CrabNebula step, so the mirror run's build steps never see it.

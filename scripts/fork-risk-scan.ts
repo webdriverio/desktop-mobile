@@ -234,7 +234,7 @@ for (const { filename, status, patch, additions } of files) {
       sec.line,
       'error',
       'secret/named',
-      'A named secret (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY) is referenced in an added line.',
+      'A named secret or full-env dump (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY/printenv) appears in an added line.',
     );
   if (out) add(filename, out.line, 'warning', 'net/outbound-command', 'Outbound network command in an added line.');
   if (env && (out || http))

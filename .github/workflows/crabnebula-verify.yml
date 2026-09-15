@@ -27,11 +27,11 @@ concurrency:
   cancel-in-progress: false
 
 env:
-  # Logins allowed to attest a verification / authorise a keyed run — keep this to the people who do
-  # the fork-diff review, NOT all repo admins. Set repo variable CRABNEBULA_LABELERS (a JSON array);
-  # the ["goosewobbler"] fallback is a bootstrap default, duplicated in crabnebula-mirror{,-run}.yml —
-  # keep the three identical, or set the repo var (which makes the fallback moot) to avoid drift.
-  AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '["goosewobbler"]' }}
+  # Logins allowed to attest a verification / authorise a keyed run — set repo variable
+  # CRABNEBULA_LABELERS (a JSON array), keeping it to the people who do the fork-diff review, NOT all
+  # repo admins. No hardcoded default: an unset var falls back to [] so the gate fails closed (no one is
+  # authorised) until it is configured, rather than trusting a literal duplicated across three files.
+  AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '[]' }}
 
 jobs:
   # (Re)post the required status: pending for a fork PR that touches Tauri, success otherwise, via the
