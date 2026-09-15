@@ -107,7 +107,7 @@ jobs:
           if [ "$RESULT" = "success" ]; then
             state=success; icon='✅'; desc="macOS CrabNebula verification passed on the reviewed commit."
           elif [ "$RESULT" = "skipped" ]; then
-            state=failure; icon='❌'; desc="macOS CrabNebula verification could not run (build failed) — see the run."
+            state=failure; icon='❌'; desc="macOS CrabNebula verification could not run (a build job failed) — see the run."
           else
             state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
           fi

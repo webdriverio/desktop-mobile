@@ -178,6 +178,34 @@ for (const { filename, status, patch, additions } of files) {
     }
   }
 
+  // Registry/source redirection configs can point dependency resolution at an attacker source (or
+  // re-enable install scripts) at install/build time. Error when an added line carries a redirection
+  // directive; otherwise surface the change for review.
+  if (/(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc)$/.test(filename) || /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)) {
+    const redirect = added.find(({ content }) =>
+      /\b(registry\s*=|_authToken|replace-with|enable-pre-post-scripts)/i.test(content),
+    );
+    add(
+      filename,
+      redirect?.line ?? 1,
+      redirect ? 'error' : 'warning',
+      'dep/registry-config',
+      redirect
+        ? 'Registry/source redirection or install-script re-enable in a package/cargo config — inspect closely.'
+        : 'Registry/source config (.npmrc/.yarnrc/.cargo) changed — check for redirected resolution.',
+    );
+  }
+
+  // .pnpmfile.cjs hooks (readPackage / afterAllResolved) run arbitrary Node code during pnpm install.
+  if (/(^|\/)\.pnpmfile\.cjs$/.test(filename))
+    add(
+      filename,
+      1,
+      'error',
+      'lifecycle/pnpmfile',
+      '.pnpmfile.cjs added/changed — its hooks run arbitrary code during pnpm install. Inspect it.',
+    );
+
   // package.json install-time lifecycle scripts added by this PR.
   if (/(^|\/)package\.json$/.test(filename)) {
     for (const { line, content } of added) {
@@ -307,7 +335,9 @@ const DOC_URI = 'https://github.com/webdriverio/desktop-mobile/blob/main/docs/se
 const RULE_META: Record<string, { name: string; description: string }> = {
   'ci/workflow-file': { name: 'Workflow/action file changed', description: 'Changed CI workflow or action file.' },
   'dep/lockfile-changed': { name: 'Lockfile changed', description: 'pnpm-lock.yaml source review.' },
+  'dep/registry-config': { name: 'Registry/source config', description: 'Can redirect dependency resolution.' },
   'lifecycle/install-script': { name: 'Install lifecycle script', description: 'Auto-running package.json hook.' },
+  'lifecycle/pnpmfile': { name: 'pnpm install hook', description: '.pnpmfile.cjs runs code during install.' },
   'rust/build-script': { name: 'Rust build script', description: 'build.rs runs at compile time.' },
   'rust/build-deps': { name: 'Cargo build-dependencies', description: 'Runs code at build time.' },
   'rust/non-registry-dep': { name: 'Non-registry Rust dep', description: 'git/path Cargo source runs code.' },

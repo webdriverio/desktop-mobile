@@ -49,8 +49,8 @@ embedded run doesn't prove CrabNebula passes.
 The scan (Security tab) flags the surface; you make the call. For a secret-bearing run you are
 reviewing more than correctness — you are vouching that nothing in the diff can steal the key:
 
-- [ ] **Dependencies:** `pnpm-lock.yaml` changes reviewed; no new deps from non-registry (git/tarball) sources.
-- [ ] **Lifecycle scripts:** no unexpected `preinstall`/`install`/`postinstall`/`prepare` in any `package.json`.
+- [ ] **Dependencies:** `pnpm-lock.yaml` changes reviewed; no new deps from non-registry (git/tarball) sources; no registry/source redirection in `.npmrc` / `.yarnrc` / `.cargo/config.toml`.
+- [ ] **Lifecycle scripts:** no unexpected `preinstall`/`install`/`postinstall`/`prepare` in any `package.json`, and no fork-added `.pnpmfile.cjs` (its hooks run during `pnpm install`).
 - [ ] **Rust build hooks:** `build.rs` / `Cargo.toml` `[build-dependencies]` additions inspected.
 - [ ] **Workflow/action files:** `.github/workflows/**` and `action.yml` changes inspected. (The mirror pins `.github` to main so a fork's edits don't run with the key, but review them anyway.)
 - [ ] **Exfiltration shapes:** no env-read → network pattern (`curl`/`fetch`/`nc` + `CN_API_KEY`/`process.env`/`std::env`), no suspicious base64/encode near secrets.
