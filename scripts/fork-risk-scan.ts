@@ -289,6 +289,26 @@ for (const { filename, status, patch, additions } of files) {
   }
 }
 
+// Rule metadata so the Security tab shows a name + description, not a bare id (the per-result message
+// carries the specifics). Only rules that actually fired are declared in the SARIF run.
+const DOC_URI = 'https://github.com/webdriverio/desktop-mobile/blob/main/docs/security/crabnebula-fork-verification.md';
+const RULE_META: Record<string, { name: string; description: string }> = {
+  'ci/workflow-file': { name: 'Workflow/action file changed', description: 'Changed CI workflow or action file.' },
+  'dep/lockfile-changed': { name: 'Lockfile changed', description: 'pnpm-lock.yaml source review.' },
+  'lifecycle/install-script': { name: 'Install lifecycle script', description: 'Auto-running package.json hook.' },
+  'rust/build-script': { name: 'Rust build script', description: 'build.rs runs at compile time.' },
+  'rust/build-deps': { name: 'Cargo build-dependencies', description: 'Runs code at build time.' },
+  'rust/non-registry-dep': { name: 'Non-registry Rust dep', description: 'git/path Cargo source runs code.' },
+  'secret/named': { name: 'Named secret / env dump', description: 'References a CI secret or dumps the env.' },
+  'net/outbound-command': { name: 'Outbound network command', description: 'curl/wget/etc. in an added line.' },
+  'exfil/env-egress': { name: 'Env read + network', description: 'Possible exfiltration shape.' },
+  'obfuscation/encode': { name: 'Encoding near secret', description: 'Can hide exfiltrated data.' },
+  'scan/truncated': { name: 'Scan truncated', description: 'PR exceeds the Files API cap.' },
+  'scan/count-unavailable': { name: 'Completeness unverified', description: 'Could not confirm scan completeness.' },
+  'scan/unscanned': { name: 'File not scanned', description: 'Too large for the API to return a diff.' },
+  'scan/partial-diff': { name: 'Partial diff', description: 'Some added lines were not scanned.' },
+};
+
 const sarif = {
   $schema: 'https://raw.githubusercontent.com/oasis-tcs/sarif-spec/master/Schemata/sarif-schema-2.1.0.json',
   version: '2.1.0',
@@ -297,9 +317,13 @@ const sarif = {
       tool: {
         driver: {
           name: 'fork-risk-scan',
-          informationUri:
-            'https://github.com/webdriverio/desktop-mobile/blob/main/docs/security/crabnebula-fork-verification.md',
-          rules: [],
+          informationUri: DOC_URI,
+          rules: [...new Set(findings.map((f) => f.rule))].map((id) => ({
+            id,
+            name: RULE_META[id]?.name ?? id,
+            shortDescription: { text: RULE_META[id]?.description ?? id },
+            helpUri: DOC_URI,
+          })),
         },
       },
       results: findings.map((f) => {

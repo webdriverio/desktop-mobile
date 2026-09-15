@@ -127,7 +127,10 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
   refuses if the head moved after the event fires, but a force-push that lands in the sub-second window
   *before* the label click is processed could make the event itself carry an unreviewed SHA. Re-check
   the PR head after labeling; the exposure is one keyed run of unreviewed code, gated on winning that
-  race against a human click.
+  race against a human click. The manual `crabnebula:verified` path shares this pre-click window and has
+  no automated drift guard — but it runs **no** fork code, so the exposure is only an attested-but-
+  unreviewed SHA (mitigated by confirming the head per the checklist, and by a later push clearing the
+  label), never key execution. That asymmetry is why only the code-running mirror guards on drift.
 - The gate classifies the PR from the **Files API** list (so it never fetches fork code) rather than
   the pipeline's git-diff. For normal PRs these match; they can differ only on API truncation (>3000
   files) or rare rename/merge edge cases. Using git-diff would reintroduce the head fetch this design

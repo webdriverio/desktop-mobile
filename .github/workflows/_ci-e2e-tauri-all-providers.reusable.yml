@@ -41,7 +41,7 @@ on:
         type: boolean
         default: false
       enable_debug:
-        description: 'Open the interactive debug session on failure. Off for the keyed fork-code run.'
+        description: 'Debug conveniences that widen exposure (interactive session + log artifacts). Off for the keyed fork-code run.'
         type: boolean
         default: true
     # Declared so a caller can pass a subset explicitly (the CrabNebula mirror run passes only
@@ -576,8 +576,12 @@ jobs:
           format_result "Embedded" "$embedded"
           format_result "CrabNebula" "$crabnebula"
 
+      # enable_debug gates this off for the keyed fork-code run: artifact file contents are NOT
+      # secret-masked (only the console stream is), so fork code that wrote CN_API_KEY into a log during
+      # the CrabNebula step could exfiltrate it via this downloadable artifact. Maintainers still get the
+      # masked console log; the fork author must not get an unmasked log artifact from a keyed run.
       - name: 📦 Upload Test Logs
-        if: always()
+        if: ${{ always() && inputs.enable_debug }}
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:

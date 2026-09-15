@@ -175,15 +175,21 @@ jobs:
     if: github.event.action == 'labeled' && github.event.label.name == 'crabnebula:run'
     runs-on: ubuntu-latest
     steps:
-      - name: Reject unauthorized labeler
+      - name: Reject unauthorized or non-fork labeler
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           SENDER: ${{ github.event.sender.login }}
           ALLOW: ${{ env.AUTHORIZED_LABELERS }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
           if ! echo "$ALLOW" | jq -e --arg s "$SENDER" 'index($s) != null' >/dev/null; then
             echo "::warning::Unauthorized labeler $SENDER applied crabnebula:run — removing."
+            gh api -X DELETE "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" || true
+          elif [ "$IS_FORK" != "true" ]; then
+            # crabnebula:run only acts on a fork PR (crabnebula-mirror.yml requires fork==true). On an
+            # internal PR it would dangle with no effect and nothing to remove it, so clear it here.
+            echo "::warning::crabnebula:run applied to a non-fork PR — removing (no keyed run needed)."
             gh api -X DELETE "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" || true
           fi
