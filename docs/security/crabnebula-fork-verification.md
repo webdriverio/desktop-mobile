@@ -34,11 +34,11 @@ untrusted.
 | `crabnebula-mirror-run.yml` | dispatched by the mirror | Builds and runs macOS CrabNebula with the key, reports the result back as `CrabNebula / macOS`, deletes the branch. |
 
 `CrabNebula / macOS` states:
-- **success** — internal PR, or no Tauri changes, or an authorized `crabnebula-verified` label is present.
+- **success** — internal PR, or no Tauri changes, or an authorized `crabnebula:verified` label is present.
 - **pending (blocks merge)** — fork PR touching the CrabNebula path, not yet verified.
 - **success with a note** — fork PR touching Tauri but not the CrabNebula path (soft tier; embedded/official/Linux covered it).
 
-## The review checklist (clear before applying `crabnebula-verified`)
+## The review checklist (clear before applying `crabnebula:verified`)
 
 The scan (Security tab) flags the surface; you make the call. For a secret-bearing run you are
 reviewing more than correctness — you are vouching that nothing in the diff can steal the key:
@@ -62,14 +62,14 @@ onto `crabnebula-verify/pr-<N>`, `crabnebula-mirror-run.yml` runs macOS CrabNebu
 the result posts back as `CrabNebula / macOS`. Applying the label **is** authorizing a keyed run of
 the fork's code — only apply it once the diff review is done.
 
-**Manual (`crabnebula-verified`):** run macOS CrabNebula yourself against the exact reviewed code —
+**Manual (`crabnebula:verified`):** run macOS CrabNebula yourself against the exact reviewed code —
 pull the PR into an internal branch where `CN_API_KEY` is available:
 ```bash
 git fetch origin pull/<PR>/head:verify-<PR>
 git switch verify-<PR>
 git push origin verify-<PR>      # internal branch → CrabNebula runs with the key
 ```
-When it passes, apply `crabnebula-verified` and the gate goes green.
+When it passes, apply `crabnebula:verified` and the gate goes green.
 
 ## If you suspect the key leaked
 
@@ -83,7 +83,7 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 ## One-time setup (admin)
 
 - **Branch protection:** add `CrabNebula / macOS` to the required status checks on `main`.
-- **Labels:** create `crabnebula-verified` and `crabnebula:run`.
+- **Labels:** create `crabnebula:verified` and `crabnebula:run`.
 - **Repo variable:** set `CRABNEBULA_LABELERS` to a JSON array of the reviewer logins (default: `["goosewobbler"]`).
   Keep it to people who actually perform the review — **not** all repo admins.
 - **Code Scanning** enabled so SARIF alerts land in the Security tab (free on public repos).

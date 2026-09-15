@@ -3,7 +3,7 @@ name: CrabNebula macOS Gate
 # Closes the fork coverage gap: on a fork PR the macOS CrabNebula E2E leg is skipped (no CN_API_KEY
 # for forks), so it could otherwise merge green without ever running. This posts a required
 # `CrabNebula / macOS` status that blocks such a PR until a maintainer verifies it and applies the
-# `crabnebula-verified` label. See docs/security/crabnebula-fork-verification.md.
+# `crabnebula:verified` label. See docs/security/crabnebula-fork-verification.md.
 #
 # Trust model: GitHub has no per-label permission, so a label's presence is not a boundary — it is
 # enforced here, where only a login in CRABNEBULA_LABELERS can make a sensitive label stick.
@@ -33,7 +33,7 @@ jobs:
   guard-labeler:
     if: >-
       github.event.action == 'labeled' &&
-      (github.event.label.name == 'crabnebula-verified' || github.event.label.name == 'crabnebula:run')
+      (github.event.label.name == 'crabnebula:verified' || github.event.label.name == 'crabnebula:run')
     runs-on: ubuntu-latest
     steps:
       - name: Reject unauthorized labeler
@@ -64,7 +64,7 @@ jobs:
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
-          for L in crabnebula-verified crabnebula:run; do
+          for L in crabnebula:verified crabnebula:run; do
             enc=$(jq -rn --arg l "$L" '$l|@uri')
             gh api -X DELETE "repos/$REPO/issues/$PR/labels/$enc" >/dev/null 2>&1 || true
           done
@@ -90,7 +90,7 @@ jobs:
           if echo "$files" | grep -qE '^packages/tauri-(service|plugin)|^fixtures/e2e-apps/tauri/|^e2e/.*tauri|^packages/native-(utils|types|cdp-bridge|spy)/|^pnpm-lock\.yaml$'; then tauri=true; fi
           if echo "$files" | grep -qiE 'crabnebula'; then crab=true; fi
           verified=false
-          if gh api "repos/$REPO/issues/$PR/labels" --jq '.[].name' | grep -qx 'crabnebula-verified'; then verified=true; fi
+          if gh api "repos/$REPO/issues/$PR/labels" --jq '.[].name' | grep -qx 'crabnebula:verified'; then verified=true; fi
 
           state=success
           desc="Not applicable (internal PR or no Tauri changes)."
@@ -99,7 +99,7 @@ jobs:
               desc="macOS CrabNebula verified by an authorized maintainer."
             elif [ "$crab" = "true" ]; then
               state=pending
-              desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula-verified."
+              desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula:verified."
             else
               desc="macOS CrabNebula skipped on fork; embedded/official/Linux ran. Verify before merge if needed."
             fi
