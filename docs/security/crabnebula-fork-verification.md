@@ -48,6 +48,7 @@ reviewing more than correctness — you are vouching that nothing in the diff ca
 - [ ] **Dependencies:** `pnpm-lock.yaml` changes reviewed; no new deps from non-registry (git/tarball) sources.
 - [ ] **Lifecycle scripts:** no unexpected `preinstall`/`install`/`postinstall`/`prepare` in any `package.json`.
 - [ ] **Rust build hooks:** `build.rs` / `Cargo.toml` `[build-dependencies]` additions inspected.
+- [ ] **Workflow/action files:** `.github/workflows/**` and `action.yml` changes inspected. (The mirror pins `.github` to main so a fork's edits don't run with the key, but review them anyway.)
 - [ ] **Exfiltration shapes:** no env-read → network pattern (`curl`/`fetch`/`nc` + `CN_API_KEY`/`process.env`/`std::env`), no suspicious base64/encode near secrets.
 - [ ] The diff you reviewed is the **current head SHA** (a new push voids the attestation).
 

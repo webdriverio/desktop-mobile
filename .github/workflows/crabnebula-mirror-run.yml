@@ -78,12 +78,8 @@ jobs:
           gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
             -f description="$desc" -f target_url="$RUN_URL"
           gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
-          # On success apply crabnebula:verified so the result survives later gate re-runs (which read
-          # only that label). This bot label change uses GITHUB_TOKEN, so it triggers neither the gate
-          # nor the labeler guard — it simply persists for the next human-triggered gate evaluation.
-          if [ "$state" = "success" ]; then
-            gh api "repos/$REPO/issues/$PR/labels" -f 'labels[]=crabnebula:verified' >/dev/null || true
-          fi
-          # A re-run must be re-authorized: drop the trigger label and the throwaway branch.
+          # The success status posted above is authoritative — the gate is event-driven and never
+          # reverts it (it only re-posts on new-code events). A re-run must be re-authorized, so drop
+          # the trigger label and the throwaway branch.
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
           gh api "repos/$REPO/git/refs/heads/crabnebula-verify/pr-${PR}" -X DELETE || true

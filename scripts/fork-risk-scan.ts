@@ -36,57 +36,105 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
   findings.push({ file, line, level, rule, message });
 };
 
-// The working tree is the base checkout, so read the fork's version from git objects — this
-// keeps the fork's files off disk entirely.
-const safeRead = (file: string): string => {
+// Added lines only, with real new-file line numbers from the hunk headers, so findings reflect what
+// the PR introduces rather than pre-existing content already in the file.
+interface AddedLine {
+  line: number;
+  content: string;
+}
+const addedLines = (file: string): AddedLine[] => {
+  let raw = '';
   try {
-    return execFileSync('git', ['show', `${HEAD}:${file}`], { encoding: 'utf8', maxBuffer: 32 * 1024 * 1024 });
+    raw = git(['diff', '--unified=0', `${BASE}...${HEAD}`, '--', file]);
   } catch {
-    return '';
+    return [];
   }
+  const out: AddedLine[] = [];
+  let newLine = 0;
+  for (const l of raw.split('\n')) {
+    const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(l);
+    if (h) {
+      newLine = Number(h[1]);
+      continue;
+    }
+    if (l.startsWith('+++')) continue;
+    if (l.startsWith('+')) {
+      out.push({ line: newLine, content: l.slice(1) });
+      newLine++;
+    }
+  }
+  return out;
 };
 
-const lineOf = (text: string, index: number): number => text.slice(0, index).split('\n').length;
-
-// Lockfile changes are the top supply-chain exfiltration vector.
-if (changedFiles.includes('pnpm-lock.yaml')) {
-  let addedDepLines: string[] = [];
-  try {
-    addedDepLines = git(['diff', `${BASE}...${HEAD}`, '--', 'pnpm-lock.yaml'])
-      .split('\n')
-      .filter((l) => l.startsWith('+') && !l.startsWith('+++'));
-  } catch {
-    /* ignore */
-  }
-  const nonRegistry = addedDepLines.filter(
-    (l) => /(resolution|tarball|git\+|https?:\/\/)/i.test(l) && !/registry\.npmjs\.org|npmjs\.com/i.test(l),
-  );
-  add(
-    'pnpm-lock.yaml',
-    1,
-    nonRegistry.length ? 'error' : 'warning',
-    'dep/lockfile-changed',
-    `pnpm-lock.yaml changed (${addedDepLines.length} added lines).${nonRegistry.length ? ` ${nonRegistry.length} reference a non-npm source — inspect each.` : ''}`,
-  );
-}
+const exfilPatterns: { rule: string; re: RegExp; level: Level; msg: string }[] = [
+  {
+    rule: 'net/outbound-command',
+    re: /\b(curl|wget|nc|netcat|scp|Invoke-WebRequest|iwr)\b/,
+    level: 'warning',
+    msg: 'Outbound network command in an added line.',
+  },
+  {
+    rule: 'net/http-client',
+    re: /\b(fetch|XMLHttpRequest|https?\.request|net\.connect|reqwest|ureq)\b/,
+    level: 'note',
+    msg: 'HTTP/socket client usage in an added line.',
+  },
+  {
+    rule: 'secret/env-read',
+    re: /CN_API_KEY|process\.env\s*\[|std::env::var|printenv|env\s*\|/,
+    level: 'warning',
+    msg: 'Environment/secret access in an added line.',
+  },
+  {
+    rule: 'obfuscation/encode',
+    re: /base64|atob|btoa|Buffer\.from\([^)]*base64|from_base64|toString\(['"]base64/,
+    level: 'note',
+    msg: 'Encoding routine in an added line — can hide exfiltrated data.',
+  },
+];
 
 for (const file of changedFiles) {
+  // Workflow / action files run with CI privileges — and in a keyed run resolve from the merged
+  // branch, so a fork edit here could reach secrets. Scrutinise any change to them.
+  if (/^\.github\/workflows\/.*\.ya?ml$/.test(file) || /(^|\/)action\.ya?ml$/.test(file)) {
+    add(file, 1, 'error', 'ci/workflow-file', 'Workflow/action file changed — runs with CI privileges. Scrutinise.');
+  }
+
+  // Lockfile: flag non-registry sources (tarball / git / non-registry URL) — the top supply-chain
+  // exfiltration vector. Plain registry entries carry only an integrity hash, so they don't match.
+  if (/(^|\/)pnpm-lock\.yaml$/.test(file)) {
+    const nonRegistry = addedLines(file).filter(
+      ({ content }) =>
+        /\b(tarball:|git\+|type:\s*git|\brepo:)/i.test(content) ||
+        (/https?:\/\//.test(content) && !/registry\.(npmjs\.org|yarnpkg\.com)/i.test(content)),
+    );
+    add(
+      file,
+      nonRegistry[0]?.line ?? 1,
+      nonRegistry.length ? 'error' : 'note',
+      'dep/lockfile-changed',
+      nonRegistry.length
+        ? `Lockfile adds ${nonRegistry.length} non-registry source(s) — inspect each.`
+        : 'Lockfile changed (registry sources only).',
+    );
+  }
+
+  // package.json install-time lifecycle scripts added by this PR.
   if (/(^|\/)package\.json$/.test(file)) {
-    const text = safeRead(file);
-    for (const hook of ['preinstall', 'install', 'postinstall', 'prepare', 'prepublish']) {
-      const re = new RegExp(`"${hook}"\\s*:`);
-      const m = re.exec(text);
+    for (const { line, content } of addedLines(file)) {
+      const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:/.exec(content);
       if (m)
         add(
           file,
-          lineOf(text, m.index),
+          line,
           'error',
           'lifecycle/install-script',
-          `Install-time lifecycle script "${hook}" present — runs automatically with the runner env. Inspect it.`,
+          `Install-time lifecycle script "${m[1]}" added — runs automatically with the runner env. Inspect it.`,
         );
     }
   }
 
+  // Rust build hooks run at compile time in the E2E job.
   if (/(^|\/)build\.rs$/.test(file))
     add(
       file,
@@ -96,50 +144,26 @@ for (const file of changedFiles) {
       'Rust build.rs changed — executes at compile time in the E2E job. Inspect for network/env access.',
     );
   if (/(^|\/)Cargo\.toml$/.test(file)) {
-    const text = safeRead(file);
-    const m = /\[build-dependencies\]/.exec(text);
-    if (m)
-      add(
-        file,
-        lineOf(text, m.index),
-        'warning',
-        'rust/build-deps',
-        'Cargo [build-dependencies] present — runs at compile time. Review additions.',
-      );
+    for (const { line, content } of addedLines(file)) {
+      if (/\[build-dependencies\]/.test(content)) {
+        add(
+          file,
+          line,
+          'warning',
+          'rust/build-deps',
+          'Cargo [build-dependencies] added — runs at compile time. Review.',
+        );
+        break;
+      }
+    }
   }
 
-  // Exfiltration-shaped patterns in any changed source.
+  // Exfiltration-shaped patterns in added lines (all matches).
   if (/\.(ts|tsx|js|mjs|cjs|rs|sh|bash|yml|yaml|toml)$/.test(file)) {
-    const text = safeRead(file);
-    const patterns: { rule: string; re: RegExp; level: Level; msg: string }[] = [
-      {
-        rule: 'net/outbound-command',
-        re: /\b(curl|wget|nc|netcat|scp|Invoke-WebRequest|iwr)\b/,
-        level: 'warning',
-        msg: 'Outbound network command in a changed file.',
-      },
-      {
-        rule: 'net/http-client',
-        re: /\b(fetch|XMLHttpRequest|https?\.request|net\.connect|reqwest|ureq)\b/,
-        level: 'note',
-        msg: 'HTTP/socket client usage in a changed file.',
-      },
-      {
-        rule: 'secret/env-read',
-        re: /CN_API_KEY|process\.env\s*\[|std::env::var|printenv|env\s*\|/,
-        level: 'warning',
-        msg: 'Environment/secret access in a changed file.',
-      },
-      {
-        rule: 'obfuscation/encode',
-        re: /base64|atob|btoa|Buffer\.from\([^)]*base64|from_base64|toString\(['"]base64/,
-        level: 'note',
-        msg: 'Encoding routine in a changed file — can hide exfiltrated data.',
-      },
-    ];
-    for (const { rule, re, level, msg } of patterns) {
-      const m = re.exec(text);
-      if (m) add(file, lineOf(text, m.index), level, rule, msg);
+    for (const { line, content } of addedLines(file)) {
+      for (const { rule, re, level, msg } of exfilPatterns) {
+        if (re.test(content)) add(file, line, level, rule, msg);
+      }
     }
   }
 }

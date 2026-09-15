@@ -56,6 +56,11 @@ jobs:
             echo "conflict=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+          # Pin all CI machinery to main: the keyed run resolves this workflow AND the E2E reusable
+          # from $BR, so a fork's own .github edits would otherwise execute with the key. Restoring
+          # main's .github keeps the step-scoped-key guarantee out of fork control.
+          git checkout origin/main -- .github
+          git commit -m "chore: pin .github to main for keyed verification" >/dev/null 2>&1 || true
           git push --force origin "$BR"
           echo "branch=$BR" >> "$GITHUB_OUTPUT"
 
