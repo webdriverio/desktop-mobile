@@ -1,0 +1,90 @@
+name: CrabNebula Mirror Dispatch
+
+# Phase 2 of docs/security/crabnebula-fork-verification.md. When an authorized reviewer applies
+# `crabnebula:run` to a fork PR (after reviewing the diff), this mirrors the reviewed fork head —
+# merged onto main so the internal workflows are present — to crabnebula-verify/pr-<N> and dispatches
+# the keyed run. This job runs NO fork code: it only git-merges (a file-level op) and pushes.
+#
+# The authorization is enforced here in the job `if`, not just by crabnebula-verify.yml removing the
+# label, because label removal races the mirror. GitHub has no per-label permission, so the allowlist
+# is the real boundary.
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  contents: write
+  statuses: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: crabnebula-mirror-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    if: >-
+      github.event.label.name == 'crabnebula:run' &&
+      github.event.pull_request.head.repo.fork == true &&
+      contains(fromJSON(vars.CRABNEBULA_LABELERS || '["goosewobbler"]'), github.event.sender.login)
+    runs-on: ubuntu-latest
+    steps:
+      # Default pull_request_target checkout is the trusted BASE (main). Do not check out fork code.
+      - name: Checkout base
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Mirror reviewed fork head onto an internal branch
+        id: mirror
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch --no-tags origin "pull/${PR}/head"
+          BR="crabnebula-verify/pr-${PR}"
+          git checkout -B "$BR" origin/main
+          # git merge is file-level — no fork code executes here.
+          if ! git merge --no-ff --no-edit "$HEAD_SHA"; then
+            git merge --abort || true
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git push --force origin "$BR"
+          echo "branch=$BR" >> "$GITHUB_OUTPUT"
+
+      - name: Report merge conflict and stop
+        if: steps.mirror.outputs.conflict == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
+            -f description='Cannot verify: PR conflicts with main. Rebase, then re-apply crabnebula:run.' \
+            -f target_url="$PR_URL"
+          gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+
+      - name: Dispatch keyed run and mark pending
+        if: steps.mirror.outputs.conflict != 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          BR: ${{ steps.mirror.outputs.branch }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          gh workflow run crabnebula-mirror-run.yml --ref "$BR" -f pr="$PR" -f sha="$SHA"
+          gh api "repos/$REPO/statuses/$SHA" -f state=pending -f context='CrabNebula / macOS' \
+            -f description='Keyed macOS CrabNebula run dispatched on the reviewed commit.' \
+            -f target_url="$PR_URL"
+          gh api "repos/$REPO/issues/$PR/comments" -f body="🔑 macOS CrabNebula verification dispatched for \`${SHA:0:7}\` on \`${BR}\`. Result will post back as the \`CrabNebula / macOS\` check." || true

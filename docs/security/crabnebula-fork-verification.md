@@ -30,6 +30,8 @@ untrusted.
 |---|---|---|
 | `crabnebula-fork-scan.yml` | fork PR opened/updated | Static risk scan (no code executed). Detail → **Security tab** (Code Scanning, maintainer-only). Public surface = a terse `Fork Risk Scan` status with a count only. |
 | `crabnebula-verify.yml` | PR opened/updated/labeled | Posts the required `CrabNebula / macOS` status; enforces the labeler allowlist; voids attestation on new pushes. |
+| `crabnebula-mirror.yml` | authorized `crabnebula:run` label | Mirrors the reviewed fork head (merged onto main) to `crabnebula-verify/pr-<N>` and dispatches the keyed run. Runs no fork code. |
+| `crabnebula-mirror-run.yml` | dispatched by the mirror | Builds and runs macOS CrabNebula with the key, reports the result back as `CrabNebula / macOS`, deletes the branch. |
 
 `CrabNebula / macOS` states:
 - **success** — internal PR, or no Tauri changes, or an authorized `crabnebula-verified` label is present.
@@ -51,16 +53,23 @@ If anything is unclear, do not verify. The scan is a heuristic — obfuscated ex
 
 ## How to verify, then label
 
-1. Review the diff against the checklist above (scan output in the Security tab).
-2. Run macOS CrabNebula against the **exact reviewed code** — pull the PR into an internal branch
-   (where `CN_API_KEY` is available) and let CI run it:
-   ```bash
-   git fetch origin pull/<PR>/head:verify-<PR>
-   git switch verify-<PR>
-   git push origin verify-<PR>      # internal branch → CrabNebula runs with the key
-   ```
-3. When it passes, apply the **`crabnebula-verified`** label to the fork PR. The gate goes green.
-   (Only logins in `CRABNEBULA_LABELERS` count; a new push to the PR clears the label — re-verify.)
+Always review the diff against the checklist above (scan output in the Security tab) first. Then
+pick a path — both only count from a login in `CRABNEBULA_LABELERS`, and a new push to the PR clears
+the label, so re-verify.
+
+**Automated (`crabnebula:run`):** apply the label. `crabnebula-mirror.yml` mirrors the reviewed head
+onto `crabnebula-verify/pr-<N>`, `crabnebula-mirror-run.yml` runs macOS CrabNebula with the key, and
+the result posts back as `CrabNebula / macOS`. Applying the label **is** authorizing a keyed run of
+the fork's code — only apply it once the diff review is done.
+
+**Manual (`crabnebula-verified`):** run macOS CrabNebula yourself against the exact reviewed code —
+pull the PR into an internal branch where `CN_API_KEY` is available:
+```bash
+git fetch origin pull/<PR>/head:verify-<PR>
+git switch verify-<PR>
+git push origin verify-<PR>      # internal branch → CrabNebula runs with the key
+```
+When it passes, apply `crabnebula-verified` and the gate goes green.
 
 ## If you suspect the key leaked
 
@@ -74,15 +83,22 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 ## One-time setup (admin)
 
 - **Branch protection:** add `CrabNebula / macOS` to the required status checks on `main`.
-- **Labels:** create `crabnebula-verified` (and, for Phase 2, `crabnebula:run`).
+- **Labels:** create `crabnebula-verified` and `crabnebula:run`.
 - **Repo variable:** set `CRABNEBULA_LABELERS` to a JSON array of the reviewer logins (default: `["goosewobbler"]`).
   Keep it to people who actually perform the review — **not** all repo admins.
 - **Code Scanning** enabled so SARIF alerts land in the Security tab (free on public repos).
+- **`CN_API_KEY`** available as a repository secret (already the case for internal CI). The reusable
+  step-scopes it to the CrabNebula step, so the mirror run's build steps never see it.
 
-## Phase 2 (planned, not in this change)
+## Residual risk and open follow-ups
 
-A `crabnebula:run` label (allowlist-gated, SHA-pinned) that mirrors the reviewed fork head to an
-internal `crabnebula-verify/pr-<N>` branch, runs **only** the macOS CrabNebula leg with a
-**step-scoped** key, adds a best-effort egress tripwire (macOS can't block, only observe), and
-reports the result back to the PR as `CrabNebula / macOS`. This automates step 2 above; it does not
-reduce the exposure, so it stays gated behind the same human review.
+- The automated run executes untrusted fork code with the key. The mirror splits privilege — the
+  privileged step (merge + push) runs no fork code, and the keyed run gets a minimal token — but the
+  human review remains the only thing between an external contributor and the key. The plumbing adds
+  convenience, not safety.
+- **Egress tripwire — deferred.** macOS runners can't block egress, so it would be observe-only, and
+  it needs a step inside the shared E2E reusable plus live tuning to avoid false positives. Not worth
+  half-building; track separately. Real backstops stay: the review, a step-scoped key, and rotation.
+- The automated run exercises embedded + CrabNebula (official auto-skips on macOS), not CrabNebula in
+  strict isolation. Embedded runs without the key, so it adds no exposure; a strict CN-only path would
+  need an `only_provider` input on the reusable.

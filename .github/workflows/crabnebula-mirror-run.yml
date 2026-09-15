@@ -1,0 +1,81 @@
+name: CrabNebula Mirror Run
+
+# Phase 2 keyed run, dispatched by crabnebula-mirror.yml against the internal crabnebula-verify/pr-<N>
+# branch (reviewed fork head merged onto main). It builds and runs the macOS CrabNebula E2E with the
+# key, then reports the result back to the fork PR and deletes the mirror branch.
+#
+# This runs untrusted fork code with CN_API_KEY — deliberately, only after the labeler review. The
+# reusable already step-scopes the key to the CrabNebula step (build/embedded steps never see it),
+# and this workflow grants no more token than it needs. The real control is the review; this is the
+# execution of a decision already made.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Fork PR number to report back to'
+        required: true
+        type: string
+      sha:
+        description: 'Reviewed fork head SHA the result attaches to'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  statuses: write
+  pull-requests: write
+
+jobs:
+  build:
+    uses: ./.github/workflows/_ci-build.reusable.yml
+    secrets: inherit
+    with:
+      os: 'ubuntu-latest'
+
+  build-app:
+    uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+
+  # Runs the macOS providers (official auto-skips; embedded is the immune baseline; CrabNebula is
+  # the leg under test). The reusable's Check Provider Results gates on CrabNebula passing.
+  e2e:
+    needs: [build, build-app]
+    uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
+    secrets: inherit
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: 'standard'
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      tauri_cache_key: ${{ needs.build-app.outputs.cache_key }}
+
+  report:
+    needs: [e2e]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report result to the PR and clean up
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ inputs.pr }}
+          SHA: ${{ inputs.sha }}
+          RESULT: ${{ needs.e2e.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$RESULT" = "success" ]; then
+            state=success; desc="macOS CrabNebula passed on the reviewed commit."
+          else
+            state=failure; desc="macOS CrabNebula failed on the reviewed commit — see the run."
+          fi
+          gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
+            -f description="$desc" -f target_url="$RUN_URL"
+          gh api "repos/$REPO/issues/$PR/comments" -f body="$( [ "$state" = success ] && echo '✅' || echo '❌' ) macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
+          # A re-run must be re-authorized: drop the label and the throwaway branch.
+          gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+          gh api "repos/$REPO/git/refs/heads/crabnebula-verify/pr-${PR}" -X DELETE || true
