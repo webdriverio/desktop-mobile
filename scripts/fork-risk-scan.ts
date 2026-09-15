@@ -111,10 +111,22 @@ const addedLines = (patch: string | undefined): AddedLine[] => {
 // a network call in the same file; named secrets and outbound shell commands are high-signal enough
 // to flag alone.
 const rx = {
-  secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv/,
+  // Full-env dumps: printenv, and the `env` command when piped/redirected/standalone. The lookbehind
+  // excludes `process.env` / `.env` / `NODE_ENV`, so only the shell dump matches, not env-var reads.
+  secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv|(?<![.\w])env\b(?=\s*(?:\||>|$))/,
   outbound: /\b(curl|wget|nc|netcat|scp|Invoke-WebRequest|iwr)\b/,
   envRead: /process\.env\b|std::env|os\.environ|\$env:/,
-  http: /\b(fetch|XMLHttpRequest|https?\.request|net\.connect|reqwest|ureq)\b/,
+  // Broad HTTP-client coverage so a full-env exfil (env-egress) isn't missed by client choice: distinct
+  // libs by name, common-word libs only in call form, plus http.get (not just .request) and requests.*.
+  http: new RegExp(
+    [
+      '\\b(fetch|axios|undici|superagent|XMLHttpRequest|reqwest|ureq|httpx|aiohttp|urllib|Invoke-RestMethod)\\b',
+      '\\b(got|needle|request)\\s*\\(',
+      '\\brequests\\.(get|post|put|patch|request)\\b',
+      '\\bhttps?\\.(request|get)\\b',
+      '\\bhttp\\.client\\b',
+    ].join('|'),
+  ),
   encode: /base64|atob|btoa|from_base64/,
 };
 
@@ -238,7 +250,7 @@ for (const { filename, status, patch, additions } of files) {
       sec.line,
       'error',
       'secret/named',
-      'A named secret or full-env dump (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY/printenv) appears in an added line.',
+      'A named secret or full-env dump (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY/printenv/env) appears in an added line.',
     );
   if (out) add(filename, out.line, 'warning', 'net/outbound-command', 'Outbound network command in an added line.');
   if (env && (out || http))

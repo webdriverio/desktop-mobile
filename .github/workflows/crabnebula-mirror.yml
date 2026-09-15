@@ -68,9 +68,18 @@ jobs:
           # main. A squash pushes just one commit off main; we still pin its .github to main, so the push
           # has no workflow change and the keyed run resolves CI machinery from main, not the fork.
           if ! git merge --squash "$HEAD_SHA"; then
-            git reset --hard >/dev/null 2>&1 || true
-            echo "conflict=true" >> "$GITHUB_OUTPUT"
-            exit 0
+            # A conflict only under .github/** is not a real conflict — we pin .github to main just
+            # below, so the fork's edit is discarded anyway. Resolve those to main's copy and continue;
+            # refuse only when something outside .github conflicts (a genuine rebase-needed).
+            unmerged="$(git diff --name-only --diff-filter=U)"
+            if [ -n "$unmerged" ] && ! printf '%s\n' "$unmerged" | grep -qv '^\.github/'; then
+              git checkout origin/main -- .github
+              git add -A .github
+            else
+              git reset --hard >/dev/null 2>&1 || true
+              echo "conflict=true" >> "$GITHUB_OUTPUT"
+              exit 0
+            fi
           fi
           # rm before checkout so fork-ADDED workflow files (not in main) are removed, not just overwritten.
           rm -rf .github

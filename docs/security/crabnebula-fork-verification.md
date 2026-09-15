@@ -115,6 +115,11 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 - The automated run exercises embedded + CrabNebula (official auto-skips on macOS), not CrabNebula in
   strict isolation. Embedded runs without the key, so it adds no exposure; a strict CN-only path would
   need an `only_provider` input on the reusable.
+- **macOS CrabNebula is a hard-required leg** (allow-fail is Windows-only, per #542 — this is a `main`
+  policy, not added here), and `require_crabnebula` keeps the keyed run from allow-failing it (an
+  allow-failed verification would be vacuous). So if the macOS-26 session regression (#540/#541) recurs
+  even transiently, the keyed run reds and can't post success — verify with `crabnebula:verified` after
+  a local run, and fix the flake upstream rather than weakening the gate.
 - **Scanner is a heuristic, by design.** It reads only the PR's diff (never fork file contents — that
   is what keeps it off the untrusted-content path), so signals that need surrounding context can be
   missed: env-read + network is flagged only when *both* appear in *added* lines (a fork adding just an
