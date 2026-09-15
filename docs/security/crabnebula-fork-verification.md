@@ -112,11 +112,14 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 - The automated run exercises embedded + CrabNebula (official auto-skips on macOS), not CrabNebula in
   strict isolation. Embedded runs without the key, so it adds no exposure; a strict CN-only path would
   need an `only_provider` input on the reusable.
-- **Scanner is a heuristic, by design.** To stay low-noise it flags env-read + network only when both
-  appear in the PR's *added* lines; a fork adding just an env read to a file with pre-existing egress
-  won't trip that combo. The named-secret/outbound-command rules and — above all — the human diff
-  review are the backstop. Completeness here trades directly against flooding the advisory, so it is
-  deliberately not chased further.
+- **Scanner is a heuristic, by design.** It reads only the PR's diff (never fork file contents — that
+  is what keeps it off the untrusted-content path), so signals that need surrounding context can be
+  missed: env-read + network is flagged only when *both* appear in *added* lines (a fork adding just an
+  env read to a file with pre-existing egress won't trip it), and a registry crate added under a
+  *pre-existing* `[build-dependencies]` header isn't flagged (the section header may be outside the
+  diff). The named-secret/outbound-command rules, the review checklist's dependency/build-hook items,
+  and — above all — the human diff review are the backstop. Completeness trades directly against
+  flooding the advisory, so it is deliberately not chased further.
 - **Label-race residual.** A keyed run tests the head SHA in the `labeled` event payload. The mirror
   refuses if the head moved after the event fires, but a force-push that lands in the sub-second window
   *before* the label click is processed could make the event itself carry an unreviewed SHA. Re-check

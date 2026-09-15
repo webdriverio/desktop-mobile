@@ -31,8 +31,10 @@ jobs:
             ts=$(date -u -d "$d" +%s 2>/dev/null) || continue
             if [ "$ts" -lt "$cutoff" ]; then
               # Belt-and-braces for a rare multi-hour runner backlog: never delete a ref a keyed run
-              # still needs for checkout.
-              active=$(gh api "repos/$REPO/actions/runs?branch=$br&per_page=100" \
+              # still needs for checkout. @uri-encode the branch — it contains a slash, which the runs
+              # filter won't match raw.
+              enc=$(jq -rn --arg b "$br" '$b|@uri')
+              active=$(gh api "repos/$REPO/actions/runs?branch=$enc&per_page=100" \
                 --jq '[.workflow_runs[] | select(.status=="queued" or .status=="in_progress")] | length' 2>/dev/null || echo 0)
               if [ "${active:-0}" -gt 0 ]; then
                 echo "Skipping $br — $active active run(s) still reference it"

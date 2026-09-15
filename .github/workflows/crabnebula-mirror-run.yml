@@ -40,6 +40,7 @@ concurrency:
 jobs:
   # Only the gated mirror bot (dispatched via crabnebula-mirror.yml) or an allowlisted login may
   # drive a keyed run — a direct workflow_dispatch by any other write-access user is refused here.
+  # Fallback default kept in sync with crabnebula-verify.yml / crabnebula-mirror.yml; CRABNEBULA_LABELERS is authoritative.
   authorize:
     if: github.actor == 'github-actions[bot]' || contains(fromJSON(vars.CRABNEBULA_LABELERS || '["goosewobbler"]'), github.actor)
     runs-on: ubuntu-latest
@@ -75,6 +76,8 @@ jobs:
       node-version: '24'
       test-type: ${{ matrix.test-type }}
       require_crabnebula: true
+      # No interactive debug session on a runner that ran fork code with the key.
+      enable_debug: false
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}

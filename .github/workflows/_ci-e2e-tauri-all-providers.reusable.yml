@@ -40,6 +40,10 @@ on:
         description: 'Fail the job if the CrabNebula leg is skipped (used by the keyed verification run)'
         type: boolean
         default: false
+      enable_debug:
+        description: 'Open the interactive debug session on failure. Off for the keyed fork-code run.'
+        type: boolean
+        default: true
     # Declared so a caller can pass a subset explicitly (the CrabNebula mirror run passes only
     # CN_API_KEY). `secrets: inherit` callers are unaffected — inherit passes everything regardless.
     secrets:
@@ -628,8 +632,10 @@ jobs:
           fi
           echo "All providers passed"
 
+      # enable_debug is off for the keyed fork-code run: never open an interactive session on a runner
+      # that just executed untrusted fork code and holds CN_API_KEY.
       - name: 🐛 Debug Build on Failure
-        if: failure()
+        if: ${{ failure() && inputs.enable_debug }}
         uses: goosewobbler/vscode-server-action@v1.5.0
         with:
           timeout: '300000'
