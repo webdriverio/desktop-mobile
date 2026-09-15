@@ -77,6 +77,11 @@ jobs:
             gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
               -f description="${FINDINGS} item(s) flagged, but SARIF upload failed — detail unavailable. Review the run." \
               -f target_url="$PR_URL"
+          elif [ "${HIGH:-0}" -gt 0 ]; then
+            # High-severity findings show a red (non-blocking) check so they aren't skimmed past as green.
+            gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='Fork Risk Scan' \
+              -f description="${HIGH} high-risk item(s) of ${FINDINGS} — review the Security tab before verifying." \
+              -f target_url="$PR_URL"
           else
             gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='Fork Risk Scan' \
               -f description="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab)." \

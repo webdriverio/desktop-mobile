@@ -95,8 +95,9 @@ jobs:
           else
             state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
           fi
+          # Best-effort (|| true) so a transient status/comment API hiccup still lets cleanup run.
           gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
-            -f description="$desc" -f target_url="$RUN_URL"
+            -f description="$desc" -f target_url="$RUN_URL" || true
           gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
           # The success status posted above is authoritative — the gate is event-driven and never
           # reverts it (it only re-posts on new-code events). A re-run must be re-authorized, so drop

@@ -169,7 +169,10 @@ for (const { filename, status, patch } of files) {
     );
   if (/(^|\/)Cargo\.toml$/.test(filename)) {
     for (const { line, content } of added) {
-      if (/\[build-dependencies\]/.test(content)) {
+      // A build-dependencies header (a new section) OR a non-registry source (git/path) added in any
+      // section — both run fork-controlled code at build/test time. Keying only on the section header
+      // would miss a dep added under a pre-existing header, so flag the source markers too.
+      if (/\[build-dependencies\]/.test(content))
         add(
           filename,
           line,
@@ -177,8 +180,14 @@ for (const { filename, status, patch } of files) {
           'rust/build-deps',
           'Cargo [build-dependencies] added — runs at compile time. Review.',
         );
-        break;
-      }
+      else if (/\b(git|path)\s*=/.test(content))
+        add(
+          filename,
+          line,
+          'warning',
+          'rust/non-registry-dep',
+          'Non-registry Rust dependency (git/path) added — runs code at build/test time. Review.',
+        );
     }
   }
 
@@ -189,8 +198,13 @@ for (const { filename, status, patch } of files) {
     }
   }
 
-  // A code/script file with no patch (too large for the API) escaped content scanning — flag it.
-  if (!patch && /\.(ts|tsx|cts|mts|js|jsx|mjs|cjs|rs|sh|bash|zsh|ps1|psm1|bat|cmd|py|rb)$/.test(filename)) {
+  // A code/script file or manifest with no patch (too large for the API) escaped content scanning —
+  // flag it so an oversized package.json (lifecycle scripts) / Cargo.toml / script isn't a blind spot.
+  if (
+    !patch &&
+    (/\.(ts|tsx|cts|mts|js|jsx|mjs|cjs|rs|sh|bash|zsh|ps1|psm1|bat|cmd|py|rb)$/.test(filename) ||
+      /(^|\/)(package\.json|Cargo\.toml)$/.test(filename))
+  ) {
     add(
       filename,
       1,

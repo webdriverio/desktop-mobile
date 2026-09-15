@@ -114,6 +114,11 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 - The automated run exercises embedded + CrabNebula (official auto-skips on macOS), not CrabNebula in
   strict isolation. Embedded runs without the key, so it adds no exposure; a strict CN-only path would
   need an `only_provider` input on the reusable.
+- **Label-race residual.** A keyed run tests the head SHA in the `labeled` event payload. The mirror
+  refuses if the head moved after the event fires, but a force-push that lands in the sub-second window
+  *before* the label click is processed could make the event itself carry an unreviewed SHA. Re-check
+  the PR head after labeling; the exposure is one keyed run of unreviewed code, gated on winning that
+  race against a human click.
 - The gate classifies the PR from the **Files API** list (so it never fetches fork code) rather than
   the pipeline's git-diff. For normal PRs these match; they can differ only on API truncation (>3000
   files) or rare rename/merge edge cases. Using git-diff would reintroduce the head fetch this design

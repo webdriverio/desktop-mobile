@@ -15,7 +15,7 @@ name: CrabNebula macOS Gate
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, labeled, unlabeled]
+    types: [opened, reopened, synchronize, labeled]
 
 permissions:
   contents: read
@@ -68,16 +68,28 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
-          files_json=$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' | jq -R . | jq -s -c .)
-          tmp=$(mktemp)
-          CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null
-          run_tauri=$(sed -n 's/^run_tauri=//p' "$tmp")
-          run_lint_only=$(sed -n 's/^run_lint_only=//p' "$tmp")
+          # Classify defensively — a transient API/classifier failure must never leave the required
+          # check unposted (that strands the PR at "Expected"). On failure, fork PRs fail safe to
+          # pending (blocked, recoverable by re-run/push), never a false green.
+          files_json="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null | jq -R . | jq -s -c . 2>/dev/null || true)"
+          run_tauri=""; run_lint_only=""
+          if [ -n "$files_json" ]; then
+            tmp="$(mktemp)"
+            if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null 2>&1; then
+              run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
+              run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
+            fi
+          fi
           state=success
           desc="Not applicable (internal PR or no Tauri changes)."
-          if [ "$IS_FORK" = "true" ] && [ "$run_tauri" = "true" ] && [ "$run_lint_only" != "true" ]; then
-            state=pending
-            desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula:verified."
+          if [ "$IS_FORK" = "true" ]; then
+            if [ -z "$run_tauri" ]; then
+              state=pending
+              desc="Gate could not classify changes — re-run the job or push to retry."
+            elif [ "$run_tauri" = "true" ] && [ "$run_lint_only" != "true" ]; then
+              state=pending
+              desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula:verified."
+            fi
           fi
           echo "fork=$IS_FORK run_tauri=$run_tauri run_lint_only=$run_lint_only -> $state"
           gh api "repos/$REPO/statuses/$SHA" \
