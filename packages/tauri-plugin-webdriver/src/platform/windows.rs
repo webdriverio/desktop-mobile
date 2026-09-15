@@ -452,18 +452,25 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
                         .get("value")
                         .and_then(Value::as_bool)
                         .unwrap_or(false);
-                    if !target_focused {
-                        // Focus could not be secured on the target (a focus/focusin handler
-                        // redirected it, or the element detached). Skip rather than deliver the key
-                        // to another control — best-effort, no throw.
-                        continue;
+                    if target_focused {
+                        // Target holds focus: dispatch the trusted CDP key (Escape closes dialogs,
+                        // Enter submits, …), which lands on the focused target.
+                        let down = crate::platform::key_input::to_cdp_key_event(key, true, &no_mods);
+                        self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
+                            .await?;
+                        let up = crate::platform::key_input::to_cdp_key_event(key, false, &no_mods);
+                        self.call_cdp_method("Input.dispatchKeyEvent", &up.to_params_json())
+                            .await?;
+                    } else {
+                        // Focus could not be secured (a focus/focusin handler redirected it). Fall
+                        // back to dispatching the key on the stored element directly — element-
+                        // targeted like the text path, so the key reaches the element it was
+                        // directed at and never another control, at the cost of being untrusted.
+                        // (If the element detached the fallback is a no-op — no valid target left.)
+                        let script =
+                            crate::platform::key_input::build_special_key_on_element_script(js_var, key);
+                        self.evaluate_js(&script).await?;
                     }
-                    let down = crate::platform::key_input::to_cdp_key_event(key, true, &no_mods);
-                    self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
-                        .await?;
-                    let up = crate::platform::key_input::to_cdp_key_event(key, false, &no_mods);
-                    self.call_cdp_method("Input.dispatchKeyEvent", &up.to_params_json())
-                        .await?;
                 }
             }
         }

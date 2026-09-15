@@ -521,6 +521,68 @@ pub fn build_append_run_script(js_var: &str, run: &str) -> String {
     )
 }
 
+/// JS that dispatches a special key's keydown/keyup on the stored element directly (not
+/// `document.activeElement`), plus the Backspace/Delete value mutation an untrusted key can't drive
+/// itself. Used as the focus-independent fallback when the Windows CDP path cannot secure focus on
+/// the target: it delivers the key to the element it was directed at rather than to whatever control
+/// now holds focus, and never to another control. Best-effort: skips silently if the element is gone.
+#[cfg(any(target_os = "windows", test))]
+pub fn build_special_key_on_element_script(js_var: &str, key: &str) -> String {
+    let (js_key, js_code, key_code) = map_special_key(key).unwrap_or(("Unidentified", "Unidentified", 0));
+    format!(
+        r"(function() {{
+                var el = window.{js_var};
+                if (!el || !el.isConnected) {{
+                    return true;
+                }}
+                function fire(type) {{
+                    el.dispatchEvent(new KeyboardEvent(type, {{
+                        key: '{js_key}',
+                        code: '{js_code}',
+                        keyCode: {key_code},
+                        which: {key_code},
+                        bubbles: true,
+                        cancelable: true
+                    }}));
+                }}
+                fire('keydown');
+                if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')
+                    && ('{js_key}' === 'Backspace' || '{js_key}' === 'Delete')) {{
+                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                        el.tagName === 'INPUT' ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype,
+                        'value'
+                    ).set;
+                    var value = el.value;
+                    var start = el.selectionStart;
+                    var end = el.selectionEnd;
+                    var newValue;
+                    var inputType;
+                    if (start !== end) {{
+                        newValue = value.slice(0, start) + value.slice(end);
+                        inputType = 'deleteContentBackward';
+                        nativeInputValueSetter.call(el, newValue);
+                        try {{ el.setSelectionRange(start, start); }} catch (e) {{}}
+                    }} else if ('{js_key}' === 'Backspace' && start > 0) {{
+                        newValue = value.slice(0, start - 1) + value.slice(start);
+                        inputType = 'deleteContentBackward';
+                        nativeInputValueSetter.call(el, newValue);
+                        try {{ el.setSelectionRange(start - 1, start - 1); }} catch (e) {{}}
+                    }} else if ('{js_key}' === 'Delete' && start < value.length) {{
+                        newValue = value.slice(0, start) + value.slice(start + 1);
+                        inputType = 'deleteContentForward';
+                        nativeInputValueSetter.call(el, newValue);
+                        try {{ el.setSelectionRange(start, start); }} catch (e) {{}}
+                    }}
+                    if (inputType) {{
+                        el.dispatchEvent(new InputEvent('input', {{ bubbles: true, cancelable: true, inputType: inputType }}));
+                    }}
+                }}
+                fire('keyup');
+                return true;
+            }})()"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -720,5 +782,26 @@ mod tests {
     fn build_append_run_script_escapes_backtick_dollar_and_backslash() {
         let script = build_append_run_script("v", "a`$\\b");
         assert!(script.contains(r"a\`\$\\b"));
+    }
+
+    #[test]
+    fn build_special_key_on_element_script_targets_stored_element() {
+        let script = build_special_key_on_element_script("__wd_el_abc", ENTER);
+        assert!(script.contains("window.__wd_el_abc"));
+        // dispatches on the stored element, never document.activeElement
+        assert!(!script.contains("document.activeElement"));
+        assert!(script.contains("new KeyboardEvent(type"));
+        assert!(script.contains("key: 'Enter'"));
+        assert!(script.contains("fire('keydown')"));
+        assert!(script.contains("fire('keyup')"));
+    }
+
+    #[test]
+    fn build_special_key_on_element_script_mutates_value_for_backspace() {
+        const BACKSPACE: &str = "\u{E003}";
+        let script = build_special_key_on_element_script("v", BACKSPACE);
+        assert!(script.contains("key: 'Backspace'"));
+        assert!(script.contains("deleteContentBackward"));
+        assert!(script.contains("nativeInputValueSetter"));
     }
 }
