@@ -46,14 +46,25 @@ jobs:
           SARIF_OUT: fork-risk-scan.sarif
         run: node scripts/fork-risk-scan.ts
 
+      # Code scanning wants sha to be the tip of ref — for refs/pull/N/merge that's the merge commit,
+      # not head.sha. Resolve it so the upload isn't rejected for a mismatched sha/ref pairing.
+      - name: Resolve PR merge commit
+        id: mergesha
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        run: echo "sha=$(gh api "repos/$REPO/pulls/$PR" --jq '.merge_commit_sha // empty')" >> "$GITHUB_OUTPUT"
+
       - name: Upload SARIF to Code Scanning
         id: sarif
+        if: steps.mergesha.outputs.sha != ''
         continue-on-error: true
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: fork-risk-scan.sarif
           category: fork-risk
-          sha: ${{ github.event.pull_request.head.sha }}
+          sha: ${{ steps.mergesha.outputs.sha }}
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
       # Always post, even if the scan errored, so the status never silently goes missing; and if the

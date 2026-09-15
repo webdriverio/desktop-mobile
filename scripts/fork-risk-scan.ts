@@ -70,32 +70,17 @@ const addedLines = (patch: string | undefined): AddedLine[] => {
   return out;
 };
 
-const exfilPatterns: { rule: string; re: RegExp; level: Level; msg: string }[] = [
-  {
-    rule: 'net/outbound-command',
-    re: /\b(curl|wget|nc|netcat|scp|Invoke-WebRequest|iwr)\b/,
-    level: 'warning',
-    msg: 'Outbound network command in an added line.',
-  },
-  {
-    rule: 'net/http-client',
-    re: /\b(fetch|XMLHttpRequest|https?\.request|net\.connect|reqwest|ureq)\b/,
-    level: 'note',
-    msg: 'HTTP/socket client usage in an added line.',
-  },
-  {
-    rule: 'secret/env-read',
-    re: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|process\.env\b|std::env|printenv|env\s*\|/,
-    level: 'warning',
-    msg: 'Environment/secret access in an added line.',
-  },
-  {
-    rule: 'obfuscation/encode',
-    re: /base64|atob|btoa|Buffer\.from\([^)]*base64|from_base64|toString\(['"]base64/,
-    level: 'note',
-    msg: 'Encoding routine in an added line — can hide exfiltrated data.',
-  },
-];
+// Exfiltration signal categories. Bare `process.env` / `fetch` are too common in this codebase to
+// flag on their own (they'd flood the advisory list), so env-reads are only surfaced when paired with
+// a network call in the same file; named secrets and outbound shell commands are high-signal enough
+// to flag alone.
+const rx = {
+  secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv/,
+  outbound: /\b(curl|wget|nc|netcat|scp|Invoke-WebRequest|iwr)\b/,
+  envRead: /process\.env\b|std::env/,
+  http: /\b(fetch|XMLHttpRequest|https?\.request|net\.connect|reqwest|ureq)\b/,
+  encode: /base64|atob|btoa|from_base64/,
+};
 
 for (const { filename, status, patch } of files) {
   // Deletions add nothing executable — don't fire filename rules on them.
@@ -180,23 +165,53 @@ for (const { filename, status, patch } of files) {
           'rust/build-deps',
           'Cargo [build-dependencies] added — runs at compile time. Review.',
         );
-      else if (/\b(git|path)\s*=/.test(content))
+      else if (/\{[^}]*\b(git|path)\s*=/.test(content))
         add(
           filename,
           line,
           'warning',
           'rust/non-registry-dep',
-          'Non-registry Rust dependency (git/path) added — runs code at build/test time. Review.',
+          'Non-registry Rust dependency (git/path source) added — runs code at build/test time. Review.',
         );
     }
   }
 
-  // Exfiltration-shaped patterns in added lines of ANY changed file (all matches).
-  for (const { line, content } of added) {
-    for (const { rule, re, level, msg } of exfilPatterns) {
-      if (re.test(content)) add(filename, line, level, rule, msg);
-    }
-  }
+  // Exfiltration signal from added lines: named secrets and outbound shell commands alone; env-reads
+  // only when paired with a network call in the same file; encoding only near env/secret access.
+  // Skip docs/text — they aren't executed, and mentioning curl/CN_API_KEY in prose isn't exfiltration.
+  const isDoc = /\.(md|markdown|mdx|txt|rst)$/i.test(filename);
+  const first = (re: RegExp): AddedLine | undefined =>
+    isDoc ? undefined : added.find(({ content }) => re.test(content));
+  const sec = first(rx.secret);
+  const out = first(rx.outbound);
+  const env = first(rx.envRead);
+  const http = first(rx.http);
+  const enc = first(rx.encode);
+  if (sec)
+    add(
+      filename,
+      sec.line,
+      'warning',
+      'secret/named',
+      'A named secret (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY) is referenced in an added line.',
+    );
+  if (out) add(filename, out.line, 'warning', 'net/outbound-command', 'Outbound network command in an added line.');
+  if (env && (out || http))
+    add(
+      filename,
+      env.line,
+      'warning',
+      'exfil/env-egress',
+      'Environment read alongside a network call in this file — possible exfiltration shape.',
+    );
+  if (enc && (sec || env))
+    add(
+      filename,
+      enc.line,
+      'note',
+      'obfuscation/encode',
+      'Encoding near env/secret access — can hide exfiltrated data.',
+    );
 
   // A code/script file or manifest with no patch (too large for the API) escaped content scanning —
   // flag it so an oversized package.json (lifecycle scripts) / Cargo.toml / script isn't a blind spot.

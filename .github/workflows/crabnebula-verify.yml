@@ -15,7 +15,7 @@ name: CrabNebula macOS Gate
 
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize, labeled]
+    types: [opened, reopened, synchronize, labeled, unlabeled]
 
 permissions:
   contents: read
@@ -32,17 +32,24 @@ env:
   AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '["goosewobbler"]' }}
 
 jobs:
-  # (Re)post the required status on new code: pending for a fork PR that touches Tauri, success
-  # otherwise, via the real detect-changes.ts classifier so it can't drift from what routes a PR to
-  # the Tauri E2E pipeline. A new push also clears stale attestation labels.
+  # (Re)post the required status: pending for a fork PR that touches Tauri, success otherwise, via the
+  # real detect-changes.ts classifier so it can't drift from what routes a PR to the Tauri E2E
+  # pipeline. Runs on new code, and on removal of crabnebula:verified so an attestation can be revoked
+  # without pushing a commit. A new push also clears stale attestation labels.
   reset-on-code:
-    if: contains(fromJSON('["opened","reopened","synchronize"]'), github.event.action)
+    if: >-
+      contains(fromJSON('["opened","reopened","synchronize"]'), github.event.action) ||
+      (github.event.action == 'unlabeled' && github.event.label.name == 'crabnebula:verified')
     runs-on: ubuntu-latest
     steps:
+      # Checkout + Node are only needed to classify a fork PR; internal PRs post success without them,
+      # so a transient setup failure can't strand an internal PR at "Expected".
       - name: Checkout base (trusted classifier)
+        if: github.event.pull_request.head.repo.fork == true
         uses: actions/checkout@v7
 
       - name: Setup Node.js
+        if: github.event.pull_request.head.repo.fork == true
         uses: actions/setup-node@v7
         with:
           node-version: '24'
@@ -60,6 +67,7 @@ jobs:
           done
 
       - name: Post required status
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -68,21 +76,22 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
-          # Classify defensively — a transient API/classifier failure must never leave the required
-          # check unposted (that strands the PR at "Expected"). On failure, fork PRs fail safe to
-          # pending (blocked, recoverable by re-run/push), never a false green.
-          files_json="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null | jq -R . | jq -s -c . 2>/dev/null || true)"
-          run_tauri=""; run_lint_only=""
-          if [ -n "$files_json" ]; then
-            tmp="$(mktemp)"
-            if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null 2>&1; then
-              run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
-              run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
-            fi
-          fi
+          # Internal PRs are always success (macOS CrabNebula runs for real there) — post it without
+          # classifying, so no checkout/API/classifier failure can strand an internal PR at "Expected".
           state=success
           desc="Not applicable (internal PR or no Tauri changes)."
           if [ "$IS_FORK" = "true" ]; then
+            # Classify defensively; a transient API/classifier failure fails safe to pending
+            # (recoverable by re-run/push), never a false green and never an unposted required check.
+            files_json="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null | jq -R . | jq -s -c . 2>/dev/null || true)"
+            run_tauri=""; run_lint_only=""
+            if [ -n "$files_json" ]; then
+              tmp="$(mktemp)"
+              if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" node scripts/detect-changes.ts >/dev/null 2>&1; then
+                run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
+                run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
+              fi
+            fi
             if [ -z "$run_tauri" ]; then
               state=pending
               desc="Gate could not classify changes — re-run the job or push to retry."
@@ -91,7 +100,7 @@ jobs:
               desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula:verified."
             fi
           fi
-          echo "fork=$IS_FORK run_tauri=$run_tauri run_lint_only=$run_lint_only -> $state"
+          echo "fork=$IS_FORK -> $state"
           gh api "repos/$REPO/statuses/$SHA" \
             -f state="$state" \
             -f context='CrabNebula / macOS' \

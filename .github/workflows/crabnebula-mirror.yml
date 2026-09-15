@@ -92,7 +92,7 @@ jobs:
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
 
       - name: Dispatch keyed run and mark pending
-        if: steps.mirror.outputs.conflict != 'true'
+        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
