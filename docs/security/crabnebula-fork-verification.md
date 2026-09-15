@@ -14,15 +14,19 @@ untrusted.
 
 ## The security model (read this first)
 
-- The key is an account-level CrabNebula credential. In the E2E job it is a plain env var, so any
-  code that runs in that job — the app under test, its Rust `build.rs`, `pnpm` lifecycle scripts,
-  and every transitive dependency — can read and exfiltrate it. A fork PR controls all of that.
 - **The human diff review is the real control.** The static scan arms it; nothing else replaces it.
-- GitHub has **no per-label permission** — any repo admin can apply any label. So the label's
-  presence is not a trust boundary. The boundary is enforced in `crabnebula-verify.yml`: only a
-  login in `CRABNEBULA_LABELERS` can make a sensitive label stick; anyone else's is removed + logged.
+- A keyed verification run exposes only `CN_API_KEY` to fork code, and only step-scoped to the
+  CrabNebula test step: the build jobs are called with no secrets, and the E2E job is passed
+  `CN_API_KEY` alone, so `TURBO_TOKEN` and the deploy key never reach fork code. `CN_API_KEY` still
+  reaches the app under test during the CrabNebula step — the irreducible exposure. Keep it rotatable.
+- The gate is a commit **status**, which any write-access user can set via the REST API. So it is a
+  process control among trusted maintainers (all of whom can already reach secrets via workflow
+  authoring), not a hard technical boundary. `CRABNEBULA_LABELERS` + the `authorize` job restrict the
+  intended path; they don't stop a determined write-access user from forging the status.
+- GitHub has **no per-label permission**, so the gate never trusts a label's presence: it is
+  event-driven (see `crabnebula-verify.yml`) and success is only posted by an authorized action.
 - Detection is defense-in-depth, not prevention. macOS runners can't block egress, and we have no
-  visibility into CrabNebula-side key usage. Assume a leak is possible and keep the key rotatable.
+  visibility into CrabNebula-side key usage. Assume a leak is possible.
 
 ## What runs automatically
 
@@ -85,7 +89,9 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 
 ## One-time setup (admin)
 
-- **Branch protection:** add `CrabNebula / macOS` to the required status checks on `main`.
+- **Branch protection:** add `CrabNebula / macOS` to the required status checks on `main`. **This is
+  load-bearing** — without it, a fork Tauri PR merges green with no macOS CrabNebula coverage (the
+  leg is skipped on forks), a silent gap instead of a visible red.
 - **Labels:** create `crabnebula:verified` and `crabnebula:run`.
 - **Repo variable:** set `CRABNEBULA_LABELERS` to a JSON array of the reviewer logins (default: `["goosewobbler"]`).
   Keep it to people who actually perform the review — **not** all repo admins.
@@ -95,8 +101,8 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
 
 ## Residual risk and open follow-ups
 
-- The automated run executes untrusted fork code with the key. The mirror splits privilege — the
-  privileged step (merge + push) runs no fork code, and the keyed run gets a minimal token — but the
+- The automated run executes untrusted fork code with `CN_API_KEY`. The mirror splits privilege — the
+  privileged step (merge + push) runs no fork code, and the keyed run sees only `CN_API_KEY` — but the
   human review remains the only thing between an external contributor and the key. The plumbing adds
   convenience, not safety.
 - **Egress tripwire — deferred.** macOS runners can't block egress, so it would be observe-only, and

@@ -42,14 +42,18 @@ interface AddedLine {
   line: number;
   content: string;
 }
+const addedCache = new Map<string, AddedLine[]>();
 const addedLines = (file: string): AddedLine[] => {
+  const cached = addedCache.get(file);
+  if (cached) return cached;
+  const out: AddedLine[] = [];
   let raw = '';
   try {
     raw = git(['diff', '--unified=0', `${BASE}...${HEAD}`, '--', file]);
   } catch {
-    return [];
+    addedCache.set(file, out);
+    return out;
   }
-  const out: AddedLine[] = [];
   let newLine = 0;
   for (const l of raw.split('\n')) {
     const h = /^@@ -\d+(?:,\d+)? \+(\d+)(?:,\d+)? @@/.exec(l);
@@ -63,6 +67,7 @@ const addedLines = (file: string): AddedLine[] => {
       newLine++;
     }
   }
+  addedCache.set(file, out);
   return out;
 };
 
@@ -81,7 +86,7 @@ const exfilPatterns: { rule: string; re: RegExp; level: Level; msg: string }[] =
   },
   {
     rule: 'secret/env-read',
-    re: /CN_API_KEY|process\.env\s*\[|std::env::var|printenv|env\s*\|/,
+    re: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|process\.env(\.|\s*\[)|std::env::var|printenv|env\s*\|/,
     level: 'warning',
     msg: 'Environment/secret access in an added line.',
   },

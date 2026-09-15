@@ -64,17 +64,23 @@ jobs:
           sha: ${{ github.event.pull_request.head.sha }}
           ref: refs/pull/${{ github.event.pull_request.number }}/merge
 
+      # Always post, even if the scan step errored, so the status never silently goes missing.
       - name: Post terse public status
+        if: always()
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
+          SCAN_OUTCOME: ${{ steps.scan.outcome }}
           FINDINGS: ${{ steps.scan.outputs.findings }}
           HIGH: ${{ steps.scan.outputs.high }}
         run: |
-          gh api "repos/$REPO/statuses/$SHA" \
-            -f state=success \
-            -f context='Fork Risk Scan' \
-            -f description="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab)." \
-            -f target_url="$PR_URL"
+          if [ "$SCAN_OUTCOME" != "success" ]; then
+            gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
+              -f description="Risk scan errored — review the run." -f target_url="$PR_URL"
+          else
+            gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='Fork Risk Scan' \
+              -f description="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab)." \
+              -f target_url="$PR_URL"
+          fi

@@ -4,10 +4,14 @@ name: CrabNebula Mirror Run
 # branch (reviewed fork head merged onto main). It builds and runs the macOS CrabNebula E2E with the
 # key, then reports the result back to the fork PR and deletes the mirror branch.
 #
-# This runs untrusted fork code with CN_API_KEY — deliberately, only after the labeler review. The
-# reusable already step-scopes the key to the CrabNebula step (build/embedded steps never see it),
-# and this workflow grants no more token than it needs. The real control is the review; this is the
-# execution of a decision already made.
+# This runs untrusted fork code, but only CN_API_KEY reaches it: the build jobs are called with no
+# secrets, and the E2E job is passed CN_API_KEY alone (step-scoped by the reusable to the CrabNebula
+# step), so TURBO_TOKEN and the deploy key never touch fork code. The real control is still the human
+# review — this only executes a decision already made.
+#
+# A commit status is ultimately writable by any write-access user via the REST API, so this gate is a
+# process control among trusted maintainers, not a hard boundary. `authorize` still restricts who can
+# drive this workflow to the mirror bot or a CRABNEBULA_LABELERS login; see the security doc.
 
 on:
   workflow_dispatch:
@@ -26,16 +30,27 @@ permissions:
   statuses: write
   pull-requests: write
 
+env:
+  AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '["goosewobbler"]' }}
+
 jobs:
+  # Only the gated mirror bot (dispatched via crabnebula-mirror.yml) or an allowlisted login may
+  # drive a keyed run — a direct workflow_dispatch by any other write-access user is refused here.
+  authorize:
+    if: github.actor == 'github-actions[bot]' || contains(fromJSON(vars.CRABNEBULA_LABELERS || '["goosewobbler"]'), github.actor)
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Authorized dispatch by ${{ github.actor }}"
+
   build:
+    needs: [authorize]
     uses: ./.github/workflows/_ci-build.reusable.yml
-    secrets: inherit
     with:
       os: 'ubuntu-latest'
 
   build-app:
+    needs: [authorize]
     uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
-    secrets: inherit
     with:
       os: 'macos-latest'
 
@@ -44,7 +59,8 @@ jobs:
   e2e:
     needs: [build, build-app]
     uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
-    secrets: inherit
+    secrets:
+      CN_API_KEY: ${{ secrets.CN_API_KEY }}
     with:
       os: 'macos-latest'
       node-version: '24'
@@ -55,8 +71,8 @@ jobs:
       tauri_cache_key: ${{ needs.build-app.outputs.cache_key }}
 
   report:
-    needs: [e2e]
-    if: always()
+    needs: [authorize, e2e]
+    if: always() && needs.authorize.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - name: Report result to the PR and clean up

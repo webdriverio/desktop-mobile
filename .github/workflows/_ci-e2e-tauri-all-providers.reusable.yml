@@ -36,6 +36,17 @@ on:
         description: 'Cache key to use for downloading Tauri app binaries'
         type: string
         required: false
+    # Declared so a caller can pass a subset explicitly (the CrabNebula mirror run passes only
+    # CN_API_KEY). `secrets: inherit` callers are unaffected — inherit passes everything regardless.
+    secrets:
+      CN_API_KEY:
+        required: false
+      TURBO_TOKEN:
+        required: false
+      TURBO_TEAM:
+        required: false
+      DEPLOY_KEY:
+        required: false
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
