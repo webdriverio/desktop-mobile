@@ -224,9 +224,10 @@ for (const { filename, status, patch, additions } of files) {
   const env = first(rx.envRead);
   const http = first(rx.http);
   const enc = first(rx.encode);
-  // Error (reds the gate status), not warning: a fork's added code naming CN_API_KEY/TURBO_TOKEN/
-  // DEPLOY_KEY is the exact key-theft this gate guards, so it must not pass as a skimmed-past green.
-  // The softer shapes below stay advisory to keep the list low-noise.
+  // Error (reds the gate status), not warning, for the two direct key-theft shapes: a named secret in
+  // added code (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY), and an env read paired with a network call — which
+  // can ship the whole env (e.g. JSON.stringify(process.env)) without ever naming the key. Neither may
+  // pass as a skimmed-past green. Outbound-command alone / encoding stay advisory (too common to error).
   if (sec)
     add(
       filename,
@@ -240,7 +241,7 @@ for (const { filename, status, patch, additions } of files) {
     add(
       filename,
       env.line,
-      'warning',
+      'error',
       'exfil/env-egress',
       'Environment read alongside a network call in this file — possible exfiltration shape.',
     );
@@ -255,8 +256,10 @@ for (const { filename, status, patch, additions } of files) {
 
   // A code/script file or manifest with no patch (too large for the API) escaped content scanning —
   // flag it so an oversized package.json (lifecycle scripts) / Cargo.toml / script isn't a blind spot.
+  // additions !== 0 skips a pure rename (no patch, additions:0), which added nothing to scan.
   if (
     !patch &&
+    additions !== 0 &&
     (/\.(ts|tsx|cts|mts|js|jsx|mjs|cjs|rs|sh|bash|zsh|ps1|psm1|bat|cmd|py|rb)$/.test(filename) ||
       /(^|\/)(package\.json|Cargo\.toml)$/.test(filename))
   ) {
@@ -304,8 +307,10 @@ const sarif = {
         } = { ruleId: f.rule, level: f.level, message: { text: f.message } };
         // PR-level findings (e.g. truncation) have no file — SARIF allows a result without locations.
         if (f.file) {
+          // Clamp to >=1: SARIF 2.1.0 rejects startLine 0, and any edge that yields line 0 would fail
+          // the upload (?? on the source line only guards null/undefined, not a computed 0).
           result.locations = [
-            { physicalLocation: { artifactLocation: { uri: f.file }, region: { startLine: f.line } } },
+            { physicalLocation: { artifactLocation: { uri: f.file }, region: { startLine: Math.max(1, f.line) } } },
           ];
         }
         return result;

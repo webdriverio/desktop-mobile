@@ -77,6 +77,13 @@ jobs:
           rm -rf .github
           git checkout origin/main -- .github
           git add -A
+          # Nothing staged means the fork's diff vs main is entirely in main-pinned paths (.github/**) or
+          # already in main — no fork-specific code to verify. Signal it distinctly rather than let
+          # `git commit` fail under set -e, which the report step would mislabel as a retryable error.
+          if git diff --cached --quiet; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git commit -m 'Mirror reviewed fork head onto main for CrabNebula verification' >/dev/null
           # Guard the push: if it fails, set -e would abort here and skip the report step (implicit
           # success()), leaving the label wedged. Handle it so the report step can clean up.
@@ -89,11 +96,12 @@ jobs:
       # always() + mirror.outcome == 'failure' so an aborted git op (fetch/checkout under set -e, which
       # sets no marker) still cleans up rather than wedging the label. The explicit markers give a
       # precise message; any other failure gets a generic one.
-      - name: Report and stop (head moved, conflict, or setup failure)
+      - name: Report and stop (head moved, conflict, nothing to verify, or setup failure)
         if: >-
           always() &&
           (steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true' ||
-           steps.mirror.outputs.pushfail == 'true' || steps.mirror.outcome == 'failure')
+           steps.mirror.outputs.pushfail == 'true' || steps.mirror.outputs.empty == 'true' ||
+           steps.mirror.outcome == 'failure')
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
@@ -103,7 +111,17 @@ jobs:
           MOVED: ${{ steps.mirror.outputs.moved }}
           PUSHFAIL: ${{ steps.mirror.outputs.pushfail }}
           CONFLICT: ${{ steps.mirror.outputs.conflict }}
+          EMPTY: ${{ steps.mirror.outputs.empty }}
         run: |
+          if [ "$EMPTY" = "true" ]; then
+            # Nothing fork-specific to verify (diff is workflow-only/pinned to main, or already in main):
+            # no untrusted code runs, so satisfy the gate rather than block on a vacuous check.
+            gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
+              -f description='No fork-specific code to verify (workflow-only or already in main).' \
+              -f target_url="$PR_URL" || true
+            gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+            exit 0
+          fi
           if [ "$MOVED" = "true" ]; then
             desc='Cannot verify: the PR head moved since the label. Re-review, then re-apply crabnebula:run.'
           elif [ "$PUSHFAIL" = "true" ]; then
@@ -119,7 +137,7 @@ jobs:
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
 
       - name: Dispatch keyed run and mark pending
-        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true'
+        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true' && steps.mirror.outputs.empty != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

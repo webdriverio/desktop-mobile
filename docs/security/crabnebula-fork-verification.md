@@ -129,3 +129,10 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
   the pipeline's git-diff. For normal PRs these match; they can differ only on API truncation (>3000
   files) or rare rename/merge edge cases. Using git-diff would reintroduce the head fetch this design
   removes, so the API source is deliberate.
+- **Base-movement.** The mirror squashes the reviewed fork head onto *current* `origin/main`, which may
+  have advanced since the reviewer looked. The keyed run therefore tests fork-code + latest main, not
+  fork-code + main-at-review-time. Since main is trusted this is intentional (verify against current
+  main), but the attestation covers the reviewed *fork* diff, not the base it merged onto.
+- A fork PR whose diff is entirely under `.github/**` (pinned to main) or already in main squashes to an
+  empty tree — nothing fork-specific to run. The mirror posts `CrabNebula / macOS` success for it (no
+  untrusted code executes); the workflow changes themselves are still caught by the fork risk scan.
