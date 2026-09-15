@@ -383,14 +383,25 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         js_var: &str,
         text: &str,
     ) -> Result<(), WebDriverErrorResponse> {
-        if !self.frame_context.is_empty() {
+        use crate::platform::key_input::KeySegment;
+
+        let segments = crate::platform::key_input::segment_send_keys(text);
+        let has_special_key = segments.iter().any(|seg| matches!(seg, KeySegment::Special(_)));
+
+        // Plain text (no trust-gated special keys), or an in-frame element: the focus-independent JS
+        // path sets the value on the stored element directly, so the text lands on THAT element
+        // regardless of focus changes or detaches, matching macOS/Linux. CDP is only needed to make
+        // special keys (Escape/Enter/…) trusted, and only at the top level (CDP has no frame param).
+        if !has_special_key || !self.frame_context.is_empty() {
             let script = crate::platform::key_input::build_send_keys_script(js_var, text);
             self.evaluate_js(&script).await?;
             return Ok(());
         }
-        // Focus, then move the caret to the end so per-character CDP typing appends (matching the
-        // JS path's `el.value + text`). setSelectionRange throws on non-text inputs (number/email),
-        // hence the try/catch.
+
+        // Top-level text containing special keys. Entry guard: focus the target and move the caret
+        // to the end (append semantics). This is the only place a stale error is safe on this path —
+        // no side effect has landed yet. setSelectionRange throws on non-text inputs, hence the
+        // try/catch.
         let focus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
@@ -409,12 +420,9 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         );
         self.evaluate_js(&focus_script).await?;
 
-        // CDP dispatches to whatever is focused, not to a target element. Re-assert focus on the
-        // stored element before each subsequent character so a focus-moving `input` handler (e.g.
-        // autotab between OTP fields) can't redirect the rest of the text — the JS path commits the
-        // whole value into the stored element, and cross-platform parity keeps it there. Best-effort
-        // and no caret reset: don't throw if the element detached mid-type (the typing already
-        // committed), and leave the caret alone so navigation keys in `addValue` still work.
+        // Best-effort refocus before each special key so it acts on the target — keys correctly
+        // follow focus, unlike text. Never throws: if the element detached mid-sequence the earlier
+        // keystrokes already committed.
         let refocus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
@@ -425,26 +433,32 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
             }})()"
         );
 
+        // Printable runs go through the focus-independent JS append (keeps the text on the target);
+        // special keys dispatch as trusted CDP events. No multi-character CDP typing loop, so a
+        // focus-moving handler can no longer redirect text into another control.
         let no_mods = ModifierState::default();
-        for (i, ch) in text.chars().enumerate() {
-            if i > 0 {
-                self.evaluate_js(&refocus_script).await?;
+        for segment in &segments {
+            match segment {
+                KeySegment::Text(run) => {
+                    let script = crate::platform::key_input::build_append_run_script(js_var, run);
+                    self.evaluate_js(&script).await?;
+                }
+                KeySegment::Special(key) => {
+                    self.evaluate_js(&refocus_script).await?;
+                    let down = crate::platform::key_input::to_cdp_key_event(key, true, &no_mods);
+                    self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
+                        .await?;
+                    let up = crate::platform::key_input::to_cdp_key_event(key, false, &no_mods);
+                    self.call_cdp_method("Input.dispatchKeyEvent", &up.to_params_json())
+                        .await?;
+                }
             }
-            let key = ch.to_string();
-            let down = crate::platform::key_input::to_cdp_key_event(&key, true, &no_mods);
-            self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
-                .await?;
-            let up = crate::platform::key_input::to_cdp_key_event(&key, false, &no_mods);
-            self.call_cdp_method("Input.dispatchKeyEvent", &up.to_params_json())
-                .await?;
         }
 
-        // CDP typing fires `input` per keystroke but not `change` (no blur — the element stays
-        // focused). The JS path dispatches `change` for inputs/textareas, so match it here or
-        // change-driven validation wouldn't run on this path. Best-effort: if an `input` handler
-        // detached the element mid-type the typing already committed via CDP, so skip the change
-        // rather than throw — a stale-element error here reports failure after the side effects
-        // landed and duplicates the typing on a caller retry.
+        // The per-segment appends fire `input` but not `change`. Match the JS path's single trailing
+        // `change` for inputs/textareas. Best-effort: skip (never throw) if the element detached
+        // mid-sequence — the keystrokes already committed, so a stale error here would misreport a
+        // success and duplicate the typing on a caller retry.
         let change_script = format!(
             r"(function() {{
                 var el = window.{js_var};

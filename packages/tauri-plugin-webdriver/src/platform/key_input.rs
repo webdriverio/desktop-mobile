@@ -449,6 +449,78 @@ pub fn to_cdp_key_event(key: &str, is_down: bool, modifiers: &ModifierState) -> 
     }
 }
 
+/// One segment of an element send-keys request: a run of printable text, or a single special
+/// (control/navigation) key. Splitting lets the Windows executor keep printable text on the target
+/// element via the focus-independent JS path while dispatching special keys as trusted CDP events.
+#[cfg(any(target_os = "windows", test))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum KeySegment {
+    Text(String),
+    Special(String),
+}
+
+/// Split send-keys text into printable runs and individual special keys, preserving order.
+#[cfg(any(target_os = "windows", test))]
+pub fn segment_send_keys(text: &str) -> Vec<KeySegment> {
+    let mut segments = Vec::new();
+    let mut run = String::new();
+    for ch in text.chars() {
+        if map_special_key(&ch.to_string()).is_some() {
+            if !run.is_empty() {
+                segments.push(KeySegment::Text(std::mem::take(&mut run)));
+            }
+            segments.push(KeySegment::Special(ch.to_string()));
+        } else {
+            run.push(ch);
+        }
+    }
+    if !run.is_empty() {
+        segments.push(KeySegment::Text(run));
+    }
+    segments
+}
+
+/// JS that appends a printable run to the stored element, fires `input`, and moves the caret to the
+/// end (so a following special key acts after the run). Best-effort: it skips silently when the
+/// element is gone — earlier keystrokes in the same request already committed, so throwing here
+/// would misreport a partial success — and fires no `change`; the caller dispatches that once after
+/// the whole sequence.
+#[cfg(any(target_os = "windows", test))]
+pub fn build_append_run_script(js_var: &str, run: &str) -> String {
+    let escaped = run.replace('\\', "\\\\").replace('`', "\\`").replace('$', "\\$");
+    format!(
+        r"(function() {{
+                var el = window.{js_var};
+                if (!el || !el.isConnected) {{
+                    return true;
+                }}
+                el.focus();
+                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {{
+                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
+                        el.tagName === 'INPUT' ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype,
+                        'value'
+                    ).set;
+                    nativeInputValueSetter.call(el, el.value + `{escaped}`);
+                    el.dispatchEvent(new InputEvent('input', {{
+                        bubbles: true,
+                        cancelable: true,
+                        inputType: 'insertText',
+                        data: `{escaped}`
+                    }}));
+                    try {{
+                        if (typeof el.setSelectionRange === 'function') {{
+                            var end = (el.value || '').length;
+                            el.setSelectionRange(end, end);
+                        }}
+                    }} catch (e) {{}}
+                }} else if (el.isContentEditable) {{
+                    document.execCommand('insertText', false, `{escaped}`);
+                }}
+                return true;
+            }})()"
+    )
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -602,5 +674,51 @@ mod tests {
         assert_eq!(ev.key, "Control");
         assert_eq!(ev.code, "ControlLeft");
         assert_eq!(ev.windows_virtual_key_code, 17);
+    }
+
+    #[test]
+    fn segment_send_keys_splits_text_and_special_keys() {
+        assert_eq!(segment_send_keys("hello"), vec![KeySegment::Text("hello".into())]);
+        assert_eq!(segment_send_keys(""), vec![]);
+        assert_eq!(segment_send_keys(ESCAPE), vec![KeySegment::Special(ESCAPE.into())]);
+
+        // text then a special key (the "type, then Enter to submit" pattern)
+        assert_eq!(
+            segment_send_keys(&format!("hi{ENTER}")),
+            vec![KeySegment::Text("hi".into()), KeySegment::Special(ENTER.into())]
+        );
+
+        // interleaved runs and keys, order preserved
+        assert_eq!(
+            segment_send_keys(&format!("a{ARROW_DOWN}bc")),
+            vec![
+                KeySegment::Text("a".into()),
+                KeySegment::Special(ARROW_DOWN.into()),
+                KeySegment::Text("bc".into()),
+            ]
+        );
+
+        // consecutive special keys stay separate
+        assert_eq!(
+            segment_send_keys(&format!("{ESCAPE}{ENTER}")),
+            vec![KeySegment::Special(ESCAPE.into()), KeySegment::Special(ENTER.into())]
+        );
+    }
+
+    #[test]
+    fn build_append_run_script_appends_fires_input_and_defers_change() {
+        let script = build_append_run_script("__wd_el_abc", "hi");
+        assert!(script.contains("window.__wd_el_abc"));
+        assert!(script.contains("el.value + `hi`"));
+        assert!(script.contains("inputType: 'insertText'"));
+        assert!(script.contains("setSelectionRange"));
+        // change is the caller's responsibility, dispatched once after the whole sequence
+        assert!(!script.contains("new Event('change'"));
+    }
+
+    #[test]
+    fn build_append_run_script_escapes_backtick_dollar_and_backslash() {
+        let script = build_append_run_script("v", "a`$\\b");
+        assert!(script.contains(r"a\`\$\\b"));
     }
 }
