@@ -66,7 +66,7 @@
   "devDependencies": {
     "@babel/parser": "^8.0.4",
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.5.1",
     "@wdio/bundler": "workspace:*",
     "recast": "^0.24.0",
     "shx": "^0.4.0",
