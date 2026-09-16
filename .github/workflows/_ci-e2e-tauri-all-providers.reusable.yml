@@ -582,33 +582,39 @@ jobs:
       # masked console log; the fork author must not get an unmasked log artifact from a keyed run.
       #
       # For an INTERNAL run (enable_debug=true) the upload does happen and CN_API_KEY is present, so scrub
-      # the verbatim key from the logs first in case a driver/backend logged it (auth header / stack
-      # trace) — the artifact is public for 90 days. perl \Q…\E quotes the key literally; guarded on a
-      # non-empty key so an empty value can't match (and blank out) everything.
+      # the key from the logs first in case a driver/backend logged it (auth header / stack trace) — the
+      # artifact is public for 90 days. Best-effort: the key is replaced verbatim and in its URL-encoded
+      # and base64 forms; a logger that splits/wraps the key can still leak, so the real controls remain
+      # not logging secrets and, for forks, skipping the upload entirely.
       - name: 🔒 Redact CN_API_KEY from logs before upload
         id: redact
+        # continue-on-error so a redaction glitch (e.g. a log file removed mid-walk) can't red an
+        # otherwise-green E2E job; the upload below is still skipped (steps.redact.outcome != 'success'),
+        # so this stays fail closed on the artifact without failing CI.
+        continue-on-error: true
         if: ${{ always() && inputs.enable_debug }}
         shell: bash
         env:
           CN_API_KEY: ${{ secrets.CN_API_KEY }}
         run: |
-          # Scrub the verbatim key from logs before the (public, 90-day) artifact upload — artifact files
-          # aren't secret-masked. node (guaranteed by setup-node) with a literal split/join avoids regex
-          # and tool-availability pitfalls. If this errors, the upload below is SKIPPED (fail closed via
-          # steps.redact.outcome) rather than shipping an unredacted log.
+          # node (guaranteed by setup-node) with a literal split/join avoids regex and tool-availability
+          # pitfalls. Replaces the key in verbatim, URL-encoded, and base64 forms.
           node -e '
             const fs = require("node:fs"), path = require("node:path");
             const key = process.env.CN_API_KEY;
             if (!key) process.exit(0);
             const dir = "e2e/logs";
             if (!fs.existsSync(dir)) process.exit(0);
+            const forms = [key, encodeURIComponent(key), Buffer.from(key).toString("base64")];
             const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {
               const p = path.join(d, e.name);
               return e.isDirectory() ? walk(p) : e.name.endsWith(".log") ? [p] : [];
             });
             for (const f of walk(dir)) {
-              const c = fs.readFileSync(f, "utf8");
-              if (c.includes(key)) fs.writeFileSync(f, c.split(key).join("***REDACTED***"));
+              let c = fs.readFileSync(f, "utf8");
+              const orig = c;
+              for (const form of forms) if (form && c.includes(form)) c = c.split(form).join("***REDACTED***");
+              if (c !== orig) fs.writeFileSync(f, c);
             }
           '
 

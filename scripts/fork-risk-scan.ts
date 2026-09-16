@@ -38,7 +38,7 @@ interface PrFile {
 // The changed_files count below is optional, so it degrades to a warning instead.
 const files: PrFile[] = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}/files`, '--paginate', '--jq', '.[]'], {
   encoding: 'utf8',
-  maxBuffer: 128 * 1024 * 1024,
+  maxBuffer: 512 * 1024 * 1024, // headroom over the 3000-file cap's worth of large patches
 })
   .split('\n')
   .filter(Boolean)
@@ -49,26 +49,21 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
   findings.push({ file, line, level, rule, message });
 };
 
-// The Files API caps at 3000 files. Key the truncation flag on that cap (total > 3000), not on
-// total != files.length — the changed_files count can legitimately diverge from the list length on
-// large diffs (binary/rename accounting) without anything being truncated.
+// The Files API caps at 3000 files. Key truncation on the changed_files count (not total != list
+// length — the count can diverge on binary/rename accounting without truncation). If the count is
+// unavailable OR not a plain integer (fetch throws, or exits 0 with an odd shape), we can't confirm
+// completeness; the returned list still reveals it — below the cap it's complete (note), at/above the
+// cap truncation is possible and unconfirmable, so fail closed (error). Don't red a benign PR.
+let changedFiles: number | undefined;
 try {
-  const total = Number(
-    execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}`, '--jq', '.changed_files'], { encoding: 'utf8' }).trim(),
-  );
-  if (Number.isFinite(total) && total > 3000) {
-    add(
-      '',
-      1,
-      'error',
-      'scan/truncated',
-      `PR changed ${total} files; only ${files.length} scanned (API cap) — review the rest manually.`,
-    );
-  }
+  const raw = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}`, '--jq', '.changed_files'], {
+    encoding: 'utf8',
+  }).trim();
+  changedFiles = /^\d+$/.test(raw) ? Number(raw) : undefined;
 } catch {
-  // The count is a completeness check. The returned list already reveals truncation: below the 3000
-  // cap it holds every file, so a failed count fetch is benign (a note). At/above the cap truncation is
-  // possible and unconfirmable, so fail closed with an error (reds the status) — don't red a benign PR.
+  changedFiles = undefined;
+}
+if (changedFiles === undefined) {
   const atCap = files.length >= 3000;
   add(
     '',
@@ -78,6 +73,14 @@ try {
     atCap
       ? 'File count unavailable and the returned list hit the API cap — completeness unverified; review manually.'
       : 'File count unavailable, but the returned list is below the API cap, so the scan is complete.',
+  );
+} else if (changedFiles > 3000) {
+  add(
+    '',
+    1,
+    'error',
+    'scan/truncated',
+    `PR changed ${changedFiles} files; only ${files.length} scanned (API cap) — review the rest manually.`,
   );
 }
 
@@ -138,8 +141,24 @@ const rx = {
 };
 
 for (const { filename, status, patch, additions } of files) {
-  // Deletions add nothing executable — don't fire filename rules on them.
-  if (status === 'removed') continue;
+  // Deletions add nothing executable, so most removals are irrelevant — but removing a file that
+  // *enforced* a restriction (a registry/scripts config, or the lockfile) can weaken install/build
+  // resolution. Surface those for review (we can't see the removed content), then skip the add rules.
+  if (status === 'removed') {
+    if (
+      /(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc|pnpm-lock\.yaml)$/.test(filename) ||
+      /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)
+    ) {
+      add(
+        filename,
+        1,
+        'warning',
+        'dep/hardening-removed',
+        'A dependency/registry hardening file was removed — review the effect on install/build resolution.',
+      );
+    }
+    continue;
+  }
   const added = addedLines(patch);
 
   // Workflow / action files run with CI privileges — and in a keyed run resolve from the merged
@@ -357,6 +376,10 @@ const RULE_META: Record<string, { name: string; description: string }> = {
   'ci/workflow-file': { name: 'Workflow/action file changed', description: 'Changed CI workflow or action file.' },
   'dep/lockfile-changed': { name: 'Lockfile changed', description: 'pnpm-lock.yaml source review.' },
   'dep/registry-config': { name: 'Registry/source config', description: 'Can redirect dependency resolution.' },
+  'dep/hardening-removed': {
+    name: 'Hardening file removed',
+    description: 'Registry/scripts config or lockfile deleted.',
+  },
   'lifecycle/install-script': { name: 'Install lifecycle script', description: 'Auto-running package.json hook.' },
   'lifecycle/pnpmfile': { name: 'pnpm install hook', description: '.pnpmfile.cjs runs code during install.' },
   'rust/build-script': { name: 'Rust build script', description: 'build.rs runs at compile time.' },
