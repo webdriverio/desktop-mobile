@@ -472,9 +472,8 @@ jobs:
       # key being present instead of failing the job. See packages/tauri-service/docs/crabnebula-setup.md.
       - name: 🔑 Check CrabNebula Credentials
         id: cn-key
-        # always() so a failure in an earlier always() debug step can't skip this and leave run='' —
-        # which would skip CrabNebula and make the require_crabnebula gate fail with a misleading
-        # "CN_API_KEY missing?" instead of the real cause. Consumers already gate on always() + run.
+        # always() so run is still computed for the always() consumers if an earlier step failed
+        # (skipping it would read as run='').
         if: always()
         shell: bash
         env:
@@ -576,29 +575,20 @@ jobs:
           format_result "Embedded" "$embedded"
           format_result "CrabNebula" "$crabnebula"
 
-      # enable_debug gates the upload off for the keyed fork-code run: artifact file contents are NOT
-      # secret-masked (only the console stream is), so fork code that wrote CN_API_KEY into a log during
-      # the CrabNebula step could exfiltrate it via this downloadable artifact. Maintainers still get the
-      # masked console log; the fork author must not get an unmasked log artifact from a keyed run.
-      #
-      # For an INTERNAL run (enable_debug=true) the upload does happen and CN_API_KEY is present, so scrub
-      # the key from the logs first in case a driver/backend logged it (auth header / stack trace) — the
-      # artifact is public for 90 days. Best-effort: the key is replaced verbatim and in its URL-encoded
-      # and base64 forms; a logger that splits/wraps the key can still leak, so the real controls remain
-      # not logging secrets and, for forks, skipping the upload entirely.
+      # Artifact files are NOT secret-masked (only the console stream is), so a CN_API_KEY logged into
+      # e2e/logs would leak via this downloadable artifact. The keyed fork run skips the upload
+      # (enable_debug=false); internal runs upload, so scrub the key first — best-effort (verbatim +
+      # URL-encoded + base64; a split/wrapped log can still leak, so the real guard is not logging it).
       - name: 🔒 Redact CN_API_KEY from logs before upload
         id: redact
-        # continue-on-error so a redaction glitch (e.g. a log file removed mid-walk) can't red an
-        # otherwise-green E2E job; the upload below is still skipped (steps.redact.outcome != 'success'),
-        # so this stays fail closed on the artifact without failing CI.
+        # continue-on-error so a redaction glitch doesn't red the job; the upload still skips on a
+        # non-success redact outcome, so it stays fail closed on the artifact.
         continue-on-error: true
         if: ${{ always() && inputs.enable_debug }}
         shell: bash
         env:
           CN_API_KEY: ${{ secrets.CN_API_KEY }}
         run: |
-          # node (guaranteed by setup-node) with a literal split/join avoids regex and tool-availability
-          # pitfalls.
           node -e '
             const fs = require("node:fs"), path = require("node:path");
             const key = process.env.CN_API_KEY;
@@ -666,8 +656,7 @@ jobs:
           check_result "Embedded" "$embedded"
           check_result "CrabNebula" "$crabnebula" "$allow_crabnebula" "$crabnebula_reason"
 
-          # For the keyed verification run, a skipped CrabNebula leg (e.g. CN_API_KEY missing) must
-          # NOT count as verified — otherwise the gate greenlights a PR whose CrabNebula never ran.
+          # A skipped CrabNebula leg (e.g. no CN_API_KEY) must not count as verified for the keyed run.
           if [ "${{ inputs.require_crabnebula }}" = "true" ] && [ "${{ steps.cn-key.outputs.run }}" != "true" ]; then
             echo "::error::CrabNebula verification was required but the leg did not run (CN_API_KEY missing?)"
             failed=true
@@ -678,8 +667,7 @@ jobs:
           fi
           echo "All providers passed"
 
-      # enable_debug is off for the keyed fork-code run: never open an interactive session on a runner
-      # that just executed untrusted fork code and holds CN_API_KEY.
+      # Off for the keyed run: no interactive session on a runner that ran fork code and holds CN_API_KEY.
       - name: 🐛 Debug Build on Failure
         if: ${{ failure() && inputs.enable_debug }}
         uses: goosewobbler/vscode-server-action@v1.5.0
