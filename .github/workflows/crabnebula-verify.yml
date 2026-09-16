@@ -1,17 +1,9 @@
 name: CrabNebula macOS Gate
 
-# Closes the fork coverage gap: on a fork PR the macOS CrabNebula E2E leg is skipped (no CN_API_KEY
-# for forks), so it could otherwise merge green without ever running. This posts a required
-# `CrabNebula / macOS` status that blocks such a PR until it is verified. See
-# docs/security/crabnebula-fork-verification.md.
-#
-# The status is event-driven and never derived from label state: `reset-on-code` (re)posts pending
-# on new code, and success is only ever posted by an authorized action — an authorized
-# `crabnebula:verified` labeler here, or the keyed mirror run. So an unauthorized or un-removed label
-# can never greenlight the gate. GitHub has no per-label permission, hence identity is checked here.
-#
-# pull_request_target for the writable statuses/labels token; this workflow runs NO PR code
-# (detect-changes.ts is the trusted base copy and only classifies a list of changed paths).
+# Posts the required `CrabNebula / macOS` status that blocks a fork PR until macOS CrabNebula is
+# verified (the leg is skipped on forks — no CN_API_KEY — so the PR could otherwise merge green).
+# Runs NO PR code (detect-changes.ts is the trusted base copy). Success is only ever posted by an
+# authorized action, never derived from label presence. See docs/security/crabnebula-fork-verification.md.
 
 on:
   pull_request_target:
@@ -29,27 +21,21 @@ concurrency:
 env:
   GH_TOKEN: ${{ github.token }}
   REPO: ${{ github.repository }}
-  # Logins allowed to attest a verification / authorise a keyed run — set repo variable
-  # CRABNEBULA_LABELERS (a JSON array), keeping it to the people who do the fork-diff review, NOT all
-  # repo admins. No hardcoded default: an unset var falls back to [] so the gate fails closed (no one is
-  # authorised) until it is configured, rather than trusting a literal duplicated across three files.
+  # Reviewers allowed to attest / authorise a keyed run (repo var CRABNEBULA_LABELERS); unset -> [] so
+  # the gate fails closed. Setup guidance in the security doc.
   AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '[]' }}
 
 jobs:
-  # (Re)post the required status: pending for a fork PR that touches Tauri, success otherwise, via the
-  # real detect-changes.ts classifier so it can't drift from what routes a PR to the Tauri E2E
-  # pipeline. Runs on new code, and on removal of crabnebula:verified so an attestation can be revoked
-  # without pushing a commit. A new push also clears stale attestation labels.
+  # (Re)posts the required status via the real detect-changes.ts classifier, so it can't drift from
+  # what routes a PR to the Tauri pipeline. The unlabeled trigger lets an attestation be revoked without a push.
   reset-on-code:
     if: >-
       contains(fromJSON('["opened","reopened","synchronize"]'), github.event.action) ||
       (github.event.action == 'unlabeled' && github.event.label.name == 'crabnebula:verified')
     runs-on: ubuntu-latest
     steps:
-      # Checkout + Node are only needed to classify a fork PR; internal PRs post success without them,
-      # so a transient setup failure can't strand an internal PR at "Expected". Keyed on the head repo
-      # NOT being this repo (fork or a null/detached head.repo) so the classifier path below — which the
-      # same non-internal PRs take — always has the script; `fork == true` would skip a null head.
+      # Only fork PRs need the classifier checkout/Node — skip it for internal PRs so a setup failure
+      # can't strand them at "Expected". full_name (not fork == true) so a null/detached head.repo still classifies.
       - name: Checkout base (trusted classifier)
         if: github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/checkout@v7
@@ -61,10 +47,8 @@ jobs:
           node-version: '24'
 
       - name: Clear stale attestation labels
-        # A stale crabnebula:verified label can't be re-applied to re-verify (re-adding a present label
-        # fires no `labeled` event), so it must be cleared. Deleting it here can't spawn a duplicate
-        # reset-on-code run: a GITHUB_TOKEN label edit doesn't create a new workflow run (recursion
-        # guard), so the `unlabeled` trigger fires only for a human.
+        # Clear stale attestation labels on new code: a present label can't re-fire `labeled`, so it
+        # must be removed before it can re-verify. (A GITHUB_TOKEN label edit fires no workflow, so no loop.)
         if: github.event.action == 'synchronize' || github.event.action == 'reopened'
         env:
           PR: ${{ github.event.pull_request.number }}
@@ -82,23 +66,16 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
-          # Only an explicit fork == false is internal (success without classifying, so no checkout/API/
-          # classifier failure strands an internal PR at "Expected"). A fork — or a null head.repo
-          # (deleted/detached fork) rendering empty — takes the fork path and fails closed; a null must
-          # never green-light this required check.
+          # Only an explicit "false" is internal → instant success. A fork, or a null/empty head.repo,
+          # takes the fork path and fails closed — a null must never green-light this required check.
           state=success
           desc="Not applicable (internal PR or no Tauri changes)."
           if [ "$IS_FORK" != "false" ]; then
-            # Classify defensively; a transient API/classifier failure fails safe to pending
-            # (recoverable by re-run/push), never a false green and never an unposted required check.
+            # Any API/classifier failure fails safe to pending (re-runnable), never a false green.
             run_tauri=""; run_lint_only=""; truncated=false
-            # Capture each API call's exit code explicitly (assignment exit == command exit). A pipe
-            # would swallow a gh failure and yield "[]", so both fetches must succeed before we trust
-            # the file list; otherwise run_tauri stays empty -> pending. The Files API caps at 3000 files
-            # (same cap as scripts/fork-risk-scan.ts); above it the list is truncated and could miss Tauri
-            # paths, so we can't auto-classify -> route to the manual path. (Below the cap, changed_files
-            # can differ from the list length on binary/rename accounting without being truncated.)
-            # GITHUB_STEP_SUMMARY=/dev/null so detect-changes.ts's service table doesn't pollute the gate.
+            # Chained assignments, not a pipe, so a gh failure isn't masked as "[]" (both fetches must
+            # succeed). Files API caps at 3000; above it the list is truncated and may miss Tauri paths ->
+            # manual path. GITHUB_STEP_SUMMARY=/dev/null keeps detect-changes.ts's table out of the gate.
             if files_raw="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null)" \
                && total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null)"; then
               if [ "$total" -le 3000 ]; then
@@ -113,8 +90,6 @@ jobs:
               fi
             fi
             if [ "$truncated" = "true" ]; then
-              # >3000 files: re-running/pushing won't change the count, so don't imply it will — the
-              # only escape is the manual attestation path.
               state=pending
               desc="Too many files to classify automatically (>3000) — review, then add crabnebula:verified."
             elif [ -z "$run_tauri" ]; then
@@ -126,14 +101,12 @@ jobs:
             fi
           fi
           echo "fork=$IS_FORK -> $state"
-          # Post the required check; on failure exit non-zero so the job goes red (visible, re-runnable)
-          # rather than silently leaving the PR at "Expected".
+          # exit non-zero on a failed post: a required check left unposted sits invisibly at "Expected".
           gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
             -f description="$desc" -f target_url="$PR_URL" \
             || { echo "::error::Failed to post CrabNebula / macOS status."; exit 1; }
 
-  # Manual attestation: an authorized crabnebula:verified labeler posts success; an unauthorized one
-  # is removed and posts nothing.
+  # Manual attestation: an authorized crabnebula:verified labeler posts success; an unauthorized one is removed.
   verify-label:
     if: github.event.action == 'labeled' && github.event.label.name == 'crabnebula:verified'
     runs-on: ubuntu-latest
@@ -147,8 +120,7 @@ jobs:
           ALLOW: ${{ env.AUTHORIZED_LABELERS }}
         run: |
           if echo "$ALLOW" | jq -e --arg s "$SENDER" 'index($s) != null' >/dev/null; then
-            # On failure exit non-zero (visible, re-runnable) — the present label can't re-fire a
-            # `labeled` event, so a silently-dropped post would strand the check.
+            # exit non-zero on a failed post: the present label can't re-fire `labeled`, so re-run to recover.
             gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
               -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL" \
               || { echo "::error::Failed to post verified status."; exit 1; }
@@ -157,8 +129,8 @@ jobs:
             gh api -X DELETE "repos/$REPO/issues/$PR/labels/crabnebula%3Averified" || true
           fi
 
-  # Defense in depth: an unauthorized crabnebula:run is removed here too (crabnebula-mirror.yml
-  # independently gates the positive path on the same allowlist).
+  # Defense in depth + label hygiene: mirror.yml already gates the positive path on the allowlist;
+  # this removes a mis/unauthorized crabnebula:run label so it can't linger.
   guard-run-label:
     if: github.event.action == 'labeled' && github.event.label.name == 'crabnebula:run'
     runs-on: ubuntu-latest
