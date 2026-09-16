@@ -146,6 +146,7 @@ Rotate immediately. The CI-only key limits blast radius but does not eliminate i
   have advanced since the reviewer looked. The keyed run therefore tests fork-code + latest main, not
   fork-code + main-at-review-time. Since main is trusted this is intentional (verify against current
   main), but the attestation covers the reviewed *fork* diff, not the base it merged onto.
-- A fork PR whose diff is entirely under `.github/**` (pinned to main) or already in main squashes to an
-  empty tree — nothing fork-specific to run. The mirror posts `CrabNebula / macOS` success for it (no
-  untrusted code executes); the workflow changes themselves are still caught by the fork risk scan.
+- A fork PR whose diff is entirely under `.github/**` (pinned to main) or already in main has no
+  fork-specific code to mirror, so `crabnebula:run` can't build a verification branch and reports a
+  setup failure — use the manual `crabnebula:verified` path (the workflow changes are still caught by
+  the fork risk scan).

@@ -68,28 +68,14 @@ jobs:
           # main. A squash pushes just one commit off main; we still pin its .github to main, so the push
           # has no workflow change and the keyed run resolves CI machinery from main, not the fork.
           if ! git merge --squash "$HEAD_SHA"; then
-            # A conflict only under .github/** is not a real conflict — the unconditional re-pin below
-            # (rm -rf .github; checkout origin/main -- .github) resolves those unmerged entries and
-            # discards the fork's edit anyway, so fall through. Refuse only when the conflict is empty
-            # (unexpected) or touches something OUTSIDE .github (a genuine rebase-needed).
-            unmerged="$(git diff --name-only --diff-filter=U)"
-            if [ -z "$unmerged" ] || printf '%s\n' "$unmerged" | grep -qv '^\.github/'; then
-              git reset --hard >/dev/null 2>&1 || true
-              echo "conflict=true" >> "$GITHUB_OUTPUT"
-              exit 0
-            fi
+            git reset --hard >/dev/null 2>&1 || true
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            exit 0
           fi
           # rm before checkout so fork-ADDED workflow files (not in main) are removed, not just overwritten.
           rm -rf .github
           git checkout origin/main -- .github
           git add -A
-          # Nothing staged means the fork's diff vs main is entirely in main-pinned paths (.github/**) or
-          # already in main — no fork-specific code to verify. Signal it distinctly rather than let
-          # `git commit` fail under set -e, which the report step would mislabel as a retryable error.
-          if git diff --cached --quiet; then
-            echo "empty=true" >> "$GITHUB_OUTPUT"
-            exit 0
-          fi
           git commit -m 'Mirror reviewed fork head onto main for CrabNebula verification' >/dev/null
           # Guard the push: if it fails, set -e would abort here and skip the report step (implicit
           # success()), leaving the label wedged. Handle it so the report step can clean up.
@@ -102,11 +88,11 @@ jobs:
       # always() + outcome failure/cancelled so an aborted git op (fetch/checkout under set -e, which
       # sets no marker) or a manual cancel still cleans up rather than wedging the label. The explicit
       # markers give a precise message; any other non-success outcome gets a generic one.
-      - name: Report and stop (head moved, conflict, nothing to verify, or setup failure)
+      - name: Report and stop (head moved, conflict, or setup failure)
         if: >-
           always() &&
           (steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true' ||
-           steps.mirror.outputs.pushfail == 'true' || steps.mirror.outputs.empty == 'true' ||
+           steps.mirror.outputs.pushfail == 'true' ||
            steps.mirror.outcome == 'failure' || steps.mirror.outcome == 'cancelled')
         env:
           GH_TOKEN: ${{ github.token }}
@@ -117,17 +103,7 @@ jobs:
           MOVED: ${{ steps.mirror.outputs.moved }}
           PUSHFAIL: ${{ steps.mirror.outputs.pushfail }}
           CONFLICT: ${{ steps.mirror.outputs.conflict }}
-          EMPTY: ${{ steps.mirror.outputs.empty }}
         run: |
-          if [ "$EMPTY" = "true" ]; then
-            # Nothing fork-specific to verify (diff is workflow-only/pinned to main, or already in main):
-            # no untrusted code runs, so satisfy the gate rather than block on a vacuous check.
-            gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
-              -f description='No fork-specific code to verify (workflow-only or already in main).' \
-              -f target_url="$PR_URL" || true
-            gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
-            exit 0
-          fi
           if [ "$MOVED" = "true" ]; then
             desc='Cannot verify: the PR head moved since the label. Re-review, then re-apply crabnebula:run.'
           elif [ "$PUSHFAIL" = "true" ]; then
@@ -143,7 +119,7 @@ jobs:
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
 
       - name: Dispatch keyed run and mark pending
-        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true' && steps.mirror.outputs.empty != 'true'
+        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true'
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}

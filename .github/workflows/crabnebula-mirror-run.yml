@@ -112,13 +112,10 @@ jobs:
           else
             state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
           fi
-          # Retry the terminal status: a transient failure must not silently strand the SHA at pending.
+          # Post the terminal status; the posted flag gates cleanup below (keep the branch on failure).
           posted=false
-          for _ in 1 2 3; do
-            if gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
-              -f description="$desc" -f target_url="$RUN_URL"; then posted=true; break; fi
-            sleep 5
-          done
+          if gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
+            -f description="$desc" -f target_url="$RUN_URL"; then posted=true; fi
           gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
           # Clean up only once the terminal status is safely posted. If the post failed, the required
           # check is still pending, so KEEP the mirror branch as recovery state — re-running this report

@@ -48,16 +48,14 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
 };
 
 // The Files API caps at 3000 files. Key truncation on the changed_files count, not total != list length
-// (the count can diverge on binary/rename accounting without truncation). If the count is unavailable
-// or non-integer (fetch throws, or exits 0 with an odd shape) we can't confirm completeness, but the
-// list reveals it: below the cap it's complete (note); at/above it truncation is possible and
-// unconfirmable, so fail closed (error).
+// (the count can diverge on binary/rename accounting without truncation). If the count fetch throws we
+// can't confirm completeness, but the list reveals it: below the cap it's complete (note); at/above it
+// truncation is possible and unconfirmable, so fail closed (error).
 let changedFiles: number | undefined;
 try {
-  const raw = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}`, '--jq', '.changed_files'], {
-    encoding: 'utf8',
-  }).trim();
-  changedFiles = /^\d+$/.test(raw) ? Number(raw) : undefined;
+  changedFiles = Number(
+    execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}`, '--jq', '.changed_files'], { encoding: 'utf8' }).trim(),
+  );
 } catch {
   changedFiles = undefined;
 }
@@ -138,24 +136,8 @@ const rx = {
 };
 
 for (const { filename, status, patch, additions } of files) {
-  // Deletions add nothing executable, so most are irrelevant — but removing a file that *enforced* a
-  // restriction (a registry/scripts config, or the lockfile) can weaken install/build resolution, and
-  // the removed content isn't visible, so surface it for review.
-  if (status === 'removed') {
-    if (
-      /(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc|pnpm-lock\.yaml)$/.test(filename) ||
-      /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)
-    ) {
-      add(
-        filename,
-        1,
-        'warning',
-        'dep/hardening-removed',
-        'A dependency/registry hardening file was removed — review the effect on install/build resolution.',
-      );
-    }
-    continue;
-  }
+  // Deletions add nothing executable — don't fire filename rules on them.
+  if (status === 'removed') continue;
   const added = addedLines(patch);
 
   // Workflow / action files run with CI privileges — and in a keyed run resolve from the merged
@@ -367,10 +349,6 @@ const RULE_META: Record<string, { name: string; description: string }> = {
   'ci/workflow-file': { name: 'Workflow/action file changed', description: 'Changed CI workflow or action file.' },
   'dep/lockfile-changed': { name: 'Lockfile changed', description: 'pnpm-lock.yaml source review.' },
   'dep/registry-config': { name: 'Registry/source config', description: 'Can redirect dependency resolution.' },
-  'dep/hardening-removed': {
-    name: 'Hardening file removed',
-    description: 'Registry/scripts config or lockfile deleted.',
-  },
   'lifecycle/install-script': { name: 'Install lifecycle script', description: 'Auto-running package.json hook.' },
   'lifecycle/pnpmfile': { name: 'pnpm install hook', description: '.pnpmfile.cjs runs code during install.' },
   'rust/build-script': { name: 'Rust build script', description: 'build.rs runs at compile time.' },

@@ -103,23 +103,16 @@ jobs:
             # GITHUB_STEP_SUMMARY=/dev/null so detect-changes.ts's service table doesn't pollute the gate.
             if files_raw="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null)" \
                && total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null)"; then
-              # Guard that the count is a plain integer before the numeric test — an empty/odd value
-              # (fetch exits 0 but returns an unexpected shape) must not fall through to the >3000 branch
-              # and mislabel the PR; leave it unclassified so the generic "couldn't classify" message shows.
-              case "$total" in
-                '' | *[!0-9]*) : ;;
-                *)
-                  if [ "$total" -le 3000 ]; then
-                    files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
-                    tmp="$(mktemp)"
-                    if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" GITHUB_STEP_SUMMARY=/dev/null node scripts/detect-changes.ts >/dev/null 2>&1; then
-                      run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
-                      run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
-                    fi
-                  else
-                    truncated=true
-                  fi ;;
-              esac
+              if [ "$total" -le 3000 ]; then
+                files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
+                tmp="$(mktemp)"
+                if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" GITHUB_STEP_SUMMARY=/dev/null node scripts/detect-changes.ts >/dev/null 2>&1; then
+                  run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
+                  run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
+                fi
+              else
+                truncated=true
+              fi
             fi
             if [ "$truncated" = "true" ]; then
               # >3000 files: re-running/pushing won't change the count, so don't imply it will — the
@@ -135,17 +128,11 @@ jobs:
             fi
           fi
           echo "fork=$IS_FORK -> $state"
-          # Retry: this posts the required check, so a transient failure must not strand the PR at
-          # "Expected". If all attempts fail, exit non-zero so the job goes red (visible + re-runnable)
-          # rather than exiting 0 with the check never posted.
-          posted=false
-          for _ in 1 2 3; do
-            if gh api "repos/$REPO/statuses/$SHA" \
-              -f state="$state" -f context='CrabNebula / macOS' \
-              -f description="$desc" -f target_url="$PR_URL"; then posted=true; break; fi
-            sleep 5
-          done
-          [ "$posted" = true ] || { echo "::error::Failed to post CrabNebula / macOS status after retries."; exit 1; }
+          # Post the required check; on failure exit non-zero so the job goes red (visible, re-runnable)
+          # rather than silently leaving the PR at "Expected".
+          gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
+            -f description="$desc" -f target_url="$PR_URL" \
+            || { echo "::error::Failed to post CrabNebula / macOS status."; exit 1; }
 
   # Manual attestation: an authorized crabnebula:verified labeler posts success; an unauthorized one
   # is removed and posts nothing.
@@ -164,15 +151,11 @@ jobs:
           ALLOW: ${{ env.AUTHORIZED_LABELERS }}
         run: |
           if echo "$ALLOW" | jq -e --arg s "$SENDER" 'index($s) != null' >/dev/null; then
-            # Retry like the other status posts: a transient failure must not leave the required check
-            # stranded at pending while the present label can no longer re-fire a `labeled` event.
-            posted=false
-            for _ in 1 2 3; do
-              if gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
-                -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL"; then posted=true; break; fi
-              sleep 5
-            done
-            [ "$posted" = true ] || { echo "::error::Failed to post verified status after retries."; exit 1; }
+            # On failure exit non-zero (visible, re-runnable) — the present label can't re-fire a
+            # `labeled` event, so a silently-dropped post would strand the check.
+            gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
+              -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL" \
+              || { echo "::error::Failed to post verified status."; exit 1; }
           else
             echo "::warning::Unauthorized labeler $SENDER applied crabnebula:verified — removing."
             gh api -X DELETE "repos/$REPO/issues/$PR/labels/crabnebula%3Averified" || true

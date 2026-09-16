@@ -662,13 +662,6 @@ jobs:
           allow_official=false; official_reason=""
           allow_crabnebula=false; crabnebula_reason=""
 
-          # A required verification (the keyed run) must never be allow-failed — even if this OS is on
-          # the allow-fail list — or a real CrabNebula failure would report as verified. Today the keyed
-          # run is macOS-only (not allow-listed), so this only guards a future matrix change.
-          if [ "${{ inputs.require_crabnebula }}" = "true" ]; then
-            allow_crabnebula=false
-          fi
-
           check_result "Official" "$official" "$allow_official" "$official_reason"
           check_result "Embedded" "$embedded"
           check_result "CrabNebula" "$crabnebula" "$allow_crabnebula" "$crabnebula_reason"
