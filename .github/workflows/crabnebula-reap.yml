@@ -23,8 +23,8 @@ jobs:
           REPO: ${{ github.repository }}
         run: |
           # A mirror branch's tip is a merge/pin commit created at mirror time, so its committer date is
-          # the branch's creation time — an active verification (minutes) is never near the 1-day cutoff.
-          # --paginate so more than one page (30) of orphans is still swept.
+          # the branch's creation time — the age we cut on. --paginate so more than one page (30) of
+          # orphans is still swept.
           cutoff=$(date -u -d '1 day ago' +%s)
           gh api --paginate "repos/$REPO/git/matching-refs/heads/crabnebula-verify/" --jq '.[].ref' | while read -r ref; do
             br="${ref#refs/heads/}"
@@ -34,8 +34,8 @@ jobs:
               # Belt-and-braces for a rare multi-hour runner backlog: never delete a ref a keyed run
               # still needs for checkout. Let gh build+encode the query (-X GET -f) so the slashed
               # branch matches head_branch exactly — a manual %2F risks a double-encode or raw mismatch.
-              # Any run not yet 'completed' still needs the branch — covers queued/in_progress and the
-              # transitional requested/waiting/pending states, rather than enumerating active ones.
+              # Any run not yet 'completed' still needs the branch (queued/in_progress and transitional
+              # states), rather than enumerating active ones.
               # Fail CLOSED: if the query itself errors, keep the branch this pass rather than delete one
               # a run may still need (a stale branch is cheaper than a broken checkout); next run retries.
               if active=$(gh api -X GET "repos/$REPO/actions/runs" -f "branch=$br" -f "per_page=100" \

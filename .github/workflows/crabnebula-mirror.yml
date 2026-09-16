@@ -139,7 +139,7 @@ jobs:
           fi
           gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
             -f description="$desc" -f target_url="$PR_URL" || true
-          # Remove the label so a re-apply fires a fresh labeled event (re-adding a present label does not).
+          # Remove the label so a re-apply can fire a fresh labeled event to retry.
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
 
       - name: Dispatch keyed run and mark pending
@@ -171,5 +171,4 @@ jobs:
           gh api "repos/$REPO/issues/$PR/comments" -f body="🔑 macOS CrabNebula verification dispatched for \`${SHA:0:7}\` on \`${BR}\`. Result will post back as the \`CrabNebula / macOS\` check." || true
           # Drop the label now that the run is dispatched: the keyed run no longer needs it (it carries
           # pr/sha inputs), and if that run is cancelled before its report job the label won't wedge.
-          # A re-apply then fires a fresh labeled event to retry.
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true

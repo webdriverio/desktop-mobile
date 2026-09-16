@@ -1,12 +1,12 @@
 name: Fork Risk Scan
 
-# Static supply-chain risk scan for every fork PR, feeding the human review before any secret-bearing
-# verification (e.g. the CrabNebula flow). Runs NO PR code: the scanner is the trusted base-branch
-# copy and reads the fork's files from git objects, so nothing from the PR head runs or lands on disk.
+# Static supply-chain risk scan for every fork PR, arming the human review before any secret-bearing
+# verification (e.g. the CrabNebula flow). Runs NO PR code — the scanner is the trusted base-branch
+# copy and reads the fork's files via the GitHub API, so nothing from the PR head runs or lands on disk.
 #
-# pull_request_target is required — a fork pull_request token is read-only and cannot upload SARIF or
-# post a status — and is safe only because no PR code runs. Findings go to the private Security tab
-# (Code Scanning), not a public comment, so a prober gets no detection oracle.
+# pull_request_target is required (a fork's pull_request token can't upload SARIF or post a status) and
+# is safe only because no PR code runs. Findings go to the private Security tab, not a public comment,
+# so a prober gets no detection oracle.
 
 on:
   pull_request_target:
@@ -28,8 +28,7 @@ jobs:
     if: github.event.pull_request.head.repo.fork == true
     runs-on: ubuntu-latest
     steps:
-      # Checkout only gives us the trusted scanner (scripts/fork-risk-scan.ts). The scan reads the
-      # PR's files + diffs from the GitHub API — it never fetches or checks out fork code.
+      # Checkout gives us only the trusted base-branch scanner; the scan itself reads the PR via the API.
       - name: Checkout base (trusted scanner)
         uses: actions/checkout@v7
 
@@ -68,9 +67,8 @@ jobs:
           if [ -n "$sha" ]; then
             { echo "sha=$sha"; echo "ref=refs/pull/$PR/merge"; } >> "$GITHUB_OUTPUT"
           else
-            # Unmergeable (e.g. conflicts with main): upload against the PR head instead of skipping, so
-            # the per-finding detail lands in the Security tab — a conflicting diff is exactly when the
-            # reviewer needs it. head.sha is the tip of refs/pull/N/head, so the pairing is valid.
+            # Unmergeable: head.sha is the tip of refs/pull/N/head, so this sha/ref pairing is valid for
+            # the SARIF upload (unlike a null merge sha).
             { echo "sha=$HEAD_SHA"; echo "ref=refs/pull/$PR/head"; echo "fallback=true"; } >> "$GITHUB_OUTPUT"
           fi
 
@@ -99,7 +97,6 @@ jobs:
           FINDINGS: ${{ steps.scan.outputs.findings }}
           HIGH: ${{ steps.scan.outputs.high }}
         run: |
-          # Note when the detail was uploaded against the PR head because the PR isn't mergeable.
           suffix=""
           [ "$FALLBACK" = "true" ] && suffix=" (scanned against PR head — not mergeable)"
           if [ "$SCAN_OUTCOME" != "success" ]; then

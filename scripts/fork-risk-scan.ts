@@ -1,8 +1,7 @@
 // Static supply-chain risk scan for fork PRs, run BEFORE any secret reaches a runner. Reads the PR's
-// changed files and diffs via the GitHub API — it never fetches or executes fork code, and nothing
-// from the fork touches the runner. It arms the human review, which is the real control: findings are
-// heuristics, so a clean scan never authorises a secret-bearing run on its own.
-// See docs/security/crabnebula-fork-verification.md for the flow that consumes it.
+// files and diffs via the GitHub API — it never fetches or executes fork code. It arms the human
+// review, which is the real control: findings are heuristics, so a clean scan never authorises a
+// secret-bearing run on its own. See docs/security/crabnebula-fork-verification.md for the flow.
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
@@ -32,10 +31,9 @@ interface PrFile {
   additions?: number;
 }
 
-// One file object per line (NDJSON) across all pages. gh uses GH_TOKEN from the environment.
-// Intentionally NOT wrapped: without the file list there is nothing to scan, so a failure here should
-// hard-error (the workflow then posts a red "scan errored" status) rather than pass a false-clean scan.
-// The changed_files count below is optional, so it degrades to a warning instead.
+// One file object per line (NDJSON via --jq '.[]') across all pages. Intentionally NOT wrapped: without
+// the file list there is nothing to scan, so hard-error (the workflow posts a red "scan errored"
+// status) rather than pass a false-clean scan.
 const files: PrFile[] = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}/files`, '--paginate', '--jq', '.[]'], {
   encoding: 'utf8',
   maxBuffer: 512 * 1024 * 1024, // headroom over the 3000-file cap's worth of large patches
@@ -49,11 +47,11 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
   findings.push({ file, line, level, rule, message });
 };
 
-// The Files API caps at 3000 files. Key truncation on the changed_files count (not total != list
-// length — the count can diverge on binary/rename accounting without truncation). If the count is
-// unavailable OR not a plain integer (fetch throws, or exits 0 with an odd shape), we can't confirm
-// completeness; the returned list still reveals it — below the cap it's complete (note), at/above the
-// cap truncation is possible and unconfirmable, so fail closed (error). Don't red a benign PR.
+// The Files API caps at 3000 files. Key truncation on the changed_files count, not total != list length
+// (the count can diverge on binary/rename accounting without truncation). If the count is unavailable
+// or non-integer (fetch throws, or exits 0 with an odd shape) we can't confirm completeness, but the
+// list reveals it: below the cap it's complete (note); at/above it truncation is possible and
+// unconfirmable, so fail closed (error).
 let changedFiles: number | undefined;
 try {
   const raw = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}`, '--jq', '.changed_files'], {
@@ -85,8 +83,8 @@ if (changedFiles === undefined) {
 }
 
 // Added lines from a GitHub API patch (hunks only — no +++/--- file headers), with new-file line
-// numbers. Because there are no file headers, an added line whose content starts with '+' (e.g. '++i')
-// is captured correctly rather than mistaken for a header.
+// numbers. With no file headers, a '+'-starting content line (e.g. '++i') is a real added line, not a
+// header to skip.
 interface AddedLine {
   line: number;
   content: string;
@@ -103,16 +101,15 @@ const addedLines = (patch: string | undefined): AddedLine[] => {
       out.push({ line: newLine, content: l.slice(1) });
       newLine++;
     } else if (!l.startsWith('-') && !l.startsWith('\\')) {
-      newLine++; // context line
+      newLine++;
     }
   }
   return out;
 };
 
-// Exfiltration signal categories. Bare `process.env` / `fetch` are too common in this codebase to
-// flag on their own (they'd flood the advisory list), so env-reads are only surfaced when paired with
-// a network call in the same file; named secrets and outbound shell commands are high-signal enough
-// to flag alone.
+// Exfiltration signal categories. Bare `process.env`/`fetch` are too common in this codebase to flag
+// alone, so env-reads are surfaced only when paired with a network call in the same file; named
+// secrets and outbound commands are high-signal enough to flag alone.
 const rx = {
   // Named secrets and printenv (an unambiguous full-env dump). The bare `env` dump command is NOT
   // matched: on this JS/TS-heavy repo `env |`/`env >` collide with bitwise-OR/comparison (`env | 0`,
@@ -141,9 +138,9 @@ const rx = {
 };
 
 for (const { filename, status, patch, additions } of files) {
-  // Deletions add nothing executable, so most removals are irrelevant — but removing a file that
-  // *enforced* a restriction (a registry/scripts config, or the lockfile) can weaken install/build
-  // resolution. Surface those for review (we can't see the removed content), then skip the add rules.
+  // Deletions add nothing executable, so most are irrelevant — but removing a file that *enforced* a
+  // restriction (a registry/scripts config, or the lockfile) can weaken install/build resolution, and
+  // the removed content isn't visible, so surface it for review.
   if (status === 'removed') {
     if (
       /(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc|pnpm-lock\.yaml)$/.test(filename) ||
@@ -173,13 +170,13 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  // Lockfile: flag non-registry sources (tarball / git / non-registry URL) — the top supply-chain
-  // exfiltration vector. Plain registry entries carry only an integrity hash, so they don't match.
+  // Lockfile: flag non-registry sources — the top supply-chain exfiltration vector. Plain registry
+  // entries carry only an integrity hash, so they don't match.
   if (/(^|\/)pnpm-lock\.yaml$/.test(filename)) {
     if (!patch) {
-      // Fail closed: the lockfile is the top supply-chain vector and, with no diff, we can't tell
-      // whether a non-registry source was added — so error (reds the status), matching scan/truncated
-      // and scan/count-unavailable, rather than pass an unscannable lockfile as green.
+      // Fail closed: with no diff we can't tell whether a non-registry source was added, so error (reds
+      // the status) like scan/truncated and scan/count-unavailable, rather than pass an unscannable
+      // lockfile.
       add(
         filename,
         1,
@@ -208,8 +205,7 @@ for (const { filename, status, patch, additions } of files) {
   }
 
   // Registry/source redirection configs can point dependency resolution at an attacker source (or
-  // re-enable install scripts) at install/build time. Error when an added line carries a redirection
-  // directive; otherwise surface the change for review.
+  // re-enable install scripts) at install/build time.
   if (/(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc)$/.test(filename) || /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)) {
     const redirect = added.find(({ content }) =>
       /\b(registry\s*=|_authToken|replace-with|enable-pre-post-scripts|ignore-scripts\s*=\s*false)/i.test(content),
@@ -235,13 +231,11 @@ for (const { filename, status, patch, additions } of files) {
       '.pnpmfile.cjs added/changed — its hooks run arbitrary code during pnpm install. Inspect it.',
     );
 
-  // package.json install-time lifecycle scripts added by this PR.
   if (/(^|\/)package\.json$/.test(filename)) {
     for (const { line, content } of added) {
-      // Match a lifecycle key with a command value. Skip a CLEAN version/dependency spec (e.g. a dep
-      // literally named "install": "^0.13.0"): only chars that appear in semver ranges, or a known
-      // dep-URL prefix, or `latest`. A command value — even one starting with a digit like "2; curl |
-      // sh" — is not a clean spec, so it still flags (a digit prefix alone must not exempt it).
+      // Skip a value that's a clean version/dependency spec (e.g. a dep literally named "install":
+      // "^0.13.0"), so it isn't taken for a script hook; a command value — even one starting with a
+      // digit, like "2; curl | sh" — is not a clean spec and still flags.
       const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:\s*"([^"]*)"/.exec(content);
       const v = m?.[2]?.trim() ?? '';
       const isDepSpec =
@@ -257,7 +251,6 @@ for (const { filename, status, patch, additions } of files) {
     }
   }
 
-  // Rust build hooks run at compile time in the E2E job.
   if (/(^|\/)build\.rs$/.test(filename))
     add(
       filename,
@@ -297,8 +290,6 @@ for (const { filename, status, patch, additions } of files) {
     }
   }
 
-  // Exfiltration signal from added lines: named secrets and outbound shell commands alone; env-reads
-  // only when paired with a network call in the same file; encoding only near env/secret access.
   // Skip docs/text — they aren't executed, and mentioning curl/CN_API_KEY in prose isn't exfiltration.
   const isDoc = /\.(md|markdown|mdx|txt|rst)$/i.test(filename);
   const first = (re: RegExp): AddedLine | undefined =>
@@ -308,10 +299,10 @@ for (const { filename, status, patch, additions } of files) {
   const env = first(rx.envRead);
   const http = first(rx.http);
   const enc = first(rx.encode);
-  // Error (reds the gate status), not warning, for the two direct key-theft shapes: a named secret in
-  // added code (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY), and an env read paired with a network call — which
-  // can ship the whole env (e.g. JSON.stringify(process.env)) without ever naming the key. Neither may
-  // pass as a skimmed-past green. Outbound-command alone / encoding stay advisory (too common to error).
+  // Error (reds the gate status) for the two direct key-theft shapes: a named secret in added code, and
+  // an env read paired with a network call — which can ship the whole env (e.g. JSON.stringify(
+  // process.env)) without ever naming the key. Outbound-command alone / encoding stay advisory (too
+  // common to error).
   if (sec)
     add(
       filename,
@@ -339,8 +330,8 @@ for (const { filename, status, patch, additions } of files) {
     );
 
   // A code/script file or manifest with no patch (too large for the API) escaped content scanning —
-  // flag it so an oversized package.json (lifecycle scripts) / Cargo.toml / script isn't a blind spot.
-  // additions !== 0 skips a pure rename (no patch, additions:0), which added nothing to scan.
+  // flag it so an oversized package.json/Cargo.toml/script isn't a blind spot. additions !== 0 skips a
+  // pure rename (no patch, additions:0), which added nothing to scan.
   if (
     !patch &&
     additions !== 0 &&
@@ -356,8 +347,8 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  // A present-but-truncated patch (GitHub caps very large patches) is only partially scanned — the
-  // returned added-line count falls short of the file's total additions. Flag the blind spot.
+  // A present-but-truncated patch (GitHub caps very large patches) leaves the file only partially
+  // scanned — flag the blind spot.
   if (patch && typeof additions === 'number' && added.length < additions) {
     add(
       filename,
@@ -421,8 +412,8 @@ const sarif = {
         } = { ruleId: f.rule, level: f.level, message: { text: f.message } };
         // PR-level findings (e.g. truncation) have no file — SARIF allows a result without locations.
         if (f.file) {
-          // Clamp to >=1: SARIF 2.1.0 rejects startLine 0, and any edge that yields line 0 would fail
-          // the upload (?? on the source line only guards null/undefined, not a computed 0).
+          // Clamp to >=1: SARIF 2.1.0 rejects startLine 0, and `?? 1` on the source line only guards
+          // null/undefined, not a computed 0.
           result.locations = [
             { physicalLocation: { artifactLocation: { uri: f.file }, region: { startLine: Math.max(1, f.line) } } },
           ];

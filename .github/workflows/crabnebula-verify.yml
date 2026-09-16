@@ -59,10 +59,10 @@ jobs:
           node-version: '24'
 
       - name: Clear stale attestation labels
-        # On a new push and on reopen — a stale crabnebula:verified label can't be re-applied to
-        # re-verify (re-adding a present label fires no `labeled` event), so it must be cleared.
-        # Deleting it here can't spawn a duplicate reset-on-code run: a GITHUB_TOKEN label edit doesn't
-        # create a new workflow run (recursion guard), so the `unlabeled` trigger fires only for a human.
+        # A stale crabnebula:verified label can't be re-applied to re-verify (re-adding a present label
+        # fires no `labeled` event), so it must be cleared. Deleting it here can't spawn a duplicate
+        # reset-on-code run: a GITHUB_TOKEN label edit doesn't create a new workflow run (recursion
+        # guard), so the `unlabeled` trigger fires only for a human.
         if: github.event.action == 'synchronize' || github.event.action == 'reopened'
         env:
           GH_TOKEN: ${{ github.token }}
@@ -84,10 +84,10 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
-          # Only an explicit fork == false is internal (success without classifying, so no
-          # checkout/API/classifier failure strands an internal PR at "Expected"). A fork — or a null
-          # head.repo (deleted/detached fork) rendering empty — takes the fork path and fails closed,
-          # matching ci.yml's `fork != true`; a null must never green-light this required check.
+          # Only an explicit fork == false is internal (success without classifying, so no checkout/API/
+          # classifier failure strands an internal PR at "Expected"). A fork — or a null head.repo
+          # (deleted/detached fork) rendering empty — takes the fork path and fails closed; a null must
+          # never green-light this required check.
           state=success
           desc="Not applicable (internal PR or no Tauri changes)."
           if [ "$IS_FORK" != "false" ]; then

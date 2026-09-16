@@ -598,7 +598,7 @@ jobs:
           CN_API_KEY: ${{ secrets.CN_API_KEY }}
         run: |
           # node (guaranteed by setup-node) with a literal split/join avoids regex and tool-availability
-          # pitfalls. Replaces the key in verbatim, URL-encoded, and base64 forms.
+          # pitfalls.
           node -e '
             const fs = require("node:fs"), path = require("node:path");
             const key = process.env.CN_API_KEY;
@@ -619,7 +619,6 @@ jobs:
           '
 
       - name: 📦 Upload Test Logs
-        # Skip if redaction did not succeed — fail closed, never upload an unredacted log.
         if: ${{ always() && inputs.enable_debug && steps.redact.outcome == 'success' }}
         continue-on-error: true
         uses: actions/upload-artifact@v7
