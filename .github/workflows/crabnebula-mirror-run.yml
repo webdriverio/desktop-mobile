@@ -1,17 +1,9 @@
 name: CrabNebula Mirror Run
 
-# Phase 2 keyed run, dispatched by crabnebula-mirror.yml against a fresh per-dispatch internal branch
-# crabnebula-verify/pr-<N>-<run-id> (reviewed fork head squash-merged onto main). It builds and runs
-# the macOS CrabNebula E2E with the key, then reports the result back to the fork PR and deletes the
-# mirror branch.
-#
-# This runs untrusted fork code, but only CN_API_KEY reaches it: the build jobs are called with no
-# secrets, and the E2E job is passed CN_API_KEY alone (step-scoped by the reusable to the CrabNebula
-# step), so TURBO_TOKEN and the deploy key never touch fork code. The real control is still the human
-# review — this only executes a decision already made.
-#
-# A commit status is ultimately writable by any write-access user via the REST API, so this gate is a
-# process control among trusted maintainers, not a hard boundary — see the security doc.
+# Phase 2 keyed run (dispatched by crabnebula-mirror.yml): builds and runs the macOS CrabNebula E2E on
+# the reviewed fork head, reports back to the PR, and deletes the mirror branch. Runs untrusted fork
+# code but only CN_API_KEY reaches it — build jobs get no secrets, the E2E job is passed CN_API_KEY
+# alone (step-scoped by the reusable). The human review is the real control; see the security doc.
 
 on:
   workflow_dispatch:
@@ -30,17 +22,14 @@ permissions:
   statuses: write
   pull-requests: write
 
-# One keyed run per PR: a re-dispatch cancels an in-flight run so the latest reviewed head reports. A
-# cancelled run posts nothing and deletes nothing (its report is gated on !cancelled()), and each run
-# has its own immutable branch, so overlapping runs never interfere.
+# One keyed run per PR — a re-dispatch cancels the in-flight one, so the latest reviewed head wins.
 concurrency:
   group: crabnebula-mirror-run-${{ inputs.pr }}
   cancel-in-progress: true
 
 jobs:
-  # Only the gated mirror bot (dispatched via crabnebula-mirror.yml) or an allowlisted login may
-  # drive a keyed run — a direct workflow_dispatch by any other write-access user is refused here.
-  # Unset CRABNEBULA_LABELERS falls back to [] → fail closed (only the bot); see crabnebula-verify.yml.
+  # workflow_dispatch is open to any write-access user, so re-authorise here: the mirror bot, or a
+  # CRABNEBULA_LABELERS login (empty var → only the bot).
   authorize:
     if: github.actor == 'github-actions[bot]' || contains(fromJSON(vars.CRABNEBULA_LABELERS || '[]'), github.actor)
     runs-on: ubuntu-latest
@@ -59,9 +48,7 @@ jobs:
     with:
       os: 'macos-latest'
 
-  # Runs every macOS Tauri test-type (matching internal CI), all providers (official auto-skips;
-  # embedded is the immune baseline; CrabNebula is the leg under test). require_crabnebula makes a
-  # skipped CrabNebula leg (e.g. CN_API_KEY missing) a failure, not a false pass.
+  # Runs every macOS Tauri test-type (all providers); CrabNebula is the leg this verifies.
   e2e:
     needs: [build, build-app]
     strategy:
@@ -76,18 +63,14 @@ jobs:
       node-version: '24'
       test-type: ${{ matrix.test-type }}
       require_crabnebula: true
-      # Off: no debug conveniences (interactive session, log-artifact upload) on a runner that ran fork
-      # code with the key.
       enable_debug: false
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
       tauri_cache_key: ${{ needs.build-app.outputs.cache_key }}
 
-  # Only an authorized run reports + cleans up, so an unauthorized dispatch can't grief a victim PR's
-  # label/branch. !cancelled() (not always()) so a run superseded by a re-dispatch stays silent rather
-  # than posting a status that races the surviving run's. Orphans from a cancelled/failed-authorize run
-  # are swept by crabnebula-reap.yml.
+  # Report/cleanup only when authorize succeeded (an unauthorized dispatch must not touch the PR) and
+  # !cancelled() (a superseded run must not post a status racing the survivor).
   report:
     needs: [authorize, e2e]
     if: ${{ !cancelled() && needs.authorize.result == 'success' }}
@@ -103,8 +86,6 @@ jobs:
           RESULT: ${{ needs.e2e.result }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          # The run covers all test-types and both macOS providers (embedded + CrabNebula), so a
-          # failure isn't necessarily the CrabNebula leg — point to the run rather than misattribute.
           if [ "$RESULT" = "success" ]; then
             state=success; icon='✅'; desc="macOS CrabNebula verification passed on the reviewed commit."
           elif [ "$RESULT" = "skipped" ]; then
@@ -112,20 +93,16 @@ jobs:
           else
             state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
           fi
-          # Post the terminal status; the posted flag gates cleanup below (keep the branch on failure).
           posted=false
           if gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
             -f description="$desc" -f target_url="$RUN_URL"; then posted=true; fi
           gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
-          # Clean up only once the terminal status is safely posted. If the post failed, the required
-          # check is still pending, so KEEP the mirror branch as recovery state — re-running this report
-          # job retries the post against the same SHA — and go red so it's visible; the reaper backstops
-          # the branch if abandoned. (crabnebula:run was already dropped at dispatch, so only the branch
-          # is recovery state here.)
+          # Delete branch/label only after the status is safely posted; on a failed post keep them and
+          # go red, so the report job can be re-run to retry.
           if [ "$posted" = true ]; then
             gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
             gh api "repos/$REPO/git/refs/heads/${BR}" -X DELETE || true
           else
-            echo "::error::Failed to post terminal status after retries — kept the mirror branch; re-run this report job to retry."
+            echo "::error::Failed to post terminal status — kept the mirror branch; re-run this report job to retry."
             exit 1
           fi

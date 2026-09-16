@@ -701,11 +701,8 @@ jobs:
       os: 'macos-latest'
       node-version: '24'
       test-type: ${{ matrix.test-type }}
-      # Internal PRs / main have CN_API_KEY, so require the macOS CrabNebula leg to actually run — a
-      # missing/expired key should fail loudly here, not silently skip. Fork PRs (no key) keep skipping;
-      # their coverage is enforced separately by the crabnebula:run verification gate. Keyed on the head
-      # repo being this repo (not `fork != true`, which GHA coerces null→require and would spuriously
-      # red a deleted/detached-fork PR); non-PR events (push/dispatch on main) always require.
+      # full_name, not `fork != true` — GHA coerces a null head.repo (detached fork) to "require", which
+      # would spuriously red the leg on such a PR. Forks (no key) skip here; the crabnebula:run gate covers them.
       require_crabnebula: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
