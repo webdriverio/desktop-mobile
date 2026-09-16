@@ -1,7 +1,7 @@
-// Static supply-chain risk scan for fork PRs, run BEFORE any secret reaches a runner. Reads the PR's
-// files and diffs via the GitHub API — it never fetches or executes fork code. It arms the human
-// review, which is the real control: findings are heuristics, so a clean scan never authorises a
-// secret-bearing run on its own. See docs/security/crabnebula-fork-verification.md for the flow.
+// Static supply-chain risk scan for fork PRs, run before any secret reaches a runner. Reads the PR's
+// files/diffs via the GitHub API — never fetches or executes fork code. Findings are heuristics that
+// arm the human review; a clean scan never authorises a secret-bearing run on its own.
+// See docs/security/crabnebula-fork-verification.md.
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
@@ -31,9 +31,8 @@ interface PrFile {
   additions?: number;
 }
 
-// One file object per line (NDJSON via --jq '.[]') across all pages. Intentionally NOT wrapped: without
-// the file list there is nothing to scan, so hard-error (the workflow posts a red "scan errored"
-// status) rather than pass a false-clean scan.
+// NDJSON (one file per line, --jq '.[]') across all pages. Deliberately not wrapped in try/catch: no
+// file list means nothing to scan, so hard-error (red "scan errored" status) beats a false-clean pass.
 const files: PrFile[] = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}/files`, '--paginate', '--jq', '.[]'], {
   encoding: 'utf8',
   maxBuffer: 512 * 1024 * 1024, // headroom over the 3000-file cap's worth of large patches
@@ -47,10 +46,9 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
   findings.push({ file, line, level, rule, message });
 };
 
-// The Files API caps at 3000 files. Key truncation on the changed_files count, not total != list length
-// (the count can diverge on binary/rename accounting without truncation). If the count fetch throws we
-// can't confirm completeness, but the list reveals it: below the cap it's complete (note); at/above it
-// truncation is possible and unconfirmable, so fail closed (error).
+// Files API caps at 3000. Key truncation on the changed_files count, not count != list length (they
+// diverge on binary/rename accounting without truncation). If the count fetch throws, the list still
+// tells us: below the cap it's complete (note); at/above it, truncation is possible — fail closed (error).
 let changedFiles: number | undefined;
 try {
   changedFiles = Number(
@@ -80,9 +78,8 @@ if (changedFiles === undefined) {
   );
 }
 
-// Added lines from a GitHub API patch (hunks only — no +++/--- file headers), with new-file line
-// numbers. With no file headers, a '+'-starting content line (e.g. '++i') is a real added line, not a
-// header to skip.
+// Added lines from a GitHub API patch. These carry hunk headers but no +++/--- file headers, so a
+// '+'-starting line (e.g. '++i') is real added content, not a header to skip.
 interface AddedLine {
   line: number;
   content: string;
@@ -105,25 +102,18 @@ const addedLines = (patch: string | undefined): AddedLine[] => {
   return out;
 };
 
-// Exfiltration signal categories. Bare `process.env`/`fetch` are too common in this codebase to flag
-// alone, so env-reads are surfaced only when paired with a network call in the same file; named
-// secrets and outbound commands are high-signal enough to flag alone.
+// Exfiltration signal categories. Bare process.env/fetch are too common here to flag alone, so an
+// env-read fires only when paired with a network call; named secrets and outbound commands flag alone.
 const rx = {
-  // Named secrets and printenv (an unambiguous full-env dump). The bare `env` dump command is NOT
-  // matched: on this JS/TS-heavy repo `env |`/`env >` collide with bitwise-OR/comparison (`env | 0`,
-  // `env > n`), so it produced error-level false positives; a real `env | curl` still trips outbound.
+  // Named secrets + printenv (an unambiguous env dump). Bare `env` is deliberately excluded — on this
+  // JS/TS repo it collides with bitwise-OR/comparison (`env | 0`); a real `env | curl` still trips outbound.
   secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv/,
-  // Require an argument (whitespace + a non-`=` token) so these match a command invocation, not a bare
-  // identifier (`const nc = ...`) or a substring inside a URL/word (`https://curl.se`, `// use curl`).
-  // Allow an optional .exe so Windows invocations (curl.exe/nc.exe) aren't missed.
+  // Require an argument (whitespace + a non-`=` token) so these match a command, not a bare identifier
+  // (`const nc = ...`) or a URL/word substring (`https://curl.se`). Optional .exe for Windows (curl.exe).
   outbound: /\b(curl|wget|netcat|scp|nc|Invoke-WebRequest|iwr)(\.exe)?\s+[^=\s]/,
-  // process.env/std::env/os.environ/$env: (single vars) plus bulk-env dumps: a PowerShell Env: drive
-  // listing (gci/ls/dir/Get-ChildItem Env:) or bash `export -p`.
   envRead: /process\.env\b|std::env|os\.environ|\$env:|(?:gci|ls|dir|Get-ChildItem)\s+env:|export\s+-p/i,
-  // Distinctive HTTP-client names so a full-env exfil (env-egress) isn't missed by client choice. The
-  // ambiguous common-word libs got/needle/request are deliberately NOT matched — even as bare calls they
-  // collide with local helper/test-util names and, paired with the ubiquitous process.env, produced
-  // error-level false positives; the named-secret rule and human review remain the backstop for those.
+  // Distinctive HTTP-client names, so an env-egress isn't missed by client choice. got/needle/request
+  // are deliberately excluded — too collision-prone with local helpers, they caused false positives.
   http: new RegExp(
     [
       '\\b(fetch|axios|undici|superagent|XMLHttpRequest|reqwest|ureq|httpx|aiohttp|urllib|Invoke-RestMethod)\\b',
@@ -136,12 +126,11 @@ const rx = {
 };
 
 for (const { filename, status, patch, additions } of files) {
-  // Deletions add nothing executable — don't fire filename rules on them.
+  // A removed file adds nothing executable — skip.
   if (status === 'removed') continue;
   const added = addedLines(patch);
 
-  // Workflow / action files run with CI privileges — and in a keyed run resolve from the merged
-  // branch, so a fork edit here could reach secrets.
+  // Workflow/action files run with CI privileges — a fork edit here could reach secrets in a keyed run.
   if (/^\.github\/workflows\/.*\.ya?ml$/.test(filename) || /(^|\/)action\.ya?ml$/.test(filename)) {
     add(
       filename,
@@ -152,13 +141,10 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  // Lockfile: flag non-registry sources — the top supply-chain exfiltration vector. Plain registry
-  // entries carry only an integrity hash, so they don't match.
+  // Lockfile: flag non-registry sources (the top supply-chain vector); plain registry entries carry only a hash.
   if (/(^|\/)pnpm-lock\.yaml$/.test(filename)) {
     if (!patch) {
-      // Fail closed: with no diff we can't tell whether a non-registry source was added, so error (reds
-      // the status) like scan/truncated and scan/count-unavailable, rather than pass an unscannable
-      // lockfile.
+      // Fail closed: no diff means we can't check the sources, so error rather than pass an unscannable lockfile.
       add(
         filename,
         1,
@@ -170,8 +156,7 @@ for (const { filename, status, patch, additions } of files) {
       const nonRegistry = added.filter(
         ({ content }) =>
           /\b(tarball:|git\+|type:\s*git|\brepo:)/i.test(content) ||
-          // Anchor the registry host to //<host>/ so a lookalike like registry.npmjs.org.evil.com
-          // (substring match) doesn't slip past the non-registry catch-all.
+          // Anchor to //<host>/ so a lookalike (registry.npmjs.org.evil.com) can't pass the non-registry check.
           (/https?:\/\//.test(content) && !/\/\/(registry\.npmjs\.org|registry\.yarnpkg\.com)\//i.test(content)),
       );
       add(
@@ -186,8 +171,7 @@ for (const { filename, status, patch, additions } of files) {
     }
   }
 
-  // Registry/source redirection configs can point dependency resolution at an attacker source (or
-  // re-enable install scripts) at install/build time.
+  // Registry/source redirect configs can point resolution at an attacker source (or re-enable install scripts).
   if (/(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc)$/.test(filename) || /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)) {
     const redirect = added.find(({ content }) =>
       /\b(registry\s*=|_authToken|replace-with|enable-pre-post-scripts|ignore-scripts\s*=\s*false)/i.test(content),
@@ -203,7 +187,7 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  // .pnpmfile.cjs hooks (readPackage / afterAllResolved) run arbitrary Node code during pnpm install.
+  // .pnpmfile.cjs hooks run arbitrary Node code during pnpm install.
   if (/(^|\/)\.pnpmfile\.cjs$/.test(filename))
     add(
       filename,
@@ -215,9 +199,8 @@ for (const { filename, status, patch, additions } of files) {
 
   if (/(^|\/)package\.json$/.test(filename)) {
     for (const { line, content } of added) {
-      // Skip a value that's a clean version/dependency spec (e.g. a dep literally named "install":
-      // "^0.13.0"), so it isn't taken for a script hook; a command value — even one starting with a
-      // digit, like "2; curl | sh" — is not a clean spec and still flags.
+      // Skip a clean version/dep spec (a dep literally named "install": "^0.13.0" isn't a script hook);
+      // a command value — even one starting with a digit ("2; curl | sh") — still flags.
       const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:\s*"([^"]*)"/.exec(content);
       const v = m?.[2]?.trim() ?? '';
       const isDepSpec =
@@ -243,9 +226,8 @@ for (const { filename, status, patch, additions } of files) {
     );
   if (/(^|\/)Cargo\.toml$/.test(filename)) {
     for (const { line, content } of added) {
-      // A build-dependencies header (a new section) OR a non-registry source (git/path) added in any
-      // section — both run fork-controlled code at build/test time. Keying only on the section header
-      // would miss a dep added under a pre-existing header, so flag the source markers too.
+      // Flag both the [build-dependencies] header and git/path source markers: keying only on the
+      // header would miss a dep added under a pre-existing one. Both run fork code at build/test time.
       if (/\[build-dependencies\]/.test(content))
         add(
           filename,
@@ -254,10 +236,9 @@ for (const { filename, status, patch, additions } of files) {
           'rust/build-deps',
           'Cargo [build-dependencies] added — runs at compile time. Review.',
         );
-      // A git/path SOURCE value (URL, or a filesystem path with a slash) in either the inline-table
-      // `{ git = "url" }` or expanded `[deps.x]\ngit = "url"` form. Matches the source, not a bare
-      // version, so a registry crate literally named `git`/`path` (git = "0.2") doesn't false-positive.
-      // The path value must NOT end in .rs, so a [[bin]]/[lib] target source path isn't taken for a dep.
+      // A git/path source value (URL or a path with a slash), inline or expanded form. Matches the
+      // source not a bare version, so a crate named `git` (git = "0.2") is safe; the path must not end
+      // in .rs, so a [[bin]]/[lib] target path isn't taken for a dep.
       else if (
         /\bgit\s*=\s*["'][^"']*(:\/\/|@|\.git)/.test(content) ||
         /\bpath\s*=\s*["'][^"']*\/[^"']*(?<!\.rs)["']/.test(content)
@@ -272,7 +253,7 @@ for (const { filename, status, patch, additions } of files) {
     }
   }
 
-  // Skip docs/text — they aren't executed, and mentioning curl/CN_API_KEY in prose isn't exfiltration.
+  // Skip docs/text — not executed; curl/CN_API_KEY in prose isn't exfiltration.
   const isDoc = /\.(md|markdown|mdx|txt|rst)$/i.test(filename);
   const first = (re: RegExp): AddedLine | undefined =>
     isDoc ? undefined : added.find(({ content }) => re.test(content));
@@ -281,10 +262,8 @@ for (const { filename, status, patch, additions } of files) {
   const env = first(rx.envRead);
   const http = first(rx.http);
   const enc = first(rx.encode);
-  // Error (reds the gate status) for the two direct key-theft shapes: a named secret in added code, and
-  // an env read paired with a network call — which can ship the whole env (e.g. JSON.stringify(
-  // process.env)) without ever naming the key. Outbound-command alone / encoding stay advisory (too
-  // common to error).
+  // Two shapes error (red gate): a named secret, and an env read paired with a network call (which can
+  // ship the whole env without naming the key). Outbound-alone and encoding stay advisory — too common.
   if (sec)
     add(
       filename,
@@ -311,9 +290,8 @@ for (const { filename, status, patch, additions } of files) {
       'Encoding near env/secret access — can hide exfiltrated data.',
     );
 
-  // A code/script file or manifest with no patch (too large for the API) escaped content scanning —
-  // flag it so an oversized package.json/Cargo.toml/script isn't a blind spot. additions !== 0 skips a
-  // pure rename (no patch, additions:0), which added nothing to scan.
+  // A code/manifest file with no patch (too large for the API) escaped content scanning — flag the
+  // blind spot. additions !== 0 skips a pure rename (no patch, additions:0), which added nothing.
   if (
     !patch &&
     additions !== 0 &&
@@ -329,8 +307,7 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  // A present-but-truncated patch (GitHub caps very large patches) leaves the file only partially
-  // scanned — flag the blind spot.
+  // A truncated patch (GitHub caps very large patches) leaves the file partially scanned — flag it.
   if (patch && typeof additions === 'number' && added.length < additions) {
     add(
       filename,
@@ -342,8 +319,7 @@ for (const { filename, status, patch, additions } of files) {
   }
 }
 
-// Rule metadata so the Security tab shows a name + description, not a bare id (the per-result message
-// carries the specifics). Only rules that actually fired are declared in the SARIF run.
+// Rule metadata for the Security tab (name + description, not a bare id); the per-result message has the specifics.
 const DOC_URI = 'https://github.com/webdriverio/desktop-mobile/blob/main/docs/security/crabnebula-fork-verification.md';
 const RULE_META: Record<string, { name: string; description: string }> = {
   'ci/workflow-file': { name: 'Workflow/action file changed', description: 'Changed CI workflow or action file.' },
@@ -390,8 +366,7 @@ const sarif = {
         } = { ruleId: f.rule, level: f.level, message: { text: f.message } };
         // PR-level findings (e.g. truncation) have no file — SARIF allows a result without locations.
         if (f.file) {
-          // Clamp to >=1: SARIF 2.1.0 rejects startLine 0, and `?? 1` on the source line only guards
-          // null/undefined, not a computed 0.
+          // Clamp to >=1: SARIF 2.1.0 rejects startLine 0 (and ?? 1 wouldn't catch a computed 0).
           result.locations = [
             { physicalLocation: { artifactLocation: { uri: f.file }, region: { startLine: Math.max(1, f.line) } } },
           ];
@@ -405,8 +380,7 @@ const sarif = {
 writeFileSync(SARIF_OUT, JSON.stringify(sarif, null, 2));
 
 const high = findings.filter((f) => f.level === 'error').length;
-// Only the counts go to the (public) run log — the per-finding detail goes to the private SARIF, so
-// the log isn't a detection oracle a prober can iterate against.
+// Only counts to the (public) run log — detail stays in the private SARIF, so it's no detection oracle.
 console.error(`findings=${findings.length} high=${high}`);
 
 if (process.env.GITHUB_OUTPUT) {

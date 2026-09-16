@@ -1,12 +1,10 @@
 name: Fork Risk Scan
 
-# Static supply-chain risk scan for every fork PR, arming the human review before any secret-bearing
-# verification (e.g. the CrabNebula flow). Runs NO PR code — the scanner is the trusted base-branch
-# copy and reads the fork's files via the GitHub API, so nothing from the PR head runs or lands on disk.
-#
-# pull_request_target is required (a fork's pull_request token can't upload SARIF or post a status) and
-# is safe only because no PR code runs. Findings go to the private Security tab, not a public comment,
-# so a prober gets no detection oracle.
+# Static supply-chain risk scan for every fork PR — arms the human review before any secret-bearing
+# run. Runs NO PR code: the scanner is the trusted base-branch copy and reads the fork's files via the
+# GitHub API. pull_request_target is needed for the SARIF/status write token, and is safe only because
+# of that. Findings go to the private Security tab, not a public comment, so a prober gets no oracle.
+# See docs/security/crabnebula-fork-verification.md.
 
 on:
   pull_request_target:
@@ -16,7 +14,7 @@ permissions:
   contents: read
   security-events: write
   statuses: write
-  pull-requests: read # the scanner reads the PR's files/metadata via the pulls API
+  pull-requests: read
 
 env:
   GH_TOKEN: ${{ github.token }}
@@ -28,11 +26,9 @@ concurrency:
 
 jobs:
   scan:
-    # Fork PRs only — supply-chain risk is an external-contributor concern; internal PRs are trusted.
     if: github.event.pull_request.head.repo.fork == true
     runs-on: ubuntu-latest
     steps:
-      # Checkout gives us only the trusted base-branch scanner; the scan itself reads the PR via the API.
       - name: Checkout base (trusted scanner)
         uses: actions/checkout@v7
 
@@ -48,16 +44,14 @@ jobs:
           SARIF_OUT: fork-risk-scan.sarif
         run: node scripts/fork-risk-scan.ts
 
-      # Code scanning wants sha to be the tip of ref. Prefer the merge commit on refs/pull/N/merge; if
-      # the PR is unmergeable, fall back to the PR head so the Security tab is still populated.
+      # upload-sarif needs sha to be the tip of ref: prefer the merge commit, fall back to PR head if unmergeable.
       - name: Resolve upload target (merge commit, else PR head)
         id: mergesha
         env:
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
-          # merge_commit_sha is computed asynchronously and is often null right after `opened`; poll
-          # briefly so we don't fall back to head just because mergeability wasn't ready yet.
+          # merge_commit_sha is computed async (often null just after opened); poll before falling back to head.
           sha=""
           for _ in 1 2 3 4 5; do
             sha="$(gh api "repos/$REPO/pulls/$PR" --jq '.merge_commit_sha // empty' 2>/dev/null || true)"
@@ -67,8 +61,7 @@ jobs:
           if [ -n "$sha" ]; then
             { echo "sha=$sha"; echo "ref=refs/pull/$PR/merge"; } >> "$GITHUB_OUTPUT"
           else
-            # Unmergeable: head.sha is the tip of refs/pull/N/head, so this sha/ref pairing is valid for
-            # the SARIF upload (unlike a null merge sha).
+            # Unmergeable: pair head.sha with refs/pull/N/head — a valid tip/ref for the upload.
             { echo "sha=$HEAD_SHA"; echo "ref=refs/pull/$PR/head"; echo "fallback=true"; } >> "$GITHUB_OUTPUT"
           fi
 
@@ -82,8 +75,7 @@ jobs:
           sha: ${{ steps.mergesha.outputs.sha }}
           ref: ${{ steps.mergesha.outputs.ref }}
 
-      # Post on success or failure so a scan error still surfaces (with a note if the SARIF upload
-      # failed); skip on cancellation so a superseded run doesn't post a spurious "errored" status.
+      # success() || failure(), not always(): a scan error still posts, but a superseded (cancelled) run doesn't.
       - name: Post terse public status
         if: success() || failure()
         env:
@@ -102,7 +94,6 @@ jobs:
           elif [ "$SARIF_OUTCOME" != "success" ]; then
             state=error; desc="${FINDINGS} item(s) flagged, but SARIF upload failed — detail unavailable. Review the run."
           elif [ "${HIGH:-0}" -gt 0 ]; then
-            # High-severity findings show a red (non-blocking) check so they aren't skimmed past as green.
             state=failure; desc="${HIGH} high-risk item(s) of ${FINDINGS} — review the Security tab before verifying.${suffix}"
           else
             state=success; desc="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab).${suffix}"
