@@ -27,6 +27,8 @@ concurrency:
   cancel-in-progress: false
 
 env:
+  GH_TOKEN: ${{ github.token }}
+  REPO: ${{ github.repository }}
   # Logins allowed to attest a verification / authorise a keyed run — set repo variable
   # CRABNEBULA_LABELERS (a JSON array), keeping it to the people who do the fork-diff review, NOT all
   # repo admins. No hardcoded default: an unset var falls back to [] so the gate fails closed (no one is
@@ -65,8 +67,6 @@ jobs:
         # guard), so the `unlabeled` trigger fires only for a human.
         if: github.event.action == 'synchronize' || github.event.action == 'reopened'
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
         run: |
           for L in crabnebula:verified crabnebula:run; do
@@ -77,8 +77,6 @@ jobs:
       - name: Post required status
         if: always()
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -142,8 +140,6 @@ jobs:
     steps:
       - name: Attest or reject
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -169,8 +165,6 @@ jobs:
     steps:
       - name: Reject unauthorized or non-fork labeler
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           SENDER: ${{ github.event.sender.login }}
           ALLOW: ${{ env.AUTHORIZED_LABELERS }}

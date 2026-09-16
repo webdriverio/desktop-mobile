@@ -20,6 +20,10 @@ permissions:
   pull-requests: write
   actions: write
 
+env:
+  GH_TOKEN: ${{ github.token }}
+  REPO: ${{ github.repository }}
+
 concurrency:
   group: crabnebula-mirror-${{ github.event.pull_request.number }}
   cancel-in-progress: false
@@ -42,8 +46,6 @@ jobs:
       - name: Mirror reviewed fork head onto an internal branch
         id: mirror
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -95,8 +97,6 @@ jobs:
            steps.mirror.outputs.pushfail == 'true' ||
            steps.mirror.outcome == 'failure' || steps.mirror.outcome == 'cancelled')
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
@@ -121,8 +121,6 @@ jobs:
       - name: Dispatch keyed run and mark pending
         if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true'
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
           BR: ${{ steps.mirror.outputs.branch }}

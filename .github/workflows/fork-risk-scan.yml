@@ -18,6 +18,10 @@ permissions:
   statuses: write
   pull-requests: read # the scanner reads the PR's files/metadata via the pulls API
 
+env:
+  GH_TOKEN: ${{ github.token }}
+  REPO: ${{ github.repository }}
+
 concurrency:
   group: fork-risk-scan-${{ github.event.pull_request.number }}
   cancel-in-progress: true
@@ -40,8 +44,6 @@ jobs:
       - name: Run static risk scan
         id: scan
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           SARIF_OUT: fork-risk-scan.sarif
         run: node scripts/fork-risk-scan.ts
@@ -51,8 +53,6 @@ jobs:
       - name: Resolve upload target (merge commit, else PR head)
         id: mergesha
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number }}
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: |
@@ -87,8 +87,6 @@ jobs:
       - name: Post terse public status
         if: success() || failure()
         env:
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           SCAN_OUTCOME: ${{ steps.scan.outcome }}
@@ -100,19 +98,14 @@ jobs:
           suffix=""
           [ "$FALLBACK" = "true" ] && suffix=" (scanned against PR head — not mergeable)"
           if [ "$SCAN_OUTCOME" != "success" ]; then
-            gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
-              -f description="Risk scan errored — review the run." -f target_url="$PR_URL"
+            state=error; desc="Risk scan errored — review the run."
           elif [ "$SARIF_OUTCOME" != "success" ]; then
-            gh api "repos/$REPO/statuses/$SHA" -f state=error -f context='Fork Risk Scan' \
-              -f description="${FINDINGS} item(s) flagged, but SARIF upload failed — detail unavailable. Review the run." \
-              -f target_url="$PR_URL"
+            state=error; desc="${FINDINGS} item(s) flagged, but SARIF upload failed — detail unavailable. Review the run."
           elif [ "${HIGH:-0}" -gt 0 ]; then
             # High-severity findings show a red (non-blocking) check so they aren't skimmed past as green.
-            gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='Fork Risk Scan' \
-              -f description="${HIGH} high-risk item(s) of ${FINDINGS} — review the Security tab before verifying.${suffix}" \
-              -f target_url="$PR_URL"
+            state=failure; desc="${HIGH} high-risk item(s) of ${FINDINGS} — review the Security tab before verifying.${suffix}"
           else
-            gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='Fork Risk Scan' \
-              -f description="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab).${suffix}" \
-              -f target_url="$PR_URL"
+            state=success; desc="${FINDINGS} item(s) flagged (${HIGH} high). Details restricted to maintainers (Security tab).${suffix}"
           fi
+          gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='Fork Risk Scan' \
+            -f description="$desc" -f target_url="$PR_URL"
