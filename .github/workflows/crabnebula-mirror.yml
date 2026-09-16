@@ -78,6 +78,12 @@ jobs:
           rm -rf .github
           git checkout origin/main -- .github
           git add -A
+          # A workflow-only change leaves nothing after the .github pin — signal it so the report step
+          # directs the reviewer to crabnebula:verified instead of a git-commit failure + futile retry.
+          if git diff --cached --quiet; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
           git commit -m 'Mirror reviewed fork head onto main for CrabNebula verification' >/dev/null
           # Guard the push: if it fails, set -e would abort here and skip the report step (implicit
           # success()), leaving the label wedged. Handle it so the report step can clean up.
@@ -90,11 +96,11 @@ jobs:
       # always() + outcome failure/cancelled so an aborted git op (fetch/checkout under set -e, which
       # sets no marker) or a manual cancel still cleans up rather than wedging the label. The explicit
       # markers give a precise message; any other non-success outcome gets a generic one.
-      - name: Report and stop (head moved, conflict, or setup failure)
+      - name: Report and stop (head moved, conflict, nothing to verify, or setup failure)
         if: >-
           always() &&
           (steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true' ||
-           steps.mirror.outputs.pushfail == 'true' ||
+           steps.mirror.outputs.pushfail == 'true' || steps.mirror.outputs.empty == 'true' ||
            steps.mirror.outcome == 'failure' || steps.mirror.outcome == 'cancelled')
         env:
           PR: ${{ github.event.pull_request.number }}
@@ -103,7 +109,17 @@ jobs:
           MOVED: ${{ steps.mirror.outputs.moved }}
           PUSHFAIL: ${{ steps.mirror.outputs.pushfail }}
           CONFLICT: ${{ steps.mirror.outputs.conflict }}
+          EMPTY: ${{ steps.mirror.outputs.empty }}
         run: |
+          if [ "$EMPTY" = "true" ]; then
+            # Workflow-only fork PR: the keyed run pins .github to main, so there's nothing to exercise.
+            # Direct to the manual path rather than loop on a futile retry.
+            gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
+              -f description='Workflow-only change — nothing for the keyed run to exercise. Review the diff and attest with crabnebula:verified.' \
+              -f target_url="$PR_URL" || true
+            gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+            exit 0
+          fi
           if [ "$MOVED" = "true" ]; then
             desc='Cannot verify: the PR head moved since the label. Re-review, then re-apply crabnebula:run.'
           elif [ "$PUSHFAIL" = "true" ]; then
@@ -119,7 +135,7 @@ jobs:
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
 
       - name: Dispatch keyed run and mark pending
-        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true'
+        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true' && steps.mirror.outputs.empty != 'true'
         env:
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
