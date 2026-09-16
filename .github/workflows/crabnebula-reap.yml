@@ -36,10 +36,16 @@ jobs:
               # branch matches head_branch exactly — a manual %2F risks a double-encode or raw mismatch.
               # Any run not yet 'completed' still needs the branch — covers queued/in_progress and the
               # transitional requested/waiting/pending states, rather than enumerating active ones.
-              active=$(gh api -X GET "repos/$REPO/actions/runs" -f "branch=$br" -f "per_page=100" \
-                --jq '[.workflow_runs[] | select(.status != "completed")] | length' 2>/dev/null || echo 0)
-              if [ "${active:-0}" -gt 0 ]; then
-                echo "Skipping $br — $active active run(s) still reference it"
+              # Fail CLOSED: if the query itself errors, keep the branch this pass rather than delete one
+              # a run may still need (a stale branch is cheaper than a broken checkout); next run retries.
+              if active=$(gh api -X GET "repos/$REPO/actions/runs" -f "branch=$br" -f "per_page=100" \
+                --jq '[.workflow_runs[] | select(.status != "completed")] | length' 2>/dev/null); then
+                if [ "${active:-0}" -gt 0 ]; then
+                  echo "Skipping $br — $active active run(s) still reference it"
+                  continue
+                fi
+              else
+                echo "Skipping $br — could not query active runs (API error); retrying next run"
                 continue
               fi
               echo "Reaping $br (last commit $d)"

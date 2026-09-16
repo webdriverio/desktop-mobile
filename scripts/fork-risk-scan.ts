@@ -111,13 +111,13 @@ const addedLines = (patch: string | undefined): AddedLine[] => {
 // a network call in the same file; named secrets and outbound shell commands are high-signal enough
 // to flag alone.
 const rx = {
-  // Full-env dumps: printenv, and the `env` command only when piped/redirected (env | / env >) — the
-  // exfil forms. The lookbehind excludes process.env/.env/NODE_ENV; requiring a pipe/redirect avoids a
-  // plain trailing identifier like `const cfg = env` matching (a bare standalone env just prints).
-  secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv|(?<![.\w])env\s*(?:\||>)/,
-  // nc is a common variable name, so require it to look like a netcat invocation (followed by an arg),
-  // not a bare identifier; the longer commands are distinctive enough to match plain.
-  outbound: /\b(curl|wget|netcat|scp|Invoke-WebRequest|iwr)\b|\bnc\s+[^=\s]/,
+  // Named secrets and printenv (an unambiguous full-env dump). The bare `env` dump command is NOT
+  // matched: on this JS/TS-heavy repo `env |`/`env >` collide with bitwise-OR/comparison (`env | 0`,
+  // `env > n`), so it produced error-level false positives; a real `env | curl` still trips outbound.
+  secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv/,
+  // Require an argument (whitespace + a non-`=` token) so these match a command invocation, not a bare
+  // identifier (`const nc = ...`) or a substring inside a URL/word (`https://curl.se`, `// use curl`).
+  outbound: /\b(curl|wget|netcat|scp|nc|Invoke-WebRequest|iwr)\s+[^=\s]/,
   envRead: /process\.env\b|std::env|os\.environ|\$env:/,
   // Broad HTTP-client coverage so a full-env exfil (env-egress) isn't missed by client choice: distinct
   // libs by name, common-word libs only as a bare call (not x.request()/x.got(), which are usually not
@@ -216,8 +216,10 @@ for (const { filename, status, patch, additions } of files) {
   // package.json install-time lifecycle scripts added by this PR.
   if (/(^|\/)package\.json$/.test(filename)) {
     for (const { line, content } of added) {
-      const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:/.exec(content);
-      if (m)
+      // Match a lifecycle key with a command value. A version/dep spec value (e.g. a dependency literally
+      // named "install": "^0.13.0") is not a script hook, so skip those to avoid a false error.
+      const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:\s*"([^"]*)"/.exec(content);
+      if (m && !/^\s*([\^~><=*]|\d|latest\b|npm:|file:|link:|workspace:|git|github:|https?:)/.test(m[2]))
         add(
           filename,
           line,
@@ -253,7 +255,11 @@ for (const { filename, status, patch, additions } of files) {
       // A git/path SOURCE value (URL, or a filesystem path with a slash) in either the inline-table
       // `{ git = "url" }` or expanded `[deps.x]\ngit = "url"` form. Matches the source, not a bare
       // version, so a registry crate literally named `git`/`path` (git = "0.2") doesn't false-positive.
-      else if (/\bgit\s*=\s*["'][^"']*(:\/\/|@|\.git)/.test(content) || /\bpath\s*=\s*["'][^"']*\//.test(content))
+      // The path value must NOT end in .rs, so a [[bin]]/[lib] target source path isn't taken for a dep.
+      else if (
+        /\bgit\s*=\s*["'][^"']*(:\/\/|@|\.git)/.test(content) ||
+        /\bpath\s*=\s*["'][^"']*\/[^"']*(?<!\.rs)["']/.test(content)
+      )
         add(
           filename,
           line,
@@ -285,7 +291,7 @@ for (const { filename, status, patch, additions } of files) {
       sec.line,
       'error',
       'secret/named',
-      'A named secret or full-env dump (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY/printenv/env) appears in an added line.',
+      'A named secret or full-env dump (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY/printenv) appears in an added line.',
     );
   if (out) add(filename, out.line, 'warning', 'net/outbound-command', 'Outbound network command in an added line.');
   if (env && (out || http))
