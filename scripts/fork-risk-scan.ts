@@ -125,13 +125,13 @@ const rx = {
   // process.env/std::env/os.environ/$env: (single vars) plus bulk-env dumps: a PowerShell Env: drive
   // listing (gci/ls/dir/Get-ChildItem Env:) or bash `export -p`.
   envRead: /process\.env\b|std::env|os\.environ|\$env:|(?:gci|ls|dir|Get-ChildItem)\s+env:|export\s+-p/i,
-  // Broad HTTP-client coverage so a full-env exfil (env-egress) isn't missed by client choice: distinct
-  // libs by name, common-word libs only as a bare call (not x.request()/x.got(), which are usually not
-  // network), plus http.get (not just .request) and requests.*.
+  // Distinctive HTTP-client names so a full-env exfil (env-egress) isn't missed by client choice. The
+  // ambiguous common-word libs got/needle/request are deliberately NOT matched — even as bare calls they
+  // collide with local helper/test-util names and, paired with the ubiquitous process.env, produced
+  // error-level false positives; the named-secret rule and human review remain the backstop for those.
   http: new RegExp(
     [
       '\\b(fetch|axios|undici|superagent|XMLHttpRequest|reqwest|ureq|httpx|aiohttp|urllib|Invoke-RestMethod)\\b',
-      '(?<![.\\w])(got|needle|request)\\s*\\(',
       '\\brequests\\.(get|post|put|patch|request)\\b',
       '\\bhttps?\\.(request|get)\\b',
       '\\bhttp\\.client\\b',
