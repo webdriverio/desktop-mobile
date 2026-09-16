@@ -45,13 +45,15 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       # Checkout + Node are only needed to classify a fork PR; internal PRs post success without them,
-      # so a transient setup failure can't strand an internal PR at "Expected".
+      # so a transient setup failure can't strand an internal PR at "Expected". Keyed on the head repo
+      # NOT being this repo (fork or a null/detached head.repo) so the classifier path below — which the
+      # same non-internal PRs take — always has the script; `fork == true` would skip a null head.
       - name: Checkout base (trusted classifier)
-        if: github.event.pull_request.head.repo.fork == true
+        if: github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/checkout@v7
 
       - name: Setup Node.js
-        if: github.event.pull_request.head.repo.fork == true
+        if: github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/setup-node@v7
         with:
           node-version: '24'

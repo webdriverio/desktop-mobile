@@ -586,20 +586,35 @@ jobs:
       # trace) — the artifact is public for 90 days. perl \Q…\E quotes the key literally; guarded on a
       # non-empty key so an empty value can't match (and blank out) everything.
       - name: 🔒 Redact CN_API_KEY from logs before upload
+        id: redact
         if: ${{ always() && inputs.enable_debug }}
         shell: bash
         env:
           CN_API_KEY: ${{ secrets.CN_API_KEY }}
         run: |
-          [ -n "$CN_API_KEY" ] || exit 0
-          # $ENV{CN_API_KEY} is read by perl (not shell) on purpose — interpolating the key into the
-          # perl source would risk metacharacter injection; reading it from the env is safe.
-          # shellcheck disable=SC2016
-          find e2e/logs -type f -name '*.log' -print0 2>/dev/null \
-            | xargs -0 -r perl -pi -e 's/\Q$ENV{CN_API_KEY}\E/***REDACTED***/g' 2>/dev/null || true
+          # Scrub the verbatim key from logs before the (public, 90-day) artifact upload — artifact files
+          # aren't secret-masked. node (guaranteed by setup-node) with a literal split/join avoids regex
+          # and tool-availability pitfalls. If this errors, the upload below is SKIPPED (fail closed via
+          # steps.redact.outcome) rather than shipping an unredacted log.
+          node -e '
+            const fs = require("node:fs"), path = require("node:path");
+            const key = process.env.CN_API_KEY;
+            if (!key) process.exit(0);
+            const dir = "e2e/logs";
+            if (!fs.existsSync(dir)) process.exit(0);
+            const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+              const p = path.join(d, e.name);
+              return e.isDirectory() ? walk(p) : e.name.endsWith(".log") ? [p] : [];
+            });
+            for (const f of walk(dir)) {
+              const c = fs.readFileSync(f, "utf8");
+              if (c.includes(key)) fs.writeFileSync(f, c.split(key).join("***REDACTED***"));
+            }
+          '
 
       - name: 📦 Upload Test Logs
-        if: ${{ always() && inputs.enable_debug }}
+        # Skip if redaction did not succeed — fail closed, never upload an unredacted log.
+        if: ${{ always() && inputs.enable_debug && steps.redact.outcome == 'success' }}
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:

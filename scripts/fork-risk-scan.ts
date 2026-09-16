@@ -117,8 +117,11 @@ const rx = {
   secret: /CN_API_KEY|TURBO_TOKEN|DEPLOY_KEY|printenv/,
   // Require an argument (whitespace + a non-`=` token) so these match a command invocation, not a bare
   // identifier (`const nc = ...`) or a substring inside a URL/word (`https://curl.se`, `// use curl`).
-  outbound: /\b(curl|wget|netcat|scp|nc|Invoke-WebRequest|iwr)\s+[^=\s]/,
-  envRead: /process\.env\b|std::env|os\.environ|\$env:/,
+  // Allow an optional .exe so Windows invocations (curl.exe/nc.exe) aren't missed.
+  outbound: /\b(curl|wget|netcat|scp|nc|Invoke-WebRequest|iwr)(\.exe)?\s+[^=\s]/,
+  // process.env/std::env/os.environ/$env: (single vars) plus bulk-env dumps: a PowerShell Env: drive
+  // listing (gci/ls/dir/Get-ChildItem Env:) or bash `export -p`.
+  envRead: /process\.env\b|std::env|os\.environ|\$env:|(?:gci|ls|dir|Get-ChildItem)\s+env:|export\s+-p/i,
   // Broad HTTP-client coverage so a full-env exfil (env-egress) isn't missed by client choice: distinct
   // libs by name, common-word libs only as a bare call (not x.request()/x.got(), which are usually not
   // network), plus http.get (not just .request) and requests.*.
@@ -190,7 +193,7 @@ for (const { filename, status, patch, additions } of files) {
   // directive; otherwise surface the change for review.
   if (/(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc)$/.test(filename) || /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)) {
     const redirect = added.find(({ content }) =>
-      /\b(registry\s*=|_authToken|replace-with|enable-pre-post-scripts)/i.test(content),
+      /\b(registry\s*=|_authToken|replace-with|enable-pre-post-scripts|ignore-scripts\s*=\s*false)/i.test(content),
     );
     add(
       filename,
@@ -216,10 +219,15 @@ for (const { filename, status, patch, additions } of files) {
   // package.json install-time lifecycle scripts added by this PR.
   if (/(^|\/)package\.json$/.test(filename)) {
     for (const { line, content } of added) {
-      // Match a lifecycle key with a command value. A version/dep spec value (e.g. a dependency literally
-      // named "install": "^0.13.0") is not a script hook, so skip those to avoid a false error.
+      // Match a lifecycle key with a command value. Skip a CLEAN version/dependency spec (e.g. a dep
+      // literally named "install": "^0.13.0"): only chars that appear in semver ranges, or a known
+      // dep-URL prefix, or `latest`. A command value — even one starting with a digit like "2; curl |
+      // sh" — is not a clean spec, so it still flags (a digit prefix alone must not exempt it).
       const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:\s*"([^"]*)"/.exec(content);
-      if (m && !/^\s*([\^~><=*]|\d|latest\b|npm:|file:|link:|workspace:|git|github:|https?:)/.test(m[2]))
+      const v = m?.[2]?.trim() ?? '';
+      const isDepSpec =
+        /^[\s\d.xX*^~><=|+-]+$/.test(v) || /^(npm|file|link|workspace|git|github|https?):/.test(v) || v === 'latest';
+      if (m && !isDepSpec)
         add(
           filename,
           line,
