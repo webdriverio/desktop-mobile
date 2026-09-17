@@ -37,6 +37,12 @@ blockExoticSubdeps: false
 # no linking behaviour. Drop once electron/forge#4188 lands.
 hoistPattern:
   - '*'
+# appium-ios-device reads bplist-parser's `.default.UID` at module load; bplist-parser@0.5.0 (now
+# type:module) breaks that CJS-interop shape, so requiring appium-flutter-driver -> appium-xcuitest-driver
+# -> appium-ios-device throws "Cannot read properties of undefined (reading 'UID')" and the Flutter
+# driver never registers. Hold the last CJS release until appium-ios-device fixes the import.
+overrides:
+  bplist-parser: 0.3.2
 catalogs:
   default:
     '@electron-forge/cli': 7.11.2
