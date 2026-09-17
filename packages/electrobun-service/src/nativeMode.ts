@@ -352,6 +352,26 @@ export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void
       try {
         execFileSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
       } catch {
+        // taskkill /T can fail when the launcher raced the alive-guard and already exited — which on
+        // Windows leaves the Bun backend + WebView2 helpers orphaned (they outlive the parent), still
+        // holding the RPC port and temp-dir handles. proc.kill() would reap only the direct child, so
+        // first reap the whole instance by its unique clone dir: every descendant's command line
+        // references it, and no other worker shares it — so this can't hit a sibling worker's app.
+        for (const dir of app.cleanupDirs) {
+          try {
+            execFileSync(
+              'powershell',
+              [
+                '-NoProfile',
+                '-Command',
+                `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('${dir.replace(/'/g, "''")}') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+              ],
+              { stdio: 'ignore' },
+            );
+          } catch {
+            // best-effort: this reap is itself the fallback for the rare taskkill-race path
+          }
+        }
         proc.kill('SIGKILL');
       }
       const killDeadline = Date.now() + SIGKILL_REAP_MS;
