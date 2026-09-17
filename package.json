@@ -13,7 +13,7 @@
   "engines": {
     "node": ">=24.11.0"
   },
-  "packageManager": "pnpm@11.20.0+sha512.9a6f330a95b66446ea088faf1521405a8a01f07fde7124cc9958dfed52d4bb436737e65b08f85f37b46fcba375092558ac51262b816844b22f63406ed166bfee",
+  "packageManager": "pnpm@12.4.2+sha512.08adc6613180275c7c9edada39dcf08c9c61ad4e7eaf330a4f3461f102b0f907423454d117f98e72d47fef0616070644d7bffc973a6a57f5090a6d7c368b07c9",
   "scripts": {
     "build": "turbo run build --filter=./packages/* --filter=./e2e",
     "build:electron": "turbo run build --filter=@wdio/electron-service --filter=@wdio/native-cdp-bridge --filter=@wdio/native-types --filter=@wdio/native-utils --filter=@wdio/bundler",
@@ -80,28 +80,28 @@
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.12",
-    "@inquirer/prompts": "^8.7.1",
+    "@biomejs/biome": "2.5.14",
+    "@inquirer/prompts": "^8.7.2",
     "@octokit/rest": "^22.0.1",
     "@releasekit/release": "^0.41.2",
-    "@types/node": "^26.4.1",
+    "@types/node": "^26.6.1",
     "@types/shelljs": "^0.10.0",
-    "@typescript-eslint/parser": "^8.69.0",
+    "@typescript-eslint/parser": "^8.70.0",
     "@vitest/eslint-plugin": "^1.6.27",
     "chalk": "^6.0.0",
     "cross-env": "^10.1.0",
-    "eslint": "^10.9.1",
+    "eslint": "^10.10.0",
     "eslint-plugin-wdio": "^9.31.3",
     "globals": "^17.12.0",
     "husky": "^9.1.7",
-    "lint-staged": "^17.4.1",
+    "lint-staged": "^17.5.1",
     "ora": "^9.4.1",
     "shelljs": "^0.10.0",
     "shx": "^0.4.0",
-    "turbo": "2.10.12",
+    "turbo": "2.10.13",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11",
-    "yaml": "^2.9.0"
+    "vitest": "^5.0.1",
+    "yaml": "^2.9.1"
   },
   "lint-staged": {
     "**/*.{j,t}s": [

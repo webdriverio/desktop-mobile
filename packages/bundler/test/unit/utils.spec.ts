@@ -8,6 +8,22 @@ vi.mock('node:fs', () => ({
   existsSync: vi.fn(),
 }));
 
+vi.mock('rollup', async (importOriginal) => {
+  const actualRollup = await importOriginal<typeof import('rollup')>();
+  return {
+    ...actualRollup,
+    rollup: vi.fn(async () => ({
+      generate: vi.fn(async () => ({
+        output: [
+          {
+            code: 'const obj = {\n  a: 1,\n  b: 2,\n};\n\nexport { obj };\n',
+          },
+        ],
+      })),
+    })),
+  };
+});
+
 describe('Utility Functions', () => {
   describe('getInputConfig()', () => {
     beforeEach(() => {
@@ -284,22 +300,6 @@ describe('Utility Functions', () => {
   });
 
   describe('injectDependency()', () => {
-    vi.mock('rollup', async (importOriginal) => {
-      const actualRollup = await importOriginal<typeof import('rollup')>();
-      return {
-        ...actualRollup,
-        rollup: vi.fn(async () => ({
-          generate: vi.fn(async () => ({
-            output: [
-              {
-                code: 'const obj = {\n  a: 1,\n  b: 2,\n};\n\nexport { obj };\n',
-              },
-            ],
-          })),
-        })),
-      };
-    });
-
     it('should successfully inject dependency code', async () => {
       const fixture = getFixturePackagePath('build-esm', 'build-test-esm');
       const cwd = dirname(fixture);

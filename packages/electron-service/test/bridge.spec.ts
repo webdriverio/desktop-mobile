@@ -5,6 +5,18 @@ import { ElectronCdpBridge, getDebuggerEndpoint } from '../src/bridge.js';
 
 vi.mock('@wdio/native-utils', () => import('./mocks/native-utils.js'));
 
+// ElectronCdpBridge composes a CdpBridge and delegates connect/send/on/off to it. Mock the held
+// bridge's prototype so those delegated calls are captured; spread `...actual` so REQUEST_TIMEOUT
+// (read by the wrapper's constructor) and the other exports survive the mock.
+vi.mock('@wdio/native-cdp-bridge', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wdio/native-cdp-bridge')>();
+  actual.CdpBridge.prototype.connect = vi.fn();
+  actual.CdpBridge.prototype.send = vi.fn();
+  actual.CdpBridge.prototype.on = vi.fn();
+  actual.CdpBridge.prototype.off = vi.fn();
+  return { ...actual };
+});
+
 describe('getDebuggerEndpoint', () => {
   it('should return the endpoint information of the node debugger', () => {
     const host = 'localhost';
@@ -56,18 +68,6 @@ describe('getDebuggerEndpoint', () => {
 });
 
 describe('ElectronCdpBridge', () => {
-  // ElectronCdpBridge composes a CdpBridge and delegates connect/send/on/off to it. Mock the held
-  // bridge's prototype so those delegated calls are captured; spread `...actual` so REQUEST_TIMEOUT
-  // (read by the wrapper's constructor) and the other exports survive the mock.
-  vi.mock('@wdio/native-cdp-bridge', async (importOriginal) => {
-    const actual = await importOriginal<typeof import('@wdio/native-cdp-bridge')>();
-    actual.CdpBridge.prototype.connect = vi.fn();
-    actual.CdpBridge.prototype.send = vi.fn();
-    actual.CdpBridge.prototype.on = vi.fn();
-    actual.CdpBridge.prototype.off = vi.fn();
-    return { ...actual };
-  });
-
   beforeEach(() => {
     vi.clearAllMocks();
   });

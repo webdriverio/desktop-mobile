@@ -44,12 +44,12 @@
     "@wdio/native-utils": "workspace:*"
   },
   "devDependencies": {
-    "@vitest/coverage-v8": "4.1.11",
+    "@vitest/coverage-v8": "5.0.1",
     "esbuild": "^0.28.2",
     "jsdom": "^30.0.1",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "4.1.11"
+    "vitest": "5.0.1"
   },
   "repository": {
     "type": "git",
