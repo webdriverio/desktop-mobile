@@ -3,6 +3,10 @@ import typescriptPlugin from '@rollup/plugin-typescript';
 import { readPackageJson, typescript } from '../../src/index.js';
 import { getFixturePackagePath } from '../helpers/fixture-utils.js';
 
+vi.mock('@rollup/plugin-typescript', () => ({
+  default: vi.fn(() => 'mocked-plugin'),
+}));
+
 describe('Bundler Utilities', () => {
   describe('readPackageJson()', () => {
     it('should return input configuration and output directories', () => {
@@ -17,10 +21,6 @@ describe('Bundler Utilities', () => {
   });
 
   describe('typescript()', () => {
-    vi.mock('@rollup/plugin-typescript', () => ({
-      default: vi.fn(() => 'mocked-plugin'),
-    }));
-
     it('should apply default TypeScript configuration', () => {
       const plugin = typescript({
         compilerOptions: {
