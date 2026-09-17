@@ -44,8 +44,7 @@ on:
         description: 'Debug conveniences that widen exposure (interactive session + log artifacts). Off for the keyed fork-code run.'
         type: boolean
         default: true
-    # Declared so a caller can pass a subset explicitly (the CrabNebula mirror run passes only
-    # CN_API_KEY). `secrets: inherit` callers are unaffected — inherit passes everything regardless.
+    # Declared explicitly so a caller can pass only a subset — the mirror run passes just CN_API_KEY.
     secrets:
       CN_API_KEY:
         required: false
@@ -472,8 +471,7 @@ jobs:
       # key being present instead of failing the job. See packages/tauri-service/docs/crabnebula-setup.md.
       - name: 🔑 Check CrabNebula Credentials
         id: cn-key
-        # always() so run is still computed for the always() consumers if an earlier step failed
-        # (skipping it would read as run='').
+        # always() so `run` is still computed when an earlier step failed (else downstream reads run='').
         if: always()
         shell: bash
         env:
@@ -576,13 +574,12 @@ jobs:
           format_result "CrabNebula" "$crabnebula"
 
       # Artifact files are NOT secret-masked (only the console stream is), so a CN_API_KEY logged into
-      # e2e/logs would leak via this downloadable artifact. The keyed fork run skips the upload
-      # (enable_debug=false); internal runs upload, so scrub the key first — best-effort (verbatim +
-      # URL-encoded + base64; a split/wrapped log can still leak, so the real guard is not logging it).
+      # e2e/logs would leak via the downloadable artifact — scrub it first. Best-effort (verbatim +
+      # URL-encoded + base64); a split/wrapped log can still leak, so the real guard is not logging the key.
       - name: 🔒 Redact CN_API_KEY from logs before upload
         id: redact
         # continue-on-error so a redaction glitch doesn't red the job; the upload still skips on a
-        # non-success redact outcome, so it stays fail closed on the artifact.
+        # non-success redact outcome (fail-closed).
         continue-on-error: true
         if: ${{ always() && inputs.enable_debug }}
         shell: bash

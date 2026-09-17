@@ -2,8 +2,8 @@ name: CrabNebula Mirror Run
 
 # Phase 2 keyed run (dispatched by crabnebula-mirror.yml): builds and runs the macOS CrabNebula E2E on
 # the reviewed fork head, reports back to the PR, and deletes the mirror branch. Runs untrusted fork
-# code but only CN_API_KEY reaches it — build jobs get no secrets, the E2E job is passed CN_API_KEY
-# alone (step-scoped by the reusable). The human review is the real control; see CONTRIBUTING.md.
+# code, but only CN_API_KEY reaches it — build jobs get no secrets, the E2E job gets CN_API_KEY alone.
+# The human review is the real control; see CONTRIBUTING.md.
 
 on:
   workflow_dispatch:

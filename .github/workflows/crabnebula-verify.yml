@@ -115,7 +115,6 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           SENDER: ${{ github.event.sender.login }}
         run: |
-          # exit non-zero on a failed post: the present label can't re-fire `labeled`, so re-run to recover.
           gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
             -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL" \
             || { echo "::error::Failed to post verified status."; exit 1; }
