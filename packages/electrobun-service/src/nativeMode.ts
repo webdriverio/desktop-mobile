@@ -352,11 +352,9 @@ export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void
       try {
         execFileSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
       } catch {
-        // taskkill /T can fail when the launcher raced the alive-guard and already exited — which on
-        // Windows leaves the Bun backend + WebView2 helpers orphaned (they outlive the parent), still
-        // holding the RPC port and temp-dir handles. proc.kill() would reap only the direct child, so
-        // first reap the whole instance by its unique clone dir: every descendant's command line
-        // references it, and no other worker shares it — so this can't hit a sibling worker's app.
+        // taskkill /T can fail if the launcher raced the alive-guard and exited first, orphaning the
+        // descendants noted above. Reap them by the app's unique clone dir — every descendant's command
+        // line references it, and no worker shares another's, so this can't hit a sibling's app.
         for (const dir of app.cleanupDirs) {
           try {
             execFileSync(
@@ -369,7 +367,7 @@ export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void
               { stdio: 'ignore' },
             );
           } catch {
-            // best-effort: this reap is itself the fallback for the rare taskkill-race path
+            // best-effort
           }
         }
         proc.kill('SIGKILL');
