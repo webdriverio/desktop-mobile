@@ -18,7 +18,7 @@
     "@wdio/mocha-framework": "^9.31.9",
     "@wdio/native-types": "workspace:*",
     "@wdio/spec-reporter": "^9.31.2",
-    "appium": "^3.7.0",
+    "appium": "~3.6.0",
     "appium-flutter-driver": "^4.0.0",
     "typescript": "^6.0.3"
   }
