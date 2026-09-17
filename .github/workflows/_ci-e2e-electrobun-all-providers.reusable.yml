@@ -44,11 +44,6 @@ jobs:
   e2e-electrobun:
     name: Run
     runs-on: ${{ inputs.os }}
-    # Bound the run: healthy E2E is <10m on macOS/Linux and ~17m on Windows, but Windows can crawl for
-    # an hour+ when WebView2's CDP debug port is slow to bind (the #542 elevated-host regression — each
-    # affected worker eats a 30s readiness wait). Windows E2E allow-fails anyway, so a timeout just
-    # becomes an allowed failure rather than a 6h default-timeout run.
-    timeout-minutes: 35
     steps:
       - name: 👷 Checkout Repository
         uses: actions/checkout@v7
@@ -167,9 +162,15 @@ jobs:
             pkill -9 -f 'wdio-electrobun-bundle' || true
           fi
 
+      # Step-level (not job-level) timeout, so a stuck run surfaces as steps.test.outcome == 'failure'
+      # — which Check Result tolerates on Windows (#542) and fails elsewhere. A job-level timeout would
+      # cancel the whole job, bypassing that allowance and blocking the required aggregate. Healthy runs
+      # are <10m (macOS/Linux) and ~17m (Windows); Windows crawls to 60m+ when WebView2's CDP port is
+      # slow to bind, so 35m caps the runaway while leaving generous headroom for the required OSs.
       - name: 🧪 E2E Tests
         id: test
         continue-on-error: true
+        timeout-minutes: 35
         shell: pwsh
         working-directory: e2e
         env:
