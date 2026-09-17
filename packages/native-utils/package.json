@@ -54,7 +54,7 @@
     "find-up-simple": "^1.0.1",
     "json5": "^2.2.3",
     "smol-toml": "^1.8.0",
-    "yaml": "^2.9.0"
+    "yaml": "^2.9.1"
   },
   "peerDependencies": {
     "tsx": "^4.22.4"
@@ -66,14 +66,14 @@
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.4.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@types/node": "^26.6.1",
+    "@vitest/coverage-v8": "^5.0.1",
     "@wdio/bundler": "workspace:*",
     "@wdio/native-types": "workspace:*",
     "shx": "^0.4.0",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   },
   "files": [
     "dist",

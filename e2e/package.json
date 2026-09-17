@@ -62,7 +62,7 @@
     "protocol-install:electron-forge": "../fixtures/e2e-apps/electron-forge/scripts/protocol-install.sh"
   },
   "dependencies": {
-    "@wdio/appium-service": "9.31.5",
+    "@wdio/appium-service": "9.31.9",
     "@wdio/cli": "catalog:default",
     "@wdio/dioxus-service": "link:../packages/dioxus-service",
     "@wdio/electrobun-service": "link:../packages/electrobun-service",
@@ -85,18 +85,18 @@
     "@crabnebula/test-runner-backend": "^0.2.9",
     "@electron-forge/cli": "catalog:default",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.4.1",
-    "@vitest/spy": "^4.1.11",
+    "@types/node": "^26.6.1",
+    "@vitest/spy": "^5.0.1",
     "@wdio/native-types": "workspace:*",
     "@wdio/types": "catalog:default",
     "appium": "^3.7.0",
-    "appium-flutter-driver": "^3.10.1",
-    "appium-uiautomator2-driver": "^8.5.2",
-    "appium-xcuitest-driver": "^12.10.0",
+    "appium-flutter-driver": "^4.0.0",
+    "appium-uiautomator2-driver": "^8.7.0",
+    "appium-xcuitest-driver": "^12.12.4",
     "cross-env": "^10.1.0",
     "p-limit": "^7.3.2",
     "typescript": "^6.0.3",
     "wait-on": "^9.1.0",
-    "zod": "^4.5.4"
+    "zod": "^4.6.5"
   }
 }

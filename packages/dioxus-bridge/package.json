@@ -40,13 +40,13 @@
     "node": "^18.12.0 || ^20.9.0 || >=22.11.0"
   },
   "devDependencies": {
-    "@types/node": "^26.4.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@types/node": "^26.6.1",
+    "@vitest/coverage-v8": "^5.0.1",
     "esbuild": "^0.28.2",
-    "happy-dom": "^20.14.0",
+    "happy-dom": "^20.14.5",
     "tsx": "^4.23.13",
     "typescript": "^6.0.3",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   },
   "repository": {
     "type": "git",

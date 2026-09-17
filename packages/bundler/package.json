@@ -43,18 +43,18 @@
     "commander": "^15.0.0",
     "debug": "^4.4.3",
     "find-up-simple": "^1.0.1",
-    "rollup": "^4.63.1",
+    "rollup": "^4.63.3",
     "rollup-plugin-node-externals": "^9.0.1",
     "typescript": "^6.0.3"
   },
   "devDependencies": {
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.4.1",
-    "@vitest/coverage-v8": "^4.1.11",
+    "@types/node": "^26.6.1",
+    "@vitest/coverage-v8": "^5.0.1",
     "shx": "^0.4.0",
     "terser": "^5.51.2",
     "tsx": "^4.23.13",
-    "vitest": "^4.1.11"
+    "vitest": "^5.0.1"
   },
   "files": [
     "dist",
