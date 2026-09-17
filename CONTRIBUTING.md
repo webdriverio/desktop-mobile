@@ -265,6 +265,28 @@ pnpm test:coverage
 2. Address any requested changes
 3. Once approved, a maintainer will merge
 
+## Fork PR macOS CrabNebula verification
+
+The macOS CrabNebula E2E leg needs `CN_API_KEY`, which GitHub withholds from forks — so on a fork PR
+it is skipped, and a required **`CrabNebula / macOS`** check blocks merge until a maintainer verifies it.
+
+**Contributors:** if your fork PR changes Tauri, that check stays *pending* until a maintainer reviews
+the diff and runs it — nothing for you to do. Keep `pnpm-lock.yaml`, `build.rs`, and `.github` changes
+minimal and clearly explained to make review quick; pushing a new commit re-opens the check.
+
+**Maintainers:** verifying runs the fork's untrusted code **with the key**, so review the diff first
+(the `Fork Risk Scan` status arms this, with detail in the Security tab) — look for non-registry
+dependencies, unexpected `preinstall`/`postinstall` scripts or a `.pnpmfile.cjs`, `build.rs` /
+`[build-dependencies]` additions, `.github` edits, and env-read → network shapes. Then apply one label:
+
+- **`crabnebula:run`** (preferred) — mirrors the reviewed head onto an internal branch and runs macOS
+  CrabNebula with only `CN_API_KEY` (no other secrets), posting the result back as `CrabNebula / macOS`.
+- **`crabnebula:verified`** — manual attestation, e.g. after running the E2E locally with the key. ⚠️ Do
+  **not** verify by opening an internal PR from the fork's code: that runs with the full secret set
+  (`TURBO_TOKEN`, `DEPLOY_KEY`), not just `CN_API_KEY`.
+
+A new push clears both labels, so re-verify after any change. If `CN_API_KEY` ever leaks, rotate it.
+
 ## Package-Specific Guidelines
 
 ### Electron Service

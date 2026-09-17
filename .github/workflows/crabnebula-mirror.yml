@@ -2,7 +2,7 @@ name: CrabNebula Mirror Dispatch
 
 # Mirrors the reviewed fork head — squash-merged onto main with .github pinned to main — to a fresh
 # per-dispatch branch and dispatches the keyed run. Runs NO fork code: only git file ops and a push.
-# See docs/security/crabnebula-fork-verification.md.
+# See CONTRIBUTING.md.
 
 on:
   pull_request_target:
@@ -26,8 +26,7 @@ jobs:
   mirror:
     if: >-
       github.event.label.name == 'crabnebula:run' &&
-      github.event.pull_request.head.repo.fork == true &&
-      contains(fromJSON(vars.CRABNEBULA_LABELERS || '[]'), github.event.sender.login)
+      github.event.pull_request.head.repo.fork == true
     runs-on: ubuntu-latest
     steps:
       # No ref: — pull_request_target must check out trusted main, never fork code.

@@ -1,7 +1,7 @@
 // Static supply-chain risk scan for fork PRs, run before any secret reaches a runner. Reads the PR's
 // files/diffs via the GitHub API — never fetches or executes fork code. Findings are heuristics that
 // arm the human review; a clean scan never authorises a secret-bearing run on its own.
-// See docs/security/crabnebula-fork-verification.md.
+// See CONTRIBUTING.md.
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
@@ -320,7 +320,8 @@ for (const { filename, status, patch, additions } of files) {
 }
 
 // Rule metadata for the Security tab (name + description, not a bare id); the per-result message has the specifics.
-const DOC_URI = 'https://github.com/webdriverio/desktop-mobile/blob/main/docs/security/crabnebula-fork-verification.md';
+const DOC_URI =
+  'https://github.com/webdriverio/desktop-mobile/blob/main/CONTRIBUTING.md#fork-pr-macos-crabnebula-verification';
 const RULE_META: Record<string, { name: string; description: string }> = {
   'ci/workflow-file': { name: 'Workflow/action file changed', description: 'Changed CI workflow or action file.' },
   'dep/lockfile-changed': { name: 'Lockfile changed', description: 'pnpm-lock.yaml source review.' },

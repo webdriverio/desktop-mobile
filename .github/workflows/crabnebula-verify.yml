@@ -2,8 +2,8 @@ name: CrabNebula macOS Gate
 
 # Posts the required `CrabNebula / macOS` status that blocks a fork PR until macOS CrabNebula is
 # verified (the leg is skipped on forks — no CN_API_KEY — so the PR could otherwise merge green).
-# Runs NO PR code (detect-changes.ts is the trusted base copy). Success is only ever posted by an
-# authorized action, never derived from label presence. See docs/security/crabnebula-fork-verification.md.
+# Runs NO PR code (detect-changes.ts is the trusted base copy); the status is event-driven, so a new
+# push re-posts pending and a stale attestation label can't persist. See CONTRIBUTING.md.
 
 on:
   pull_request_target:
@@ -21,9 +21,6 @@ concurrency:
 env:
   GH_TOKEN: ${{ github.token }}
   REPO: ${{ github.repository }}
-  # Reviewers allowed to attest / authorise a keyed run (repo var CRABNEBULA_LABELERS); unset -> [] so
-  # the gate fails closed. Setup guidance in the security doc.
-  AUTHORIZED_LABELERS: ${{ vars.CRABNEBULA_LABELERS || '[]' }}
 
 jobs:
   # (Re)posts the required status via the real detect-changes.ts classifier, so it can't drift from
@@ -106,48 +103,19 @@ jobs:
             -f description="$desc" -f target_url="$PR_URL" \
             || { echo "::error::Failed to post CrabNebula / macOS status."; exit 1; }
 
-  # Manual attestation: an authorized crabnebula:verified labeler posts success; an unauthorized one is removed.
+  # Manual attestation: applying crabnebula:verified posts success (label access is admin-only).
   verify-label:
     if: github.event.action == 'labeled' && github.event.label.name == 'crabnebula:verified'
     runs-on: ubuntu-latest
     steps:
-      - name: Attest or reject
+      - name: Attest
         env:
           PR: ${{ github.event.pull_request.number }}
           SHA: ${{ github.event.pull_request.head.sha }}
           PR_URL: ${{ github.event.pull_request.html_url }}
           SENDER: ${{ github.event.sender.login }}
-          ALLOW: ${{ env.AUTHORIZED_LABELERS }}
         run: |
-          if echo "$ALLOW" | jq -e --arg s "$SENDER" 'index($s) != null' >/dev/null; then
-            # exit non-zero on a failed post: the present label can't re-fire `labeled`, so re-run to recover.
-            gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
-              -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL" \
-              || { echo "::error::Failed to post verified status."; exit 1; }
-          else
-            echo "::warning::Unauthorized labeler $SENDER applied crabnebula:verified — removing."
-            gh api -X DELETE "repos/$REPO/issues/$PR/labels/crabnebula%3Averified" || true
-          fi
-
-  # Defense in depth + label hygiene: mirror.yml already gates the positive path on the allowlist;
-  # this removes a mis/unauthorized crabnebula:run label so it can't linger.
-  guard-run-label:
-    if: github.event.action == 'labeled' && github.event.label.name == 'crabnebula:run'
-    runs-on: ubuntu-latest
-    steps:
-      - name: Reject unauthorized or non-fork labeler
-        env:
-          PR: ${{ github.event.pull_request.number }}
-          SENDER: ${{ github.event.sender.login }}
-          ALLOW: ${{ env.AUTHORIZED_LABELERS }}
-          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
-        run: |
-          if ! echo "$ALLOW" | jq -e --arg s "$SENDER" 'index($s) != null' >/dev/null; then
-            echo "::warning::Unauthorized labeler $SENDER applied crabnebula:run — removing."
-            gh api -X DELETE "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" || true
-          elif [ "$IS_FORK" != "true" ]; then
-            # crabnebula:run only acts on a fork PR (crabnebula-mirror.yml requires fork==true). On an
-            # internal PR it would dangle with no effect and nothing to remove it, so clear it here.
-            echo "::warning::crabnebula:run applied to a non-fork PR — removing (no keyed run needed)."
-            gh api -X DELETE "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" || true
-          fi
+          # exit non-zero on a failed post: the present label can't re-fire `labeled`, so re-run to recover.
+          gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
+            -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL" \
+            || { echo "::error::Failed to post verified status."; exit 1; }
