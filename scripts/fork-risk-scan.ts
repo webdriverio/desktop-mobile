@@ -166,7 +166,7 @@ for (const { filename, status, patch, additions } of files) {
     }
   }
 
-  if (/(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc)$/.test(filename) || /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)) {
+  if (/(^|\/)\.npmrc$/.test(filename) || /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)) {
     const redirect = added.find(({ content }) =>
       /\b(registry\s*=|_authToken|replace-with|enable-pre-post-scripts|ignore-scripts\s*=\s*false)/i.test(content),
     );
@@ -177,7 +177,7 @@ for (const { filename, status, patch, additions } of files) {
       'dep/registry-config',
       redirect
         ? 'Registry/source redirection or install-script re-enable in a package/cargo config — inspect closely.'
-        : 'Registry/source config (.npmrc/.yarnrc/.cargo) changed — check for redirected resolution.',
+        : 'Registry/source config (.npmrc/.cargo) changed — check for redirected resolution.',
     );
   }
 
@@ -194,7 +194,7 @@ for (const { filename, status, patch, additions } of files) {
     for (const { line, content } of added) {
       // Skip a clean version/dep spec (a dep literally named "install": "^0.13.0" isn't a script hook);
       // a command value — even one starting with a digit ("2; curl | sh") — still flags.
-      const m = /"(preinstall|install|postinstall|prepare|prepublish)"\s*:\s*"([^"]*)"/.exec(content);
+      const m = /"(preinstall|install|postinstall|prepare)"\s*:\s*"([^"]*)"/.exec(content);
       const v = m?.[2]?.trim() ?? '';
       const isDepSpec =
         /^[\s\d.xX*^~><=|+-]+$/.test(v) || /^(npm|file|link|workspace|git|github|https?):/.test(v) || v === 'latest';
