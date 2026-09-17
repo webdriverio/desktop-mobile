@@ -100,7 +100,7 @@ describe('ConfigLoader', () => {
         const mockChild = {
           stderr: { on: vi.fn() },
           on: vi.fn((event, callback) => {
-            if (event === 'close') {
+            if (event === 'exit') {
               callback(0); // Success
             }
           }),
@@ -136,7 +136,7 @@ describe('ConfigLoader', () => {
       mockSpawn.mockImplementation(() => ({
         stderr: { on: vi.fn() },
         on: vi.fn((event, callback) => {
-          if (event === 'close') callback(0);
+          if (event === 'exit') callback(0);
         }),
       }));
 
@@ -180,7 +180,7 @@ describe('ConfigLoader', () => {
       mockSpawn.mockImplementation(() => ({
         stderr: { on: vi.fn() },
         on: vi.fn((event, callback) => {
-          if (event === 'close') callback(0);
+          if (event === 'exit') callback(0);
         }),
       }));
 
@@ -285,7 +285,7 @@ describe('ConfigLoader', () => {
             }),
           },
           on: vi.fn((event, callback) => {
-            if (event === 'close') {
+            if (event === 'exit') {
               callback(1); // Non-zero exit code
             }
           }),
@@ -332,7 +332,7 @@ describe('ConfigLoader', () => {
           }),
         },
         on: vi.fn((event, callback) => {
-          if (event === 'close') callback(1);
+          if (event === 'exit') callback(1);
         }),
       }));
 
@@ -351,7 +351,7 @@ describe('ConfigLoader', () => {
       mockSpawn.mockImplementation(() => ({
         stderr: { on: vi.fn() },
         on: vi.fn((event, callback) => {
-          if (event === 'close') callback(0);
+          if (event === 'exit') callback(0);
         }),
       }));
 
