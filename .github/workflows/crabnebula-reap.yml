@@ -1,7 +1,6 @@
 name: CrabNebula Reap Stale Branches
 
-# Sweeps orphaned crabnebula-verify/* mirror branches a cancelled or non-reporting keyed run left
-# behind. Verifications take minutes, so >1 day old is stale — the mirror's own cleanup is best-effort.
+# Sweeps orphaned crabnebula-verify/* mirror branches a cancelled or non-reporting keyed run left behind.
 
 on:
   schedule:
@@ -20,6 +19,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
         run: |
+          # Verifications take minutes, so anything older than a day is a stale orphan.
           cutoff=$(date -u -d '1 day ago' +%s)
           gh api --paginate "repos/$REPO/git/matching-refs/heads/crabnebula-verify/" --jq '.[].ref' | while read -r ref; do
             br="${ref#refs/heads/}"

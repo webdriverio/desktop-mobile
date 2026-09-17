@@ -47,7 +47,7 @@ jobs:
     with:
       os: 'macos-latest'
 
-  # Runs every macOS Tauri test-type (all providers); CrabNebula is the leg this verifies.
+  # Runs every macOS Tauri test-type (all providers).
   e2e:
     needs: [build, build-app]
     strategy:
@@ -68,8 +68,7 @@ jobs:
       cache_key: ${{ needs.build.outputs.cache_key }}
       tauri_cache_key: ${{ needs.build-app.outputs.cache_key }}
 
-  # Report/cleanup only when authorize succeeded (an unauthorized dispatch must not touch the PR) and
-  # !cancelled() (a superseded run must not post a status racing the survivor).
+  # Gate report/cleanup: an unauthorized dispatch must not touch the PR, a superseded run must not race the survivor.
   report:
     needs: [authorize, e2e]
     if: ${{ !cancelled() && needs.authorize.result == 'success' }}
