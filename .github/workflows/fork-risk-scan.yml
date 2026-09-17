@@ -1,9 +1,8 @@
 name: Fork Risk Scan
 
-# Static supply-chain risk scan for every fork PR — arms the human review before any secret-bearing
-# run. Runs NO PR code: the scanner is the trusted base-branch copy and reads the fork's files via the
-# GitHub API (so pull_request_target's write token is safe here). Findings go to the private Security
-# tab, not a public comment, so a prober gets no oracle. See CONTRIBUTING.md.
+# Static supply-chain risk scan on every fork PR — its findings inform the maintainer review. Runs NO
+# PR code: the scanner is the trusted base-branch copy and reads the fork's files via the GitHub API.
+# Findings go to the private Security tab, not a public status, so a prober learns nothing. See CONTRIBUTING.md.
 
 on:
   pull_request_target:

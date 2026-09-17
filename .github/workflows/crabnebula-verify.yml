@@ -1,9 +1,8 @@
 name: CrabNebula macOS Gate
 
-# Posts the required `CrabNebula / macOS` status that blocks a fork PR until macOS CrabNebula is
-# verified (the leg is skipped on forks — no CN_API_KEY — so the PR could otherwise merge green).
-# Runs NO PR code (detect-changes.ts is the trusted base copy); the status is event-driven, so a new
-# push re-posts pending and a stale attestation label can't persist. See CONTRIBUTING.md.
+# Posts the required `CrabNebula / macOS` status that blocks an unverified fork Tauri PR from merging.
+# Runs NO PR code: detect-changes.ts is the trusted base-branch copy and only inspects the PR's changed
+# file list. See CONTRIBUTING.md.
 
 on:
   pull_request_target:
@@ -23,16 +22,15 @@ env:
   REPO: ${{ github.repository }}
 
 jobs:
-  # (Re)posts the required status via the real detect-changes.ts classifier, so it can't drift from
-  # what routes a PR to the Tauri pipeline. The unlabeled trigger lets an attestation be revoked without a push.
+  # (Re)posts the status on new code; the unlabeled trigger lets removing crabnebula:verified revoke attestation.
   reset-on-code:
     if: >-
       contains(fromJSON('["opened","reopened","synchronize"]'), github.event.action) ||
       (github.event.action == 'unlabeled' && github.event.label.name == 'crabnebula:verified')
     runs-on: ubuntu-latest
     steps:
-      # Only fork PRs need the classifier checkout/Node — skip it for internal PRs so a setup failure
-      # can't strand them at "Expected". full_name (not fork == true) so a null/detached head.repo still classifies.
+      # Checkout + Node run only for fork PRs (needed to run detect-changes.ts); skipping them on internal
+      # PRs means a setup failure can't strand one at "Expected". full_name not fork → a null head.repo still runs it.
       - name: Checkout base (trusted classifier)
         if: github.event.pull_request.head.repo.full_name != github.repository
         uses: actions/checkout@v7
@@ -44,8 +42,7 @@ jobs:
           node-version: '24'
 
       - name: Clear stale attestation labels
-        # Clear stale attestation labels on new code: a present label can't re-fire `labeled`, so it
-        # must be removed before it can re-verify. (A GITHUB_TOKEN label edit fires no workflow, so no loop.)
+        # A new push voids attestation — clear both labels (a GITHUB_TOKEN edit fires no workflow, so no loop).
         if: github.event.action == 'synchronize' || github.event.action == 'reopened'
         env:
           PR: ${{ github.event.pull_request.number }}
@@ -63,18 +60,15 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
           IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
         run: |
-          # Only an explicit "false" is internal → instant success. A fork, or a null/empty head.repo,
-          # takes the fork path and fails closed — a null must never green-light this required check.
+          # Only explicit "false" is internal → success; else (incl. null head.repo) → fork path, fail-closed.
           state=success
           desc="Not applicable (internal PR or no Tauri changes)."
           if [ "$IS_FORK" != "false" ]; then
-            # Any API/classifier failure fails safe to pending (re-runnable), never a false green.
+            # Classification failures fall through to pending, never a false green.
             run_tauri=""; run_lint_only=""; truncated=false
-            # Chained assignments, not a pipe, so a gh failure isn't masked as "[]" (both fetches must
-            # succeed). Files API caps at 3000; above it the list is truncated and may miss Tauri paths ->
-            # manual path. GITHUB_STEP_SUMMARY=/dev/null keeps detect-changes.ts's table out of the gate.
             if files_raw="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null)" \
                && total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null)"; then
+              # Files API caps at 3000 files; above it the list is truncated (may miss Tauri paths) → manual path.
               if [ "$total" -le 3000 ]; then
                 files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
                 tmp="$(mktemp)"

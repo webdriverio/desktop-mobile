@@ -1,7 +1,6 @@
-// Static supply-chain risk scan for fork PRs, run before any secret reaches a runner. Reads the PR's
-// files/diffs via the GitHub API — never fetches or executes fork code. Findings are heuristics that
-// arm the human review; a clean scan never authorises a secret-bearing run on its own.
-// See CONTRIBUTING.md.
+// Static supply-chain risk scan for fork PRs: reads the PR's files/diffs via the GitHub API, never
+// fetching or executing fork code. Findings are heuristics that inform the maintainer review — a clean
+// scan never authorises a secret-bearing run on its own. See CONTRIBUTING.md.
 
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, writeFileSync } from 'node:fs';
@@ -31,8 +30,8 @@ interface PrFile {
   additions?: number;
 }
 
-// NDJSON (one file per line, --jq '.[]') across all pages. Deliberately not wrapped in try/catch: no
-// file list means nothing to scan, so hard-error (red "scan errored" status) beats a false-clean pass.
+// Deliberately unguarded: if this fetch throws there's no file list to scan, so a hard error (red
+// "scan errored" status) is correct — a try/catch here would risk a false-clean pass.
 const files: PrFile[] = execFileSync('gh', ['api', `repos/${REPO}/pulls/${PR}/files`, '--paginate', '--jq', '.[]'], {
   encoding: 'utf8',
   maxBuffer: 512 * 1024 * 1024, // headroom over the 3000-file cap's worth of large patches
@@ -46,9 +45,8 @@ const add = (file: string, line: number, level: Level, rule: string, message: st
   findings.push({ file, line, level, rule, message });
 };
 
-// Files API caps at 3000. Key truncation on the changed_files count, not count != list length (they
-// diverge on binary/rename accounting without truncation). If the count fetch throws, the list still
-// tells us: below the cap it's complete (note); at/above it, truncation is possible — fail closed (error).
+// Detect truncation via the changed_files count, not list length (they diverge on binary/rename
+// accounting). If the count fetch throws, treat a list at/above the 3000 cap as possibly truncated.
 let changedFiles: number | undefined;
 try {
   changedFiles = Number(
@@ -126,11 +124,9 @@ const rx = {
 };
 
 for (const { filename, status, patch, additions } of files) {
-  // A removed file adds nothing executable — skip.
   if (status === 'removed') continue;
   const added = addedLines(patch);
 
-  // Workflow/action files run with CI privileges — a fork edit here could reach secrets in a keyed run.
   if (/^\.github\/workflows\/.*\.ya?ml$/.test(filename) || /(^|\/)action\.ya?ml$/.test(filename)) {
     add(
       filename,
@@ -141,7 +137,6 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  // Lockfile: flag non-registry sources (the top supply-chain vector); plain registry entries carry only a hash.
   if (/(^|\/)pnpm-lock\.yaml$/.test(filename)) {
     if (!patch) {
       // Fail closed: no diff means we can't check the sources, so error rather than pass an unscannable lockfile.
@@ -171,7 +166,6 @@ for (const { filename, status, patch, additions } of files) {
     }
   }
 
-  // Registry/source redirect configs can point resolution at an attacker source (or re-enable install scripts).
   if (/(^|\/)(\.npmrc|\.yarnrc\.yml|\.yarnrc)$/.test(filename) || /(^|\/)\.cargo\/config(\.toml)?$/.test(filename)) {
     const redirect = added.find(({ content }) =>
       /\b(registry\s*=|_authToken|replace-with|enable-pre-post-scripts|ignore-scripts\s*=\s*false)/i.test(content),
@@ -187,7 +181,6 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  // .pnpmfile.cjs hooks run arbitrary Node code during pnpm install.
   if (/(^|\/)\.pnpmfile\.cjs$/.test(filename))
     add(
       filename,
@@ -226,8 +219,8 @@ for (const { filename, status, patch, additions } of files) {
     );
   if (/(^|\/)Cargo\.toml$/.test(filename)) {
     for (const { line, content } of added) {
-      // Flag both the [build-dependencies] header and git/path source markers: keying only on the
-      // header would miss a dep added under a pre-existing one. Both run fork code at build/test time.
+      // Flag both the [build-dependencies] header and git/path source markers — keying only on the
+      // header would miss a dep added under a pre-existing one.
       if (/\[build-dependencies\]/.test(content))
         add(
           filename,
@@ -290,8 +283,7 @@ for (const { filename, status, patch, additions } of files) {
       'Encoding near env/secret access — can hide exfiltrated data.',
     );
 
-  // A code/manifest file with no patch (too large for the API) escaped content scanning — flag the
-  // blind spot. additions !== 0 skips a pure rename (no patch, additions:0), which added nothing.
+  // additions !== 0 so a pure rename (no patch, additions:0) isn't flagged as an unscanned blind spot.
   if (
     !patch &&
     additions !== 0 &&
@@ -307,7 +299,7 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  // A truncated patch (GitHub caps very large patches) leaves the file partially scanned — flag it.
+  // added.length < additions: GitHub truncated a very large patch, so some added lines went unscanned.
   if (patch && typeof additions === 'number' && added.length < additions) {
     add(
       filename,
