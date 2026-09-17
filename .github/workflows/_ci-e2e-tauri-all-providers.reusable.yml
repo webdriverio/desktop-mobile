@@ -471,7 +471,7 @@ jobs:
       # key being present instead of failing the job. See packages/tauri-service/docs/crabnebula-setup.md.
       - name: 🔑 Check CrabNebula Credentials
         id: cn-key
-        # always() so `run` is still computed when an earlier step failed (else downstream reads run='').
+        # always() so `run` is still computed even when an earlier step failed.
         if: always()
         shell: bash
         env:
@@ -573,13 +573,10 @@ jobs:
           format_result "Embedded" "$embedded"
           format_result "CrabNebula" "$crabnebula"
 
-      # Artifact files are NOT secret-masked (only the console stream is), so a CN_API_KEY logged into
-      # e2e/logs would leak via the downloadable artifact — scrub it first. Best-effort (verbatim +
-      # URL-encoded + base64); a split/wrapped log can still leak, so the real guard is not logging the key.
+      # Artifact files aren't secret-masked (only the console is), so scrub CN_API_KEY from the logs before upload.
       - name: 🔒 Redact CN_API_KEY from logs before upload
         id: redact
-        # continue-on-error so a redaction glitch doesn't red the job; the upload still skips on a
-        # non-success redact outcome (fail-closed).
+        # continue-on-error so a redaction glitch doesn't red the job; the upload still skips on a failed redact.
         continue-on-error: true
         if: ${{ always() && inputs.enable_debug }}
         shell: bash
