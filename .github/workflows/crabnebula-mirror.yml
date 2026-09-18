@@ -1,0 +1,141 @@
+name: CrabNebula Mirror Dispatch
+
+# Mirrors the reviewed fork head — squash-merged onto main with .github pinned to main — to a fresh
+# per-dispatch branch and dispatches the keyed run. Runs NO fork code: only git file ops and a push.
+# See CONTRIBUTING.md.
+
+on:
+  pull_request_target:
+    types: [labeled]
+
+permissions:
+  contents: write
+  statuses: write
+  pull-requests: write
+  actions: write
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  REPO: ${{ github.repository }}
+
+concurrency:
+  group: crabnebula-mirror-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    if: >-
+      github.event.label.name == 'crabnebula:run' &&
+      github.event.pull_request.head.repo.fork == true
+    runs-on: ubuntu-latest
+    steps:
+      # No ref: — pull_request_target holds a writable token, so it must stay on trusted main, never fork code.
+      - name: Checkout base
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Mirror reviewed fork head onto an internal branch
+        id: mirror
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git fetch --no-tags origin "pull/${PR}/head"
+          # Head moved since the label event → the reviewed SHA is stale; refuse rather than run unreviewed code.
+          if [ "$(git rev-parse FETCH_HEAD)" != "$HEAD_SHA" ]; then
+            echo "moved=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # run-id suffix makes each dispatch's branch immutable, so a re-apply can't clobber a branch
+          # an in-flight run is still testing (which would make it report a SHA it never tested).
+          BR="crabnebula-verify/pr-${PR}-${GITHUB_RUN_ID}"
+          git checkout -B "$BR" origin/main
+          # Squash-merge, not a real merge: a merge commit's fork-ancestor objects can carry workflow
+          # edits, which GITHUB_TOKEN can't push (no workflows scope). One squashed commit off main avoids that.
+          if ! git merge --squash "$HEAD_SHA"; then
+            git reset --hard >/dev/null 2>&1 || true
+            echo "conflict=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # rm first: checkout only overwrites files present in main.
+          rm -rf .github
+          git checkout origin/main -- .github
+          git add -A
+          # Empty stage = the fork PR only changed .github, which we just pinned back to main. No app
+          # code to verify, so signal the report step to direct the reviewer to crabnebula:verified.
+          if git diff --cached --quiet; then
+            echo "empty=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          git commit -m 'Mirror reviewed fork head onto main for CrabNebula verification' >/dev/null
+          if ! git push origin "$BR"; then
+            echo "pushfail=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "branch=$BR" >> "$GITHUB_OUTPUT"
+
+      # Also fire on raw failure/cancel: an aborted git op sets no marker, but must still clean up or the label wedges.
+      - name: Report and stop (head moved, conflict, nothing to verify, or setup failure)
+        if: >-
+          always() &&
+          (steps.mirror.outputs.conflict == 'true' || steps.mirror.outputs.moved == 'true' ||
+           steps.mirror.outputs.pushfail == 'true' || steps.mirror.outputs.empty == 'true' ||
+           steps.mirror.outcome == 'failure' || steps.mirror.outcome == 'cancelled')
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          MOVED: ${{ steps.mirror.outputs.moved }}
+          PUSHFAIL: ${{ steps.mirror.outputs.pushfail }}
+          CONFLICT: ${{ steps.mirror.outputs.conflict }}
+          EMPTY: ${{ steps.mirror.outputs.empty }}
+        run: |
+          if [ "$EMPTY" = "true" ]; then
+            gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
+              -f description='Workflow-only change — nothing for the keyed run to exercise. Review the diff and attest with crabnebula:verified.' \
+              -f target_url="$PR_URL" || true
+            gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+            exit 0
+          fi
+          if [ "$MOVED" = "true" ]; then
+            desc='Cannot verify: the PR head moved since the label. Re-review, then re-apply crabnebula:run.'
+          elif [ "$PUSHFAIL" = "true" ]; then
+            desc='Cannot verify: could not create the verification branch. Re-apply crabnebula:run to retry.'
+          elif [ "$CONFLICT" = "true" ]; then
+            desc='Cannot verify: PR conflicts with main. Rebase, then re-apply crabnebula:run.'
+          else
+            desc='Cannot verify: the mirror step failed to set up. Re-apply crabnebula:run to retry.'
+          fi
+          gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
+            -f description="$desc" -f target_url="$PR_URL" || true
+          # Remove the label so a re-apply can fire a fresh labeled event to retry.
+          gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+
+      - name: Dispatch keyed run and mark pending
+        if: steps.mirror.outputs.conflict != 'true' && steps.mirror.outputs.moved != 'true' && steps.mirror.outputs.pushfail != 'true' && steps.mirror.outputs.empty != 'true'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          BR: ${{ steps.mirror.outputs.branch }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+        run: |
+          # Dispatch failed: the keyed run never starts, so its report job never cleans up — do it here.
+          if ! gh workflow run crabnebula-mirror-run.yml --ref "$BR" -f pr="$PR" -f sha="$SHA"; then
+            gh api "repos/$REPO/git/refs/heads/${BR}" -X DELETE || true
+            gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+            gh api "repos/$REPO/statuses/$SHA" -f state=failure -f context='CrabNebula / macOS' \
+              -f description='Could not start the keyed verification — re-apply crabnebula:run to retry.' \
+              -f target_url="$PR_URL" || true
+            echo "::error::Failed to dispatch the keyed run; cleaned up $BR and the label."
+            exit 1
+          fi
+          # || true so a failure here can't skip the label-drop below — the report job posts the real status.
+          gh api "repos/$REPO/statuses/$SHA" -f state=pending -f context='CrabNebula / macOS' \
+            -f description='Keyed macOS CrabNebula run dispatched on the reviewed commit.' \
+            -f target_url="$PR_URL" || true
+          gh api "repos/$REPO/issues/$PR/comments" -f body="🔑 macOS CrabNebula verification dispatched for \`${SHA:0:7}\` on \`${BR}\`. Result will post back as the \`CrabNebula / macOS\` check." || true
+          # Drop the label now (the run carries pr/sha) — otherwise a cancel before its report job leaves it wedged.
+          gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true

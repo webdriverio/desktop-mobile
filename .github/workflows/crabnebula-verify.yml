@@ -1,0 +1,114 @@
+name: CrabNebula macOS Gate
+
+# Posts the required `CrabNebula / macOS` status that blocks an unverified fork Tauri PR from merging.
+# Runs NO PR code: detect-changes.ts is the trusted base-branch copy and only inspects the PR's changed
+# file list. See CONTRIBUTING.md.
+
+on:
+  pull_request_target:
+    types: [opened, reopened, synchronize, labeled, unlabeled]
+
+permissions:
+  contents: read
+  statuses: write
+  pull-requests: write
+
+concurrency:
+  group: crabnebula-verify-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
+
+env:
+  GH_TOKEN: ${{ github.token }}
+  REPO: ${{ github.repository }}
+
+jobs:
+  # (Re)posts the status on new code; the unlabeled trigger lets removing crabnebula:verified revoke attestation.
+  reset-on-code:
+    if: >-
+      contains(fromJSON('["opened","reopened","synchronize"]'), github.event.action) ||
+      (github.event.action == 'unlabeled' && github.event.label.name == 'crabnebula:verified')
+    runs-on: ubuntu-latest
+    steps:
+      # Checkout + Node run only for fork PRs (needed to run detect-changes.ts); skipping them on internal
+      # PRs means a setup failure can't strand one at "Expected". full_name not fork → a null head.repo still runs it.
+      - name: Checkout base (trusted classifier)
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        if: github.event.pull_request.head.repo.full_name != github.repository
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: Clear stale attestation labels
+        # A new push voids attestation — clear both labels (a GITHUB_TOKEN edit fires no workflow, so no loop).
+        if: github.event.action == 'synchronize' || github.event.action == 'reopened'
+        env:
+          PR: ${{ github.event.pull_request.number }}
+        run: |
+          for L in crabnebula:verified crabnebula:run; do
+            enc=$(jq -rn --arg l "$L" '$l|@uri')
+            gh api -X DELETE "repos/$REPO/issues/$PR/labels/$enc" >/dev/null 2>&1 || true
+          done
+
+      - name: Post required status
+        if: always()
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
+        run: |
+          # Only explicit "false" is internal → success; else (incl. null head.repo) → fork path, fail-closed.
+          state=success
+          desc="Not applicable (internal PR or no Tauri changes)."
+          if [ "$IS_FORK" != "false" ]; then
+            # Classification failures fall through to pending, never a false green.
+            run_tauri=""; run_lint_only=""; truncated=false
+            if files_raw="$(gh api "repos/$REPO/pulls/$PR/files" --paginate --jq '.[].filename' 2>/dev/null)" \
+               && total="$(gh api "repos/$REPO/pulls/$PR" --jq '.changed_files' 2>/dev/null)"; then
+              # Files API caps at 3000 files; above it the list is truncated (may miss Tauri paths) → manual path.
+              if [ "$total" -le 3000 ]; then
+                files_json="$(printf '%s' "$files_raw" | jq -R . | jq -s -c .)"
+                tmp="$(mktemp)"
+                if CHANGED_FILES="$files_json" GITHUB_OUTPUT="$tmp" GITHUB_STEP_SUMMARY=/dev/null node scripts/detect-changes.ts >/dev/null 2>&1; then
+                  run_tauri="$(sed -n 's/^run_tauri=//p' "$tmp")"
+                  run_lint_only="$(sed -n 's/^run_lint_only=//p' "$tmp")"
+                fi
+              else
+                truncated=true
+              fi
+            fi
+            if [ "$truncated" = "true" ]; then
+              state=pending
+              desc="Too many files to classify automatically (>3000) — review, then add crabnebula:verified."
+            elif [ -z "$run_tauri" ]; then
+              state=pending
+              desc="Gate could not classify changes — re-run the job or push to retry."
+            elif [ "$run_tauri" = "true" ] && [ "$run_lint_only" != "true" ]; then
+              state=pending
+              desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula:verified."
+            fi
+          fi
+          echo "fork=$IS_FORK -> $state"
+          # exit non-zero on a failed post: a required check left unposted sits invisibly at "Expected".
+          gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
+            -f description="$desc" -f target_url="$PR_URL" \
+            || { echo "::error::Failed to post CrabNebula / macOS status."; exit 1; }
+
+  # Manual attestation: applying crabnebula:verified posts success (label access is admin-only).
+  verify-label:
+    if: github.event.action == 'labeled' && github.event.label.name == 'crabnebula:verified'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Attest
+        env:
+          PR: ${{ github.event.pull_request.number }}
+          SHA: ${{ github.event.pull_request.head.sha }}
+          PR_URL: ${{ github.event.pull_request.html_url }}
+          SENDER: ${{ github.event.sender.login }}
+        run: |
+          gh api "repos/$REPO/statuses/$SHA" -f state=success -f context='CrabNebula / macOS' \
+            -f description="macOS CrabNebula verified by $SENDER." -f target_url="$PR_URL" \
+            || { echo "::error::Failed to post verified status."; exit 1; }

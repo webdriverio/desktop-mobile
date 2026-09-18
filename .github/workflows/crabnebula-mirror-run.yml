@@ -1,0 +1,106 @@
+name: CrabNebula Mirror Run
+
+# Phase 2 keyed run (dispatched by crabnebula-mirror.yml): builds and runs the macOS CrabNebula E2E on
+# the reviewed fork head, reports back to the PR, and deletes the mirror branch. Runs untrusted fork
+# code, but only CN_API_KEY reaches it — build jobs get no secrets, the E2E job gets CN_API_KEY alone.
+# The human review is the real control; see CONTRIBUTING.md.
+
+on:
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Fork PR number to report back to'
+        required: true
+        type: string
+      sha:
+        description: 'Reviewed fork head SHA the result attaches to'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  statuses: write
+  pull-requests: write
+
+# One keyed run per PR — a re-dispatch cancels the in-flight one, so the latest reviewed head wins.
+concurrency:
+  group: crabnebula-mirror-run-${{ inputs.pr }}
+  cancel-in-progress: true
+
+jobs:
+  # workflow_dispatch is open to any write-access user, so restrict the keyed run to the mirror bot.
+  authorize:
+    if: github.actor == 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - run: echo "Authorized dispatch by ${{ github.actor }}"
+
+  build:
+    needs: [authorize]
+    uses: ./.github/workflows/_ci-build.reusable.yml
+    with:
+      os: 'ubuntu-latest'
+
+  build-app:
+    needs: [authorize]
+    uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
+    with:
+      os: 'macos-latest'
+
+  # Runs every macOS Tauri test-type (all providers).
+  e2e:
+    needs: [build, build-app]
+    strategy:
+      fail-fast: false
+      matrix:
+        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+    uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
+    secrets:
+      CN_API_KEY: ${{ secrets.CN_API_KEY }}
+    with:
+      os: 'macos-latest'
+      node-version: '24'
+      test-type: ${{ matrix.test-type }}
+      require_crabnebula: true
+      enable_debug: false
+      build_id: ${{ needs.build.outputs.build_id }}
+      artifact_size: ${{ needs.build.outputs.artifact_size }}
+      cache_key: ${{ needs.build.outputs.cache_key }}
+      tauri_cache_key: ${{ needs.build-app.outputs.cache_key }}
+
+  # Gate report/cleanup: an unauthorized dispatch must not touch the PR, a superseded run must not race the survivor.
+  report:
+    needs: [authorize, e2e]
+    if: ${{ !cancelled() && needs.authorize.result == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: Report result to the PR and clean up
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ inputs.pr }}
+          SHA: ${{ inputs.sha }}
+          BR: ${{ github.ref_name }}
+          RESULT: ${{ needs.e2e.result }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          if [ "$RESULT" = "success" ]; then
+            state=success; icon='✅'; desc="macOS CrabNebula verification passed on the reviewed commit."
+          elif [ "$RESULT" = "skipped" ]; then
+            state=failure; icon='❌'; desc="macOS CrabNebula verification could not run (a build job failed) — see the run."
+          else
+            state=failure; icon='❌'; desc="macOS CrabNebula verification failed — see the run for which leg."
+          fi
+          posted=false
+          if gh api "repos/$REPO/statuses/$SHA" -f state="$state" -f context='CrabNebula / macOS' \
+            -f description="$desc" -f target_url="$RUN_URL"; then posted=true; fi
+          gh api "repos/$REPO/issues/$PR/comments" -f body="$icon macOS CrabNebula verification $RESULT for \`${SHA:0:7}\`. [Run details]($RUN_URL)." || true
+          # Delete branch/label only after the status is safely posted; on a failed post keep them and
+          # go red, so the report job can be re-run to retry.
+          if [ "$posted" = true ]; then
+            gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true
+            gh api "repos/$REPO/git/refs/heads/${BR}" -X DELETE || true
+          else
+            echo "::error::Failed to post terminal status — kept the mirror branch; re-run this report job to retry."
+            exit 1
+          fi
