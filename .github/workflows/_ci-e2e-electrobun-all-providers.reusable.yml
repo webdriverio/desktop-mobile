@@ -44,6 +44,8 @@ jobs:
   e2e-electrobun:
     name: Run
     runs-on: ${{ inputs.os }}
+    # Overall backstop; the step timeout below is what surfaces a stuck test as a failure.
+    timeout-minutes: 45
     steps:
       - name: 👷 Checkout Repository
         uses: actions/checkout@v7
