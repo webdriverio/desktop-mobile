@@ -64,6 +64,7 @@ jobs:
   e2e-tauri:
     name: Run
     runs-on: ${{ inputs.os }}
+    timeout-minutes: 45
     steps:
       # ══════════════════════════════════════════════════════════════
       # SHARED SETUP (runs once, reused by all providers)

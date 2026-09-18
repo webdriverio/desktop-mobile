@@ -25,6 +25,7 @@ jobs:
   build:
     name: Cargo check + test
     runs-on: ${{ inputs.os }}
+    timeout-minutes: 45
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
