@@ -67,7 +67,7 @@ Enable the `log` crate in your `Cargo.toml`:
 
 ```toml
 [dependencies]
-dioxus = { version = "0.6", features = ["desktop"] }
+dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version (the bridge tracks the latest release)
 log = "0.4"
 ```
 

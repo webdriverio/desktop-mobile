@@ -145,6 +145,6 @@ MIT License. See LICENSE file for details.
 ## See Also
 
 - [WebdriverIO Documentation](https://webdriver.io)
-- [Dioxus Documentation](https://dioxuslabs.com/learn/0.6/)
+- [Dioxus Documentation](https://dioxuslabs.com/learn)
 - [@wdio/tauri-service](https://github.com/webdriverio/desktop-mobile/tree/main/packages/tauri-service) - Similar service for Tauri apps
 - [@wdio/electron-service](https://github.com/webdriverio/desktop-mobile/tree/main/packages/electron-service) - Similar service for Electron apps

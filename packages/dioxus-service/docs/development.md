@@ -267,6 +267,6 @@ See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines, commit
 ## Resources
 
 - [WebdriverIO Documentation](https://webdriver.io)
-- [Dioxus Documentation](https://dioxuslabs.com/learn/0.6/)
+- [Dioxus Documentation](https://dioxuslabs.com/learn)
 - [TypeScript Handbook](https://www.typescriptlang.org/docs/)
 - [Vitest Documentation](https://vitest.dev/)
