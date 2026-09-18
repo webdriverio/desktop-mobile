@@ -30,8 +30,8 @@ vi.mock('../src/electrobunConfig.js', () => ({
   writeRemoteDebuggingPort: vi.fn(),
 }));
 
-// Mock the native-mode spawn so no real process is launched (and no real bundle is cloned). The CEF
-// clone + port-pin live inside spawnElectrobunApp; the W3C path calls cloneAppBundle directly.
+// Mock native-mode spawn: the CEF clone + port-pin live inside spawnElectrobunApp, the W3C path
+// calls cloneAppBundle directly.
 vi.mock('../src/nativeMode.js', () => ({
   spawnElectrobunApp: vi.fn(() => ({
     proc: { pid: 4321, exitCode: null, signalCode: null, kill: vi.fn() },
@@ -494,8 +494,8 @@ describe('ElectrobunLaunchService', () => {
         expect((cap['webkitgtk:browserOptions'] as { binary?: string }).binary).toContain(
           '/wdio-electrobun-bundle-clone/',
         );
-        // Connection params MUST be on the outer wrapper — WDIO's multiremote path reads hostname/
-        // port from there, not from the inner caps (which it would drop). Regression for #633.
+        // Connection params go on the outer wrapper, not the inner caps — WDIO's multiremote path
+        // reads them only from there. See https://github.com/webdriverio/desktop-mobile/issues/633
         expect(entry.hostname).toBe('127.0.0.1');
         expect(typeof entry.port).toBe('number');
         expect(cap.hostname).toBeUndefined();

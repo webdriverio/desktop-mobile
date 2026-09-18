@@ -779,7 +779,8 @@ jobs:
   # profile, so multi-window/relaunch fall back to a racy global context, and a shared
   # user-data-dir folds instances → no CDP targets. window + multiremote DO run and gate
   # on the Windows WebView2 leg below (a renderer that isolates per instance); deeplink
-  # runs nowhere on CI (also needs open-url routing — #320 / blackboardsh/electrobun#465).
+  # runs nowhere on CI (also needs open-url routing — https://github.com/webdriverio/desktop-mobile/issues/320
+  # / https://github.com/blackboardsh/electrobun/issues/465).
   # The CEF specs stay runnable locally via TEST_TYPE=window|deeplink; see the skip notes
   # in window.spec.ts / deeplink.spec.ts.
   e2e-electrobun-macos-arm:
@@ -1256,7 +1257,8 @@ jobs:
       # Flutter — Android emulator E2E is a required gate. The iOS-simulator leg
       # (e2e-flutter-ios-macos) is QUARANTINED (intentionally absent from this gate): it still runs
       # and is visible on the PR, but a known random per-session CoreSimulator simctl-launch wedge
-      # makes it flaky (warmth/retries/VM-port-pin all ruled out — see #421; the fix is an
+      # makes it flaky (warmth/retries/VM-port-pin all ruled out —
+      # see https://github.com/webdriverio/desktop-mobile/issues/421; the fix is an
       # external-WDA attach via webDriverAgentUrl). Re-add here once that lands. RN iOS is solid
       # and stays gated, so iOS-mobile coverage is not lost.
       - e2e-flutter-linux

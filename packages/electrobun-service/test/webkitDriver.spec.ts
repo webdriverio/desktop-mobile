@@ -80,8 +80,6 @@ describe('stopWebKitWebDriver', () => {
 
   it('should still remove per-instance clone dirs when the driver has already exited', async () => {
     const kill = vi.fn();
-    // exitCode set → the driver crashed/exited before teardown; the signalling block is skipped but
-    // the clones it left on disk must still be removed. Regression for #635 (Greptile P2).
     const handle = {
       process: { exitCode: 1, signalCode: null, pid: 4321, once: vi.fn(), kill },
       host: '127.0.0.1',

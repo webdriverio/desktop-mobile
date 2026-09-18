@@ -137,13 +137,11 @@ export async function spawnWebKitWebDriver(opts: {
 /** SIGTERM, then SIGKILL to force exit when WebKitWebDriver is slow to release the session. */
 export async function stopWebKitWebDriver(handle: WebKitDriverProcess, killTimeoutMs = KILL_TIMEOUT_MS): Promise<void> {
   const { process: child, detached } = handle;
-  // Only signal a still-running driver — but always fall through to clone cleanup below: a driver
-  // that already exited (crash, or exit during worker-side app reaping) still left its per-instance
-  // bundle clone on disk, so an early return here would leak it.
+  // Signal only a running driver, but always run the clone cleanup below — a driver that already
+  // exited still left its bundle clone on disk, so returning early here would leak it.
   if (child.exitCode === null && child.signalCode === null) {
-    // When detached, signal the process group with a negative pid, so xvfb-run + WebKitWebDriver +
-    // the app all die — killing only the xvfb-run pid leaves the driver and app orphaned. Falls
-    // back to the single child if the group is already gone or we didn't detach.
+    // When detached, signal the process group (negative pid) so the whole xvfb-run → WebKitWebDriver
+    // → app tree dies; signalling the xvfb-run pid alone would orphan the driver and app.
     const signalTree = (signal: NodeJS.Signals) => {
       try {
         if (detached && child.pid !== undefined) {

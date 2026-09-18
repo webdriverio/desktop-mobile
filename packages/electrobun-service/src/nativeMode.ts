@@ -13,7 +13,7 @@
 // root_cache_path is the user-data-dir, which keeps the forced persist:default
 // partition profile creatable. That makes instances share root_cache_path, so this is
 // single-instance only (maxInstances=1); multiremote stays blocked pending an upstream
-// CEF fix (see #320).
+// CEF fix (see https://github.com/webdriverio/desktop-mobile/issues/320).
 //
 // E2E-validation gap: clone/spawn/teardown can only be exercised against a real
 // built CEF bundle (none in unit tests). Unit tests mock node:child_process /
@@ -167,7 +167,8 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   // covers the worker process, not this launcher-spawned app, so run the app under
   // `xvfb-run -a` (a throwaway X server) on Linux. macOS/Windows runners have a real
   // display, so spawn the binary directly there. Unreachable in 0.x (the launcher's
-  // macOS guard throws first) — kept for the Linux re-fold (#320).
+  // macOS guard throws first) — kept for the Linux re-fold
+  // (https://github.com/webdriverio/desktop-mobile/issues/320).
   const useXvfb = process.platform === 'linux';
   const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
   const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;

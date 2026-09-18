@@ -189,9 +189,8 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       throw nativeRendererUnsupportedPlatform(process.platform);
     }
 
-    // CEF (macOS) can't isolate ≥2 app instances — they share one cache root and race. Linux and
-    // Windows isolate each instance, so parallel workers + multiremote are safe there. WDIO's default
-    // maxInstances is 100, so this can't be a hard error — warn and let the user pin maxInstances: 1.
+    // macOS-only guard: Linux/Windows isolate each instance; only CEF folds them (see the warning).
+    // WDIO defaults maxInstances to 100, so warn rather than hard-error.
     // See https://github.com/webdriverio/desktop-mobile/issues/320
     if (process.platform === 'darwin' && (config.maxInstances ?? 1) > 1) {
       log.warn(
@@ -310,10 +309,9 @@ export default class ElectrobunLaunchService extends BaseLauncher {
 
       // W3C: the driver launches the app — no app spawn / CDP wait here (unlike the CDP path).
       if (resolveTransport(app) === 'webkitgtk') {
-        // Clone the bundle per instance so each app launches from a distinct path. The worker's
-        // teardown reap (service.ts) is scoped to this binary's bundle path, so distinct clones let
-        // parallel workers and multiremote instances reap independently instead of cross-killing
-        // siblings that share one bundle. See https://github.com/webdriverio/desktop-mobile/issues/633
+        // Clone per instance: the worker's teardown reap is scoped to the bundle path, so a shared
+        // bundle would cross-kill sibling instances on teardown.
+        // See https://github.com/webdriverio/desktop-mobile/issues/633
         const { cloneParentDir, clonedBundlePath } = cloneAppBundle(app.bundlePath);
         // webkitgtk is Linux-only, so rebase with posix to keep forward slashes regardless of host OS.
         const clonedBinaryPath = posix.join(clonedBundlePath, posix.relative(app.bundlePath, app.binaryPath));
@@ -331,11 +329,6 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         this.webkitDriversByCid.set(cid, drivers);
 
         const w3cCap = cap as Record<string, unknown>;
-        // hostname/port are connection params, not capabilities, so they go on `connectionTarget`.
-        // WDIO's single-session path hoists them out of the caps object, but its multiremote path
-        // reads them ONLY from the outer `{ capabilities }` wrapper — writing them on the inner caps
-        // there leaves each instance dialling the default host:port. See
-        // https://github.com/webdriverio/desktop-mobile/issues/633
         connectionTarget.hostname = driver.host;
         connectionTarget.port = driver.port;
         const w3cOptions = (w3cCap['webkitgtk:browserOptions'] ?? {}) as Record<string, unknown>;
@@ -458,7 +451,7 @@ function normaliseCaps(
 
 /** A worker capability paired with the object WDIO reads its per-instance connection params from. */
 interface WorkerCapEntry {
-  /** The W3C capabilities — where capability keys (`webkitgtk:browserOptions`, `debuggerAddress`) go. */
+  /** The W3C capabilities — capability keys go here. */
   caps: ElectrobunCapabilities;
   /**
    * Where per-instance connection params (`hostname`/`port`) must be written. WDIO's single-session
@@ -470,12 +463,8 @@ interface WorkerCapEntry {
 }
 
 /**
- * Normalise the capabilities `onWorkerStart` receives into a flat per-instance list, pairing each
- * instance's caps with its connection target. For a multiremote run WDIO passes the
- * `{ instanceName: { capabilities } }` record; for a standard run it's an array (or a lone cap
- * object). Extracting the record's per-instance caps — by reference, so the `debuggerAddress`/
- * `hostname`/`port` set on each below reach WDIO — is what lets multiremote drive one app per
- * instance instead of mistaking the whole record for a single cap.
+ * Flatten the capabilities `onWorkerStart` receives (array, lone object, or multiremote record)
+ * into a per-instance list. Caps are held by reference so the keys set on each below reach WDIO.
  */
 function normaliseWorkerCaps(
   capabilities:
