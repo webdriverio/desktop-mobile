@@ -137,34 +137,36 @@ export async function spawnWebKitWebDriver(opts: {
 /** SIGTERM, then SIGKILL to force exit when WebKitWebDriver is slow to release the session. */
 export async function stopWebKitWebDriver(handle: WebKitDriverProcess, killTimeoutMs = KILL_TIMEOUT_MS): Promise<void> {
   const { process: child, detached } = handle;
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-  // When detached, signal the process group with a negative pid, so xvfb-run + WebKitWebDriver +
-  // the app all die — killing only the xvfb-run pid leaves the driver and app orphaned. Falls
-  // back to the single child if the group is already gone or we didn't detach.
-  const signalTree = (signal: NodeJS.Signals) => {
-    try {
-      if (detached && child.pid !== undefined) {
-        process.kill(-child.pid, signal);
-        return;
+  // Only signal a still-running driver — but always fall through to clone cleanup below: a driver
+  // that already exited (crash, or exit during worker-side app reaping) still left its per-instance
+  // bundle clone on disk, so an early return here would leak it.
+  if (child.exitCode === null && child.signalCode === null) {
+    // When detached, signal the process group with a negative pid, so xvfb-run + WebKitWebDriver +
+    // the app all die — killing only the xvfb-run pid leaves the driver and app orphaned. Falls
+    // back to the single child if the group is already gone or we didn't detach.
+    const signalTree = (signal: NodeJS.Signals) => {
+      try {
+        if (detached && child.pid !== undefined) {
+          process.kill(-child.pid, signal);
+          return;
+        }
+      } catch {
+        // the process group is already gone — fall through to the direct kill
       }
-    } catch {
-      // the process group is already gone — fall through to the direct kill
-    }
-    child.kill(signal);
-  };
-  await new Promise<void>((resolve) => {
-    const timer = setTimeout(() => {
-      signalTree('SIGKILL');
-      resolve();
-    }, killTimeoutMs);
-    child.once('exit', () => {
-      clearTimeout(timer);
-      resolve();
+      child.kill(signal);
+    };
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        signalTree('SIGKILL');
+        resolve();
+      }, killTimeoutMs);
+      child.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      signalTree('SIGTERM');
     });
-    signalTree('SIGTERM');
-  });
+  }
 
   for (const dir of handle.cleanupDirs ?? []) {
     try {
