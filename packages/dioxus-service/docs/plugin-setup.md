@@ -184,11 +184,11 @@ The bridge is not wired in. Check:
 
 ### Compilation errors from `wdio-dioxus-bridge`
 
-`wdio-dioxus-bridge` tracks the latest Dioxus release (currently `0.7.x`, matching our fixtures).
+`wdio-dioxus-bridge` tracks the latest Dioxus release; the exact version it supports is its own `dioxus-desktop` dependency — see the bridge's [dependencies on crates.io](https://crates.io/crates/wdio-dioxus-bridge).
 
 1. Update your Rust toolchain: `rustup update`
 2. Clear the Cargo cache: `cargo clean && cargo build`
-3. Build against a current Dioxus release that matches the bridge — see [Dioxus releases](https://dioxuslabs.com/learn)
+3. Pin your `dioxus` to the same minor as the bridge's `dioxus-desktop` dependency (link above)
 
 ## See Also
 
