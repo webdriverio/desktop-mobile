@@ -38,7 +38,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dioxus = { version = "0.6", features = ["desktop"] }
+dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version
 wdio-dioxus-bridge = "1"
 ```
 
@@ -186,7 +186,7 @@ The bridge is not wired in. Check:
 
 1. Update your Rust toolchain: `rustup update`
 2. Clear Cargo cache: `cargo clean && cargo build`
-3. Check that `dioxus` version is `0.6+`
+3. Check that your `dioxus` and `wdio-dioxus-bridge` versions are compatible
 
 ## See Also
 

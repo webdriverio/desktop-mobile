@@ -60,7 +60,7 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dioxus = { version = "0.6", features = ["desktop"] }
+dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version
 wdio-dioxus-bridge = "1"
 ```
 
@@ -338,4 +338,4 @@ jobs:
 - [Platform Support](./platform-support.md)
 - [Troubleshooting](./troubleshooting.md)
 - [WebdriverIO Documentation](https://webdriver.io/docs)
-- [Dioxus Documentation](https://dioxuslabs.com/learn/0.6/)
+- [Dioxus Documentation](https://dioxuslabs.com/learn)
