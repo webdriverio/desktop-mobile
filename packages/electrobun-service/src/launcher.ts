@@ -1,3 +1,6 @@
+import { rmSync } from 'node:fs';
+import { posix } from 'node:path';
+
 import {
   BaseLauncher,
   closeLogWriter,
@@ -11,7 +14,13 @@ import type { Options } from '@wdio/types';
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
 import { type ResolvedElectrobunApp, resolveElectrobunApp, verifyCefRenderer } from './electrobunConfig.js';
 import { nativeRendererUnsupportedPlatform, SevereServiceError, webKitWebDriverNotFound } from './errors.js';
-import { type ElectrobunAppProcess, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from './nativeMode.js';
+import {
+  cloneAppBundle,
+  type ElectrobunAppProcess,
+  spawnElectrobunApp,
+  stopElectrobunApp,
+  waitForCdpReady,
+} from './nativeMode.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import { resolveTransport } from './transport.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions, ElectrobunServiceOptions } from './types.js';
@@ -180,17 +189,14 @@ export default class ElectrobunLaunchService extends BaseLauncher {
       throw nativeRendererUnsupportedPlatform(process.platform);
     }
 
-    // Neither macOS nor Linux isolates ≥2 app instances of one bundle: CEF (macOS) shares a single
-    // cache root and races (#320); the WebKitGTK (Linux) apps launch from the same bundle path and
-    // teardown reaps by that path (service.ts), so one worker's cleanup SIGKILLs its siblings (#633).
-    // WebView2 (Windows) isolates each worker, so it needs no guard. WDIO's default maxInstances is
-    // 100, so this can't be a hard error — warn and let the user pin maxInstances: 1.
-    if ((process.platform === 'darwin' || process.platform === 'linux') && (config.maxInstances ?? 1) > 1) {
-      const reason =
-        process.platform === 'darwin'
-          ? 'Electrobun CEF on macOS is single-instance: parallel workers share one CEF cache root and race ("Cannot create profile" / CDP timeouts)'
-          : 'Electrobun on Linux shares one WebKitGTK app bundle: parallel workers launch from the same path and teardown reaps by it, cross-killing siblings';
-      log.warn(`maxInstances is ${config.maxInstances}, but ${reason}. Pin maxInstances: 1.`);
+    // macOS-only guard: Linux/Windows isolate each instance; only CEF folds them (see the warning).
+    // WDIO defaults maxInstances to 100, so warn rather than hard-error.
+    // See https://github.com/webdriverio/desktop-mobile/issues/320
+    if (process.platform === 'darwin' && (config.maxInstances ?? 1) > 1) {
+      log.warn(
+        `maxInstances is ${config.maxInstances}, but Electrobun CEF on macOS is single-instance: parallel ` +
+          'workers share one CEF cache root and race ("Cannot create profile" / CDP timeouts). Pin maxInstances: 1.',
+      );
     }
 
     // Native mode: resolve each bundle and pick its transport (the capability is set per transport
@@ -287,7 +293,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     const workerApps: ElectrobunAppProcess[] = [];
 
     for (let i = 0; i < capsList.length; i++) {
-      const cap = capsList[i];
+      const { caps: cap, connectionTarget } = capsList[i];
       // The resolved bundle is a shared template: one resolved app safely drives any number of
       // parallel workers, each spawned with its own freshly allocated port.
       const app = this.resolvedApps[i] ?? this.resolvedApps[0];
@@ -303,16 +309,32 @@ export default class ElectrobunLaunchService extends BaseLauncher {
 
       // W3C: the driver launches the app — no app spawn / CDP wait here (unlike the CDP path).
       if (resolveTransport(app) === 'webkitgtk') {
-        const driver = await this.spawnWebKitDriver(this.webkitDriverPath ?? '', port);
+        // Clone per instance: the worker's teardown reap is scoped to the bundle path, so a shared
+        // bundle would cross-kill sibling instances on teardown.
+        // See https://github.com/webdriverio/desktop-mobile/issues/633
+        const { cloneParentDir, clonedBundlePath } = cloneAppBundle(app.bundlePath);
+        // webkitgtk is Linux-only, so rebase with posix to keep forward slashes regardless of host OS.
+        const clonedBinaryPath = posix.join(clonedBundlePath, posix.relative(app.bundlePath, app.binaryPath));
+
+        let driver: WebKitDriverProcess;
+        try {
+          driver = await this.spawnWebKitDriver(this.webkitDriverPath ?? '', port);
+        } catch (error) {
+          rmSync(cloneParentDir, { recursive: true, force: true });
+          throw error;
+        }
+        driver.cleanupDirs = [cloneParentDir];
         const drivers = this.webkitDriversByCid.get(cid) ?? [];
         drivers.push(driver);
         this.webkitDriversByCid.set(cid, drivers);
-        // hostname/port are connection params (not capabilities), set per worker as the port is
-        // allocated here.
+
         const w3cCap = cap as Record<string, unknown>;
-        w3cCap.hostname = driver.host;
-        w3cCap.port = driver.port;
-        log.info(`Worker ${cid}: WebKitWebDriver on ${driver.host}:${driver.port} → ${app.binaryPath}`);
+        connectionTarget.hostname = driver.host;
+        connectionTarget.port = driver.port;
+        const w3cOptions = (w3cCap['webkitgtk:browserOptions'] ?? {}) as Record<string, unknown>;
+        w3cCap['webkitgtk:browserOptions'] = { ...w3cOptions, binary: clonedBinaryPath };
+
+        log.info(`Worker ${cid}: WebKitWebDriver on ${driver.host}:${driver.port} → ${clonedBinaryPath}`);
         continue;
       }
 
@@ -427,25 +449,39 @@ function normaliseCaps(
   return Object.values(capabilities).map((entry) => entry.capabilities);
 }
 
+/** A worker capability paired with the object WDIO reads its per-instance connection params from. */
+interface WorkerCapEntry {
+  /** The W3C capabilities — capability keys go here. */
+  caps: ElectrobunCapabilities;
+  /**
+   * Where per-instance connection params (`hostname`/`port`) must be written. WDIO's single-session
+   * path hoists these out of the capabilities object, but its multiremote path reads them ONLY from
+   * the outer `{ capabilities }` wrapper (see `@wdio/runner` `initializeInstance`) — so for
+   * multiremote this is that wrapper, otherwise the caps object itself.
+   */
+  connectionTarget: Record<string, unknown>;
+}
+
 /**
- * Normalise the capabilities `onWorkerStart` receives into a flat per-instance list. For a
- * multiremote run WDIO passes the `{ instanceName: { capabilities } }` record; for a standard
- * run it's an array (or a lone cap object). Extracting the record's per-instance caps — by
- * reference, so the `debuggerAddress` set on each below reaches WDIO — is what lets multiremote
- * spawn one app per instance instead of mistaking the whole record for a single cap.
+ * Flatten the capabilities `onWorkerStart` receives (array, lone object, or multiremote record)
+ * into a per-instance list. Caps are held by reference so the keys set on each below reach WDIO.
  */
 function normaliseWorkerCaps(
   capabilities:
     | ElectrobunCapabilities
     | ElectrobunCapabilities[]
     | Record<string, { capabilities: ElectrobunCapabilities }>,
-): ElectrobunCapabilities[] {
+): WorkerCapEntry[] {
   if (Array.isArray(capabilities)) {
-    return capabilities;
+    return capabilities.map((caps) => ({ caps, connectionTarget: caps as Record<string, unknown> }));
   }
   const values = Object.values(capabilities);
   if (values.length > 0 && values.every((v) => v != null && typeof v === 'object' && 'capabilities' in v)) {
-    return (values as Array<{ capabilities: ElectrobunCapabilities }>).map((entry) => entry.capabilities);
+    return (values as Array<{ capabilities: ElectrobunCapabilities }>).map((entry) => ({
+      caps: entry.capabilities,
+      connectionTarget: entry as unknown as Record<string, unknown>,
+    }));
   }
-  return [capabilities as ElectrobunCapabilities];
+  const caps = capabilities as ElectrobunCapabilities;
+  return [{ caps, connectionTarget: caps as Record<string, unknown> }];
 }

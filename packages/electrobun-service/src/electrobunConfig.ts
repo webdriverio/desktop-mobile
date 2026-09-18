@@ -10,7 +10,8 @@
 // macOS is the validated platform. Windows/Linux bundle layout is unverified, so
 // resolution + the CEF check there are best-effort and guarded by existence
 // checks rather than hard-failing on a missing framework — see the per-function
-// TODOs. E2E validation there is blocked on the upstream CEF fixes (#320).
+// TODOs. E2E validation there is blocked on the upstream CEF fixes
+// (https://github.com/webdriverio/desktop-mobile/issues/320).
 
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -236,7 +237,8 @@ export function verifyCefRenderer(app: ResolvedElectrobunApp, platform: NodeJS.P
 
   // Windows/Linux: best-effort. Pass if build.json indicates CEF or a sibling CEF
   // library is present; otherwise warn (don't hard-fail) since the layout is
-  // unverified. TODO(#320): confirm the real CEF marker when these platforms unblock.
+  // unverified. TODO: confirm the real CEF marker when these platforms unblock —
+  // https://github.com/webdriverio/desktop-mobile/issues/320
   if (buildJsonIndicatesCef(buildJson)) {
     return;
   }

@@ -4,7 +4,7 @@
 // Chromedriver attaches, `WebKitWebDriver` is itself the W3C server and it LAUNCHES the app.
 
 import { type ChildProcess, execSync, spawn } from 'node:child_process';
-import { existsSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 
 import { createLogger } from '@wdio/native-utils';
 
@@ -18,6 +18,8 @@ export interface WebKitDriverProcess {
   port: number;
   /** Spawned detached (its own process group) so teardown can kill the whole xvfb-run tree. */
   detached: boolean;
+  /** Per-instance bundle-clone dirs to remove on teardown. */
+  cleanupDirs?: string[];
 }
 
 // The `webkit2gtk-driver` package installs `/usr/bin/WebKitWebDriver`; the versioned libdir
@@ -135,32 +137,40 @@ export async function spawnWebKitWebDriver(opts: {
 /** SIGTERM, then SIGKILL to force exit when WebKitWebDriver is slow to release the session. */
 export async function stopWebKitWebDriver(handle: WebKitDriverProcess, killTimeoutMs = KILL_TIMEOUT_MS): Promise<void> {
   const { process: child, detached } = handle;
-  if (child.exitCode !== null || child.signalCode !== null) {
-    return;
-  }
-  // When detached, signal the process group with a negative pid, so xvfb-run + WebKitWebDriver +
-  // the app all die — killing only the xvfb-run pid leaves the driver and app orphaned. Falls
-  // back to the single child if the group is already gone or we didn't detach.
-  const signalTree = (signal: NodeJS.Signals) => {
-    try {
-      if (detached && child.pid !== undefined) {
-        process.kill(-child.pid, signal);
-        return;
+  // Signal only a running driver, but always run the clone cleanup below — a driver that already
+  // exited still left its bundle clone on disk, so returning early here would leak it.
+  if (child.exitCode === null && child.signalCode === null) {
+    // When detached, signal the process group (negative pid) so the whole xvfb-run → WebKitWebDriver
+    // → app tree dies; signalling the xvfb-run pid alone would orphan the driver and app.
+    const signalTree = (signal: NodeJS.Signals) => {
+      try {
+        if (detached && child.pid !== undefined) {
+          process.kill(-child.pid, signal);
+          return;
+        }
+      } catch {
+        // the process group is already gone — fall through to the direct kill
       }
-    } catch {
-      // the process group is already gone — fall through to the direct kill
-    }
-    child.kill(signal);
-  };
-  await new Promise<void>((resolve) => {
-    const timer = setTimeout(() => {
-      signalTree('SIGKILL');
-      resolve();
-    }, killTimeoutMs);
-    child.once('exit', () => {
-      clearTimeout(timer);
-      resolve();
+      child.kill(signal);
+    };
+    await new Promise<void>((resolve) => {
+      const timer = setTimeout(() => {
+        signalTree('SIGKILL');
+        resolve();
+      }, killTimeoutMs);
+      child.once('exit', () => {
+        clearTimeout(timer);
+        resolve();
+      });
+      signalTree('SIGTERM');
     });
-    signalTree('SIGTERM');
-  });
+  }
+
+  for (const dir of handle.cleanupDirs ?? []) {
+    try {
+      rmSync(dir, { recursive: true, force: true });
+    } catch (error) {
+      log.warn(`Could not remove bundle clone ${dir}: ${(error as Error).message}`);
+    }
+  }
 }

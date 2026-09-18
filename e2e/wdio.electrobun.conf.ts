@@ -95,22 +95,20 @@ const testType = (process.env.TEST_TYPE as string) || 'standard';
 
 let specs: string[] = [];
 let exclude: string[] = [];
-// Pinned to 1: multiremote is blocked upstream (CEF can't isolate ≥2 instances —
-// see #320). Electrobun is single-instance for now.
-let maxInstances = 1;
+// macOS CEF is single-instance; Linux/Windows isolate per instance, so they run parallel workers.
+let maxInstances = process.platform === 'darwin' ? 1 : 2;
 
-// CI runs ONLY `standard` (see ci.yml — the macOS matrix is `['standard']`). The
-// `window` (multi-window) and `deeplink` cases are kept for LOCAL runs
-// (`TEST_TYPE=window|deeplink`) but are not wired into CI: both hit upstream CEF
-// gaps (per-window partition / no open-url routing) documented in their spec files.
+// `window` (multi-window) and `deeplink` hit upstream CEF gaps (per-window partition / no open-url
+// routing) documented in their spec files, so on the CEF/macOS path they run locally only
+// (`TEST_TYPE=window|deeplink`). Per-OS CI wiring lives in ci.yml.
 switch (testType) {
   case 'window':
     specs = ['./test/electrobun/window.spec.ts'];
     break;
   case 'multiremote':
-    // Two independent instances in one worker — WebView2 isolates each (per-instance data
-    // dir), which CEF can't, so this runs on Windows only.
+    // The two instances share ONE worker — they're instances, not parallel workers.
     specs = ['./test/electrobun/multiremote/*.spec.ts'];
+    maxInstances = 1;
     break;
   case 'deeplink':
     // Deeplink tests dispatch the OS protocol handler and must not race parallel apps.
@@ -151,8 +149,6 @@ const baseCapability: ElectrobunCapability = {
   'wdio:electrobunServiceOptions': electrobunServiceOptions,
 };
 
-// Multiremote drives two independent instances in one worker (each gets its own WebView2
-// process, port, and data dir); the other test types use the single-instance array shape.
 const capabilities =
   testType === 'multiremote'
     ? { instanceA: { capabilities: { ...baseCapability } }, instanceB: { capabilities: { ...baseCapability } } }
@@ -173,7 +169,8 @@ export const config = {
   // (needed because a single CEF window doesn't reliably expose a `/json` target) trips CEF's
   // failed-profile → global-context fallback, which surfaces as either an unpainted
   // `#app-title` or a "Timeout of new browser info response" on the second frame — for
-  // that app instance's whole lifetime (see #320). mochaOpts.retries
+  // that app instance's whole lifetime (see https://github.com/webdriverio/desktop-mobile/issues/320).
+  // mochaOpts.retries
   // can't escape it (same instance); a spec-FILE retry re-spawns a fresh CEF instance.
   // Bumped to 3 (4 attempts/spec) — at 2 the gate occasionally exhausted retries on a
   // run with an elevated CEF-timeout rate. Drop back once the upstream fix lands.
