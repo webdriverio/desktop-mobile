@@ -328,9 +328,9 @@ export async function waitForCdpReady(port: number, timeoutMs: number = CDP_READ
 }
 
 /**
- * Stop a spawned Electrobun app: close log handlers, SIGTERM (SIGKILL after a
- * grace period), then remove its temp dirs (the bundle-clone parent). Tolerant of an
- * already-dead process and missing temp dirs.
+ * Stop a spawned Electrobun app: close log handlers, kill the process (Windows: taskkill /T on the
+ * whole tree, since proc.kill only hits the direct child; POSIX: SIGTERM then SIGKILL after a grace
+ * period), then remove its temp dirs. Tolerant of an already-dead process and missing temp dirs.
  */
 export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void> {
   for (const handler of app.logHandlers) {
@@ -344,26 +344,63 @@ export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void
   const { proc } = app;
   if (proc.pid && proc.exitCode === null && proc.signalCode === null) {
     log.info(`Stopping Electrobun app (PID: ${proc.pid})…`);
-    proc.kill('SIGTERM');
-
-    const deadline = Date.now() + SIGKILL_GRACE_MS;
-    while (Date.now() < deadline) {
-      if (proc.exitCode !== null || proc.signalCode !== null) {
-        break;
+    if (process.platform === 'win32') {
+      // proc.kill() terminates only the direct child (launcher.exe); killing it orphans the Bun
+      // backend — which holds the app's RPC websocket port — and the WebView2 helpers, which keep
+      // temp-dir handles. A surviving backend wedges the next spec's relaunch (the port can't rebind)
+      // and blocks temp-dir removal (EPERM). taskkill /T kills the whole tree before it's orphaned.
+      try {
+        execFileSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
+      } catch {
+        // taskkill /T can fail if the launcher raced the alive-guard and exited first, orphaning the
+        // descendants noted above. Reap them by the app's unique clone dir — every descendant's command
+        // line references it, and no worker shares another's, so this can't hit a sibling's app.
+        for (const dir of app.cleanupDirs) {
+          try {
+            execFileSync(
+              'powershell',
+              [
+                '-NoProfile',
+                '-Command',
+                `Get-CimInstance Win32_Process | Where-Object { $_.CommandLine -and $_.CommandLine.Contains('${dir.replace(/'/g, "''")}') } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }`,
+              ],
+              { stdio: 'ignore' },
+            );
+          } catch {
+            // best-effort
+          }
+        }
+        proc.kill('SIGKILL');
       }
-      await sleep(100);
-    }
-    if (proc.exitCode === null && proc.signalCode === null) {
-      log.warn('Electrobun app did not exit gracefully, sending SIGKILL');
-      proc.kill('SIGKILL');
-      // Brief reap-wait before rmSync removes the bundle clone — un-reaped CEF
-      // helper subprocesses can still hold handles inside the temp dir (EBUSY).
       const killDeadline = Date.now() + SIGKILL_REAP_MS;
       while (Date.now() < killDeadline) {
         if (proc.exitCode !== null || proc.signalCode !== null) {
           break;
         }
         await sleep(100);
+      }
+    } else {
+      proc.kill('SIGTERM');
+
+      const deadline = Date.now() + SIGKILL_GRACE_MS;
+      while (Date.now() < deadline) {
+        if (proc.exitCode !== null || proc.signalCode !== null) {
+          break;
+        }
+        await sleep(100);
+      }
+      if (proc.exitCode === null && proc.signalCode === null) {
+        log.warn('Electrobun app did not exit gracefully, sending SIGKILL');
+        proc.kill('SIGKILL');
+        // Brief reap-wait before rmSync removes the bundle clone — un-reaped CEF
+        // helper subprocesses can still hold handles inside the temp dir (EBUSY).
+        const killDeadline = Date.now() + SIGKILL_REAP_MS;
+        while (Date.now() < killDeadline) {
+          if (proc.exitCode !== null || proc.signalCode !== null) {
+            break;
+          }
+          await sleep(100);
+        }
       }
     }
   }

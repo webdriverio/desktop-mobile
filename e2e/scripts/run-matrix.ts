@@ -2,7 +2,7 @@
 
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { loadavg } from 'node:os';
-import { join } from 'node:path';
+import { delimiter, join } from 'node:path';
 import pLimit from 'p-limit';
 import { createEnvironmentContext, type EnvironmentContext } from '../config/envSchema.js';
 import { StatusBar, type TestResult, TestStatusTracker } from '../lib/statusBar.js';
@@ -204,6 +204,10 @@ async function runTest(
       testEnv.ENABLE_SPLASH_WINDOW = 'true';
     }
 
+    // Put the workspace bin on PATH so `wdio` resolves directly via the matrix script
+    const pathKey = Object.keys(process.env).find((k) => k.toLowerCase() === 'path') ?? 'PATH';
+    testEnv[pathKey] = `${join(process.cwd(), 'node_modules', '.bin')}${delimiter}${process.env[pathKey] ?? ''}`;
+
     console.log(`  Environment: ${JSON.stringify(testEnv, null, 2)}`);
 
     // Create log directory for this test
@@ -284,8 +288,7 @@ async function runTest(
 
       result = lastResult;
     } else {
-      // Run the test - execWdio automatically retries xvfb failures on Linux
-      result = await execWdio('pnpm wdio run wdio.conf.ts', testEnv, {
+      result = await execWdio('wdio run wdio.conf.ts', testEnv, {
         cwd: process.cwd(),
         timeout: 300000, // 5 minutes
       });
