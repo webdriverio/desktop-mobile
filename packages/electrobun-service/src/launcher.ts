@@ -294,7 +294,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     const workerApps: ElectrobunAppProcess[] = [];
 
     for (let i = 0; i < capsList.length; i++) {
-      const cap = capsList[i];
+      const { caps: cap, connectionTarget } = capsList[i];
       // The resolved bundle is a shared template: one resolved app safely drives any number of
       // parallel workers, each spawned with its own freshly allocated port.
       const app = this.resolvedApps[i] ?? this.resolvedApps[0];
@@ -331,9 +331,13 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         this.webkitDriversByCid.set(cid, drivers);
 
         const w3cCap = cap as Record<string, unknown>;
-        // hostname/port are connection params (not capabilities), set per worker with the allocated port.
-        w3cCap.hostname = driver.host;
-        w3cCap.port = driver.port;
+        // hostname/port are connection params, not capabilities, so they go on `connectionTarget`.
+        // WDIO's single-session path hoists them out of the caps object, but its multiremote path
+        // reads them ONLY from the outer `{ capabilities }` wrapper — writing them on the inner caps
+        // there leaves each instance dialling the default host:port. See
+        // https://github.com/webdriverio/desktop-mobile/issues/633
+        connectionTarget.hostname = driver.host;
+        connectionTarget.port = driver.port;
         const w3cOptions = (w3cCap['webkitgtk:browserOptions'] ?? {}) as Record<string, unknown>;
         w3cCap['webkitgtk:browserOptions'] = { ...w3cOptions, binary: clonedBinaryPath };
 
@@ -452,25 +456,43 @@ function normaliseCaps(
   return Object.values(capabilities).map((entry) => entry.capabilities);
 }
 
+/** A worker capability paired with the object WDIO reads its per-instance connection params from. */
+interface WorkerCapEntry {
+  /** The W3C capabilities — where capability keys (`webkitgtk:browserOptions`, `debuggerAddress`) go. */
+  caps: ElectrobunCapabilities;
+  /**
+   * Where per-instance connection params (`hostname`/`port`) must be written. WDIO's single-session
+   * path hoists these out of the capabilities object, but its multiremote path reads them ONLY from
+   * the outer `{ capabilities }` wrapper (see `@wdio/runner` `initializeInstance`) — so for
+   * multiremote this is that wrapper, otherwise the caps object itself.
+   */
+  connectionTarget: Record<string, unknown>;
+}
+
 /**
- * Normalise the capabilities `onWorkerStart` receives into a flat per-instance list. For a
- * multiremote run WDIO passes the `{ instanceName: { capabilities } }` record; for a standard
- * run it's an array (or a lone cap object). Extracting the record's per-instance caps — by
- * reference, so the `debuggerAddress` set on each below reaches WDIO — is what lets multiremote
- * spawn one app per instance instead of mistaking the whole record for a single cap.
+ * Normalise the capabilities `onWorkerStart` receives into a flat per-instance list, pairing each
+ * instance's caps with its connection target. For a multiremote run WDIO passes the
+ * `{ instanceName: { capabilities } }` record; for a standard run it's an array (or a lone cap
+ * object). Extracting the record's per-instance caps — by reference, so the `debuggerAddress`/
+ * `hostname`/`port` set on each below reach WDIO — is what lets multiremote drive one app per
+ * instance instead of mistaking the whole record for a single cap.
  */
 function normaliseWorkerCaps(
   capabilities:
     | ElectrobunCapabilities
     | ElectrobunCapabilities[]
     | Record<string, { capabilities: ElectrobunCapabilities }>,
-): ElectrobunCapabilities[] {
+): WorkerCapEntry[] {
   if (Array.isArray(capabilities)) {
-    return capabilities;
+    return capabilities.map((caps) => ({ caps, connectionTarget: caps as Record<string, unknown> }));
   }
   const values = Object.values(capabilities);
   if (values.length > 0 && values.every((v) => v != null && typeof v === 'object' && 'capabilities' in v)) {
-    return (values as Array<{ capabilities: ElectrobunCapabilities }>).map((entry) => entry.capabilities);
+    return (values as Array<{ capabilities: ElectrobunCapabilities }>).map((entry) => ({
+      caps: entry.capabilities,
+      connectionTarget: entry as unknown as Record<string, unknown>,
+    }));
   }
-  return [capabilities as ElectrobunCapabilities];
+  const caps = capabilities as ElectrobunCapabilities;
+  return [{ caps, connectionTarget: caps as Record<string, unknown> }];
 }

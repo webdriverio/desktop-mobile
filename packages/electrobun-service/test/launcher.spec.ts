@@ -489,10 +489,17 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(cloneAppBundle)).toHaveBeenCalledTimes(2);
       expect(vi.mocked(spawnWebKitWebDriver)).toHaveBeenCalledTimes(2);
       for (const key of ['instanceA', 'instanceB'] as const) {
+        const entry = record[key] as Record<string, unknown>;
         const cap = record[key].capabilities as Record<string, unknown>;
         expect((cap['webkitgtk:browserOptions'] as { binary?: string }).binary).toContain(
           '/wdio-electrobun-bundle-clone/',
         );
+        // Connection params MUST be on the outer wrapper — WDIO's multiremote path reads hostname/
+        // port from there, not from the inner caps (which it would drop). Regression for #633.
+        expect(entry.hostname).toBe('127.0.0.1');
+        expect(typeof entry.port).toBe('number');
+        expect(cap.hostname).toBeUndefined();
+        expect(cap.port).toBeUndefined();
       }
     });
 
