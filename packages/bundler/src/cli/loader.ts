@@ -182,6 +182,7 @@ export class ConfigLoader {
   private async loadFromTypeScript(filePath: string): Promise<Partial<BundlerConfig>> {
     const { spawn } = await import('node:child_process');
     const { pathToFileURL } = await import('node:url');
+    const { createRequire } = await import('node:module');
 
     try {
       // Convert file path to file URL for cross-platform compatibility
@@ -225,13 +226,16 @@ writeFileSync('${tempJsonPath.replace(/\\/g, '\\\\')}', JSON.stringify(serialize
 
       writeFileSync(tempScript, tsxScript);
 
+      // Run the workspace-local tsx via node directly.
+      const tsxBin = createRequire(import.meta.url).resolve('tsx/cli');
+
       try {
-        // Execute tsx to generate the JSON file
+        // On Windows, wait for 'exit' and discard stdout: a tsx child keeps the inherited stdio
+        // open after tsx exits, so 'close' never fires and a piped stdout deadlocks.
         await new Promise<void>((resolve, reject) => {
-          const child = spawn('pnpx', ['tsx', tempScript], {
-            stdio: ['pipe', 'pipe', 'pipe'],
+          const child = spawn(process.execPath, [tsxBin, tempScript], {
+            stdio: ['ignore', 'ignore', 'pipe'],
             cwd: this.cwd,
-            shell: process.platform === 'win32', // Use shell on Windows to resolve pnpx.cmd
           });
 
           let stderr = '';
@@ -239,7 +243,7 @@ writeFileSync('${tempJsonPath.replace(/\\/g, '\\\\')}', JSON.stringify(serialize
             stderr += data.toString();
           });
 
-          child.on('close', (code) => {
+          child.on('exit', (code) => {
             if (code === 0) {
               resolve();
             } else {
