@@ -24,9 +24,10 @@ concurrency:
 
 jobs:
   mirror:
+    # Match the gate's fail-closed classification so the crabnebula:run it advertises always fires.
     if: >-
       github.event.label.name == 'crabnebula:run' &&
-      github.event.pull_request.head.repo.fork == true
+      github.event.pull_request.head.repo.fork != false
     runs-on: ubuntu-latest
     steps:
       # No ref: — pull_request_target holds a writable token, so it must stay on trusted main, never fork code.
@@ -132,10 +133,12 @@ jobs:
             echo "::error::Failed to dispatch the keyed run; cleaned up $BR and the label."
             exit 1
           fi
+          # workflow_dispatch returns no run id, so link the branch-filtered run list rather than the exact run.
+          RUNS_URL="$GITHUB_SERVER_URL/$REPO/actions/workflows/crabnebula-mirror-run.yml?query=branch%3A${BR}"
           # || true so a failure here can't skip the label-drop below — the report job posts the real status.
           gh api "repos/$REPO/statuses/$SHA" -f state=pending -f context='CrabNebula / macOS' \
             -f description='Keyed macOS CrabNebula run dispatched on the reviewed commit.' \
-            -f target_url="$PR_URL" || true
-          gh api "repos/$REPO/issues/$PR/comments" -f body="🔑 macOS CrabNebula verification dispatched for \`${SHA:0:7}\` on \`${BR}\`. Result will post back as the \`CrabNebula / macOS\` check." || true
+            -f target_url="$RUNS_URL" || true
+          gh api "repos/$REPO/issues/$PR/comments" -f body="🔑 macOS CrabNebula verification dispatched for \`${SHA:0:7}\` on \`${BR}\` → [view run]($RUNS_URL). Result will post back as the \`CrabNebula / macOS\` check." || true
           # Drop the label now (the run carries pr/sha) — otherwise a cancel before its report job leaves it wedged.
           gh api "repos/$REPO/issues/$PR/labels/crabnebula%3Arun" -X DELETE || true

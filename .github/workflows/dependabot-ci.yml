@@ -103,7 +103,7 @@ jobs:
           RUN_URL: ${{ steps.locate.outputs.run_url }}
           LABEL: ${{ github.event.label.name }}
         run: |
-          gh pr comment "$PR" --repo "$REPO" --body "CI dispatched via \`$LABEL\` → [view run]($RUN_URL). The result posts back as the \`CI / Required\` status on this PR; the run itself won't appear in the PR checks list (\`workflow_dispatch\` runs aren't PR-associated)."
+          gh pr comment "$PR" --repo "$REPO" --body "CI dispatched via \`$LABEL\` → [view run]($RUN_URL); result posts back as the \`CI / Required\` status. Re-add \`$LABEL\` to re-run."
       - name: Remove the trigger label
         # Always remove so re-adding the label re-runs CI, even if a feedback step hiccupped.
         if: always()

@@ -82,13 +82,13 @@ jobs:
             fi
             if [ "$truncated" = "true" ]; then
               state=pending
-              desc="Too many files to classify automatically (>3000) — review, then add crabnebula:verified."
+              desc="Too many files to classify (>3000) — review, then add crabnebula:run to verify on macOS, or crabnebula:verified to attest."
             elif [ -z "$run_tauri" ]; then
               state=pending
               desc="Gate could not classify changes — re-run the job or push to retry."
             elif [ "$run_tauri" = "true" ] && [ "$run_lint_only" != "true" ]; then
               state=pending
-              desc="Blocked: macOS CrabNebula skipped on this fork. Review, verify, then add crabnebula:verified."
+              desc="Skipped on this fork — review, then add crabnebula:run to verify on macOS, or crabnebula:verified to attest without a run."
             fi
           fi
           echo "fork=$IS_FORK -> $state"
