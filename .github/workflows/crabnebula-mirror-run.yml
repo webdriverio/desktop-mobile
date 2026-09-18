@@ -62,6 +62,7 @@ jobs:
       node-version: '24'
       test-type: ${{ matrix.test-type }}
       require_crabnebula: true
+      crabnebula_only: true
       enable_debug: false
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}

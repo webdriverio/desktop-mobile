@@ -40,6 +40,10 @@ on:
         description: 'Fail the job if the CrabNebula leg is skipped (used by the keyed verification run)'
         type: boolean
         default: false
+      crabnebula_only:
+        description: 'Run only the CrabNebula provider — the fork PR''s own CI already covered official/embedded.'
+        type: boolean
+        default: false
       enable_debug:
         description: 'Debug conveniences that widen exposure (interactive session + log artifacts). Off for the keyed fork-code run.'
         type: boolean
@@ -366,7 +370,7 @@ jobs:
       # ══════════════════════════════════════════════════════════════
 
       - name: 🧹 Cleanup [Official]
-        if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
+        if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel' && !inputs.crabnebula_only
         shell: bash
         run: |
           echo "Cleaning up before Official provider tests..."
@@ -379,7 +383,7 @@ jobs:
 
       - name: 🧪 E2E Tests [Official]
         id: test-official
-        if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
+        if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel' && !inputs.crabnebula_only
         continue-on-error: true
         shell: pwsh
         working-directory: e2e
@@ -398,7 +402,7 @@ jobs:
           }
 
       - name: 🧹 Post-cleanup [Official]
-        if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
+        if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel' && !inputs.crabnebula_only
         shell: bash
         run: |
           echo "Cleaning up after Official provider tests..."
@@ -411,7 +415,7 @@ jobs:
           fi
 
       - name: 🐛 Debug Information [Official]
-        if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
+        if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel' && !inputs.crabnebula_only
         shell: bash
         run: node e2e/scripts/show-logs.ts --provider official
 
@@ -420,7 +424,7 @@ jobs:
       # ══════════════════════════════════════════════════════════════
 
       - name: 🧹 Cleanup [Embedded]
-        if: always()
+        if: always() && !inputs.crabnebula_only
         shell: bash
         run: |
           echo "Cleaning up before Embedded provider tests..."
@@ -432,6 +436,7 @@ jobs:
 
       - name: 🧪 E2E Tests [Embedded]
         id: test-embedded
+        if: ${{ !inputs.crabnebula_only }}
         continue-on-error: true
         shell: pwsh
         working-directory: e2e
@@ -448,7 +453,7 @@ jobs:
           }
 
       - name: 🧹 Post-cleanup [Embedded]
-        if: always()
+        if: always() && !inputs.crabnebula_only
         shell: bash
         run: |
           echo "Cleaning up after Embedded provider tests..."
@@ -459,7 +464,7 @@ jobs:
           fi
 
       - name: 🐛 Debug Information [Embedded]
-        if: always()
+        if: always() && !inputs.crabnebula_only
         shell: bash
         run: node e2e/scripts/show-logs.ts --provider embedded
 
