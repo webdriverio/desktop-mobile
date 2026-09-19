@@ -117,7 +117,7 @@ describe('ensureEmbeddedServersHealthy', () => {
     await (launcher as any).ensureEmbeddedServersHealthy();
 
     expect(stopEmbeddedDriver).toHaveBeenCalledWith(stubDriverInfo);
-    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0', undefined);
+    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0');
     expect((launcher as any).embeddedProcesses.get('0')).toBe(newInfo);
   });
 
@@ -154,7 +154,7 @@ describe('ensureEmbeddedServersHealthy', () => {
     await (launcher as any).ensureEmbeddedServersHealthy();
 
     expect(startEmbeddedDriver).toHaveBeenCalledOnce();
-    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0', undefined);
+    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0');
     expect((launcher as any).embeddedProcesses.get('0')).toBe(newInfo);
     expect((launcher as any).embeddedProcesses.get('1')).toBe(driverInfo2);
   });
@@ -216,7 +216,7 @@ describe('verifyEmbeddedServerStable — Windows stability probes', () => {
     await vi.advanceTimersByTimeAsync(600);
     await promise;
 
-    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0', undefined);
+    expect(startEmbeddedDriver).toHaveBeenCalledWith(APP_BINARY, EMBEDDED_PORT, {}, '0');
     expect((launcher as any).embeddedProcesses.get('0')).toBe(newInfo);
   });
 
@@ -248,7 +248,7 @@ describe('onWorkerStart — embedded health check guard', () => {
 
     await launcher.onWorkerStart('0-0', stdCaps as any);
 
-    expect(checkEmbeddedServerAlive).toHaveBeenCalledWith(EMBEDDED_PORT, undefined, undefined);
+    expect(checkEmbeddedServerAlive).toHaveBeenCalledWith(EMBEDDED_PORT, undefined);
   });
 
   it('should skip health check when isEmbeddedMode=false', async () => {

@@ -2,7 +2,6 @@ import http from 'node:http';
 import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
-import { throwIfAborted } from './errors.js';
 import TauriLaunchService from './launcher.js';
 import { closeLogWriter, getLogWriter } from './logWriter.js';
 import TauriWorkerService from './service.js';
@@ -16,9 +15,9 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, TauriLaunchService>();
 // (mock store + window state) that WDIO's standalone path never invokes itself.
 const activeServices = new WeakMap<WebdriverIO.Browser, TauriWorkerService>();
 
-async function checkDriverHealth(hostname: string, port: number, signal?: AbortSignal): Promise<boolean> {
+async function checkDriverHealth(hostname: string, port: number): Promise<boolean> {
   return new Promise((resolve) => {
-    const req = http.get(`http://${hostname}:${port}/status`, { signal }, (res) => {
+    const req = http.get(`http://${hostname}:${port}/status`, (res) => {
       resolve(res.statusCode === 200);
       res.resume();
     });
@@ -37,8 +36,6 @@ export async function init(
   capabilities: TauriCapabilities,
   globalOptions?: TauriServiceGlobalOptions,
 ): Promise<WebdriverIO.Browser> {
-  const abortSignal = globalOptions?.abortSignal;
-  throwIfAborted(abortSignal);
   log.debug('Initializing Tauri service in standalone mode...');
 
   // Initialize standalone log writer if logging is enabled
@@ -65,11 +62,9 @@ export async function init(
   try {
     // Prepare the service
     await launcher.onPrepare(testRunnerOpts, [capabilities]);
-    throwIfAborted(abortSignal);
 
     // Start worker session
     await launcher.onWorkerStart('standalone', capabilities);
-    throwIfAborted(abortSignal);
 
     log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, null, 2));
 
@@ -115,8 +110,7 @@ export async function init(
     log.debug(`Connection info for remote(): hostname=${hostname}, port=${port}, browserName=wry (display only)`);
 
     // Verify driver is healthy before session creation
-    const driverHealthy = await checkDriverHealth(hostname, port, abortSignal);
-    throwIfAborted(abortSignal);
+    const driverHealthy = await checkDriverHealth(hostname, port);
     if (!driverHealthy) {
       log.warn('tauri-driver health check failed before session creation');
     }
@@ -136,19 +130,11 @@ export async function init(
       capabilities: driverCapabilities,
       connectionRetryTimeout: startTimeout * 4,
       connectionRetryCount: 10,
-      transformRequest: abortSignal
-        ? (requestOptions) => ({
-            ...requestOptions,
-            signal: AbortSignal.any([...(requestOptions.signal ? [requestOptions.signal] : []), abortSignal]),
-          })
-        : undefined,
     });
-    throwIfAborted(abortSignal);
 
     log.debug('Remote session created successfully, initializing service...');
 
     await service.before(capabilities, [], browser);
-    throwIfAborted(abortSignal);
     activeLaunchers.set(browser, launcher);
     activeServices.set(browser, service);
 

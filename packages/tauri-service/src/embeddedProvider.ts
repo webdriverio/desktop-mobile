@@ -76,9 +76,7 @@ export async function startEmbeddedDriver(
   port: number,
   options: TauriServiceOptions,
   instanceId?: string,
-  abortSignal?: AbortSignal,
 ): Promise<EmbeddedDriverInfo> {
-  throwIfAborted(abortSignal);
   const appArgs = options.appArgs || [];
 
   // Set TAURI_WEBDRIVER_PORT env var to configure the embedded server port
@@ -95,9 +93,6 @@ export async function startEmbeddedDriver(
 
   const logHandlers: ReadlineInterface[] = [];
   const startup = new AbortController();
-  const onAbort = () => startup.abort(abortSignal?.reason);
-  abortSignal?.addEventListener('abort', onAbort, { once: true });
-  if (abortSignal?.aborted) onAbort();
 
   const startTimeout = options.startTimeout || 60000;
   const timer = setTimeout(
@@ -158,7 +153,6 @@ export async function startEmbeddedDriver(
     throw cause;
   } finally {
     clearTimeout(timer);
-    abortSignal?.removeEventListener('abort', onAbort);
     child.removeListener('error', onError);
     child.removeListener('exit', onExit);
   }
@@ -270,14 +264,10 @@ function signalAndWaitForExit(child: ChildProcess, signal: NodeJS.Signals, timeo
 /**
  * Check if the embedded WebDriver server is reachable on the given port
  */
-export async function checkEmbeddedServerAlive(
-  port: number,
-  timeoutMs: number = 2000,
-  abortSignal?: AbortSignal,
-): Promise<boolean> {
+export async function checkEmbeddedServerAlive(port: number, timeoutMs: number = 2000): Promise<boolean> {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/status`, {
-      signal: AbortSignal.any([AbortSignal.timeout(timeoutMs), ...(abortSignal ? [abortSignal] : [])]),
+      signal: AbortSignal.timeout(timeoutMs),
     });
     return response.ok;
   } catch {

@@ -22,7 +22,7 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
-import { severeServiceError, throwIfAborted } from './errors.js';
+import { severeServiceError } from './errors.js';
 import { PortManager } from './portManager.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
@@ -411,13 +411,7 @@ export default class TauriLaunchService {
 
           // Spawn the app with embedded WebDriver
           try {
-            const driverInfo = await startEmbeddedDriver(
-              appBinaryPath,
-              embeddedPort,
-              instanceOptions,
-              instanceId,
-              this.options.abortSignal,
-            );
+            const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, instanceId);
             this.embeddedProcesses.set(instanceId, driverInfo);
             this.embeddedConfigs.set(instanceId, { appBinaryPath, port: embeddedPort, options: instanceOptions });
           } catch (error) {
@@ -602,13 +596,7 @@ export default class TauriLaunchService {
 
         // Spawn the app with embedded WebDriver
         try {
-          const driverInfo = await startEmbeddedDriver(
-            appBinaryPath,
-            embeddedPort,
-            instanceOptions,
-            String(i),
-            this.options.abortSignal,
-          );
+          const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, String(i));
           this.embeddedProcesses.set(String(i), driverInfo);
           this.embeddedConfigs.set(String(i), { appBinaryPath, port: embeddedPort, options: instanceOptions });
         } catch (error) {
@@ -858,13 +846,7 @@ export default class TauriLaunchService {
    */
   private async ensureEmbeddedServersHealthy(): Promise<void> {
     for (const [instanceId, config] of this.embeddedConfigs) {
-      throwIfAborted(this.options.abortSignal);
-      const isAlive = await checkEmbeddedServerAlive(
-        config.port,
-        config.options.statusPollTimeout,
-        this.options.abortSignal,
-      );
-      throwIfAborted(this.options.abortSignal);
+      const isAlive = await checkEmbeddedServerAlive(config.port, config.options.statusPollTimeout);
       if (!isAlive) {
         await this.restartEmbeddedServer(instanceId, config);
       } else {
@@ -887,13 +869,7 @@ export default class TauriLaunchService {
       this.embeddedProcesses.delete(instanceId);
     }
     try {
-      const newInfo = await startEmbeddedDriver(
-        config.appBinaryPath,
-        config.port,
-        config.options,
-        instanceId,
-        this.options.abortSignal,
-      );
+      const newInfo = await startEmbeddedDriver(config.appBinaryPath, config.port, config.options, instanceId);
       this.embeddedProcesses.set(instanceId, newInfo);
       log.info(`✅ Embedded WebDriver restarted on port ${config.port} (instance: ${instanceId})`);
     } catch (error) {
@@ -914,13 +890,7 @@ export default class TauriLaunchService {
     const PROBE_INTERVAL_MS = 500;
     for (let i = 0; i < PROBE_COUNT; i++) {
       await new Promise<void>((resolve) => setTimeout(resolve, PROBE_INTERVAL_MS));
-      throwIfAborted(this.options.abortSignal);
-      const isAlive = await checkEmbeddedServerAlive(
-        config.port,
-        config.options.statusPollTimeout,
-        this.options.abortSignal,
-      );
-      throwIfAborted(this.options.abortSignal);
+      const isAlive = await checkEmbeddedServerAlive(config.port, config.options.statusPollTimeout);
       if (!isAlive) {
         log.warn(
           `Embedded WebDriver on port ${config.port} died during stability check (probe ${i + 1}/${PROBE_COUNT}), restarting...`,

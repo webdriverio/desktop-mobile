@@ -369,39 +369,6 @@ describe('embedded lifecycle races', () => {
     return requests;
   }
 
-  it('does not spawn for a pre-aborted signal', async () => {
-    const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
-    const reason = new Error('already cancelled');
-    await expect(startEmbeddedDriver('/app', 4445, {}, undefined, AbortSignal.abort(reason))).rejects.toBe(reason);
-    expect(spawn).not.toHaveBeenCalled();
-  });
-
-  it('aborts the in-flight poll and waits for child exit before rejecting', async () => {
-    const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
-    const { getEventListeners } = await import('node:events');
-    const requests = stallFetch();
-    vi.mocked(child.kill).mockReturnValue(true);
-    const controller = new AbortController();
-    const reason = new Error('cancelled');
-    let settled = false;
-    const result = startEmbeddedDriver('/app', 4445, {}, undefined, controller.signal).catch((error: unknown) => {
-      settled = true;
-      return error;
-    });
-    controller.abort(reason);
-    await vi.advanceTimersByTimeAsync(0);
-    expect(requests[0].aborted).toBe(true);
-    expect(child.kill).toHaveBeenCalledWith('SIGTERM');
-    expect(settled).toBe(false);
-    child.exitCode = 0;
-    child.emit('exit', 0, null);
-    expect(await result).toBe(reason);
-    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
-    expect(child.listenerCount('exit')).toBe(0);
-    expect(child.listenerCount('error')).toBe(0);
-    expect(vi.getTimerCount()).toBe(0);
-  });
-
   it('enforces startTimeout even while the HTTP request is stalled', async () => {
     const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
     const requests = stallFetch();
@@ -424,18 +391,18 @@ describe('embedded lifecycle races', () => {
     expect(vi.getTimerCount()).toBe(0);
   });
 
-  it('preserves both startup and kill errors', async () => {
+  it('preserves both a startup failure and a cleanup failure', async () => {
     const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
     stallFetch();
-    const controller = new AbortController();
-    const cause = new Error('cancelled');
     const cleanup = new Error('permission denied');
     vi.mocked(child.kill).mockImplementation(() => {
       throw cleanup;
     });
-    const result = startEmbeddedDriver('/app', 4445, {}, undefined, controller.signal);
-    controller.abort(cause);
-    await expect(result).rejects.toMatchObject({ cause, errors: [cause, cleanup] });
+    const result = startEmbeddedDriver('/app', 4445, { startTimeout: 20 }).catch((error: unknown) => error);
+    await vi.advanceTimersByTimeAsync(20);
+    const rejection = (await result) as AggregateError & { cause: Error };
+    expect(rejection.cause).toMatchObject({ message: expect.stringContaining('within 20ms') });
+    expect(rejection.errors).toEqual([rejection.cause, cleanup]);
     expect(child.listenerCount('exit')).toBe(0);
     expect(child.listenerCount('error')).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
@@ -443,15 +410,11 @@ describe('embedded lifecycle races', () => {
 
   it('removes startup listeners and timers when ready', async () => {
     const { startEmbeddedDriver } = await import('../src/embeddedProvider.js');
-    const { getEventListeners } = await import('node:events');
     globalThis.fetch = vi.fn().mockResolvedValue({ ok: true, json: async () => ({ value: { ready: true } }) });
-    const controller = new AbortController();
-    await startEmbeddedDriver('/app', 4445, {}, undefined, controller.signal);
-    expect(getEventListeners(controller.signal, 'abort')).toHaveLength(0);
+    await startEmbeddedDriver('/app', 4445, {});
     expect(child.listenerCount('exit')).toBe(0);
     expect(child.listenerCount('error')).toBe(0);
     expect(vi.getTimerCount()).toBe(0);
-    controller.abort();
     expect(child.kill).not.toHaveBeenCalled();
   });
 

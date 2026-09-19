@@ -32,8 +32,8 @@ describe('embedded process and HTTP lifecycle', () => {
     await new Promise<void>((resolve, reject) => server.close((error) => (error ? reject(error) : resolve())));
   });
 
-  function start(signal?: AbortSignal, script = "console.log('started'); setInterval(() => {}, 1000)") {
-    const result = startEmbeddedDriver(process.execPath, port, { appArgs: ['-e', script] }, undefined, signal);
+  function start(script = "console.log('started'); setInterval(() => {}, 1000)") {
+    const result = startEmbeddedDriver(process.execPath, port, { appArgs: ['-e', script] });
     child = vi.mocked(spawn).mock.results.at(-1)?.value as ChildProcess;
     return result;
   }
@@ -62,30 +62,8 @@ describe('embedded process and HTTP lifecycle', () => {
     expect(info.proc.stderr?.destroyed).toBe(true);
   });
 
-  it.each(['headers', 'body'] as const)('cancels a stalled response %s and reaps the child', async (stage) => {
-    const received = defer();
-    const disconnected = defer();
-    server.on('request', (_request, response) => {
-      response.on('close', () => disconnected.resolve());
-      if (stage === 'body') {
-        response.writeHead(200, { 'Content-Type': 'application/json' });
-        response.write('{"value":');
-      }
-      received.resolve();
-    });
-    const controller = new AbortController();
-    const result = start(controller.signal).catch((error: unknown) => error);
-    const reason = new Error('cancelled by test');
-    await received.promise;
-    controller.abort(reason);
-    expect(await result).toBe(reason);
-    await disconnected.promise;
-    expect(child?.exitCode !== null || child?.signalCode !== null).toBe(true);
-    expect(child?.stdout?.destroyed).toBe(true);
-  });
-
-  it('reports early exit and cancels a pending readiness request', async () => {
-    const result = start(undefined, 'process.exit(17)');
+  it('reports early exit and stops the pending readiness poll', async () => {
+    const result = start('process.exit(17)');
     await expect(result).rejects.toThrow('code=17');
     expect(child?.exitCode).toBe(17);
     expect(child?.listenerCount('exit')).toBe(0);
@@ -103,10 +81,7 @@ describe('embedded process and HTTP lifecycle', () => {
       await booted.promise;
       response.end(JSON.stringify({ value: { ready: true } }));
     });
-    const result = start(
-      undefined,
-      "process.on('SIGTERM', () => {}); console.log('started'); setInterval(() => {}, 1000)",
-    );
+    const result = start("process.on('SIGTERM', () => {}); console.log('started'); setInterval(() => {}, 1000)");
     if (!child?.stdout) throw new Error('Expected child stdout');
     await once(child.stdout, 'data');
     booted.resolve();
