@@ -35,6 +35,7 @@ export class DriverPool {
   private core = new CoreDriverPool();
   private globalOptions: TauriServiceOptions;
   private nativeDriverPath?: string;
+  private nativeDriverPathResolved = false;
 
   constructor(globalOptions: TauriServiceOptions = {}, nativeDriverPath?: string) {
     this.globalOptions = globalOptions;
@@ -50,7 +51,10 @@ export class DriverPool {
     }
 
     const tauriDriverPath = driverResult.value.path;
-    const nativeDriverPath = this.nativeDriverPath ?? getWebKitWebDriverPath();
+    if (!this.nativeDriverPathResolved) {
+      this.nativeDriverPath = this.nativeDriverPath || getWebKitWebDriverPath();
+      this.nativeDriverPathResolved = true;
+    }
 
     return this.core.startDriver({
       mode: config.mode,
@@ -58,7 +62,7 @@ export class DriverPool {
       port: config.port,
       nativePort: config.nativePort,
       driverPath: tauriDriverPath,
-      nativeDriverPath,
+      nativeDriverPath: this.nativeDriverPath,
       env: config.env,
       instanceId: config.instanceId,
       driverName: 'tauri-driver',
