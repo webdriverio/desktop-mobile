@@ -253,8 +253,7 @@ final WdioMockRegistry wdioRegistry = WdioMockRegistry();
 /// The registry backing `browser.flutter.execute`. Dart is AOT-compiled, so there's no runtime
 /// source eval under a bare Appium launch — instead the app registers named handlers here and the
 /// test invokes them by name (`browser.flutter.execute('<name>', ...args)`), the same cooperative
-/// model as mocking. Arbitrary Dart-expression eval is an opt-in path (attach a Dart compiler);
-/// see the package README.
+/// model as mocking.
 ///
 /// ```dart
 /// wdioHandlers.register('readCounter', () => counter);

@@ -89,10 +89,6 @@ await browser.flutter.execute('add', 2, 3);       // → 5
 await browser.flutter.execute('loadUser', 'u1');  // awaits the Future
 ```
 
-`execute` is **handler-only**: an unknown name throws an error listing the registered handlers (it
-does not silently evaluate the name as Dart).
-
-> **Planned — arbitrary Dart-expression eval (opt-in).** Evaluating an unregistered expression
-> (e.g. `execute('1 + 1')`) needs an attached Dart compiler — a planned opt-in
-> ([#389](https://github.com/webdriverio/desktop-mobile/issues/389)). Until then, register a handler
-> for anything you want to drive.
+`execute` is **handler-only**: an unknown name throws an error listing the registered handlers. It
+does not evaluate the name as Dart, and attaching a compiler yourself (`flutter attach`) doesn't
+change that — so register a handler for anything you want to drive.

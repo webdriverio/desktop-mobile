@@ -49,9 +49,8 @@ export interface FlutterMock<TArgs extends unknown[] = unknown[], TReturns = unk
  * the Appium W3C session (appium-flutter-driver, `FLUTTER` context); `execute`/`mock`
  * run in the app's Dart isolate over the Dart VM Service.
  *
- * NOTE — `execute` divergence: Flutter has no JS realm, so `script` is a **Dart
- * expression string** evaluated in the app's root library (not a JS function like the
- * other services).
+ * NOTE — `execute` divergence: Flutter has no JS realm, so the first arg is a **registered
+ * handler name**, not a script/expression run in the app like the other services.
  */
 export interface FlutterServiceAPI {
   /**
@@ -70,8 +69,7 @@ export interface FlutterServiceAPI {
    * ```
    *
    * Handler-only: an unknown `name` throws an error listing the registered handlers (a typo or a
-   * forgotten `register()` is obvious). Arbitrary Dart-expression eval is a planned opt-in (needs an
-   * attached compiler) — see the package README.
+   * forgotten `register()` is obvious); it does not evaluate the name as Dart.
    */
   execute<ReturnValue = unknown>(name: string, ...args: unknown[]): Promise<ReturnValue>;
 
@@ -267,7 +265,7 @@ export interface FlutterBrowserExtension extends BrowserBase {
   /**
    * Access the WebdriverIO Flutter Service API.
    *
-   * - {@link FlutterServiceAPI.execute `browser.flutter.execute`} — evaluate a Dart expression
+   * - {@link FlutterServiceAPI.execute `browser.flutter.execute`} — invoke a registered Dart handler by name
    * - {@link FlutterServiceAPI.mock `browser.flutter.mock`} — mock a Dart seam via the contract
    * - {@link FlutterServiceAPI.byValueKey `browser.flutter.byValueKey`} — find a widget by ValueKey (tap/getText)
    * - {@link FlutterServiceAPI.byText `browser.flutter.byText`} — find a widget by text (tap/getText)

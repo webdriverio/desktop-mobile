@@ -6,8 +6,7 @@
 // VM-service extension (args JSON-serialised, result JSON). An unregistered name is an error that
 // lists the registered handlers (catching a typo / forgotten register()).
 //
-// Arbitrary Dart-expression eval is a separate opt-in (attach a Dart compiler) — see issue #389;
-// it is NOT a silent fallback here, so a missing handler reports as exactly that.
+// The VM `evaluate` RPC exists (vmService.ts) but this command deliberately doesn't use it.
 
 import type { VmServiceClient } from '../vmService.js';
 
@@ -23,7 +22,7 @@ interface InvokeResult {
  * Invoke the app-registered Dart handler `name` with positional `args` over `ext.wdio.invoke`.
  *
  * @throws if the handler itself throws, or no handler is registered for `name` — the message lists
- *   the registered handler names. (Arbitrary Dart-expression eval is a separate opt-in; see #389.)
+ *   the registered handler names.
  */
 export async function executeScript<ReturnValue = unknown>(
   client: VmServiceClient,
