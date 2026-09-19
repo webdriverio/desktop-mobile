@@ -1,29 +1,32 @@
-import { describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it } from 'vitest';
 
 describe('@wdio/dioxus-service public exports', () => {
-  it('should expose the worker service as the default export', async () => {
-    const mod = await import('../src/index.js');
+  // Cold-importing the whole module graph can exceed the default 5s on slow CI; do it once here
+  // with a longer hook timeout so the export assertions below stay at the default.
+  let mod: typeof import('../src/index.js');
+  beforeAll(async () => {
+    mod = await import('../src/index.js');
+  }, 20000);
+
+  it('should expose the worker service as the default export', () => {
     expect(mod.default).toBeTypeOf('function');
     expect(mod.default.name).toBe('DioxusWorkerService');
   });
 
-  it('should expose the launch service as the named "launcher" export', async () => {
-    const { launcher } = await import('../src/index.js');
-    expect(launcher).toBeTypeOf('function');
-    expect(launcher.name).toBe('DioxusLaunchService');
+  it('should expose the launch service as the named "launcher" export', () => {
+    expect(mod.launcher).toBeTypeOf('function');
+    expect(mod.launcher.name).toBe('DioxusLaunchService');
   });
 
-  it('should re-export the linuxExternalProviderUnsupported helper', async () => {
-    const { linuxExternalProviderUnsupported } = await import('../src/index.js');
-    const err = linuxExternalProviderUnsupported();
+  it('should re-export the linuxExternalProviderUnsupported helper', () => {
+    const err = mod.linuxExternalProviderUnsupported();
     expect(err).toBeInstanceOf(Error);
     expect(err.message).toContain("driverProvider: 'external'");
     expect(err.message).toContain('Linux');
     expect(err.message).toContain("'embedded'");
   });
 
-  it('should re-export SevereServiceError', async () => {
-    const { SevereServiceError } = await import('../src/index.js');
-    expect(SevereServiceError).toBeTypeOf('function');
+  it('should re-export SevereServiceError', () => {
+    expect(mod.SevereServiceError).toBeTypeOf('function');
   });
 });
