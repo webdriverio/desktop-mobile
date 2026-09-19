@@ -20,8 +20,7 @@ describe('browser.flutter.execute', () => {
   });
 
   it('should throw a listing error for an unregistered handler name', async () => {
-    // execute is handler-only: an unknown name reports as a missing handler and lists the
-    // registered ones (no arbitrary-expression eval unless a compiler is attached — see #389).
+    // execute is handler-only: an unknown name reports as a missing handler and lists the registered ones.
     await expect(browser.flutter.execute('fixtureMarker')).rejects.toThrow(/no handler 'fixtureMarker' is registered/);
   });
 
