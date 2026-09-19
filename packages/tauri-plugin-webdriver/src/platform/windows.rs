@@ -390,18 +390,16 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
 
         // Plain text (no trust-gated special keys), or an in-frame element: the focus-independent JS
         // path sets the value on the stored element directly, so the text lands on THAT element
-        // regardless of focus changes or detaches, matching macOS/Linux. CDP is only needed to make
-        // special keys (Escape/Enter/…) trusted, and only at the top level (CDP has no frame param).
+        // regardless of focus changes or detaches, matching macOS/Linux.
         if !has_special_key || !self.frame_context.is_empty() {
             let script = crate::platform::key_input::build_send_keys_script(js_var, text);
             self.evaluate_js(&script).await?;
             return Ok(());
         }
 
-        // Top-level text containing special keys. Entry guard: focus the target, move the caret to
-        // the end (append semantics), and report whether focus actually landed on it. Runs before
-        // any side effect — the only place errors are safe on this path. A stale element throws;
-        // setSelectionRange throws on non-text inputs, hence the try/catch.
+        // Top-level text containing special keys. Entry guard, before any side effect — the only
+        // place a throw is safe on this split path. Caret-to-end keeps append semantics; the inner
+        // try/catch absorbs setSelectionRange throwing on non-text inputs.
         let focus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
@@ -439,9 +437,6 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         // focus ended up — per the WebDriver Element Send Keys algorithm, keyboard input follows
         // focus, so if a handler redirects focus mid-sequence the key lands on the active element
         // (as a physical keypress would) rather than being dropped or forced onto a stale target.
-        // The target was confirmed keyboard-interactable at entry (ElementNotInteractable
-        // otherwise); printable text is committed element-targeted via the JS append, independent
-        // of focus.
         let refocus_script = format!(
             r"(function() {{
                 var el = window.{js_var};
