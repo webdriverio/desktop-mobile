@@ -9,10 +9,22 @@ vi.mock('webdriverio', () => ({ remote: (...args: unknown[]) => remoteMock(...ar
 import { createMobileSession } from '../src/session.js';
 
 const onPrepare = vi.fn().mockResolvedValue(undefined);
+const onComplete = vi.fn().mockResolvedValue(undefined);
 const before = vi.fn().mockResolvedValue(undefined);
 const after = vi.fn().mockResolvedValue(undefined);
 
+// FakeLauncher mirrors RN's launcher, which owns Metro and stops it in onComplete.
 class FakeLauncher {
+  constructor(
+    public options: unknown,
+    public capability: unknown,
+    public config: Options.Testrunner,
+  ) {}
+  onPrepare = onPrepare;
+  onComplete = onComplete;
+}
+// NoCompleteLauncher mirrors Flutter's launcher, which owns nothing and defines no onComplete.
+class NoCompleteLauncher {
   constructor(
     public options: unknown,
     public capability: unknown,
@@ -38,6 +50,7 @@ const makeSession = () =>
 
 const resetMocks = () => {
   onPrepare.mockClear().mockResolvedValue(undefined);
+  onComplete.mockClear().mockResolvedValue(undefined);
   before.mockClear().mockResolvedValue(undefined);
   after.mockClear().mockResolvedValue(undefined);
   deleteSession.mockClear();
@@ -66,11 +79,44 @@ describe('createMobileSession init', () => {
     expect(remoteMock).toHaveBeenCalledWith(expect.objectContaining({ port: 4444, path: '/wd/hub' }));
   });
 
-  it('should delete the session and rethrow when worker.before fails', async () => {
+  it('should delete the session, stop the launcher, and rethrow when worker.before fails', async () => {
     resetMocks();
     before.mockRejectedValueOnce(new Error('before boom'));
     await expect(makeSession().init({ platformName: 'Android' })).rejects.toThrow('before boom');
     expect(deleteSession).toHaveBeenCalled();
+    expect(onComplete).toHaveBeenCalled(); // stop launcher-owned processes (e.g. RN Metro) on failure
+  });
+
+  it('should stop the launcher when remote() fails (onPrepare already ran)', async () => {
+    resetMocks();
+    remoteMock.mockRejectedValueOnce(new Error('remote boom'));
+    await expect(makeSession().init({ platformName: 'Android' })).rejects.toThrow('remote boom');
+    expect(onComplete).toHaveBeenCalled();
+  });
+
+  it('should surface both the startup error and a launcher-cleanup failure via AggregateError', async () => {
+    resetMocks();
+    before.mockRejectedValueOnce(new Error('before boom'));
+    onComplete.mockRejectedValueOnce(new Error('metro stop boom'));
+    await expect(makeSession().init({ platformName: 'Android' })).rejects.toMatchObject({
+      cause: expect.objectContaining({ message: 'before boom' }),
+      errors: [
+        expect.objectContaining({ message: 'before boom' }),
+        expect.objectContaining({ message: 'metro stop boom' }),
+      ],
+    });
+  });
+
+  it('should not throw for a launcher without onComplete (e.g. Flutter) on a startup failure', async () => {
+    resetMocks();
+    before.mockRejectedValueOnce(new Error('before boom'));
+    const session = createMobileSession<Record<string, unknown>, { platformName?: string }>({
+      LauncherClass: NoCompleteLauncher as never,
+      WorkerClass: FakeWorker as never,
+      logNamespace: 'test-service',
+    });
+    // No onComplete to call, so the original error propagates unchanged (not an AggregateError).
+    await expect(session.init({ platformName: 'Android' })).rejects.toThrow('before boom');
   });
 
   it('should throw a clear error for an empty capabilities array (no remote() call)', async () => {
@@ -104,13 +150,22 @@ describe('createMobileSession init', () => {
 });
 
 describe('createMobileSession cleanup', () => {
-  it('should call worker.after and deleteSession for a managed browser', async () => {
+  it('should call worker.after, deleteSession, and launcher.onComplete for a managed browser', async () => {
     resetMocks();
     const session = makeSession();
     const browser = await session.init({ platformName: 'Android' });
     await session.cleanup(browser);
     expect(after).toHaveBeenCalled();
     expect(deleteSession).toHaveBeenCalled();
+    expect(onComplete).toHaveBeenCalled(); // stops launcher-owned processes (e.g. RN Metro)
+  });
+
+  it('should not throw when launcher.onComplete fails during cleanup (best-effort)', async () => {
+    resetMocks();
+    const session = makeSession();
+    const browser = await session.init({ platformName: 'Android' });
+    onComplete.mockRejectedValueOnce(new Error('metro stop boom'));
+    await expect(session.cleanup(browser)).resolves.toBeUndefined();
   });
 
   it('should warn and no-op (no after, no deleteSession) for a browser it did not create', async () => {
