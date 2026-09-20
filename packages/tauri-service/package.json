@@ -65,6 +65,7 @@
   },
   "devDependencies": {
     "@babel/parser": "^8.0.5",
+    "@repo/test-utils": "workspace:*",
     "@types/debug": "^4.1.12",
     "@types/node": "^26.6.1",
     "@wdio/bundler": "workspace:*",

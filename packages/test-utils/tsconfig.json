@@ -1,0 +1,23 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "include": [
+    "src/**/*.ts"
+  ],
+  "exclude": [
+    "src/cjs",
+    "node_modules",
+    "coverage",
+    "dist"
+  ],
+  "compilerOptions": {
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "rootDir": "./src",
+    "declaration": true,
+    "declarationMap": true,
+    "types": [
+      "node",
+      "vitest/globals"
+    ]
+  }
+}

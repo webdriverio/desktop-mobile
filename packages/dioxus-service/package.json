@@ -63,6 +63,7 @@
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
+    "@repo/test-utils": "workspace:*",
     "@types/debug": "^4.1.12",
     "@types/node": "^26.6.1",
     "@vitest/coverage-v8": "^5.0.1",
