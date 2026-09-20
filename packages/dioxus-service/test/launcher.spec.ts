@@ -8,6 +8,7 @@ vi.mock('../src/providers/embedded.js', () => ({
   EMBEDDED_PORT_ENV_VAR: 'WDIO_EMBEDDED_PORT',
 }));
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import DioxusLaunchService from '../src/launcher.js';
 import { startEmbeddedDriver, stopEmbeddedDriver } from '../src/providers/embedded.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
@@ -15,21 +16,15 @@ import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/type
 const baseConfig = {} as Parameters<DioxusLaunchService['onPrepare']>[0];
 
 describe('DioxusLaunchService', () => {
-  const originalPlatform = process.platform;
-
-  function setPlatform(value: NodeJS.Platform): void {
-    Object.defineProperty(process, 'platform', { value, writable: true });
-  }
-
   afterEach(() => {
-    setPlatform(originalPlatform);
+    restorePlatform();
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
   });
 
   describe('onPrepare', () => {
     it('should throw SevereServiceError on Linux + provider=external', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'external' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,
@@ -42,7 +37,7 @@ describe('DioxusLaunchService', () => {
     });
 
     it('should throw SevereServiceError on macOS + provider=external', async () => {
-      setPlatform('darwin');
+      mockPlatform('darwin');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'external' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,
@@ -55,7 +50,7 @@ describe('DioxusLaunchService', () => {
     });
 
     it('should not throw on Linux + provider=embedded', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'embedded', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,
@@ -66,7 +61,7 @@ describe('DioxusLaunchService', () => {
     });
 
     it('should not throw on Windows + provider=external', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'external' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,
@@ -77,7 +72,7 @@ describe('DioxusLaunchService', () => {
     });
 
     it('should not throw on macOS + provider=embedded', async () => {
-      setPlatform('darwin');
+      mockPlatform('darwin');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'embedded', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,
@@ -88,7 +83,7 @@ describe('DioxusLaunchService', () => {
     });
 
     it('should default to embedded provider when none specified', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       const launcher = new DioxusLaunchService(
         { appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,
@@ -99,7 +94,7 @@ describe('DioxusLaunchService', () => {
     });
 
     it('should assign distinct sequential ports to multiple embedded capabilities', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'embedded', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,
@@ -120,7 +115,7 @@ describe('DioxusLaunchService', () => {
     });
 
     it('should stop already-started instances when a later one fails', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       const fakeInfo = { proc: { pid: 1234, kill: vi.fn() }, logHandlers: [] };
       vi.mocked(startEmbeddedDriver).mockResolvedValueOnce(fakeInfo).mockRejectedValueOnce(new Error('port in use'));
 
@@ -139,7 +134,7 @@ describe('DioxusLaunchService', () => {
     });
 
     it('should read driverProvider from capability-level options when present', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'embedded' } as DioxusServiceGlobalOptions,
         {} as DioxusCapabilities,

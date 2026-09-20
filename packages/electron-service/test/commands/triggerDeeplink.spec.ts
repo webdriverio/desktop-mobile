@@ -1,3 +1,4 @@
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import type { ElectronServiceGlobalOptions } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
@@ -329,21 +330,13 @@ describe('triggerDeeplink', () => {
   });
 
   describe('Windows platform behavior', () => {
-    const originalPlatform = process.platform;
-
     beforeEach(() => {
       mockSpawn.mockClear();
-      Object.defineProperty(process, 'platform', {
-        value: 'win32',
-        configurable: true,
-      });
+      mockPlatform('win32');
     });
 
     afterEach(() => {
-      Object.defineProperty(process, 'platform', {
-        value: originalPlatform,
-        configurable: true,
-      });
+      restorePlatform();
     });
 
     it('should throw error if appBinaryPath is missing on Windows', async () => {
@@ -380,21 +373,13 @@ describe('triggerDeeplink', () => {
   });
 
   describe('macOS platform behavior', () => {
-    const originalPlatform = process.platform;
-
     beforeEach(() => {
       mockSpawn.mockClear();
-      Object.defineProperty(process, 'platform', {
-        value: 'darwin',
-        configurable: true,
-      });
+      mockPlatform('darwin');
     });
 
     afterEach(() => {
-      Object.defineProperty(process, 'platform', {
-        value: originalPlatform,
-        configurable: true,
-      });
+      restorePlatform();
     });
 
     it('should not require appBinaryPath on macOS', async () => {
@@ -417,21 +402,13 @@ describe('triggerDeeplink', () => {
   });
 
   describe('Linux platform behavior', () => {
-    const originalPlatform = process.platform;
-
     beforeEach(() => {
       mockSpawn.mockClear();
-      Object.defineProperty(process, 'platform', {
-        value: 'linux',
-        configurable: true,
-      });
+      mockPlatform('linux');
     });
 
     afterEach(() => {
-      Object.defineProperty(process, 'platform', {
-        value: originalPlatform,
-        configurable: true,
-      });
+      restorePlatform();
     });
 
     it('should not require appBinaryPath on Linux', async () => {
@@ -454,20 +431,12 @@ describe('triggerDeeplink', () => {
   });
 
   describe('userData auto-detection', () => {
-    const originalPlatform = process.platform;
-
     beforeEach(() => {
-      Object.defineProperty(process, 'platform', {
-        value: 'win32',
-        configurable: true,
-      });
+      mockPlatform('win32');
     });
 
     afterEach(() => {
-      Object.defineProperty(process, 'platform', {
-        value: originalPlatform,
-        configurable: true,
-      });
+      restorePlatform();
     });
 
     it('should auto-detect userDataDir from the running app when not already set', async () => {
@@ -542,20 +511,12 @@ describe('triggerDeeplink', () => {
   });
 
   describe('Error handling', () => {
-    const originalPlatform = process.platform;
-
     beforeEach(() => {
-      Object.defineProperty(process, 'platform', {
-        value: 'darwin',
-        configurable: true,
-      });
+      mockPlatform('darwin');
     });
 
     afterEach(() => {
-      Object.defineProperty(process, 'platform', {
-        value: originalPlatform,
-        configurable: true,
-      });
+      restorePlatform();
     });
 
     it('should propagate errors from executeDeeplinkCommand', async () => {
@@ -575,20 +536,12 @@ describe('triggerDeeplink', () => {
   });
 
   describe('Integration tests', () => {
-    const originalPlatform = process.platform;
-
     afterEach(() => {
-      Object.defineProperty(process, 'platform', {
-        value: originalPlatform,
-        configurable: true,
-      });
+      restorePlatform();
     });
 
     it('should handle complete Windows flow with all options', async () => {
-      Object.defineProperty(process, 'platform', {
-        value: 'win32',
-        configurable: true,
-      });
+      mockPlatform('win32');
 
       mockContext.globalOptions = { appBinaryPath: 'C:\\app.exe' };
       mockContext.userDataDir = 'C:\\Users\\Test\\AppData';
@@ -612,10 +565,7 @@ describe('triggerDeeplink', () => {
     });
 
     it('should handle complete macOS flow', async () => {
-      Object.defineProperty(process, 'platform', {
-        value: 'darwin',
-        configurable: true,
-      });
+      mockPlatform('darwin');
 
       mockContext.globalOptions = {};
 
@@ -632,10 +582,7 @@ describe('triggerDeeplink', () => {
     });
 
     it('should handle complete Linux flow', async () => {
-      Object.defineProperty(process, 'platform', {
-        value: 'linux',
-        configurable: true,
-      });
+      mockPlatform('linux');
 
       mockContext.globalOptions = {};
 
@@ -652,10 +599,7 @@ describe('triggerDeeplink', () => {
     });
 
     it('should preserve complex URL parameters', async () => {
-      Object.defineProperty(process, 'platform', {
-        value: 'darwin',
-        configurable: true,
-      });
+      mockPlatform('darwin');
 
       mockContext.globalOptions = {};
 

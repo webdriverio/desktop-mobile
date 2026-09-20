@@ -337,7 +337,7 @@ importers:
         version: 0.2.9
       '@electron-forge/cli':
         specifier: catalog:default
-        version: 7.11.2(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
+        version: 7.11.2(bluebird@3.7.2)(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
       '@types/mocha':
         specifier: ^10.0.10
         version: 10.0.10
@@ -433,7 +433,7 @@ importers:
     devDependencies:
       '@electron-forge/cli':
         specifier: catalog:default
-        version: 7.11.2(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
+        version: 7.11.2(bluebird@3.7.2)(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
       '@types/node':
         specifier: ^26.6.1
         version: 26.6.1
@@ -681,19 +681,19 @@ importers:
     devDependencies:
       '@electron-forge/cli':
         specifier: 7.11.2
-        version: 7.11.2(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
+        version: 7.11.2(bluebird@3.7.2)(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
       '@electron-forge/maker-deb':
         specifier: 7.11.2
-        version: 7.11.2(supports-color@8.1.1)
+        version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/maker-rpm':
         specifier: 7.11.2
-        version: 7.11.2(supports-color@8.1.1)
+        version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/maker-squirrel':
         specifier: 7.11.2
-        version: 7.11.2(supports-color@8.1.1)
+        version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/maker-zip':
         specifier: 7.11.2
-        version: 7.11.2(supports-color@8.1.1)
+        version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@types/node':
         specifier: ^26.6.1
         version: 26.6.1
@@ -738,19 +738,19 @@ importers:
     devDependencies:
       '@electron-forge/cli':
         specifier: 7.11.2
-        version: 7.11.2(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
+        version: 7.11.2(bluebird@3.7.2)(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
       '@electron-forge/maker-deb':
         specifier: 7.11.2
-        version: 7.11.2(supports-color@8.1.1)
+        version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/maker-rpm':
         specifier: 7.11.2
-        version: 7.11.2(supports-color@8.1.1)
+        version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/maker-squirrel':
         specifier: 7.11.2
-        version: 7.11.2(supports-color@8.1.1)
+        version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/maker-zip':
         specifier: 7.11.2
-        version: 7.11.2(supports-color@8.1.1)
+        version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@types/node':
         specifier: ^26.6.1
         version: 26.6.1
@@ -1269,6 +1269,9 @@ importers:
       '@puppeteer/browsers':
         specifier: ^3.2.2
         version: 3.2.2(yauzl@3.4.0)
+      '@repo/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       '@types/debug':
         specifier: ^4.1.12
         version: 4.1.13
@@ -1492,6 +1495,9 @@ importers:
         specifier: catalog:default
         version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.11.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     devDependencies:
+      '@repo/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       '@types/node':
         specifier: ^26.6.1
         version: 26.6.1
@@ -1595,6 +1601,9 @@ importers:
         specifier: ^2.9.1
         version: 2.9.1
     devDependencies:
+      '@repo/test-utils':
+        specifier: workspace:*
+        version: link:../test-utils
       '@types/debug':
         specifier: ^4.1.12
         version: 4.1.13
@@ -9175,10 +9184,10 @@ snapshots:
       enabled: 2.0.0
       kuler: 2.0.0
 
-  '@electron-forge/cli@7.11.2(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)':
+  '@electron-forge/cli@7.11.2(bluebird@3.7.2)(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)':
     dependencies:
-      '@electron-forge/core': 7.11.2(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
-      '@electron-forge/core-utils': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/core': 7.11.2(bluebird@3.7.2)(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
+      '@electron-forge/core-utils': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron/get': 3.1.0(supports-color@8.1.1)
       '@inquirer/prompts': 6.0.1
@@ -9208,7 +9217,7 @@ snapshots:
       - uglify-js
       - webpack-cli
 
-  '@electron-forge/core-utils@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/core-utils@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron/rebuild': 3.7.2(bluebird@3.7.2)(supports-color@8.1.1)
@@ -9224,18 +9233,18 @@ snapshots:
       - bluebird
       - supports-color
 
-  '@electron-forge/core@7.11.2(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)':
+  '@electron-forge/core@7.11.2(bluebird@3.7.2)(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)':
     dependencies:
-      '@electron-forge/core-utils': 7.11.2(supports-color@8.1.1)
-      '@electron-forge/maker-base': 7.11.2(supports-color@8.1.1)
-      '@electron-forge/plugin-base': 7.11.2(supports-color@8.1.1)
-      '@electron-forge/publisher-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/core-utils': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
+      '@electron-forge/maker-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
+      '@electron-forge/plugin-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
+      '@electron-forge/publisher-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
-      '@electron-forge/template-base': 7.11.2(supports-color@8.1.1)
-      '@electron-forge/template-vite': 7.11.2(supports-color@8.1.1)
-      '@electron-forge/template-vite-typescript': 7.11.2(supports-color@8.1.1)
-      '@electron-forge/template-webpack': 7.11.2(supports-color@8.1.1)
-      '@electron-forge/template-webpack-typescript': 7.11.2(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
+      '@electron-forge/template-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
+      '@electron-forge/template-vite': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
+      '@electron-forge/template-vite-typescript': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
+      '@electron-forge/template-webpack': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
+      '@electron-forge/template-webpack-typescript': 7.11.2(bluebird@3.7.2)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
       '@electron-forge/tracer': 7.11.2
       '@electron/get': 3.1.0(supports-color@8.1.1)
       '@electron/packager': 18.4.4(supports-color@8.1.1)
@@ -9278,7 +9287,7 @@ snapshots:
       - uglify-js
       - webpack-cli
 
-  '@electron-forge/maker-base@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/maker-base@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       fs-extra: 10.1.0
@@ -9287,9 +9296,9 @@ snapshots:
       - bluebird
       - supports-color
 
-  '@electron-forge/maker-deb@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/maker-deb@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
-      '@electron-forge/maker-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/maker-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
     optionalDependencies:
       electron-installer-debian: 3.2.0(supports-color@8.1.1)
@@ -9297,9 +9306,9 @@ snapshots:
       - bluebird
       - supports-color
 
-  '@electron-forge/maker-rpm@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/maker-rpm@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
-      '@electron-forge/maker-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/maker-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
     optionalDependencies:
       electron-installer-redhat: 3.4.0(supports-color@8.1.1)
@@ -9307,9 +9316,9 @@ snapshots:
       - bluebird
       - supports-color
 
-  '@electron-forge/maker-squirrel@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/maker-squirrel@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
-      '@electron-forge/maker-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/maker-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       fs-extra: 10.1.0
     optionalDependencies:
@@ -9318,9 +9327,9 @@ snapshots:
       - bluebird
       - supports-color
 
-  '@electron-forge/maker-zip@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/maker-zip@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
-      '@electron-forge/maker-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/maker-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       cross-zip: 4.0.1
       fs-extra: 10.1.0
@@ -9329,14 +9338,14 @@ snapshots:
       - bluebird
       - supports-color
 
-  '@electron-forge/plugin-base@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/plugin-base@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
     transitivePeerDependencies:
       - bluebird
       - supports-color
 
-  '@electron-forge/publisher-base@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/publisher-base@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
     transitivePeerDependencies:
@@ -9353,9 +9362,9 @@ snapshots:
       - bluebird
       - supports-color
 
-  '@electron-forge/template-base@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/template-base@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
-      '@electron-forge/core-utils': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/core-utils': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@malept/cross-spawn-promise': 2.0.0
       debug: 4.4.3(supports-color@8.1.1)
@@ -9366,28 +9375,28 @@ snapshots:
       - bluebird
       - supports-color
 
-  '@electron-forge/template-vite-typescript@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/template-vite-typescript@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
-      '@electron-forge/template-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/template-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       fs-extra: 10.1.0
     transitivePeerDependencies:
       - bluebird
       - supports-color
 
-  '@electron-forge/template-vite@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/template-vite@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
-      '@electron-forge/template-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/template-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       fs-extra: 10.1.0
     transitivePeerDependencies:
       - bluebird
       - supports-color
 
-  '@electron-forge/template-webpack-typescript@7.11.2(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)':
+  '@electron-forge/template-webpack-typescript@7.11.2(bluebird@3.7.2)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)':
     dependencies:
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
-      '@electron-forge/template-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/template-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       fs-extra: 10.1.0
       typescript: 5.4.5
       webpack: 5.107.2(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(uglify-js@3.19.3)
@@ -9408,10 +9417,10 @@ snapshots:
       - uglify-js
       - webpack-cli
 
-  '@electron-forge/template-webpack@7.11.2(supports-color@8.1.1)':
+  '@electron-forge/template-webpack@7.11.2(bluebird@3.7.2)(supports-color@8.1.1)':
     dependencies:
       '@electron-forge/shared-types': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
-      '@electron-forge/template-base': 7.11.2(supports-color@8.1.1)
+      '@electron-forge/template-base': 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       fs-extra: 10.1.0
     transitivePeerDependencies:
       - bluebird
@@ -11306,6 +11315,11 @@ snapshots:
   '@wdio/globals@9.31.3(expect-webdriverio@5.7.0)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
     dependencies:
       expect-webdriverio: 5.7.0(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.11.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+
+  '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.11.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))':
+    dependencies:
+      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.11.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.11.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
@@ -13265,6 +13279,16 @@ snapshots:
     dependencies:
       '@vitest/snapshot': 4.1.11
       '@wdio/globals': 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      '@wdio/logger': 9.29.1
+      deep-eql: 5.0.2
+      expect: 30.4.1
+      jest-matcher-utils: 30.4.1
+      webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.11.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+
+  expect-webdriverio@6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.11.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
+    dependencies:
+      '@vitest/snapshot': 4.1.11
+      '@wdio/globals': 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.11.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/logger': 9.29.1
       deep-eql: 5.0.2
       expect: 30.4.1

@@ -71,6 +71,7 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
   waitTestRunnerBackendReady: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import TauriLaunchService from '../src/launcher.js';
 
 const APP_BINARY = '/workspace/target/release/my-app';
@@ -80,18 +81,16 @@ function createLauncher(): TauriLaunchService {
 }
 
 describe('TauriLaunchService — appBinaryPath resolution', () => {
-  const originalPlatform = process.platform;
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    Object.defineProperty(process, 'platform', { value: originalPlatform });
+    restorePlatform();
   });
 
   it('should populate tauri:options.application from service-level appBinaryPath when no capability application is set', async () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' });
+    mockPlatform('linux');
     const launcher = createLauncher();
     const caps: any[] = [
       {
@@ -106,7 +105,7 @@ describe('TauriLaunchService — appBinaryPath resolution', () => {
   });
 
   it('should write back tauri:options.application on Windows', async () => {
-    Object.defineProperty(process, 'platform', { value: 'win32' });
+    mockPlatform('win32');
     const launcher = createLauncher();
     const caps: any[] = [
       {
@@ -120,7 +119,7 @@ describe('TauriLaunchService — appBinaryPath resolution', () => {
   });
 
   it('should resolve appBinaryPath for every multiremote capability on Windows', async () => {
-    Object.defineProperty(process, 'platform', { value: 'win32' });
+    mockPlatform('win32');
     const launcher = createLauncher();
     const capabilities: any = {
       instanceA: {
@@ -140,7 +139,7 @@ describe('TauriLaunchService — appBinaryPath resolution', () => {
   });
 
   it('should prefer capability-level application over service-level appBinaryPath', async () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' });
+    mockPlatform('linux');
     const launcher = createLauncher();
     const caps: any[] = [
       {

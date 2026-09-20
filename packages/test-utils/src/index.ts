@@ -16,9 +16,16 @@ export function coldImport<T>(importer: () => Promise<T>, timeoutMs = 20000): ()
   return () => mod;
 }
 
-/** Override `process.platform` for a test; returns a restore function to the original value. */
-export function mockPlatform(platform: NodeJS.Platform): () => void {
-  const original = process.platform;
+// Captured once at import, before any test can override it, so restorePlatform always returns the
+// real platform even when a test sets it in both a beforeEach and the test body.
+const REAL_PLATFORM = process.platform;
+
+/** Override `process.platform` for a test. Pair every use with `restorePlatform()` in `afterEach`. */
+export function mockPlatform(platform: NodeJS.Platform): void {
   Object.defineProperty(process, 'platform', { value: platform, configurable: true });
-  return () => Object.defineProperty(process, 'platform', { value: original, configurable: true });
+}
+
+/** Restore `process.platform` to the real value captured at import. */
+export function restorePlatform(): void {
+  Object.defineProperty(process, 'platform', { value: REAL_PLATFORM, configurable: true });
 }

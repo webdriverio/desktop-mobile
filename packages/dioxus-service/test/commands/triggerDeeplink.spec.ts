@@ -8,19 +8,18 @@ vi.mock('@wdio/native-core', async () => {
   };
 });
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { executeDeeplinkCommand } from '@wdio/native-core';
 import { triggerDeeplink } from '../../src/commands/triggerDeeplink.js';
 
-const originalPlatform = process.platform;
-
 afterEach(() => {
   vi.mocked(executeDeeplinkCommand).mockClear();
-  Object.defineProperty(process, 'platform', { value: originalPlatform });
+  restorePlatform();
 });
 
 describe('triggerDeeplink', () => {
   it('should spawn the macOS open command for a valid custom-protocol URL', async () => {
-    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    mockPlatform('darwin');
 
     await triggerDeeplink('myapp://open?file=test');
 
@@ -28,7 +27,7 @@ describe('triggerDeeplink', () => {
   });
 
   it('should spawn rundll32 on Windows', async () => {
-    Object.defineProperty(process, 'platform', { value: 'win32' });
+    mockPlatform('win32');
 
     await triggerDeeplink('myapp://open');
 
@@ -39,7 +38,7 @@ describe('triggerDeeplink', () => {
   });
 
   it('should spawn gio open on Linux', async () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' });
+    mockPlatform('linux');
 
     await triggerDeeplink('myapp://open');
 

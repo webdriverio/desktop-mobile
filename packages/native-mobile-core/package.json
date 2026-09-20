@@ -48,6 +48,7 @@
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
+    "@repo/test-utils": "workspace:*",
     "@types/node": "^26.6.1",
     "@vitest/coverage-v8": "^5.0.1",
     "@wdio/bundler": "workspace:*",

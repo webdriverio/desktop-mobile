@@ -1,3 +1,4 @@
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseLogLines } from '../src/logParser.js';
 import { closeLogWriter, getLogWriter, isLogWriterInitialized } from '../src/logWriter.js';
@@ -630,8 +631,7 @@ describe('TauriWorkerService', () => {
     });
 
     it('should run mock updates sequentially on win32', async () => {
-      const originalPlatform = process.platform;
-      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+      mockPlatform('win32');
 
       try {
         const mockBrowser = createMockBrowser();
@@ -656,7 +656,7 @@ describe('TauriWorkerService', () => {
 
         expect(callOrder).toEqual(['start:a', 'end:a', 'start:b', 'end:b']);
       } finally {
-        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+        restorePlatform();
       }
     });
   });
