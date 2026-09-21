@@ -1,4 +1,4 @@
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import DioxusLaunchService from './launcher.js';
@@ -9,6 +9,18 @@ const log = createLogger('dioxus-service', 'session');
 
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, DioxusLaunchService>();
 const activeServices = new WeakMap<WebdriverIO.Browser, DioxusWorkerService>();
+
+/**
+ * Best-effort launcher teardown, bounded because onComplete stops a browser-mode dev server whose
+ * close() is user-supplied and can hang (WDIO does not call onComplete after an onPrepare throw).
+ */
+async function stopLauncher(launcher: DioxusLaunchService, context: string): Promise<void> {
+  await runBounded(
+    () => launcher.onComplete(),
+    DEFAULT_TEARDOWN_TIMEOUT_MS,
+    () => log.warn(`launcher.onComplete() timed out during ${context}`),
+  ).catch((e: Error) => log.warn(`launcher.onComplete() failed during ${context}: ${e.message}`));
+}
 
 /**
  * Initialize Dioxus service in standalone mode.
@@ -31,9 +43,7 @@ export async function init(
   const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
   const port = (capabilities as { port?: number }).port;
   if (!port) {
-    await launcher
-      .onComplete()
-      .catch((e: Error) => log.warn(`Failed to stop driver during port-check cleanup: ${e.message}`));
+    await stopLauncher(launcher, 'port-check cleanup');
     throw new Error(
       'Dioxus driver port was not set on capabilities by onPrepare. ' +
         'This usually means the launcher failed to start the embedded WebDriver server.',
@@ -61,9 +71,7 @@ export async function init(
     connectionRetryCount: 10,
   }).catch(async (error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
-    await launcher
-      .onComplete()
-      .catch((cleanupErr: Error) => log.warn(`Failed to stop embedded driver during cleanup: ${cleanupErr.message}`));
+    await stopLauncher(launcher, 'remote() cleanup');
     throw error;
   });
 
@@ -76,9 +84,7 @@ export async function init(
     await browser
       .deleteSession()
       .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
-    await launcher
-      .onComplete()
-      .catch((e: Error) => log.warn(`Failed to stop embedded driver during service.before cleanup: ${e.message}`));
+    await stopLauncher(launcher, 'service.before cleanup');
     activeLaunchers.delete(browser);
     throw error;
   }
@@ -109,9 +115,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     } finally {
       activeServices.delete(browser);
     }
-    await launcher
-      .onComplete()
-      .catch((e: Error) => log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`));
+    await stopLauncher(launcher, 'cleanup');
     activeLaunchers.delete(browser);
     log.debug('Dioxus standalone session cleaned up');
   } else {
