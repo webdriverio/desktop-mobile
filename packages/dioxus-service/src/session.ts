@@ -23,8 +23,9 @@ async function stopLauncher(launcher: DioxusLaunchService, context: string): Pro
 }
 
 /**
- * The driver socket may already be gone by teardown, so a deleteSession failure here is usually
- * harmless. The call is time-bounded so a stall can't block the rest of teardown.
+ * Best-effort deletion of the session during teardown. The driver socket may already be gone by
+ * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
+ * the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
