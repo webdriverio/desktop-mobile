@@ -61,7 +61,7 @@
       "**"
     ],
     "rules": {
-      "recommended": true,
+      "preset": "recommended",
       "style": {
         "useBlockStatements": "off"
       }
