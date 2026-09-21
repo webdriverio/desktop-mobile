@@ -23,11 +23,10 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectronLaunchService>(
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectronWorkerService>();
 
 /**
- * Rethrow a standalone startup failure after best-effort teardown: close the log writer, then run
- * launcher.onComplete() — which stops a browser-mode dev server (started in onPrepare) and is a
- * no-op in native mode, where WDIO owns chromedriver. A launcher-teardown failure joins the
- * original in an AggregateError rather than masking it. onComplete is bounded because a function-form
- * devServer's close() is user-supplied and can hang.
+ * Best-effort teardown on a failed standalone startup, then rethrow. Closes the log writer and runs
+ * launcher.onComplete() — which stops a browser-mode dev server and is a no-op in native mode where
+ * WDIO owns chromedriver. A launcher-teardown failure joins the original in an AggregateError rather
+ * than masking it; onComplete is bounded because a function-form devServer's close() is user-supplied and can hang.
  */
 async function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<never> {
   const writer = getStandaloneLogWriter();
@@ -47,9 +46,9 @@ async function failStartup(launcher: ElectronLaunchService, error: unknown): Pro
 }
 
 /**
- * Close the WebDriver session (native: quits the app; browser mode: closes Chrome). WDIO's standalone
- * path never does this itself. Bounded + benign-swallowing since the driver socket may already be
- * gone during teardown, and a stalled deleteSession must not block the rest of teardown.
+ * WDIO's standalone path never deletes the session itself (native: quits the app; browser mode:
+ * closes Chrome). Bounded & benign-swallowing: by teardown the driver socket may already be gone —
+ * a benign "session not found" / socket-closed — and a stalled deleteSession must not block the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
@@ -177,8 +176,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
     await deleteSessionBounded(browser, 'cleanup');
 
-    // Stop a browser-mode dev server (no-op in native mode). Bounded + best-effort
-    // so a hanging/failing stop can't strand the log writer + map cleanup that follow.
+    // Stop a browser-mode dev server (no-op in native mode). Bounded & best-effort
+    // so a hanging/failing stop can't strand the log writer & map cleanup that follow.
     try {
       await runBounded(
         () => launcher.onComplete(),
