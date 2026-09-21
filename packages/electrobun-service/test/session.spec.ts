@@ -105,6 +105,16 @@ describe('session', () => {
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
+    it('should call launcher.onComplete when onPrepare fails', async () => {
+      onPrepareMock.mockRejectedValueOnce(new Error('bundle resolve failed'));
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+      await expect(init(cap)).rejects.toThrow(/bundle resolve failed/);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(onWorkerStartMock).not.toHaveBeenCalled();
+      expect(remoteMock).not.toHaveBeenCalled();
+    });
+
     it('should call launcher.onComplete when onWorkerStart fails after spawn', async () => {
       onWorkerStartMock.mockRejectedValueOnce(new Error('cdp never ready'));
       const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
@@ -176,6 +186,32 @@ describe('session', () => {
         vi.useRealTimers();
       }
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not hang cleanup when browser.deleteSession never settles', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+      const browser = await init(cap);
+      deleteSessionMock.mockReturnValueOnce(new Promise<void>(() => {})); // a driver that never acks the DELETE
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      // deleteSession was abandoned, so onComplete still ran.
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow a benign deleteSession error during cleanup', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+      const browser = await init(cap);
+      deleteSessionMock.mockRejectedValueOnce(new Error('invalid session id'));
+
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
     it('should warn and no-op when the browser was not created by init()', async () => {
