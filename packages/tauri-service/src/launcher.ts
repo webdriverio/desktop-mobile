@@ -2,7 +2,14 @@ import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { nonChromeBrowserNameError, probeDevServerReachable, startManagedDevServer } from '@wdio/native-core';
+import {
+  closeLogWriter,
+  getLogWriter,
+  isLogWriterInitialized,
+  nonChromeBrowserNameError,
+  probeDevServerReachable,
+  startManagedDevServer,
+} from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -331,12 +338,11 @@ export default class TauriLaunchService {
     // Uses WDIO's outputDir config option for log file location
     if (mergedOptions.captureBackendLogs || mergedOptions.captureFrontendLogs) {
       try {
-        const { getLogWriter, isLogWriterInitialized } = await import('./logWriter.js');
-        if (isLogWriterInitialized()) {
+        if (isLogWriterInitialized('tauri-service')) {
           log.debug('Log writer already initialized, skipping re-initialization');
         } else {
           const logDir = _config.outputDir || join(process.cwd(), 'logs');
-          getLogWriter().initialize(logDir);
+          getLogWriter('tauri-service').initialize(logDir);
           log.info(`Log capture initialized: ${logDir}`);
         }
       } catch (error) {
@@ -1046,8 +1052,7 @@ export default class TauriLaunchService {
     this.#stopDevServer = undefined;
 
     try {
-      const { closeLogWriter } = await import('./logWriter.js');
-      await closeLogWriter();
+      await closeLogWriter('tauri-service');
     } catch {
       // Log writer may not have been initialized
     }

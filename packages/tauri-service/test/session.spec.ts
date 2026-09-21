@@ -25,6 +25,15 @@ const {
   mockHttpGet: vi.fn(),
 }));
 
+vi.mock('@wdio/native-core', () => ({
+    getLogWriter: vi.fn().mockReturnValue({
+        initialize: mockLogWriterInitialize,
+        getLogDir: mockLogWriterGetLogDir,
+        getLogFile: mockLogWriterGetLogFile,
+    }),
+    closeLogWriter: vi.fn(),
+}));
+
 vi.mock('@wdio/native-utils', () => ({
   createLogger: () => ({
     debug: vi.fn(),
@@ -53,15 +62,6 @@ vi.mock('../src/service.js', () => ({
   }),
 }));
 
-vi.mock('../src/logWriter.js', () => ({
-  getLogWriter: vi.fn().mockReturnValue({
-    initialize: mockLogWriterInitialize,
-    getLogDir: mockLogWriterGetLogDir,
-    getLogFile: mockLogWriterGetLogFile,
-  }),
-  closeLogWriter: vi.fn(),
-}));
-
 vi.mock('webdriverio', () => ({
   remote: mockRemote,
 }));
@@ -72,8 +72,8 @@ vi.mock('node:http', () => ({
   },
 }));
 
+import { closeLogWriter, getLogWriter } from '@wdio/native-core';
 import TauriLaunchService from '../src/launcher.js';
-import { closeLogWriter, getLogWriter } from '../src/logWriter.js';
 import TauriWorkerService from '../src/service.js';
 import { cleanup, createTauriCapabilities, getTauriServiceStatus, init } from '../src/session.js';
 import type { TauriCapabilities } from '../src/types.js';

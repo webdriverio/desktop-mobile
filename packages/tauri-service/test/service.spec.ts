@@ -1,7 +1,7 @@
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { closeLogWriter, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
 import { parseLogLines } from '../src/logParser.js';
-import { closeLogWriter, getLogWriter, isLogWriterInitialized } from '../src/logWriter.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@wdio/native-utils')>();
@@ -1115,7 +1115,7 @@ describe('LogWriter', () => {
     });
 
     it('should handle closeLogWriter when not initialized', () => {
-      expect(() => closeLogWriter()).not.toThrow();
+      expect(() => closeLogWriter('tauri-service')).not.toThrow();
     });
   });
 });

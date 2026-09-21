@@ -1,7 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { forwardLog, shouldLog } from '../src/logForwarder.js';
 
-// Mock dependencies
 vi.mock('@wdio/native-utils', () => ({
   createLogger: vi.fn(() => ({
     debug: vi.fn(),
@@ -11,11 +10,10 @@ vi.mock('@wdio/native-utils', () => ({
   })),
 }));
 
-vi.mock('../src/logWriter.js', () => ({
-  getStandaloneLogWriter: vi.fn(() => ({
-    write: vi.fn(),
-  })),
-  isStandaloneLogWriterInitialized: vi.fn(() => false),
+vi.mock('@wdio/native-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-core')>()),
+  isLogWriterInitialized: vi.fn(() => false),
+  getLogWriter: vi.fn(),
 }));
 
 describe('logForwarder', () => {
@@ -151,12 +149,12 @@ describe('logForwarder', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
-    it('should use standalone log writer when initialized', async () => {
-      const { isStandaloneLogWriterInitialized, getStandaloneLogWriter } = await import('../src/logWriter.js');
+    it('should use log writer when initialized', async () => {
+      const { isLogWriterInitialized, getLogWriter } = await import('@wdio/native-core');
       const mockWriter = { write: vi.fn() };
 
-      vi.mocked(isStandaloneLogWriterInitialized).mockReturnValue(true);
-      vi.mocked(getStandaloneLogWriter).mockReturnValue(mockWriter as never);
+      vi.mocked(isLogWriterInitialized).mockReturnValue(true);
+      vi.mocked(getLogWriter).mockReturnValue(mockWriter as never);
 
       forwardLog('main', 'info', 'Test message', 'info');
 
@@ -165,7 +163,7 @@ describe('logForwarder', () => {
 
     it('should use WDIO logger when standalone writer not initialized', async () => {
       const { createLogger } = await import('@wdio/native-utils');
-      const { isStandaloneLogWriterInitialized } = await import('../src/logWriter.js');
+      const { isLogWriterInitialized } = await import('@wdio/native-core');
       const mockLogger = {
         debug: vi.fn(),
         info: vi.fn(),
@@ -173,7 +171,7 @@ describe('logForwarder', () => {
         error: vi.fn(),
       };
 
-      vi.mocked(isStandaloneLogWriterInitialized).mockReturnValue(false);
+      vi.mocked(isLogWriterInitialized).mockReturnValue(false);
       vi.mocked(createLogger).mockReturnValue(mockLogger as never);
 
       forwardLog('main', 'info', 'Test message', 'info');

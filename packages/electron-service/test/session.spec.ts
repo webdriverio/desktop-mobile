@@ -38,8 +38,8 @@ const mockInitialize = vi.fn();
 const mockGetLogDir = vi.fn().mockReturnValue('/mock/logs');
 const mockClose = vi.fn();
 
-vi.mock('../src/logWriter.js', () => ({
-  getStandaloneLogWriter: () => ({
+vi.mock('@wdio/native-core', () => ({
+  getLogWriter: () => ({
     initialize: mockInitialize,
     getLogDir: mockGetLogDir,
     close: mockClose,
