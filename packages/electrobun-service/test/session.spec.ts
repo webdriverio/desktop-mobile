@@ -1,3 +1,4 @@
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const onPrepareMock = vi.fn().mockResolvedValue(undefined);
@@ -159,6 +160,22 @@ describe('session', () => {
       onCompleteMock.mockRejectedValueOnce(new Error('teardown boom'));
 
       await expect(cleanup(browser)).resolves.toBeUndefined();
+    });
+
+    it('should not hang cleanup when launcher.onComplete never settles', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+      const browser = await init(cap);
+      onCompleteMock.mockReturnValueOnce(new Promise<void>(() => {})); // a devServer stop() that hangs
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(deleteSessionMock).toHaveBeenCalledTimes(1);
     });
 
     it('should warn and no-op when the browser was not created by init()', async () => {
