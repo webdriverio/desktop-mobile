@@ -23,7 +23,7 @@ class FakeLauncher {
   onPrepare = onPrepare;
   onComplete = onComplete;
 }
-// NoCompleteLauncher mirrors Flutter's launcher, which owns nothing and defines no onComplete.
+// Mirrors Flutter's launcher, which owns nothing to stop.
 class NoCompleteLauncher {
   constructor(
     public options: unknown,
@@ -115,7 +115,7 @@ describe('createMobileSession init', () => {
       WorkerClass: FakeWorker as never,
       logNamespace: 'test-service',
     });
-    // No onComplete to call, so the original error propagates unchanged (not an AggregateError).
+    // No onComplete to call, so the original error propagates unchanged.
     await expect(session.init({ platformName: 'Android' })).rejects.toThrow('before boom');
   });
 
