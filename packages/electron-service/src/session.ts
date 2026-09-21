@@ -46,9 +46,8 @@ async function failStartup(launcher: ElectronLaunchService, error: unknown): Pro
 }
 
 /**
- * WDIO's standalone path never deletes the session itself (native: quits the app; browser mode:
- * closes Chrome). The driver socket may already be gone by teardown, so a failure here is usually
- * harmless; the call is time-bounded so a stall can't block the rest of teardown.
+ * The driver socket may already be gone by teardown, so a deleteSession failure here is usually
+ * harmless. The call is time-bounded so a stall can't block the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
@@ -126,10 +125,10 @@ export async function init(
   // Store launcher for cleanup
   activeLaunchers.set(browser, launcher);
 
-  // service.before() failure leaves the open WebDriver session running; tear it down first.
   try {
     await service.before(capability, [], browser);
   } catch (error) {
+    // remote() already opened the session, so close it here before the failure propagates.
     await deleteSessionBounded(browser, 'service.before cleanup');
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);

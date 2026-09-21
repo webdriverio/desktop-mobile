@@ -237,7 +237,6 @@ describe('Session Management', () => {
       } finally {
         vi.useRealTimers();
       }
-      // The bounded onComplete was abandoned, so the log writer still closed.
       expect(mockClose).toHaveBeenCalled();
     });
 
@@ -254,7 +253,6 @@ describe('Session Management', () => {
       } finally {
         vi.useRealTimers();
       }
-      // deleteSession was abandoned, so onComplete + log writer still ran.
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
       expect(mockClose).toHaveBeenCalled();
     });
