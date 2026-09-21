@@ -26,17 +26,16 @@ export interface AppiumServerConnection {
 interface MobileLauncherLike<TCap> {
   onPrepare(config: Options.Testrunner, capabilities: TCap[] | Record<string, { capabilities: TCap }>): Promise<void>;
   /**
-   * Optional: stop launcher-owned processes (e.g. React Native's managed Metro). WDIO calls it in
-   * the runner path; standalone must call it too, or the process is orphaned. Flutter's launcher
-   * owns nothing to stop and defines none — hence optional; init()/cleanup() call it only if present.
+   * Optional: stop launcher-owned processes (e.g. React Native's managed Metro). WDIO calls it in the
+   * runner path; standalone must call it too or the process is orphaned. Flutter's launcher owns
+   * nothing to stop and defines none — hence optional.
    */
   onComplete?(): Promise<void>;
 }
 
 /**
- * Best-effort launcher teardown. RN's `onComplete` stops its managed Metro; a launcher without one
- * (e.g. Flutter) no-ops. Returns the cleanup error if it threw, else undefined — callers decide how
- * to surface it (rethrow-with-AggregateError on a startup failure, log-and-swallow during cleanup).
+ * Best-effort launcher teardown. Returns the cleanup error rather than throwing, so callers choose
+ * how to surface it.
  */
 async function stopLauncher<TCap>(launcher: MobileLauncherLike<TCap>): Promise<unknown> {
   try {
@@ -45,6 +44,20 @@ async function stopLauncher<TCap>(launcher: MobileLauncherLike<TCap>): Promise<u
   } catch (error) {
     return error;
   }
+}
+
+/**
+ * Rethrow a startup failure after best-effort launcher teardown. A teardown failure joins the
+ * original in an AggregateError rather than masking it.
+ */
+async function failStartup<TCap>(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
+  const cleanupError = await stopLauncher(launcher);
+  if (cleanupError) {
+    throw new AggregateError([error, cleanupError], 'Mobile standalone startup and launcher cleanup failed', {
+      cause: error,
+    });
+  }
+  throw error;
 }
 
 /** Minimal worker contract init()/cleanup() drive (the subclass is the worker service). */
@@ -123,10 +136,14 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
     await launcher.onPrepare(testRunnerOpts, [capability]);
 
-    // Construct the worker BEFORE opening the session: a constructor throw here would otherwise
-    // leave a live Appium session the caller never receives a browser handle for (so can't close).
-    // Pass globalOptions raw — the service constructor merges the capability options itself.
-    const service = new deps.WorkerClass(opts, capability);
+    // Construct the worker before opening the session — a ctor throw after remote() would orphan a
+    // live session the caller gets no handle to close.
+    let service: MobileWorkerLike<TCap>;
+    try {
+      service = new deps.WorkerClass(opts, capability);
+    } catch (error) {
+      return failStartup(launcher, error);
+    }
 
     const browser = await remote({
       // Appium defaults; remote() otherwise targets WebdriverIO's localhost:4444, which an Appium
@@ -137,17 +154,9 @@ export function createMobileSession<TOptions extends object, TCap extends object
       ...deps.defaultConnection,
       ...connection,
       capabilities: capability as WebdriverIO.Capabilities,
-    }).catch(async (error: Error) => {
+    }).catch((error: Error) => {
       log.error(`Failed to create remote session: ${error.message}`);
-      // onPrepare already ran (e.g. RN started its managed Metro), and the caller never receives a
-      // browser to clean up — so stop the launcher here or the process is orphaned.
-      const cleanupError = await stopLauncher(launcher);
-      if (cleanupError) {
-        throw new AggregateError([error, cleanupError], 'Mobile standalone startup and launcher cleanup failed', {
-          cause: error,
-        });
-      }
-      throw error;
+      return failStartup(launcher, error);
     });
 
     activeLaunchers.set(browser, launcher);
@@ -159,13 +168,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
         .deleteSession()
         .catch((e: Error) => log.warn(`deleteSession failed during service.before cleanup: ${e.message}`));
       activeLaunchers.delete(browser);
-      const cleanupError = await stopLauncher(launcher);
-      if (cleanupError) {
-        throw new AggregateError([error, cleanupError], 'Mobile standalone startup and launcher cleanup failed', {
-          cause: error,
-        });
-      }
-      throw error;
+      return failStartup(launcher, error);
     }
     activeServices.set(browser, service);
 
@@ -199,8 +202,6 @@ export function createMobileSession<TOptions extends object, TCap extends object
       log.warn(`Failed to delete session during cleanup: ${(e as Error).message}`);
     }
 
-    // Stop launcher-owned processes last (e.g. RN's managed Metro) — WDIO's runner does this in
-    // onComplete, which the standalone path never invokes itself. Best-effort: don't mask cleanup.
     const cleanupError = await stopLauncher(launcher);
     if (cleanupError) {
       log.warn(`launcher.onComplete() failed during cleanup: ${(cleanupError as Error).message}`);

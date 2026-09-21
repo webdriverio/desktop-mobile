@@ -84,7 +84,7 @@ describe('createMobileSession init', () => {
     before.mockRejectedValueOnce(new Error('before boom'));
     await expect(makeSession().init({ platformName: 'Android' })).rejects.toThrow('before boom');
     expect(deleteSession).toHaveBeenCalled();
-    expect(onComplete).toHaveBeenCalled(); // stop launcher-owned processes (e.g. RN Metro) on failure
+    expect(onComplete).toHaveBeenCalled();
   });
 
   it('should stop the launcher when remote() fails (onPrepare already ran)', async () => {
@@ -131,7 +131,7 @@ describe('createMobileSession init', () => {
     expect(remoteMock).not.toHaveBeenCalled();
   });
 
-  it('should not open a session if the worker constructor throws', async () => {
+  it('should stop the launcher without opening a session when the worker constructor throws', async () => {
     resetMocks();
     class ThrowingWorker {
       constructor() {
@@ -144,8 +144,8 @@ describe('createMobileSession init', () => {
       logNamespace: 'test-service',
     });
     await expect(session.init({ platformName: 'Android' })).rejects.toThrow('worker ctor boom');
-    // The worker is constructed before remote(), so a ctor throw leaks no live session.
-    expect(remoteMock).not.toHaveBeenCalled();
+    expect(remoteMock).not.toHaveBeenCalled(); // constructed before remote(), so no live session leaks
+    expect(onComplete).toHaveBeenCalled(); // onPrepare already ran, so the launcher is stopped
   });
 });
 
@@ -157,7 +157,7 @@ describe('createMobileSession cleanup', () => {
     await session.cleanup(browser);
     expect(after).toHaveBeenCalled();
     expect(deleteSession).toHaveBeenCalled();
-    expect(onComplete).toHaveBeenCalled(); // stops launcher-owned processes (e.g. RN Metro)
+    expect(onComplete).toHaveBeenCalled();
   });
 
   it('should not throw when launcher.onComplete fails during cleanup (best-effort)', async () => {
