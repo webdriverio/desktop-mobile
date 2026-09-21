@@ -1,6 +1,6 @@
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { closeLogWriter, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseLogLines } from '../src/logParser.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => {

@@ -1,4 +1,4 @@
-import { shouldLog, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
+import { getLogWriter, isLogWriterInitialized, shouldLog } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 

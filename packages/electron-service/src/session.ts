@@ -1,10 +1,10 @@
+import { getLogWriter } from '@wdio/native-core';
 import type {
   ElectronServiceCapabilities,
   ElectronServiceGlobalOptions,
   ElectronServiceOptions,
   ElectronStandaloneCapability,
 } from '@wdio/native-types';
-import { getLogWriter } from '@wdio/native-core';
 import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');

@@ -26,12 +26,12 @@ const {
 }));
 
 vi.mock('@wdio/native-core', () => ({
-    getLogWriter: vi.fn().mockReturnValue({
-        initialize: mockLogWriterInitialize,
-        getLogDir: mockLogWriterGetLogDir,
-        getLogFile: mockLogWriterGetLogFile,
-    }),
-    closeLogWriter: vi.fn(),
+  getLogWriter: vi.fn().mockReturnValue({
+    initialize: mockLogWriterInitialize,
+    getLogDir: mockLogWriterGetLogDir,
+    getLogFile: mockLogWriterGetLogFile,
+  }),
+  closeLogWriter: vi.fn(),
 }));
 
 vi.mock('@wdio/native-utils', () => ({
