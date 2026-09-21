@@ -3,10 +3,8 @@
 /**
  * Import a module once in a `beforeAll` with a generous hook timeout, returning an accessor.
  *
- * A first `await import('…')` cold-imports and transforms the whole module graph, which can exceed
- * vitest's default 5s test timeout on slow CI. Doing it once in `beforeAll` scopes the long timeout
- * to setup and keeps the assertions on the default. Uses the ambient `beforeAll` (vitest
- * `globals: true`), so this stays a no-runtime-dep helper.
+ * A cold `await import()` can exceed vitest's default 5s test timeout on slow CI; running it in
+ * `beforeAll` puts the long timeout on setup rather than every test.
  */
 export function coldImport<T>(importer: () => Promise<T>, timeoutMs = 20000): () => T {
   let mod: T;
