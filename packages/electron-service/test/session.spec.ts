@@ -1,3 +1,4 @@
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { cleanup, createElectronCapabilities, init } from '../src/session.js';
@@ -206,6 +207,23 @@ describe('Session Management', () => {
       const browser = await init([caps]);
       onCompleteMock.mockRejectedValueOnce(new Error('dev server stop boom'));
       await expect(cleanup(browser)).resolves.toBeUndefined();
+    });
+
+    it('should not hang cleanup when launcher.onComplete never settles', async () => {
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+      const browser = await init([caps]);
+      onCompleteMock.mockReturnValueOnce(new Promise<void>(() => {})); // a devServer stop() that hangs
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      // The bounded onComplete was abandoned, so the log writer still closed.
+      expect(mockClose).toHaveBeenCalled();
     });
 
     it('should warn when cleaning up an unknown browser instance', async () => {

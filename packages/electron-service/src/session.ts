@@ -4,7 +4,7 @@ import type {
   ElectronServiceOptions,
   ElectronStandaloneCapability,
 } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -26,13 +26,18 @@ const activeServices = new WeakMap<WebdriverIO.Browser, ElectronWorkerService>()
  * Rethrow a standalone startup failure after best-effort teardown: close the log writer, then run
  * launcher.onComplete() — which stops a browser-mode dev server (started in onPrepare) and is a
  * no-op in native mode, where WDIO owns chromedriver. A launcher-teardown failure joins the
- * original in an AggregateError rather than masking it.
+ * original in an AggregateError rather than masking it. onComplete is bounded because a function-form
+ * devServer's close() is user-supplied and can hang.
  */
 async function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<never> {
   const writer = getStandaloneLogWriter();
   await writer.close().catch((e: Error) => log.warn(`Failed to close log writer: ${e.message}`));
   try {
-    await launcher.onComplete();
+    await runBounded(
+      () => launcher.onComplete(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn('launcher.onComplete() timed out during startup cleanup'),
+    );
   } catch (cleanupError) {
     throw new AggregateError([error, cleanupError], 'Electron standalone startup and launcher cleanup failed', {
       cause: error,
@@ -148,10 +153,14 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       activeServices.delete(browser);
     }
 
-    // Stop a browser-mode dev server (no-op in native mode). Best-effort so it
-    // can't skip the log writer + map cleanup that follow.
+    // Stop a browser-mode dev server (no-op in native mode). Bounded + best-effort
+    // so a hanging/failing stop can't strand the log writer + map cleanup that follow.
     try {
-      await launcher.onComplete();
+      await runBounded(
+        () => launcher.onComplete(),
+        DEFAULT_TEARDOWN_TIMEOUT_MS,
+        () => log.warn('launcher.onComplete() timed out during cleanup'),
+      );
     } catch (e) {
       log.warn(`launcher.onComplete() failed during cleanup: ${(e as Error).message}`);
     }
