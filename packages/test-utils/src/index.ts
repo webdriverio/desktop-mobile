@@ -1,4 +1,4 @@
-// Internal shared test helpers (@repo/test-utils, private — never published).
+// Internal shared test helpers
 
 /**
  * Import a module once in a `beforeAll` with a generous hook timeout, returning an accessor.
