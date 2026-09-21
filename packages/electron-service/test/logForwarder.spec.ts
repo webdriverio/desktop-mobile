@@ -1,7 +1,6 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { forwardLog, shouldLog } from '../src/logForwarder.js';
 
-// Mock dependencies
 vi.mock('@wdio/native-utils', () => ({
   createLogger: vi.fn(() => ({
     debug: vi.fn(),
@@ -11,11 +10,10 @@ vi.mock('@wdio/native-utils', () => ({
   })),
 }));
 
-vi.mock('../src/logWriter.js', () => ({
-  getStandaloneLogWriter: vi.fn(() => ({
-    write: vi.fn(),
-  })),
-  isStandaloneLogWriterInitialized: vi.fn(() => false),
+vi.mock('@wdio/native-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-core')>()),
+  isLogWriterInitialized: vi.fn(() => false),
+  getLogWriter: vi.fn(),
 }));
 
 describe('logForwarder', () => {
@@ -64,77 +62,36 @@ describe('logForwarder', () => {
   });
 
   describe('forwardLog', () => {
-    it('should format main process log with correct prefix', async () => {
+    let mockLogger: { debug: Mock; info: Mock; warn: Mock; error: Mock };
+
+    beforeEach(async () => {
       const { createLogger } = await import('@wdio/native-utils');
-      const mockLogger = {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      };
+      mockLogger = { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() };
       vi.mocked(createLogger).mockReturnValue(mockLogger as never);
+    });
 
+    it('should format main process log with correct prefix', () => {
       forwardLog('main', 'info', 'Test message', 'info');
-
       expect(mockLogger.info).toHaveBeenCalledWith('[Electron:MainProcess] Test message');
     });
 
-    it('should format renderer process log with correct prefix', async () => {
-      const { createLogger } = await import('@wdio/native-utils');
-      const mockLogger = {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      };
-      vi.mocked(createLogger).mockReturnValue(mockLogger as never);
-
+    it('should format renderer process log with correct prefix', () => {
       forwardLog('renderer', 'info', 'Test message', 'info');
-
       expect(mockLogger.info).toHaveBeenCalledWith('[Electron:Renderer] Test message');
     });
 
-    it('should include instance ID in prefix when provided', async () => {
-      const { createLogger } = await import('@wdio/native-utils');
-      const mockLogger = {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      };
-      vi.mocked(createLogger).mockReturnValue(mockLogger as never);
-
+    it('should include instance ID in prefix when provided', () => {
       forwardLog('main', 'info', 'Test message', 'info', 'app1');
-
       expect(mockLogger.info).toHaveBeenCalledWith('[Electron:MainProcess:app1] Test message');
     });
 
-    it('should not log when level is below minimum', async () => {
-      const { createLogger } = await import('@wdio/native-utils');
-      const mockLogger = {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      };
-      vi.mocked(createLogger).mockReturnValue(mockLogger as never);
-
+    it('should not log when level is below minimum', () => {
       forwardLog('main', 'debug', 'Test message', 'info');
-
       expect(mockLogger.debug).not.toHaveBeenCalled();
       expect(mockLogger.info).not.toHaveBeenCalled();
     });
 
-    it('should use correct logger method for each level', async () => {
-      const { createLogger } = await import('@wdio/native-utils');
-      const mockLogger = {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      };
-      vi.mocked(createLogger).mockReturnValue(mockLogger as never);
-
+    it('should use correct logger method for each level', () => {
       forwardLog('main', 'debug', 'Debug message', 'debug');
       expect(mockLogger.debug).toHaveBeenCalled();
 
@@ -151,12 +108,12 @@ describe('logForwarder', () => {
       expect(mockLogger.error).toHaveBeenCalled();
     });
 
-    it('should use standalone log writer when initialized', async () => {
-      const { isStandaloneLogWriterInitialized, getStandaloneLogWriter } = await import('../src/logWriter.js');
+    it('should use log writer when initialized', async () => {
+      const { isLogWriterInitialized, getLogWriter } = await import('@wdio/native-core');
       const mockWriter = { write: vi.fn() };
 
-      vi.mocked(isStandaloneLogWriterInitialized).mockReturnValue(true);
-      vi.mocked(getStandaloneLogWriter).mockReturnValue(mockWriter as never);
+      vi.mocked(isLogWriterInitialized).mockReturnValue(true);
+      vi.mocked(getLogWriter).mockReturnValue(mockWriter as never);
 
       forwardLog('main', 'info', 'Test message', 'info');
 
@@ -164,17 +121,8 @@ describe('logForwarder', () => {
     });
 
     it('should use WDIO logger when standalone writer not initialized', async () => {
-      const { createLogger } = await import('@wdio/native-utils');
-      const { isStandaloneLogWriterInitialized } = await import('../src/logWriter.js');
-      const mockLogger = {
-        debug: vi.fn(),
-        info: vi.fn(),
-        warn: vi.fn(),
-        error: vi.fn(),
-      };
-
-      vi.mocked(isStandaloneLogWriterInitialized).mockReturnValue(false);
-      vi.mocked(createLogger).mockReturnValue(mockLogger as never);
+      const { isLogWriterInitialized } = await import('@wdio/native-core');
+      vi.mocked(isLogWriterInitialized).mockReturnValue(false);
 
       forwardLog('main', 'info', 'Test message', 'info');
 

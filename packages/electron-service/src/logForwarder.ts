@@ -1,7 +1,6 @@
-import { shouldLog } from '@wdio/native-core';
+import { getLogWriter, isLogWriterInitialized, shouldLog } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
-import { getStandaloneLogWriter, isStandaloneLogWriterInitialized } from './logWriter.js';
 
 export { shouldLog };
 
@@ -52,8 +51,8 @@ export function forwardLog(
   const formattedMessage = formatLogMessage(source, message, instanceId);
 
   // Check if we're in standalone mode (log writer initialized)
-  if (isStandaloneLogWriterInitialized()) {
-    const writer = getStandaloneLogWriter();
+  if (isLogWriterInitialized('electron-service')) {
+    const writer = getLogWriter('electron-service');
     writer.write(formattedMessage);
   } else {
     // Use WDIO logger (normal test runner mode)

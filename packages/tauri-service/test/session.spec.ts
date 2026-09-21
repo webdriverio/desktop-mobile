@@ -25,6 +25,15 @@ const {
   mockHttpGet: vi.fn(),
 }));
 
+vi.mock('@wdio/native-core', () => ({
+  getLogWriter: vi.fn().mockReturnValue({
+    initialize: mockLogWriterInitialize,
+    getLogDir: mockLogWriterGetLogDir,
+    getLogFile: mockLogWriterGetLogFile,
+  }),
+  closeLogWriter: vi.fn(),
+}));
+
 vi.mock('@wdio/native-utils', () => ({
   createLogger: () => ({
     debug: vi.fn(),
@@ -53,15 +62,6 @@ vi.mock('../src/service.js', () => ({
   }),
 }));
 
-vi.mock('../src/logWriter.js', () => ({
-  getLogWriter: vi.fn().mockReturnValue({
-    initialize: mockLogWriterInitialize,
-    getLogDir: mockLogWriterGetLogDir,
-    getLogFile: mockLogWriterGetLogFile,
-  }),
-  closeLogWriter: vi.fn(),
-}));
-
 vi.mock('webdriverio', () => ({
   remote: mockRemote,
 }));
@@ -72,8 +72,8 @@ vi.mock('node:http', () => ({
   },
 }));
 
+import { closeLogWriter, getLogWriter } from '@wdio/native-core';
 import TauriLaunchService from '../src/launcher.js';
-import { closeLogWriter, getLogWriter } from '../src/logWriter.js';
 import TauriWorkerService from '../src/service.js';
 import { cleanup, createTauriCapabilities, getTauriServiceStatus, init } from '../src/session.js';
 import type { TauriCapabilities } from '../src/types.js';
@@ -278,6 +278,14 @@ describe('session', () => {
   });
 
   describe('init', () => {
+    let mockBrowser: ReturnType<typeof createMockBrowser>;
+
+    beforeEach(() => {
+      simulateHealthyDriver();
+      mockBrowser = createMockBrowser();
+      mockRemote.mockResolvedValue(mockBrowser);
+    });
+
     afterEach(() => {
       vi.restoreAllMocks();
     });
@@ -302,8 +310,6 @@ describe('session', () => {
       mockOnPrepare.mockImplementation(async () => {
         // Simulate launcher setting port on capabilities
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities: TauriCapabilities = {
         'tauri:options': { application: '/app' },
       };
@@ -345,18 +351,11 @@ describe('session', () => {
     });
 
     it('should strip hostname, port, and browserName from driver capabilities', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.hostname = 'localhost';
         caps.port = 4444;
         caps.browserName = 'wry';
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
         'wdio:tauriServiceOptions': { appBinaryPath: '/app' },
@@ -378,16 +377,9 @@ describe('session', () => {
     });
 
     it('should use default hostname localhost when not set', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 5555;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -402,16 +394,9 @@ describe('session', () => {
     });
 
     it('should pass connectionRetryTimeout as startTimeout * 4', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
         'wdio:tauriServiceOptions': {
@@ -431,16 +416,9 @@ describe('session', () => {
     });
 
     it('should use default startTimeout of 30000 when not specified', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -454,16 +432,9 @@ describe('session', () => {
     });
 
     it('should call service.before with the browser', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
         'wdio:tauriServiceOptions': { appBinaryPath: '/app' },
@@ -475,16 +446,9 @@ describe('session', () => {
     });
 
     it('should return the browser instance', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -494,15 +458,11 @@ describe('session', () => {
     });
 
     it('should re-throw errors from remote()', async () => {
-      simulateHealthyDriver();
-
       mockRemote.mockRejectedValue(new Error('Connection refused'));
 
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -568,16 +528,9 @@ describe('session', () => {
     });
 
     it('should create TauriWorkerService with service options from capabilities', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const serviceOpts = { appBinaryPath: '/app', logLevel: 'debug' as const };
       const capabilities = {
         'tauri:options': { application: '/app' },
@@ -590,16 +543,9 @@ describe('session', () => {
     });
 
     it('should create TauriWorkerService with empty options when none in capabilities', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -671,17 +617,15 @@ describe('session', () => {
   });
 
   describe('cleanup', () => {
-    it('should call launcher lifecycle methods when launcher is found', async () => {
+    beforeEach(() => {
       simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
+      mockRemote.mockResolvedValue(createMockBrowser());
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
-      mockOnWorkerStart.mockResolvedValue(undefined);
+    });
 
+    it('should call launcher lifecycle methods when launcher is found', async () => {
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -698,16 +642,6 @@ describe('session', () => {
     });
 
     it('should remove launcher from active launchers after cleanup', async () => {
-      simulateHealthyDriver();
-
-      const mockBrowser = createMockBrowser();
-      mockRemote.mockResolvedValue(mockBrowser);
-
-      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
-        caps.port = 4444;
-      });
-      mockOnWorkerStart.mockResolvedValue(undefined);
-
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;

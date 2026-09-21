@@ -1,3 +1,4 @@
+import { getLogWriter } from '@wdio/native-core';
 import type {
   ElectronServiceCapabilities,
   ElectronServiceGlobalOptions,
@@ -11,7 +12,6 @@ const log = createLogger('electron-service', 'service');
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import ElectronLaunchService from './launcher.js';
-import { getStandaloneLogWriter } from './logWriter.js';
 import ElectronWorkerService from './service.js';
 
 // Store launcher instances for cleanup
@@ -29,7 +29,7 @@ const activeServices = new WeakMap<WebdriverIO.Browser, ElectronWorkerService>()
  * than masking it; onComplete is bounded because a function-form devServer's close() is user-supplied and can hang.
  */
 async function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<never> {
-  const writer = getStandaloneLogWriter();
+  const writer = getLogWriter('electron-service');
   await writer.close().catch((e: Error) => log.warn(`Failed to close log writer: ${e.message}`));
   try {
     await runBounded(
@@ -88,7 +88,7 @@ export async function init(
   if (serviceOptions?.captureMainProcessLogs || serviceOptions?.captureRendererLogs) {
     if (serviceOptions.logDir) {
       // Use explicit logDir if provided
-      const writer = getStandaloneLogWriter();
+      const writer = getLogWriter('electron-service');
       writer.initialize(serviceOptions.logDir);
       log.debug(`Standalone log writer initialized at ${writer.getLogDir()}`);
     } else {
@@ -191,7 +191,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     // Close standalone log writer. The map delete is in a finally so a
     // writer.close() throw can't strand the launcher entry — a cleanup()
     // retry would then re-drive teardown against an already-cleaned session.
-    const writer = getStandaloneLogWriter();
+    const writer = getLogWriter('electron-service');
     try {
       await writer.close();
     } finally {

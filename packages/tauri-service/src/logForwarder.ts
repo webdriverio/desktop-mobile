@@ -1,7 +1,6 @@
-import { shouldLog } from '@wdio/native-core';
+import { getLogWriter, isLogWriterInitialized, shouldLog } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
-import { getLogWriter, isLogWriterInitialized } from './logWriter.js';
 
 export { shouldLog };
 
@@ -114,9 +113,9 @@ export function forwardLog(
   const formattedMessage = transformedPrefixed || formatLogMessage(source, message, instanceId);
 
   // Check if we're in file logging mode (log writer initialized)
-  const isInitialized = isLogWriterInitialized();
+  const isInitialized = isLogWriterInitialized('tauri-service');
   if (isInitialized) {
-    const writer = getLogWriter();
+    const writer = getLogWriter('tauri-service');
     writer.write(formattedMessage);
   } else {
     // Use cached WDIO logger (normal test runner mode)

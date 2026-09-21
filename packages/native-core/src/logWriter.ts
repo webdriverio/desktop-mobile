@@ -13,9 +13,6 @@
 //     to 'tauri-service:service:' or 'electron-service:service:') is now a
 //     constructor arg, so each service tags its own lines.
 //
-// Backwards-compat aliases (`StandaloneLogWriter`, `getStandaloneLogWriter`,
-// `isStandaloneLogWriterInitialized`) are re-exported so the existing
-// electron-service imports keep working until the call sites are updated.
 
 import { createWriteStream, existsSync, mkdirSync, type WriteStream } from 'node:fs';
 import { join } from 'node:path';
@@ -148,42 +145,4 @@ export async function closeLogWriter(serviceName: string): Promise<void> {
     singletons.delete(serviceName);
     log.debug(`Log writer closed for ${serviceName}`);
   }
-}
-
-// ---- Backwards-compat aliases ----
-// These keep packages/electron-service/src/logWriter.ts call sites working
-// during the migration. They will be removed once all callers import the
-// canonical names directly.
-
-/**
- * @deprecated Use {@link LogWriter} with a `serviceName` argument.
- * Bound to `'electron-service'` for back-compat with the Electron call sites
- * that historically instantiated this directly.
- */
-export class StandaloneLogWriter extends LogWriter {
-  constructor() {
-    super('electron-service');
-  }
-}
-
-/** @deprecated Use {@link getLogWriter}(serviceName). */
-export function getStandaloneLogWriter(): StandaloneLogWriter {
-  let instance = singletons.get('electron-service');
-  if (!instance || !(instance instanceof StandaloneLogWriter)) {
-    // If we're replacing an initialised LogWriter, flush + close its stream
-    // first so the previous WriteStream isn't orphaned and leaking an fd.
-    if (instance?.getLogFile()) {
-      void instance.close().catch((err) => {
-        log.warn(`Failed to close orphaned LogWriter for electron-service: ${err}`);
-      });
-    }
-    instance = new StandaloneLogWriter();
-    singletons.set('electron-service', instance);
-  }
-  return instance as StandaloneLogWriter;
-}
-
-/** @deprecated Use {@link isLogWriterInitialized}(serviceName). */
-export function isStandaloneLogWriterInitialized(): boolean {
-  return isLogWriterInitialized('electron-service');
 }

@@ -1,7 +1,7 @@
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
+import { closeLogWriter, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseLogLines } from '../src/logParser.js';
-import { closeLogWriter, getLogWriter, isLogWriterInitialized } from '../src/logWriter.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@wdio/native-utils')>();
@@ -550,11 +550,15 @@ describe('TauriWorkerService', () => {
   });
 
   describe('tauri.execute()', () => {
-    it('should call updateAllMocks after execute', async () => {
-      const mockBrowser = createMockBrowser();
+    let mockBrowser: ReturnType<typeof createMockBrowser>;
+
+    beforeEach(async () => {
+      mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       await service.before({} as any, [], mockBrowser);
+    });
 
+    it('should call updateAllMocks after execute', async () => {
       vi.mocked(executeCommand).mockResolvedValueOnce('result' as any);
       vi.mocked(mockStore.getMocks).mockReturnValue([]);
 
@@ -564,10 +568,6 @@ describe('TauriWorkerService', () => {
     });
 
     it('should return the result from execute', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
       vi.mocked(executeCommand).mockResolvedValueOnce('my-result' as any);
 
       const result = await (mockBrowser as any).tauri.execute(() => 'my-result');
@@ -576,10 +576,6 @@ describe('TauriWorkerService', () => {
     });
 
     it('should call update() on each mock in the store after execute', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
       const mockUpdate = vi.fn().mockResolvedValue(undefined);
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.read_clipboard', { update: mockUpdate } as any]]);
       vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
@@ -590,10 +586,6 @@ describe('TauriWorkerService', () => {
     });
 
     it('should throw AggregateError when a mock update fails on both initial attempt and retry', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
       const failingUpdate = vi.fn().mockRejectedValue(new Error('connection refused'));
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: failingUpdate } as any]]);
       vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
@@ -603,10 +595,6 @@ describe('TauriWorkerService', () => {
     });
 
     it('should succeed when a mock update fails on first attempt but succeeds on retry', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
       const updateFn = vi.fn().mockRejectedValueOnce(new Error('transient')).mockResolvedValueOnce(undefined);
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.cmd', { update: updateFn } as any]]);
       vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
@@ -616,10 +604,6 @@ describe('TauriWorkerService', () => {
     });
 
     it('should include the failing mock ID in the AggregateError message', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
       const failingUpdate = vi.fn().mockRejectedValue(new Error('fail'));
       vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.read_file', { update: failingUpdate } as any]]);
       vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
@@ -803,22 +787,22 @@ describe('TauriWorkerService', () => {
   });
 
   describe('tauri.isMockFunction()', () => {
-    it('should return true when the command name is in the mock store', async () => {
-      const mockBrowser = createMockBrowser();
+    let mockBrowser: ReturnType<typeof createMockBrowser>;
+
+    beforeEach(async () => {
+      mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       await service.before({} as any, [], mockBrowser);
+    });
 
+    it('should return true when the command name is in the mock store', () => {
       vi.mocked(mockStore.getMock).mockReturnValue({} as any);
 
       expect((mockBrowser as any).tauri.isMockFunction('read_clipboard')).toBe(true);
       expect(mockStore.getMock).toHaveBeenCalledWith('tauri.read_clipboard');
     });
 
-    it('should return false when the command name is not in the mock store', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
+    it('should return false when the command name is not in the mock store', () => {
       vi.mocked(mockStore.getMock).mockImplementation(() => {
         throw new Error('not found');
       });
@@ -827,10 +811,6 @@ describe('TauriWorkerService', () => {
     });
 
     it('should delegate to base isMockFunction for non-string values', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
       const { isMockFunction: baseMockFn } = await import('../src/commands/mock.js');
       vi.mocked(baseMockFn).mockReturnValue(false);
 
@@ -1115,7 +1095,7 @@ describe('LogWriter', () => {
     });
 
     it('should handle closeLogWriter when not initialized', () => {
-      expect(() => closeLogWriter()).not.toThrow();
+      expect(() => closeLogWriter('tauri-service')).not.toThrow();
     });
   });
 });
