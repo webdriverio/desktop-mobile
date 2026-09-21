@@ -1,0 +1,38 @@
+{
+  "name": "@repo/test-utils",
+  "version": "0.0.0",
+  "description": "Internal shared test helpers for the monorepo (not published)",
+  "private": true,
+  "type": "module",
+  "main": "./dist/cjs/index.js",
+  "module": "./dist/esm/index.js",
+  "types": "./dist/esm/index.d.ts",
+  "exports": {
+    ".": [
+      {
+        "import": {
+          "types": "./dist/esm/index.d.ts",
+          "default": "./dist/esm/index.js"
+        },
+        "require": {
+          "types": "./dist/cjs/index.d.ts",
+          "default": "./dist/cjs/index.js"
+        }
+      },
+      "./dist/cjs/index.js"
+    ]
+  },
+  "scripts": {
+    "clean": "shx rm -rf dist coverage .turbo",
+    "build": "node ../../scripts/build-package.ts",
+    "dev": "node ../../scripts/build-package.ts --watch",
+    "typecheck": "tsc --noEmit -p tsconfig.json"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.1",
+    "@wdio/bundler": "workspace:*",
+    "shx": "^0.4.0",
+    "typescript": "^6.0.3",
+    "vitest": "^5.0.1"
+  }
+}

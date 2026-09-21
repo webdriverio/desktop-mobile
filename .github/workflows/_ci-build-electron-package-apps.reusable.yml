@@ -34,6 +34,7 @@ jobs:
   build-electron-package-apps:
     name: Build
     runs-on: ${{ inputs.os }}
+    timeout-minutes: 30
     outputs:
       build_id: ${{ steps.build-info.outputs.build_id }}
       build_date: ${{ steps.build-info.outputs.build_date }}

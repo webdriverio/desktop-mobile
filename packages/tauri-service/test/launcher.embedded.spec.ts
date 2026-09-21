@@ -68,6 +68,7 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
   waitTestRunnerBackendReady: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { checkEmbeddedServerAlive, startEmbeddedDriver, stopEmbeddedDriver } from '../src/embeddedProvider.js';
 import TauriLaunchService from '../src/launcher.js';
 
@@ -121,15 +122,15 @@ describe('ensureEmbeddedServersHealthy', () => {
     expect((launcher as any).embeddedProcesses.get('0')).toBe(newInfo);
   });
 
-  it('should still restart when stopEmbeddedDriver throws (process already dead)', async () => {
-    const newInfo = { proc: { pid: 456 } as any, logHandlers: [] };
+  it('retains the old process and refuses to restart if shutdown fails', async () => {
+    const error = new Error('process did not exit');
     vi.mocked(checkEmbeddedServerAlive).mockResolvedValue(false);
-    vi.mocked(stopEmbeddedDriver).mockRejectedValue(new Error('No such process'));
-    vi.mocked(startEmbeddedDriver).mockResolvedValue(newInfo);
-
-    await expect((launcher as any).ensureEmbeddedServersHealthy()).resolves.toBeUndefined();
-    expect(startEmbeddedDriver).toHaveBeenCalled();
-    expect((launcher as any).embeddedProcesses.get('0')).toBe(newInfo);
+    vi.mocked(stopEmbeddedDriver).mockRejectedValue(error);
+    await expect(launcher.onWorkerStart('0-0', stdCaps)).rejects.toBe(error);
+    expect(startEmbeddedDriver).not.toHaveBeenCalled();
+    vi.mocked(stopEmbeddedDriver).mockResolvedValue(undefined);
+    await launcher.onComplete(0, { capabilities: [] }, []);
+    expect(stopEmbeddedDriver).toHaveBeenLastCalledWith(stubDriverInfo);
   });
 
   it('should throw SevereServiceError when restart fails', async () => {
@@ -169,18 +170,16 @@ describe('ensureEmbeddedServersHealthy', () => {
 });
 
 describe('verifyEmbeddedServerStable — Windows stability probes', () => {
-  const originalPlatform = process.platform;
-
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.clearAllMocks();
     vi.mocked(stopEmbeddedDriver).mockResolvedValue(undefined);
-    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    mockPlatform('win32');
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    restorePlatform();
   });
 
   it('should run 3 additional probes on win32 after a passing health check', async () => {
@@ -221,7 +220,7 @@ describe('verifyEmbeddedServerStable — Windows stability probes', () => {
   });
 
   it('should not run stability probes on non-win32', async () => {
-    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    mockPlatform('darwin');
     vi.mocked(checkEmbeddedServerAlive).mockResolvedValue(true);
 
     const launcher = createEmbeddedLauncher();
@@ -269,5 +268,71 @@ describe('onWorkerStart — embedded health check guard', () => {
     await launcher.onWorkerStart('0-0', stdCaps as any);
 
     expect(checkEmbeddedServerAlive).not.toHaveBeenCalled();
+  });
+});
+
+describe('embedded launcher lifecycle', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(startEmbeddedDriver).mockResolvedValue(stubDriverInfo);
+    vi.mocked(stopEmbeddedDriver).mockResolvedValue(undefined);
+    vi.mocked(checkEmbeddedServerAlive).mockResolvedValue(true);
+  });
+
+  it.each(['linux', 'win32', 'darwin'])('skips external setup and diagnostics on %s', async (platform) => {
+    mockPlatform(platform);
+    try {
+      const { getWebKitWebDriverPath } = await import('../src/pathResolver.js');
+      const { ensureMsEdgeDriver } = await import('../src/edgeDriverManager.js');
+      const { ensureTauriDriver } = await import('../src/driverManager.js');
+      const { diagnoseTauriEnvironment } = await import('../src/diagnostics.js');
+      const caps = { 'tauri:options': { application: APP_BINARY } };
+      const config = { maxInstances: 2, capabilities: [caps] };
+      const launcher = new TauriLaunchService({}, caps, config);
+      await launcher.onPrepare(config, [caps]);
+      await launcher.onWorkerStart('0-0', [caps]);
+      expect(getWebKitWebDriverPath).not.toHaveBeenCalled();
+      expect(ensureMsEdgeDriver).not.toHaveBeenCalled();
+      expect(ensureTauriDriver).not.toHaveBeenCalled();
+      expect(diagnoseTauriEnvironment).not.toHaveBeenCalled();
+      await launcher.onComplete(0, config, []);
+    } finally {
+      restorePlatform();
+    }
+  });
+
+  it.each([false, true])('preserves startup causes (multiremote=%s)', async (multiremote) => {
+    const { SevereServiceError } = await import('webdriverio');
+    const cause = new AggregateError([new Error('startup'), new Error('cleanup')], 'both failed');
+    vi.mocked(startEmbeddedDriver).mockRejectedValueOnce(cause);
+    const caps = { 'tauri:options': { application: APP_BINARY } };
+    const launcher = new TauriLaunchService({}, caps, { capabilities: [] });
+    const capabilities = multiremote ? { app: { capabilities: caps } } : [caps];
+    const result = launcher.onPrepare({ capabilities: [] }, capabilities);
+    await expect(result).rejects.toBeInstanceOf(SevereServiceError);
+    await expect(result).rejects.toMatchObject({ name: 'SevereServiceError', cause });
+  });
+
+  it('tries every cleanup, reports all failures and retries only retained processes', async () => {
+    const caps = { 'tauri:options': { application: APP_BINARY } };
+    const launcher = new TauriLaunchService({}, caps, { capabilities: [] });
+    const capabilities = {
+      first: { capabilities: structuredClone(caps) },
+      second: { capabilities: structuredClone(caps) },
+    };
+    await launcher.onPrepare({ capabilities: [] }, capabilities);
+    const first = new Error('first did not exit');
+    const second = new Error('second did not exit');
+    vi.mocked(stopEmbeddedDriver).mockRejectedValueOnce(first).mockRejectedValueOnce(second);
+    await expect(launcher.onComplete(0, { capabilities: [] }, [])).rejects.toMatchObject({
+      cause: first,
+      errors: [first, second],
+    });
+    expect(stopEmbeddedDriver).toHaveBeenCalledTimes(2);
+    vi.mocked(stopEmbeddedDriver).mockResolvedValueOnce(undefined).mockRejectedValueOnce(second);
+    await expect(launcher.onComplete(0, { capabilities: [] }, [])).rejects.toBe(second);
+    vi.mocked(stopEmbeddedDriver).mockClear().mockResolvedValue(undefined);
+    await launcher.onComplete(0, { capabilities: [] }, []);
+    expect(stopEmbeddedDriver).toHaveBeenCalledOnce();
   });
 });

@@ -24,7 +24,7 @@
     ]
   },
   "engines": {
-    "node": "^18.12.0 || ^20.9.0 || >=22.11.0"
+    "node": ">=18.20.0"
   },
   "scripts": {
     "clean": "shx rm -rf dist coverage .turbo",
@@ -48,6 +48,7 @@
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
+    "@repo/test-utils": "workspace:*",
     "@types/node": "^26.6.1",
     "@vitest/coverage-v8": "^5.0.1",
     "@wdio/bundler": "workspace:*",

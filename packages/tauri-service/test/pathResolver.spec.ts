@@ -1,4 +1,5 @@
 import { existsSync } from 'node:fs';
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getWebKitWebDriverPath } from '../src/pathResolver.js';
 
@@ -20,25 +21,23 @@ vi.mock('@wdio/native-utils', () => ({
 }));
 
 describe('getWebKitWebDriverPath', () => {
-  const originalPlatform = process.platform;
-
   beforeEach(() => {
     vi.resetAllMocks();
   });
 
   afterEach(() => {
-    Object.defineProperty(process, 'platform', { value: originalPlatform });
+    restorePlatform();
     vi.restoreAllMocks();
   });
 
   it('should return undefined on non-Linux platforms', () => {
-    Object.defineProperty(process, 'platform', { value: 'darwin' });
+    mockPlatform('darwin');
 
     expect(getWebKitWebDriverPath()).toBeUndefined();
   });
 
   it('should find WebKitWebDriver in PATH on linux', async () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' });
+    mockPlatform('linux');
 
     const { execSync } = await import('node:child_process');
     vi.mocked(execSync).mockReturnValue('/usr/bin/WebKitWebDriver\n');
@@ -50,7 +49,7 @@ describe('getWebKitWebDriverPath', () => {
   });
 
   it('should check fallback paths on linux when not in PATH', async () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' });
+    mockPlatform('linux');
 
     const { execSync } = await import('node:child_process');
     vi.mocked(execSync).mockImplementation(() => {
@@ -64,7 +63,7 @@ describe('getWebKitWebDriverPath', () => {
   });
 
   it('should return undefined on linux when WebKitWebDriver is not found anywhere', async () => {
-    Object.defineProperty(process, 'platform', { value: 'linux' });
+    mockPlatform('linux');
 
     const { execSync } = await import('node:child_process');
     vi.mocked(execSync).mockImplementation(() => {

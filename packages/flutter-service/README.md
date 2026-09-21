@@ -214,7 +214,7 @@ On Android it sets `appium:autoGrantPermissions`. Set any of these yourself to o
 
 Invoke a Dart **handler your app registered** with `wdio_flutter`, by name, with positional args.
 
-> **Two modes — handlers (default) + raw eval (opt-in).** Flutter is ahead-of-time compiled, so —
+> **Handler-based.** Flutter is ahead-of-time compiled, so —
 > unlike the JS-runtime services — there's no built-in way to run an arbitrary code string in the
 > app. Instead `execute` is cooperative (the same model as [`mock`](#mocktarget)): you expose the
 > operations you want to drive as named handlers, then call them by name. This works everywhere —
@@ -233,15 +233,9 @@ const sum = await browser.flutter.execute<number>('add', 2, 3); // → 5
 ```
 
 `execute` is **handler-only**: a name with no registered handler throws an error that lists the
-registered handlers (so a typo or a forgotten `register()` is obvious) — it does **not** silently
-try to evaluate the name as Dart.
-
-> **Planned — arbitrary Dart-expression eval (opt-in).** Evaluating an expression you didn't
-> pre-register (e.g. `execute('1 + 1')`) needs an attached Dart compiler, since Dart has no built-in
-> runtime eval. That's a planned opt-in
-> ([#389](https://github.com/webdriverio/desktop-mobile/issues/389)) — when enabled it attaches a
-> compiler (`flutter attach`) for local/ad-hoc use (Flutter SDK + project required; not for CI or
-> parallel runs).
+registered handlers (so a typo or a forgotten `register()` is obvious). It does **not** evaluate the
+name as Dart, and attaching a Dart compiler yourself (`flutter attach`) doesn't change that — the
+service never routes to the VM `evaluate` RPC. Expose anything you want to drive as a handler.
 
 ### `mock(target)`
 
@@ -364,7 +358,7 @@ try {
 
 | Area | Status |
 |---|---|
-| `execute` (Dart expression) | ✅ supported — **debug / profile build only** (VM Service) |
+| `execute` (handler-based) | ✅ supported — **debug / profile build only** (VM Service) |
 | `mock` (cooperative contract) | ✅ supported — app opts in via [`wdio_flutter`](../flutter-bridge) |
 | Android | ✅ full support |
 | iOS | ✅ full support |

@@ -1,0 +1,32 @@
+name: CrabNebula Reap Stale Branches
+
+# Sweeps orphaned crabnebula-verify/* mirror branches a cancelled or non-reporting keyed run left behind.
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  reap:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Delete stale crabnebula-verify/* branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          # Verifications take minutes, so anything older than a day is a stale orphan.
+          cutoff=$(date -u -d '1 day ago' +%s)
+          gh api --paginate "repos/$REPO/git/matching-refs/heads/crabnebula-verify/" --jq '.[].ref' | while read -r ref; do
+            br="${ref#refs/heads/}"
+            d=$(gh api "repos/$REPO/commits/$br" --jq '.commit.committer.date' 2>/dev/null) || continue
+            ts=$(date -u -d "$d" +%s 2>/dev/null) || continue
+            if [ "$ts" -lt "$cutoff" ]; then
+              echo "Reaping $br (last commit $d)"
+              gh api -X DELETE "repos/$REPO/git/refs/heads/$br" || true
+            fi
+          done

@@ -701,6 +701,9 @@ jobs:
       os: 'macos-latest'
       node-version: '24'
       test-type: ${{ matrix.test-type }}
+      # Require for internal PRs and non-PR events; forks skip here (no key) — the crabnebula:run gate
+      # covers them. Keyed on full_name so a null/detached head.repo resolves to skip, not a spurious require.
+      require_crabnebula: ${{ github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}

@@ -36,6 +36,28 @@ on:
         description: 'Cache key to use for downloading Tauri app binaries'
         type: string
         required: false
+      require_crabnebula:
+        description: 'Fail the job if the CrabNebula leg is skipped (used by the keyed verification run)'
+        type: boolean
+        default: false
+      crabnebula_only:
+        description: 'Run only the CrabNebula provider — the fork PR''s own CI already covered official/embedded.'
+        type: boolean
+        default: false
+      enable_debug:
+        description: 'Debug conveniences that widen exposure (interactive session + log artifacts). Off for the keyed fork-code run.'
+        type: boolean
+        default: true
+    # Declared explicitly so a caller can pass only a subset — the mirror run passes just CN_API_KEY.
+    secrets:
+      CN_API_KEY:
+        required: false
+      TURBO_TOKEN:
+        required: false
+      TURBO_TEAM:
+        required: false
+      DEPLOY_KEY:
+        required: false
 
 env:
   TURBO_TELEMETRY_DISABLED: 1
@@ -46,6 +68,7 @@ jobs:
   e2e-tauri:
     name: Run
     runs-on: ${{ inputs.os }}
+    timeout-minutes: 45
     steps:
       # ══════════════════════════════════════════════════════════════
       # SHARED SETUP (runs once, reused by all providers)
@@ -347,7 +370,7 @@ jobs:
       # ══════════════════════════════════════════════════════════════
 
       - name: 🧹 Cleanup [Official]
-        if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
+        if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel' && !inputs.crabnebula_only
         shell: bash
         run: |
           echo "Cleaning up before Official provider tests..."
@@ -360,7 +383,7 @@ jobs:
 
       - name: 🧪 E2E Tests [Official]
         id: test-official
-        if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
+        if: inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel' && !inputs.crabnebula_only
         continue-on-error: true
         shell: pwsh
         working-directory: e2e
@@ -379,7 +402,7 @@ jobs:
           }
 
       - name: 🧹 Post-cleanup [Official]
-        if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
+        if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel' && !inputs.crabnebula_only
         shell: bash
         run: |
           echo "Cleaning up after Official provider tests..."
@@ -392,7 +415,7 @@ jobs:
           fi
 
       - name: 🐛 Debug Information [Official]
-        if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel'
+        if: always() && inputs.os != 'macos-latest' && inputs.os != 'macos-15-intel' && !inputs.crabnebula_only
         shell: bash
         run: node e2e/scripts/show-logs.ts --provider official
 
@@ -401,7 +424,7 @@ jobs:
       # ══════════════════════════════════════════════════════════════
 
       - name: 🧹 Cleanup [Embedded]
-        if: always()
+        if: always() && !inputs.crabnebula_only
         shell: bash
         run: |
           echo "Cleaning up before Embedded provider tests..."
@@ -413,6 +436,7 @@ jobs:
 
       - name: 🧪 E2E Tests [Embedded]
         id: test-embedded
+        if: ${{ !inputs.crabnebula_only }}
         continue-on-error: true
         shell: pwsh
         working-directory: e2e
@@ -429,7 +453,7 @@ jobs:
           }
 
       - name: 🧹 Post-cleanup [Embedded]
-        if: always()
+        if: always() && !inputs.crabnebula_only
         shell: bash
         run: |
           echo "Cleaning up after Embedded provider tests..."
@@ -440,7 +464,7 @@ jobs:
           fi
 
       - name: 🐛 Debug Information [Embedded]
-        if: always()
+        if: always() && !inputs.crabnebula_only
         shell: bash
         run: node e2e/scripts/show-logs.ts --provider embedded
 
@@ -453,6 +477,8 @@ jobs:
       # key being present instead of failing the job. See packages/tauri-service/docs/crabnebula-setup.md.
       - name: 🔑 Check CrabNebula Credentials
         id: cn-key
+        # always() so `run` is still computed even when an earlier step failed.
+        if: always()
         shell: bash
         env:
           CN_API_KEY: ${{ secrets.CN_API_KEY }}
@@ -553,8 +579,37 @@ jobs:
           format_result "Embedded" "$embedded"
           format_result "CrabNebula" "$crabnebula"
 
+      # Artifact files aren't secret-masked (only the console is), so scrub CN_API_KEY from the logs before upload.
+      - name: 🔒 Redact CN_API_KEY from logs before upload
+        id: redact
+        # continue-on-error so a redaction glitch doesn't red the job; the upload still skips on a failed redact.
+        continue-on-error: true
+        if: ${{ always() && inputs.enable_debug }}
+        shell: bash
+        env:
+          CN_API_KEY: ${{ secrets.CN_API_KEY }}
+        run: |
+          node -e '
+            const fs = require("node:fs"), path = require("node:path");
+            const key = process.env.CN_API_KEY;
+            if (!key) process.exit(0);
+            const dir = "e2e/logs";
+            if (!fs.existsSync(dir)) process.exit(0);
+            const forms = [key, encodeURIComponent(key), Buffer.from(key).toString("base64")];
+            const walk = (d) => fs.readdirSync(d, { withFileTypes: true }).flatMap((e) => {
+              const p = path.join(d, e.name);
+              return e.isDirectory() ? walk(p) : e.name.endsWith(".log") ? [p] : [];
+            });
+            for (const f of walk(dir)) {
+              let c = fs.readFileSync(f, "utf8");
+              const orig = c;
+              for (const form of forms) if (form && c.includes(form)) c = c.split(form).join("***REDACTED***");
+              if (c !== orig) fs.writeFileSync(f, c);
+            }
+          '
+
       - name: 📦 Upload Test Logs
-        if: always()
+        if: ${{ always() && inputs.enable_debug && steps.redact.outcome == 'success' }}
         continue-on-error: true
         uses: actions/upload-artifact@v7
         with:
@@ -601,13 +656,20 @@ jobs:
           check_result "Embedded" "$embedded"
           check_result "CrabNebula" "$crabnebula" "$allow_crabnebula" "$crabnebula_reason"
 
+          # A skipped CrabNebula leg (e.g. no CN_API_KEY) must not count as verified for the keyed run.
+          if [ "${{ inputs.require_crabnebula }}" = "true" ] && [ "${{ steps.cn-key.outputs.run }}" != "true" ]; then
+            echo "::error::CrabNebula verification was required but the leg did not run (CN_API_KEY missing?)"
+            failed=true
+          fi
+
           if [ "$failed" = "true" ]; then
             exit 1
           fi
           echo "All providers passed"
 
+      # Off for the keyed run: no interactive session on a runner that ran fork code and holds CN_API_KEY.
       - name: 🐛 Debug Build on Failure
-        if: failure()
+        if: ${{ failure() && inputs.enable_debug }}
         uses: goosewobbler/vscode-server-action@v1.5.0
         with:
           timeout: '300000'

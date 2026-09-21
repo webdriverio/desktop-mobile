@@ -496,8 +496,6 @@ const browser = await startWdioSession({
 await browser.deleteSession();
 ```
 
----
-
 ### `cleanupWdioSession(browser)`
 
 Clean up a Tauri session started with `startWdioSession`.

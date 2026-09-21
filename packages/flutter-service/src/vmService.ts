@@ -182,7 +182,7 @@ export class VmServiceClient {
     return this.rpc<T>(method, params);
   }
 
-  /** Resolve the main isolate id + its root library id (the `execute` evaluation target). */
+  /** Resolve the main isolate id + its root library id (the `evaluate` RPC's target). */
   async resolveRootLibrary(): Promise<{ isolateId: string; rootLibraryId: string }> {
     const isolateId = await this.getMainIsolateId();
     if (this.#cachedRootLibraryId) {

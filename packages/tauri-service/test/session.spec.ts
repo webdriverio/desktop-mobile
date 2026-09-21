@@ -610,6 +610,66 @@ describe('session', () => {
     });
   });
 
+  describe('standalone failed startup cleanup', () => {
+    beforeEach(() => {
+      simulateHealthyDriver();
+      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
+        caps.hostname = '127.0.0.1';
+        caps.port = 4445;
+      });
+      mockRemote.mockResolvedValue(createMockBrowser());
+    });
+
+    it.each(['prepare', 'worker', 'remote', 'before'] as const)(
+      'cleans up when %s fails and preserves the original failure',
+      async (stage) => {
+        const error = new Error(`${stage} failed`);
+        const hook = { prepare: mockOnPrepare, worker: mockOnWorkerStart, remote: mockRemote, before: mockBefore }[
+          stage
+        ];
+        hook.mockRejectedValueOnce(error);
+        await expect(init({})).rejects.toBe(error);
+        expect(mockOnComplete).toHaveBeenCalledOnce();
+      },
+    );
+
+    it('waits for launcher cleanup before rejecting startup', async () => {
+      const error = new Error('prepare failed');
+      mockOnPrepare.mockRejectedValueOnce(error);
+      let finishCleanup!: () => void;
+      mockOnComplete.mockImplementationOnce(
+        () =>
+          new Promise<void>((resolve) => {
+            finishCleanup = resolve;
+          }),
+      );
+      let settled = false;
+      const result = init({}).catch((failure: unknown) => {
+        settled = true;
+        return failure;
+      });
+      await vi.waitFor(() => expect(mockOnComplete).toHaveBeenCalledOnce());
+      expect(settled).toBe(false);
+      finishCleanup();
+      expect(await result).toBe(error);
+    });
+
+    it('preserves startup, session cleanup and launcher cleanup failures', async () => {
+      const startup = new Error('worker service failed');
+      const sessionCleanup = new Error('delete session failed');
+      const launcherCleanup = new Error('process did not exit');
+      const browser = createMockBrowser({ deleteSession: vi.fn().mockRejectedValue(sessionCleanup) });
+      mockRemote.mockResolvedValueOnce(browser);
+      mockBefore.mockRejectedValueOnce(startup);
+      mockOnComplete.mockRejectedValueOnce(launcherCleanup);
+      await expect(init({})).rejects.toMatchObject({
+        cause: startup,
+        errors: [startup, sessionCleanup, launcherCleanup],
+      });
+      expect(mockOnComplete).toHaveBeenCalledOnce();
+    });
+  });
+
   describe('cleanup', () => {
     it('should call launcher lifecycle methods when launcher is found', async () => {
       simulateHealthyDriver();

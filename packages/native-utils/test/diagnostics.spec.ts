@@ -1,5 +1,6 @@
 import { execFileSync } from 'node:child_process';
 import { statSync } from 'node:fs';
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { diagnoseBinary, diagnoseLinuxDependencies, type LinuxLibrary } from '../src/diagnostics.js';
 
@@ -15,10 +16,6 @@ vi.mock('node:child_process', async (importActual) => {
 
 vi.mock('../src/log.js', () => import('./__mock__/log.js'));
 
-const setPlatform = (platform: NodeJS.Platform): void => {
-  Object.defineProperty(process, 'platform', { value: platform, configurable: true });
-};
-
 const setArch = (arch: NodeJS.Architecture): void => {
   Object.defineProperty(process, 'arch', { value: arch, configurable: true });
 };
@@ -30,15 +27,13 @@ const stubMode = (mode: number, size = 100 * 1024 * 1024): void => {
 const binaryPermissions = (path: string) => diagnoseBinary(path).find((r) => r.category === 'Binary Permissions');
 
 describe('diagnoseBinary', () => {
-  const realPlatform = process.platform;
-
   afterEach(() => {
-    setPlatform(realPlatform);
+    restorePlatform();
     vi.clearAllMocks();
   });
 
   it('should not flag a Windows binary as non-executable — the Unix execute bit is meaningless there', () => {
-    setPlatform('win32');
+    mockPlatform('win32');
     stubMode(0o666); // what Windows reports for an .exe — rw-rw-rw-, no execute bit
     const perms = binaryPermissions('C:/app/app.exe');
     expect(perms?.status).toBe('ok');
@@ -46,13 +41,13 @@ describe('diagnoseBinary', () => {
   });
 
   it('should flag a non-executable binary on Unix (mode 644)', () => {
-    setPlatform('darwin');
+    mockPlatform('darwin');
     stubMode(0o644);
     expect(binaryPermissions('/app/app')?.status).toBe('error');
   });
 
   it('should accept an executable binary on Unix (mode 755)', () => {
-    setPlatform('darwin');
+    mockPlatform('darwin');
     stubMode(0o755);
     expect(binaryPermissions('/app/app')?.status).toBe('ok');
   });
@@ -75,22 +70,21 @@ const linuxDeps = (libs: LinuxLibrary[]) =>
   diagnoseLinuxDependencies(libs).find((r) => r.category === 'Linux Dependencies');
 
 describe('diagnoseLinuxDependencies', () => {
-  const realPlatform = process.platform;
   const realArch = process.arch;
 
   beforeEach(() => {
-    setPlatform('linux');
+    mockPlatform('linux');
     setArch('x64');
   });
 
   afterEach(() => {
-    setPlatform(realPlatform);
+    restorePlatform();
     setArch(realArch);
     vi.clearAllMocks();
   });
 
   it('should return nothing on non-Linux platforms', () => {
-    setPlatform('darwin');
+    mockPlatform('darwin');
     expect(diagnoseLinuxDependencies(LIBS)).toEqual([]);
   });
 
