@@ -2,15 +2,17 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { cleanup, createElectronCapabilities, init } from '../src/session.js';
 
-const browserMock = { mockBrowser: true };
+const browserMock = { mockBrowser: true, deleteSession: vi.fn() };
 const onPrepareMock = vi.fn();
 const onWorkerStartMock = vi.fn();
+const onCompleteMock = vi.fn();
 const beforeMock = vi.fn();
+const remoteMock = vi.fn();
 
 vi.mock('../src/service.js', () => ({
   default: class MockElectronWorkerService {
     async before(...args: unknown[]) {
-      beforeMock(...args);
+      return beforeMock(...args);
     }
   },
 }));
@@ -22,10 +24,13 @@ vi.mock('../src/launcher.js', () => ({
     async onWorkerStart(...args: unknown[]) {
       onWorkerStartMock(...args);
     }
+    async onComplete(...args: unknown[]) {
+      return onCompleteMock(...args);
+    }
   },
 }));
 vi.mock('webdriverio', () => ({
-  remote: async () => Promise.resolve(browserMock),
+  remote: (...args: unknown[]) => remoteMock(...args),
 }));
 
 const mockInitialize = vi.fn();
@@ -41,10 +46,16 @@ vi.mock('../src/logWriter.js', () => ({
 }));
 
 describe('Session Management', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    remoteMock.mockResolvedValue(browserMock);
+    onCompleteMock.mockResolvedValue(undefined);
+    beforeMock.mockResolvedValue(undefined);
+    mockClose.mockResolvedValue(undefined);
+    browserMock.deleteSession.mockResolvedValue(undefined);
+  });
+
   describe('init()', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-    });
     it('should create a new browser session', async () => {
       const session = await init({});
       expect(session).toStrictEqual(browserMock);
@@ -140,14 +151,42 @@ describe('Session Management', () => {
 
       expect(mockInitialize).not.toHaveBeenCalled();
     });
+
+    it('should close the log writer and stop the launcher when remote() fails', async () => {
+      remoteMock.mockRejectedValueOnce(new Error('chromedriver missing'));
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+
+      await expect(init([caps])).rejects.toThrow(/chromedriver missing/);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(mockClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should tear down the session and stop the launcher when service.before fails', async () => {
+      beforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+
+      await expect(init([caps])).rejects.toThrow(/bridge attach failed/);
+      expect(browserMock.deleteSession).toHaveBeenCalledTimes(1);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(mockClose).toHaveBeenCalledTimes(1);
+    });
+
+    it('should surface both errors via AggregateError when onComplete also fails', async () => {
+      remoteMock.mockRejectedValueOnce(new Error('chromedriver missing'));
+      onCompleteMock.mockRejectedValueOnce(new Error('dev server stop boom'));
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+
+      const err = await init([caps]).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AggregateError);
+      expect((err as AggregateError).errors.map((e: Error) => e.message)).toEqual([
+        'chromedriver missing',
+        'dev server stop boom',
+      ]);
+      expect((err as { cause?: Error }).cause?.message).toBe('chromedriver missing');
+    });
   });
 
   describe('cleanup()', () => {
-    beforeEach(() => {
-      vi.clearAllMocks();
-      mockClose.mockClear();
-    });
-
     it('should clean up a browser session that was initialized', async () => {
       const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
       const browser = await init([caps]);
@@ -155,10 +194,25 @@ describe('Session Management', () => {
       expect(mockClose).toHaveBeenCalled();
     });
 
+    it('should stop the launcher (browser-mode dev server) during cleanup', async () => {
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+      const browser = await init([caps]);
+      await cleanup(browser);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should resolve when launcher.onComplete rejects (best-effort teardown)', async () => {
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+      const browser = await init([caps]);
+      onCompleteMock.mockRejectedValueOnce(new Error('dev server stop boom'));
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+    });
+
     it('should warn when cleaning up an unknown browser instance', async () => {
       await cleanup({ unknown: true } as unknown as WebdriverIO.Browser);
 
       expect(mockClose).not.toHaveBeenCalled();
+      expect(onCompleteMock).not.toHaveBeenCalled();
     });
   });
 
