@@ -133,6 +133,46 @@ describe('DioxusLaunchService', () => {
       expect(vi.mocked(stopEmbeddedDriver)).toHaveBeenCalledWith(fakeInfo);
     });
 
+    it('should stop already-started instances when a later one is missing appBinaryPath', async () => {
+      mockPlatform('linux');
+      const fakeInfo = { proc: { pid: 1234, kill: vi.fn() }, logHandlers: [] };
+      vi.mocked(startEmbeddedDriver).mockResolvedValueOnce(fakeInfo);
+
+      const launcher = new DioxusLaunchService(
+        { driverProvider: 'embedded' } as DioxusServiceGlobalOptions,
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+      const caps: DioxusCapabilities[] = [
+        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
+        {} as DioxusCapabilities, // no appBinaryPath — validation throws after the first spawned
+      ];
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow(/application path not specified/);
+      expect(vi.mocked(stopEmbeddedDriver)).toHaveBeenCalledWith(fakeInfo);
+    });
+
+    it('should stop already-started multiremote instances when a later one is missing appBinaryPath', async () => {
+      mockPlatform('linux');
+      const fakeInfo = { proc: { pid: 5678, kill: vi.fn() }, logHandlers: [] };
+      vi.mocked(startEmbeddedDriver).mockResolvedValueOnce(fakeInfo);
+
+      const launcher = new DioxusLaunchService(
+        { driverProvider: 'embedded' } as DioxusServiceGlobalOptions,
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+      const caps = {
+        appA: { capabilities: { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities },
+        appB: { capabilities: {} as DioxusCapabilities },
+      };
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow(
+        /application path not specified for multiremote instance "appB"/,
+      );
+      expect(vi.mocked(stopEmbeddedDriver)).toHaveBeenCalledWith(fakeInfo);
+    });
+
     it('should read driverProvider from capability-level options when present', async () => {
       mockPlatform('linux');
       const launcher = new DioxusLaunchService(

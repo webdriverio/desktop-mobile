@@ -163,37 +163,39 @@ export default class DioxusLaunchService extends BaseLauncher {
     const hostname = '127.0.0.1';
 
     for (let i = 0; i < capsList.length; i++) {
-      const cap = capsList[i];
-      const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
-      const capPort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
-      const embeddedPort = capPort != null ? capPort : getEmbeddedPort(instanceOptions) + i;
-      const appBinaryPath = cap['dioxus:options']?.application ?? instanceOptions.appBinaryPath;
-
-      if (!appBinaryPath) {
-        throw new SevereServiceError(
-          'Dioxus application path not specified. ' +
-            "Set 'dioxus:options'.application or appBinaryPath in wdio:dioxusServiceOptions.",
-        );
-      }
-
-      const instanceId = String(i);
-      log.info(`Starting embedded WebDriver for instance ${instanceId} on port ${embeddedPort}`);
-
+      // Reap every already-spawned instance if any step for this one throws — WDIO does not call
+      // onComplete after an onPrepare throw, so a bare throw would orphan the earlier drivers.
       try {
+        const cap = capsList[i];
+        const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
+        const capPort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
+        const embeddedPort = capPort != null ? capPort : getEmbeddedPort(instanceOptions) + i;
+        const appBinaryPath = cap['dioxus:options']?.application ?? instanceOptions.appBinaryPath;
+
+        if (!appBinaryPath) {
+          throw new SevereServiceError(
+            'Dioxus application path not specified. ' +
+              "Set 'dioxus:options'.application or appBinaryPath in wdio:dioxusServiceOptions.",
+          );
+        }
+
+        const instanceId = String(i);
+        log.info(`Starting embedded WebDriver for instance ${instanceId} on port ${embeddedPort}`);
+
         const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, instanceId);
         this.embeddedProcesses.set(instanceId, driverInfo);
+
+        // Set on the capability itself — wdio run strips these before the W3C session request;
+        // standalone session.ts removes them from the cloned capabilities before remote().
+        (cap as { port?: number; hostname?: string }).port = embeddedPort;
+        (cap as { port?: number; hostname?: string }).hostname = hostname;
+        log.info(`Embedded WebDriver connection set on capabilities[${i}]: ${hostname}:${embeddedPort}`);
       } catch (error) {
         await this.stopAllEmbedded();
-        throw new SevereServiceError(
-          `Failed to start embedded WebDriver for instance ${instanceId}: ${(error as Error).message}`,
-        );
+        throw error instanceof SevereServiceError
+          ? error
+          : new SevereServiceError(`Failed to start embedded WebDriver for instance ${i}: ${(error as Error).message}`);
       }
-
-      // Set on the capability itself — wdio run strips these before the W3C session request;
-      // standalone session.ts removes them from the cloned capabilities before remote().
-      (cap as { port?: number; hostname?: string }).port = embeddedPort;
-      (cap as { port?: number; hostname?: string }).hostname = hostname;
-      log.info(`Embedded WebDriver connection set on capabilities[${i}]: ${hostname}:${embeddedPort}`);
     }
   }
 
@@ -205,36 +207,39 @@ export default class DioxusLaunchService extends BaseLauncher {
 
     for (let i = 0; i < entries.length; i++) {
       const [key, instanceConfig] = entries[i];
-      const cap = instanceConfig.capabilities;
-      const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
-      const capPort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
-      const embeddedPort = capPort != null ? capPort : getEmbeddedPort(instanceOptions) + i;
-      const appBinaryPath = cap['dioxus:options']?.application ?? instanceOptions.appBinaryPath;
-
-      if (!appBinaryPath) {
-        throw new SevereServiceError(
-          `Dioxus application path not specified for multiremote instance "${key}". ` +
-            "Set 'dioxus:options'.application or appBinaryPath in wdio:dioxusServiceOptions.",
-        );
-      }
-
-      log.info(`Starting embedded WebDriver for multiremote instance "${key}" on port ${embeddedPort}`);
-
+      // Reap every already-spawned instance if any step for this one throws (see prepareEmbedded).
       try {
+        const cap = instanceConfig.capabilities;
+        const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
+        const capPort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
+        const embeddedPort = capPort != null ? capPort : getEmbeddedPort(instanceOptions) + i;
+        const appBinaryPath = cap['dioxus:options']?.application ?? instanceOptions.appBinaryPath;
+
+        if (!appBinaryPath) {
+          throw new SevereServiceError(
+            `Dioxus application path not specified for multiremote instance "${key}". ` +
+              "Set 'dioxus:options'.application or appBinaryPath in wdio:dioxusServiceOptions.",
+          );
+        }
+
+        log.info(`Starting embedded WebDriver for multiremote instance "${key}" on port ${embeddedPort}`);
+
         const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, key);
         this.embeddedProcesses.set(key, driverInfo);
+
+        // For multiremote, port/hostname must be on the outer instance config so WDIO
+        // reads them as connection parameters, not as W3C capability keys.
+        (instanceConfig as { port?: number; hostname?: string }).port = embeddedPort;
+        (instanceConfig as { port?: number; hostname?: string }).hostname = hostname;
+        log.info(`Embedded WebDriver connection set for "${key}": ${hostname}:${embeddedPort}`);
       } catch (error) {
         await this.stopAllEmbedded();
-        throw new SevereServiceError(
-          `Failed to start embedded WebDriver for multiremote instance "${key}": ${(error as Error).message}`,
-        );
+        throw error instanceof SevereServiceError
+          ? error
+          : new SevereServiceError(
+              `Failed to start embedded WebDriver for multiremote instance "${key}": ${(error as Error).message}`,
+            );
       }
-
-      // For multiremote, port/hostname must be on the outer instance config so WDIO
-      // reads them as connection parameters, not as W3C capability keys.
-      (instanceConfig as { port?: number; hostname?: string }).port = embeddedPort;
-      (instanceConfig as { port?: number; hostname?: string }).hostname = hostname;
-      log.info(`Embedded WebDriver connection set for "${key}": ${hostname}:${embeddedPort}`);
     }
   }
 
