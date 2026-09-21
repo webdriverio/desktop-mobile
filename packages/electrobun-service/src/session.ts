@@ -46,8 +46,8 @@ async function failStartup(launcher: ElectrobunLaunchService, error: unknown): P
 }
 
 /**
- * Bounded & benign-swallowing: by teardown the driver socket may already be gone — a benign
- * "session not found" / socket-closed — and a stalled deleteSession must not block the rest of teardown.
+ * The driver socket may already be gone by teardown, so a deleteSession failure here is usually
+ * harmless. The call is time-bounded so a stall can't block the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
