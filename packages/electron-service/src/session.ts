@@ -4,7 +4,7 @@ import type {
   ElectronServiceOptions,
   ElectronStandaloneCapability,
 } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -21,6 +21,53 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectronLaunchService>(
 // invokes itself. Without this, mock state leaks between sequential sessions
 // in the same process.
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectronWorkerService>();
+
+/**
+ * Best-effort teardown on a failed standalone startup, then rethrow. Closes the log writer and runs
+ * launcher.onComplete() — which stops a browser-mode dev server and is a no-op in native mode where
+ * WDIO owns chromedriver. A launcher-teardown failure joins the original in an AggregateError rather
+ * than masking it; onComplete is bounded because a function-form devServer's close() is user-supplied and can hang.
+ */
+async function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<never> {
+  const writer = getStandaloneLogWriter();
+  await writer.close().catch((e: Error) => log.warn(`Failed to close log writer: ${e.message}`));
+  try {
+    await runBounded(
+      () => launcher.onComplete(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn('launcher.onComplete() timed out during startup cleanup'),
+    );
+  } catch (cleanupError) {
+    throw new AggregateError([error, cleanupError], 'Electron standalone startup and launcher cleanup failed', {
+      cause: error,
+    });
+  }
+  throw error;
+}
+
+/**
+ * Best-effort deletion of the session during teardown. The driver socket may already be gone by
+ * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
+ * the rest of teardown.
+ */
+async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
+  if (!browser.sessionId) {
+    return;
+  }
+  try {
+    await runBounded(
+      () => browser.deleteSession(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`deleteSession timed out during ${context}`),
+    );
+  } catch (e) {
+    if (isBenignTeardownError(e)) {
+      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
+    } else {
+      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+    }
+  }
+}
 
 /**
  * Initialize Electron service in standalone mode
@@ -71,32 +118,21 @@ export async function init(
   // initialise session
   const browser = await remote({
     capabilities: capability,
-  }).catch(async (error: Error) => {
+  }).catch((error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
-    // Electron's launcher doesn't spawn its own long-running driver (WDIO
-    // manages chromedriver), so there's no launcher.onComplete to call here.
-    // Close the standalone log writer so its file handle doesn't leak when
-    // the caller never receives a browser to drive cleanup() with.
-    const writer = getStandaloneLogWriter();
-    await writer.close().catch((e: Error) => log.warn(`Failed to close log writer: ${e.message}`));
-    throw error;
+    return failStartup(launcher, error);
   });
 
   // Store launcher for cleanup
   activeLaunchers.set(browser, launcher);
 
-  // service.before() failure leaves the open WebDriver session running.
-  // Tear it down before rethrowing so the caller doesn't have to.
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    await browser
-      .deleteSession()
-      .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
-    const writer = getStandaloneLogWriter();
-    await writer.close().catch((e: Error) => log.warn(`Failed to close log writer: ${e.message}`));
+    // remote() already opened the session, so close it here before the failure propagates.
+    await deleteSessionBounded(browser, 'service.before cleanup');
     activeLaunchers.delete(browser);
-    throw error;
+    return failStartup(launcher, error);
   }
   activeServices.set(browser, service);
 
@@ -136,6 +172,20 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
     } finally {
       activeServices.delete(browser);
+    }
+
+    await deleteSessionBounded(browser, 'cleanup');
+
+    // Stop a browser-mode dev server (no-op in native mode). Bounded & best-effort
+    // so a hanging/failing stop can't strand the log writer & map cleanup that follow.
+    try {
+      await runBounded(
+        () => launcher.onComplete(),
+        DEFAULT_TEARDOWN_TIMEOUT_MS,
+        () => log.warn('launcher.onComplete() timed out during cleanup'),
+      );
+    } catch (e) {
+      log.warn(`launcher.onComplete() failed during cleanup: ${(e as Error).message}`);
     }
 
     // Close standalone log writer. The map delete is in a finally so a
