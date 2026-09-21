@@ -47,6 +47,30 @@ async function failStartup(launcher: ElectronLaunchService, error: unknown): Pro
 }
 
 /**
+ * Close the WebDriver session (native: quits the app; browser mode: closes Chrome). WDIO's standalone
+ * path never does this itself. Bounded + benign-swallowing since the driver socket may already be
+ * gone during teardown, and a stalled deleteSession must not block the rest of teardown.
+ */
+async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
+  if (!browser.sessionId) {
+    return;
+  }
+  try {
+    await runBounded(
+      () => browser.deleteSession(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`deleteSession timed out during ${context}`),
+    );
+  } catch (e) {
+    if (isBenignTeardownError(e)) {
+      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
+    } else {
+      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+    }
+  }
+}
+
+/**
  * Initialize Electron service in standalone mode
  */
 export async function init(
@@ -107,9 +131,7 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    await browser
-      .deleteSession()
-      .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
+    await deleteSessionBounded(browser, 'service.before cleanup');
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }
@@ -153,24 +175,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       activeServices.delete(browser);
     }
 
-    // Close the WebDriver session (native: quits the app; browser mode: closes Chrome). WDIO's
-    // standalone path never does this itself. Bounded + benign-swallowing since the driver socket
-    // may already be gone during teardown.
-    try {
-      if (browser.sessionId) {
-        await runBounded(
-          () => browser.deleteSession(),
-          DEFAULT_TEARDOWN_TIMEOUT_MS,
-          () => log.warn('deleteSession timed out during cleanup'),
-        );
-      }
-    } catch (e) {
-      if (isBenignTeardownError(e)) {
-        log.debug(`Ignoring benign teardown error during deleteSession: ${(e as Error).message}`);
-      } else {
-        log.warn(`Failed to delete session during cleanup: ${(e as Error).message}`);
-      }
-    }
+    await deleteSessionBounded(browser, 'cleanup');
 
     // Stop a browser-mode dev server (no-op in native mode). Bounded + best-effort
     // so a hanging/failing stop can't strand the log writer + map cleanup that follow.

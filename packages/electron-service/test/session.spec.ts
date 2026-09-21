@@ -241,6 +241,24 @@ describe('Session Management', () => {
       expect(mockClose).toHaveBeenCalled();
     });
 
+    it('should not hang cleanup when browser.deleteSession never settles', async () => {
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+      const browser = await init([caps]);
+      browserMock.deleteSession.mockReturnValueOnce(new Promise<void>(() => {})); // a driver that never acks the DELETE
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      // deleteSession was abandoned, so onComplete + log writer still ran.
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(mockClose).toHaveBeenCalled();
+    });
+
     it('should warn when cleaning up an unknown browser instance', async () => {
       await cleanup({ unknown: true } as unknown as WebdriverIO.Browser);
 
