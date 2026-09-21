@@ -1,4 +1,4 @@
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import DioxusLaunchService from './launcher.js';
@@ -20,6 +20,29 @@ async function stopLauncher(launcher: DioxusLaunchService, context: string): Pro
     DEFAULT_TEARDOWN_TIMEOUT_MS,
     () => log.warn(`launcher.onComplete() timed out during ${context}`),
   ).catch((e: Error) => log.warn(`launcher.onComplete() failed during ${context}: ${e.message}`));
+}
+
+/**
+ * Close the WebDriver session, bounded + benign-swallowing: during teardown the driver socket may
+ * already be gone, and a stalled deleteSession must not block the rest of teardown.
+ */
+async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
+  if (!browser.sessionId) {
+    return;
+  }
+  try {
+    await runBounded(
+      () => browser.deleteSession(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`deleteSession timed out during ${context}`),
+    );
+  } catch (e) {
+    if (isBenignTeardownError(e)) {
+      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
+    } else {
+      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+    }
+  }
 }
 
 /**
@@ -81,9 +104,7 @@ export async function init(
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {
-    await browser
-      .deleteSession()
-      .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
+    await deleteSessionBounded(browser, 'service.before cleanup');
     await stopLauncher(launcher, 'service.before cleanup');
     activeLaunchers.delete(browser);
     throw error;

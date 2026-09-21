@@ -79,6 +79,22 @@ describe('session', () => {
       await expect(init(makeCaps())).rejects.toThrow(/driver missing/);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
+
+    it('should delete the session and stop the launcher when service.before fails', async () => {
+      serviceBeforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
+
+      await expect(init(makeCaps())).rejects.toThrow(/bridge attach failed/);
+      expect(deleteSessionMock).toHaveBeenCalledTimes(1);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow a benign deleteSession error when service.before fails', async () => {
+      serviceBeforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
+      deleteSessionMock.mockRejectedValueOnce(new Error('invalid session id'));
+
+      await expect(init(makeCaps())).rejects.toThrow(/bridge attach failed/);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
   });
 
   describe('cleanup', () => {
