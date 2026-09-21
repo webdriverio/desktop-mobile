@@ -4,7 +4,7 @@ import type {
   ElectronServiceOptions,
   ElectronStandaloneCapability,
 } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -151,6 +151,25 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
     } finally {
       activeServices.delete(browser);
+    }
+
+    // Close the WebDriver session (native: quits the app; browser mode: closes Chrome). WDIO's
+    // standalone path never does this itself. Bounded + benign-swallowing since the driver socket
+    // may already be gone during teardown.
+    try {
+      if (browser.sessionId) {
+        await runBounded(
+          () => browser.deleteSession(),
+          DEFAULT_TEARDOWN_TIMEOUT_MS,
+          () => log.warn('deleteSession timed out during cleanup'),
+        );
+      }
+    } catch (e) {
+      if (isBenignTeardownError(e)) {
+        log.debug(`Ignoring benign teardown error during deleteSession: ${(e as Error).message}`);
+      } else {
+        log.warn(`Failed to delete session during cleanup: ${(e as Error).message}`);
+      }
     }
 
     // Stop a browser-mode dev server (no-op in native mode). Bounded + best-effort

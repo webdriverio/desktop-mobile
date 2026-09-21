@@ -3,7 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { cleanup, createElectronCapabilities, init } from '../src/session.js';
 
-const browserMock = { mockBrowser: true, deleteSession: vi.fn() };
+const browserMock = { mockBrowser: true, sessionId: 'sess-1', deleteSession: vi.fn() };
 const onPrepareMock = vi.fn();
 const onWorkerStartMock = vi.fn();
 const onCompleteMock = vi.fn();
@@ -200,6 +200,21 @@ describe('Session Management', () => {
       const browser = await init([caps]);
       await cleanup(browser);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should delete the WebDriver session during cleanup', async () => {
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+      const browser = await init([caps]);
+      await cleanup(browser);
+      expect(browserMock.deleteSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow a benign deleteSession error during cleanup', async () => {
+      const caps = { 'wdio:electronServiceOptions': { appBinaryPath: '/path/to/binary' } };
+      const browser = await init([caps]);
+      browserMock.deleteSession.mockRejectedValueOnce(new Error('invalid session id'));
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+      expect(mockClose).toHaveBeenCalled();
     });
 
     it('should resolve when launcher.onComplete rejects (best-effort teardown)', async () => {
