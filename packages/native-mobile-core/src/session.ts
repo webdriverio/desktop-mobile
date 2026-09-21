@@ -1,7 +1,7 @@
 // Standalone (`remote()`) session factory for Appium-driven mobile services.
 //
-// WDIO's `remote()` runs only worker-level hooks; init() manually drives the launcher's
-// onPrepare first so capabilities are mutated before the Appium session opens.
+// WDIO's `remote()` runs only worker-level hooks, so init() runs onPrepare before opening the
+// session — onPrepare mutates the capabilities in place, and remote() opens with them.
 
 import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -44,15 +44,8 @@ interface MobileWorkerLike<TCap> {
 }
 
 export interface MobileSessionDeps<TOptions, TCap> {
-  LauncherClass: new (
-    options: TOptions,
-    capability: TCap,
-    config: Options.Testrunner,
-  ) => MobileLauncherLike<TCap>;
-  WorkerClass: new (
-    options: TOptions,
-    capability: TCap,
-  ) => MobileWorkerLike<TCap>;
+  LauncherClass: new (options: TOptions, capability: TCap, config: Options.Testrunner) => MobileLauncherLike<TCap>;
+  WorkerClass: new (options: TOptions, capability: TCap) => MobileWorkerLike<TCap>;
   defaultConnection?: AppiumServerConnection;
   logNamespace: string;
 }
