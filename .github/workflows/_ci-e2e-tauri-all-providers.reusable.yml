@@ -630,16 +630,12 @@ jobs:
           failed=false
 
           check_result() {
-            local provider="$1" outcome="$2" allow_fail="${3:-false}" reason="${4:-}"
+            local provider="$1" outcome="$2"
             case "$outcome" in
               success|skipped|"") ;;
               failure)
-                if [ "$allow_fail" = "true" ]; then
-                  echo "::warning::$provider provider tests failed (allowed on $RUNNER_OS — $reason)"
-                else
-                  echo "::error::$provider provider tests failed"
-                  failed=true
-                fi ;;
+                echo "::error::$provider provider tests failed"
+                failed=true ;;
               cancelled)
                 echo "::error::$provider provider tests were cancelled"
                 failed=true ;;
@@ -649,12 +645,9 @@ jobs:
             esac
           }
 
-          allow_official=false; official_reason=""
-          allow_crabnebula=false; crabnebula_reason=""
-
-          check_result "Official" "$official" "$allow_official" "$official_reason"
+          check_result "Official" "$official"
           check_result "Embedded" "$embedded"
-          check_result "CrabNebula" "$crabnebula" "$allow_crabnebula" "$crabnebula_reason"
+          check_result "CrabNebula" "$crabnebula"
 
           # A skipped CrabNebula leg (e.g. no CN_API_KEY) must not count as verified for the keyed run.
           if [ "${{ inputs.require_crabnebula }}" = "true" ] && [ "${{ steps.cn-key.outputs.run }}" != "true" ]; then
