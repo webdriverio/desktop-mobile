@@ -12,6 +12,9 @@
   "compilerOptions": {
     "module": "ESNext",
     "moduleResolution": "bundler",
+    "lib": [
+      "ES2024"
+    ],
     "rootDir": "./src",
     "declaration": true,
     "declarationMap": true,

@@ -1,15 +1,9 @@
+import { defer } from '@repo/test-utils';
 import type { ElectronMock } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../../src/mockStore.js';
 import ElectronWorkerService, { browserModeStoreKey } from '../../src/service.js';
-import {
-  createFakeBrowser,
-  createFakeMock,
-  defer,
-  type FakeBrowser,
-  type FakeMock,
-  flushMicrotasks,
-} from './helpers.js';
+import { createFakeBrowser, createFakeMock, type FakeBrowser, type FakeMock, flushMicrotasks } from './helpers.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-utils')>()),

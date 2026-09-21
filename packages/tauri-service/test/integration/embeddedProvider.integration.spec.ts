@@ -1,9 +1,9 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { createServer, type Server } from 'node:http';
+import { defer } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { startEmbeddedDriver, stopEmbeddedDriver } from '../../src/embeddedProvider.js';
-import { defer } from './helpers.js';
 
 vi.mock('node:child_process', async (importOriginal) => {
   const original = await importOriginal<typeof import('node:child_process')>();

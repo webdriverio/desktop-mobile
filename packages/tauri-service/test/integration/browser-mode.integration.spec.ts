@@ -1,3 +1,4 @@
+import { defer } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../../src/mockStore.js';
 import TauriWorkerService from '../../src/service.js';
@@ -5,7 +6,6 @@ import {
   createFakeBrowser,
   createFakeMock,
   createFakeMultiremoteBrowser,
-  defer,
   type FakeBrowser,
   type FakeMock,
   flushMicrotasks,

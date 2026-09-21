@@ -1,22 +1,6 @@
 import type { ElectronMock } from '@wdio/native-types';
 import { vi } from 'vitest';
 
-export type Deferred<T> = {
-  promise: Promise<T>;
-  resolve: (value: T) => void;
-  reject: (reason: unknown) => void;
-};
-
-export function defer<T = void>(): Deferred<T> {
-  let resolve!: (value: T) => void;
-  let reject!: (reason: unknown) => void;
-  const promise = new Promise<T>((res, rej) => {
-    resolve = res;
-    reject = rej;
-  });
-  return { promise, resolve, reject };
-}
-
 export type OverrideFn = (
   this: unknown,
   originalCommand: (...args: readonly unknown[]) => Promise<unknown>,

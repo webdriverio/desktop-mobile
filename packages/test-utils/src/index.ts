@@ -27,3 +27,9 @@ export function mockPlatform(platform: NodeJS.Platform): void {
 export function restorePlatform(): void {
   Object.defineProperty(process, 'platform', { value: REAL_PLATFORM, configurable: true });
 }
+
+export type Deferred<T> = PromiseWithResolvers<T>;
+
+export function defer<T = void>(): Deferred<T> {
+  return Promise.withResolvers<T>();
+}
