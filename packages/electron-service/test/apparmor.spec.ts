@@ -35,35 +35,24 @@ vi.mock('@wdio/native-utils', () => ({
   })),
 }));
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { applyApparmorWorkaround } from '../src/apparmor.js';
 
 describe('apparmor', () => {
-  let originalPlatform: string;
   let originalGetuid: typeof process.getuid;
 
   beforeEach(() => {
-    originalPlatform = process.platform;
     originalGetuid = process.getuid;
     vi.clearAllMocks();
   });
 
   afterEach(() => {
-    Object.defineProperty(process, 'platform', {
-      value: originalPlatform,
-      writable: true,
-    });
+    restorePlatform();
     Object.defineProperty(process, 'getuid', {
       value: originalGetuid,
       writable: true,
     });
   });
-
-  function mockPlatform(platform: string) {
-    Object.defineProperty(process, 'platform', {
-      value: platform,
-      writable: true,
-    });
-  }
 
   function mockGetuid(uid: number | undefined) {
     Object.defineProperty(process, 'getuid', {

@@ -1,5 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { TauriServiceOptions } from '../src/types.js';
 
@@ -85,17 +86,17 @@ describe('isEmbeddedProvider', () => {
     });
 
     it('should return true on macOS with no driverProvider', () => {
-      Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+      mockPlatform('darwin');
       expect(isEmbeddedProvider({})).toBe(true);
     });
 
     it('should return true on Windows with no driverProvider', () => {
-      Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+      mockPlatform('win32');
       expect(isEmbeddedProvider({})).toBe(true);
     });
 
     it('should return true on Linux with no driverProvider', () => {
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
       expect(isEmbeddedProvider({})).toBe(true);
     });
   });
@@ -149,7 +150,6 @@ describe('startEmbeddedDriver', () => {
   let startEmbeddedDriver: typeof import('../src/embeddedProvider.js').startEmbeddedDriver;
   let mockProc: EventEmitter & Partial<ChildProcess>;
   const originalFetch = globalThis.fetch;
-  const originalPlatform = process.platform;
 
   beforeEach(async () => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
@@ -186,7 +186,7 @@ describe('startEmbeddedDriver', () => {
   afterEach(() => {
     vi.useRealTimers();
     globalThis.fetch = originalFetch;
-    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    restorePlatform();
   });
 
   it('should spawn app and resolves when poll succeeds', async () => {
@@ -331,12 +331,11 @@ describe('stopEmbeddedDriver', () => {
 describe('embedded lifecycle races', () => {
   let child: ChildProcess;
   const originalFetch = globalThis.fetch;
-  const originalPlatform = process.platform;
 
   beforeEach(() => {
     vi.useFakeTimers();
     vi.clearAllMocks();
-    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    mockPlatform('linux');
     child = Object.assign(new EventEmitter(), {
       pid: 12345,
       exitCode: null,
@@ -354,7 +353,7 @@ describe('embedded lifecycle races', () => {
 
   afterEach(() => {
     globalThis.fetch = originalFetch;
-    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    restorePlatform();
     vi.useRealTimers();
   });
 

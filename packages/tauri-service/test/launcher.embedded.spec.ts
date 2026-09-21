@@ -68,6 +68,7 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
   waitTestRunnerBackendReady: vi.fn().mockResolvedValue(undefined),
 }));
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { checkEmbeddedServerAlive, startEmbeddedDriver, stopEmbeddedDriver } from '../src/embeddedProvider.js';
 import TauriLaunchService from '../src/launcher.js';
 
@@ -169,18 +170,16 @@ describe('ensureEmbeddedServersHealthy', () => {
 });
 
 describe('verifyEmbeddedServerStable — Windows stability probes', () => {
-  const originalPlatform = process.platform;
-
   beforeEach(() => {
     vi.useFakeTimers({ shouldAdvanceTime: true });
     vi.clearAllMocks();
     vi.mocked(stopEmbeddedDriver).mockResolvedValue(undefined);
-    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    mockPlatform('win32');
   });
 
   afterEach(() => {
     vi.useRealTimers();
-    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    restorePlatform();
   });
 
   it('should run 3 additional probes on win32 after a passing health check', async () => {
@@ -221,7 +220,7 @@ describe('verifyEmbeddedServerStable — Windows stability probes', () => {
   });
 
   it('should not run stability probes on non-win32', async () => {
-    Object.defineProperty(process, 'platform', { value: 'darwin', configurable: true });
+    mockPlatform('darwin');
     vi.mocked(checkEmbeddedServerAlive).mockResolvedValue(true);
 
     const launcher = createEmbeddedLauncher();
@@ -281,8 +280,7 @@ describe('embedded launcher lifecycle', () => {
   });
 
   it.each(['linux', 'win32', 'darwin'])('skips external setup and diagnostics on %s', async (platform) => {
-    const originalPlatform = process.platform;
-    Object.defineProperty(process, 'platform', { value: platform, configurable: true });
+    mockPlatform(platform);
     try {
       const { getWebKitWebDriverPath } = await import('../src/pathResolver.js');
       const { ensureMsEdgeDriver } = await import('../src/edgeDriverManager.js');
@@ -299,7 +297,7 @@ describe('embedded launcher lifecycle', () => {
       expect(diagnoseTauriEnvironment).not.toHaveBeenCalled();
       await launcher.onComplete(0, config, []);
     } finally {
-      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      restorePlatform();
     }
   });
 

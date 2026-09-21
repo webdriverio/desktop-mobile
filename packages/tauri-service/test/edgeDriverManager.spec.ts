@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EdgeDriverResult, ResolvedEdgeVersion, ResolveEdgeVersionOptions } from '../src/edgeDriverManager.js';
 
@@ -43,8 +44,6 @@ describe('Edge Driver Manager', () => {
   let detectFixedRuntimeVersion: (folder?: string) => Promise<string | undefined>;
   let resolveTargetEdgeVersion: (options?: ResolveEdgeVersionOptions) => Promise<ResolvedEdgeVersion | undefined>;
 
-  const originalPlatform = process.platform;
-
   beforeEach(async () => {
     const module = await import('../src/edgeDriverManager.js');
     detectEdgeVersion = module.detectEdgeVersion;
@@ -58,19 +57,12 @@ describe('Edge Driver Manager', () => {
 
     vi.clearAllMocks();
 
-    Object.defineProperty(process, 'platform', {
-      value: 'win32',
-      writable: true,
-      configurable: true,
-    });
+    mockPlatform('win32');
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    Object.defineProperty(process, 'platform', {
-      value: originalPlatform,
-      configurable: true,
-    });
+    restorePlatform();
     delete process.env.EDGEDRIVER_VERSION;
     delete process.env.WEBVIEW2_BROWSER_EXECUTABLE_FOLDER;
   });
@@ -89,11 +81,7 @@ describe('Edge Driver Manager', () => {
 
   describe('detectEdgeVersion', () => {
     it('should return undefined on non-Windows platforms', async () => {
-      Object.defineProperty(process, 'platform', {
-        value: 'linux',
-        writable: true,
-        configurable: true,
-      });
+      mockPlatform('linux');
 
       const version = await detectEdgeVersion();
       expect(version).toBeUndefined();
@@ -155,11 +143,7 @@ describe('Edge Driver Manager', () => {
 
   describe('detectWebView2Version', () => {
     it('should return undefined on non-Windows platforms', async () => {
-      Object.defineProperty(process, 'platform', {
-        value: 'darwin',
-        writable: true,
-        configurable: true,
-      });
+      mockPlatform('darwin');
 
       const version = await detectWebView2Version();
       expect(version).toBeUndefined();
@@ -168,11 +152,7 @@ describe('Edge Driver Manager', () => {
 
   describe('findMsEdgeDriver', () => {
     it('should return empty object on non-Windows', async () => {
-      Object.defineProperty(process, 'platform', {
-        value: 'darwin',
-        writable: true,
-        configurable: true,
-      });
+      mockPlatform('darwin');
 
       const result = await findMsEdgeDriver();
       expect(result).toEqual({});
@@ -181,11 +161,7 @@ describe('Edge Driver Manager', () => {
 
   describe('ensureMsEdgeDriver', () => {
     it('should skip on non-Windows platforms', async () => {
-      Object.defineProperty(process, 'platform', {
-        value: 'linux',
-        writable: true,
-        configurable: true,
-      });
+      mockPlatform('linux');
 
       const result = await ensureMsEdgeDriver();
       assert(result.ok);
@@ -325,7 +301,7 @@ describe('Edge Driver Manager', () => {
 
   describe('detectFixedRuntimeVersion', () => {
     it('should return undefined on non-Windows platforms', async () => {
-      Object.defineProperty(process, 'platform', { value: 'darwin', writable: true, configurable: true });
+      mockPlatform('darwin');
       expect(await detectFixedRuntimeVersion('C:\\FixedRuntime')).toBeUndefined();
     });
 

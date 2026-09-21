@@ -72,6 +72,7 @@ vi.mock('@wdio/native-core', async (importOriginal) => ({
   startManagedDevServer: vi.fn(),
 }));
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { startManagedDevServer } from '@wdio/native-core';
 import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } from '../src/electrobunConfig.js';
 import ElectrobunLaunchService from '../src/launcher.js';
@@ -86,17 +87,11 @@ function makeLauncher(options: ElectrobunServiceGlobalOptions): ElectrobunLaunch
   return new ElectrobunLaunchService(options, {} as ElectrobunCapabilities, baseConfig);
 }
 
-// Tests default to darwin (the CEF path); the platform-guard and Windows/WebView2 tests
-// override to linux/win32. Restored after each test.
-const originalPlatform = process.platform;
-function setPlatform(value: NodeJS.Platform): void {
-  Object.defineProperty(process, 'platform', { value, writable: true, configurable: true });
-}
-
 describe('ElectrobunLaunchService', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    setPlatform('darwin');
+    // Default to darwin (the CEF path); platform-guard and Windows/WebView2 tests override to linux/win32.
+    mockPlatform('darwin');
     // Browser mode now preflights the dev server with a fetch HEAD probe; stub it reachable so the
     // happy-path browser tests don't hit a real (absent) server. (Native-mode tests never probe.)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
@@ -105,7 +100,7 @@ describe('ElectrobunLaunchService', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    setPlatform(originalPlatform);
+    restorePlatform();
   });
 
   describe('onPrepare — browser mode', () => {
@@ -154,7 +149,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should NOT apply the native-mode macOS guard in browser mode on Linux', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       const launcher = makeLauncher({ mode: 'browser', devServerUrl: 'http://localhost:3000' });
       const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
 
@@ -196,7 +191,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should NOT warn about maxInstances > 1 on Windows — WebView2 isolates per-instance', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
       const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
 
@@ -206,7 +201,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should warn (not throw) when maxInstances > 1 on Linux — WebKitGTK apps share the bundle', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
       const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
@@ -217,7 +212,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should pin browserVersion to the WebView2 runtime version on the Windows WebView2 path', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
         binaryPath: 'C:/apps/Demo/bin/launcher.exe',
         bundlePath: 'C:/apps/Demo',
@@ -236,7 +231,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should NOT override a user-set browserVersion on the WebView2 path (??= preserves it)', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
         binaryPath: 'C:/apps/Demo/bin/launcher.exe',
         bundlePath: 'C:/apps/Demo',
@@ -255,7 +250,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should warn and fall back to auto-match when the WebView2 runtime version is undetectable', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       vi.mocked(detectWebView2RuntimeVersion).mockReturnValueOnce(undefined);
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
         binaryPath: 'C:/apps/Demo/bin/launcher.exe',
@@ -275,7 +270,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should NOT warn when runtime detection fails but the user pinned browserVersion', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       vi.mocked(detectWebView2RuntimeVersion).mockReturnValueOnce(undefined);
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
         binaryPath: 'C:/apps/Demo/bin/launcher.exe',
@@ -325,7 +320,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should drive Linux via WebKitGTK/W3C for the native renderer (no browserName, classic)', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher', appArgs: ['--flag'] });
       const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
@@ -344,7 +339,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should reject a CEF-built bundle on Linux (CEF serves no /json there)', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({ ...linuxNativeApp, renderer: 'cef' });
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
 
@@ -355,7 +350,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should fail fast with an install hint when WebKitWebDriver is missing on Linux', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
       vi.mocked(getWebKitWebDriverPath).mockReturnValueOnce(undefined);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
@@ -366,7 +361,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should fail fast with a SevereServiceError in native mode on an unsupported platform', async () => {
-      setPlatform('freebsd' as NodeJS.Platform);
+      mockPlatform('freebsd' as NodeJS.Platform);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
 
       await expect(launcher.onPrepare(baseConfig, [{}])).rejects.toThrow(SevereServiceError);
@@ -375,7 +370,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should drive Windows via WebView2/Edge (browserName=MicrosoftEdge, no CEF verify)', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
       const caps: ElectrobunCapabilities[] = [{ browserName: 'electrobun' }];
 
@@ -389,7 +384,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should reject a CEF-built bundle on Windows (CEF serves no /json there)', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce({
         binaryPath: 'C:/apps/Demo/bin/launcher.exe',
         bundlePath: 'C:/apps/Demo',
@@ -424,7 +419,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should set debuggerAddress under ms:edgeOptions on the WebView2 (Windows) path', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       const launcher = makeLauncher({ appBinaryPath: 'C:/apps/Demo/bin/launcher.exe' });
       await launcher.onPrepare(baseConfig, [{}]);
 
@@ -438,7 +433,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should spawn WebKitWebDriver and set connection host/port on the Linux/W3C path', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
       await launcher.onPrepare(baseConfig, [{}]);
@@ -455,7 +450,7 @@ describe('ElectrobunLaunchService', () => {
     });
 
     it('should stop WebKitWebDriver on worker end (Linux/W3C)', async () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
       await launcher.onPrepare(baseConfig, [{}]);
@@ -602,7 +597,7 @@ describe('ElectrobunLaunchService — devServer management', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
-    setPlatform('darwin');
+    mockPlatform('darwin');
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
     vi.mocked(startManagedDevServer).mockResolvedValue({ url: DEV_SERVER, stop: managedStop });
   });
@@ -610,7 +605,7 @@ describe('ElectrobunLaunchService — devServer management', () => {
   afterEach(() => {
     vi.restoreAllMocks();
     vi.unstubAllGlobals();
-    setPlatform(originalPlatform);
+    restorePlatform();
   });
 
   it('should start the managed dev server and tear it down in onComplete', async () => {

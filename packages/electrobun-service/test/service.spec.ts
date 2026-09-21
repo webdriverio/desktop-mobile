@@ -36,6 +36,7 @@ vi.mock('../src/webdriverEval.js', async (importOriginal) => {
   return { ...actual, createWebDriverEvalBridge: vi.fn() };
 });
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import ElectrobunWorkerService from '../src/service.js';
 import { createWebDriverEvalBridge, WebDriverEvalBridge } from '../src/webdriverEval.js';
@@ -478,8 +479,7 @@ describe('ElectrobunWorkerService', () => {
     });
 
     it('should reap the WebKitGTK app tree on Linux teardown (unblocks deleteSession)', async () => {
-      const originalPlatform = process.platform;
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
       try {
         const browser = makeW3CBrowser();
         const cap = {
@@ -500,13 +500,12 @@ describe('ElectrobunWorkerService', () => {
           expect.anything(),
         );
       } finally {
-        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+        restorePlatform();
       }
     });
 
     it('should escape regex metacharacters in the reap pattern (no pkill injection)', async () => {
-      const originalPlatform = process.platform;
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
       try {
         const browser = makeW3CBrowser();
         const cap = {
@@ -524,13 +523,12 @@ describe('ElectrobunWorkerService', () => {
           expect.anything(),
         );
       } finally {
-        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+        restorePlatform();
       }
     });
 
     it('should NOT reap for a too-generic bundle path (safety guard)', async () => {
-      const originalPlatform = process.platform;
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
       try {
         const browser = makeW3CBrowser();
         const service = new ElectrobunWorkerService({}, {});
@@ -541,7 +539,7 @@ describe('ElectrobunWorkerService', () => {
 
         expect(execFileSyncMock).not.toHaveBeenCalled();
       } finally {
-        Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+        restorePlatform();
       }
     });
 

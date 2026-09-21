@@ -8,6 +8,7 @@ vi.mock('@wdio/native-utils', async (importOriginal) => {
 });
 
 import { execFile } from 'node:child_process';
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { pickIosUdid, prebuildWda, resolveIosUdid, warmUpXcodeToolchain } from '../src/iosSetup.js';
 
 const execMock = vi.mocked(execFile);
@@ -19,11 +20,8 @@ const xcrunOnce = (impl: (cb: ExecCb) => void) =>
   execMock.mockImplementationOnce(((_file: string, _args: string[], _opts: unknown, cb: ExecCb) => impl(cb)) as never);
 const xcrunResolves = (stdout: string) => xcrunOnce((cb) => cb(null, stdout, ''));
 const xcrunRejects = (message: string) => xcrunOnce((cb) => cb(new Error(message), '', ''));
-const origPlatform = process.platform;
-const setPlatform = (p: NodeJS.Platform) =>
-  Object.defineProperty(process, 'platform', { value: p, configurable: true });
 afterEach(() => {
-  setPlatform(origPlatform);
+  restorePlatform();
   vi.clearAllMocks();
 });
 
@@ -60,19 +58,19 @@ describe('pickIosUdid', () => {
 
 describe('resolveIosUdid', () => {
   it('should return undefined off macOS without shelling out', async () => {
-    setPlatform('linux');
+    mockPlatform('linux');
     expect(await resolveIosUdid('iPhone 16')).toBeUndefined();
     expect(execMock).not.toHaveBeenCalled();
   });
 
   it('should resolve via simctl on macOS', async () => {
-    setPlatform('darwin');
+    mockPlatform('darwin');
     xcrunResolves(simctl);
     expect(await resolveIosUdid('iPhone 16')).toBe('NEW');
   });
 
   it('should return undefined when simctl throws', async () => {
-    setPlatform('darwin');
+    mockPlatform('darwin');
     xcrunRejects('xcrun missing');
     expect(await resolveIosUdid('iPhone 16')).toBeUndefined();
   });
@@ -80,12 +78,12 @@ describe('resolveIosUdid', () => {
 
 describe('warmUpXcodeToolchain', () => {
   it('should be empty off macOS', async () => {
-    setPlatform('linux');
+    mockPlatform('linux');
     expect(await warmUpXcodeToolchain()).toEqual([]);
   });
 
   it('should report an error result when the SDK probe fails', async () => {
-    setPlatform('darwin');
+    mockPlatform('darwin');
     xcrunRejects('no sdk'); // --show-sdk-version
     xcrunResolves(''); // simctl list devices
     const results = await warmUpXcodeToolchain();
@@ -93,7 +91,7 @@ describe('warmUpXcodeToolchain', () => {
   });
 
   it('should report both probes ok on a healthy toolchain', async () => {
-    setPlatform('darwin');
+    mockPlatform('darwin');
     xcrunResolves('17.5\n'); // --show-sdk-version (trimmed into the message)
     xcrunResolves(''); // simctl list devices
     const results = await warmUpXcodeToolchain();
@@ -105,7 +103,7 @@ describe('warmUpXcodeToolchain', () => {
   });
 
   it('should warn (not error) when the simctl probe fails', async () => {
-    setPlatform('darwin');
+    mockPlatform('darwin');
     xcrunResolves('17.5'); // SDK ok
     xcrunRejects('simctl boom'); // simctl list devices fails
     const results = await warmUpXcodeToolchain();
@@ -115,7 +113,7 @@ describe('warmUpXcodeToolchain', () => {
 
 describe('prebuildWda', () => {
   it('should return Err off macOS', async () => {
-    setPlatform('linux');
+    mockPlatform('linux');
     const r = await prebuildWda({ derivedDataPath: '/tmp/dd' });
     expect(r.ok).toBe(false);
   });

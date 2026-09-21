@@ -29,6 +29,7 @@ vi.mock('../src/electrobunConfig.js', () => ({
   writeRemoteDebuggingPort: (...args: unknown[]) => writeRemoteDebuggingPortMock(...args),
 }));
 
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import type { ResolvedElectrobunApp } from '../src/electrobunConfig.js';
 import { cloneAppBundle, spawnElectrobunApp, stopElectrobunApp, waitForCdpReady } from '../src/nativeMode.js';
 import type { ElectrobunServiceOptions } from '../src/types.js';
@@ -64,13 +65,7 @@ const APP: ResolvedElectrobunApp = {
 const CLONE_PARENT = '/tmp/wdio-electrobun-bundle-xyz';
 const USER_HOME = '/tmp/wdio-electrobun-home-abc';
 
-const originalPlatform = process.platform;
-
-function setPlatform(platform: NodeJS.Platform): void {
-  Object.defineProperty(process, 'platform', { value: platform, configurable: true });
-}
-
-// These suites mock setPlatform('darwin') to exercise the macOS clone/spawn paths, but
+// These suites force the platform to darwin to exercise the macOS clone/spawn paths, but
 // node:path uses the RUNNER's separator regardless — so their hardcoded POSIX path
 // assertions can't match on a Windows runner (the logic is OS-identical since the
 // platform is mocked, and is covered on Linux/macOS; real Windows behaviour is exercised
@@ -90,17 +85,17 @@ describe('nativeMode', () => {
     // the per-run --user-data-dir; key the stub off the prefix so call order doesn't matter.
     mkdtempSyncMock.mockImplementation((prefix: string) => (prefix.includes('bundle') ? CLONE_PARENT : USER_HOME));
     createLogCaptureMock.mockReturnValue({ close: vi.fn() });
-    setPlatform('darwin');
+    mockPlatform('darwin');
   });
 
   afterEach(() => {
-    setPlatform(originalPlatform);
+    restorePlatform();
     vi.useRealTimers();
   });
 
   describePosixPaths('cloneAppBundle', () => {
     it('should use the APFS clonefile (cp -Rc) on darwin', () => {
-      setPlatform('darwin');
+      mockPlatform('darwin');
 
       const result = cloneAppBundle('/apps/Demo.app');
 
@@ -117,7 +112,7 @@ describe('nativeMode', () => {
     });
 
     it('should fall back to a recursive cpSync when the APFS clone fails', () => {
-      setPlatform('darwin');
+      mockPlatform('darwin');
       execFileSyncMock.mockImplementationOnce(() => {
         throw new Error('clonefile unsupported on this volume');
       });
@@ -141,7 +136,7 @@ describe('nativeMode', () => {
     });
 
     it('should use cpSync (not cp -Rc) on non-darwin platforms', () => {
-      setPlatform('linux');
+      mockPlatform('linux');
 
       cloneAppBundle('/apps/Demo');
 
@@ -152,7 +147,7 @@ describe('nativeMode', () => {
     });
 
     it('should remove the empty temp parent dir if the copy throws (no leak)', () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       cpSyncMock.mockImplementationOnce(() => {
         throw new Error('ENOSPC: no space left on device');
       });
@@ -216,7 +211,7 @@ describe('nativeMode', () => {
     });
 
     it('should wrap the spawn in xvfb-run on Linux (headless CI needs an X display)', () => {
-      setPlatform('linux');
+      mockPlatform('linux');
 
       spawnElectrobunApp({ app: APP, appArgs: ['--flag'], port: 9333, options: {} as ElectrobunServiceOptions });
 
@@ -245,7 +240,7 @@ describe('nativeMode', () => {
     });
 
     it('should clone with cpSync on non-darwin and spawn the cloned binary', () => {
-      setPlatform('linux');
+      mockPlatform('linux');
       const linuxApp: ResolvedElectrobunApp = {
         binaryPath: '/apps/Demo/Demo',
         bundlePath: '/apps/Demo',
@@ -345,7 +340,7 @@ describe('nativeMode', () => {
     };
 
     it('injects --remote-debugging-port via WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS and spawns the binary in place', () => {
-      setPlatform('win32');
+      mockPlatform('win32');
 
       const result = spawnElectrobunApp({
         app: winApp,
@@ -369,7 +364,7 @@ describe('nativeMode', () => {
     });
 
     it('keeps the remote-debugging port first and appends caller-supplied WebView2 args', () => {
-      setPlatform('win32');
+      mockPlatform('win32');
 
       spawnElectrobunApp({
         app: winApp,
@@ -473,7 +468,7 @@ describe('nativeMode', () => {
 
   describe('stopElectrobunApp on Windows', () => {
     it('should taskkill the whole process tree instead of proc.kill-ing only the direct child', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       execFileSyncMock.mockImplementation((command: string) => {
         // taskkill reaps the tree; mark the process gone so the reap-wait doesn't spin.
         if (command === 'taskkill') {
@@ -495,7 +490,7 @@ describe('nativeMode', () => {
     });
 
     it('should fall back to SIGKILL when taskkill fails', async () => {
-      setPlatform('win32');
+      mockPlatform('win32');
       execFileSyncMock.mockImplementation((command: string) => {
         if (command === 'taskkill') {
           throw new Error('taskkill not found');

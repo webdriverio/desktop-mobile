@@ -2,6 +2,7 @@ import assert from 'node:assert';
 import { exec, execSync, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ensureTauriDriver,
@@ -85,24 +86,16 @@ describe('WebKitWebDriver Management', () => {
     });
 
     it('should return success on non-Linux platforms', async () => {
-      const originalPlatform = process.platform;
-      Object.defineProperty(process, 'platform', {
-        value: 'darwin',
-        configurable: true,
-      });
+      mockPlatform('darwin');
 
       const result = await ensureWebKitWebDriver();
       assert(result.ok);
 
-      Object.defineProperty(process, 'platform', {
-        value: originalPlatform,
-        configurable: true,
-      });
+      restorePlatform();
     });
 
     it('should return Ok with path when WebKitWebDriver is found on Linux', async () => {
-      const originalPlatform = process.platform;
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
 
       vi.mocked(execSync).mockReturnValue('/usr/bin/WebKitWebDriver\n');
       vi.mocked(existsSync).mockReturnValue(true);
@@ -112,12 +105,11 @@ describe('WebKitWebDriver Management', () => {
       assert(result.ok);
       expect(result.value.path).toBe('/usr/bin/WebKitWebDriver');
 
-      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      restorePlatform();
     });
 
     it('should return Err with install instructions when not found on Linux', async () => {
-      const originalPlatform = process.platform;
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
 
       vi.mocked(execSync).mockImplementation(() => {
         throw new Error('not found');
@@ -133,7 +125,7 @@ describe('WebKitWebDriver Management', () => {
       assert(!result.ok);
       expect(result.error.message).toContain('WebKitWebDriver not found');
 
-      Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+      restorePlatform();
     });
   });
 });
@@ -157,15 +149,13 @@ describe('isCargoAvailable', () => {
 });
 
 describe('findTauriDriver', () => {
-  const originalPlatform = process.platform;
-
   afterEach(() => {
     vi.restoreAllMocks();
-    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    restorePlatform();
   });
 
   it('should return path when which command finds tauri-driver on Unix', () => {
-    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    mockPlatform('linux');
     vi.mocked(execSync).mockReturnValue('/usr/local/bin/tauri-driver\n');
     vi.mocked(existsSync).mockReturnValue(true);
 
@@ -173,7 +163,7 @@ describe('findTauriDriver', () => {
   });
 
   it('should return path when where command finds tauri-driver on Windows', () => {
-    Object.defineProperty(process, 'platform', { value: 'win32', configurable: true });
+    mockPlatform('win32');
     vi.mocked(execSync).mockReturnValue('C:\\Users\\user\\.cargo\\bin\\tauri-driver.exe\n');
     vi.mocked(existsSync).mockReturnValue(true);
 
@@ -181,7 +171,7 @@ describe('findTauriDriver', () => {
   });
 
   it('should return undefined when command throws and no common paths exist', () => {
-    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    mockPlatform('linux');
     vi.mocked(execSync).mockImplementation(() => {
       throw new Error('not found');
     });
@@ -191,7 +181,7 @@ describe('findTauriDriver', () => {
   });
 
   it('should fall back to common paths when command fails', () => {
-    Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+    mockPlatform('linux');
     vi.mocked(execSync).mockImplementation(() => {
       throw new Error('not found');
     });
@@ -285,15 +275,13 @@ describe('installTauriDriver', () => {
 });
 
 describe('ensureTauriDriver', () => {
-  const originalPlatform = process.platform;
-
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   afterEach(() => {
     vi.restoreAllMocks();
-    Object.defineProperty(process, 'platform', { value: originalPlatform, configurable: true });
+    restorePlatform();
   });
 
   describe('crabnebula provider', () => {
@@ -357,7 +345,7 @@ describe('ensureTauriDriver', () => {
     });
 
     it('should return Ok when findTauriDriver finds existing driver', async () => {
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
       vi.mocked(execSync).mockReturnValue('/usr/local/bin/tauri-driver\n');
       vi.mocked(existsSync).mockReturnValue(true);
 
@@ -368,7 +356,7 @@ describe('ensureTauriDriver', () => {
     });
 
     it('should auto-install when enabled and driver not found', async () => {
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
 
       vi.mocked(execSync).mockImplementation((cmd: string) => {
         if (cmd === 'cargo --version') return 'cargo 1.75.0';
@@ -396,7 +384,7 @@ describe('ensureTauriDriver', () => {
     });
 
     it('should return Err when auto-install is enabled but cargo is unavailable', async () => {
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
 
       vi.mocked(execSync).mockImplementation(() => {
         throw new Error('not found');
@@ -410,7 +398,7 @@ describe('ensureTauriDriver', () => {
     });
 
     it('should return Err when auto-install fails', async () => {
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
 
       vi.mocked(execSync).mockImplementation((cmd: string) => {
         if (cmd === 'cargo --version') return 'cargo 1.75.0';
@@ -437,7 +425,7 @@ describe('ensureTauriDriver', () => {
     });
 
     it('should return Err with install instructions when driver not found and no auto-install', async () => {
-      Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
+      mockPlatform('linux');
 
       vi.mocked(execSync).mockImplementation(() => {
         throw new Error('not found');
