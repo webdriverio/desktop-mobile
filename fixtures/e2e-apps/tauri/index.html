@@ -122,6 +122,13 @@
           <button type="button" id="dialog-close" class="dialog-close" autofocus>Close</button>
         </dialog>
       </div>
+
+      <div class="form-section">
+        <form id="text-form">
+          <input type="text" id="text-input" name="text-input" autocomplete="off" />
+          <button type="submit" id="text-submit">Submit</button>
+        </form>
+      </div>
     </div>
 
     <script type="module">
@@ -256,6 +263,18 @@
       });
       dialogCloseButton.addEventListener('click', () => {
         testDialog.close();
+      });
+
+      // __formEvents records form submissions with isTrusted so a spec can assert that a trusted
+      // Enter reached the input. Implicit form submission is a trusted-input gate (like the dialog
+      // Escape above): Blink submits only for a trusted Enter. preventDefault stops the navigation
+      // that would otherwise reset the page.
+      const textForm = document.getElementById('text-form');
+      const textInput = document.getElementById('text-input');
+      window.__formEvents = [];
+      textForm.addEventListener('submit', (ev) => {
+        ev.preventDefault();
+        window.__formEvents.push({ type: 'submit', isTrusted: ev.isTrusted, value: textInput.value });
       });
 
       // Initialize
