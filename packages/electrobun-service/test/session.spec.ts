@@ -1,3 +1,4 @@
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const onPrepareMock = vi.fn().mockResolvedValue(undefined);
@@ -103,6 +104,36 @@ describe('session', () => {
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
+
+    it('should call launcher.onComplete when onPrepare fails', async () => {
+      onPrepareMock.mockRejectedValueOnce(new Error('bundle resolve failed'));
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+      await expect(init(cap)).rejects.toThrow(/bundle resolve failed/);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(onWorkerStartMock).not.toHaveBeenCalled();
+      expect(remoteMock).not.toHaveBeenCalled();
+    });
+
+    it('should call launcher.onComplete when onWorkerStart fails after spawn', async () => {
+      onWorkerStartMock.mockRejectedValueOnce(new Error('cdp never ready'));
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+      await expect(init(cap)).rejects.toThrow(/cdp never ready/);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(remoteMock).not.toHaveBeenCalled();
+    });
+
+    it('should surface both errors via AggregateError when onComplete also fails', async () => {
+      onWorkerStartMock.mockRejectedValueOnce(new Error('cdp never ready'));
+      onCompleteMock.mockRejectedValueOnce(new Error('reap boom'));
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+      const err = await init(cap).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AggregateError);
+      expect((err as AggregateError).errors.map((e: Error) => e.message)).toEqual(['cdp never ready', 'reap boom']);
+      expect((err as { cause?: Error }).cause?.message).toBe('cdp never ready');
+    });
   });
 
   describe('init option merging', () => {
@@ -139,6 +170,47 @@ describe('session', () => {
       onCompleteMock.mockRejectedValueOnce(new Error('teardown boom'));
 
       await expect(cleanup(browser)).resolves.toBeUndefined();
+    });
+
+    it('should not hang cleanup when launcher.onComplete never settles', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+      const browser = await init(cap);
+      onCompleteMock.mockReturnValueOnce(new Promise<void>(() => {})); // a devServer stop() that hangs
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(deleteSessionMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not hang cleanup when browser.deleteSession never settles', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+      const browser = await init(cap);
+      deleteSessionMock.mockReturnValueOnce(new Promise<void>(() => {})); // a driver that never acks the DELETE
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow a benign deleteSession error during cleanup', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+      const browser = await init(cap);
+      deleteSessionMock.mockRejectedValueOnce(new Error('invalid session id'));
+
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
     it('should warn and no-op when the browser was not created by init()', async () => {

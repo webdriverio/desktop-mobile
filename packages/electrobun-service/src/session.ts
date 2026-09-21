@@ -11,7 +11,7 @@ import type {
   ElectrobunServiceGlobalOptions,
   ElectrobunServiceOptions,
 } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 
@@ -24,6 +24,49 @@ const log = createLogger('electrobun-service', 'session');
 
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectrobunLaunchService>();
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectrobunWorkerService>();
+
+/**
+ * Reap the launcher's spawned apps/drivers via onComplete when startup fails, then rethrow.
+ * A teardown failure joins the original in an AggregateError rather than masking it.
+ * onComplete is bounded because a browser-mode devServer's close() is user-supplied and can hang.
+ */
+async function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
+  try {
+    await runBounded(
+      () => launcher.onComplete(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn('launcher.onComplete() timed out during startup cleanup'),
+    );
+  } catch (cleanupError) {
+    throw new AggregateError([error, cleanupError], 'Electrobun standalone startup and launcher cleanup failed', {
+      cause: error,
+    });
+  }
+  throw error;
+}
+
+/**
+ * The driver socket may already be gone by teardown, so a deleteSession failure here is usually
+ * harmless. The call is time-bounded so a stall can't block the rest of teardown.
+ */
+async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
+  if (!browser.sessionId) {
+    return;
+  }
+  try {
+    await runBounded(
+      () => browser.deleteSession(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`deleteSession timed out during ${context}`),
+    );
+  } catch (e) {
+    if (isBenignTeardownError(e)) {
+      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
+    } else {
+      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+    }
+  }
+}
 
 /**
  * Initialise an Electrobun standalone session.
@@ -43,17 +86,20 @@ export async function init(
   const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
   const launcher = new ElectrobunLaunchService(globalOptions ?? {}, capability, testRunnerOpts);
 
-  await launcher.onPrepare(testRunnerOpts, [capability]);
-  await launcher.onWorkerStart('', [capability]);
+  // onWorkerStart spawns the app before awaiting the CDP endpoint (or spawns the WebKitGTK driver),
+  // so a failure across this pair can leave a process to reap.
+  try {
+    await launcher.onPrepare(testRunnerOpts, [capability]);
+    await launcher.onWorkerStart('', [capability]);
+  } catch (error) {
+    return failStartup(launcher, error);
+  }
 
   const browser = await remote({
     capabilities: capability as WebdriverIO.Capabilities,
-  }).catch(async (error: Error) => {
+  }).catch((error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
-    await launcher
-      .onComplete()
-      .catch((cleanupErr: Error) => log.warn(`Failed to stop app during cleanup: ${cleanupErr.message}`));
-    throw error;
+    return failStartup(launcher, error);
   });
 
   activeLaunchers.set(browser, launcher);
@@ -66,14 +112,9 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    await browser
-      .deleteSession()
-      .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
-    await launcher
-      .onComplete()
-      .catch((e: Error) => log.warn(`Failed to stop app during service.before cleanup: ${e.message}`));
+    await deleteSessionBounded(browser, 'service.before cleanup');
     activeLaunchers.delete(browser);
-    throw error;
+    return failStartup(launcher, error);
   }
   activeServices.set(browser, service);
 
@@ -107,16 +148,14 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     activeServices.delete(browser);
   }
 
-  try {
-    if (browser.sessionId) {
-      await browser.deleteSession();
-    }
-  } catch (e) {
-    log.warn(`Failed to delete session during cleanup: ${(e as Error).message}`);
-  }
+  await deleteSessionBounded(browser, 'cleanup');
 
   try {
-    await launcher.onComplete();
+    await runBounded(
+      () => launcher.onComplete(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn('launcher.onComplete() timed out during cleanup'),
+    );
   } catch (e) {
     log.warn(`launcher.onComplete() failed during cleanup: ${(e as Error).message}`);
   } finally {
