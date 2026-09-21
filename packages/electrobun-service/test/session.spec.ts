@@ -103,6 +103,26 @@ describe('session', () => {
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
+
+    it('should call launcher.onComplete when onWorkerStart fails after spawn', async () => {
+      onWorkerStartMock.mockRejectedValueOnce(new Error('cdp never ready'));
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+      await expect(init(cap)).rejects.toThrow(/cdp never ready/);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      expect(remoteMock).not.toHaveBeenCalled();
+    });
+
+    it('should surface both errors via AggregateError when onComplete also fails', async () => {
+      onWorkerStartMock.mockRejectedValueOnce(new Error('cdp never ready'));
+      onCompleteMock.mockRejectedValueOnce(new Error('reap boom'));
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+      const err = await init(cap).catch((e: unknown) => e);
+      expect(err).toBeInstanceOf(AggregateError);
+      expect((err as AggregateError).errors.map((e: Error) => e.message)).toEqual(['cdp never ready', 'reap boom']);
+      expect((err as { cause?: Error }).cause?.message).toBe('cdp never ready');
+    });
   });
 
   describe('init option merging', () => {

@@ -26,6 +26,21 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectrobunLaunchService
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectrobunWorkerService>();
 
 /**
+ * Rethrow a startup failure after best-effort launcher teardown (onComplete reaps spawned
+ * apps/drivers). A teardown failure joins the original in an AggregateError rather than masking it.
+ */
+async function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
+  try {
+    await launcher.onComplete();
+  } catch (cleanupError) {
+    throw new AggregateError([error, cleanupError], 'Electrobun standalone startup and launcher cleanup failed', {
+      cause: error,
+    });
+  }
+  throw error;
+}
+
+/**
  * Initialise an Electrobun standalone session.
  *
  * Drives the launcher's onPrepare + onWorkerStart manually (WDIO's `remote()`
@@ -43,17 +58,20 @@ export async function init(
   const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
   const launcher = new ElectrobunLaunchService(globalOptions ?? {}, capability, testRunnerOpts);
 
-  await launcher.onPrepare(testRunnerOpts, [capability]);
-  await launcher.onWorkerStart('', [capability]);
+  // onWorkerStart spawns the app before awaiting the CDP endpoint (or spawns the WebKitGTK driver),
+  // so a failure across this pair can leave a process to reap.
+  try {
+    await launcher.onPrepare(testRunnerOpts, [capability]);
+    await launcher.onWorkerStart('', [capability]);
+  } catch (error) {
+    return failStartup(launcher, error);
+  }
 
   const browser = await remote({
     capabilities: capability as WebdriverIO.Capabilities,
-  }).catch(async (error: Error) => {
+  }).catch((error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
-    await launcher
-      .onComplete()
-      .catch((cleanupErr: Error) => log.warn(`Failed to stop app during cleanup: ${cleanupErr.message}`));
-    throw error;
+    return failStartup(launcher, error);
   });
 
   activeLaunchers.set(browser, launcher);
@@ -69,11 +87,8 @@ export async function init(
     await browser
       .deleteSession()
       .catch((e: Error) => log.warn(`Failed to delete session during service.before cleanup: ${e.message}`));
-    await launcher
-      .onComplete()
-      .catch((e: Error) => log.warn(`Failed to stop app during service.before cleanup: ${e.message}`));
     activeLaunchers.delete(browser);
-    throw error;
+    return failStartup(launcher, error);
   }
   activeServices.set(browser, service);
 
