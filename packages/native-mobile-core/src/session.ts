@@ -1,19 +1,14 @@
 // Standalone (`remote()`) session factory for Appium-driven mobile services.
 //
-// WDIO's `remote()` runs only worker-level hooks, so init() manually drives the
-// launcher's onPrepare first so capabilities are mutated (automationName/app set)
-// before the Appium session opens. Parameterized over the launcher + worker classes so
-// each service binds its own; the active-session WeakMaps live in the factory closure.
+// WDIO's `remote()` runs only worker-level hooks, so init() runs onPrepare before opening the
+// session — onPrepare mutates the capabilities in place, and remote() opens with them.
 
 import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 
 /**
- * Appium-server connection for a standalone session. In the runner path
- * `@wdio/appium-service` supplies this; standalone callers pass it here. Defaults target
- * Appium's own defaults (`localhost:4723/`) — NOT WebdriverIO's `localhost:4444`, which would
- * never reach an Appium server.
+ * Appium-server connection for a standalone session.
  */
 export interface AppiumServerConnection {
   hostname?: string;
@@ -22,43 +17,36 @@ export interface AppiumServerConnection {
   protocol?: string;
 }
 
-/** Minimal launcher contract init() drives (the subclass extends MobileBaseLauncher). */
 interface MobileLauncherLike<TCap> {
   onPrepare(config: Options.Testrunner, capabilities: TCap[] | Record<string, { capabilities: TCap }>): Promise<void>;
+  // Stop launcher-owned processes. RN-only - Flutter's launcher owns nothing to stop.
+  onComplete?(): Promise<void>;
 }
 
-/** Minimal worker contract init()/cleanup() drive (the subclass is the worker service). */
+/**
+ * Rethrow a startup failure after best-effort launcher teardown. A teardown failure joins the
+ * original in an AggregateError rather than masking it.
+ */
+async function failStartup<TCap>(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
+  try {
+    await launcher.onComplete?.();
+  } catch (cleanupError) {
+    throw new AggregateError([error, cleanupError], 'Mobile standalone startup and launcher cleanup failed', {
+      cause: error,
+    });
+  }
+  throw error;
+}
+
 interface MobileWorkerLike<TCap> {
   before(capability: TCap, specs: string[], browser: WebdriverIO.Browser): Promise<void>;
   after(): Promise<void>;
 }
 
 export interface MobileSessionDeps<TOptions, TCap> {
-  /**
-   * The launch service. `init()` constructs it as `new LauncherClass(globalOptions, capability,
-   * testRunnerConfig)` then drives `onPrepare(config, [capability])` to mutate the capability
-   * (automationName/app) before the Appium session opens. The third arg is a minimal
-   * `Options.Testrunner` (`{ capabilities: [] }`) — standalone mode has no real runner config.
-   * Typically a `MobileBaseLauncher` subclass.
-   */
-  LauncherClass: new (
-    options: TOptions,
-    capability: TCap,
-    config: Options.Testrunner,
-  ) => MobileLauncherLike<TCap>;
-  /**
-   * The worker service. `init()` constructs it as `new WorkerClass(globalOptions, capability)`
-   * (BEFORE opening the session, so a ctor throw leaks nothing) then calls
-   * `before(capability, [], browser)` to install the `browser.<framework>` surface. The
-   * constructor is expected to merge per-capability options itself; raw global options are passed.
-   */
-  WorkerClass: new (
-    options: TOptions,
-    capability: TCap,
-  ) => MobileWorkerLike<TCap>;
-  /** Default Appium server address; falls back to localhost:4723/. */
+  LauncherClass: new (options: TOptions, capability: TCap, config: Options.Testrunner) => MobileLauncherLike<TCap>;
+  WorkerClass: new (options: TOptions, capability: TCap) => MobileWorkerLike<TCap>;
   defaultConnection?: AppiumServerConnection;
-  /** Logger namespace (the consuming service's package short name). */
   logNamespace: string;
 }
 
@@ -72,8 +60,7 @@ export interface MobileSession<TOptions, TCap> {
 }
 
 /**
- * Build the standalone `init`/`cleanup` pair for a mobile service. The active-session
- * launcher/worker WeakMaps are private to the returned closure.
+ * Build the standalone session for a mobile service.
  */
 export function createMobileSession<TOptions extends object, TCap extends object>(
   deps: MobileSessionDeps<TOptions, TCap>,
@@ -91,8 +78,6 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
     const capability = (Array.isArray(capabilities) ? capabilities[0] : capabilities) as TCap | undefined;
     if (!capability) {
-      // An empty array (or undefined) otherwise resolves to an undefined capability that
-      // surfaces as a cryptic onPrepare/remote() failure deep in the launch path.
       throw new Error(
         'createMobileSession.init(): no capability provided — pass a capability object or a non-empty capabilities array.',
       );
@@ -103,14 +88,16 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
     await launcher.onPrepare(testRunnerOpts, [capability]);
 
-    // Construct the worker BEFORE opening the session: a constructor throw here would otherwise
-    // leave a live Appium session the caller never receives a browser handle for (so can't close).
-    // Pass globalOptions raw — the service constructor merges the capability options itself.
-    const service = new deps.WorkerClass(opts, capability);
+    // Construct the worker before opening the session
+    let service: MobileWorkerLike<TCap>;
+    try {
+      service = new deps.WorkerClass(opts, capability);
+    } catch (error) {
+      return failStartup(launcher, error);
+    }
 
     const browser = await remote({
-      // Appium defaults; remote() otherwise targets WebdriverIO's localhost:4444, which an Appium
-      // server (default localhost:4723) is never on. Callers override via `connection`.
+      // Overrides default (WebdriverIO's localhost:4444) with Appium defaults
       hostname: 'localhost',
       port: 4723,
       path: '/',
@@ -119,8 +106,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
       capabilities: capability as WebdriverIO.Capabilities,
     }).catch((error: Error) => {
       log.error(`Failed to create remote session: ${error.message}`);
-      // Appium-driven launchers have no driver processes to stop on completion.
-      throw error;
+      return failStartup(launcher, error);
     });
 
     activeLaunchers.set(browser, launcher);
@@ -132,7 +118,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
         .deleteSession()
         .catch((e: Error) => log.warn(`deleteSession failed during service.before cleanup: ${e.message}`));
       activeLaunchers.delete(browser);
-      throw error;
+      return failStartup(launcher, error);
     }
     activeServices.set(browser, service);
 
@@ -164,6 +150,12 @@ export function createMobileSession<TOptions extends object, TCap extends object
       }
     } catch (e) {
       log.warn(`Failed to delete session during cleanup: ${(e as Error).message}`);
+    }
+
+    try {
+      await launcher.onComplete?.();
+    } catch (e) {
+      log.warn(`launcher.onComplete() failed during cleanup: ${(e as Error).message}`);
     }
 
     activeLaunchers.delete(browser);
