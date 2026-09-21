@@ -201,7 +201,6 @@ describe('session', () => {
       } finally {
         vi.useRealTimers();
       }
-      // deleteSession was abandoned, so onComplete still ran.
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 

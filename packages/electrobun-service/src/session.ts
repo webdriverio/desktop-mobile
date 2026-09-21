@@ -26,8 +26,8 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectrobunLaunchService
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectrobunWorkerService>();
 
 /**
- * Rethrow a startup failure after best-effort launcher teardown (onComplete reaps spawned
- * apps/drivers). A teardown failure joins the original in an AggregateError rather than masking it.
+ * Reap the launcher's spawned apps/drivers via onComplete when startup fails, then rethrow.
+ * A teardown failure joins the original in an AggregateError rather than masking it.
  * onComplete is bounded because a browser-mode devServer's close() is user-supplied and can hang.
  */
 async function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
@@ -46,9 +46,8 @@ async function failStartup(launcher: ElectrobunLaunchService, error: unknown): P
 }
 
 /**
- * Close the WebDriver session, bounded + benign-swallowing: during teardown the driver socket may
- * already be gone (a benign "session not found" / socket-closed), and a stalled deleteSession must
- * not block the rest of teardown.
+ * Bounded & benign-swallowing: by teardown the driver socket may already be gone — a benign
+ * "session not found" / socket-closed — and a stalled deleteSession must not block the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
