@@ -11,6 +11,10 @@ import '@wdio/native-types';
 
 const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded' | 'external' | undefined;
 
+// CrabNebula's macOS key path doesn't fire the modal dialog's close-request. Tracked in
+// https://github.com/webdriverio/desktop-mobile/issues/674.
+const skipDialogClose = driverProvider === 'crabnebula' && process.platform === 'darwin';
+
 type DialogEvent = {
   phase: string;
   type: string;
@@ -41,13 +45,19 @@ async function waitForDialogClosed() {
 }
 
 describe('modal <dialog> Escape close-request', () => {
-  it('should close the modal dialog when Escape is sent via browser.keys', async () => {
+  it('should close the modal dialog when Escape is sent via browser.keys', async function () {
+    if (skipDialogClose) {
+      this.skip();
+    }
     await openDialog();
     await browser.keys(Key.Escape);
     await waitForDialogClosed();
   });
 
-  it('should close the modal dialog when Escape is sent via the Actions API', async () => {
+  it('should close the modal dialog when Escape is sent via the Actions API', async function () {
+    if (skipDialogClose) {
+      this.skip();
+    }
     await openDialog();
     await browser.action('key').down(Key.Escape).up(Key.Escape).perform();
     await waitForDialogClosed();
