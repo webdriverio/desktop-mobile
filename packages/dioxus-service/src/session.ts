@@ -12,7 +12,7 @@ const activeServices = new WeakMap<WebdriverIO.Browser, DioxusWorkerService>();
 
 /**
  * Best-effort launcher teardown, bounded because onComplete stops a browser-mode dev server whose
- * close() is user-supplied and can hang (WDIO does not call onComplete after an onPrepare throw).
+ * close() is user-supplied and can hang.
  */
 async function stopLauncher(launcher: DioxusLaunchService, context: string): Promise<void> {
   await runBounded(
@@ -23,8 +23,8 @@ async function stopLauncher(launcher: DioxusLaunchService, context: string): Pro
 }
 
 /**
- * Close the WebDriver session, bounded + benign-swallowing: during teardown the driver socket may
- * already be gone, and a stalled deleteSession must not block the rest of teardown.
+ * The driver socket may already be gone by teardown, so a deleteSession failure here is usually
+ * harmless. The call is time-bounded so a stall can't block the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {

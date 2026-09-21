@@ -163,8 +163,8 @@ export default class DioxusLaunchService extends BaseLauncher {
     const hostname = '127.0.0.1';
 
     for (let i = 0; i < capsList.length; i++) {
-      // Reap every already-spawned instance if any step for this one throws — WDIO does not call
-      // onComplete after an onPrepare throw, so a bare throw would orphan the earlier drivers.
+      // WDIO does not call onComplete after an onPrepare throw, so reap already-spawned drivers in
+      // the catch — otherwise a later instance's failure orphans the earlier ones.
       try {
         const cap = capsList[i];
         const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
@@ -207,7 +207,7 @@ export default class DioxusLaunchService extends BaseLauncher {
 
     for (let i = 0; i < entries.length; i++) {
       const [key, instanceConfig] = entries[i];
-      // Reap every already-spawned instance if any step for this one throws (see prepareEmbedded).
+      // Reap already-spawned drivers on a mid-loop throw (see prepareEmbedded).
       try {
         const cap = instanceConfig.capabilities;
         const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
