@@ -47,8 +47,8 @@ async function failStartup(launcher: ElectronLaunchService, error: unknown): Pro
 
 /**
  * WDIO's standalone path never deletes the session itself (native: quits the app; browser mode:
- * closes Chrome). Bounded & benign-swallowing: by teardown the driver socket may already be gone —
- * a benign "session not found" / socket-closed — and a stalled deleteSession must not block the rest of teardown.
+ * closes Chrome). The driver socket may already be gone by teardown, so a failure here is usually
+ * harmless; the call is time-bounded so a stall can't block the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
