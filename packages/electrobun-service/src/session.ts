@@ -11,7 +11,13 @@ import type {
   ElectrobunServiceGlobalOptions,
   ElectrobunServiceOptions,
 } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import {
+  createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  failStartup as failStartupShared,
+  isBenignTeardownError,
+  runBounded,
+} from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 
@@ -26,23 +32,17 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectrobunLaunchService
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectrobunWorkerService>();
 
 /**
- * Reap the launcher's spawned apps/drivers via onComplete when startup fails, then rethrow.
- * A teardown failure joins the original in an AggregateError rather than masking it.
- * onComplete is bounded because a browser-mode devServer's close() is user-supplied and can hang.
+ * onComplete reaps the launcher's spawned apps/drivers, bounded because a browser-mode devServer's
+ * user-supplied close() can hang.
  */
 async function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
-  try {
-    await runBounded(
+  return failStartupShared(error, 'Electrobun standalone', () =>
+    runBounded(
       () => launcher.onComplete(),
       DEFAULT_TEARDOWN_TIMEOUT_MS,
       () => log.warn('launcher.onComplete() timed out during startup cleanup'),
-    );
-  } catch (cleanupError) {
-    throw new AggregateError([error, cleanupError], 'Electrobun standalone startup and launcher cleanup failed', {
-      cause: error,
-    });
-  }
-  throw error;
+    ),
+  );
 }
 
 /**

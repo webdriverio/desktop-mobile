@@ -3,7 +3,7 @@
 // WDIO's `remote()` runs only worker-level hooks, so init() runs onPrepare before opening the
 // session — onPrepare mutates the capabilities in place, and remote() opens with them.
 
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, failStartup as failStartupShared } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 
@@ -23,19 +23,9 @@ interface MobileLauncherLike<TCap> {
   onComplete?(): Promise<void>;
 }
 
-/**
- * Rethrow a startup failure after best-effort launcher teardown. A teardown failure joins the
- * original in an AggregateError rather than masking it.
- */
+/** onComplete is optional: Flutter's launcher owns nothing to stop. */
 async function failStartup<TCap>(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
-  try {
-    await launcher.onComplete?.();
-  } catch (cleanupError) {
-    throw new AggregateError([error, cleanupError], 'Mobile standalone startup and launcher cleanup failed', {
-      cause: error,
-    });
-  }
-  throw error;
+  return failStartupShared(error, 'Mobile standalone', () => launcher.onComplete?.());
 }
 
 interface MobileWorkerLike<TCap> {

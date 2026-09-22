@@ -5,7 +5,13 @@ import type {
   ElectronServiceOptions,
   ElectronStandaloneCapability,
 } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import {
+  createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  failStartup as failStartupShared,
+  isBenignTeardownError,
+  runBounded,
+} from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -23,26 +29,22 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectronLaunchService>(
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectronWorkerService>();
 
 /**
- * Best-effort teardown on a failed standalone startup, then rethrow. Closes the log writer and runs
- * launcher.onComplete() — which stops a browser-mode dev server and is a no-op in native mode where
- * WDIO owns chromedriver. A launcher-teardown failure joins the original in an AggregateError rather
- * than masking it; onComplete is bounded because a function-form devServer's close() is user-supplied and can hang.
+ * onComplete stops a browser-mode dev server (a no-op in native mode, where WDIO owns chromedriver),
+ * bounded because a function-form devServer's user-supplied close() can hang.
  */
 async function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<never> {
   const writer = getLogWriter('electron-service');
-  await writer.close().catch((e: Error) => log.warn(`Failed to close log writer: ${e.message}`));
-  try {
-    await runBounded(
-      () => launcher.onComplete(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.warn('launcher.onComplete() timed out during startup cleanup'),
-    );
-  } catch (cleanupError) {
-    throw new AggregateError([error, cleanupError], 'Electron standalone startup and launcher cleanup failed', {
-      cause: error,
-    });
-  }
-  throw error;
+  return failStartupShared(
+    error,
+    'Electron standalone',
+    () => writer.close(),
+    () =>
+      runBounded(
+        () => launcher.onComplete(),
+        DEFAULT_TEARDOWN_TIMEOUT_MS,
+        () => log.warn('launcher.onComplete() timed out during startup cleanup'),
+      ),
+  );
 }
 
 /**

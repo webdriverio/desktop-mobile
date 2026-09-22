@@ -1,4 +1,10 @@
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import {
+  createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  failStartup,
+  isBenignTeardownError,
+  runBounded,
+} from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import DioxusLaunchService from './launcher.js';
@@ -11,15 +17,23 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, DioxusLaunchService>();
 const activeServices = new WeakMap<WebdriverIO.Browser, DioxusWorkerService>();
 
 /**
- * Best-effort launcher teardown, bounded because onComplete stops a browser-mode dev server whose
- * close() is user-supplied and can hang.
+ * Bounded because onComplete stops a browser-mode dev server whose user-supplied close() can hang.
+ * Rejects on failure so the caller chooses: surface it (failStartup, on a failed startup) or swallow
+ * it (stopLauncher, tearing down a session that already succeeded).
  */
-async function stopLauncher(launcher: DioxusLaunchService, context: string): Promise<void> {
-  await runBounded(
+function boundedOnComplete(launcher: DioxusLaunchService, context: string): Promise<unknown> {
+  return runBounded(
     () => launcher.onComplete(),
     DEFAULT_TEARDOWN_TIMEOUT_MS,
     () => log.warn(`launcher.onComplete() timed out during ${context}`),
-  ).catch((e: Error) => log.warn(`launcher.onComplete() failed during ${context}: ${e.message}`));
+  );
+}
+
+/** Best-effort (swallowing) launcher teardown, for cleanup of an already-established session. */
+async function stopLauncher(launcher: DioxusLaunchService, context: string): Promise<void> {
+  await boundedOnComplete(launcher, context).catch((e: Error) =>
+    log.warn(`launcher.onComplete() failed during ${context}: ${e.message}`),
+  );
 }
 
 /**
@@ -67,10 +81,13 @@ export async function init(
   const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
   const port = (capabilities as { port?: number }).port;
   if (!port) {
-    await stopLauncher(launcher, 'port-check cleanup');
-    throw new Error(
-      'Dioxus driver port was not set on capabilities by onPrepare. ' +
-        'This usually means the launcher failed to start the embedded WebDriver server.',
+    return failStartup(
+      new Error(
+        'Dioxus driver port was not set on capabilities by onPrepare. ' +
+          'This usually means the launcher failed to start the embedded WebDriver server.',
+      ),
+      'Dioxus standalone',
+      () => boundedOnComplete(launcher, 'port-check cleanup'),
     );
   }
 
@@ -93,10 +110,9 @@ export async function init(
     capabilities: driverCapabilities,
     connectionRetryTimeout: startTimeout * 4,
     connectionRetryCount: 10,
-  }).catch(async (error: Error) => {
+  }).catch((error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
-    await stopLauncher(launcher, 'remote() cleanup');
-    throw error;
+    return failStartup(error, 'Dioxus standalone', () => boundedOnComplete(launcher, 'remote() cleanup'));
   });
 
   activeLaunchers.set(browser, launcher);
@@ -105,10 +121,13 @@ export async function init(
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {
-    await deleteSessionBounded(browser, 'service.before cleanup');
-    await stopLauncher(launcher, 'service.before cleanup');
     activeLaunchers.delete(browser);
-    throw error;
+    return failStartup(
+      error,
+      'Dioxus standalone',
+      () => deleteSessionBounded(browser, 'service.before cleanup'),
+      () => boundedOnComplete(launcher, 'service.before cleanup'),
+    );
   }
   activeServices.set(browser, service);
 

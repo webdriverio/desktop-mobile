@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, failStartup } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
@@ -143,23 +143,13 @@ export async function init(
   } catch (error) {
     const startupError =
       error instanceof Error ? error : new Error('Tauri standalone session startup failed', { cause: error });
-    const failures: unknown[] = [startupError];
+    const teardowns: Array<() => Promise<unknown>> = [];
     if (browser) {
-      try {
-        await browser.deleteSession();
-      } catch (cleanupError) {
-        failures.push(cleanupError);
-      }
+      const session = browser;
+      teardowns.push(() => session.deleteSession());
     }
-    try {
-      await launcher.onComplete(0, testRunnerOpts, []);
-    } catch (cleanupError) {
-      failures.push(cleanupError);
-    }
-    if (failures.length > 1) {
-      throw new AggregateError(failures, 'Tauri standalone startup and cleanup failed', { cause: startupError });
-    }
-    throw startupError;
+    teardowns.push(() => launcher.onComplete(0, testRunnerOpts, []));
+    return failStartup(startupError, 'Tauri standalone', ...teardowns);
   }
 }
 

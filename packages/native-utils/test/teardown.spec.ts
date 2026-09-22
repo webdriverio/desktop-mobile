@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BENIGN_TEARDOWN_ERROR_PATTERNS, isBenignTeardownError, runBounded } from '../src/teardown.js';
+import { BENIGN_TEARDOWN_ERROR_PATTERNS, failStartup, isBenignTeardownError, runBounded } from '../src/teardown.js';
 
 describe('isBenignTeardownError', () => {
   it('should match a benign error by message', () => {
@@ -90,5 +90,64 @@ describe('runBounded', () => {
       vi.useRealTimers();
       process.off('unhandledRejection', unhandled);
     }
+  });
+});
+
+describe('failStartup', () => {
+  it('should rethrow the startup error unchanged when every teardown succeeds', async () => {
+    const startupError = new Error('startup failed');
+    const teardown = vi.fn().mockResolvedValue(undefined);
+
+    await expect(failStartup(startupError, 'Widget standalone', teardown)).rejects.toBe(startupError);
+    expect(teardown).toHaveBeenCalledTimes(1);
+  });
+
+  it('should rethrow the original value as-is (not wrapped) when it is not an Error', async () => {
+    await expect(failStartup('boom', 'Widget standalone')).rejects.toBe('boom');
+  });
+
+  it('should run every teardown in order, best-effort, even when one throws', async () => {
+    const order: string[] = [];
+    const first = vi.fn(async () => {
+      order.push('first');
+    });
+    const second = vi.fn(async () => {
+      order.push('second');
+      throw new Error('second failed');
+    });
+    const third = vi.fn(async () => {
+      order.push('third');
+    });
+
+    await expect(failStartup(new Error('startup'), 'Widget standalone', first, second, third)).rejects.toBeInstanceOf(
+      AggregateError,
+    );
+    expect(order).toEqual(['first', 'second', 'third']);
+  });
+
+  it('should surface the startup error and every teardown failure in one AggregateError', async () => {
+    const startupError = new Error('startup failed');
+    const cleanupA = new Error('cleanup A failed');
+    const cleanupB = new Error('cleanup B failed');
+
+    const promise = failStartup(
+      startupError,
+      'Widget standalone',
+      () => Promise.reject(cleanupA),
+      () => Promise.reject(cleanupB),
+    );
+
+    await expect(promise).rejects.toMatchObject({
+      name: 'AggregateError',
+      message: 'Widget standalone startup and cleanup failed',
+      cause: startupError,
+    });
+    const aggregate = await promise.catch((e: AggregateError) => e);
+    expect(aggregate.errors).toEqual([startupError, cleanupA, cleanupB]);
+  });
+
+  it('should rethrow the startup error when given no teardowns', async () => {
+    const startupError = new Error('startup failed');
+    await expect(failStartup(startupError, 'Widget standalone')).rejects.toBe(startupError);
   });
 });

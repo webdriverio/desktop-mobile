@@ -34,7 +34,8 @@ vi.mock('@wdio/native-core', () => ({
   closeLogWriter: vi.fn(),
 }));
 
-vi.mock('@wdio/native-utils', () => ({
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
   createLogger: () => ({
     debug: vi.fn(),
     info: vi.fn(),
