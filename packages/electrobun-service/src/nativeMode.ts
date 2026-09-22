@@ -2,22 +2,19 @@
 //
 // Electrobun is CDP-attach: the launcher spawns the built app binary, CEF binds
 // the port pinned in build.json, and the worker's CdpBridge attaches over CDP.
-// This module owns the per-worker bundle clone, the spawn + backend log capture,
+// This module owns the per-worker bundle clone, the spawn & backend log capture,
 // and the teardown that kills the process and removes the clone.
 //
-// Each worker gets a private bundle clone because CEF reads chromiumFlags
-// (remote-debugging-port) ONLY from the bundle's build.json, not a launch arg — so a
-// worker needs its own bundle copy to pin its own port. We clone here and write the
-// port into the clone, never mutating the user's shared bundle. We deliberately do
-// NOT pin a separate --user-data-dir (see spawnElectrobunApp): CEF's own
-// root_cache_path is the user-data-dir, which keeps the forced persist:default
-// partition profile creatable. That makes instances share root_cache_path, so this is
-// single-instance only (maxInstances=1); multiremote stays blocked pending an upstream
-// CEF fix (see #320).
+// Each worker gets a private bundle clone because CEF reads the remote-debugging port ONLY
+// from the bundle's build.json, not a launch arg. We clone, pin the port into the clone, and
+// never touch the user's shared bundle. Pinning only the port (not a --user-data-dir) forces
+// single-instance (maxInstances=1) and blocks multiremote pending an upstream CEF fix; the
+// persist:default reason is in spawnElectrobunApp's body.
+// https://github.com/webdriverio/desktop-mobile/issues/320
 //
 // E2E-validation gap: clone/spawn/teardown can only be exercised against a real
 // built CEF bundle (none in unit tests). Unit tests mock node:child_process /
-// node:fs at the @wdio/native-core + node boundary; the live path is E2E-only.
+// node:fs at the @wdio/native-core & node boundary; the live path is E2E-only.
 
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
 import { cpSync, mkdtempSync, rmSync } from 'node:fs';
@@ -65,7 +62,7 @@ function sleep(ms: number): Promise<void> {
  * remote-debugging port without mutating the user's shared bundle.
  *
  * On macOS this uses `cp -Rc` (APFS clonefile) so the ~125MB CEF framework is
- * copy-on-write rather than duplicated — near-instant. On a non-APFS volume `cp
+ * copy-on-write rather than duplicated (near-instant). On a non-APFS volume `cp
  * -Rc` fails; we fall back to a recursive `cpSync`. Non-darwin platforms always
  * take the `cpSync` path.
  */
@@ -80,7 +77,7 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
         return { cloneParentDir, clonedBundlePath };
       } catch (error) {
         // Usually a non-APFS volume (clonefile unsupported), but cp can fail for any
-        // copy reason (disk full, permissions) — fall back to cpSync either way and
+        // copy reason (disk full, permissions); fall back to cpSync either way and
         // surface the underlying message rather than asserting a cause.
         log.debug(`cp -Rc failed for ${bundlePath}, falling back to recursive copy: ${(error as Error).message}`);
         // `cp -Rc` may have written a partial tree before failing; clear it so the cpSync
@@ -92,7 +89,7 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
     cpSync(bundlePath, clonedBundlePath, { recursive: true });
     return { cloneParentDir, clonedBundlePath };
   } catch (error) {
-    // The copy failed (e.g. cpSync threw) — remove the empty temp parent mkdtempSync
+    // The copy failed (e.g. cpSync threw); remove the empty temp parent mkdtempSync
     // created so it doesn't leak, then rethrow.
     rmSync(cloneParentDir, { recursive: true, force: true });
     throw error;
@@ -102,23 +99,17 @@ export function cloneAppBundle(bundlePath: string): { cloneParentDir: string; cl
 /**
  * Spawn a built Electrobun app for native-mode CDP attach.
  *
- * Clones the resolved bundle into a per-worker temp dir and pins ONLY `port` into the
- * clone's build.json (CEF reads chromiumFlags there, not argv) — deliberately NOT a
- * `--user-data-dir`, so CEF's own root_cache_path stays the user-data-dir and the forced
- * persist:default profile creates cleanly (see the inline note below; this is what makes
- * the service single-instance / `maxInstances=1`). Spawns the CLONED binary, and (when log
- * capture is enabled) wires stdout/stderr through `createLogCapture`. Returns the process
- * handle plus the temp dirs so the launcher can tear them all down.
+ * Clones the resolved bundle into a per-worker temp dir and pins ONLY `port` into the clone's
+ * build.json (CEF reads chromiumFlags there, not argv). It deliberately does NOT set a
+ * `--user-data-dir`; that's what makes the service single-instance (`maxInstances=1`, see the
+ * inline note in the body). Spawns the CLONED binary, and (when log capture is enabled) wires
+ * stdout/stderr through `createLogCapture`. Returns the process handle plus the temp dirs.
  */
 export function spawnElectrobunApp(params: SpawnElectrobunAppParams): ElectrobunAppProcess {
   const { app, appArgs, port, options, instanceId } = params;
 
-  // Windows native renderer is WebView2 (Chromium): it serves a CDP /json endpoint when
-  // launched with --remote-debugging-port. Electrobun never reads the env var itself, and
-  // the WebView2 runtime applies switches per-switch alongside Electrobun's hardcoded ones,
-  // so the injected port survives WITHOUT an upstream change — unlike CEF, which reads the
-  // port only from build.json. No bundle clone / port-pin needed: ride the port on the env
-  // var and spawn the binary in place.
+  // Windows uses the native WebView2 renderer, which takes the port via --remote-debugging-port
+  // on an env var; no bundle clone or build.json port-pin needed (unlike CEF). See spawnWebView2App.
   if (resolveTransport(app) === 'webview2') {
     return spawnWebView2App(params);
   }
@@ -132,16 +123,15 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   }
 
   const { cloneParentDir, clonedBundlePath } = cloneAppBundle(app.bundlePath);
-  // Rebase the binary + build.json onto the clone. join+relative, not a substring
-  // replace — a stray trailing separator would make replace() a silent no-op and
-  // spawn the user's UNCLONED bundle (whose build.json has the wrong port).
+  // Rebase via join/relative, not `binaryPath.replace(bundlePath, …)`: a stray trailing
+  // separator would make replace() a silent no-op and spawn the user's UNCLONED bundle.
   const clonedBinaryPath = join(clonedBundlePath, relative(app.bundlePath, app.binaryPath));
   const clonedBuildJsonPath = join(clonedBundlePath, relative(app.bundlePath, app.buildJsonPath));
 
   // The clone isn't tracked for teardown until we return the handle, so remove it
   // here if pinning the port throws (it's the large, CEF-bearing temp dir).
   //
-  // Pin ONLY the port — do NOT inject a separate --user-data-dir. CEF then uses its
+  // Pin ONLY the port; do NOT inject a separate --user-data-dir. CEF then uses its
   // own root_cache_path (~/Library/Application Support | ~/.cache | %LOCALAPPDATA%
   // per OS) as the Chrome user-data-dir, so the persist:default partition profile
   // (at <root_cache_path>/partitions/default, forced by BrowserWindow) lands INSIDE
@@ -149,7 +139,7 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   // OUTSIDE the profile dir → "Cannot create profile" → a racy global-context fallback
   // that was the cross-OS e2e blocker (recoverable on macOS, fatal on Linux/Windows).
   // Trade-off: instances now share root_cache_path, so this is single-instance only
-  // (maxInstances=1) — multiremote stays blocked pending an upstream CEF fix.
+  // (maxInstances=1); multiremote stays blocked pending an upstream CEF fix.
   try {
     writeRemoteDebuggingPort(clonedBuildJsonPath, port);
   } catch (error) {
@@ -167,7 +157,8 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   // covers the worker process, not this launcher-spawned app, so run the app under
   // `xvfb-run -a` (a throwaway X server) on Linux. macOS/Windows runners have a real
   // display, so spawn the binary directly there. Unreachable in 0.x (the launcher's
-  // macOS guard throws first) — kept for the Linux re-fold (#320).
+  // macOS guard throws first); kept for the Linux re-fold
+  // (https://github.com/webdriverio/desktop-mobile/issues/320).
   const useXvfb = process.platform === 'linux';
   const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
   const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;
@@ -187,7 +178,7 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
 
 /**
  * Spawn a WebView2 (Windows native renderer) app for CDP attach. Unlike CEF, the port
- * is NOT pinned into build.json — WebView2 reads `--remote-debugging-port` from the
+ * is NOT pinned into build.json; WebView2 reads `--remote-debugging-port` from the
  * `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` environment variable, which Electrobun does not
  * set, so the launcher injects it here. No bundle clone is needed (nothing on disk is
  * mutated), so this app has no temp dirs to tear down.
@@ -207,7 +198,7 @@ function spawnWebView2App(params: SpawnElectrobunAppParams): ElectrobunAppProces
   // ignored). Two instances sharing that folder with different --remote-debugging-port
   // collide ("Failed to create WebView2 controller, HRESULT: 0x8007139F" = ERROR_INVALID_STATE).
   // Redirect LOCALAPPDATA to a unique temp dir per spawn so each instance gets its own
-  // WebView2 root — the WebView2 analog of CEF's root_cache_path single-instance issue; also
+  // WebView2 root: the WebView2 analog of CEF's root_cache_path single-instance issue; also
   // a prerequisite for multiremote.
   const dataParent = mkdtempSync(join(tmpdir(), 'wdio-electrobun-webview2-'));
   const env: NodeJS.ProcessEnv = {
@@ -239,13 +230,13 @@ interface StartAppProcessParams {
   instanceId?: string;
   /** Temp dirs to remove on teardown (the bundle-clone parent for CEF; none for WebView2). */
   cleanupDirs: string[];
-  /** Binary + args used only for the log line (the real binary may be wrapped, e.g. xvfb-run). */
+  /** Binary & args used only for the log line (the real binary may be wrapped, e.g. xvfb-run). */
   displayBinary: string;
   displayArgs: string[];
 }
 
 /**
- * Shared spawn + backend-log-capture + error-handler for both renderer transports. Returns
+ * Shared spawn & backend-log-capture & error-handler for both renderer transports. Returns
  * the process handle plus the temp dirs the launcher tears down.
  */
 function startAppProcess(params: StartAppProcessParams): ElectrobunAppProcess {
@@ -329,8 +320,8 @@ export async function waitForCdpReady(port: number, timeoutMs: number = CDP_READ
 
 /**
  * Stop a spawned Electrobun app: close log handlers, kill the process (Windows: taskkill /T on the
- * whole tree, since proc.kill only hits the direct child; POSIX: SIGTERM then SIGKILL after a grace
- * period), then remove its temp dirs. Tolerant of an already-dead process and missing temp dirs.
+ * whole tree; POSIX: SIGTERM then SIGKILL after a grace period), then remove its temp dirs.
+ * Tolerant of an already-dead process and missing temp dirs.
  */
 export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void> {
   for (const handler of app.logHandlers) {
@@ -346,14 +337,14 @@ export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void
     log.info(`Stopping Electrobun app (PID: ${proc.pid})…`);
     if (process.platform === 'win32') {
       // proc.kill() terminates only the direct child (launcher.exe); killing it orphans the Bun
-      // backend — which holds the app's RPC websocket port — and the WebView2 helpers, which keep
+      // backend (which holds the app's RPC websocket port) and the WebView2 helpers, which keep
       // temp-dir handles. A surviving backend wedges the next spec's relaunch (the port can't rebind)
       // and blocks temp-dir removal (EPERM). taskkill /T kills the whole tree before it's orphaned.
       try {
         execFileSync('taskkill', ['/pid', String(proc.pid), '/T', '/F'], { stdio: 'ignore' });
       } catch {
         // taskkill /T can fail if the launcher raced the alive-guard and exited first, orphaning the
-        // descendants noted above. Reap them by the app's unique clone dir — every descendant's command
+        // descendants noted above. Reap them by the app's unique clone dir: every descendant's command
         // line references it, and no worker shares another's, so this can't hit a sibling's app.
         for (const dir of app.cleanupDirs) {
           try {
@@ -392,7 +383,7 @@ export async function stopElectrobunApp(app: ElectrobunAppProcess): Promise<void
       if (proc.exitCode === null && proc.signalCode === null) {
         log.warn('Electrobun app did not exit gracefully, sending SIGKILL');
         proc.kill('SIGKILL');
-        // Brief reap-wait before rmSync removes the bundle clone — un-reaped CEF
+        // Brief reap-wait before rmSync removes the bundle clone: un-reaped CEF
         // helper subprocesses can still hold handles inside the temp dir (EBUSY).
         const killDeadline = Date.now() + SIGKILL_REAP_MS;
         while (Date.now() < killDeadline) {

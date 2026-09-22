@@ -1,5 +1,6 @@
 import { browser, expect } from '@wdio/globals';
 import '@wdio/native-types';
+import type { PageWindow } from '../../lib/pageGlobals.js';
 
 describe('Electrobun API', () => {
   it('should execute a basic expression', async () => {
@@ -47,13 +48,9 @@ describe('Electrobun API', () => {
     });
 
     it('should read the fixture DOM from a function script', async () => {
-      // The callback runs in the CEF webview, so `document` is the page DOM. The
-      // e2e tsconfig has no DOM lib (these specs run via tsx, not tsc), so reach
-      // it through a minimally-typed globalThis rather than a bare global.
-      type Doc = { getElementById(id: string): { textContent: string | null } | null };
       const readTitle = () =>
         browser.electrobun.execute(() => {
-          const el = (globalThis as unknown as { document: Doc }).document.getElementById('app-title');
+          const el = (globalThis as unknown as PageWindow).document.getElementById('app-title');
           return el ? el.textContent : undefined;
         });
       // The webview may still be painting when the bridge attaches, so poll for the

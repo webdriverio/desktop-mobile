@@ -12,12 +12,9 @@ vi.mock('@wdio/native-utils', async (importOriginal) => {
   };
 });
 
-// Mock the IO-bound config helpers so the launcher matrix can be driven without
-// a real bundle on disk. resolveElectrobunApp returns a fixed resolved app;
-// verifyCefRenderer is spied so throws can be asserted. The launcher no longer
-// pins the port itself — that now happens inside the (mocked) spawn path — but
-// writeRemoteDebuggingPort is still mocked so we can assert the launcher never
-// calls it directly. (Real behaviour is covered in electrobunConfig.spec.ts.)
+// Mock the IO-bound config helpers so the launcher matrix runs without a real bundle on disk.
+// writeRemoteDebuggingPort is mocked so a test can assert the launcher never calls it directly.
+// Real behaviour: electrobunConfig.spec.ts.
 vi.mock('../src/electrobunConfig.js', () => ({
   resolveElectrobunApp: vi.fn(() => ({
     binaryPath: '/apps/Demo.app/Contents/MacOS/Demo',
@@ -30,14 +27,18 @@ vi.mock('../src/electrobunConfig.js', () => ({
   writeRemoteDebuggingPort: vi.fn(),
 }));
 
-// Mock the native-mode spawn so no real process is launched (and no real bundle
-// is cloned). The clone + port-pin now live inside spawnElectrobunApp.
+// Mock native-mode spawn: the CEF clone & port-pin live inside spawnElectrobunApp, the W3C path
+// calls cloneAppBundle directly.
 vi.mock('../src/nativeMode.js', () => ({
   spawnElectrobunApp: vi.fn(() => ({
     proc: { pid: 4321, exitCode: null, signalCode: null, kill: vi.fn() },
     cleanupDirs: ['/tmp/wdio-electrobun-home-test', '/tmp/wdio-electrobun-bundle-test'],
     port: 9333,
     logHandlers: [],
+  })),
+  cloneAppBundle: vi.fn(() => ({
+    cloneParentDir: '/tmp/wdio-electrobun-bundle-clone',
+    clonedBundlePath: '/tmp/wdio-electrobun-bundle-clone/Demo',
   })),
   stopElectrobunApp: vi.fn().mockResolvedValue(undefined),
   waitForCdpReady: vi.fn().mockResolvedValue(undefined),
@@ -76,7 +77,7 @@ import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { startManagedDevServer } from '@wdio/native-core';
 import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } from '../src/electrobunConfig.js';
 import ElectrobunLaunchService from '../src/launcher.js';
-import { spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
+import { cloneAppBundle, spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
 import type { ElectrobunCapabilities, ElectrobunServiceGlobalOptions } from '../src/types.js';
 import { getWebKitWebDriverPath, spawnWebKitWebDriver, stopWebKitWebDriver } from '../src/webkitDriver.js';
 import { detectWebView2RuntimeVersion } from '../src/webview2Version.js';
@@ -92,7 +93,7 @@ describe('ElectrobunLaunchService', () => {
     vi.clearAllMocks();
     // Default to darwin (the CEF path); platform-guard and Windows/WebView2 tests override to linux/win32.
     mockPlatform('darwin');
-    // Browser mode now preflights the dev server with a fetch HEAD probe; stub it reachable so the
+    // Browser mode preflights the dev server with a fetch HEAD probe; stub it reachable so the
     // happy-path browser tests don't hit a real (absent) server. (Native-mode tests never probe.)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
   });
@@ -200,7 +201,7 @@ describe('ElectrobunLaunchService', () => {
       expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
     });
 
-    it('should warn (not throw) when maxInstances > 1 on Linux — WebKitGTK apps share the bundle', async () => {
+    it('should NOT warn about maxInstances > 1 on Linux — WebKitGTK isolates per instance', async () => {
       mockPlatform('linux');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
@@ -208,7 +209,7 @@ describe('ElectrobunLaunchService', () => {
 
       await launcher.onPrepare({ maxInstances: 2 } as Parameters<typeof launcher.onPrepare>[0], caps);
 
-      expect(logMocks.warn).toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
+      expect(logMocks.warn).not.toHaveBeenCalledWith(expect.stringContaining('maxInstances'));
     });
 
     it('should pin browserVersion to the WebView2 runtime version on the Windows WebView2 path', async () => {
@@ -365,7 +366,7 @@ describe('ElectrobunLaunchService', () => {
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
 
       await expect(launcher.onPrepare(baseConfig, [{}])).rejects.toThrow(SevereServiceError);
-      // Fails fast — before touching the bundle.
+      // Fails fast, before touching the bundle.
       expect(vi.mocked(resolveElectrobunApp)).not.toHaveBeenCalled();
     });
 
@@ -377,7 +378,7 @@ describe('ElectrobunLaunchService', () => {
       await launcher.onPrepare(baseConfig, caps);
 
       expect(vi.mocked(resolveElectrobunApp)).toHaveBeenCalledTimes(1);
-      // WebView2 (Chromium) always serves /json once the launcher injects the port — nothing to verify.
+      // WebView2 (Chromium) always serves /json once the launcher injects the port; nothing to verify.
       expect(vi.mocked(verifyCefRenderer)).not.toHaveBeenCalled();
       // WebView2 is Edge → msedgedriver (chromedriver rejects the `Edg/` version string).
       expect(caps[0].browserName).toBe('MicrosoftEdge');
@@ -432,7 +433,7 @@ describe('ElectrobunLaunchService', () => {
       expect(cap['goog:chromeOptions']).toBeUndefined();
     });
 
-    it('should spawn WebKitWebDriver and set connection host/port on the Linux/W3C path', async () => {
+    it('should clone the bundle, spawn WebKitWebDriver, and point the cap at the clone (Linux/W3C)', async () => {
       mockPlatform('linux');
       vi.mocked(resolveElectrobunApp).mockReturnValueOnce(linuxNativeApp);
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
@@ -443,9 +444,13 @@ describe('ElectrobunLaunchService', () => {
 
       expect(vi.mocked(spawnElectrobunApp)).not.toHaveBeenCalled();
       expect(vi.mocked(spawnWebKitWebDriver)).toHaveBeenCalledTimes(1);
+      expect(vi.mocked(cloneAppBundle)).toHaveBeenCalledWith('/apps/Demo');
       const w3cCap = cap as Record<string, unknown>;
       expect(w3cCap.hostname).toBe('127.0.0.1');
       expect(w3cCap.port).toBe(9333);
+      expect((w3cCap['webkitgtk:browserOptions'] as { binary: string }).binary).toBe(
+        '/tmp/wdio-electrobun-bundle-clone/Demo/bin/launcher',
+      );
       expect(w3cCap['goog:chromeOptions']).toBeUndefined();
     });
 
@@ -461,6 +466,35 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(stopWebKitWebDriver)).toHaveBeenCalledTimes(1);
     });
 
+    it('should clone + spawn a driver per instance for a Linux/W3C multiremote record', async () => {
+      mockPlatform('linux');
+      vi.mocked(resolveElectrobunApp).mockReturnValue(linuxNativeApp);
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo/bin/launcher' });
+      const record = {
+        instanceA: { capabilities: {} as ElectrobunCapabilities },
+        instanceB: { capabilities: {} as ElectrobunCapabilities },
+      };
+      await launcher.onPrepare(baseConfig, record as Parameters<typeof launcher.onPrepare>[1]);
+
+      await launcher.onWorkerStart('0-0', record as Parameters<typeof launcher.onWorkerStart>[1]);
+
+      expect(vi.mocked(cloneAppBundle)).toHaveBeenCalledTimes(2);
+      expect(vi.mocked(spawnWebKitWebDriver)).toHaveBeenCalledTimes(2);
+      for (const key of ['instanceA', 'instanceB'] as const) {
+        const entry = record[key] as Record<string, unknown>;
+        const cap = record[key].capabilities as Record<string, unknown>;
+        expect((cap['webkitgtk:browserOptions'] as { binary?: string }).binary).toContain(
+          '/wdio-electrobun-bundle-clone/',
+        );
+        // Connection params go on the outer wrapper, not the inner caps; WDIO's multiremote path
+        // reads them only from there. See https://github.com/webdriverio/desktop-mobile/issues/633
+        expect(entry.hostname).toBe('127.0.0.1');
+        expect(typeof entry.port).toBe('number');
+        expect(cap.hostname).toBeUndefined();
+        expect(cap.port).toBeUndefined();
+      }
+    });
+
     it('should spawn one app per instance for a multiremote capability record', async () => {
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
       const record = {
@@ -471,7 +505,7 @@ describe('ElectrobunLaunchService', () => {
 
       await launcher.onWorkerStart('0-0', record as Parameters<typeof launcher.onWorkerStart>[1]);
 
-      // The record must be unwrapped to its per-instance caps — two instances → two spawns,
+      // The record must be unwrapped to its per-instance caps; two instances → two spawns,
       // each with debuggerAddress set on its own caps (by reference).
       expect(vi.mocked(spawnElectrobunApp)).toHaveBeenCalledTimes(2);
       expect(record.instanceA.capabilities['goog:chromeOptions']).toBeDefined();
@@ -576,7 +610,7 @@ describe('ElectrobunLaunchService', () => {
       await expect(launcher.onWorkerEnd('0-0')).resolves.toBeUndefined();
       expect(vi.mocked(stopElectrobunApp)).toHaveBeenCalledTimes(1);
 
-      // Already torn down — onComplete must not stop it again.
+      // Already torn down; onComplete must not stop it again.
       await launcher.onComplete();
       expect(vi.mocked(stopElectrobunApp)).toHaveBeenCalledTimes(1);
     });

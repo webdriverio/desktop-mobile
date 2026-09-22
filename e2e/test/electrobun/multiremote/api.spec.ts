@@ -1,20 +1,13 @@
 import { expect, multiRemoteBrowser } from '@wdio/globals';
 import '@wdio/native-types';
+import type { PageWindow } from '../../../lib/pageGlobals.js';
 
-// Two independent Electrobun instances driven in one worker (multiremote). WebView2 isolates
-// each instance (its own process + `LOCALAPPDATA` data dir), which the CEF renderer can't — so
-// this suite is Windows-only (run via `TEST_TYPE=multiremote`). The fixture loads `mainview`
-// (with `#app-title`) in each instance.
+// Two independent Electrobun instances in one worker. Run via `TEST_TYPE=multiremote`.
 //
-// The per-instance API (`getInstance(name).electrobun.*`) is the multiremote guarantee — each
-// instance is independently addressable and drivable. A root fan-out (`browser.electrobun.execute`
-// returning one result per instance, as Electron exposes) is not yet installed on the multiremote
-// root browser; that's a convergence follow-up, not a multiremote blocker.
-//
-// `globalThis as { document }` — the e2e tsconfig has no DOM lib.
-type Doc = { getElementById(id: string): { id: string } | null };
+// Root fan-out (`browser.electrobun.*` across all instances) isn't wired yet:
+// https://github.com/webdriverio/desktop-mobile/issues/656
 
-const readAppTitleId = () => (globalThis as unknown as { document: Doc }).document.getElementById('app-title')?.id;
+const readAppTitleId = () => (globalThis as unknown as PageWindow).document.getElementById('app-title')?.id;
 
 describe('Electrobun APIs using Multiremote', () => {
   it('should drive each instance independently', async () => {
