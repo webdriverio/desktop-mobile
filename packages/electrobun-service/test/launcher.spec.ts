@@ -12,12 +12,9 @@ vi.mock('@wdio/native-utils', async (importOriginal) => {
   };
 });
 
-// Mock the IO-bound config helpers so the launcher matrix can be driven without
-// a real bundle on disk. resolveElectrobunApp returns a fixed resolved app;
-// verifyCefRenderer is spied so throws can be asserted. The launcher no longer
-// pins the port itself — that now happens inside the (mocked) spawn path — but
-// writeRemoteDebuggingPort is still mocked so we can assert the launcher never
-// calls it directly. (Real behaviour is covered in electrobunConfig.spec.ts.)
+// Mock the IO-bound config helpers so the launcher matrix runs without a real bundle on disk.
+// writeRemoteDebuggingPort is mocked so a test can assert the launcher never calls it directly.
+// Real behaviour: electrobunConfig.spec.ts.
 vi.mock('../src/electrobunConfig.js', () => ({
   resolveElectrobunApp: vi.fn(() => ({
     binaryPath: '/apps/Demo.app/Contents/MacOS/Demo',
@@ -30,7 +27,7 @@ vi.mock('../src/electrobunConfig.js', () => ({
   writeRemoteDebuggingPort: vi.fn(),
 }));
 
-// Mock native-mode spawn: the CEF clone + port-pin live inside spawnElectrobunApp, the W3C path
+// Mock native-mode spawn: the CEF clone & port-pin live inside spawnElectrobunApp, the W3C path
 // calls cloneAppBundle directly.
 vi.mock('../src/nativeMode.js', () => ({
   spawnElectrobunApp: vi.fn(() => ({
@@ -96,7 +93,7 @@ describe('ElectrobunLaunchService', () => {
     vi.clearAllMocks();
     // Default to darwin (the CEF path); platform-guard and Windows/WebView2 tests override to linux/win32.
     mockPlatform('darwin');
-    // Browser mode now preflights the dev server with a fetch HEAD probe; stub it reachable so the
+    // Browser mode preflights the dev server with a fetch HEAD probe; stub it reachable so the
     // happy-path browser tests don't hit a real (absent) server. (Native-mode tests never probe.)
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
   });
@@ -369,7 +366,7 @@ describe('ElectrobunLaunchService', () => {
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
 
       await expect(launcher.onPrepare(baseConfig, [{}])).rejects.toThrow(SevereServiceError);
-      // Fails fast — before touching the bundle.
+      // Fails fast, before touching the bundle.
       expect(vi.mocked(resolveElectrobunApp)).not.toHaveBeenCalled();
     });
 
@@ -381,7 +378,7 @@ describe('ElectrobunLaunchService', () => {
       await launcher.onPrepare(baseConfig, caps);
 
       expect(vi.mocked(resolveElectrobunApp)).toHaveBeenCalledTimes(1);
-      // WebView2 (Chromium) always serves /json once the launcher injects the port — nothing to verify.
+      // WebView2 (Chromium) always serves /json once the launcher injects the port; nothing to verify.
       expect(vi.mocked(verifyCefRenderer)).not.toHaveBeenCalled();
       // WebView2 is Edge → msedgedriver (chromedriver rejects the `Edg/` version string).
       expect(caps[0].browserName).toBe('MicrosoftEdge');
@@ -489,7 +486,7 @@ describe('ElectrobunLaunchService', () => {
         expect((cap['webkitgtk:browserOptions'] as { binary?: string }).binary).toContain(
           '/wdio-electrobun-bundle-clone/',
         );
-        // Connection params go on the outer wrapper, not the inner caps — WDIO's multiremote path
+        // Connection params go on the outer wrapper, not the inner caps; WDIO's multiremote path
         // reads them only from there. See https://github.com/webdriverio/desktop-mobile/issues/633
         expect(entry.hostname).toBe('127.0.0.1');
         expect(typeof entry.port).toBe('number');
@@ -508,7 +505,7 @@ describe('ElectrobunLaunchService', () => {
 
       await launcher.onWorkerStart('0-0', record as Parameters<typeof launcher.onWorkerStart>[1]);
 
-      // The record must be unwrapped to its per-instance caps — two instances → two spawns,
+      // The record must be unwrapped to its per-instance caps; two instances → two spawns,
       // each with debuggerAddress set on its own caps (by reference).
       expect(vi.mocked(spawnElectrobunApp)).toHaveBeenCalledTimes(2);
       expect(record.instanceA.capabilities['goog:chromeOptions']).toBeDefined();
@@ -613,7 +610,7 @@ describe('ElectrobunLaunchService', () => {
       await expect(launcher.onWorkerEnd('0-0')).resolves.toBeUndefined();
       expect(vi.mocked(stopElectrobunApp)).toHaveBeenCalledTimes(1);
 
-      // Already torn down — onComplete must not stop it again.
+      // Already torn down; onComplete must not stop it again.
       await launcher.onComplete();
       expect(vi.mocked(stopElectrobunApp)).toHaveBeenCalledTimes(1);
     });

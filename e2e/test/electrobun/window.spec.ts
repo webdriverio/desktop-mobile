@@ -1,19 +1,16 @@
 import { browser, expect } from '@wdio/globals';
 import '@wdio/native-types';
+import type { PageWindow } from '../../lib/pageGlobals.js';
 
-// The fixture opens two CEF windows (src/bun/index.ts): the main counter view
-// (mainview) and a second view (secondview). The CDP bridge labels content
-// targets in registration order — the first becomes 'main', the next 'window-1'
-// (see @wdio/native-cdp-bridge TargetRegistry).
+// The fixture opens two CEF windows (src/bun/index.ts): a main view and a second
+// view. The CDP bridge labels page targets in registration order — first 'main',
+// next 'window-1'.
 //
-// ⚠️ NOT RUN IN CI (skipped). Multi-window exercises an upstream CEF per-instance
-// profile-isolation gap: BrowserWindow forces a `persist:default` partition the
-// chrome-runtime can't create as a non-global profile, so secondview falls back to
-// a racy global context and isn't reliably enumerable as 'window-1'. Not fixable
-// from the fixture/service. The CI matrix runs only `standard`
-// (see ci.yml + https://github.com/webdriverio/desktop-mobile/issues/320). Runnable LOCALLY via
-// `TEST_TYPE=window pnpm test:e2e:electrobun`; re-folded into CI once electrobun
-// ships per-window partitions / an ephemeral-per-webview fallback.
+// ⚠️ Runs in CI on Windows only (native WebView2 renderer, not CEF). On the macOS
+// CEF path the second view falls back to a racy global context and isn't reliably
+// enumerable as 'window-1' — an upstream CEF gap, not fixable from the
+// fixture/service. Per-platform status + root cause: package README.
+// Run locally: `TEST_TYPE=window pnpm test:e2e:electrobun`.
 
 describe('Electrobun Multi-Window Support', () => {
   beforeEach(async () => {
@@ -66,21 +63,17 @@ describe('Electrobun Multi-Window Support', () => {
   });
 
   describe('per-window execute', () => {
-    // The execute callback runs in the active CEF webview; reach the page DOM via
-    // a minimally-typed globalThis (the e2e tsconfig has no DOM lib).
-    type Doc = { getElementById(id: string): { id: string } | null };
-
     it('should evaluate against the active window after switching', async () => {
       await browser.electrobun.switchWindow('window-1');
       const id = await browser.electrobun.execute(() => {
-        const el = (globalThis as unknown as { document: Doc }).document.getElementById('second-title');
+        const el = (globalThis as unknown as PageWindow).document.getElementById('second-title');
         return el ? el.id : undefined;
       });
       expect(id).toBe('second-title');
 
       await browser.electrobun.switchWindow('main');
       const mainId = await browser.electrobun.execute(() => {
-        const el = (globalThis as unknown as { document: Doc }).document.getElementById('app-title');
+        const el = (globalThis as unknown as PageWindow).document.getElementById('app-title');
         return el ? el.id : undefined;
       });
       expect(mainId).toBe('app-title');

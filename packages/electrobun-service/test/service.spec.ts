@@ -29,7 +29,7 @@ vi.mock('@wdio/native-cdp-bridge', () => ({
 const execFileSyncMock = vi.hoisted(() => vi.fn());
 vi.mock('node:child_process', () => ({ execFileSync: execFileSyncMock }));
 
-// Keep the real WebDriverEvalBridge + installConsoleShim; stub the factory so tests inject a
+// Keep the real WebDriverEvalBridge & installConsoleShim; stub the factory so tests inject a
 // poster instead of doing raw /execute/async HTTP.
 vi.mock('../src/webdriverEval.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/webdriverEval.js')>();
@@ -183,7 +183,7 @@ describe('ElectrobunWorkerService', () => {
 
       await service.before(nativeCap(), [], browser);
 
-      // The launcher would have spawned natively (its criterion is mode only) —
+      // The launcher would have spawned natively (its criterion is mode only), so
       // the worker must attach rather than silently leave the surface uninstalled.
       expect(cdpBridgeCtor).toHaveBeenCalled();
     });
@@ -247,7 +247,7 @@ describe('ElectrobunWorkerService', () => {
 
       await (browser as unknown as Installed).electrobun.switchWindow('window-1');
 
-      // Not just the bridge target — $/click must follow, so the session re-syncs.
+      // Not just the bridge target; $/click must follow, so the session re-syncs.
       expect(switchTargetMock).toHaveBeenCalledWith('window-1');
       expect(browser.getWindowHandles).toHaveBeenCalled();
       expect(browser.switchToWindow).toHaveBeenCalled();
@@ -318,7 +318,7 @@ describe('ElectrobunWorkerService', () => {
       expect(electrobunA.isMockFunction('api.only')).toBe(true);
       expect(electrobunB.isMockFunction('api.only')).toBe(false);
     });
-    // triggerDeeplink is now real (macOS) — covered in test/triggerDeeplink.spec.ts.
+    // triggerDeeplink is real (macOS); covered in test/triggerDeeplink.spec.ts.
   });
 
   describe('teardown', () => {
@@ -366,6 +366,53 @@ describe('ElectrobunWorkerService', () => {
       expect(cdpBridgeCtor).toHaveBeenCalledTimes(2);
       expect((instanceA as unknown as Partial<Installed>).electrobun).toBeDefined();
       expect((instanceB as unknown as Partial<Installed>).electrobun).toBeDefined();
+    });
+
+    it('should read per-instance caps from requestedCapabilities, not the before argument', async () => {
+      // instanceB uses a W3C alwaysMatch envelope to exercise the unwrap.
+      const instanceA = { requestedCapabilities: nativeCap(9391) } as unknown as WebdriverIO.Browser;
+      const instanceB = {
+        requestedCapabilities: { alwaysMatch: nativeCap(9392), firstMatch: [] },
+      } as unknown as WebdriverIO.Browser;
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      // Decoy ports on the before argument: if these were read instead of requestedCapabilities,
+      // the bridge would attach to the wrong port.
+      const caps = { browserA: { capabilities: nativeCap(1111) }, browserB: { capabilities: nativeCap(2222) } };
+
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(caps, [], mrBrowser);
+
+      expect(cdpBridgeCtor).toHaveBeenCalledWith(expect.objectContaining({ port: 9391 }));
+      expect(cdpBridgeCtor).toHaveBeenCalledWith(expect.objectContaining({ port: 9392 }));
+      expect(cdpBridgeCtor).not.toHaveBeenCalledWith(expect.objectContaining({ port: 1111 }));
+    });
+
+    it('should install a guided-error root stub on the multiremote root browser', async () => {
+      // Instances carry no requestedCapabilities, so caps resolve via the before-argument fallback.
+      const instanceA = {} as WebdriverIO.Browser;
+      const instanceB = {} as WebdriverIO.Browser;
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const caps = { browserA: { capabilities: nativeCap(9371) }, browserB: { capabilities: nativeCap(9372) } };
+
+      const service = new ElectrobunWorkerService({}, {});
+      await service.before(caps, [], mrBrowser);
+
+      const root = (mrBrowser as unknown as { electrobun?: Record<string, (...args: unknown[]) => unknown> })
+        .electrobun;
+      expect(root).toBeDefined();
+      expect(() => root?.mock('api.thing')).toThrow(/multiremote root browser/);
+      expect(() => root?.execute('return 1')).toThrow(/issues\/656/);
+      expect(() => root?.listWindows()).toThrow(/getInstance/);
+      // The instances themselves still get a real, working API.
+      expect((instanceA as unknown as Partial<Installed>).electrobun).toBeDefined();
     });
   });
 

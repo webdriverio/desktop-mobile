@@ -6,12 +6,6 @@
 // runtime (a `--remote-debugging-port` launch arg does NOT reach CEF). So to control
 // the port the launcher writes it into build.json. CEF's [9222, 9232] auto-scan is
 // only a fallback when unset.
-//
-// macOS is the validated platform. Windows/Linux bundle layout is unverified, so
-// resolution + the CEF check there are best-effort and guarded by existence
-// checks rather than hard-failing on a missing framework — see the per-function
-// TODOs. E2E validation there is blocked on the upstream CEF fixes
-// (https://github.com/webdriverio/desktop-mobile/issues/320).
 
 import { existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
@@ -106,9 +100,9 @@ export function resolveElectrobunApp(
   }
 
   // Windows/Linux: electrobun emits `<App>/bin/launcher[.exe]` with build.json under
-  // `<App>/Resources/` (verified from the CI build artifacts). When the binary sits in
-  // a `bin/` dir, the bundle root is its grandparent and Resources/build.json hang off
-  // that; otherwise (a flat/custom layout) fall back to a sibling build.json.
+  // `<App>/Resources/`. When the binary sits in a `bin/` dir, the bundle root is its
+  // grandparent and Resources/build.json hang off that; otherwise (a flat/custom layout)
+  // fall back to a sibling build.json.
   const binaryPath = appBinaryPath;
   const binDir = dirname(binaryPath);
   let bundlePath: string;
@@ -178,7 +172,7 @@ function resolveMacosBinary(bundlePath: string, originalPath: string): string {
   const macosDir = join(bundlePath, 'Contents', 'MacOS');
   // Candidate exe names, most authoritative first:
   //  - Info.plist CFBundleExecutable (the launch binary the OS would exec);
-  //  - `launcher` — Electrobun names its launch exe this, NOT after the bundle;
+  //  - `launcher` (Electrobun names its launch exe this);
   //  - `Foo.app` → `Foo` (the generic macOS convention).
   // Spawning the `.app` directory itself is not executable (EACCES), so we must
   // resolve a real file here.
@@ -235,10 +229,8 @@ export function verifyCefRenderer(app: ResolvedElectrobunApp, platform: NodeJS.P
     throw cefRendererRequired(platform);
   }
 
-  // Windows/Linux: best-effort. Pass if build.json indicates CEF or a sibling CEF
-  // library is present; otherwise warn (don't hard-fail) since the layout is
-  // unverified. TODO: confirm the real CEF marker when these platforms unblock —
-  // https://github.com/webdriverio/desktop-mobile/issues/320
+  // Windows/Linux: best-effort (see the JSDoc). TODO: confirm the real CEF marker when
+  // these platforms unblock. See https://github.com/webdriverio/desktop-mobile/issues/320
   if (buildJsonIndicatesCef(buildJson)) {
     return;
   }
@@ -259,7 +251,7 @@ function buildJsonIndicatesCef(buildJson: BuildJson | undefined): boolean {
   if (renderer.includes('cef')) {
     return true;
   }
-  // A pinned remote-debugging port is a strong CEF signal — only CEF reads it.
+  // A pinned remote-debugging port is a strong CEF signal (only CEF reads it).
   return getRemoteDebuggingPort(buildJson) !== undefined;
 }
 
@@ -309,16 +301,14 @@ export function getRemoteDebuggingPort(buildJson: BuildJson | undefined): number
 
 /**
  * Pin a CEF remote-debugging port into a bundle's `build.json` under `chromiumFlags`,
- * preserving every other key. CEF reads these flags from build.json (not argv), so this is
- * how the launcher fixes the CDP endpoint for each worker's cloned bundle.
+ * preserving every other key. This is how the launcher fixes the CDP endpoint for each
+ * worker's cloned bundle (see the file header for why the port lives in build.json).
  *
  * `userDataDir` is still supported (written as `--user-data-dir` when provided), but the
- * launcher intentionally does NOT pass it: a separate `--user-data-dir` puts CEF's forced
- * `persist:default` partition profile OUTSIDE `root_cache_path`, triggering "Cannot create
- * profile" (the disproven multiremote approach — see nativeMode.ts for the full note). The
- * parameter stays for completeness / future use if upstream relaxes the constraint.
+ * launcher intentionally does NOT pass it: it's the disproven multiremote approach (root
+ * cause: nativeMode.ts). The parameter stays for future use if upstream relaxes the constraint.
  *
- * @throws SevereServiceError when build.json is missing/unwritable — without it
+ * @throws SevereServiceError when build.json is missing/unwritable; without it
  *   the port can't be pinned and the worker's CDP attach has no fixed endpoint.
  */
 export function writeRemoteDebuggingPort(buildJsonPath: string, port: number, userDataDir?: string): void {
@@ -330,7 +320,7 @@ export function writeRemoteDebuggingPort(buildJsonPath: string, port: number, us
           'The Electrobun bundle is missing its Contents/Resources/build.json.',
       );
     }
-    // File present but unparseable — refuse to clobber it.
+    // File present but unparseable: refuse to clobber it.
     throw new SevereServiceError(
       `Cannot pin the CEF remote-debugging port: build.json at ${buildJsonPath} is not valid JSON.`,
     );

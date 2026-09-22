@@ -1,22 +1,15 @@
 import { browser, expect } from '@wdio/globals';
 import '@wdio/native-types';
 
-// Electrobun deeplinks are macOS-only in 0.x: triggerDeeplink rejects on other
-// platforms (Windows/Linux URL-scheme registration is not yet available upstream).
-// The fixture's Bun backend (src/bun/index.ts) handles `open-url` and pushes the
-// URL into the main view's window.__wdioDeeplinks array + the #status element.
-//
-// ⚠️ NOT RUN IN CI (skipped). `open <url>` must reach the running instance, but
-// electrobun has no single-instance / open-url routing, so with the per-worker
-// bundle clone macOS launches a SECOND instance that can't surface into the
-// worker's session. Not fixable from the fixture/service. The CI matrix runs only
-// `standard` (see ci.yml + https://github.com/webdriverio/desktop-mobile/issues/320). Runnable LOCALLY
-// via `TEST_TYPE=deeplink pnpm test:e2e:electrobun`; re-folded into CI once
-// electrobun adds a single-instance lock + open-url routing.
+// ⚠️ NOT RUN IN CI (skipped). electrobun has no single-instance lock / open-url
+// routing, so with the per-worker bundle clone `open <url>` launches a SECOND
+// macOS instance that can't surface into the worker's session — not fixable from
+// the fixture/service. Platform support + upstream tracking: package README.
+// Run locally: `TEST_TYPE=deeplink pnpm test:e2e:electrobun`.
 const isMacOS = process.platform === 'darwin';
 
-// The execute callback runs in the CEF webview, where globalThis is the page
-// window — that's where the fixture's open-url handler pushes __wdioDeeplinks.
+// __wdioDeeplinks is a page-window global the fixture's open-url handler writes;
+// electrobun.execute runs in that same page context, so it can read it back.
 function readDeeplinks(): Promise<string[]> {
   return browser.electrobun.execute(
     () => ((globalThis as unknown as { __wdioDeeplinks?: string[] }).__wdioDeeplinks ?? []) as string[],

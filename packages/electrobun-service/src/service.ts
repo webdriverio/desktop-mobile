@@ -54,6 +54,12 @@ export default class ElectrobunWorkerService {
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
+    log.info(
+      `before() — mode=${this.options.mode === 'browser' ? 'browser' : 'native'} ` +
+        `multiremote=${browser.isMultiremote} ` +
+        `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+    );
+
     // Browser mode: the frontend runs in a plain Chrome session against a dev
     // server — no CEF, no CDP side-channel. The electrobun surface is not
     // installed (execute/mock have no in-app target to drive). Keyed on `mode`,
@@ -68,8 +74,16 @@ export default class ElectrobunWorkerService {
       const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
         const instance = mrBrowser.getInstance(instanceName);
-        await this.attachInstance(instance, capabilityFor(capabilities, instanceName));
+        // Prefer the instance's own negotiated caps (which carry the launcher's per-instance
+        // debuggerAddress / webkitgtk binary) over the `before` capabilities argument — the sibling
+        // services (electron/tauri/dioxus) ignore that argument for multiremote. Fall back to it if
+        // the instance exposes no requestedCapabilities.
+        const caps = instanceCapabilities(instance) ?? capabilityFor(capabilities, instanceName);
+        await this.attachInstance(instance, caps);
       }
+      // Root fan-out isn't wired yet — install a guided-error stub so `browser.electrobun.*` on the
+      // multiremote root fails with direction to per-instance access, not a raw TypeError.
+      installRootMultiremoteGuard(mrBrowser);
       return;
     }
 
@@ -218,6 +232,53 @@ function capabilityFor(capabilities: unknown, instanceName: string): unknown {
     return entry?.capabilities ?? entry ?? capabilities;
   }
   return capabilities;
+}
+
+/**
+ * The caps a multiremote instance's session was created with. Preferred over the `before` hook's
+ * capabilities argument (which electron/tauri/dioxus ignore for multiremote) because it reflects the
+ * launcher's per-instance mutations — the CDP `debuggerAddress`, or the WebKitGTK
+ * `webkitgtk:browserOptions.binary`. Unwraps a W3C `alwaysMatch` envelope; returns undefined when the
+ * instance exposes no requestedCapabilities so the caller can fall back.
+ */
+function instanceCapabilities(instance: WebdriverIO.Browser): unknown {
+  const requested = (instance as { requestedCapabilities?: unknown }).requestedCapabilities;
+  if (requested && typeof requested === 'object' && 'alwaysMatch' in requested) {
+    return (requested as { alwaysMatch?: unknown }).alwaysMatch;
+  }
+  return requested;
+}
+
+/**
+ * Install a root-browser `electrobun` stub for a multiremote run. Root fan-out (one call → every
+ * instance, as electron/tauri/dioxus expose) isn't wired yet, so rather than leave
+ * `browser.electrobun` undefined — a raw `TypeError` on first access — every method throws a guided
+ * error pointing at per-instance access. Converging electrobun onto a real root API is tracked in
+ * https://github.com/webdriverio/desktop-mobile/issues/656
+ */
+function installRootMultiremoteGuard(mrBrowser: WebdriverIO.MultiRemoteBrowser): void {
+  const methods: ReadonlyArray<keyof ElectrobunServiceAPI> = [
+    'execute',
+    'switchWindow',
+    'listWindows',
+    'mock',
+    'isMockFunction',
+    'clearAllMocks',
+    'resetAllMocks',
+    'restoreAllMocks',
+    'triggerDeeplink',
+  ];
+  const guard = {} as Record<string, () => never>;
+  for (const method of methods) {
+    guard[method] = () => {
+      throw new Error(
+        `browser.electrobun.${method}() is not available on the multiremote root browser — address ` +
+          `each instance individually, e.g. browser.getInstance('<name>').electrobun.${method}(...). ` +
+          'Root fan-out is tracked in https://github.com/webdriverio/desktop-mobile/issues/656.',
+      );
+    };
+  }
+  (mrBrowser as unknown as { electrobun: ElectrobunServiceAPI }).electrobun = guard as unknown as ElectrobunServiceAPI;
 }
 
 /**
