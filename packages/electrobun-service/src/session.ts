@@ -9,10 +9,9 @@ import type {
   ElectrobunServiceOptions,
 } from '@wdio/native-types';
 import {
+  boundedOnComplete,
   createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
   failStartup as failStartupShared,
-  runBounded,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -28,20 +27,10 @@ const log = createLogger('electrobun-service', 'session');
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectrobunLaunchService>();
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectrobunWorkerService>();
 
-/**
- * onComplete stops a browser-mode dev server (no-op in native mode, where WDIO manages chromedriver),
- * bounded because a function-form devServer's user-supplied close() can hang.
- */
-function boundedOnComplete(launcher: ElectrobunLaunchService, context: string): Promise<unknown> {
-  return runBounded(
-    () => launcher.onComplete(),
-    DEFAULT_TEARDOWN_TIMEOUT_MS,
-    () => log.warn(`launcher.onComplete() timed out during ${context}`),
-  );
-}
-
 function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
-  return failStartupShared(error, 'Electrobun standalone', () => boundedOnComplete(launcher, 'startup cleanup'));
+  return failStartupShared(error, 'Electrobun standalone', () =>
+    boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
+  );
 }
 
 export async function init(
@@ -114,9 +103,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   await safeDeleteSession(browser, 'cleanup', log);
 
-  await boundedOnComplete(launcher, 'cleanup').catch((e: Error) =>
-    log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`),
-  );
+  await boundedOnComplete(launcher, 'cleanup', log);
   activeLaunchers.delete(browser);
   log.debug('Electrobun standalone session cleaned up');
 }

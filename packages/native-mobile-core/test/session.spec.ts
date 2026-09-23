@@ -168,6 +168,21 @@ describe('createMobileSession cleanup', () => {
     await expect(session.cleanup(browser)).resolves.toBeUndefined();
   });
 
+  it('should bound a stalled launcher.onComplete during cleanup so it cannot hang', async () => {
+    resetMocks();
+    const session = makeSession();
+    const browser = await session.init({ platformName: 'Android' });
+    onComplete.mockReturnValueOnce(new Promise<void>(() => {}));
+    vi.useFakeTimers();
+    try {
+      const pending = session.cleanup(browser);
+      await vi.advanceTimersByTimeAsync(10_000);
+      await expect(pending).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('should warn and no-op (no after, no deleteSession) for a browser it did not create', async () => {
     resetMocks();
     // A browser this factory never init()'d (not in activeLaunchers) must be left untouched — no

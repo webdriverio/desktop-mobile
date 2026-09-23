@@ -6,10 +6,9 @@ import type {
   ElectronStandaloneCapability,
 } from '@wdio/native-types';
 import {
+  boundedOnComplete,
   createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
   failStartup as failStartupShared,
-  runBounded,
   safeDeleteSession,
 } from '@wdio/native-utils';
 
@@ -23,25 +22,13 @@ import ElectronWorkerService from './service.js';
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectronLaunchService>();
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectronWorkerService>();
 
-/**
- * onComplete stops a browser-mode dev server (no-op in native mode, where WDIO manages chromedriver),
- * bounded because a function-form devServer's user-supplied close() can hang.
- */
-function boundedOnComplete(launcher: ElectronLaunchService, context: string): Promise<unknown> {
-  return runBounded(
-    () => launcher.onComplete(),
-    DEFAULT_TEARDOWN_TIMEOUT_MS,
-    () => log.warn(`launcher.onComplete() timed out during ${context}`),
-  );
-}
-
 function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<never> {
   const writer = getLogWriter('electron-service');
   return failStartupShared(
     error,
     'Electron standalone',
     () => writer.close(),
-    () => boundedOnComplete(launcher, 'startup cleanup'),
+    () => boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
   );
 }
 
@@ -138,10 +125,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
     await safeDeleteSession(browser, 'cleanup', log);
 
-    // Best-effort so a failing stop can't strand the log writer & map cleanup that follow.
-    await boundedOnComplete(launcher, 'cleanup').catch((e: Error) =>
-      log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`),
-    );
+    await boundedOnComplete(launcher, 'cleanup', log);
 
     const writer = getLogWriter('electron-service');
     await writer.close().catch((e: Error) => log.warn(`Failed to close log writer during cleanup: ${e.message}`));

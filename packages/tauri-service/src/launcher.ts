@@ -1045,7 +1045,11 @@ export default class TauriLaunchService {
   /**
    * Complete service lifecycle
    */
-  async onComplete(_exitCode: number, _config: Options.Testrunner, _capabilities: TauriCapabilities[]): Promise<void> {
+  async onComplete(
+    _exitCode?: number,
+    _config?: Options.Testrunner,
+    _capabilities?: TauriCapabilities[],
+  ): Promise<void> {
     log.debug('Completing Tauri service...');
 
     await this.#stopDevServer?.();

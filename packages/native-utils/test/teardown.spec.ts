@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
+  boundedOnComplete,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
   failStartup,
   isBenignTeardownError,
@@ -239,5 +240,54 @@ describe('safeDeleteSession', () => {
       safeDeleteSession(makeBrowser('session-1', deleteSession), 'afterSession', log, { rethrow: true }),
     ).resolves.toBeUndefined();
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('benign teardown error'));
+  });
+});
+
+describe('boundedOnComplete', () => {
+  const makeLog = () => ({ warn: vi.fn() });
+
+  it('should run the launcher onComplete and resolve', async () => {
+    const log = makeLog();
+    const onComplete = vi.fn().mockResolvedValue(undefined);
+    await expect(boundedOnComplete({ onComplete }, 'cleanup', log)).resolves.toBeUndefined();
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('should no-op for a launcher without onComplete (e.g. Flutter)', async () => {
+    const log = makeLog();
+    await expect(boundedOnComplete({}, 'cleanup', log)).resolves.toBeUndefined();
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('should warn and swallow a failure by default', async () => {
+    const log = makeLog();
+    await expect(
+      boundedOnComplete({ onComplete: () => Promise.reject(new Error('stop boom')) }, 'cleanup', log),
+    ).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('onComplete() failed'));
+  });
+
+  it('should rethrow a failure when rethrow is set', async () => {
+    const log = makeLog();
+    await expect(
+      boundedOnComplete({ onComplete: () => Promise.reject(new Error('stop boom')) }, 'cleanup', log, {
+        rethrow: true,
+      }),
+    ).rejects.toThrow('stop boom');
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('should warn and resolve when onComplete stalls past the timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = makeLog();
+      const pending = boundedOnComplete({ onComplete: () => new Promise<void>(() => {}) }, 'cleanup', log);
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+      await expect(pending).resolves.toBeUndefined();
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('onComplete() timed out'));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

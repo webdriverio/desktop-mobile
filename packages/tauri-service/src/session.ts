@@ -1,7 +1,6 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { createLogger, failStartup, safeDeleteSession } from '@wdio/native-utils';
-import type { Options } from '@wdio/types';
+import { boundedOnComplete, createLogger, failStartup, safeDeleteSession } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
@@ -134,7 +133,7 @@ export async function init(
       const session = browser;
       teardowns.push(() => safeDeleteSession(session, 'startup cleanup', log, { rethrow: true }));
     }
-    teardowns.push(() => launcher.onComplete(0, testRunnerOpts, []));
+    teardowns.push(() => boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }));
     return failStartup(startupError, 'Tauri standalone', ...teardowns);
   }
 }
@@ -169,10 +168,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     await launcher.onWorkerEnd('standalone');
 
     // Complete the launcher lifecycle to stop tauri-driver.
-    const minimalConfig: Options.Testrunner = {
-      capabilities: [],
-    } as Options.Testrunner;
-    await launcher.onComplete(0, minimalConfig, []);
+    await boundedOnComplete(launcher, 'cleanup', log);
 
     await closeLogWriter('tauri-service').catch((e: Error) =>
       log.warn(`Failed to close log writer during cleanup: ${e.message}`),

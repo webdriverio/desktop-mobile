@@ -625,7 +625,19 @@ describe('session', () => {
       await cleanup(browser);
 
       expect(mockOnWorkerEnd).toHaveBeenCalledWith('standalone');
-      expect(mockOnComplete).toHaveBeenCalledWith(0, expect.objectContaining({ capabilities: [] }), []);
+      expect(mockOnComplete).toHaveBeenCalled();
+      expect(closeLogWriter).toHaveBeenCalled();
+    });
+
+    it('should still close the log writer when launcher.onComplete fails during cleanup', async () => {
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+      } as unknown as TauriCapabilities;
+      const browser = await init(capabilities);
+      vi.clearAllMocks();
+      mockOnComplete.mockRejectedValueOnce(new Error('driver stop boom'));
+
+      await expect(cleanup(browser)).resolves.toBeUndefined();
       expect(closeLogWriter).toHaveBeenCalled();
     });
 

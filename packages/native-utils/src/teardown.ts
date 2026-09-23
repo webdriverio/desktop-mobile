@@ -5,22 +5,16 @@
  * session DELETE or CDP round-trip either rejects with a benign "already
  * closed / not found" error or stalls against a half-open socket. On Windows a
  * propagated or retried teardown error can crash the worker (libuv
- * `UV_HANDLE_CLOSING`, exit `0xC0000409`) or hang it until the CI step timeout —
- * in both cases *after* the test already passed. These helpers let each service
- * swallow benign teardown errors and bound the operations.
+ * `UV_HANDLE_CLOSING`, exit `0xC0000409`) or hang it until the CI step timeout,
+ * in both cases after the test already passed.
  */
 
 import type { Logger } from '@wdio/logger';
 
-/**
- * Default teardown deadline (ms): how long a single teardown op may run before
- * it is abandoned. Shared so electron- and dioxus-service stay in sync.
- */
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
-// Benign teardown failure modes across providers: WebDriver session lifecycle,
-// CDP-bridge disconnects, and raw socket teardown. Matching a superset across
-// services is safe — every entry is benign once teardown has begun.
+// Benign teardown failure modes across providers. Matching a superset across
+// services is safe: every entry is benign once teardown has begun.
 export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
   'session not found',
   'invalid session id',
@@ -43,13 +37,12 @@ export function isBenignTeardownError(error: unknown): boolean {
 }
 
 /**
- * Rethrow a standalone-startup failure after best-effort teardown: each teardown thunk runs in order,
- * and one that throws is collected rather than masking the startup error. Any teardown failure makes
- * the result an `AggregateError` (startup error as `cause`); otherwise the startup error is rethrown
- * unchanged.
+ * Rethrow a standalone-startup failure after best-effort teardown: teardowns run in order, and any
+ * that throw are collected into an `AggregateError` (startup error as `cause`) rather than masking it;
+ * otherwise the startup error is rethrown unchanged.
  *
- * Teardowns are thunks so a caller composes its own non-uniform steps (e.g. tauri's
- * `onComplete(0, config, [])`) without this helper needing service types.
+ * Teardowns are thunks so a caller composes its own non-uniform steps (e.g. electron also closing
+ * its log writer) without this helper needing service types.
  */
 export async function failStartup(
   startupError: unknown,
@@ -75,8 +68,8 @@ export async function failStartup(
 /**
  * Run a teardown operation bounded by a timeout so a stalled call can't block
  * the hook until the CI step timeout. On timeout the operation is abandoned
- * (the race settles to `undefined`) rather than rejected — teardown is
- * best-effort. `onTimeout` lets the caller log with its own service logger.
+ * (the race settles to `undefined`) rather than rejected. `onTimeout` lets the
+ * caller log with its own service logger.
  */
 export async function runBounded<T>(
   op: () => Promise<T>,
@@ -87,9 +80,8 @@ export async function runBounded<T>(
   try {
     // If the timeout wins, the abandoned op may still reject later (e.g. the OS
     // resets the socket after the deadline). Attach a no-op rejection handler so
-    // that late rejection can't surface as an unhandledRejection — the very
-    // teardown crash this guard exists to prevent. The race still propagates a
-    // rejection that arrives before the timeout.
+    // that late rejection can't surface as an unhandledRejection. The race still
+    // propagates a rejection that arrives before the timeout.
     const opPromise = op();
     opPromise.catch(() => {});
     return await Promise.race([
@@ -109,9 +101,8 @@ export async function runBounded<T>(
 }
 
 /**
- * Best-effort, time-bounded session deletion: the driver socket may already be gone (so a failure is
- * usually harmless), and the timeout keeps a stall from blocking the rest of teardown. A non-benign
- * failure is swallowed too, unless `rethrow` is set - for callers that must surface a broken delete.
+ * Best-effort, time-bounded session deletion. A non-benign failure is swallowed (warned) unless
+ * `rethrow` is set - for callers that must surface a broken delete.
  */
 export async function safeDeleteSession(
   browser: WebdriverIO.Browser,
@@ -137,5 +128,30 @@ export async function safeDeleteSession(
       throw e;
     }
     log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+  }
+}
+
+/**
+ * Bound a launcher's onComplete teardown so a hung stop (a user-supplied devServer close(), a driver
+ * or Metro shutdown) can't block teardown. A failure is warned and swallowed unless `rethrow` is set;
+ * a launcher with no onComplete (e.g. Flutter) is a no-op.
+ */
+export async function boundedOnComplete(
+  launcher: { onComplete?(): Promise<void> },
+  context: string,
+  log: Pick<Logger, 'warn'>,
+  options: { rethrow?: boolean } = {},
+): Promise<void> {
+  try {
+    await runBounded(
+      async () => launcher.onComplete?.(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`launcher.onComplete() timed out during ${context}`),
+    );
+  } catch (e) {
+    if (options.rethrow) {
+      throw e;
+    }
+    log.warn(`launcher.onComplete() failed during ${context}: ${(e as Error).message}`);
   }
 }
