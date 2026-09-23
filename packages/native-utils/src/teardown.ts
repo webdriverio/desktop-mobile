@@ -105,14 +105,14 @@ export async function runBounded<T>(
 }
 
 /**
- * Best-effort, time-bounded session deletion. A non-benign failure is swallowed (warned) unless
- * `rethrow` is set - for callers that must surface a broken delete.
+ * Best-effort, time-bounded session deletion: a benign failure is debug-logged, any other is warned.
+ * Never throws: it runs during teardown, where a failed delete leaks nothing that onComplete or
+ * process exit won't reap.
  */
 export async function safeDeleteSession(
   browser: WebdriverIO.Browser,
   context: string,
   log: Pick<Logger, 'debug' | 'warn'>,
-  options: { rethrow?: boolean } = {},
 ): Promise<void> {
   if (!browser.sessionId) {
     return;
@@ -127,9 +127,6 @@ export async function safeDeleteSession(
     if (isBenignTeardownError(e)) {
       log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
       return;
-    }
-    if (options.rethrow) {
-      throw e;
     }
     log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
   }

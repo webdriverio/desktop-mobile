@@ -221,27 +221,6 @@ describe('safeDeleteSession', () => {
       vi.useRealTimers();
     }
   });
-
-  it('should rethrow a non-benign failure when rethrow is set', async () => {
-    const log = makeLog();
-    const boom = new Error('unexpected boom');
-    const deleteSession = vi.fn().mockRejectedValue(boom);
-
-    await expect(
-      safeDeleteSession(makeBrowser('session-1', deleteSession), 'afterSession', log, { rethrow: true }),
-    ).rejects.toBe(boom);
-    expect(log.warn).not.toHaveBeenCalled();
-  });
-
-  it('should still swallow a benign failure even when rethrow is set', async () => {
-    const log = makeLog();
-    const deleteSession = vi.fn().mockRejectedValue(new Error('session not found'));
-
-    await expect(
-      safeDeleteSession(makeBrowser('session-1', deleteSession), 'afterSession', log, { rethrow: true }),
-    ).resolves.toBeUndefined();
-    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('benign teardown error'));
-  });
 });
 
 describe('boundedOnComplete', () => {
