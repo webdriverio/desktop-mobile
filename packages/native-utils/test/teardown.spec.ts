@@ -1,5 +1,12 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BENIGN_TEARDOWN_ERROR_PATTERNS, failStartup, isBenignTeardownError, runBounded } from '../src/teardown.js';
+import {
+  BENIGN_TEARDOWN_ERROR_PATTERNS,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  deleteSessionBounded,
+  failStartup,
+  isBenignTeardownError,
+  runBounded,
+} from '../src/teardown.js';
 
 describe('isBenignTeardownError', () => {
   it('should match a benign error by message', () => {
@@ -149,5 +156,71 @@ describe('failStartup', () => {
   it('should rethrow the startup error when given no teardowns', async () => {
     const startupError = new Error('startup failed');
     await expect(failStartup(startupError, 'Widget standalone')).rejects.toBe(startupError);
+  });
+});
+
+describe('deleteSessionBounded', () => {
+  type BrowserArg = Parameters<typeof deleteSessionBounded>[0];
+  const makeLog = () => ({ warn: vi.fn(), debug: vi.fn() });
+  const makeBrowser = (sessionId: string | undefined, deleteSession: () => Promise<unknown>): BrowserArg =>
+    ({ sessionId, deleteSession }) as unknown as BrowserArg;
+
+  it('should skip deletion and log nothing when there is no sessionId', async () => {
+    const log = makeLog();
+    const deleteSession = vi.fn().mockResolvedValue(undefined);
+    await deleteSessionBounded(makeBrowser(undefined, deleteSession), 'cleanup', log);
+
+    expect(deleteSession).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(log.debug).not.toHaveBeenCalled();
+  });
+
+  it('should delete the session and log nothing on success', async () => {
+    const log = makeLog();
+    const deleteSession = vi.fn().mockResolvedValue(undefined);
+    await deleteSessionBounded(makeBrowser('session-1', deleteSession), 'cleanup', log);
+
+    expect(deleteSession).toHaveBeenCalledTimes(1);
+    expect(log.warn).not.toHaveBeenCalled();
+    expect(log.debug).not.toHaveBeenCalled();
+  });
+
+  it('should swallow a benign failure and log it at debug, not warn', async () => {
+    const log = makeLog();
+    const deleteSession = vi.fn().mockRejectedValue(new Error('session not found'));
+
+    await expect(
+      deleteSessionBounded(makeBrowser('session-1', deleteSession), 'cleanup', log),
+    ).resolves.toBeUndefined();
+    expect(log.debug).toHaveBeenCalledOnce();
+    expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('benign teardown error'));
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('should swallow a non-benign failure and log it at warn, not debug', async () => {
+    const log = makeLog();
+    const deleteSession = vi.fn().mockRejectedValue(new Error('unexpected boom'));
+
+    await expect(
+      deleteSessionBounded(makeBrowser('session-1', deleteSession), 'cleanup', log),
+    ).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledOnce();
+    expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to delete session'));
+    expect(log.debug).not.toHaveBeenCalled();
+  });
+
+  it('should warn and resolve when deleteSession stalls past the timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = makeLog();
+      const deleteSession = vi.fn(() => new Promise<void>(() => {}));
+      const pending = deleteSessionBounded(makeBrowser('session-1', deleteSession), 'cleanup', log);
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+
+      await expect(pending).resolves.toBeUndefined();
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('deleteSession timed out'));
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

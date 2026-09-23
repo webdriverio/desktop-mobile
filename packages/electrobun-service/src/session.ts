@@ -11,8 +11,8 @@ import type {
 import {
   createLogger,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
+  deleteSessionBounded,
   failStartup as failStartupShared,
-  isBenignTeardownError,
   runBounded,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -42,29 +42,6 @@ function boundedOnComplete(launcher: ElectrobunLaunchService, context: string): 
 
 function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
   return failStartupShared(error, 'Electrobun standalone', () => boundedOnComplete(launcher, 'startup cleanup'));
-}
-
-/**
- * Best-effort, time-bounded session deletion: the driver socket may already be gone (so a failure is
- * usually harmless), and the timeout keeps a stall from blocking the rest of teardown.
- */
-async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
-  if (!browser.sessionId) {
-    return;
-  }
-  try {
-    await runBounded(
-      () => browser.deleteSession(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.warn(`deleteSession timed out during ${context}`),
-    );
-  } catch (e) {
-    if (isBenignTeardownError(e)) {
-      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
-    } else {
-      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
-    }
-  }
 }
 
 export async function init(
@@ -102,7 +79,7 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    await deleteSessionBounded(browser, 'service.before cleanup');
+    await deleteSessionBounded(browser, 'service.before cleanup', log);
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }
@@ -135,7 +112,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     activeServices.delete(browser);
   }
 
-  await deleteSessionBounded(browser, 'cleanup');
+  await deleteSessionBounded(browser, 'cleanup', log);
 
   await boundedOnComplete(launcher, 'cleanup').catch((e: Error) =>
     log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`),

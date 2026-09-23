@@ -10,6 +10,8 @@
  * swallow benign teardown errors and bound the operations.
  */
 
+import type { Logger } from '@wdio/logger';
+
 /**
  * Default teardown deadline (ms): how long a single teardown op may run before
  * it is abandoned. Shared so electron- and dioxus-service stay in sync.
@@ -102,6 +104,33 @@ export async function runBounded<T>(
   } finally {
     if (timer) {
       clearTimeout(timer);
+    }
+  }
+}
+
+/**
+ * Best-effort, time-bounded session deletion: the driver socket may already be gone (so a failure is
+ * usually harmless), and the timeout keeps a stall from blocking the rest of teardown.
+ */
+export async function deleteSessionBounded(
+  browser: WebdriverIO.Browser,
+  context: string,
+  log: Pick<Logger, 'debug' | 'warn'>,
+): Promise<void> {
+  if (!browser.sessionId) {
+    return;
+  }
+  try {
+    await runBounded(
+      () => browser.deleteSession(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`deleteSession timed out during ${context}`),
+    );
+  } catch (e) {
+    if (isBenignTeardownError(e)) {
+      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
+    } else {
+      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
     }
   }
 }
