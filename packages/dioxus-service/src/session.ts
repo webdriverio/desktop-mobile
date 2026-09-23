@@ -1,7 +1,7 @@
 import {
   createLogger,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
-  failStartup,
+  failStartup as failStartupShared,
   isBenignTeardownError,
   runBounded,
 } from '@wdio/native-utils';
@@ -17,9 +17,8 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, DioxusLaunchService>();
 const activeServices = new WeakMap<WebdriverIO.Browser, DioxusWorkerService>();
 
 /**
- * Bounded because onComplete stops a browser-mode dev server whose user-supplied close() can hang.
- * Rejects on failure so the caller chooses: surface it (failStartup, on a failed startup) or swallow
- * it (stopLauncher, tearing down a session that already succeeded).
+ * onComplete stops a browser-mode dev server (no-op in native mode, where WDIO manages chromedriver),
+ * bounded because a function-form devServer's user-supplied close() can hang.
  */
 function boundedOnComplete(launcher: DioxusLaunchService, context: string): Promise<unknown> {
   return runBounded(
@@ -29,17 +28,9 @@ function boundedOnComplete(launcher: DioxusLaunchService, context: string): Prom
   );
 }
 
-/** Best-effort (swallowing) launcher teardown, for cleanup of an already-established session. */
-async function stopLauncher(launcher: DioxusLaunchService, context: string): Promise<void> {
-  await boundedOnComplete(launcher, context).catch((e: Error) =>
-    log.warn(`launcher.onComplete() failed during ${context}: ${e.message}`),
-  );
-}
-
 /**
- * Best-effort deletion of the session during teardown. The driver socket may already be gone by
- * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
- * the rest of teardown.
+ * Best-effort, time-bounded session deletion: the driver socket may already be gone (so a failure is
+ * usually harmless), and the timeout keeps a stall from blocking the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
@@ -60,12 +51,13 @@ async function deleteSessionBounded(browser: WebdriverIO.Browser, context: strin
   }
 }
 
+function failStartup(launcher: DioxusLaunchService, error: unknown, context: string): Promise<never> {
+  return failStartupShared(error, 'Dioxus standalone', () => boundedOnComplete(launcher, context));
+}
+
 /**
- * Initialize Dioxus service in standalone mode.
- *
- * WDIO's `remote()` only invokes worker-level service hooks. This function
- * manually calls `launcher.onPrepare()` so the embedded WebDriver server is
- * started before the session is opened.
+ * WDIO's `remote()` runs only worker hooks, so init() manually calls `launcher.onPrepare()` to start
+ * the embedded WebDriver server before opening the session.
  */
 export async function init(
   capabilities: DioxusCapabilities,
@@ -82,12 +74,12 @@ export async function init(
   const port = (capabilities as { port?: number }).port;
   if (!port) {
     return failStartup(
+      launcher,
       new Error(
         'Dioxus driver port was not set on capabilities by onPrepare. ' +
           'This usually means the launcher failed to start the embedded WebDriver server.',
       ),
-      'Dioxus standalone',
-      () => boundedOnComplete(launcher, 'port-check cleanup'),
+      'port-check cleanup',
     );
   }
 
@@ -96,9 +88,8 @@ export async function init(
   const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
   const startTimeout = serviceOptions?.startTimeout ?? 60_000;
 
-  // Strip non-W3C props that the launcher sets for its own connection bookkeeping.
-  // webdriverio's remote() validates capabilities against the W3C spec and rejects
-  // unknown keys like "port" and "hostname".
+  // Webdriverio's remote() validates capabilities against the W3C spec and rejects
+  // unknown keys like "port" and "hostname" - strip them.
   const driverCapabilities = structuredClone(capabilities);
   delete (driverCapabilities as { port?: number }).port;
   delete (driverCapabilities as { hostname?: string }).hostname;
@@ -112,7 +103,7 @@ export async function init(
     connectionRetryCount: 10,
   }).catch((error: Error) => {
     log.error(`Failed to create remote session: ${error.message}`);
-    return failStartup(error, 'Dioxus standalone', () => boundedOnComplete(launcher, 'remote() cleanup'));
+    return failStartup(launcher, error, 'remote() cleanup');
   });
 
   activeLaunchers.set(browser, launcher);
@@ -121,13 +112,9 @@ export async function init(
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {
+    await deleteSessionBounded(browser, 'service.before cleanup');
     activeLaunchers.delete(browser);
-    return failStartup(
-      error,
-      'Dioxus standalone',
-      () => deleteSessionBounded(browser, 'service.before cleanup'),
-      () => boundedOnComplete(launcher, 'service.before cleanup'),
-    );
+    return failStartup(launcher, error, 'service.before cleanup');
   }
   activeServices.set(browser, service);
 
@@ -143,6 +130,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
+    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so cleanup() drives
+    // them manually - else mock/window state leaks between sequential standalone sessions.
     const service = activeServices.get(browser);
     try {
       await service?.after();
@@ -156,7 +145,9 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     } finally {
       activeServices.delete(browser);
     }
-    await stopLauncher(launcher, 'cleanup');
+    await boundedOnComplete(launcher, 'cleanup').catch((e: Error) =>
+      log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`),
+    );
     activeLaunchers.delete(browser);
     log.debug('Dioxus standalone session cleaned up');
   } else {

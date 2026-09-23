@@ -20,37 +20,34 @@ import { remote } from 'webdriverio';
 import ElectronLaunchService from './launcher.js';
 import ElectronWorkerService from './service.js';
 
-// Store launcher instances for cleanup
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectronLaunchService>();
-// Paired with activeLaunchers so cleanup() can drive the worker-service teardown
-// (mock store + puppeteer session cache) that WDIO's standalone path never
-// invokes itself. Without this, mock state leaks between sequential sessions
-// in the same process.
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectronWorkerService>();
 
 /**
- * onComplete stops a browser-mode dev server (a no-op in native mode, where WDIO owns chromedriver),
+ * onComplete stops a browser-mode dev server (no-op in native mode, where WDIO manages chromedriver),
  * bounded because a function-form devServer's user-supplied close() can hang.
  */
-async function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<never> {
+function boundedOnComplete(launcher: ElectronLaunchService, context: string): Promise<unknown> {
+  return runBounded(
+    () => launcher.onComplete(),
+    DEFAULT_TEARDOWN_TIMEOUT_MS,
+    () => log.warn(`launcher.onComplete() timed out during ${context}`),
+  );
+}
+
+function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<never> {
   const writer = getLogWriter('electron-service');
   return failStartupShared(
     error,
     'Electron standalone',
     () => writer.close(),
-    () =>
-      runBounded(
-        () => launcher.onComplete(),
-        DEFAULT_TEARDOWN_TIMEOUT_MS,
-        () => log.warn('launcher.onComplete() timed out during startup cleanup'),
-      ),
+    () => boundedOnComplete(launcher, 'startup cleanup'),
   );
 }
 
 /**
- * Best-effort deletion of the session during teardown. The driver socket may already be gone by
- * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
- * the rest of teardown.
+ * Best-effort, time-bounded session deletion: the driver socket may already be gone (so a failure is
+ * usually harmless), and the timeout keeps a stall from blocking the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
@@ -71,25 +68,19 @@ async function deleteSessionBounded(browser: WebdriverIO.Browser, context: strin
   }
 }
 
-/**
- * Initialize Electron service in standalone mode
- */
 export async function init(
   capabilities: ElectronServiceCapabilities,
   globalOptions?: ElectronServiceGlobalOptions,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing Electron service in standalone mode...');
 
-  // Unwrap array if needed
   const capability = Array.isArray(capabilities) ? capabilities[0] : capabilities;
 
-  // Initialize standalone log writer if logging is enabled
   const serviceOptions = (capability as Record<string, unknown>)['wdio:electronServiceOptions'] as
     | ElectronServiceOptions
     | undefined;
   if (serviceOptions?.captureMainProcessLogs || serviceOptions?.captureRendererLogs) {
     if (serviceOptions.logDir) {
-      // Use explicit logDir if provided
       const writer = getLogWriter('electron-service');
       writer.initialize(serviceOptions.logDir);
       log.debug(`Standalone log writer initialized at ${writer.getLogDir()}`);
@@ -107,17 +98,15 @@ export async function init(
     testRunnerOpts,
   );
 
-  // onPrepare expects array or multiremote format, so wrap as array
+  // onPrepare & onWorkerStart expect an array or multiremote format, so wrap as array
   await launcher.onPrepare(testRunnerOpts, [capability] as ElectronServiceCapabilities);
 
-  // onWorkerStart also expects array format for consistency
   await launcher.onWorkerStart('', [capability] as WebdriverIO.Capabilities);
 
   log.debug('Session capabilities:', JSON.stringify(capability, null, 2));
 
   const service = new ElectronWorkerService(globalOptions, capability);
 
-  // initialise session
   const browser = await remote({
     capabilities: capability,
   }).catch((error: Error) => {
@@ -125,7 +114,6 @@ export async function init(
     return failStartup(launcher, error);
   });
 
-  // Store launcher for cleanup
   activeLaunchers.set(browser, launcher);
 
   try {
@@ -151,15 +139,10 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // Drive the worker-service teardown that standalone init() set up via
-    // service.before(): after() stops log capture / clears puppeteer sessions,
-    // afterSession() restores mocks and clears the process-wide mock store.
-    // Both calls are wrapped so a failure doesn't skip the log writer + map
-    // cleanup that follow.
+    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so cleanup() drives
+    // them manually - else mock state leaks between sequential standalone sessions.
     const service = activeServices.get(browser);
-    // after()/afterSession() take WDIO hook args we don't have at the
-    // standalone cleanup site (no config, no specs). Cast to a no-arg shape —
-    // Electron's after() takes none and afterSession() ignores its params.
+    // after/afterSession args unavailable here so we cast to no-arg shape
     const svc = service as unknown as
       | { after?: () => void | Promise<void>; afterSession?: () => Promise<void> }
       | undefined;
@@ -178,27 +161,14 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
     await deleteSessionBounded(browser, 'cleanup');
 
-    // Stop a browser-mode dev server (no-op in native mode). Bounded & best-effort
-    // so a hanging/failing stop can't strand the log writer & map cleanup that follow.
-    try {
-      await runBounded(
-        () => launcher.onComplete(),
-        DEFAULT_TEARDOWN_TIMEOUT_MS,
-        () => log.warn('launcher.onComplete() timed out during cleanup'),
-      );
-    } catch (e) {
-      log.warn(`launcher.onComplete() failed during cleanup: ${(e as Error).message}`);
-    }
+    // Best-effort so a failing stop can't strand the log writer & map cleanup that follow.
+    await boundedOnComplete(launcher, 'cleanup').catch((e: Error) =>
+      log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`),
+    );
 
-    // Close standalone log writer. The map delete is in a finally so a
-    // writer.close() throw can't strand the launcher entry — a cleanup()
-    // retry would then re-drive teardown against an already-cleaned session.
     const writer = getLogWriter('electron-service');
-    try {
-      await writer.close();
-    } finally {
-      activeLaunchers.delete(browser);
-    }
+    await writer.close().catch((e: Error) => log.warn(`Failed to close log writer during cleanup: ${e.message}`));
+    activeLaunchers.delete(browser);
     log.debug('Electron standalone session cleaned up');
   } else {
     log.warn('No launcher found for this browser instance');

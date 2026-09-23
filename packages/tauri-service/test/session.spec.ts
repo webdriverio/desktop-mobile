@@ -31,7 +31,7 @@ vi.mock('@wdio/native-core', () => ({
     getLogDir: mockLogWriterGetLogDir,
     getLogFile: mockLogWriterGetLogFile,
   }),
-  closeLogWriter: vi.fn(),
+  closeLogWriter: vi.fn().mockResolvedValue(undefined),
 }));
 
 vi.mock('@wdio/native-utils', async (importOriginal) => ({
@@ -76,7 +76,7 @@ vi.mock('node:http', () => ({
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
 import TauriLaunchService from '../src/launcher.js';
 import TauriWorkerService from '../src/service.js';
-import { cleanup, createTauriCapabilities, getTauriServiceStatus, init } from '../src/session.js';
+import { cleanup, createTauriCapabilities, init } from '../src/session.js';
 import type { TauriCapabilities } from '../src/types.js';
 
 function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO.Browser {
@@ -254,27 +254,6 @@ describe('session', () => {
       const caps = createTauriCapabilities('/app', { appArgs: [] });
       expect(caps['tauri:options']?.args).toEqual([]);
       expect(caps['wdio:tauriServiceOptions']?.appArgs).toEqual([]);
-    });
-  });
-
-  describe('getTauriServiceStatus', () => {
-    it('should return available true with version', () => {
-      const status = getTauriServiceStatus();
-
-      expect(status).toEqual({
-        available: true,
-        version: '0.0.0',
-      });
-    });
-
-    it('should have a version string', () => {
-      const status = getTauriServiceStatus();
-      expect(typeof status.version).toBe('string');
-    });
-
-    it('should have available as boolean', () => {
-      const status = getTauriServiceStatus();
-      expect(typeof status.available).toBe('boolean');
     });
   });
 

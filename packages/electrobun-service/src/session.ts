@@ -1,10 +1,7 @@
 // Standalone (`remote()`) session helpers for `@wdio/electrobun-service`.
 //
-// Mirrors the dioxus session API shape (createCapabilities / init / cleanup) but
-// follows the CDP-attach flow (like @wdio/electron-service): WDIO's `remote()`
-// only runs worker-level hooks, so init() manually drives the launcher's
-// onPrepare + onWorkerStart to resolve+spawn the app and set
-// `goog:chromeOptions.debuggerAddress` before opening the Chromedriver session.
+// WDIO's `remote()` runs only worker hooks, so init() manually drives the launcher's onPrepare &
+// onWorkerStart to spawn the app and pin its CDP endpoint before opening the session.
 
 import type {
   ElectrobunCapabilities,
@@ -32,23 +29,24 @@ const activeLaunchers = new WeakMap<WebdriverIO.Browser, ElectrobunLaunchService
 const activeServices = new WeakMap<WebdriverIO.Browser, ElectrobunWorkerService>();
 
 /**
- * onComplete reaps the launcher's spawned apps/drivers, bounded because a browser-mode devServer's
- * user-supplied close() can hang.
+ * onComplete stops a browser-mode dev server (no-op in native mode, where WDIO manages chromedriver),
+ * bounded because a function-form devServer's user-supplied close() can hang.
  */
-async function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
-  return failStartupShared(error, 'Electrobun standalone', () =>
-    runBounded(
-      () => launcher.onComplete(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.warn('launcher.onComplete() timed out during startup cleanup'),
-    ),
+function boundedOnComplete(launcher: ElectrobunLaunchService, context: string): Promise<unknown> {
+  return runBounded(
+    () => launcher.onComplete(),
+    DEFAULT_TEARDOWN_TIMEOUT_MS,
+    () => log.warn(`launcher.onComplete() timed out during ${context}`),
   );
 }
 
+function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
+  return failStartupShared(error, 'Electrobun standalone', () => boundedOnComplete(launcher, 'startup cleanup'));
+}
+
 /**
- * Best-effort deletion of the session during teardown. The driver socket may already be gone by
- * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
- * the rest of teardown.
+ * Best-effort, time-bounded session deletion: the driver socket may already be gone (so a failure is
+ * usually harmless), and the timeout keeps a stall from blocking the rest of teardown.
  */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
@@ -69,14 +67,6 @@ async function deleteSessionBounded(browser: WebdriverIO.Browser, context: strin
   }
 }
 
-/**
- * Initialise an Electrobun standalone session.
- *
- * Drives the launcher's onPrepare + onWorkerStart manually (WDIO's `remote()`
- * runs only worker hooks) so the app is spawned and the CEF debugger endpoint is
- * pinned onto the capability, then opens the Chromedriver session and installs
- * the `browser.electrobun.*` surface.
- */
 export async function init(
   capabilities: ElectrobunCapabilities,
   globalOptions?: ElectrobunServiceGlobalOptions,
@@ -105,8 +95,7 @@ export async function init(
 
   activeLaunchers.set(browser, launcher);
 
-  // Same global<capability precedence the testrunner path uses — otherwise
-  // service-level options passed to init() (e.g. cdpConnectionTimeout) are
+  // Merge with capability-over-global precedence, else service-level options passed to init() are
   // silently dropped on the worker side.
   const serviceOptions = mergeServiceOptions(globalOptions, capability[CUSTOM_CAPABILITY_NAME]);
   const service = new ElectrobunWorkerService(serviceOptions, capability);
@@ -124,9 +113,7 @@ export async function init(
 }
 
 /**
- * Clean up a standalone Electrobun session created by {@link init}. A browser
- * not created by init() is left untouched (warn + no-op) — its WebDriver
- * session belongs to whoever opened it.
+ * Clean up a standalone Electrobun session created by {@link init}.
  */
 export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   log.debug('Cleaning up Electrobun standalone session…');
@@ -137,11 +124,10 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     return;
   }
 
+  // WDIO's standalone remote() never runs the worker after/afterSession hooks, so cleanup() runs
+  // after() manually - else bridge connections leak between sequential standalone sessions.
   const service = activeServices.get(browser);
   try {
-    // One call is the whole worker teardown: after() and afterSession() both
-    // delegate to the same closeBridges() (the testrunner calls whichever hook
-    // fires) — unlike the dioxus cleanup, where the two hooks do different work.
     await service?.after();
   } catch (e) {
     log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
@@ -151,17 +137,10 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   await deleteSessionBounded(browser, 'cleanup');
 
-  try {
-    await runBounded(
-      () => launcher.onComplete(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.warn('launcher.onComplete() timed out during cleanup'),
-    );
-  } catch (e) {
-    log.warn(`launcher.onComplete() failed during cleanup: ${(e as Error).message}`);
-  } finally {
-    activeLaunchers.delete(browser);
-  }
+  await boundedOnComplete(launcher, 'cleanup').catch((e: Error) =>
+    log.warn(`launcher.onComplete() failed during cleanup: ${e.message}`),
+  );
+  activeLaunchers.delete(browser);
   log.debug('Electrobun standalone session cleaned up');
 }
 

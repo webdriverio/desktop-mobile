@@ -1,7 +1,7 @@
 // Standalone (`remote()`) session factory for Appium-driven mobile services.
 //
-// WDIO's `remote()` runs only worker-level hooks, so init() runs onPrepare before opening the
-// session — onPrepare mutates the capabilities in place, and remote() opens with them.
+// WDIO's `remote()` runs only worker hooks, so init() runs onPrepare first - it mutates the
+// capabilities in place, and remote() opens the session with them.
 
 import { createLogger, failStartup as failStartupShared } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -23,7 +23,6 @@ interface MobileLauncherLike<TCap> {
   onComplete?(): Promise<void>;
 }
 
-/** onComplete is optional: Flutter's launcher owns nothing to stop. */
 async function failStartup<TCap>(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
   return failStartupShared(error, 'Mobile standalone', () => launcher.onComplete?.());
 }
@@ -69,7 +68,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
     const capability = (Array.isArray(capabilities) ? capabilities[0] : capabilities) as TCap | undefined;
     if (!capability) {
       throw new Error(
-        'createMobileSession.init(): no capability provided — pass a capability object or a non-empty capabilities array.',
+        'createMobileSession.init(): no capability provided - pass a capability object or a non-empty capabilities array.',
       );
     }
     const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
@@ -125,6 +124,8 @@ export function createMobileSession<TOptions extends object, TCap extends object
       return;
     }
 
+    // WDIO's standalone remote() never runs the worker after hook, so cleanup() drives it manually
+    // - else mock state leaks between sequential standalone sessions.
     const service = activeServices.get(browser);
     try {
       await service?.after();
