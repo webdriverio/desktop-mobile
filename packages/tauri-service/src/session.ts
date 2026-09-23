@@ -5,6 +5,7 @@ import {
   createLogger,
   failStartup,
   PROCESS_TEARDOWN_TIMEOUT_MS,
+  runBounded,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
@@ -170,9 +171,15 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       activeServices.delete(browser);
     }
 
-    await launcher.onWorkerEnd('standalone');
+    // onWorkerEnd stops an external provider's per-worker driver/backend (a no-op for embedded).
+    // Bound & warn so a failure here can't skip the onComplete teardown below.
+    await runBounded(
+      () => launcher.onWorkerEnd('standalone'),
+      PROCESS_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`launcher.onWorkerEnd() timed out after ${PROCESS_TEARDOWN_TIMEOUT_MS}ms during cleanup`),
+    ).catch((e: Error) => log.warn(`launcher.onWorkerEnd() failed during cleanup: ${e.message}`));
 
-    // Complete the launcher lifecycle to stop tauri-driver.
+    // onComplete stops the dev server and embedded app processes, and any drivers/backends still running.
     await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
 
     await closeLogWriter('tauri-service').catch((e: Error) =>

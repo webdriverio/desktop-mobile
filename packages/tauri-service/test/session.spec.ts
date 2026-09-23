@@ -74,7 +74,7 @@ vi.mock('node:http', () => ({
 }));
 
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import TauriLaunchService from '../src/launcher.js';
 import TauriWorkerService from '../src/service.js';
 import { cleanup, createTauriCapabilities, init } from '../src/session.js';
@@ -648,6 +648,38 @@ describe('session', () => {
 
       await expect(cleanup(browser)).resolves.toBeUndefined();
       expect(closeLogWriter).toHaveBeenCalled();
+    });
+
+    it('should still stop the launcher and close the log writer when onWorkerEnd fails', async () => {
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+      } as unknown as TauriCapabilities;
+      const browser = await init(capabilities);
+      vi.clearAllMocks();
+      mockOnWorkerEnd.mockRejectedValueOnce(new Error('backend stop boom'));
+
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+      expect(mockOnComplete).toHaveBeenCalledOnce();
+      expect(closeLogWriter).toHaveBeenCalled();
+    });
+
+    it('should bound a stalled onWorkerEnd so onComplete still runs', async () => {
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+      } as unknown as TauriCapabilities;
+      const browser = await init(capabilities);
+      vi.clearAllMocks();
+      mockOnWorkerEnd.mockReturnValueOnce(new Promise<void>(() => {}));
+
+      vi.useFakeTimers();
+      try {
+        const pending = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
+        await expect(pending).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(mockOnComplete).toHaveBeenCalledOnce();
     });
 
     it('should wait past the default teardown deadline for a slow multi-process onComplete', async () => {
