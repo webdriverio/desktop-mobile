@@ -1063,6 +1063,45 @@ describe('TauriWorkerService', () => {
       await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
       expect(mockBrowser.deleteSession).toHaveBeenCalled();
     });
+
+    it('should delete each instance session and clear its window state for multiremote', async () => {
+      const instanceA = createMockBrowser({ sessionId: 'sess-a' });
+      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: vi.fn((name: string) => (name === 'browserA' ? instanceA : instanceB)),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mrBrowser;
+
+      await service.afterSession({}, {} as any, []);
+
+      expect(instanceA.deleteSession).toHaveBeenCalledTimes(1);
+      expect(instanceB.deleteSession).toHaveBeenCalledTimes(1);
+      expect(clearWindowState).toHaveBeenCalledWith('sess-a');
+      expect(clearWindowState).toHaveBeenCalledWith('sess-b');
+    });
+
+    it('should keep deleting the remaining instances when one instance delete fails', async () => {
+      const failing = createMockBrowser({
+        sessionId: 'sess-a',
+        deleteSession: vi.fn().mockRejectedValue(new Error('instance a boom')),
+      });
+      const healthy = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: vi.fn((name: string) => (name === 'browserA' ? failing : healthy)),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mrBrowser;
+
+      await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
+
+      expect(failing.deleteSession).toHaveBeenCalledTimes(1);
+      expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
+    });
   });
 });
 
