@@ -101,9 +101,8 @@ export default class DioxusWorkerService {
     log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
 
     try {
-      // Bound + benign-swallow like the delete below: if the app has already
-      // exited, restoreAllMocks()'s browser.execute() can hang on a half-open
-      // socket and block the worker before the session delete below is reached.
+      // If the app already exited, restoreAllMocks()'s browser.execute() can hang on a half-open
+      // socket and block the session delete below.
       await runBounded(
         () => restoreAllMocks(),
         DEFAULT_TEARDOWN_TIMEOUT_MS,

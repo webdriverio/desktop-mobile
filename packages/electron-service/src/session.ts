@@ -62,7 +62,6 @@ export async function init(
     testRunnerOpts,
   );
 
-  // onPrepare & onWorkerStart expect an array or multiremote format, so wrap as array
   await launcher.onPrepare(testRunnerOpts, [capability] as ElectronServiceCapabilities);
 
   await launcher.onWorkerStart('', [capability] as WebdriverIO.Capabilities);
@@ -103,10 +102,10 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so cleanup() drives
-    // them manually - else mock state leaks between sequential standalone sessions.
+    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so mock state would
+    // leak between sequential sessions.
     const service = activeServices.get(browser);
-    // after/afterSession args unavailable here so we cast to no-arg shape
+    // Safe without WDIO's hook args: the impls ignore them.
     const svc = service as unknown as
       | { after?: () => void | Promise<void>; afterSession?: () => Promise<void> }
       | undefined;

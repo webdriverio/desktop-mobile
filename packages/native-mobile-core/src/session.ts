@@ -1,7 +1,4 @@
 // Standalone (`remote()`) session factory for Appium-driven mobile services.
-//
-// WDIO's `remote()` runs only worker hooks, so init() runs onPrepare first - it mutates the
-// capabilities in place, and remote() opens the session with them.
 
 import {
   boundedOnComplete,
@@ -83,6 +80,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
     const opts = (globalOptions ?? {}) as TOptions;
     const launcher = new deps.LauncherClass(opts, capability, testRunnerOpts);
 
+    // Mutates `capability` in place - remote() opens the session with the result.
     await launcher.onPrepare(testRunnerOpts, [capability]);
 
     // Construct the worker before opening the session
@@ -130,8 +128,8 @@ export function createMobileSession<TOptions extends object, TCap extends object
       return;
     }
 
-    // WDIO's standalone remote() never runs the worker after hook, so cleanup() drives it manually
-    // - else mock state leaks between sequential standalone sessions.
+    // WDIO's standalone remote() never runs the worker after hook, so mock state would leak between
+    // sequential sessions.
     const service = activeServices.get(browser);
     try {
       await service?.after();

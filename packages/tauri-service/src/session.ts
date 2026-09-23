@@ -62,7 +62,6 @@ export async function init(
 
     log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, null, 2));
 
-    // hostname/port were set on the capabilities by launcher.onPrepare.
     const hostname = (capabilities as { hostname?: string }).hostname || 'localhost';
     const port = (capabilities as { port?: number }).port;
     if (!port) {
@@ -119,7 +118,7 @@ export async function init(
       hostname,
       port,
       capabilities: driverCapabilities,
-      // extended timeouts because native desktop apps can be slow to start
+      // native desktop apps can be slow to start
       connectionRetryTimeout: startTimeout * 4,
       connectionRetryCount: 10,
     });
@@ -153,10 +152,10 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so cleanup() drives
-    // them manually - else mock/window state leaks between sequential standalone sessions.
+    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so mock/window state
+    // would leak between sequential sessions.
     const service = activeServices.get(browser);
-    // after/afterSession args unavailable here so we cast to no-arg shape
+    // Safe without WDIO's hook args: the impls ignore them.
     const svc = service as unknown as { after?: () => Promise<void>; afterSession?: () => Promise<void> } | undefined;
     try {
       await svc?.after?.();
@@ -171,15 +170,14 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       activeServices.delete(browser);
     }
 
-    // onWorkerEnd stops an external provider's per-worker driver/backend (a no-op for embedded).
-    // Bound & warn so a failure here can't skip the onComplete teardown below.
+    // onWorkerEnd stops an external provider's per-worker driver/backend (a no-op for embedded); a
+    // failure here mustn't skip the onComplete teardown below.
     await runBounded(
       () => launcher.onWorkerEnd('standalone'),
       PROCESS_TEARDOWN_TIMEOUT_MS,
       () => log.warn(`launcher.onWorkerEnd() timed out after ${PROCESS_TEARDOWN_TIMEOUT_MS}ms during cleanup`),
     ).catch((e: Error) => log.warn(`launcher.onWorkerEnd() failed during cleanup: ${e.message}`));
 
-    // onComplete stops the dev server and embedded app processes, and any drivers/backends still running.
     await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
 
     await closeLogWriter('tauri-service').catch((e: Error) =>

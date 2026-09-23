@@ -1,7 +1,4 @@
 // Standalone (`remote()`) session helpers for `@wdio/electrobun-service`.
-//
-// WDIO's `remote()` runs only worker hooks, so init() manually drives the launcher's onPrepare &
-// onWorkerStart to spawn the app and pin its CDP endpoint before opening the session.
 
 import type {
   ElectrobunCapabilities,
@@ -62,8 +59,7 @@ export async function init(
 
   activeLaunchers.set(browser, launcher);
 
-  // Merge with capability-over-global precedence, else service-level options passed to init() are
-  // silently dropped on the worker side.
+  // Without the merge, options passed to init() never reach the worker.
   const serviceOptions = mergeServiceOptions(globalOptions, capability[CUSTOM_CAPABILITY_NAME]);
   const service = new ElectrobunWorkerService(serviceOptions, capability);
   try {
@@ -79,22 +75,18 @@ export async function init(
   return browser;
 }
 
-/**
- * Clean up a standalone Electrobun session created by {@link init}. A browser not created by init() is
- * left untouched (warn + no-op) - its WebDriver session belongs to whoever opened it.
- */
 export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   log.debug('Cleaning up Electrobun standalone session…');
 
   const launcher = activeLaunchers.get(browser);
   if (!launcher) {
+    // Not ours - its WebDriver session belongs to whoever opened it.
     log.warn('No launcher found for this browser instance');
     return;
   }
 
-  // WDIO's standalone remote() never runs the worker after/afterSession hooks, so cleanup() runs
-  // after() manually - else bridge connections leak between sequential standalone sessions. after()
-  // alone is the whole worker teardown: both hooks delegate to the same closeBridges().
+  // WDIO's standalone remote() never runs the worker hooks. after() alone is the whole teardown:
+  // afterSession() delegates to the same closeBridges().
   const service = activeServices.get(browser);
   try {
     await service?.after();

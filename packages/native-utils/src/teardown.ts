@@ -1,6 +1,4 @@
 /**
- * Helpers shared by the WDIO services for defensive session teardown.
- *
  * During teardown the driver/debugger socket is frequently already gone, so a
  * session DELETE or CDP round-trip either rejects with a benign "already
  * closed / not found" error or stalls against a half-open socket. On Windows a
@@ -13,12 +11,11 @@ import type { Logger } from '@wdio/logger';
 
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
-// For a launcher onComplete that stops child processes in sequence: each stop can take the
-// SIGTERM grace plus the SIGKILL wait, so the default deadline would abandon a stop mid-escalation.
+// For an onComplete that stops child processes in sequence: one stop alone can take the SIGTERM
+// grace & SIGKILL wait, so the default deadline would abandon it mid-escalation.
 export const PROCESS_TEARDOWN_TIMEOUT_MS = 30_000;
 
-// Benign teardown failure modes across providers. Matching a superset across
-// services is safe: every entry is benign once teardown has begun.
+// Matching a superset across services is safe: every entry is benign once teardown has begun.
 export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
   'session not found',
   'invalid session id',
@@ -41,12 +38,9 @@ export function isBenignTeardownError(error: unknown): boolean {
 }
 
 /**
- * Rethrow a standalone-startup failure after best-effort teardown: teardowns run in order, and any
- * that throw are collected into an `AggregateError` (startup error as `cause`) rather than masking it;
- * otherwise the startup error is rethrown unchanged.
- *
- * Teardowns are thunks so a caller composes its own non-uniform steps (e.g. electron also closing
- * its log writer) without this helper needing service types.
+ * Pass only teardowns whose failure means a leak; delete the session before calling, since a delete
+ * error here is a symptom of the startup failure. Teardowns are thunks so callers compose their own
+ * steps without this helper needing service types.
  */
 export async function failStartup(
   startupError: unknown,
@@ -70,10 +64,7 @@ export async function failStartup(
 }
 
 /**
- * Run a teardown operation bounded by a timeout so a stalled call can't block
- * the hook until the CI step timeout. On timeout the operation is abandoned
- * (the race settles to `undefined`) rather than rejected. `onTimeout` lets the
- * caller log with its own service logger.
+ * On timeout the op is abandoned and this resolves `undefined` - it never rejects for a timeout.
  */
 export async function runBounded<T>(
   op: () => Promise<T>,
@@ -82,10 +73,8 @@ export async function runBounded<T>(
 ): Promise<T | undefined> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    // If the timeout wins, the abandoned op may still reject later (e.g. the OS
-    // resets the socket after the deadline). Attach a no-op rejection handler so
-    // that late rejection can't surface as an unhandledRejection. The race still
-    // propagates a rejection that arrives before the timeout.
+    // An abandoned op can still reject after the deadline; this stops that surfacing as an
+    // unhandledRejection. The race still sees a rejection that lands before the timeout.
     const opPromise = op();
     opPromise.catch(() => {});
     return await Promise.race([
@@ -105,9 +94,7 @@ export async function runBounded<T>(
 }
 
 /**
- * Best-effort, time-bounded session deletion: a benign failure is debug-logged, any other is warned.
- * Never throws: it runs during teardown, where a failed delete leaks nothing that onComplete or
- * process exit won't reap.
+ * Never throws: a failed delete during teardown leaks nothing that onComplete or process exit won't reap.
  */
 export async function safeDeleteSession(
   browser: WebdriverIO.Browser,
@@ -133,10 +120,7 @@ export async function safeDeleteSession(
 }
 
 /**
- * Bound a launcher's onComplete teardown so a hung stop (a user-supplied devServer close(), a driver
- * or Metro shutdown) can't block teardown. A failure is warned and swallowed unless `rethrow` is set;
- * a launcher with no onComplete (e.g. Flutter) is a no-op. A failure that lands after the deadline is
- * still warned, since the caller has already moved on.
+ * Bounded because onComplete can hang, e.g. on a user-supplied devServer close().
  */
 export async function boundedOnComplete(
   launcher: { onComplete?(): Promise<void> },

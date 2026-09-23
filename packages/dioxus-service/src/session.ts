@@ -22,10 +22,6 @@ function failStartup(launcher: DioxusLaunchService, error: unknown, context: str
   );
 }
 
-/**
- * WDIO's `remote()` runs only worker hooks, so init() manually calls `launcher.onPrepare()` to start
- * the embedded WebDriver server before opening the session.
- */
 export async function init(
   capabilities: DioxusCapabilities,
   globalOptions?: DioxusServiceGlobalOptions,
@@ -55,8 +51,8 @@ export async function init(
   const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
   const startTimeout = serviceOptions?.startTimeout ?? 60_000;
 
-  // Webdriverio's remote() validates capabilities against the W3C spec and rejects
-  // unknown keys like "port" and "hostname" - strip them.
+  // WebdriverIO's remote() validates capabilities against the W3C spec and rejects unknown keys like
+  // "port" and "hostname".
   const driverCapabilities = structuredClone(capabilities);
   delete (driverCapabilities as { port?: number }).port;
   delete (driverCapabilities as { hostname?: string }).hostname;
@@ -97,8 +93,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so cleanup() drives
-    // them manually - else mock/window state leaks between sequential standalone sessions.
+    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so mock/window state
+    // would leak between sequential sessions.
     const service = activeServices.get(browser);
     try {
       await service?.after();
