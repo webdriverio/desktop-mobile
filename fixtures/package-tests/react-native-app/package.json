@@ -9,7 +9,7 @@
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.6.1",
+    "@types/node": "^26.6.2",
     "@wdio/appium-service": "^9.31.9",
     "@wdio/cli": "^9.31.9",
     "@wdio/globals": "^9.31.3",
@@ -20,7 +20,7 @@
     "@wdio/spec-reporter": "^9.31.2",
     "appium": "^3.7.0",
     "appium-uiautomator2-driver": "^8.7.0",
-    "appium-xcuitest-driver": "^12.12.4",
+    "appium-xcuitest-driver": "^12.13.1",
     "typescript": "^6.0.3"
   }
 }
