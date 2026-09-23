@@ -4,6 +4,7 @@ import {
   createLogger,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
+  safeDeleteSession,
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
 import { execute } from './commands/execute.js';
@@ -310,41 +311,22 @@ export default class TauriWorkerService {
       return;
     }
 
+    // Delete the WebDriver session explicitly for clean retry handling.
     try {
-      // Delete WebDriver session explicitly for clean retry handling
       if (!this.browser.isMultiremote) {
         const stdBrowser = this.browser as WebdriverIO.Browser;
         clearWindowState(stdBrowser.sessionId);
-        if (stdBrowser.sessionId) {
-          log.debug(`Deleting session: ${stdBrowser.sessionId}`);
-          await stdBrowser.deleteSession();
-          log.debug('Session deleted successfully');
-        }
+        await safeDeleteSession(stdBrowser, 'afterSession', log);
       } else {
-        // Handle multiremote cleanup
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-        const sessionIds: (string | undefined)[] = [];
         for (const instanceName of mrBrowser.instances) {
-          try {
-            const instance = mrBrowser.getInstance(instanceName);
-            sessionIds.push(instance.sessionId);
-            if (instance.sessionId) {
-              log.debug(`Deleting session for instance ${instanceName}: ${instance.sessionId}`);
-              await instance.deleteSession();
-              log.debug(`Session deleted for instance ${instanceName}`);
-            }
-          } catch (error) {
-            log.warn(`Failed to delete session for instance ${instanceName}:`, error);
-          }
-        }
-        // Clear all session IDs from cache
-        for (const sid of sessionIds) {
-          clearWindowState(sid);
+          const instance = mrBrowser.getInstance(instanceName);
+          clearWindowState(instance.sessionId);
+          await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
         }
       }
     } catch (error) {
       log.warn('Failed to delete session:', error);
-      // Don't throw - allow cleanup to continue
     }
   }
 

@@ -86,7 +86,7 @@ function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO
     instances: [],
     getInstance: vi.fn(),
     execute: vi.fn(),
-    deleteSession: vi.fn(),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as WebdriverIO.Browser;
 }
@@ -547,7 +547,7 @@ describe('session', () => {
     });
 
     it.each(['prepare', 'worker', 'remote', 'before'] as const)(
-      'cleans up when %s fails and preserves the original failure',
+      'should clean up when %s fails and preserves the original failure',
       async (stage) => {
         const error = new Error(`${stage} failed`);
         const hook = { prepare: mockOnPrepare, worker: mockOnWorkerStart, remote: mockRemote, before: mockBefore }[
@@ -559,7 +559,7 @@ describe('session', () => {
       },
     );
 
-    it('waits for launcher cleanup before rejecting startup', async () => {
+    it('should wait for launcher cleanup before rejecting startup', async () => {
       const error = new Error('prepare failed');
       mockOnPrepare.mockRejectedValueOnce(error);
       let finishCleanup!: () => void;
@@ -580,7 +580,7 @@ describe('session', () => {
       expect(await result).toBe(error);
     });
 
-    it('preserves startup, session cleanup and launcher cleanup failures', async () => {
+    it('should preserve startup, session cleanup and launcher cleanup failures', async () => {
       const startup = new Error('worker service failed');
       const sessionCleanup = new Error('delete session failed');
       const launcherCleanup = new Error('process did not exit');
@@ -593,6 +593,14 @@ describe('session', () => {
         errors: [startup, sessionCleanup, launcherCleanup],
       });
       expect(mockOnComplete).toHaveBeenCalledOnce();
+    });
+
+    it('should swallow a benign session-cleanup error rather than surfacing it alongside the startup failure', async () => {
+      const startup = new Error('worker service failed');
+      const browser = createMockBrowser({ deleteSession: vi.fn().mockRejectedValue(new Error('session not found')) });
+      mockRemote.mockResolvedValueOnce(browser);
+      mockBefore.mockRejectedValueOnce(startup);
+      await expect(init({})).rejects.toBe(startup);
     });
   });
 

@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { createLogger, failStartup } from '@wdio/native-utils';
+import { createLogger, failStartup, safeDeleteSession } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
@@ -132,7 +132,7 @@ export async function init(
     const teardowns: Array<() => Promise<unknown>> = [];
     if (browser) {
       const session = browser;
-      teardowns.push(() => session.deleteSession());
+      teardowns.push(() => safeDeleteSession(session, 'startup cleanup', log, { rethrow: true }));
     }
     teardowns.push(() => launcher.onComplete(0, testRunnerOpts, []));
     return failStartup(startupError, 'Tauri standalone', ...teardowns);
