@@ -31,9 +31,13 @@ export { hasSemicolonOutsideQuotes, hasTopLevelArrow } from './script-detect.js'
 export { selectExecutable, validateBinaryPaths } from './selectExecutable.js';
 export {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
+  boundedOnComplete,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
+  failStartup,
   isBenignTeardownError,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
   runBounded,
+  safeDeleteSession,
 } from './teardown.js';
 export { waitUntilWindowAvailable } from './window.js';
 export { createLogger };

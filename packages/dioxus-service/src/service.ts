@@ -1,6 +1,12 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import {
+  createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  isBenignTeardownError,
+  runBounded,
+  safeDeleteSession,
+} from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
@@ -12,34 +18,6 @@ import { clearWindowState, listWindowLabels, switchWindowByLabel } from './windo
 
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
-
-/**
- * Delete a WebDriver session defensively during teardown. Bounded by a timeout
- * so a hanging/retrying DELETE can't block the worker until the CI step timeout,
- * and benign "session already gone / connection closed" errors are debug-logged
- * rather than rethrown — left to propagate, the retried DELETE closes the socket
- * and a libuv double-close assertion crashes the Windows worker after the test
- * already passed. See @wdio/native-utils teardown helpers.
- */
-async function safeDeleteSession(browser: WebdriverIO.Browser, label: string): Promise<void> {
-  if (!browser.sessionId) {
-    return;
-  }
-  log.debug(`Deleting session${label ? ` for ${label}` : ''}: ${browser.sessionId}`);
-  try {
-    await runBounded(
-      () => browser.deleteSession(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.debug(`deleteSession timed out after ${DEFAULT_TEARDOWN_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`),
-    );
-  } catch (error) {
-    if (isBenignTeardownError(error)) {
-      log.debug(`Ignoring benign teardown error during deleteSession${label ? ` (${label})` : ''}:`, error);
-      return;
-    }
-    throw error;
-  }
-}
 
 export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
@@ -123,9 +101,8 @@ export default class DioxusWorkerService {
     log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
 
     try {
-      // Bound + benign-swallow like the delete below: if the app has already
-      // exited, restoreAllMocks()'s browser.execute() can hang on a half-open
-      // socket and block the worker before safeDeleteSession() is ever reached.
+      // If the app already exited, restoreAllMocks()'s browser.execute() can hang on a half-open
+      // socket and block the session delete below.
       await runBounded(
         () => restoreAllMocks(),
         DEFAULT_TEARDOWN_TIMEOUT_MS,
@@ -152,19 +129,13 @@ export default class DioxusWorkerService {
 
     try {
       if (!this.browser.isMultiremote) {
-        await safeDeleteSession(this.browser as WebdriverIO.Browser, '');
+        await safeDeleteSession(this.browser as WebdriverIO.Browser, 'afterSession', log);
       } else {
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
         for (const instanceName of mrBrowser.instances) {
-          try {
-            await safeDeleteSession(mrBrowser.getInstance(instanceName), `instance ${instanceName}`);
-          } catch (error) {
-            log.warn(`Failed to delete session for instance ${instanceName}:`, error);
-          }
+          await safeDeleteSession(mrBrowser.getInstance(instanceName), `afterSession (instance ${instanceName})`, log);
         }
       }
-    } catch (error) {
-      log.warn('Failed to delete session:', error);
     } finally {
       clearWindowState();
     }

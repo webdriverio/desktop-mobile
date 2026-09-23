@@ -1,4 +1,4 @@
-import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const onPrepareMock = vi.fn().mockResolvedValue(undefined);
@@ -95,6 +95,45 @@ describe('session', () => {
       await expect(init(makeCaps())).rejects.toThrow(/bridge attach failed/);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
+
+    it.each([
+      [
+        'port check',
+        () => {
+          const caps = makeCaps();
+          delete (caps as { port?: number }).port;
+          return caps;
+        },
+        /port was not set/,
+      ],
+      [
+        'remote()',
+        () => {
+          remoteMock.mockRejectedValueOnce(new Error('driver missing'));
+          return makeCaps();
+        },
+        /driver missing/,
+      ],
+      [
+        'service.before',
+        () => {
+          serviceBeforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
+          return makeCaps();
+        },
+        /bridge attach failed/,
+      ],
+    ])('should surface a launcher-teardown failure alongside a %s failure', async (_stage, setup, startupMessage) => {
+      const caps = setup();
+      const launcherCleanup = new Error('devServer close failed');
+      onCompleteMock.mockRejectedValueOnce(launcherCleanup);
+
+      const error = await init(caps).catch((e: unknown) => e);
+
+      expect(error).toBeInstanceOf(AggregateError);
+      const aggregate = error as AggregateError;
+      expect((aggregate.cause as Error).message).toMatch(startupMessage);
+      expect(aggregate.errors).toEqual([aggregate.cause, launcherCleanup]);
+    });
   });
 
   describe('cleanup', () => {
@@ -121,12 +160,38 @@ describe('session', () => {
       vi.useFakeTimers();
       try {
         const cleanupPromise = cleanup(browser);
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS + 1_000);
         await expect(cleanupPromise).resolves.toBeUndefined();
       } finally {
         vi.useRealTimers();
       }
       expect(serviceAfterMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should wait past the default teardown deadline for a slow multi-process onComplete', async () => {
+      const browser = await init(makeCaps());
+      let finishStop!: () => void;
+      onCompleteMock.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishStop = resolve;
+        }),
+      );
+
+      vi.useFakeTimers();
+      try {
+        let settled = false;
+        const pending = cleanup(browser).then(() => {
+          settled = true;
+        });
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 5_000);
+        expect(settled).toBe(false);
+
+        finishStop();
+        await pending;
+        expect(settled).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
     });
   });
 });
