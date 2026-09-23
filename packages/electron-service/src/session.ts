@@ -8,9 +8,9 @@ import type {
 import {
   createLogger,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
-  deleteSessionBounded,
   failStartup as failStartupShared,
   runBounded,
+  safeDeleteSession,
 } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
@@ -97,7 +97,7 @@ export async function init(
     await service.before(capability, [], browser);
   } catch (error) {
     // remote() already opened the session, so close it here before the failure propagates.
-    await deleteSessionBounded(browser, 'service.before cleanup', log);
+    await safeDeleteSession(browser, 'service.before cleanup', log);
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }
@@ -136,7 +136,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       activeServices.delete(browser);
     }
 
-    await deleteSessionBounded(browser, 'cleanup', log);
+    await safeDeleteSession(browser, 'cleanup', log);
 
     // Best-effort so a failing stop can't strand the log writer & map cleanup that follow.
     await boundedOnComplete(launcher, 'cleanup').catch((e: Error) =>

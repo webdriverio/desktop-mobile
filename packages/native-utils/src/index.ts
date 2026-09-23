@@ -32,10 +32,10 @@ export { selectExecutable, validateBinaryPaths } from './selectExecutable.js';
 export {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
-  deleteSessionBounded,
   failStartup,
   isBenignTeardownError,
   runBounded,
+  safeDeleteSession,
 } from './teardown.js';
 export { waitUntilWindowAvailable } from './window.js';
 export { createLogger };

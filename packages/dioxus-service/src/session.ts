@@ -1,9 +1,9 @@
 import {
   createLogger,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
-  deleteSessionBounded,
   failStartup as failStartupShared,
   runBounded,
+  safeDeleteSession,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
@@ -89,7 +89,7 @@ export async function init(
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {
-    await deleteSessionBounded(browser, 'service.before cleanup', log);
+    await safeDeleteSession(browser, 'service.before cleanup', log);
     activeLaunchers.delete(browser);
     return failStartup(launcher, error, 'service.before cleanup');
   }

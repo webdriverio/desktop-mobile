@@ -110,12 +110,14 @@ export async function runBounded<T>(
 
 /**
  * Best-effort, time-bounded session deletion: the driver socket may already be gone (so a failure is
- * usually harmless), and the timeout keeps a stall from blocking the rest of teardown.
+ * usually harmless), and the timeout keeps a stall from blocking the rest of teardown. A non-benign
+ * failure is swallowed too, unless `rethrow` is set - for callers that must surface a broken delete.
  */
-export async function deleteSessionBounded(
+export async function safeDeleteSession(
   browser: WebdriverIO.Browser,
   context: string,
   log: Pick<Logger, 'debug' | 'warn'>,
+  options: { rethrow?: boolean } = {},
 ): Promise<void> {
   if (!browser.sessionId) {
     return;
@@ -129,8 +131,11 @@ export async function deleteSessionBounded(
   } catch (e) {
     if (isBenignTeardownError(e)) {
       log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
-    } else {
-      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+      return;
     }
+    if (options.rethrow) {
+      throw e;
+    }
+    log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
   }
 }
