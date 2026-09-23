@@ -35,6 +35,7 @@ export {
   DEFAULT_TEARDOWN_TIMEOUT_MS,
   failStartup,
   isBenignTeardownError,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
   runBounded,
   safeDeleteSession,
 } from './teardown.js';

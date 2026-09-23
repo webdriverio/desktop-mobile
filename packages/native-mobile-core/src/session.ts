@@ -7,6 +7,7 @@ import {
   boundedOnComplete,
   createLogger,
   failStartup as failStartupShared,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -61,7 +62,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
   function failStartup(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
     return failStartupShared(error, 'Mobile standalone', () =>
-      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
+      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS }),
     );
   }
 
@@ -142,7 +143,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
     await safeDeleteSession(browser, 'cleanup', log);
 
-    await boundedOnComplete(launcher, 'cleanup', log);
+    await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
 
     activeLaunchers.delete(browser);
     log.debug('Mobile standalone session cleaned up');

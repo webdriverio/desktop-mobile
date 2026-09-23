@@ -12,6 +12,7 @@ import {
   boundedOnComplete,
   createLogger,
   failStartup as failStartupShared,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -29,7 +30,7 @@ const activeServices = new WeakMap<WebdriverIO.Browser, ElectrobunWorkerService>
 
 function failStartup(launcher: ElectrobunLaunchService, error: unknown): Promise<never> {
   return failStartupShared(error, 'Electrobun standalone', () =>
-    boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
+    boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS }),
   );
 }
 
@@ -79,7 +80,8 @@ export async function init(
 }
 
 /**
- * Clean up a standalone Electrobun session created by {@link init}.
+ * Clean up a standalone Electrobun session created by {@link init}. A browser not created by init() is
+ * left untouched (warn + no-op) - its WebDriver session belongs to whoever opened it.
  */
 export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   log.debug('Cleaning up Electrobun standalone session…');
@@ -91,7 +93,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   }
 
   // WDIO's standalone remote() never runs the worker after/afterSession hooks, so cleanup() runs
-  // after() manually - else bridge connections leak between sequential standalone sessions.
+  // after() manually - else bridge connections leak between sequential standalone sessions. after()
+  // alone is the whole worker teardown: both hooks delegate to the same closeBridges().
   const service = activeServices.get(browser);
   try {
     await service?.after();
@@ -103,7 +106,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   await safeDeleteSession(browser, 'cleanup', log);
 
-  await boundedOnComplete(launcher, 'cleanup', log);
+  await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
   activeLaunchers.delete(browser);
   log.debug('Electrobun standalone session cleaned up');
 }

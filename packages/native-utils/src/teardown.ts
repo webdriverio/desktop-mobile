@@ -13,6 +13,10 @@ import type { Logger } from '@wdio/logger';
 
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
+// For a launcher onComplete that stops child processes in sequence: each stop can take the
+// SIGTERM grace plus the SIGKILL wait, so the default deadline would abandon a stop mid-escalation.
+export const PROCESS_TEARDOWN_TIMEOUT_MS = 30_000;
+
 // Benign teardown failure modes across providers. Matching a superset across
 // services is safe: every entry is benign once teardown has begun.
 export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
@@ -134,19 +138,34 @@ export async function safeDeleteSession(
 /**
  * Bound a launcher's onComplete teardown so a hung stop (a user-supplied devServer close(), a driver
  * or Metro shutdown) can't block teardown. A failure is warned and swallowed unless `rethrow` is set;
- * a launcher with no onComplete (e.g. Flutter) is a no-op.
+ * a launcher with no onComplete (e.g. Flutter) is a no-op. A failure that lands after the deadline is
+ * still warned, since the caller has already moved on.
  */
 export async function boundedOnComplete(
   launcher: { onComplete?(): Promise<void> },
   context: string,
   log: Pick<Logger, 'warn'>,
-  options: { rethrow?: boolean } = {},
+  options: { rethrow?: boolean; timeoutMs?: number } = {},
 ): Promise<void> {
+  const timeoutMs = options.timeoutMs ?? DEFAULT_TEARDOWN_TIMEOUT_MS;
+  let timedOut = false;
   try {
     await runBounded(
-      async () => launcher.onComplete?.(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.warn(`launcher.onComplete() timed out during ${context}`),
+      async () => {
+        try {
+          return await launcher.onComplete?.();
+        } catch (e) {
+          if (timedOut) {
+            log.warn(`launcher.onComplete() failed after timing out during ${context}: ${(e as Error).message}`);
+          }
+          throw e;
+        }
+      },
+      timeoutMs,
+      () => {
+        timedOut = true;
+        log.warn(`launcher.onComplete() timed out after ${timeoutMs}ms during ${context}`);
+      },
     );
   } catch (e) {
     if (options.rethrow) {

@@ -1,6 +1,12 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { boundedOnComplete, createLogger, failStartup, safeDeleteSession } from '@wdio/native-utils';
+import {
+  boundedOnComplete,
+  createLogger,
+  failStartup,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
+  safeDeleteSession,
+} from '@wdio/native-utils';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
@@ -128,13 +134,12 @@ export async function init(
   } catch (error) {
     const startupError =
       error instanceof Error ? error : new Error('Tauri standalone session startup failed', { cause: error });
-    const teardowns: Array<() => Promise<unknown>> = [];
     if (browser) {
-      const session = browser;
-      teardowns.push(() => safeDeleteSession(session, 'startup cleanup', log, { rethrow: true }));
+      await safeDeleteSession(browser, 'startup cleanup', log);
     }
-    teardowns.push(() => boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }));
-    return failStartup(startupError, 'Tauri standalone', ...teardowns);
+    return failStartup(startupError, 'Tauri standalone', () =>
+      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS }),
+    );
   }
 }
 
@@ -168,7 +173,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     await launcher.onWorkerEnd('standalone');
 
     // Complete the launcher lifecycle to stop tauri-driver.
-    await boundedOnComplete(launcher, 'cleanup', log);
+    await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
 
     await closeLogWriter('tauri-service').catch((e: Error) =>
       log.warn(`Failed to close log writer during cleanup: ${e.message}`),

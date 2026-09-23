@@ -5,6 +5,7 @@ import {
   DEFAULT_TEARDOWN_TIMEOUT_MS,
   failStartup,
   isBenignTeardownError,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
   runBounded,
   safeDeleteSession,
 } from '../src/teardown.js';
@@ -286,6 +287,49 @@ describe('boundedOnComplete', () => {
       await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
       await expect(pending).resolves.toBeUndefined();
       expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('onComplete() timed out'));
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should honour a custom timeoutMs', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = makeLog();
+      let settled = false;
+      const pending = boundedOnComplete({ onComplete: () => new Promise<void>(() => {}) }, 'cleanup', log, {
+        timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS,
+      }).then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS - DEFAULT_TEARDOWN_TIMEOUT_MS);
+      await pending;
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should warn about a failure that lands after the timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = makeLog();
+      let rejectStop!: (error: Error) => void;
+      const onComplete = () =>
+        new Promise<void>((_resolve, reject) => {
+          rejectStop = reject;
+        });
+      const pending = boundedOnComplete({ onComplete }, 'cleanup', log, { rethrow: true });
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+      await expect(pending).resolves.toBeUndefined();
+
+      rejectStop(new Error('embedded driver stop failed'));
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('failed after timing out during cleanup'));
+      expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('embedded driver stop failed'));
     } finally {
       vi.useRealTimers();
     }
