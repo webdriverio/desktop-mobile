@@ -53,7 +53,7 @@ catalogs:
     '@wdio/mocha-framework': 9.31.9
     '@wdio/spec-reporter': 9.31.2
     '@wdio/types': 9.31.2
-    '@wdio/xvfb': 9.31.2
+    '@wdio/xvfb': 9.32.0
     electron: 44.4.1
     electron-builder: 26.15.3
     webdriverio: 9.31.9
