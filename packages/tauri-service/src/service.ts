@@ -311,22 +311,21 @@ export default class TauriWorkerService {
       return;
     }
 
-    // Delete the WebDriver session explicitly for clean retry handling.
-    try {
-      if (!this.browser.isMultiremote) {
-        const stdBrowser = this.browser as WebdriverIO.Browser;
-        clearWindowState(stdBrowser.sessionId);
-        await safeDeleteSession(stdBrowser, 'afterSession', log);
-      } else {
-        const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-        for (const instanceName of mrBrowser.instances) {
+    if (!this.browser.isMultiremote) {
+      const stdBrowser = this.browser as WebdriverIO.Browser;
+      clearWindowState(stdBrowser.sessionId);
+      await safeDeleteSession(stdBrowser, 'afterSession', log);
+    } else {
+      const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
+      for (const instanceName of mrBrowser.instances) {
+        try {
           const instance = mrBrowser.getInstance(instanceName);
           clearWindowState(instance.sessionId);
           await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
+        } catch (error) {
+          log.warn(`Failed to clean up instance ${instanceName}:`, error);
         }
       }
-    } catch (error) {
-      log.warn('Failed to delete session:', error);
     }
   }
 

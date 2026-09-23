@@ -1102,6 +1102,27 @@ describe('TauriWorkerService', () => {
       expect(failing.deleteSession).toHaveBeenCalledTimes(1);
       expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
     });
+
+    it('should keep cleaning up the remaining instances when getInstance throws for one', async () => {
+      const healthy = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: vi.fn((name: string) => {
+          if (name === 'browserA') {
+            throw new Error('Multiremote object has no instance named "browserA"');
+          }
+          return healthy;
+        }),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mrBrowser;
+
+      await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
+
+      expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
+      expect(clearWindowState).toHaveBeenCalledWith('sess-b');
+    });
   });
 });
 
