@@ -8,7 +8,8 @@ use serde_json::Value;
 use tauri::{Manager, Runtime, WebviewWindow};
 use tokio::sync::oneshot;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
-    ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Environment6,
+    ICoreWebView2, ICoreWebView2CallDevToolsProtocolMethodCompletedHandler,
+    ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Environment6,
     ICoreWebView2ExecuteScriptCompletedHandler, ICoreWebView2PrintToPdfCompletedHandler,
     ICoreWebView2ScriptDialogOpeningEventHandler, ICoreWebView2WebMessageReceivedEventHandler,
     ICoreWebView2_7, COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,
@@ -23,7 +24,9 @@ use windows::Win32::System::Com::{
 use windows_core::BOOL;
 
 use crate::platform::alert_state::{AlertState, AlertStateManager, AlertType, PendingAlert};
-use crate::platform::{wrap_script_for_frame_context, FrameId, PlatformExecutor, PrintOptions};
+use crate::platform::{
+    wrap_script_for_frame_context, FrameId, ModifierState, PlatformExecutor, PrintOptions,
+};
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
 
@@ -192,6 +195,78 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
             Err(_) => Err(WebDriverErrorResponse::script_timeout()),
         }
     }
+
+    /// Call a Chrome DevTools Protocol method against the `WebView2` (e.g. `Input.dispatchKeyEvent`),
+    /// serialized on `ScriptExecutionLocks` like `evaluate_js`.
+    async fn call_cdp_method(
+        &self,
+        method: &str,
+        params_json: &str,
+    ) -> Result<(), WebDriverErrorResponse> {
+        let locks = self.window.state::<ScriptExecutionLocks>();
+        let lock = locks.get(self.window.label());
+        let _guard = lock.lock().await;
+
+        let (tx, rx) = oneshot::channel();
+        let tx = Arc::new(std::sync::Mutex::new(Some(tx)));
+        let method_owned = method.to_string();
+        let params_owned = params_json.to_string();
+
+        let result = self.window.with_webview({
+            let tx = tx.clone();
+            move |webview| unsafe {
+                let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+
+                if let Ok(webview2) = webview.controller().CoreWebView2() {
+                    let method_hstring = HSTRING::from(&method_owned);
+                    let params_hstring = HSTRING::from(&params_owned);
+
+                    let handler: ICoreWebView2CallDevToolsProtocolMethodCompletedHandler =
+                        CallDevToolsProtocolHandler::new(tx.clone()).into();
+
+                    if let Err(e) = webview2.CallDevToolsProtocolMethod(
+                        PCWSTR(method_hstring.as_ptr()),
+                        PCWSTR(params_hstring.as_ptr()),
+                        &handler,
+                    ) {
+                        tracing::error!("CallDevToolsProtocolMethod '{method_owned}' failed: {e:?}");
+                        if let Ok(mut guard) = tx.lock() {
+                            if let Some(tx) = guard.take() {
+                                let _ = tx.send(Err(format!("CallDevToolsProtocolMethod failed: {e:?}")));
+                            }
+                        }
+                    }
+                } else {
+                    tracing::error!("Failed to get CoreWebView2 for CDP call");
+                    if let Ok(mut guard) = tx.lock() {
+                        if let Some(tx) = guard.take() {
+                            let _ = tx.send(Err("Failed to get CoreWebView2".to_string()));
+                        }
+                    }
+                }
+            }
+        });
+
+        if let Err(e) = result {
+            tracing::error!("with_webview failed for CDP call: {e}");
+            if let Ok(mut guard) = tx.lock() {
+                if let Some(tx) = guard.take() {
+                    let _ = tx.send(Err(e.to_string()));
+                }
+            }
+        }
+
+        let timeout = std::time::Duration::from_millis(self.timeouts.script_ms);
+        match tokio::time::timeout(timeout, rx).await {
+            Ok(Ok(Ok(_))) => Ok(()),
+            Ok(Ok(Err(error))) => Err(WebDriverErrorResponse::unknown_error(&error)),
+            Ok(Err(_)) => {
+                tracing::error!("Channel closed unexpectedly during CDP call");
+                Err(WebDriverErrorResponse::unknown_error("Channel closed"))
+            },
+            Err(_) => Err(WebDriverErrorResponse::script_timeout()),
+        }
+    }
 }
 
 /// Register `WebView2` handlers at webview creation time.
@@ -256,6 +331,156 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         let lock = locks.get(self.window.label());
         let _guard = lock.lock().await;
         self.evaluate_js_inner(script).await
+    }
+
+    // =========================================================================
+    // Keyboard input: CDP at top level (trusted); a switched-into frame falls back to the JS path
+    // because CDP Input.dispatchKeyEvent takes no frame parameter.
+    // =========================================================================
+
+    async fn dispatch_key_event(
+        &self,
+        key: &str,
+        is_down: bool,
+        modifiers: &ModifierState,
+    ) -> Result<(), WebDriverErrorResponse> {
+        if !self.frame_context.is_empty() {
+            match crate::platform::key_input::map_special_key(key) {
+                Some((js_key, js_code, key_code)) => {
+                    let script = crate::platform::key_input::build_special_key_script(
+                        js_key, js_code, key_code, is_down,
+                    );
+                    self.evaluate_js(&script).await?;
+                    return Ok(());
+                }
+                None => {
+                    let code = crate::platform::key_input::regular_key_code_for(key);
+                    return self.dispatch_regular_key(key, &code, is_down, modifiers).await;
+                }
+            }
+        }
+        let event = crate::platform::key_input::to_cdp_key_event(key, is_down, modifiers);
+        self.call_cdp_method("Input.dispatchKeyEvent", &event.to_params_json())
+            .await
+    }
+
+    /// Only reached in-frame (from `dispatch_key_event`); top-level keys dispatch via CDP there.
+    async fn dispatch_regular_key(
+        &self,
+        key: &str,
+        code: &str,
+        is_down: bool,
+        modifiers: &ModifierState,
+    ) -> Result<(), WebDriverErrorResponse> {
+        let script =
+            crate::platform::key_input::build_regular_key_script(key, code, is_down, modifiers);
+        self.evaluate_js(&script).await?;
+        Ok(())
+    }
+
+    async fn send_keys_to_element(
+        &self,
+        js_var: &str,
+        text: &str,
+    ) -> Result<(), WebDriverErrorResponse> {
+        use crate::platform::key_input::KeySegment;
+
+        let segments = crate::platform::key_input::segment_send_keys(text);
+        let has_special_key = segments.iter().any(|seg| matches!(seg, KeySegment::Special(_)));
+
+        // Plain text (no trust-gated special keys), or an in-frame element: the focus-independent JS
+        // path sets the value on the stored element directly, so the text lands on THAT element
+        // regardless of focus changes or detaches, matching macOS/Linux.
+        if !has_special_key || !self.frame_context.is_empty() {
+            let script = crate::platform::key_input::build_send_keys_script(js_var, text);
+            self.evaluate_js(&script).await?;
+            return Ok(());
+        }
+
+        // Top-level text containing special keys. Entry guard, before any side effect — the only
+        // place a throw is safe on this split path. Caret-to-end keeps append semantics; the inner
+        // try/catch absorbs setSelectionRange throwing on non-text inputs.
+        let focus_script = format!(
+            r"(function() {{
+                var el = window.{js_var};
+                if (!el || !el.isConnected) {{
+                    throw new Error('stale element reference');
+                }}
+                el.focus();
+                try {{
+                    if (typeof el.setSelectionRange === 'function') {{
+                        var end = (el.value || '').length;
+                        el.setSelectionRange(end, end);
+                    }}
+                }} catch (e) {{}}
+                return document.activeElement === el;
+            }})()"
+        );
+        let target_focusable = self
+            .evaluate_js(&focus_script)
+            .await?
+            .get("value")
+            .and_then(Value::as_bool)
+            .unwrap_or(false);
+        if !target_focusable {
+            // A `focus`/`focusin` handler refuses focus on the target, so a trusted special key
+            // (needed for Escape's dialog close, Enter's submit, …) cannot be delivered to it and no
+            // browser-default action can fire. Fail here — before any keystroke commits — rather
+            // than commit the text and silently omit the key effect while reporting success.
+            return Err(WebDriverErrorResponse::element_not_interactable(
+                "element does not accept keyboard focus, so the requested key cannot be sent to it",
+            ));
+        }
+
+        // Best-effort refocus before each special key: bring focus back to the target (an append or
+        // a prior key may have moved it). The trusted key is then dispatched regardless of where
+        // focus ended up — per the WebDriver Element Send Keys algorithm, keyboard input follows
+        // focus, so if a handler redirects focus mid-sequence the key lands on the active element
+        // (as a physical keypress would) rather than being dropped or forced onto a stale target.
+        let refocus_script = format!(
+            r"(function() {{
+                var el = window.{js_var};
+                if (el && el.isConnected) {{
+                    el.focus();
+                }}
+                return true;
+            }})()"
+        );
+
+        let no_mods = ModifierState::default();
+        for segment in &segments {
+            match segment {
+                KeySegment::Text(run) => {
+                    let script = crate::platform::key_input::build_append_run_script(js_var, run);
+                    self.evaluate_js(&script).await?;
+                }
+                KeySegment::Special(key) => {
+                    self.evaluate_js(&refocus_script).await?;
+                    let down = crate::platform::key_input::to_cdp_key_event(key, true, &no_mods);
+                    self.call_cdp_method("Input.dispatchKeyEvent", &down.to_params_json())
+                        .await?;
+                    let up = crate::platform::key_input::to_cdp_key_event(key, false, &no_mods);
+                    self.call_cdp_method("Input.dispatchKeyEvent", &up.to_params_json())
+                        .await?;
+                }
+            }
+        }
+
+        // The per-segment appends fire `input` but not `change`. Match the JS path's single trailing
+        // `change` for inputs/textareas. Best-effort: skip (never throw) if the element detached
+        // mid-sequence — the keystrokes already committed, so a stale error here would misreport a
+        // success and duplicate the typing on a caller retry.
+        let change_script = format!(
+            r"(function() {{
+                var el = window.{js_var};
+                if (el && el.isConnected && (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA')) {{
+                    el.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                }}
+                return true;
+            }})()"
+        );
+        self.evaluate_js(&change_script).await?;
+        Ok(())
     }
 
     // =========================================================================
@@ -648,7 +873,9 @@ mod handlers {
 
     use serde_json::Value;
     use webview2_com::Microsoft::Web::WebView2::Win32::{
-        ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler,
+        ICoreWebView2, ICoreWebView2CallDevToolsProtocolMethodCompletedHandler,
+        ICoreWebView2CallDevToolsProtocolMethodCompletedHandler_Impl,
+        ICoreWebView2CapturePreviewCompletedHandler,
         ICoreWebView2CapturePreviewCompletedHandler_Impl, ICoreWebView2Deferral,
         ICoreWebView2ExecuteScriptCompletedHandler,
         ICoreWebView2ExecuteScriptCompletedHandler_Impl, ICoreWebView2PrintToPdfCompletedHandler,
@@ -689,6 +916,44 @@ mod handlers {
                 Err(format!("Script execution failed: {errorcode:?}"))
             } else {
                 let json_str = unsafe { resultobjectasjson.to_string().unwrap_or_default() };
+                match serde_json::from_str(&json_str) {
+                    Ok(value) => Ok(value),
+                    Err(_) => Ok(Value::String(json_str)),
+                }
+            };
+
+            if let Ok(mut guard) = self.tx.lock() {
+                if let Some(tx) = guard.take() {
+                    let _ = tx.send(response);
+                }
+            }
+            Ok(())
+        }
+    }
+
+    #[implement(ICoreWebView2CallDevToolsProtocolMethodCompletedHandler)]
+    pub struct CallDevToolsProtocolHandler {
+        pub tx: ScriptResultSender,
+    }
+
+    impl CallDevToolsProtocolHandler {
+        pub fn new(tx: ScriptResultSender) -> Self {
+            Self { tx }
+        }
+    }
+
+    impl ICoreWebView2CallDevToolsProtocolMethodCompletedHandler_Impl
+        for CallDevToolsProtocolHandler_Impl
+    {
+        fn Invoke(
+            &self,
+            errorcode: windows::core::HRESULT,
+            returnobjectasjson: &windows::core::PCWSTR,
+        ) -> windows::core::Result<()> {
+            let response = if errorcode.is_err() {
+                Err(format!("CDP method failed: {errorcode:?}"))
+            } else {
+                let json_str = unsafe { returnobjectasjson.to_string().unwrap_or_default() };
                 match serde_json::from_str(&json_str) {
                     Ok(value) => Ok(value),
                     Err(_) => Ok(Value::String(json_str)),
@@ -1050,8 +1315,8 @@ mod handlers {
 }
 
 use handlers::{
-    CapturePreviewHandler, ExecuteScriptHandler, ScriptDialogOpeningHandler,
-    WebMessageReceivedHandler,
+    CallDevToolsProtocolHandler, CapturePreviewHandler, ExecuteScriptHandler,
+    ScriptDialogOpeningHandler, WebMessageReceivedHandler,
 };
 
 // =============================================================================
