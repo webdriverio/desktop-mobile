@@ -107,25 +107,12 @@ export default class DioxusWorkerService {
   }
 
   async after(): Promise<void> {
-    // mockStore is cleared in afterSession() *after* restoreAllMocks() so the
-    // unregistration script can still iterate registered mocks. Clearing here
-    // would leave window.__wdio_mocks__ populated across embedded-mode sessions.
-    log.debug('DioxusWorkerService.after — clearing window cache');
-    clearWindowState();
-  }
-
-  /**
-   * Explicitly delete the WebDriver session. Without this, WDIO's `bail`/retry
-   * features hit "invalid session id" on the second attempt because the worker
-   * is reused but the previous session is no longer valid server-side.
-   */
-  async afterSession(): Promise<void> {
-    log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
-
+    // The runner deletes the session before afterSession(), so this is the last
+    // hook in which the unregistration scripts can still reach the app —
+    // otherwise window.__wdio_mocks__ stays populated across embedded-mode sessions.
     try {
-      // Bound + benign-swallow like the delete below: if the app has already
-      // exited, restoreAllMocks()'s browser.execute() can hang on a half-open
-      // socket and block the worker before safeDeleteSession() is ever reached.
+      // Bound + benign-swallow: if the app has already exited, restoreAllMocks()'s
+      // browser.execute() can hang on a half-open socket and block the worker.
       await runBounded(
         () => restoreAllMocks(),
         DEFAULT_TEARDOWN_TIMEOUT_MS,
@@ -138,12 +125,23 @@ export default class DioxusWorkerService {
         log.warn('Failed to restore mocks during session cleanup:', error);
       }
     } finally {
-      // Clear unconditionally — if restoreAllMocks() throws (commonly when the
-      // browser session has already gone away and execute() rejects), leaving
-      // the module-level mockStore populated causes the next session's
-      // createMock() to stack on top of stale entries.
+      // Clear unconditionally — if restoreAllMocks() throws, leaving the
+      // module-level mockStore populated causes the next session's createMock()
+      // to stack on top of stale entries.
       mockStore.clear();
     }
+    log.debug('DioxusWorkerService.after — clearing window cache');
+    clearWindowState();
+  }
+
+  /**
+   * The runner has already deleted the session when it calls this hook, so
+   * nothing here may talk to the app. The explicit delete below only fires from
+   * standalone cleanup(), which calls this with the session still live.
+   */
+  async afterSession(): Promise<void> {
+    // Backstop: the runner skips after() on some exit paths (e.g. SIGINT during startup).
+    mockStore.clear();
 
     if (!this.browser) {
       clearWindowState();

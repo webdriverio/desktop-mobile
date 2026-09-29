@@ -150,8 +150,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
     // Drive the worker-service teardown that standalone init() set up via
-    // service.before(): after() stops log capture / clears puppeteer sessions,
-    // afterSession() restores mocks and clears the process-wide mock store.
+    // service.before(): after() restores mocks, stops log capture and clears
+    // puppeteer sessions; afterSession() clears the process-wide mock store.
     // Both calls are wrapped so a failure doesn't skip the log writer + map
     // cleanup that follow.
     const service = activeServices.get(browser);

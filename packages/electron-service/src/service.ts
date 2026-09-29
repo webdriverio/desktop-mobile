@@ -543,19 +543,15 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     await ensureActiveWindowFocus(this.browser, commandName);
   }
 
-  after() {
-    this.logCaptureManager?.stopCapture();
-    clearPuppeteerSessions();
-  }
-
-  async afterSession() {
-    // restoreAllMocks() drives a CDP send() per mock. During teardown the
-    // debugger socket may already be gone, so a send() either rejects with
-    // "WebSocket is not connected" or stalls against a half-open socket until
-    // each per-command timeout fires — on Windows this hangs the worker until
-    // the CI step timeout kills it, AFTER the test passed. Bound it and swallow
-    // benign disconnect errors so teardown always completes. mockStore.clear()
-    // must still run regardless so the next session starts with a clean store.
+  async after() {
+    // The runner deletes the session (quitting the app) before afterSession(),
+    // so this is the last hook in which mocks can still be restored in the app.
+    // restoreAllMocks() drives a CDP send() per mock (a WebDriver execute in
+    // browser mode). If the app has died the debugger socket may be gone, so a
+    // send() either rejects with "WebSocket is not connected" or stalls against a
+    // half-open socket until each per-command timeout fires — on Windows this
+    // hangs the worker until the CI step timeout kills it, AFTER the test passed.
+    // Bound it and swallow benign disconnect errors so teardown always completes.
     try {
       await runBounded(
         () => restoreAllMocks(),
@@ -571,6 +567,13 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     } finally {
       mockStore.clear();
     }
+    this.logCaptureManager?.stopCapture();
+    clearPuppeteerSessions();
+  }
+
+  async afterSession() {
+    // Backstop: the runner skips after() on some exit paths (e.g. SIGINT during startup).
+    mockStore.clear();
   }
 
   /**

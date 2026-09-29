@@ -1026,24 +1026,6 @@ describe('TauriWorkerService', () => {
       expect(clearWindowState).toHaveBeenCalledWith();
     });
 
-    it('should call restoreAllMocks before clearing mock store', async () => {
-      const callOrder: string[] = [];
-      vi.mocked(restoreAllMocks).mockImplementation(async () => {
-        callOrder.push('restoreAllMocks');
-      });
-      vi.mocked(mockStore.clear).mockImplementation(() => {
-        callOrder.push('mockStore.clear');
-      });
-
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = mockBrowser;
-
-      await service.afterSession({}, {} as any, []);
-
-      expect(callOrder).toEqual(['restoreAllMocks', 'mockStore.clear']);
-    });
-
     it('should handle deleteSession errors gracefully', async () => {
       const mockBrowser = createMockBrowser({
         deleteSession: vi.fn().mockRejectedValue(new Error('session error')),
@@ -1054,14 +1036,107 @@ describe('TauriWorkerService', () => {
       await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
     });
 
-    it('should handle restoreAllMocks errors gracefully', async () => {
-      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore error'));
+    it('should not talk to the app once the runner has deleted the session', async () => {
+      const mockBrowser = createMockBrowser({ sessionId: undefined });
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mockBrowser;
+
+      await service.afterSession({}, {} as any, []);
+
+      expect(restoreAllMocks).not.toHaveBeenCalled();
+      expect(mockBrowser.execute).not.toHaveBeenCalled();
+      expect(mockBrowser.deleteSession).not.toHaveBeenCalled();
+      expect(mockStore.clear).toHaveBeenCalled();
+    });
+  });
+
+  describe('after()', () => {
+    it('should restore mocks before clearing the mock store', async () => {
+      const callOrder: string[] = [];
+      vi.mocked(restoreAllMocks).mockImplementationOnce(async () => {
+        callOrder.push('restoreAllMocks');
+      });
+      vi.mocked(mockStore.clear).mockImplementationOnce(() => {
+        callOrder.push('mockStore.clear');
+      });
+
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       (service as any).browser = mockBrowser;
 
-      await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
-      expect(mockBrowser.deleteSession).toHaveBeenCalled();
+      await service.after(0, {} as any, []);
+
+      expect(callOrder).toEqual(['restoreAllMocks', 'mockStore.clear']);
+      expect(vi.mocked(restoreAllMocks).mock.contexts[0]).toEqual({ browser: mockBrowser });
+    });
+
+    it('should restore mocks on every multiremote instance', async () => {
+      const instanceA = createMockBrowser({ sessionId: 'sess-a' });
+      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['a', 'b'],
+        getInstance: vi.fn((name: string) => (name === 'a' ? instanceA : instanceB)),
+      });
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mrBrowser;
+
+      await service.after(0, {} as any, []);
+
+      expect(vi.mocked(restoreAllMocks).mock.contexts).toEqual([{ browser: instanceA }, { browser: instanceB }]);
+      expect(mockStore.clear).toHaveBeenCalledTimes(1);
+    });
+
+    it('should keep restoring the remaining instances after one fails', async () => {
+      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore error'));
+      const instanceA = createMockBrowser({ sessionId: 'sess-a' });
+      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['a', 'b'],
+        getInstance: vi.fn((name: string) => (name === 'a' ? instanceA : instanceB)),
+      });
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = mrBrowser;
+
+      await expect(service.after(0, {} as any, [])).resolves.toBeUndefined();
+      expect(restoreAllMocks).toHaveBeenCalledTimes(2);
+      expect(mockStore.clear).toHaveBeenCalledTimes(1);
+    });
+
+    it('should swallow restore errors and still clear the mock store', async () => {
+      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore error'));
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = createMockBrowser();
+
+      await expect(service.after(0, {} as any, [])).resolves.toBeUndefined();
+      expect(mockStore.clear).toHaveBeenCalledTimes(1);
+    });
+
+    it('should not hang when restoreAllMocks never settles, bounded by timeout', async () => {
+      vi.useFakeTimers();
+      try {
+        vi.mocked(restoreAllMocks).mockImplementationOnce(() => new Promise<void>(() => {}));
+        const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+        (service as any).browser = createMockBrowser();
+
+        const pending = service.after(0, {} as any, []);
+        await vi.advanceTimersByTimeAsync(10_000);
+
+        await expect(pending).resolves.toBeUndefined();
+        expect(mockStore.clear).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
+    it('should clear the mock store when no browser exists', async () => {
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+
+      await service.after(0, {} as any, []);
+
+      expect(restoreAllMocks).not.toHaveBeenCalled();
+      expect(mockStore.clear).toHaveBeenCalledTimes(1);
     });
   });
 });
