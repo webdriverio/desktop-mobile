@@ -63,6 +63,7 @@ const CORE_INFRA_WORKFLOWS = new Set([
 // Meta-workflows that never require service tests.
 const META_WORKFLOWS = new Set([
   'codeql.yml',
+  'crate-drift.yml',
   'pr-title.yml',
   'auto-label-issues.yml',
   'expense.yml',

@@ -1,0 +1,276 @@
+name: Crate Drift
+
+# CI builds the published Rust crates only against their committed Cargo.lock files, but apps that
+# depend on them (and `cargo install` without --locked) resolve fresh versions. A Tauri minor can
+# then break a crate for users while CI stays green. This workflow builds every published crate
+# against freshly resolved dependencies: natively on Linux, as a Windows cross-check from the same
+# runner, and natively on macOS for the Tauri crates, whose macOS code needs the Apple SDK. A
+# failure files a tracking issue, and the issue closes itself once the build passes again.
+#
+# It also keeps the webdriver plugin's Windows bindings on the releases the latest Tauri uses
+# (scripts/sync-tauri-webview2-bindings.ts). A mismatch never breaks builds, it only makes apps
+# compile webview2-com twice, so drift becomes a PR rather than a failure.
+#
+# The side effects (the tracking issue and the sync PR) only run on main. Pull requests that touch
+# this workflow or the sync script run every check without them.
+
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/crate-drift.yml'
+      - 'scripts/sync-tauri-webview2-bindings.ts'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crate-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  SYNC_BRANCH: chore/tauri-webview2-bindings
+
+jobs:
+  fresh-deps:
+    name: Fresh deps [${{ matrix.label }}]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Every crate this repo publishes to crates.io (guarded by test/scripts/crate-drift.spec.ts).
+          # A Windows cross-check needs no MSVC toolchain: `cargo check` stops before linking.
+          - label: Linux + Windows cross-check
+            os: ubuntu-latest
+            targets: host x86_64-pc-windows-msvc
+            crates: |
+              packages/tauri-plugin
+              packages/tauri-plugin-webdriver
+              packages/dioxus-bridge
+              packages/dioxus-embedded-driver
+              packages/dioxus-driver
+          # The dioxus crates have no macOS-specific code, so the Linux leg covers them.
+          - label: macOS
+            os: macos-latest
+            targets: host
+            crates: |
+              packages/tauri-plugin
+              packages/tauri-plugin-webdriver
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: 🦀 Install Rust toolchain
+        shell: bash
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          rustup update stable
+          rustup default stable
+          for target in $TARGETS; do
+            [ "$target" = host ] || rustup target add "$target"
+          done
+
+      - name: 🦀 Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: crate-drift
+          workspaces: ${{ matrix.crates }}
+          cache-on-failure: true
+          # ~/.cargo/bin/ can carry over stale binaries across runs, breaking the toolchain.
+          cache-bin: false
+
+      - name: 🦀 Install Linux system dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        # Same set as the clippy jobs: webkit2gtk/soup/javascriptcoregtk back the Linux webview for
+        # the tauri plugin and the dioxus crates; libxdo is a hard link dependency of dioxus-desktop.
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev
+
+      - name: 🔍 cargo check against fresh dependencies
+        shell: bash
+        env:
+          CRATES: ${{ matrix.crates }}
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          set -uo pipefail
+          status=0
+          for crate in $CRATES; do
+            # `cargo update` re-resolves every dependency to its newest compatible release, which is
+            # what a new consumer of the published crate gets.
+            log="$RUNNER_TEMP/update-${crate//\//-}.log"
+            cargo update --manifest-path "$crate/Cargo.toml" > "$log" 2>&1 || status=1
+            {
+              echo "<details><summary><code>$crate</code>: releases newer than its Cargo.lock</summary>"
+              echo
+              echo '```'
+              grep -E '^\s+(Updating|Adding|Removing|Downgrading) [A-Za-z0-9_-]+ v' "$log" || echo '(none)'
+              echo '```'
+              echo '</details>'
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            for target in $TARGETS; do
+              args=(); [ "$target" = host ] || args=(--target "$target")
+              echo "::group::cargo check $crate ($target)"
+              # macOS runners ship bash 3.2, where "${args[@]}" on an empty array trips `set -u`.
+              if ! cargo check --manifest-path "$crate/Cargo.toml" ${args[@]+"${args[@]}"}; then
+                echo "::error file=$crate/Cargo.toml::$crate fails to build for $target against fresh dependencies"
+                status=1
+              fi
+              echo "::endgroup::"
+            done
+          done
+          exit "$status"
+
+  sync-bindings:
+    name: Sync Tauri webview2 bindings
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      pull-requests: write
+      actions: write
+      statuses: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: 🛠️ Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+
+      - name: 🦀 Install Rust toolchain
+        shell: bash
+        run: |
+          rustup update stable
+          rustup default stable
+
+      - name: 🔄 Align the bindings with the latest Tauri
+        id: sync
+        shell: bash
+        run: |
+          node scripts/sync-tauri-webview2-bindings.ts --write
+          git diff --stat
+
+      - name: 📬 Open or refresh the sync PR
+        if: steps.sync.outputs.drift == 'true' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          TAURI: ${{ steps.sync.outputs.tauri }}
+          WEBVIEW2_COM: ${{ steps.sync.outputs.webview2_com }}
+          FROM: ${{ steps.sync.outputs.from }}
+          TO: ${{ steps.sync.outputs.to }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          # The title names the target bindings, so it only changes when Tauri moves to another
+          # webview2-com line. That makes it the PR's identity: an open PR with this title may
+          # carry maintainer fixes, and a closed one was declined, so both are left alone.
+          title="chore(tauri): move the webdriver plugin to webview2-com $WEBVIEW2_COM"
+          prs=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state all --limit 50 --json number,title,state)
+          same=$(jq -r --arg t "$title" '[.[] | select(.title == $t and .state != "MERGED")][0].state // empty' <<< "$prs")
+          if [ -n "$same" ]; then
+            echo "Already proposed ($same PR titled \"$title\"); leaving it alone."
+            exit 0
+          fi
+          open=$(jq -r '[.[] | select(.state == "OPEN")][0].number // empty' <<< "$prs")
+
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git switch -c "$SYNC_BRANCH"
+          git commit -qam "$title"
+          git push --force origin "$SYNC_BRANCH"
+
+          body=$(cat <<EOF
+          Tauri $TAURI's wry uses **$TO**, but the plugin declares **$FROM**. Until they match, apps on the latest Tauri compile two copies of webview2-com. The plugin rebinds Tauri's WebView2 controller onto its own bindings (\`rebind_controller\` in \`packages/tauri-plugin-webdriver/src/platform/windows.rs\`), so nothing is broken in the meantime; this only saves apps the second copy.
+
+          Opened by the nightly [Crate Drift]($RUN_URL) workflow via \`scripts/sync-tauri-webview2-bindings.ts\`. CI was dispatched on this branch and reports as \`CI / Required\`. If the new bindings need code changes, push them here: the workflow only replaces this branch when Tauri moves to another webview2-com line. Add \`bump:patch\` to publish the plugin with the new bindings.
+          EOF
+          )
+          if [ -n "$open" ]; then
+            gh pr edit "$open" --repo "$REPO" --title "$title" --body "$body"
+          else
+            gh pr create --repo "$REPO" --base main --head "$SYNC_BRANCH" --title "$title" --body "$body"
+          fi
+
+          # A PR opened with GITHUB_TOKEN triggers no workflows. Dispatch CI, which posts
+          # `CI / Required` to the branch head, and post the verdict crabnebula-verify.yml gives
+          # every same-repo PR, since it never sees this one.
+          gh api "repos/$REPO/statuses/$(git rev-parse HEAD)" -f state=success -f context='CrabNebula / macOS' \
+            -f description='Not applicable (internal PR or no Tauri changes).'
+          gh workflow run ci.yml --repo "$REPO" --ref "$SYNC_BRANCH" -f force_all=false
+
+      - name: 🧹 Close a sync PR that is no longer needed
+        if: steps.sync.outputs.drift == 'false' && github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          TAURI: ${{ steps.sync.outputs.tauri }}
+        run: |
+          open=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')
+          if [ -n "$open" ]; then
+            gh pr close "$open" --repo "$REPO" --delete-branch \
+              --comment "The plugin's bindings already match Tauri $TAURI's, so this is no longer needed."
+          fi
+
+  report:
+    name: Report
+    needs: [fresh-deps, sync-bindings]
+    if: always() && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      FRESH: ${{ needs.fresh-deps.result }}
+      SYNC: ${{ needs.sync-bindings.result }}
+    steps:
+      - name: 📋 File or close the tracking issue
+        shell: bash
+        run: |
+          set -euo pipefail
+          results="$FRESH $SYNC"
+          case " $results " in
+            # A superseded run says nothing about the crates.
+            *" cancelled "*) echo "Run was cancelled; not reporting."; exit 0 ;;
+          esac
+          title='Crate Drift: published crates fail against fresh dependencies'
+          issue=$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number,title \
+            | jq -r --arg t "$title" '[.[] | select(.title == $t)][0].number // empty')
+          jobs="Fresh deps: \`$FRESH\` · binding sync: \`$SYNC\`"
+
+          if [[ " $results " == *" failure "* ]]; then
+            if [ -n "$issue" ]; then
+              gh issue comment "$issue" --repo "$REPO" --body "Still failing in [this run]($RUN_URL). $jobs"
+            else
+              gh issue create --repo "$REPO" --title "$title" --label 'area:dependencies' --body "$(cat <<EOF
+          The nightly [Crate Drift run]($RUN_URL) failed. $jobs
+
+          A \`fresh deps\` failure means a published crate no longer builds against the dependency versions a new consumer resolves today, even though CI (which builds against the committed Cargo.lock files) may still be green. The run's step summary lists which releases were picked up. A \`binding sync\` failure means \`scripts/sync-tauri-webview2-bindings.ts\` itself errored.
+
+          This issue closes itself once a nightly run passes again.
+          EOF
+              )"
+            fi
+          elif [ -n "$issue" ]; then
+            gh issue close "$issue" --repo "$REPO" --comment "Passing again in [this run]($RUN_URL)."
+          fi

@@ -86,11 +86,14 @@ describe('classifyFile', () => {
     ['.github/workflows/_ci-e2e-react-native-ios.reusable.yml', 'react-native'],
     ['.github/workflows/_ci-build-react-native-ios-app.reusable.yml', 'react-native'],
     ['.github/workflows/codeql.yml', 'none'],
+    // scheduled crate build + binding sync; it tests itself via its own pull_request paths trigger
+    ['.github/workflows/crate-drift.yml', 'none'],
     ['.github/workflows/release-preview.yml', 'none'],
     ['.github/workflows/some-future-workflow.yml', 'unknown'],
     ['.github/codeql/artifact-poisoning-analysis.json', 'none'],
     // scripts
     ['scripts/update-tauri-version.ts', 'tauri'],
+    ['scripts/sync-tauri-webview2-bindings.ts', 'tauri'],
     ['scripts/test-package.ts', 'all'],
     ['scripts/detect-changes.ts', 'all'],
     // root config
