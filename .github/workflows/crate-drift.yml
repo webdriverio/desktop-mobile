@@ -126,7 +126,8 @@ jobs:
             for target in $TARGETS; do
               args=(); [ "$target" = host ] || args=(--target "$target")
               echo "::group::cargo check $crate ($target)"
-              if ! cargo check --manifest-path "$crate/Cargo.toml" "${args[@]}"; then
+              # macOS runners ship bash 3.2, where "${args[@]}" on an empty array trips `set -u`.
+              if ! cargo check --manifest-path "$crate/Cargo.toml" ${args[@]+"${args[@]}"}; then
                 echo "::error file=$crate/Cargo.toml::$crate fails to build for $target against fresh dependencies"
                 status=1
               fi
