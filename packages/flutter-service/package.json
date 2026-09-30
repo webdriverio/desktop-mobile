@@ -55,7 +55,7 @@
     "@wdio/types": "catalog:default",
     "tslib": "^2.8.1",
     "webdriverio": "catalog:default",
-    "ws": "^8.21.3"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@types/node": "^26.6.2",
@@ -63,7 +63,7 @@
     "@vitest/coverage-v8": "^5.0.1",
     "@wdio/bundler": "workspace:*",
     "shx": "^0.4.0",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
     "vitest": "^5.0.1"
   },
