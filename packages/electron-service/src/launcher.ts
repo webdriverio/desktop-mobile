@@ -17,6 +17,9 @@ import { getAppBuildInfo } from './appBuildInfo.js';
 import { getBinaryPath } from './binaryPath.js';
 import { getElectronVersion } from './electronVersion.js';
 
+// a Chromium version is four numbers; an Electron version is three, plus an optional -prerelease or +build suffix
+const FULL_CHROMIUM_VERSION = /^\d+\.\d+\.\d+\.\d+$/;
+
 const log = createLogger('electron-service', 'launcher');
 
 import type { Capabilities, Options, Services } from '@wdio/types';
@@ -222,6 +225,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
             delete chromeOpts.binary;
           }
           delete (cap as Record<string, unknown>)['wdio:enforceWebDriverClassic'];
+          delete (cap as Record<string, unknown>)['wdio:electronVersion'];
         }
       } catch (error) {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
@@ -254,10 +258,18 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
 
     await Promise.all(
       caps.map(async (cap) => {
-        const electronVersion = cap.browserVersion || localElectronVersion || '';
-        let chromiumVersion: string | undefined = await getChromiumVersion(electronVersion);
+        const electronVersion =
+          ((cap as Record<string, unknown>)['wdio:electronVersion'] as string | undefined) ||
+          cap.browserVersion ||
+          localElectronVersion ||
+          '';
+        // castlabs builds (`X.Y.Z+wvcus`) are an upstream release with the same Chromium
+        const releaseVersion = electronVersion.split('+')[0];
+        let chromiumVersion: string | undefined = await getChromiumVersion(releaseVersion);
 
-        (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:electronVersion'] = electronVersion;
+        if (releaseVersion && !FULL_CHROMIUM_VERSION.test(releaseVersion)) {
+          (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:electronVersion'] = releaseVersion;
+        }
 
         if (Number.parseInt(electronVersion.split('.')[0], 10) < 26 && !cap['wdio:chromedriverOptions']?.binary) {
           const invalidElectronVersionError = new SevereServiceError(

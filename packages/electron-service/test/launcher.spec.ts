@@ -622,6 +622,37 @@ describe('Electron Launch Service', () => {
         expect(probeChromiumVersion).not.toHaveBeenCalled();
       });
 
+      it('should set wdio:electronVersion to the upstream release of a castlabs build', async () => {
+        const capabilities = [
+          { browserName: 'electron', browserVersion: '26.2.2+wvcus' },
+        ] as WebdriverIO.Capabilities[];
+        await instance?.onPrepare({} as never, capabilities);
+        expect(capabilities[0]).toEqual(
+          expect.objectContaining({ browserVersion: '116.0.5845.190', 'wdio:electronVersion': '26.2.2' }),
+        );
+      });
+
+      it('should not set wdio:electronVersion for a Chromium browserVersion', async () => {
+        const capabilities = [
+          { browserName: 'electron', browserVersion: '116.0.5845.190' },
+        ] as WebdriverIO.Capabilities[];
+        await instance?.onPrepare({} as never, capabilities);
+        expect(capabilities[0]).not.toHaveProperty('wdio:electronVersion');
+      });
+
+      it.each([
+        ['browserVersion', { browserVersion: '27.0.0' }],
+        ['the local package version', {}],
+      ])('should use a configured wdio:electronVersion over %s', async (_, other) => {
+        const capabilities = [
+          { browserName: 'electron', ...other, 'wdio:electronVersion': '26.2.2' },
+        ] as WebdriverIO.Capabilities[];
+        await instance?.onPrepare({} as never, capabilities);
+        expect(capabilities[0]).toEqual(
+          expect.objectContaining({ browserVersion: '116.0.5845.190', 'wdio:electronVersion': '26.2.2' }),
+        );
+      });
+
       it('should use the Electron version from the local package dependencies when browserVersion is not provided', async () => {
         // Mock electron version that matches the expected chrome version
         (getElectronVersion as Mock).mockResolvedValueOnce('26.0.0');
