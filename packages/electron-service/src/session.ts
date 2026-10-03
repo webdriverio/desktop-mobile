@@ -5,7 +5,7 @@ import type {
   ElectronServiceOptions,
   ElectronStandaloneCapability,
 } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded, runTeardownStep } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -45,28 +45,11 @@ async function failStartup(launcher: ElectronLaunchService, error: unknown): Pro
   throw error;
 }
 
-/**
- * Best-effort deletion of the session during teardown. The driver socket may already be gone by
- * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
- * the rest of teardown.
- */
 async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
   if (!browser.sessionId) {
     return;
   }
-  try {
-    await runBounded(
-      () => browser.deleteSession(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.warn(`deleteSession timed out during ${context}`),
-    );
-  } catch (e) {
-    if (isBenignTeardownError(e)) {
-      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
-    } else {
-      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
-    }
-  }
+  await runTeardownStep(log, `deleteSession (${context})`, () => browser.deleteSession());
 }
 
 /**
