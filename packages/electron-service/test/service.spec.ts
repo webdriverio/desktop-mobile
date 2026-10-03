@@ -1,5 +1,5 @@
 import type { BrowserExtension } from '@wdio/native-types';
-import { DEFAULT_TEARDOWN_TIMEOUT_MS, waitUntilWindowAvailable } from '@wdio/native-utils';
+import { waitUntilWindowAvailable } from '@wdio/native-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAllMocks } from '../src/commands/clearAllMocks.js';
 import { execute } from '../src/commands/executeCdp.js';
@@ -893,7 +893,7 @@ describe('Electron Worker Service', () => {
       } as unknown as WebdriverIO.Browser;
 
       await instance.before({}, [], browser);
-      await instance.after();
+      instance.after();
 
       expect(clearPuppeteerSessions).toHaveBeenCalled();
     });
@@ -930,7 +930,7 @@ describe('Electron Worker Service', () => {
       } as unknown as WebdriverIO.Browser;
 
       await instance.before({}, [], browser);
-      await instance.after();
+      instance.after();
 
       expect(mockStopCapture).toHaveBeenCalled();
       expect(clearPuppeteerSessions).toHaveBeenCalled();
@@ -1631,66 +1631,13 @@ describe('Electron Worker Service', () => {
   });
 });
 
-describe('Electron Worker Service - teardown', () => {
-  describe('after()', () => {
-    it('should restore mocks, then clear the mock store', async () => {
-      const callOrder: string[] = [];
-      vi.mocked(restoreAllMocks).mockImplementationOnce(async () => {
-        callOrder.push('restoreAllMocks');
-      });
-      vi.mocked(mockStore.clear).mockImplementationOnce(() => {
-        callOrder.push('mockStore.clear');
-      });
-      const instance = new ElectronWorkerService({}, {});
+describe('Electron Worker Service - afterSession()', () => {
+  it('should clear the mock store without restoring mocks in the app', async () => {
+    const instance = new ElectronWorkerService({}, {});
 
-      await instance.after();
+    await instance.afterSession();
 
-      expect(callOrder).toEqual(['restoreAllMocks', 'mockStore.clear']);
-    });
-
-    it('should swallow a benign CDP disconnect error and still clear the store', async () => {
-      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('WebSocket is not connected'));
-      const instance = new ElectronWorkerService({}, {});
-
-      await expect(instance.after()).resolves.toBeUndefined();
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-      expect(clearPuppeteerSessions).toHaveBeenCalled();
-    });
-
-    it('should still clear the store after a non-benign restore error', async () => {
-      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('unexpected teardown failure'));
-      const instance = new ElectronWorkerService({}, {});
-
-      await expect(instance.after()).resolves.toBeUndefined();
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-      expect(clearPuppeteerSessions).toHaveBeenCalled();
-    });
-
-    it('should not hang when restoreAllMocks never settles, bounded by timeout', async () => {
-      vi.useFakeTimers();
-      try {
-        vi.mocked(restoreAllMocks).mockImplementationOnce(() => new Promise<void>(() => {}));
-        const instance = new ElectronWorkerService({}, {});
-
-        const pending = instance.after();
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-
-        await expect(pending).resolves.toBeUndefined();
-        expect(mockStore.clear).toHaveBeenCalledTimes(1);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-  });
-
-  describe('afterSession()', () => {
-    it('should clear the mock store without touching the app', async () => {
-      const instance = new ElectronWorkerService({}, {});
-
-      await instance.afterSession();
-
-      expect(restoreAllMocks).not.toHaveBeenCalled();
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-    });
+    expect(restoreAllMocks).not.toHaveBeenCalled();
+    expect(mockStore.clear).toHaveBeenCalledTimes(1);
   });
 });

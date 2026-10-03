@@ -1,12 +1,6 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import {
-  createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
-  isBenignTeardownError,
-  runBounded,
-  runTeardownStep,
-} from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
@@ -113,20 +107,18 @@ export default class DioxusWorkerService {
   }
 
   async after(): Promise<void> {
-    // Last hook with a live session — the runner deletes it before afterSession().
-    // Unrestored mocks leave window.__wdio_mocks__ populated across embedded-mode sessions.
-    await runTeardownStep(log, 'restoreAllMocks', () => restoreAllMocks());
-    mockStore.clear();
     log.debug('DioxusWorkerService.after — clearing window cache');
     clearWindowState();
   }
 
   /**
-   * Must not talk to the app. The delete below only fires from standalone
-   * cleanup(); under the testrunner sessionId is already undefined.
+   * Must not talk to the app: the runner has already deleted the session. In-app mocks go
+   * with the app, or are reset at the next session start in embedded mode (see injectSpy()).
+   * The delete below only fires from standalone cleanup(), which calls this with the session
+   * still live.
    */
   async afterSession(): Promise<void> {
-    // Backstop: the runner skips after() on some exit paths (e.g. SIGINT during startup).
+    log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
     mockStore.clear();
 
     if (!this.browser) {
@@ -225,6 +217,23 @@ export default class DioxusWorkerService {
           'In native mode: is wdio_dioxus_bridge::install() wired into the Dioxus app? Underlying error:',
         err,
       );
+    }
+    if (this.isEmbedded) {
+      await this.clearStaleMocks(browser);
+    }
+  }
+
+  // The embedded app outlives the session, so a previous session's mocks are still registered
+  // in it: teardown can't remove them once the runner has deleted the session.
+  private async clearStaleMocks(browser: WebdriverIO.Browser): Promise<void> {
+    try {
+      await browser.execute(function clearStaleMocks() {
+        // @ts-expect-error - window is available in browser context
+        if (window.__wdio_mocks__) window.__wdio_mocks__ = {};
+      });
+      log.debug('Cleared stale mocks at session start');
+    } catch (err) {
+      log.warn('Failed to clear stale mocks at session start:', err);
     }
   }
 }

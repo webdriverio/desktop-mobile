@@ -11,7 +11,7 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import { createLogger, installMockSyncOverride, runTeardownStep, waitUntilWindowAvailable } from '@wdio/native-utils';
+import { createLogger, installMockSyncOverride, waitUntilWindowAvailable } from '@wdio/native-utils';
 import type { Capabilities, Services } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
@@ -536,16 +536,14 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     await ensureActiveWindowFocus(this.browser, commandName);
   }
 
-  async after() {
-    // Last hook with a live session — the runner deletes it before afterSession().
-    await runTeardownStep(log, 'restoreAllMocks', () => restoreAllMocks());
-    mockStore.clear();
+  after() {
     this.logCaptureManager?.stopCapture();
     clearPuppeteerSessions();
   }
 
   async afterSession() {
-    // Backstop: the runner skips after() on some exit paths (e.g. SIGINT during startup).
+    // No in-app restore: the runner has already deleted the session, and the app (or
+    // browser-mode page) goes with it.
     mockStore.clear();
   }
 

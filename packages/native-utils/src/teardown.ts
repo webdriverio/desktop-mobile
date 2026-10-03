@@ -1,5 +1,3 @@
-import type { Logger } from '@wdio/logger';
-
 /**
  * Helpers shared by the WDIO services for defensive session teardown.
  *
@@ -19,15 +17,12 @@ import type { Logger } from '@wdio/logger';
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
 // Benign teardown failure modes across providers: WebDriver session lifecycle,
-// window/app already gone, CDP-bridge disconnects, and raw socket teardown.
-// Matching a superset across services is safe — every entry is benign once
-// teardown has begun.
+// CDP-bridge disconnects, and raw socket teardown. Matching a superset across
+// services is safe — every entry is benign once teardown has begun.
 export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
   'session not found',
   'invalid session id',
   'session id is null',
-  'no such window',
-  'chrome not reachable',
   'websocket is not connected',
   'connection has been closed',
   'connection closed',
@@ -77,26 +72,6 @@ export async function runBounded<T>(
   } finally {
     if (timer) {
       clearTimeout(timer);
-    }
-  }
-}
-
-/**
- * Run a best-effort teardown step: bounded by `DEFAULT_TEARDOWN_TIMEOUT_MS`, with
- * benign errors logged at debug, and timeouts or anything else at warn. Never rejects.
- */
-export async function runTeardownStep(
-  log: Pick<Logger, 'debug' | 'warn'>,
-  name: string,
-  op: () => Promise<unknown>,
-): Promise<void> {
-  try {
-    await runBounded(op, DEFAULT_TEARDOWN_TIMEOUT_MS, () => log.warn(`${name} timed out during teardown`));
-  } catch (error) {
-    if (isBenignTeardownError(error)) {
-      log.debug(`Ignoring benign teardown error during ${name}:`, error);
-    } else {
-      log.warn(`${name} failed during teardown:`, error);
     }
   }
 }

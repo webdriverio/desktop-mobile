@@ -4,7 +4,6 @@ import {
   createLogger,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
-  runTeardownStep,
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
 import { execute } from './commands/execute.js';
@@ -271,37 +270,17 @@ export default class TauriWorkerService {
   }
 
   async after(_results: unknown, _capabilities: TauriCapabilities, _specs: string[]): Promise<void> {
-    // Last hook with a live session — the runner deletes it before afterSession().
-    await this.restoreAppMocks();
-    mockStore.clear();
-  }
-
-  private async restoreAppMocks(): Promise<void> {
-    // CrabNebula can't execute in the app (see before()).
-    if (!this.browser || mockStore.getMocks().length === 0 || this.driverProvider === 'crabnebula') {
-      return;
-    }
-    if (this.browser.isMultiremote) {
-      const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-      for (const instanceName of mrBrowser.instances) {
-        await runTeardownStep(log, `restoreAllMocks (instance ${instanceName})`, () =>
-          restoreAllMocks.call({ browser: mrBrowser.getInstance(instanceName) }),
-        );
-      }
-    } else {
-      const browser = this.browser as WebdriverIO.Browser;
-      await runTeardownStep(log, 'restoreAllMocks', () => restoreAllMocks.call({ browser }));
-    }
+    // Cleanup if needed
   }
 
   /**
-   * Must not talk to the app. The deleteSession() below only fires from standalone
-   * cleanup(); under the testrunner sessionId is already undefined.
+   * Must not talk to the app: the runner has already deleted the session. In-app mocks go
+   * with the app, or are reset at the next session start in embedded mode (see before()).
+   * The deleteSession() below only fires from standalone cleanup(), which calls this with
+   * the session still live.
    */
   async afterSession(_config: unknown, _capabilities: TauriCapabilities, _specs: string[]): Promise<void> {
     log.debug('Cleaning up session...');
-
-    // Backstop: the runner skips after() on some exit paths (e.g. SIGINT during startup).
     mockStore.clear();
 
     if (!this.browser) {

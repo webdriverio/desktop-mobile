@@ -52,7 +52,7 @@ vi.mock('../src/window.js', async (importOriginal) => {
   };
 });
 
-import { DEFAULT_TEARDOWN_TIMEOUT_MS, waitUntilWindowAvailable } from '@wdio/native-utils';
+import { waitUntilWindowAvailable } from '@wdio/native-utils';
 import { execute as executeCommand } from '../src/commands/execute.js';
 import { clearAllMocks, resetAllMocks, restoreAllMocks } from '../src/commands/mock.js';
 import mockStore from '../src/mockStore.js';
@@ -1047,124 +1047,6 @@ describe('TauriWorkerService', () => {
       expect(mockBrowser.execute).not.toHaveBeenCalled();
       expect(mockBrowser.deleteSession).not.toHaveBeenCalled();
       expect(mockStore.clear).toHaveBeenCalled();
-    });
-  });
-
-  describe('after()', () => {
-    function createMultiremoteBrowser() {
-      const instanceA = createMockBrowser({ sessionId: 'sess-a' });
-      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
-      const mrBrowser = createMockBrowser({
-        isMultiremote: true,
-        instances: ['a', 'b'],
-        getInstance: vi.fn((name: string) => (name === 'a' ? instanceA : instanceB)),
-      });
-      return { mrBrowser, instanceA, instanceB };
-    }
-
-    beforeEach(() => {
-      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.greet', {} as any]]);
-    });
-
-    afterEach(() => {
-      vi.mocked(mockStore.getMocks).mockReturnValue([]);
-    });
-
-    it('should restore mocks before clearing the mock store', async () => {
-      const callOrder: string[] = [];
-      vi.mocked(restoreAllMocks).mockImplementationOnce(async () => {
-        callOrder.push('restoreAllMocks');
-      });
-      vi.mocked(mockStore.clear).mockImplementationOnce(() => {
-        callOrder.push('mockStore.clear');
-      });
-
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = mockBrowser;
-
-      await service.after(0, {} as any, []);
-
-      expect(callOrder).toEqual(['restoreAllMocks', 'mockStore.clear']);
-      expect(vi.mocked(restoreAllMocks).mock.contexts[0]).toEqual({ browser: mockBrowser });
-    });
-
-    it('should restore mocks on every multiremote instance', async () => {
-      const { mrBrowser, instanceA, instanceB } = createMultiremoteBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = mrBrowser;
-
-      await service.after(0, {} as any, []);
-
-      expect(vi.mocked(restoreAllMocks).mock.contexts).toEqual([{ browser: instanceA }, { browser: instanceB }]);
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-    });
-
-    it('should keep restoring the remaining instances after one fails', async () => {
-      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore error'));
-      const { mrBrowser } = createMultiremoteBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = mrBrowser;
-
-      await expect(service.after(0, {} as any, [])).resolves.toBeUndefined();
-      expect(restoreAllMocks).toHaveBeenCalledTimes(2);
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-    });
-
-    it('should swallow restore errors and still clear the mock store', async () => {
-      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore error'));
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = createMockBrowser();
-
-      await expect(service.after(0, {} as any, [])).resolves.toBeUndefined();
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-    });
-
-    it('should not hang when restoreAllMocks never settles, bounded by timeout', async () => {
-      vi.useFakeTimers();
-      try {
-        vi.mocked(restoreAllMocks).mockImplementationOnce(() => new Promise<void>(() => {}));
-        const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-        (service as any).browser = createMockBrowser();
-
-        const pending = service.after(0, {} as any, []);
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-
-        await expect(pending).resolves.toBeUndefined();
-        expect(mockStore.clear).toHaveBeenCalledTimes(1);
-      } finally {
-        vi.useRealTimers();
-      }
-    });
-
-    it('should skip the app round-trip when no mocks were registered', async () => {
-      vi.mocked(mockStore.getMocks).mockReturnValue([]);
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = createMockBrowser();
-
-      await service.after(0, {} as any, []);
-
-      expect(restoreAllMocks).not.toHaveBeenCalled();
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-    });
-
-    it('should skip the app round-trip under CrabNebula', async () => {
-      const service = new TauriWorkerService({ driverProvider: 'crabnebula' }, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = createMockBrowser();
-
-      await service.after(0, {} as any, []);
-
-      expect(restoreAllMocks).not.toHaveBeenCalled();
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-    });
-
-    it('should clear the mock store when no browser exists', async () => {
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-
-      await service.after(0, {} as any, []);
-
-      expect(restoreAllMocks).not.toHaveBeenCalled();
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
     });
   });
 });

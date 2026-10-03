@@ -1,4 +1,3 @@
-import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../src/mockStore.js';
 import DioxusWorkerService from '../src/service.js';
@@ -62,9 +61,12 @@ describe('DioxusWorkerService', () => {
 
   it('should route browser.dioxus.execute through the underlying browser.execute', async () => {
     const browser = makeBrowser();
-    // First call: the injection script (handled by service.before).
-    // Second call: the dioxus.execute under test — return 'out'.
-    vi.mocked(browser.execute).mockResolvedValueOnce(undefined).mockResolvedValueOnce('out');
+    // First two calls: the injection script and the stale-mock reset (service.before).
+    // Third call: the dioxus.execute under test — return 'out'.
+    vi.mocked(browser.execute)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('out');
 
     const service = new DioxusWorkerService({}, {});
     await service.before({}, [], browser);
@@ -113,66 +115,40 @@ describe('DioxusWorkerService', () => {
     expect((browser as unknown as Installed).dioxus).toBeDefined();
   });
 
-  it('should restore mocks, then clear the process-wide mockStore in after()', async () => {
-    const fakeMock = { getMockName: () => 'dioxus.greet', mockRestore: vi.fn().mockResolvedValue(undefined) };
-    mockStore.setMock(fakeMock as any);
-    expect(mockStore.getMocks()).toHaveLength(1);
-
+  it('should clear stale in-app mocks at session start in embedded mode', async () => {
+    const browser = makeBrowser();
     const service = new DioxusWorkerService({}, {});
-    await service.after();
+    await service.before({}, [], browser);
 
-    expect(fakeMock.mockRestore).toHaveBeenCalled();
-    expect(mockStore.getMocks()).toHaveLength(0);
-  });
-
-  it('should still clear the mockStore in after() when mockRestore() rejects', async () => {
-    const fakeMock = {
-      getMockName: () => 'dioxus.greet',
-      mockRestore: vi.fn().mockRejectedValue(new Error('session closed')),
-    };
-    mockStore.setMock(fakeMock as any);
-
-    const service = new DioxusWorkerService({}, {});
-    await expect(service.after()).resolves.toBeUndefined();
-
-    expect(fakeMock.mockRestore).toHaveBeenCalled();
-    expect(mockStore.getMocks()).toHaveLength(0);
-  });
-
-  it('should keep restoring the remaining mocks in after() after one fails', async () => {
-    const failing = {
-      getMockName: () => 'dioxus.greet',
-      mockRestore: vi.fn().mockRejectedValue(new Error('no such execution context')),
-    };
-    const next = { getMockName: () => 'dioxus.save', mockRestore: vi.fn().mockResolvedValue(undefined) };
-    mockStore.setMock(failing as any);
-    mockStore.setMock(next as any);
-
-    const service = new DioxusWorkerService({}, {});
-    await service.after();
-
-    expect(next.mockRestore).toHaveBeenCalled();
-    expect(mockStore.getMocks()).toHaveLength(0);
-  });
-
-  it('should not hang in after() when mockRestore() never settles (bounded by timeout)', async () => {
-    vi.useFakeTimers();
+    const reset = vi.mocked(browser.execute).mock.calls[1][0] as () => void;
+    const fakeWindow = { __wdio_mocks__: { greet: () => 'stale' } };
+    vi.stubGlobal('window', fakeWindow);
     try {
-      const fakeMock = { getMockName: () => 'dioxus.greet', mockRestore: vi.fn(() => new Promise<void>(() => {})) };
-      mockStore.setMock(fakeMock as any);
-      const service = new DioxusWorkerService({}, {});
-
-      const pending = service.after();
-      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-
-      await expect(pending).resolves.toBeUndefined();
-      expect(mockStore.getMocks()).toHaveLength(0);
+      reset();
     } finally {
-      vi.useRealTimers();
+      vi.unstubAllGlobals();
     }
+    expect(fakeWindow.__wdio_mocks__).toEqual({});
   });
 
-  it('should clear the mockStore in afterSession() without restoring mocks', async () => {
+  it('should not reset in-app mocks for the external driver provider', async () => {
+    const browser = makeBrowser();
+    const service = new DioxusWorkerService({ driverProvider: 'external' }, {});
+    await service.before({}, [], browser);
+
+    expect(browser.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('should continue when the stale-mock reset fails', async () => {
+    const browser = makeBrowser();
+    vi.mocked(browser.execute).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('no such window'));
+    const service = new DioxusWorkerService({}, {});
+
+    await expect(service.before({}, [], browser)).resolves.toBeUndefined();
+    expect((browser as unknown as Installed).dioxus).toBeDefined();
+  });
+
+  it('should clear the mockStore in afterSession() without restoring mocks in the app', async () => {
     const fakeMock = { getMockName: () => 'dioxus.greet', mockRestore: vi.fn().mockResolvedValue(undefined) };
     mockStore.setMock(fakeMock as any);
 
@@ -197,17 +173,13 @@ describe('DioxusWorkerService', () => {
       const browser = makeNativeBrowser(() => Promise.resolve());
       const service = new DioxusWorkerService({}, {});
       await service.before({}, [], browser);
-      const fakeMock = { getMockName: () => 'dioxus.greet', mockRestore: vi.fn().mockResolvedValue(undefined) };
-      mockStore.setMock(fakeMock as any);
       vi.mocked(browser.execute).mockClear();
       (browser as { sessionId?: string }).sessionId = undefined;
 
       await service.afterSession();
 
-      expect(fakeMock.mockRestore).not.toHaveBeenCalled();
       expect(browser.execute).not.toHaveBeenCalled();
       expect(browser.deleteSession).not.toHaveBeenCalled();
-      expect(mockStore.getMocks()).toHaveLength(0);
     });
 
     it('should delete the session when one is present', async () => {
@@ -248,7 +220,7 @@ describe('DioxusWorkerService', () => {
         await service.before({}, [], browser);
 
         const pending = service.afterSession();
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+        await vi.advanceTimersByTimeAsync(10_000);
 
         await expect(pending).resolves.toBeUndefined();
       } finally {

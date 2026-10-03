@@ -19,7 +19,7 @@ WDIO runs launcher and worker services in **separate processes**. Every service 
 - `onWorkerStart` is for per-worker setup (debugger ports, per-worker driver spawning)
 - Throw `SevereServiceError` (from `webdriverio`) for critical launcher failures that should stop the runner
 - Regular `Error` in service hooks gets logged but doesn't stop the runner
-- The runner deletes the session **before** `afterSession`, so anything that needs it (mock restore, bridge drains) belongs in `after`. `afterSession` only backstops `after` and deletes the session for standalone `cleanup()`, which calls it with the session still live
+- The runner deletes the session **before** `afterSession`, so `afterSession` must not depend on it (no `browser.execute`, no in-app mock restore). Where the app outlives the session, reset its in-app state at session start instead
 
 ## Entry Point (`index.ts`)
 ```typescript
