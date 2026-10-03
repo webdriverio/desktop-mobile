@@ -371,8 +371,6 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           log.warn(`Found Electron v${electronVersion}, but no matching Chromedriver version is known`);
         }
 
-        (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:chromiumVersion'] = chromiumVersion;
-
         cap.browserName = 'chrome';
         cap['goog:chromeOptions'] = getChromeOptions({ appBinaryPath, appArgs }, cap);
 
@@ -459,8 +457,13 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
       const firstCap = caps[0];
       const appBinaryPath = (firstCap?.['goog:chromeOptions'] as Record<string, unknown>)?.binary as string | undefined;
       const electronVersion = (firstCap as Record<string, unknown>)?.['wdio:electronVersion'] as string | undefined;
-      const chromiumVersion = (firstCap as Record<string, unknown>)?.['wdio:chromiumVersion'] as string | undefined;
-      const results = await diagnoseElectronEnvironment({ appBinaryPath, electronVersion, chromiumVersion });
+      const results = await diagnoseElectronEnvironment({
+        appBinaryPath,
+        electronVersion,
+        chromiumVersion: FULL_CHROMIUM_VERSION.test(firstCap?.browserVersion ?? '')
+          ? firstCap?.browserVersion
+          : undefined,
+      });
       formatDiagnosticResults(results, 'electron-service');
     } catch (error) {
       const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
