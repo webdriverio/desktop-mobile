@@ -53,6 +53,7 @@ export { installMockSyncOverride } from '../../../native-utils/src/commandOverri
 export {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
+  deleteSessionBounded,
   isBenignTeardownError,
   runBounded,
   runTeardownStep,

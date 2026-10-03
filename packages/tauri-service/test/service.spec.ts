@@ -1036,6 +1036,25 @@ describe('TauriWorkerService', () => {
       await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
     });
 
+    it('should delete every multiremote session, continuing past a failure', async () => {
+      const instanceA = createMockBrowser({
+        sessionId: 'sess-a',
+        deleteSession: vi.fn().mockRejectedValue(new Error('unexpected')),
+      });
+      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['a', 'b'],
+        getInstance: vi.fn((name: string) => (name === 'a' ? instanceA : instanceB)),
+      });
+
+      await expect(service.afterSession({}, {} as any, [])).resolves.toBeUndefined();
+      expect(instanceB.deleteSession).toHaveBeenCalledTimes(1);
+      expect(clearWindowState).toHaveBeenCalledWith('sess-a');
+      expect(clearWindowState).toHaveBeenCalledWith('sess-b');
+    });
+
     it('should not talk to the app once the runner has deleted the session', async () => {
       const mockBrowser = createMockBrowser({ sessionId: undefined });
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
@@ -1061,6 +1080,14 @@ describe('TauriWorkerService', () => {
       });
       return { mrBrowser, instanceA, instanceB };
     }
+
+    beforeEach(() => {
+      vi.mocked(mockStore.getMocks).mockReturnValue([['tauri.greet', {} as any]]);
+    });
+
+    afterEach(() => {
+      vi.mocked(mockStore.getMocks).mockReturnValue([]);
+    });
 
     it('should restore mocks before clearing the mock store', async () => {
       const callOrder: string[] = [];
@@ -1127,6 +1154,27 @@ describe('TauriWorkerService', () => {
       } finally {
         vi.useRealTimers();
       }
+    });
+
+    it('should skip the app round-trip when no mocks were registered', async () => {
+      vi.mocked(mockStore.getMocks).mockReturnValue([]);
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = createMockBrowser();
+
+      await service.after(0, {} as any, []);
+
+      expect(restoreAllMocks).not.toHaveBeenCalled();
+      expect(mockStore.clear).toHaveBeenCalledTimes(1);
+    });
+
+    it('should skip the app round-trip under CrabNebula', async () => {
+      const service = new TauriWorkerService({ driverProvider: 'crabnebula' }, { 'wdio:tauriServiceOptions': {} });
+      (service as any).browser = createMockBrowser();
+
+      await service.after(0, {} as any, []);
+
+      expect(restoreAllMocks).not.toHaveBeenCalled();
+      expect(mockStore.clear).toHaveBeenCalledTimes(1);
     });
 
     it('should clear the mock store when no browser exists', async () => {

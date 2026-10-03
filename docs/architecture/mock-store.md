@@ -21,7 +21,7 @@ export default mockStore;
 ## Usage
 - `setMock()` — called when `browser.<framework>.mock()` creates a new mock
 - `getMocks()` — used by `updateAllMocks()` to sync all mocks after DOM interactions
-- `clear()` — called in `after` once `restoreAllMocks()` has unregistered the in-app mocks, and again in `afterSession` as a backstop, so stale mocks don't carry into the next session
+- `clear()` — called at the end of `after` (following `restoreAllMocks()`), and again in `afterSession` as a backstop, so stale mocks don't carry into the next session
 
 ## Bulk Operations
 These iterate the store and operate on each mock:

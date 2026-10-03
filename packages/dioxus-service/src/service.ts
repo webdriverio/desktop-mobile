@@ -1,6 +1,6 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, runTeardownStep } from '@wdio/native-utils';
+import { createLogger, deleteSessionBounded, runTeardownStep } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
@@ -12,14 +12,6 @@ import { clearWindowState, listWindowLabels, switchWindowByLabel } from './windo
 
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
-
-async function safeDeleteSession(browser: WebdriverIO.Browser, label?: string): Promise<void> {
-  if (!browser.sessionId) {
-    return;
-  }
-  log.debug(`Deleting session${label ? ` for ${label}` : ''}: ${browser.sessionId}`);
-  await runTeardownStep(log, label ? `deleteSession (${label})` : 'deleteSession', () => browser.deleteSession());
-}
 
 export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
@@ -103,15 +95,18 @@ export default class DioxusWorkerService {
     // Backstop: the runner skips after() on some exit paths (e.g. SIGINT during startup).
     mockStore.clear();
 
-    if (this.browser?.isMultiremote) {
-      const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-      for (const instanceName of mrBrowser.instances) {
-        await safeDeleteSession(mrBrowser.getInstance(instanceName), `instance ${instanceName}`);
+    try {
+      if (this.browser?.isMultiremote) {
+        const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
+        for (const instanceName of mrBrowser.instances) {
+          await deleteSessionBounded(log, mrBrowser.getInstance(instanceName), `instance ${instanceName}`);
+        }
+      } else if (this.browser) {
+        await deleteSessionBounded(log, this.browser as WebdriverIO.Browser);
       }
-    } else if (this.browser) {
-      await safeDeleteSession(this.browser as WebdriverIO.Browser);
+    } finally {
+      clearWindowState();
     }
-    clearWindowState();
   }
 
   private addDioxusApi(browser: WebdriverIO.Browser): void {

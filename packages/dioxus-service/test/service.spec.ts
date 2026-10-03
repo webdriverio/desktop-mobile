@@ -139,6 +139,22 @@ describe('DioxusWorkerService', () => {
     expect(mockStore.getMocks()).toHaveLength(0);
   });
 
+  it('should keep restoring the remaining mocks in after() after one fails', async () => {
+    const failing = {
+      getMockName: () => 'dioxus.greet',
+      mockRestore: vi.fn().mockRejectedValue(new Error('no such execution context')),
+    };
+    const next = { getMockName: () => 'dioxus.save', mockRestore: vi.fn().mockResolvedValue(undefined) };
+    mockStore.setMock(failing as any);
+    mockStore.setMock(next as any);
+
+    const service = new DioxusWorkerService({}, {});
+    await service.after();
+
+    expect(next.mockRestore).toHaveBeenCalled();
+    expect(mockStore.getMocks()).toHaveLength(0);
+  });
+
   it('should not hang in after() when mockRestore() never settles (bounded by timeout)', async () => {
     vi.useFakeTimers();
     try {

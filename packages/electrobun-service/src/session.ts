@@ -11,7 +11,7 @@ import type {
   ElectrobunServiceGlobalOptions,
   ElectrobunServiceOptions,
 } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded, runTeardownStep } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, deleteSessionBounded, runBounded } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 
@@ -43,13 +43,6 @@ async function failStartup(launcher: ElectrobunLaunchService, error: unknown): P
     });
   }
   throw error;
-}
-
-async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
-  if (!browser.sessionId) {
-    return;
-  }
-  await runTeardownStep(log, `deleteSession (${context})`, () => browser.deleteSession());
 }
 
 /**
@@ -96,7 +89,7 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    await deleteSessionBounded(browser, 'service.before cleanup');
+    await deleteSessionBounded(log, browser, 'service.before cleanup');
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }
@@ -132,7 +125,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     activeServices.delete(browser);
   }
 
-  await deleteSessionBounded(browser, 'cleanup');
+  await deleteSessionBounded(log, browser, 'cleanup');
 
   try {
     await runBounded(

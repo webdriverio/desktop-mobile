@@ -2,6 +2,7 @@ import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
 import {
   createLogger,
+  deleteSessionBounded,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
   runTeardownStep,
@@ -272,18 +273,26 @@ export default class TauriWorkerService {
 
   async after(_results: unknown, _capabilities: TauriCapabilities, _specs: string[]): Promise<void> {
     // Last hook with a live session — the runner deletes it before afterSession().
-    if (this.browser?.isMultiremote) {
+    await this.restoreAppMocks();
+    mockStore.clear();
+  }
+
+  private async restoreAppMocks(): Promise<void> {
+    // CrabNebula can't execute in the app (see before()).
+    if (!this.browser || mockStore.getMocks().length === 0 || this.driverProvider === 'crabnebula') {
+      return;
+    }
+    if (this.browser.isMultiremote) {
       const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
         await runTeardownStep(log, `restoreAllMocks (instance ${instanceName})`, () =>
           restoreAllMocks.call({ browser: mrBrowser.getInstance(instanceName) }),
         );
       }
-    } else if (this.browser) {
+    } else {
       const browser = this.browser as WebdriverIO.Browser;
       await runTeardownStep(log, 'restoreAllMocks', () => restoreAllMocks.call({ browser }));
     }
-    mockStore.clear();
   }
 
   /**
@@ -306,27 +315,14 @@ export default class TauriWorkerService {
       if (!this.browser.isMultiremote) {
         const stdBrowser = this.browser as WebdriverIO.Browser;
         clearWindowState(stdBrowser.sessionId);
-        if (stdBrowser.sessionId) {
-          log.debug(`Deleting session: ${stdBrowser.sessionId}`);
-          await stdBrowser.deleteSession();
-          log.debug('Session deleted successfully');
-        }
+        await deleteSessionBounded(log, stdBrowser);
       } else {
-        // Handle multiremote cleanup
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
         const sessionIds: (string | undefined)[] = [];
         for (const instanceName of mrBrowser.instances) {
-          try {
-            const instance = mrBrowser.getInstance(instanceName);
-            sessionIds.push(instance.sessionId);
-            if (instance.sessionId) {
-              log.debug(`Deleting session for instance ${instanceName}: ${instance.sessionId}`);
-              await instance.deleteSession();
-              log.debug(`Session deleted for instance ${instanceName}`);
-            }
-          } catch (error) {
-            log.warn(`Failed to delete session for instance ${instanceName}:`, error);
-          }
+          const instance = mrBrowser.getInstance(instanceName);
+          sessionIds.push(instance.sessionId);
+          await deleteSessionBounded(log, instance, `instance ${instanceName}`);
         }
         // Clear all session IDs from cache
         for (const sid of sessionIds) {

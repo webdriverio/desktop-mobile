@@ -1,4 +1,4 @@
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded, runTeardownStep } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, deleteSessionBounded, runBounded } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import DioxusLaunchService from './launcher.js';
@@ -20,13 +20,6 @@ async function stopLauncher(launcher: DioxusLaunchService, context: string): Pro
     DEFAULT_TEARDOWN_TIMEOUT_MS,
     () => log.warn(`launcher.onComplete() timed out during ${context}`),
   ).catch((e: Error) => log.warn(`launcher.onComplete() failed during ${context}: ${e.message}`));
-}
-
-async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
-  if (!browser.sessionId) {
-    return;
-  }
-  await runTeardownStep(log, `deleteSession (${context})`, () => browser.deleteSession());
 }
 
 /**
@@ -88,7 +81,7 @@ export async function init(
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {
-    await deleteSessionBounded(browser, 'service.before cleanup');
+    await deleteSessionBounded(log, browser, 'service.before cleanup');
     await stopLauncher(launcher, 'service.before cleanup');
     activeLaunchers.delete(browser);
     throw error;

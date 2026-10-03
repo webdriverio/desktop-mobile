@@ -1,4 +1,5 @@
 import type { IncomingMessage } from 'node:http';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const {
@@ -34,7 +35,8 @@ vi.mock('@wdio/native-core', () => ({
   closeLogWriter: vi.fn(),
 }));
 
-vi.mock('@wdio/native-utils', () => ({
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
   createLogger: () => ({
     debug: vi.fn(),
     info: vi.fn(),
@@ -85,7 +87,7 @@ function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO
     instances: [],
     getInstance: vi.fn(),
     execute: vi.fn(),
-    deleteSession: vi.fn(),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as WebdriverIO.Browser;
 }
@@ -598,6 +600,25 @@ describe('session', () => {
       expect(settled).toBe(false);
       finishCleanup();
       expect(await result).toBe(error);
+    });
+
+    it('does not hang startup cleanup when deleteSession never settles', async () => {
+      vi.useFakeTimers();
+      try {
+        const error = new Error('before failed');
+        mockRemote.mockResolvedValueOnce(
+          createMockBrowser({ deleteSession: vi.fn(() => new Promise<void>(() => {})) }),
+        );
+        mockBefore.mockRejectedValueOnce(error);
+
+        const result = init({}).catch((failure: unknown) => failure);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+
+        expect(await result).toBe(error);
+        expect(mockOnComplete).toHaveBeenCalledOnce();
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('preserves startup, session cleanup and launcher cleanup failures', async () => {

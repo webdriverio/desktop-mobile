@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
@@ -145,8 +145,13 @@ export async function init(
       error instanceof Error ? error : new Error('Tauri standalone session startup failed', { cause: error });
     const failures: unknown[] = [startupError];
     if (browser) {
+      const startedBrowser = browser;
       try {
-        await browser.deleteSession();
+        await runBounded(
+          () => startedBrowser.deleteSession(),
+          DEFAULT_TEARDOWN_TIMEOUT_MS,
+          () => log.warn('deleteSession timed out during startup cleanup'),
+        );
       } catch (cleanupError) {
         failures.push(cleanupError);
       }
