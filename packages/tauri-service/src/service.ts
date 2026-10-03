@@ -4,6 +4,7 @@ import {
   createLogger,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
   safeDeleteSession,
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
@@ -311,17 +312,20 @@ export default class TauriWorkerService {
       return;
     }
 
+    // tauri-driver/msedgedriver close the app on DELETE, which can outlast the default deadline;
+    // giving up early lets onComplete kill the driver mid-close.
+    const deleteOptions = { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS };
     if (!this.browser.isMultiremote) {
       const stdBrowser = this.browser as WebdriverIO.Browser;
       clearWindowState(stdBrowser.sessionId);
-      await safeDeleteSession(stdBrowser, 'afterSession', log);
+      await safeDeleteSession(stdBrowser, 'afterSession', log, deleteOptions);
     } else {
       const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
         try {
           const instance = mrBrowser.getInstance(instanceName);
           clearWindowState(instance.sessionId);
-          await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
+          await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log, deleteOptions);
         } catch (error) {
           log.warn(`Failed to clean up instance ${instanceName}:`, error);
         }

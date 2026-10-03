@@ -11,8 +11,8 @@ import type { Logger } from '@wdio/logger';
 
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
-// For an onComplete that stops child processes in sequence: one stop alone can take the SIGTERM
-// grace & SIGKILL wait, so the default deadline would abandon it mid-escalation.
+// boundedOnComplete's default: onComplete stops child processes in sequence, and one stop alone can
+// take the SIGTERM grace & SIGKILL wait, so DEFAULT_TEARDOWN_TIMEOUT_MS would abandon it mid-escalation.
 export const PROCESS_TEARDOWN_TIMEOUT_MS = 30_000;
 
 // Matching a superset across services is safe: every entry is benign once teardown has begun.
@@ -31,7 +31,7 @@ export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
 ];
 
 // Teardown catches anything, including a bare `reject()`, so never assume an Error.
-function errorMessage(error: unknown): string {
+export function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
@@ -134,7 +134,7 @@ export async function boundedOnComplete(
   log: Pick<Logger, 'warn'>,
   options: { rethrow?: boolean; timeoutMs?: number } = {},
 ): Promise<void> {
-  const timeoutMs = options.timeoutMs ?? DEFAULT_TEARDOWN_TIMEOUT_MS;
+  const timeoutMs = options.timeoutMs ?? PROCESS_TEARDOWN_TIMEOUT_MS;
   let timedOut = false;
   try {
     await runBounded(

@@ -3,9 +3,9 @@ import { closeLogWriter, getLogWriter } from '@wdio/native-core';
 import {
   boundedOnComplete,
   createLogger,
+  errorMessage,
   failStartup,
   PROCESS_TEARDOWN_TIMEOUT_MS,
-  runBounded,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
@@ -135,10 +135,13 @@ export async function init(
     const startupError =
       error instanceof Error ? error : new Error('Tauri standalone session startup failed', { cause: error });
     if (browser) {
-      await safeDeleteSession(browser, 'startup cleanup', log);
+      await safeDeleteSession(browser, 'startup cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
     }
-    return failStartup(startupError, 'Tauri standalone', () =>
-      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS }),
+    return failStartup(
+      startupError,
+      'Tauri standalone',
+      () => boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
+      () => closeLogWriter('tauri-service'),
     );
   }
 }
@@ -160,34 +163,24 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     try {
       await svc?.after?.();
     } catch (e) {
-      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
     }
     try {
       await svc?.afterSession?.();
     } catch (e) {
-      log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.afterSession() failed during cleanup: ${errorMessage(e)}`);
     } finally {
       activeServices.delete(browser);
     }
 
-    // onWorkerEnd stops an external provider's per-worker driver/backend (a no-op for embedded); a
-    // failure here mustn't skip the onComplete teardown below.
-    await runBounded(
-      () => launcher.onWorkerEnd('standalone'),
-      PROCESS_TEARDOWN_TIMEOUT_MS,
-      () => log.warn(`launcher.onWorkerEnd() timed out after ${PROCESS_TEARDOWN_TIMEOUT_MS}ms during cleanup`),
-    ).catch((e: Error) => log.warn(`launcher.onWorkerEnd() failed during cleanup: ${e.message}`));
+    // No onWorkerEnd: onComplete stops every process it would, and its CrabNebula cycle would only
+    // restart the backend and driver for onComplete to kill.
+    await boundedOnComplete(launcher, 'cleanup', log);
 
-    // Rethrown: onComplete throws when an embedded driver won't die, which leaves its port taken
-    // for the next init().
-    try {
-      await boundedOnComplete(launcher, 'cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
-    } finally {
-      await closeLogWriter('tauri-service').catch((e: Error) =>
-        log.warn(`Failed to close log writer during cleanup: ${e.message}`),
-      );
-      activeLaunchers.delete(browser);
-    }
+    await closeLogWriter('tauri-service').catch((e: unknown) =>
+      log.warn(`Failed to close log writer during cleanup: ${errorMessage(e)}`),
+    );
+    activeLaunchers.delete(browser);
     log.debug('Tauri standalone session cleaned up');
   } else {
     log.warn('No launcher found for this browser instance');

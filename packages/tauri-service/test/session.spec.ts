@@ -74,7 +74,7 @@ vi.mock('node:http', () => ({
 }));
 
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import TauriLaunchService from '../src/launcher.js';
 import TauriWorkerService from '../src/service.js';
 import { cleanup, createTauriCapabilities, init } from '../src/session.js';
@@ -604,6 +604,14 @@ describe('session', () => {
       expect(mockOnComplete).toHaveBeenCalledOnce();
     });
 
+    it('should close the log writer on a startup failure even when onComplete fails', async () => {
+      const startup = new Error('worker service failed');
+      mockBefore.mockRejectedValueOnce(startup);
+      mockOnComplete.mockRejectedValueOnce(new Error('dev server close boom'));
+      await expect(init({})).rejects.toMatchObject({ cause: startup });
+      expect(closeLogWriter).toHaveBeenCalledWith('tauri-service');
+    });
+
     it('should swallow a benign session-cleanup error and rethrow only the startup error', async () => {
       const startup = new Error('worker service failed');
       const browser = createMockBrowser({ deleteSession: vi.fn().mockRejectedValue(new Error('session not found')) });
@@ -622,7 +630,7 @@ describe('session', () => {
       });
     });
 
-    it('should call launcher lifecycle methods when launcher is found', async () => {
+    it('should stop the launcher via onComplete alone when launcher is found', async () => {
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -633,12 +641,13 @@ describe('session', () => {
 
       await cleanup(browser);
 
-      expect(mockOnWorkerEnd).toHaveBeenCalledWith('standalone');
+      // onWorkerEnd's CrabNebula cycle would restart processes only for onComplete to kill them.
+      expect(mockOnWorkerEnd).not.toHaveBeenCalled();
       expect(mockOnComplete).toHaveBeenCalled();
       expect(closeLogWriter).toHaveBeenCalled();
     });
 
-    it('should surface a launcher.onComplete failure from cleanup after closing the log writer', async () => {
+    it('should still close the log writer when launcher.onComplete fails during cleanup', async () => {
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -646,40 +655,8 @@ describe('session', () => {
       vi.clearAllMocks();
       mockOnComplete.mockRejectedValueOnce(new Error('driver stop boom'));
 
-      await expect(cleanup(browser)).rejects.toThrow('driver stop boom');
-      expect(closeLogWriter).toHaveBeenCalled();
-    });
-
-    it('should still stop the launcher and close the log writer when onWorkerEnd fails', async () => {
-      const capabilities = {
-        'tauri:options': { application: '/app' },
-      } as unknown as TauriCapabilities;
-      const browser = await init(capabilities);
-      vi.clearAllMocks();
-      mockOnWorkerEnd.mockRejectedValueOnce(new Error('backend stop boom'));
-
       await expect(cleanup(browser)).resolves.toBeUndefined();
-      expect(mockOnComplete).toHaveBeenCalledOnce();
       expect(closeLogWriter).toHaveBeenCalled();
-    });
-
-    it('should bound a stalled onWorkerEnd so onComplete still runs', async () => {
-      const capabilities = {
-        'tauri:options': { application: '/app' },
-      } as unknown as TauriCapabilities;
-      const browser = await init(capabilities);
-      vi.clearAllMocks();
-      mockOnWorkerEnd.mockReturnValueOnce(new Promise<void>(() => {}));
-
-      vi.useFakeTimers();
-      try {
-        const pending = cleanup(browser);
-        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
-        await expect(pending).resolves.toBeUndefined();
-      } finally {
-        vi.useRealTimers();
-      }
-      expect(mockOnComplete).toHaveBeenCalledOnce();
     });
 
     it('should wait past the default teardown deadline for a slow multi-process onComplete', async () => {

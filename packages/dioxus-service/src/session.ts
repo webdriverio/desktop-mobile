@@ -1,8 +1,8 @@
 import {
   boundedOnComplete,
   createLogger,
+  errorMessage,
   failStartup as failStartupShared,
-  PROCESS_TEARDOWN_TIMEOUT_MS,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -18,7 +18,7 @@ const activeServices = new WeakMap<WebdriverIO.Browser, DioxusWorkerService>();
 
 function failStartup(launcher: DioxusLaunchService, error: unknown, context: string): Promise<never> {
   return failStartupShared(error, 'Dioxus standalone', () =>
-    boundedOnComplete(launcher, context, log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS }),
+    boundedOnComplete(launcher, context, log, { rethrow: true }),
   );
 }
 
@@ -99,16 +99,16 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     try {
       await service?.after();
     } catch (e: unknown) {
-      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
     }
     try {
       await service?.afterSession();
     } catch (e: unknown) {
-      log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.afterSession() failed during cleanup: ${errorMessage(e)}`);
     } finally {
       activeServices.delete(browser);
     }
-    await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
+    await boundedOnComplete(launcher, 'cleanup', log);
     activeLaunchers.delete(browser);
     log.debug('Dioxus standalone session cleaned up');
   } else {

@@ -8,8 +8,8 @@ import type {
 import {
   boundedOnComplete,
   createLogger,
+  errorMessage,
   failStartup as failStartupShared,
-  PROCESS_TEARDOWN_TIMEOUT_MS,
   safeDeleteSession,
 } from '@wdio/native-utils';
 
@@ -29,8 +29,7 @@ function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<n
     error,
     'Electron standalone',
     () => writer.close(),
-    () =>
-      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS }),
+    () => boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
   );
 }
 
@@ -114,22 +113,24 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     try {
       await svc?.after?.();
     } catch (e) {
-      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
     }
     try {
       await svc?.afterSession?.();
     } catch (e) {
-      log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.afterSession() failed during cleanup: ${errorMessage(e)}`);
     } finally {
       activeServices.delete(browser);
     }
 
     await safeDeleteSession(browser, 'cleanup', log);
 
-    await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
+    await boundedOnComplete(launcher, 'cleanup', log);
 
     const writer = getLogWriter('electron-service');
-    await writer.close().catch((e: Error) => log.warn(`Failed to close log writer during cleanup: ${e.message}`));
+    await writer
+      .close()
+      .catch((e: unknown) => log.warn(`Failed to close log writer during cleanup: ${errorMessage(e)}`));
     activeLaunchers.delete(browser);
     log.debug('Electron standalone session cleaned up');
   } else {

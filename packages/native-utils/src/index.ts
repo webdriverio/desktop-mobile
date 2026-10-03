@@ -33,6 +33,7 @@ export {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
   boundedOnComplete,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
+  errorMessage,
   failStartup,
   isBenignTeardownError,
   PROCESS_TEARDOWN_TIMEOUT_MS,

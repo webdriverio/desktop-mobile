@@ -3,8 +3,8 @@
 import {
   boundedOnComplete,
   createLogger,
+  errorMessage,
   failStartup as failStartupShared,
-  PROCESS_TEARDOWN_TIMEOUT_MS,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -63,7 +63,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
 
   function failStartup(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
     return failStartupShared(error, 'Mobile standalone', () =>
-      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS }),
+      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
     );
   }
 
@@ -138,14 +138,14 @@ export function createMobileSession<TOptions extends object, TCap extends object
     try {
       await service?.after();
     } catch (e) {
-      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
     } finally {
       activeServices.delete(browser);
     }
 
     await safeDeleteSession(browser, 'cleanup', log, { timeoutMs: APPIUM_DELETE_SESSION_TIMEOUT_MS });
 
-    await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
+    await boundedOnComplete(launcher, 'cleanup', log);
 
     activeLaunchers.delete(browser);
     log.debug('Mobile standalone session cleaned up');

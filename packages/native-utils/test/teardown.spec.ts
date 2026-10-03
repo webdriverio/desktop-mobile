@@ -302,20 +302,28 @@ describe('boundedOnComplete', () => {
       const pending = boundedOnComplete({ onComplete: () => new Promise<void>(() => {}) }, 'startup cleanup', log, {
         rethrow: true,
       });
-      const assertion = expect(pending).rejects.toThrow('onComplete() timed out after 10000ms during startup cleanup');
-      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-      await assertion;
+      await Promise.all([
+        expect(pending).rejects.toThrow(
+          `onComplete() timed out after ${PROCESS_TEARDOWN_TIMEOUT_MS}ms during startup cleanup`,
+        ),
+        vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS),
+      ]);
     } finally {
       vi.useRealTimers();
     }
   });
 
-  it('should warn and resolve when onComplete stalls past the timeout', async () => {
+  it('should warn and resolve when onComplete stalls past the process-teardown default', async () => {
     vi.useFakeTimers();
     try {
       const log = makeLog();
-      const pending = boundedOnComplete({ onComplete: () => new Promise<void>(() => {}) }, 'cleanup', log);
+      let settled = false;
+      const pending = boundedOnComplete({ onComplete: () => new Promise<void>(() => {}) }, 'cleanup', log).then(() => {
+        settled = true;
+      });
       await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS - DEFAULT_TEARDOWN_TIMEOUT_MS);
       await expect(pending).resolves.toBeUndefined();
       expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('onComplete() timed out'));
     } finally {
@@ -329,13 +337,11 @@ describe('boundedOnComplete', () => {
       const log = makeLog();
       let settled = false;
       const pending = boundedOnComplete({ onComplete: () => new Promise<void>(() => {}) }, 'cleanup', log, {
-        timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS,
+        timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS,
       }).then(() => {
         settled = true;
       });
       await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-      expect(settled).toBe(false);
-      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS - DEFAULT_TEARDOWN_TIMEOUT_MS);
       await pending;
       expect(settled).toBe(true);
     } finally {
@@ -353,7 +359,7 @@ describe('boundedOnComplete', () => {
           rejectStop = reject;
         });
       const pending = boundedOnComplete({ onComplete }, 'cleanup', log);
-      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
       await expect(pending).resolves.toBeUndefined();
 
       rejectStop(new Error('embedded driver stop failed'));
