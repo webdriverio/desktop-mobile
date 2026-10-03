@@ -225,6 +225,10 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
             delete chromeOpts.binary;
           }
           delete (cap as Record<string, unknown>)['wdio:enforceWebDriverClassic'];
+          // an Electron browserVersion means nothing to system Chrome; a full Chromium version still picks that build
+          if (!FULL_CHROMIUM_VERSION.test(cap.browserVersion ?? '')) {
+            delete cap.browserVersion;
+          }
           delete (cap as Record<string, unknown>)['wdio:electronVersion'];
         }
       } catch (error) {

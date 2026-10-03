@@ -53,6 +53,7 @@ describe('ElectronLaunchService — browser mode', () => {
       const caps: any[] = [
         {
           browserName: 'electron',
+          browserVersion: '33.2.1',
           'wdio:electronVersion': '33.2.1',
           'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
         },
@@ -61,7 +62,21 @@ describe('ElectronLaunchService — browser mode', () => {
       expect(caps[0].browserName).toBe('chrome');
       expect(caps[0]['goog:chromeOptions']).toBeUndefined();
       expect(caps[0]['wdio:enforceWebDriverClassic']).toBeUndefined();
+      expect(caps[0].browserVersion).toBeUndefined();
       expect(caps[0]['wdio:electronVersion']).toBeUndefined();
+    });
+
+    it('should keep a full Chromium browserVersion', async () => {
+      const launcher = makeLauncher();
+      const caps: any[] = [
+        {
+          browserName: 'electron',
+          browserVersion: '130.0.6723.137',
+          'wdio:electronServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
+        },
+      ];
+      await launcher.onPrepare({} as any, caps);
+      expect(caps[0].browserVersion).toBe('130.0.6723.137');
     });
 
     it('should preserve user-supplied goog:chromeOptions and strip only the Electron binary', async () => {
