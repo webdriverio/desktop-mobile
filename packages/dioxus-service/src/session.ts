@@ -64,8 +64,8 @@ export async function init(
     capabilities: driverCapabilities,
     connectionRetryTimeout: startTimeout * 4,
     connectionRetryCount: 10,
-  }).catch((error: Error) => {
-    log.error(`Failed to create remote session: ${error.message}`);
+  }).catch((error: unknown) => {
+    log.error(`Failed to create remote session: ${errorMessage(error)}`);
     return failStartup(launcher, error, 'remote() cleanup');
   });
 

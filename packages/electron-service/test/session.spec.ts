@@ -149,6 +149,14 @@ describe('Session Management', () => {
       expect(mockInitialize).not.toHaveBeenCalled();
     });
 
+    it('should still stop the launcher when remote() rejects with a non-Error', async () => {
+      remoteMock.mockRejectedValueOnce(undefined);
+      const caps = baseCaps();
+
+      await expect(init([caps])).rejects.toBeUndefined();
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
     it('should close the log writer and stop the launcher when remote() fails', async () => {
       remoteMock.mockRejectedValueOnce(new Error('chromedriver missing'));
       const caps = baseCaps();
@@ -250,7 +258,7 @@ describe('Session Management', () => {
       vi.useFakeTimers();
       try {
         const cleanupPromise = cleanup(browser);
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS + 1_000);
         await expect(cleanupPromise).resolves.toBeUndefined();
       } finally {
         vi.useRealTimers();

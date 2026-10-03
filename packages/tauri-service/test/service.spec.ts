@@ -1104,6 +1104,34 @@ describe('TauriWorkerService', () => {
       expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
     });
 
+    it('should delete multiremote sessions in parallel, within one deadline', async () => {
+      vi.useFakeTimers();
+      try {
+        const hung = () => vi.fn(() => new Promise<void>(() => {}));
+        const instanceA = createMockBrowser({ sessionId: 'sess-a', deleteSession: hung() });
+        const instanceB = createMockBrowser({ sessionId: 'sess-b', deleteSession: hung() });
+        const mrBrowser = {
+          isMultiremote: true,
+          instances: ['browserA', 'browserB'],
+          getInstance: vi.fn((name: string) => (name === 'browserA' ? instanceA : instanceB)),
+        } as unknown as WebdriverIO.MultiRemoteBrowser;
+        const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+        (service as unknown as { browser: WebdriverIO.MultiRemoteBrowser }).browser = mrBrowser;
+
+        let settled = false;
+        const pending = service.afterSession({}, {} as TauriCapabilities, []).then(() => {
+          settled = true;
+        });
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
+        await pending;
+        expect(settled).toBe(true);
+        expect(instanceA.deleteSession).toHaveBeenCalledTimes(1);
+        expect(instanceB.deleteSession).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should keep cleaning up the remaining instances when getInstance throws for one', async () => {
       const healthy = createMockBrowser({ sessionId: 'sess-b' });
       const mrBrowser = {

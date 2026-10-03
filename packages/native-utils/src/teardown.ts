@@ -11,8 +11,9 @@ import type { Logger } from '@wdio/logger';
 
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
-// boundedOnComplete's default: onComplete stops child processes in sequence, and one stop alone can
-// take the SIGTERM grace & SIGKILL wait, so DEFAULT_TEARDOWN_TIMEOUT_MS would abandon it mid-escalation.
+// Default for teardown that waits on processes: onComplete stops them in sequence (one stop alone can
+// take the SIGTERM grace & SIGKILL wait), and a session DELETE can close the app. The shorter
+// DEFAULT_TEARDOWN_TIMEOUT_MS would abandon either mid-way.
 export const PROCESS_TEARDOWN_TIMEOUT_MS = 30_000;
 
 // Matching a superset across services is safe: every entry is benign once teardown has begun.
@@ -113,7 +114,7 @@ export async function safeDeleteSession(
   try {
     await runBounded(
       () => browser.deleteSession(),
-      options.timeoutMs ?? DEFAULT_TEARDOWN_TIMEOUT_MS,
+      options.timeoutMs ?? PROCESS_TEARDOWN_TIMEOUT_MS,
       () => log.warn(`deleteSession timed out during ${context}`),
     );
   } catch (e) {

@@ -1052,13 +1052,16 @@ export default class TauriLaunchService {
   ): Promise<void> {
     log.debug('Completing Tauri service...');
 
-    await this.#stopDevServer?.();
-    this.#stopDevServer = undefined;
-
     try {
-      await closeLogWriter('tauri-service');
-    } catch {
-      // Log writer may not have been initialized
+      await this.#stopDevServer?.();
+      this.#stopDevServer = undefined;
+    } finally {
+      // Even when the dev-server stop throws, so buffered log lines aren't lost.
+      try {
+        await closeLogWriter('tauri-service');
+      } catch {
+        // Log writer may not have been initialized
+      }
     }
 
     // Stop all worker test-runner-backends (per-worker mode)

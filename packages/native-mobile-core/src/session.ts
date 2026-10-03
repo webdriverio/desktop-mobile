@@ -103,8 +103,8 @@ export function createMobileSession<TOptions extends object, TCap extends object
       ...deps.defaultConnection,
       ...connection,
       capabilities: capability as WebdriverIO.Capabilities,
-    }).catch((error: Error) => {
-      log.error(`Failed to create remote session: ${error.message}`);
+    }).catch((error: unknown) => {
+      log.error(`Failed to create remote session: ${errorMessage(error)}`);
       return failStartup(launcher, error);
     });
 

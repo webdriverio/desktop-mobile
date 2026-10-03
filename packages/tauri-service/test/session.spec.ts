@@ -12,6 +12,7 @@ const {
   mockLogWriterGetLogFile,
   mockRemote,
   mockHttpGet,
+  mockLog,
 } = vi.hoisted(() => ({
   mockOnPrepare: vi.fn().mockResolvedValue(undefined),
   mockOnWorkerStart: vi.fn().mockResolvedValue(undefined),
@@ -23,6 +24,7 @@ const {
   mockLogWriterGetLogFile: vi.fn().mockReturnValue('/tmp/logs/test.log'),
   mockRemote: vi.fn(),
   mockHttpGet: vi.fn(),
+  mockLog: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('@wdio/native-core', () => ({
@@ -36,12 +38,7 @@ vi.mock('@wdio/native-core', () => ({
 
 vi.mock('@wdio/native-utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-utils')>()),
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
+  createLogger: () => mockLog,
 }));
 
 vi.mock('../src/launcher.js', () => ({
@@ -601,15 +598,10 @@ describe('session', () => {
       mockBefore.mockRejectedValueOnce(startup);
       await expect(init({})).rejects.toBe(startup);
       expect(deleteSession).toHaveBeenCalledOnce();
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Failed to delete session during startup cleanup: chrome not reachable',
+      );
       expect(mockOnComplete).toHaveBeenCalledOnce();
-    });
-
-    it('should close the log writer on a startup failure even when onComplete fails', async () => {
-      const startup = new Error('worker service failed');
-      mockBefore.mockRejectedValueOnce(startup);
-      mockOnComplete.mockRejectedValueOnce(new Error('dev server close boom'));
-      await expect(init({})).rejects.toMatchObject({ cause: startup });
-      expect(closeLogWriter).toHaveBeenCalledWith('tauri-service');
     });
 
     it('should swallow a benign session-cleanup error and rethrow only the startup error', async () => {

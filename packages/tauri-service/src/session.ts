@@ -1,13 +1,6 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import {
-  boundedOnComplete,
-  createLogger,
-  errorMessage,
-  failStartup,
-  PROCESS_TEARDOWN_TIMEOUT_MS,
-  safeDeleteSession,
-} from '@wdio/native-utils';
+import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteSession } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
@@ -135,13 +128,10 @@ export async function init(
     const startupError =
       error instanceof Error ? error : new Error('Tauri standalone session startup failed', { cause: error });
     if (browser) {
-      await safeDeleteSession(browser, 'startup cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
+      await safeDeleteSession(browser, 'startup cleanup', log);
     }
-    return failStartup(
-      startupError,
-      'Tauri standalone',
-      () => boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
-      () => closeLogWriter('tauri-service'),
+    return failStartup(startupError, 'Tauri standalone', () =>
+      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
     );
   }
 }

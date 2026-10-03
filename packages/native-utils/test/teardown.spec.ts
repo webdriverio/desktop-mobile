@@ -222,13 +222,11 @@ describe('safeDeleteSession', () => {
       let settled = false;
       const deleteSession = vi.fn(() => new Promise<void>(() => {}));
       const pending = safeDeleteSession(makeBrowser('session-1', deleteSession), 'cleanup', log, {
-        timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS,
+        timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS,
       }).then(() => {
         settled = true;
       });
       await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-      expect(settled).toBe(false);
-      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS - DEFAULT_TEARDOWN_TIMEOUT_MS);
       await pending;
       expect(settled).toBe(true);
     } finally {
@@ -236,13 +234,18 @@ describe('safeDeleteSession', () => {
     }
   });
 
-  it('should warn and resolve when deleteSession stalls past the timeout', async () => {
+  it('should warn and resolve when deleteSession stalls past the process-teardown default', async () => {
     vi.useFakeTimers();
     try {
       const log = makeLog();
+      let settled = false;
       const deleteSession = vi.fn(() => new Promise<void>(() => {}));
-      const pending = safeDeleteSession(makeBrowser('session-1', deleteSession), 'cleanup', log);
+      const pending = safeDeleteSession(makeBrowser('session-1', deleteSession), 'cleanup', log).then(() => {
+        settled = true;
+      });
       await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS - DEFAULT_TEARDOWN_TIMEOUT_MS);
 
       await expect(pending).resolves.toBeUndefined();
       expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('deleteSession timed out'));

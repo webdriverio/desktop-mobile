@@ -52,8 +52,8 @@ export async function init(
 
   const browser = await remote({
     capabilities: capability as WebdriverIO.Capabilities,
-  }).catch((error: Error) => {
-    log.error(`Failed to create remote session: ${error.message}`);
+  }).catch((error: unknown) => {
+    log.error(`Failed to create remote session: ${errorMessage(error)}`);
     return failStartup(launcher, error);
   });
 
