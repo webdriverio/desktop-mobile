@@ -2,7 +2,6 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
-  deleteSessionBounded,
   isBenignTeardownError,
   runBounded,
   runTeardownStep,
@@ -159,35 +158,5 @@ describe('runTeardownStep', () => {
     } finally {
       vi.useRealTimers();
     }
-  });
-});
-
-describe('deleteSessionBounded', () => {
-  const createLog = () => ({ debug: vi.fn(), warn: vi.fn() });
-
-  it('should delete a live session', async () => {
-    const browser = { sessionId: 'sess-1', deleteSession: vi.fn().mockResolvedValue(undefined) };
-
-    await deleteSessionBounded(createLog(), browser, 'cleanup');
-
-    expect(browser.deleteSession).toHaveBeenCalledTimes(1);
-  });
-
-  it('should skip when the session is already gone', async () => {
-    const browser = { sessionId: undefined, deleteSession: vi.fn() };
-
-    await deleteSessionBounded(createLog(), browser);
-    await deleteSessionBounded(createLog(), undefined);
-
-    expect(browser.deleteSession).not.toHaveBeenCalled();
-  });
-
-  it('should name the step after the context when logging a failure', async () => {
-    const log = createLog();
-    const error = new Error('unexpected');
-    const browser = { sessionId: 'sess-1', deleteSession: vi.fn().mockRejectedValue(error) };
-
-    await expect(deleteSessionBounded(log, browser, 'instance a')).resolves.toBeUndefined();
-    expect(log.warn).toHaveBeenCalledWith('deleteSession (instance a) failed during teardown:', error);
   });
 });

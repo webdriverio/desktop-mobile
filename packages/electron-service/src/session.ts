@@ -5,7 +5,7 @@ import type {
   ElectronServiceOptions,
   ElectronStandaloneCapability,
 } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, deleteSessionBounded, runBounded } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -43,6 +43,30 @@ async function failStartup(launcher: ElectronLaunchService, error: unknown): Pro
     });
   }
   throw error;
+}
+
+/**
+ * Best-effort deletion of the session during teardown. The driver socket may already be gone by
+ * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
+ * the rest of teardown.
+ */
+async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
+  if (!browser.sessionId) {
+    return;
+  }
+  try {
+    await runBounded(
+      () => browser.deleteSession(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`deleteSession timed out during ${context}`),
+    );
+  } catch (e) {
+    if (isBenignTeardownError(e)) {
+      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
+    } else {
+      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+    }
+  }
 }
 
 /**
@@ -106,7 +130,7 @@ export async function init(
     await service.before(capability, [], browser);
   } catch (error) {
     // remote() already opened the session, so close it here before the failure propagates.
-    await deleteSessionBounded(log, browser, 'service.before cleanup');
+    await deleteSessionBounded(browser, 'service.before cleanup');
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }
@@ -125,8 +149,11 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // Run the worker teardown init() set up via service.before(). Each call is
-    // wrapped so a failure doesn't skip the log writer + map cleanup that follow.
+    // Drive the worker-service teardown that standalone init() set up via
+    // service.before(): after() restores mocks, stops log capture and clears
+    // puppeteer sessions; afterSession() clears the process-wide mock store.
+    // Both calls are wrapped so a failure doesn't skip the log writer + map
+    // cleanup that follow.
     const service = activeServices.get(browser);
     // after()/afterSession() take WDIO hook args we don't have at the
     // standalone cleanup site (no config, no specs). Cast to a no-arg shape —
@@ -147,7 +174,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       activeServices.delete(browser);
     }
 
-    await deleteSessionBounded(log, browser, 'cleanup');
+    await deleteSessionBounded(browser, 'cleanup');
 
     // Stop a browser-mode dev server (no-op in native mode). Bounded & best-effort
     // so a hanging/failing stop can't strand the log writer & map cleanup that follow.

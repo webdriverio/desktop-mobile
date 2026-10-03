@@ -2,7 +2,6 @@ import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
 import {
   createLogger,
-  deleteSessionBounded,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
   runTeardownStep,
@@ -315,14 +314,27 @@ export default class TauriWorkerService {
       if (!this.browser.isMultiremote) {
         const stdBrowser = this.browser as WebdriverIO.Browser;
         clearWindowState(stdBrowser.sessionId);
-        await deleteSessionBounded(log, stdBrowser);
+        if (stdBrowser.sessionId) {
+          log.debug(`Deleting session: ${stdBrowser.sessionId}`);
+          await stdBrowser.deleteSession();
+          log.debug('Session deleted successfully');
+        }
       } else {
+        // Handle multiremote cleanup
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
         const sessionIds: (string | undefined)[] = [];
         for (const instanceName of mrBrowser.instances) {
-          const instance = mrBrowser.getInstance(instanceName);
-          sessionIds.push(instance.sessionId);
-          await deleteSessionBounded(log, instance, `instance ${instanceName}`);
+          try {
+            const instance = mrBrowser.getInstance(instanceName);
+            sessionIds.push(instance.sessionId);
+            if (instance.sessionId) {
+              log.debug(`Deleting session for instance ${instanceName}: ${instance.sessionId}`);
+              await instance.deleteSession();
+              log.debug(`Session deleted for instance ${instanceName}`);
+            }
+          } catch (error) {
+            log.warn(`Failed to delete session for instance ${instanceName}:`, error);
+          }
         }
         // Clear all session IDs from cache
         for (const sid of sessionIds) {

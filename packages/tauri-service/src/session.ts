@@ -1,6 +1,6 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, runBounded } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
@@ -145,13 +145,8 @@ export async function init(
       error instanceof Error ? error : new Error('Tauri standalone session startup failed', { cause: error });
     const failures: unknown[] = [startupError];
     if (browser) {
-      const startedBrowser = browser;
       try {
-        await runBounded(
-          () => startedBrowser.deleteSession(),
-          DEFAULT_TEARDOWN_TIMEOUT_MS,
-          () => log.warn('deleteSession timed out during startup cleanup'),
-        );
+        await browser.deleteSession();
       } catch (cleanupError) {
         failures.push(cleanupError);
       }
@@ -177,8 +172,9 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // Run the worker teardown init() set up via service.before(). Each call is
-    // wrapped so a failure doesn't skip the launcher.onComplete that stops tauri-driver.
+    // Drive the worker-service teardown (mock store clear, window state) that
+    // standalone init() set up via service.before(). Both calls are wrapped so
+    // a failure doesn't skip the launcher.onComplete that stops tauri-driver.
     const service = activeServices.get(browser);
     // after()/afterSession() take WDIO hook args we don't have at the
     // standalone cleanup site (no test config, no specs). Cast to a no-arg

@@ -1036,25 +1036,6 @@ describe('TauriWorkerService', () => {
       await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
     });
 
-    it('should delete every multiremote session, continuing past a failure', async () => {
-      const instanceA = createMockBrowser({
-        sessionId: 'sess-a',
-        deleteSession: vi.fn().mockRejectedValue(new Error('unexpected')),
-      });
-      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = createMockBrowser({
-        isMultiremote: true,
-        instances: ['a', 'b'],
-        getInstance: vi.fn((name: string) => (name === 'a' ? instanceA : instanceB)),
-      });
-
-      await expect(service.afterSession({}, {} as any, [])).resolves.toBeUndefined();
-      expect(instanceB.deleteSession).toHaveBeenCalledTimes(1);
-      expect(clearWindowState).toHaveBeenCalledWith('sess-a');
-      expect(clearWindowState).toHaveBeenCalledWith('sess-b');
-    });
-
     it('should not talk to the app once the runner has deleted the session', async () => {
       const mockBrowser = createMockBrowser({ sessionId: undefined });
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });

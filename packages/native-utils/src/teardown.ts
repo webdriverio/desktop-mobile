@@ -14,7 +14,7 @@ import type { Logger } from '@wdio/logger';
 
 /**
  * Default teardown deadline (ms): how long a single teardown op may run before
- * it is abandoned.
+ * it is abandoned. Shared so electron- and dioxus-service stay in sync.
  */
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
@@ -99,21 +99,4 @@ export async function runTeardownStep(
       log.warn(`${name} failed during teardown:`, error);
     }
   }
-}
-
-/**
- * Delete a WebDriver session as a teardown step (see `runTeardownStep`). No-op
- * when there is no live session.
- */
-export async function deleteSessionBounded(
-  log: Pick<Logger, 'debug' | 'warn'>,
-  browser: { sessionId?: string; deleteSession: () => Promise<unknown> } | undefined,
-  context?: string,
-): Promise<void> {
-  if (!browser?.sessionId) {
-    return;
-  }
-  const name = context ? `deleteSession (${context})` : 'deleteSession';
-  log.debug(`${name}: ${browser.sessionId}`);
-  await runTeardownStep(log, name, () => browser.deleteSession());
 }

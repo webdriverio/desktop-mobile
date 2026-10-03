@@ -11,7 +11,7 @@ import type {
   ElectrobunServiceGlobalOptions,
   ElectrobunServiceOptions,
 } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, deleteSessionBounded, runBounded } from '@wdio/native-utils';
+import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 
@@ -43,6 +43,30 @@ async function failStartup(launcher: ElectrobunLaunchService, error: unknown): P
     });
   }
   throw error;
+}
+
+/**
+ * Best-effort deletion of the session during teardown. The driver socket may already be gone by
+ * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
+ * the rest of teardown.
+ */
+async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
+  if (!browser.sessionId) {
+    return;
+  }
+  try {
+    await runBounded(
+      () => browser.deleteSession(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn(`deleteSession timed out during ${context}`),
+    );
+  } catch (e) {
+    if (isBenignTeardownError(e)) {
+      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
+    } else {
+      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+    }
+  }
 }
 
 /**
@@ -89,7 +113,7 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    await deleteSessionBounded(log, browser, 'service.before cleanup');
+    await deleteSessionBounded(browser, 'service.before cleanup');
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }
@@ -125,7 +149,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     activeServices.delete(browser);
   }
 
-  await deleteSessionBounded(log, browser, 'cleanup');
+  await deleteSessionBounded(browser, 'cleanup');
 
   try {
     await runBounded(
