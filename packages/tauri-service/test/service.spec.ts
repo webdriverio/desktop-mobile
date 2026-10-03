@@ -1026,24 +1026,6 @@ describe('TauriWorkerService', () => {
       expect(clearWindowState).toHaveBeenCalledWith();
     });
 
-    it('should call restoreAllMocks before clearing mock store', async () => {
-      const callOrder: string[] = [];
-      vi.mocked(restoreAllMocks).mockImplementation(async () => {
-        callOrder.push('restoreAllMocks');
-      });
-      vi.mocked(mockStore.clear).mockImplementation(() => {
-        callOrder.push('mockStore.clear');
-      });
-
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = mockBrowser;
-
-      await service.afterSession({}, {} as any, []);
-
-      expect(callOrder).toEqual(['restoreAllMocks', 'mockStore.clear']);
-    });
-
     it('should handle deleteSession errors gracefully', async () => {
       const mockBrowser = createMockBrowser({
         deleteSession: vi.fn().mockRejectedValue(new Error('session error')),
@@ -1054,14 +1036,17 @@ describe('TauriWorkerService', () => {
       await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
     });
 
-    it('should handle restoreAllMocks errors gracefully', async () => {
-      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore error'));
-      const mockBrowser = createMockBrowser();
+    it('should not talk to the app once the runner has deleted the session', async () => {
+      const mockBrowser = createMockBrowser({ sessionId: undefined });
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       (service as any).browser = mockBrowser;
 
-      await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
-      expect(mockBrowser.deleteSession).toHaveBeenCalled();
+      await service.afterSession({}, {} as any, []);
+
+      expect(restoreAllMocks).not.toHaveBeenCalled();
+      expect(mockBrowser.execute).not.toHaveBeenCalled();
+      expect(mockBrowser.deleteSession).not.toHaveBeenCalled();
+      expect(mockStore.clear).toHaveBeenCalled();
     });
   });
 });

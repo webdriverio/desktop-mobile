@@ -274,35 +274,14 @@ export default class TauriWorkerService {
   }
 
   /**
-   * Clean up session after tests complete
-   * This is critical for retry functionality - without explicit session deletion,
-   * retries fail with "invalid session id" errors
+   * Must not talk to the app: the runner has already deleted the session. In-app mocks go
+   * with the app, or are reset at the next session start in embedded mode (see before()).
+   * The deleteSession() below only fires from standalone cleanup(), which calls this with
+   * the session still live.
    */
   async afterSession(_config: unknown, _capabilities: TauriCapabilities, _specs: string[]): Promise<void> {
     log.debug('Cleaning up session...');
-
-    // Restore and clear mocks to prevent memory leaks. restoreAllMocks only
-    // accepts a single-browser context; for multiremote, iterate instances so
-    // each window's __wdio_mocks__ state is cleared. The session is being torn
-    // down regardless, so failures here are non-fatal.
-    try {
-      if (this.browser?.isMultiremote) {
-        const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-        for (const instanceName of mrBrowser.instances) {
-          try {
-            await restoreAllMocks.call({ browser: mrBrowser.getInstance(instanceName) });
-          } catch (instanceError) {
-            log.warn(`Failed to restore mocks on instance ${instanceName}:`, instanceError);
-          }
-        }
-      } else if (this.browser) {
-        await restoreAllMocks.call({ browser: this.browser });
-      }
-      mockStore.clear();
-      log.debug('Mock store cleared');
-    } catch (error) {
-      log.warn('Failed to clear mock store:', error);
-    }
+    mockStore.clear();
 
     if (!this.browser) {
       log.warn('No browser instance available for session cleanup');
@@ -311,7 +290,6 @@ export default class TauriWorkerService {
     }
 
     try {
-      // Delete WebDriver session explicitly for clean retry handling
       if (!this.browser.isMultiremote) {
         const stdBrowser = this.browser as WebdriverIO.Browser;
         clearWindowState(stdBrowser.sessionId);

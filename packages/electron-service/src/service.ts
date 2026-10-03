@@ -11,14 +11,7 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import {
-  createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
-  installMockSyncOverride,
-  isBenignTeardownError,
-  runBounded,
-  waitUntilWindowAvailable,
-} from '@wdio/native-utils';
+import { createLogger, installMockSyncOverride, waitUntilWindowAvailable } from '@wdio/native-utils';
 import type { Capabilities, Services } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
@@ -549,28 +542,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async afterSession() {
-    // restoreAllMocks() drives a CDP send() per mock. During teardown the
-    // debugger socket may already be gone, so a send() either rejects with
-    // "WebSocket is not connected" or stalls against a half-open socket until
-    // each per-command timeout fires — on Windows this hangs the worker until
-    // the CI step timeout kills it, AFTER the test passed. Bound it and swallow
-    // benign disconnect errors so teardown always completes. mockStore.clear()
-    // must still run regardless so the next session starts with a clean store.
-    try {
-      await runBounded(
-        () => restoreAllMocks(),
-        DEFAULT_TEARDOWN_TIMEOUT_MS,
-        () => log.debug('restoreAllMocks timed out during teardown'),
-      );
-    } catch (error) {
-      if (isBenignTeardownError(error)) {
-        log.debug('Ignoring benign teardown error during restoreAllMocks:', error);
-      } else {
-        log.warn('Failed to restore mocks during session cleanup:', error);
-      }
-    } finally {
-      mockStore.clear();
-    }
+    // No in-app restore: the runner has already deleted the session, and the app (or
+    // browser-mode page) goes with it.
+    mockStore.clear();
   }
 
   /**

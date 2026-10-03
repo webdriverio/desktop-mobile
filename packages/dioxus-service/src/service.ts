@@ -107,43 +107,19 @@ export default class DioxusWorkerService {
   }
 
   async after(): Promise<void> {
-    // mockStore is cleared in afterSession() *after* restoreAllMocks() so the
-    // unregistration script can still iterate registered mocks. Clearing here
-    // would leave window.__wdio_mocks__ populated across embedded-mode sessions.
     log.debug('DioxusWorkerService.after — clearing window cache');
     clearWindowState();
   }
 
   /**
-   * Explicitly delete the WebDriver session. Without this, WDIO's `bail`/retry
-   * features hit "invalid session id" on the second attempt because the worker
-   * is reused but the previous session is no longer valid server-side.
+   * Must not talk to the app: the runner has already deleted the session. In-app mocks go
+   * with the app, or are reset at the next session start in embedded mode (see injectSpy()).
+   * The delete below only fires from standalone cleanup(), which calls this with the session
+   * still live.
    */
   async afterSession(): Promise<void> {
     log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
-
-    try {
-      // Bound + benign-swallow like the delete below: if the app has already
-      // exited, restoreAllMocks()'s browser.execute() can hang on a half-open
-      // socket and block the worker before safeDeleteSession() is ever reached.
-      await runBounded(
-        () => restoreAllMocks(),
-        DEFAULT_TEARDOWN_TIMEOUT_MS,
-        () => log.debug('restoreAllMocks timed out during teardown'),
-      );
-    } catch (error) {
-      if (isBenignTeardownError(error)) {
-        log.debug('Ignoring benign teardown error during restoreAllMocks:', error);
-      } else {
-        log.warn('Failed to restore mocks during session cleanup:', error);
-      }
-    } finally {
-      // Clear unconditionally — if restoreAllMocks() throws (commonly when the
-      // browser session has already gone away and execute() rejects), leaving
-      // the module-level mockStore populated causes the next session's
-      // createMock() to stack on top of stale entries.
-      mockStore.clear();
-    }
+    mockStore.clear();
 
     if (!this.browser) {
       clearWindowState();
@@ -241,6 +217,23 @@ export default class DioxusWorkerService {
           'In native mode: is wdio_dioxus_bridge::install() wired into the Dioxus app? Underlying error:',
         err,
       );
+    }
+    if (this.isEmbedded) {
+      await this.clearStaleMocks(browser);
+    }
+  }
+
+  // The embedded app outlives the session, so a previous session's mocks are still registered
+  // in it: teardown can't remove them once the runner has deleted the session.
+  private async clearStaleMocks(browser: WebdriverIO.Browser): Promise<void> {
+    try {
+      await browser.execute(function clearStaleMocks() {
+        // @ts-expect-error - window is available in browser context
+        if (window.__wdio_mocks__) window.__wdio_mocks__ = {};
+      });
+      log.debug('Cleared stale mocks at session start');
+    } catch (err) {
+      log.warn('Failed to clear stale mocks at session start:', err);
     }
   }
 }
