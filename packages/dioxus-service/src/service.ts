@@ -133,7 +133,12 @@ export default class DioxusWorkerService {
       } else {
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
         for (const instanceName of mrBrowser.instances) {
-          await safeDeleteSession(mrBrowser.getInstance(instanceName), `afterSession (instance ${instanceName})`, log);
+          try {
+            const instance = mrBrowser.getInstance(instanceName);
+            await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
+          } catch (error) {
+            log.warn(`Failed to clean up instance ${instanceName}:`, error);
+          }
         }
       }
     } finally {

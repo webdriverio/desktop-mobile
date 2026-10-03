@@ -10,6 +10,10 @@ import {
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 
+// Appium's DELETE can uninstall the app or reset the device (`fullReset`), which routinely
+// outlasts the desktop teardown default.
+const APPIUM_DELETE_SESSION_TIMEOUT_MS = 120_000;
+
 /**
  * Appium-server connection for a standalone session.
  */
@@ -73,7 +77,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
     const capability = (Array.isArray(capabilities) ? capabilities[0] : capabilities) as TCap | undefined;
     if (!capability) {
       throw new Error(
-        'createMobileSession.init(): no capability provided - pass a capability object or a non-empty capabilities array.',
+        'createMobileSession.init(): no capability provided - pass a capability object or a non-empty array.',
       );
     }
     const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
@@ -109,7 +113,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
     try {
       await service.before(capability, [], browser);
     } catch (error) {
-      await safeDeleteSession(browser, 'service.before cleanup', log);
+      await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: APPIUM_DELETE_SESSION_TIMEOUT_MS });
       activeLaunchers.delete(browser);
       return failStartup(launcher, error);
     }
@@ -139,7 +143,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
       activeServices.delete(browser);
     }
 
-    await safeDeleteSession(browser, 'cleanup', log);
+    await safeDeleteSession(browser, 'cleanup', log, { timeoutMs: APPIUM_DELETE_SESSION_TIMEOUT_MS });
 
     await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
 

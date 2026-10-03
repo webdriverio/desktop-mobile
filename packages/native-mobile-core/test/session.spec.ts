@@ -184,6 +184,33 @@ describe('createMobileSession cleanup', () => {
     }
   });
 
+  it('should wait past the desktop teardown deadlines for a slow Appium deleteSession', async () => {
+    resetMocks();
+    const session = makeSession();
+    const browser = await session.init({ platformName: 'Android' });
+    let finishDelete!: () => void;
+    deleteSession.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishDelete = resolve;
+      }),
+    );
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const pending = session.cleanup(browser).then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
+      expect(settled).toBe(false);
+
+      finishDelete();
+      await pending;
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('should wait past the default teardown deadline for a slow Metro stop', async () => {
     resetMocks();
     const session = makeSession();

@@ -9,6 +9,7 @@ import {
   boundedOnComplete,
   createLogger,
   failStartup as failStartupShared,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
   safeDeleteSession,
 } from '@wdio/native-utils';
 
@@ -28,7 +29,8 @@ function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<n
     error,
     'Electron standalone',
     () => writer.close(),
-    () => boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
+    () =>
+      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS }),
   );
 }
 
@@ -124,7 +126,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
     await safeDeleteSession(browser, 'cleanup', log);
 
-    await boundedOnComplete(launcher, 'cleanup', log);
+    await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
 
     const writer = getLogWriter('electron-service');
     await writer.close().catch((e: Error) => log.warn(`Failed to close log writer during cleanup: ${e.message}`));

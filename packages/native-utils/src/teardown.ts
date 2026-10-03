@@ -30,6 +30,11 @@ export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
   'other side closed',
 ];
 
+// Teardown catches anything, including a bare `reject()`, so never assume an Error.
+function errorMessage(error: unknown): string {
+  return error instanceof Error ? error.message : String(error);
+}
+
 export function isBenignTeardownError(error: unknown): boolean {
   const haystack = `${(error as { message?: string })?.message ?? error ?? ''} ${
     (error as { code?: string })?.code ?? ''
@@ -100,6 +105,7 @@ export async function safeDeleteSession(
   browser: WebdriverIO.Browser,
   context: string,
   log: Pick<Logger, 'debug' | 'warn'>,
+  options: { timeoutMs?: number } = {},
 ): Promise<void> {
   if (!browser.sessionId) {
     return;
@@ -107,15 +113,15 @@ export async function safeDeleteSession(
   try {
     await runBounded(
       () => browser.deleteSession(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      options.timeoutMs ?? DEFAULT_TEARDOWN_TIMEOUT_MS,
       () => log.warn(`deleteSession timed out during ${context}`),
     );
   } catch (e) {
     if (isBenignTeardownError(e)) {
-      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
+      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${errorMessage(e)}`);
       return;
     }
-    log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
+    log.warn(`Failed to delete session during ${context}: ${errorMessage(e)}`);
   }
 }
 
@@ -137,7 +143,7 @@ export async function boundedOnComplete(
           return await launcher.onComplete?.();
         } catch (e) {
           if (timedOut) {
-            log.warn(`launcher.onComplete() failed after timing out during ${context}: ${(e as Error).message}`);
+            log.warn(`launcher.onComplete() failed after timing out during ${context}: ${errorMessage(e)}`);
           }
           throw e;
         }
@@ -152,6 +158,11 @@ export async function boundedOnComplete(
     if (options.rethrow) {
       throw e;
     }
-    log.warn(`launcher.onComplete() failed during ${context}: ${(e as Error).message}`);
+    log.warn(`launcher.onComplete() failed during ${context}: ${errorMessage(e)}`);
+    return;
+  }
+  // A hung onComplete is the likeliest leak, so a caller that rethrows must see it too.
+  if (timedOut && options.rethrow) {
+    throw new Error(`launcher.onComplete() timed out after ${timeoutMs}ms during ${context}`);
   }
 }

@@ -207,6 +207,35 @@ describe('safeDeleteSession', () => {
     expect(log.debug).not.toHaveBeenCalled();
   });
 
+  it('should not throw for a non-Error rejection', async () => {
+    const log = makeLog();
+    const deleteSession = vi.fn().mockRejectedValue(undefined);
+
+    await expect(safeDeleteSession(makeBrowser('session-1', deleteSession), 'cleanup', log)).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith('Failed to delete session during cleanup: undefined');
+  });
+
+  it('should honour a custom timeoutMs', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = makeLog();
+      let settled = false;
+      const deleteSession = vi.fn(() => new Promise<void>(() => {}));
+      const pending = safeDeleteSession(makeBrowser('session-1', deleteSession), 'cleanup', log, {
+        timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS,
+      }).then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+      expect(settled).toBe(false);
+      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS - DEFAULT_TEARDOWN_TIMEOUT_MS);
+      await pending;
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('should warn and resolve when deleteSession stalls past the timeout', async () => {
     vi.useFakeTimers();
     try {
@@ -258,6 +287,29 @@ describe('boundedOnComplete', () => {
     expect(log.warn).not.toHaveBeenCalled();
   });
 
+  it('should not throw for a non-Error rejection', async () => {
+    const log = makeLog();
+    await expect(boundedOnComplete({ onComplete: () => Promise.reject(undefined) }, 'cleanup', log)).resolves.toBe(
+      undefined,
+    );
+    expect(log.warn).toHaveBeenCalledWith('launcher.onComplete() failed during cleanup: undefined');
+  });
+
+  it('should reject when onComplete stalls past the timeout and rethrow is set', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = makeLog();
+      const pending = boundedOnComplete({ onComplete: () => new Promise<void>(() => {}) }, 'startup cleanup', log, {
+        rethrow: true,
+      });
+      const assertion = expect(pending).rejects.toThrow('onComplete() timed out after 10000ms during startup cleanup');
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it('should warn and resolve when onComplete stalls past the timeout', async () => {
     vi.useFakeTimers();
     try {
@@ -300,7 +352,7 @@ describe('boundedOnComplete', () => {
         new Promise<void>((_resolve, reject) => {
           rejectStop = reject;
         });
-      const pending = boundedOnComplete({ onComplete }, 'cleanup', log, { rethrow: true });
+      const pending = boundedOnComplete({ onComplete }, 'cleanup', log);
       await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
       await expect(pending).resolves.toBeUndefined();
 

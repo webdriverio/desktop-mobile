@@ -209,6 +209,30 @@ describe('DioxusWorkerService', () => {
     });
   });
 
+  describe('afterSession() multiremote teardown', () => {
+    it('should keep deleting the remaining instances when getInstance throws for one', async () => {
+      const healthy = {
+        sessionId: 'sess-b',
+        deleteSession: vi.fn().mockResolvedValue(undefined),
+      } as unknown as WebdriverIO.Browser;
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: vi.fn((name: string) => {
+          if (name === 'browserA') {
+            throw new Error('Multiremote object has no instance named "browserA"');
+          }
+          return healthy;
+        }),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new DioxusWorkerService({}, {});
+      (service as unknown as { browser: WebdriverIO.MultiRemoteBrowser }).browser = mrBrowser;
+
+      await expect(service.afterSession()).resolves.toBeUndefined();
+      expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('browser mode (mode: "browser")', () => {
     it('should navigate to devServerUrl in before()', async () => {
       const browser = makeBrowserModeBrowser();

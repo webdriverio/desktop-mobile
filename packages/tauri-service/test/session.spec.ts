@@ -594,7 +594,7 @@ describe('session', () => {
       expect(mockOnComplete).toHaveBeenCalledOnce();
     });
 
-    it('should warn rather than surface a non-benign session-cleanup failure, keeping the startup error as thrown', async () => {
+    it('should warn on a non-benign session-cleanup failure and rethrow only the startup error', async () => {
       const startup = new Error('worker service failed');
       const deleteSession = vi.fn().mockRejectedValue(new Error('chrome not reachable'));
       mockRemote.mockResolvedValueOnce(createMockBrowser({ deleteSession }));
@@ -604,7 +604,7 @@ describe('session', () => {
       expect(mockOnComplete).toHaveBeenCalledOnce();
     });
 
-    it('should swallow a benign session-cleanup error rather than surfacing it alongside the startup failure', async () => {
+    it('should swallow a benign session-cleanup error and rethrow only the startup error', async () => {
       const startup = new Error('worker service failed');
       const browser = createMockBrowser({ deleteSession: vi.fn().mockRejectedValue(new Error('session not found')) });
       mockRemote.mockResolvedValueOnce(browser);
@@ -638,7 +638,7 @@ describe('session', () => {
       expect(closeLogWriter).toHaveBeenCalled();
     });
 
-    it('should still close the log writer when launcher.onComplete fails during cleanup', async () => {
+    it('should surface a launcher.onComplete failure from cleanup after closing the log writer', async () => {
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -646,7 +646,7 @@ describe('session', () => {
       vi.clearAllMocks();
       mockOnComplete.mockRejectedValueOnce(new Error('driver stop boom'));
 
-      await expect(cleanup(browser)).resolves.toBeUndefined();
+      await expect(cleanup(browser)).rejects.toThrow('driver stop boom');
       expect(closeLogWriter).toHaveBeenCalled();
     });
 

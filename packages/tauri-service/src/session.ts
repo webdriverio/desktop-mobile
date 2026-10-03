@@ -178,12 +178,16 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       () => log.warn(`launcher.onWorkerEnd() timed out after ${PROCESS_TEARDOWN_TIMEOUT_MS}ms during cleanup`),
     ).catch((e: Error) => log.warn(`launcher.onWorkerEnd() failed during cleanup: ${e.message}`));
 
-    await boundedOnComplete(launcher, 'cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
-
-    await closeLogWriter('tauri-service').catch((e: Error) =>
-      log.warn(`Failed to close log writer during cleanup: ${e.message}`),
-    );
-    activeLaunchers.delete(browser);
+    // Rethrown: onComplete throws when an embedded driver won't die, which leaves its port taken
+    // for the next init().
+    try {
+      await boundedOnComplete(launcher, 'cleanup', log, { rethrow: true, timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
+    } finally {
+      await closeLogWriter('tauri-service').catch((e: Error) =>
+        log.warn(`Failed to close log writer during cleanup: ${e.message}`),
+      );
+      activeLaunchers.delete(browser);
+    }
     log.debug('Tauri standalone session cleaned up');
   } else {
     log.warn('No launcher found for this browser instance');
