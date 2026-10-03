@@ -172,9 +172,8 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // Drive the worker-service teardown (mock store clear, window state) that
-    // standalone init() set up via service.before(). Both calls are wrapped so
-    // a failure doesn't skip the launcher.onComplete that stops tauri-driver.
+    // Run the worker teardown init() set up via service.before(). Each call is
+    // wrapped so a failure doesn't skip the launcher.onComplete that stops tauri-driver.
     const service = activeServices.get(browser);
     // after()/afterSession() take WDIO hook args we don't have at the
     // standalone cleanup site (no test config, no specs). Cast to a no-arg

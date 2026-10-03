@@ -2,11 +2,9 @@ import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
 import {
   createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
-  isBenignTeardownError,
-  runBounded,
+  runTeardownStep,
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
 import { execute } from './commands/execute.js';
@@ -32,22 +30,6 @@ const log = createLogger('tauri-service', 'service');
 
 const EXECUTE_PATCHED = Symbol('wdio-tauri-execute-patched');
 const browserInterceptor = createIpcInterceptor('tauri');
-
-async function restoreMocksForTeardown(browser: WebdriverIO.Browser, label: string): Promise<void> {
-  try {
-    await runBounded(
-      () => restoreAllMocks.call({ browser }),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.debug(`restoreAllMocks timed out during teardown${label}`),
-    );
-  } catch (error) {
-    if (isBenignTeardownError(error)) {
-      log.debug(`Ignoring benign teardown error during restoreAllMocks${label}:`, error);
-    } else {
-      log.warn(`Failed to restore mocks${label}:`, error);
-    }
-  }
-}
 
 /**
  * Tauri worker service
@@ -289,26 +271,24 @@ export default class TauriWorkerService {
   }
 
   async after(_results: unknown, _capabilities: TauriCapabilities, _specs: string[]): Promise<void> {
-    // The runner deletes the session before afterSession(), so this is the last
-    // hook in which the app is still reachable to unregister its mocks.
-    try {
-      if (this.browser?.isMultiremote) {
-        const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-        for (const instanceName of mrBrowser.instances) {
-          await restoreMocksForTeardown(mrBrowser.getInstance(instanceName), ` on instance ${instanceName}`);
-        }
-      } else if (this.browser) {
-        await restoreMocksForTeardown(this.browser as WebdriverIO.Browser, '');
+    // Last hook with a live session — the runner deletes it before afterSession().
+    if (this.browser?.isMultiremote) {
+      const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
+      for (const instanceName of mrBrowser.instances) {
+        await runTeardownStep(log, `restoreAllMocks (instance ${instanceName})`, () =>
+          restoreAllMocks.call({ browser: mrBrowser.getInstance(instanceName) }),
+        );
       }
-    } finally {
-      mockStore.clear();
+    } else if (this.browser) {
+      const browser = this.browser as WebdriverIO.Browser;
+      await runTeardownStep(log, 'restoreAllMocks', () => restoreAllMocks.call({ browser }));
     }
+    mockStore.clear();
   }
 
   /**
-   * The runner has already deleted the session when it calls this hook, so
-   * nothing here may talk to the app. The explicit deleteSession() below only
-   * fires from standalone cleanup(), which calls this with the session still live.
+   * Must not talk to the app. The deleteSession() below only fires from standalone
+   * cleanup(); under the testrunner sessionId is already undefined.
    */
   async afterSession(_config: unknown, _capabilities: TauriCapabilities, _specs: string[]): Promise<void> {
     log.debug('Cleaning up session...');

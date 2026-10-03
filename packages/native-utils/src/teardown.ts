@@ -1,3 +1,5 @@
+import type { Logger } from '@wdio/logger';
+
 /**
  * Helpers shared by the WDIO services for defensive session teardown.
  *
@@ -12,7 +14,7 @@
 
 /**
  * Default teardown deadline (ms): how long a single teardown op may run before
- * it is abandoned. Shared so electron- and dioxus-service stay in sync.
+ * it is abandoned.
  */
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
@@ -72,6 +74,26 @@ export async function runBounded<T>(
   } finally {
     if (timer) {
       clearTimeout(timer);
+    }
+  }
+}
+
+/**
+ * Run a best-effort teardown step: bounded by `DEFAULT_TEARDOWN_TIMEOUT_MS`, with
+ * benign errors logged at debug and anything else at warn. Never rejects.
+ */
+export async function runTeardownStep(
+  log: Pick<Logger, 'debug' | 'warn'>,
+  name: string,
+  op: () => Promise<unknown>,
+): Promise<void> {
+  try {
+    await runBounded(op, DEFAULT_TEARDOWN_TIMEOUT_MS, () => log.debug(`${name} timed out during teardown`));
+  } catch (error) {
+    if (isBenignTeardownError(error)) {
+      log.debug(`Ignoring benign teardown error during ${name}:`, error);
+    } else {
+      log.warn(`${name} failed during teardown:`, error);
     }
   }
 }

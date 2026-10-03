@@ -34,6 +34,7 @@ export {
   DEFAULT_TEARDOWN_TIMEOUT_MS,
   isBenignTeardownError,
   runBounded,
+  runTeardownStep,
 } from './teardown.js';
 export { waitUntilWindowAvailable } from './window.js';
 export { createLogger };

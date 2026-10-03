@@ -52,7 +52,7 @@ vi.mock('../src/window.js', async (importOriginal) => {
   };
 });
 
-import { waitUntilWindowAvailable } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS, waitUntilWindowAvailable } from '@wdio/native-utils';
 import { execute as executeCommand } from '../src/commands/execute.js';
 import { clearAllMocks, resetAllMocks, restoreAllMocks } from '../src/commands/mock.js';
 import mockStore from '../src/mockStore.js';
@@ -1051,6 +1051,17 @@ describe('TauriWorkerService', () => {
   });
 
   describe('after()', () => {
+    function createMultiremoteBrowser() {
+      const instanceA = createMockBrowser({ sessionId: 'sess-a' });
+      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['a', 'b'],
+        getInstance: vi.fn((name: string) => (name === 'a' ? instanceA : instanceB)),
+      });
+      return { mrBrowser, instanceA, instanceB };
+    }
+
     it('should restore mocks before clearing the mock store', async () => {
       const callOrder: string[] = [];
       vi.mocked(restoreAllMocks).mockImplementationOnce(async () => {
@@ -1071,13 +1082,7 @@ describe('TauriWorkerService', () => {
     });
 
     it('should restore mocks on every multiremote instance', async () => {
-      const instanceA = createMockBrowser({ sessionId: 'sess-a' });
-      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
-      const mrBrowser = createMockBrowser({
-        isMultiremote: true,
-        instances: ['a', 'b'],
-        getInstance: vi.fn((name: string) => (name === 'a' ? instanceA : instanceB)),
-      });
+      const { mrBrowser, instanceA, instanceB } = createMultiremoteBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       (service as any).browser = mrBrowser;
 
@@ -1089,13 +1094,7 @@ describe('TauriWorkerService', () => {
 
     it('should keep restoring the remaining instances after one fails', async () => {
       vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore error'));
-      const instanceA = createMockBrowser({ sessionId: 'sess-a' });
-      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
-      const mrBrowser = createMockBrowser({
-        isMultiremote: true,
-        instances: ['a', 'b'],
-        getInstance: vi.fn((name: string) => (name === 'a' ? instanceA : instanceB)),
-      });
+      const { mrBrowser } = createMultiremoteBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       (service as any).browser = mrBrowser;
 
@@ -1121,7 +1120,7 @@ describe('TauriWorkerService', () => {
         (service as any).browser = createMockBrowser();
 
         const pending = service.after(0, {} as any, []);
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
 
         await expect(pending).resolves.toBeUndefined();
         expect(mockStore.clear).toHaveBeenCalledTimes(1);

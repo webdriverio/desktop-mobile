@@ -11,14 +11,7 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import {
-  createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
-  installMockSyncOverride,
-  isBenignTeardownError,
-  runBounded,
-  waitUntilWindowAvailable,
-} from '@wdio/native-utils';
+import { createLogger, installMockSyncOverride, runTeardownStep, waitUntilWindowAvailable } from '@wdio/native-utils';
 import type { Capabilities, Services } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
@@ -544,29 +537,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async after() {
-    // The runner deletes the session (quitting the app) before afterSession(),
-    // so this is the last hook in which mocks can still be restored in the app.
-    // restoreAllMocks() drives a CDP send() per mock (a WebDriver execute in
-    // browser mode). If the app has died the debugger socket may be gone, so a
-    // send() either rejects with "WebSocket is not connected" or stalls against a
-    // half-open socket until each per-command timeout fires — on Windows this
-    // hangs the worker until the CI step timeout kills it, AFTER the test passed.
-    // Bound it and swallow benign disconnect errors so teardown always completes.
-    try {
-      await runBounded(
-        () => restoreAllMocks(),
-        DEFAULT_TEARDOWN_TIMEOUT_MS,
-        () => log.debug('restoreAllMocks timed out during teardown'),
-      );
-    } catch (error) {
-      if (isBenignTeardownError(error)) {
-        log.debug('Ignoring benign teardown error during restoreAllMocks:', error);
-      } else {
-        log.warn('Failed to restore mocks during session cleanup:', error);
-      }
-    } finally {
-      mockStore.clear();
-    }
+    // Last hook with a live session — the runner deletes it before afterSession().
+    await runTeardownStep(log, 'restoreAllMocks', () => restoreAllMocks());
+    mockStore.clear();
     this.logCaptureManager?.stopCapture();
     clearPuppeteerSessions();
   }

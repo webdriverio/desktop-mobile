@@ -1,5 +1,5 @@
 import type { BrowserExtension } from '@wdio/native-types';
-import { waitUntilWindowAvailable } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS, waitUntilWindowAvailable } from '@wdio/native-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearAllMocks } from '../src/commands/clearAllMocks.js';
 import { execute } from '../src/commands/executeCdp.js';
@@ -1649,9 +1649,6 @@ describe('Electron Worker Service - teardown', () => {
     });
 
     it('should swallow a benign CDP disconnect error and still clear the store', async () => {
-      // The Windows hang: a CDP send() during teardown rejects with "WebSocket is
-      // not connected" once the debugger socket is gone; left to propagate it fails
-      // an otherwise-green run. It must be swallowed, and the store still cleared.
       vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('WebSocket is not connected'));
       const instance = new ElectronWorkerService({}, {});
 
@@ -1676,7 +1673,7 @@ describe('Electron Worker Service - teardown', () => {
         const instance = new ElectronWorkerService({}, {});
 
         const pending = instance.after();
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
 
         await expect(pending).resolves.toBeUndefined();
         expect(mockStore.clear).toHaveBeenCalledTimes(1);

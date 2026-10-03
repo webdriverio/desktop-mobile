@@ -1,5 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
-import { BENIGN_TEARDOWN_ERROR_PATTERNS, isBenignTeardownError, runBounded } from '../src/teardown.js';
+import {
+  BENIGN_TEARDOWN_ERROR_PATTERNS,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  isBenignTeardownError,
+  runBounded,
+  runTeardownStep,
+} from '../src/teardown.js';
 
 describe('isBenignTeardownError', () => {
   it('should match a benign error by message', () => {
@@ -89,6 +95,63 @@ describe('runBounded', () => {
     } finally {
       vi.useRealTimers();
       process.off('unhandledRejection', unhandled);
+    }
+  });
+});
+
+describe('runTeardownStep', () => {
+  const createLog = () => ({ debug: vi.fn(), warn: vi.fn() });
+
+  it('should run the step without logging when it succeeds', async () => {
+    const log = createLog();
+    const op = vi.fn().mockResolvedValue('ok');
+
+    await expect(runTeardownStep(log, 'step', op)).resolves.toBeUndefined();
+    expect(op).toHaveBeenCalledTimes(1);
+    expect(log.debug).not.toHaveBeenCalled();
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('should debug-log a benign error', async () => {
+    const log = createLog();
+    const error = new Error('WebSocket is not connected');
+
+    await expect(runTeardownStep(log, 'step', () => Promise.reject(error))).resolves.toBeUndefined();
+    expect(log.debug).toHaveBeenCalledWith('Ignoring benign teardown error during step:', error);
+    expect(log.warn).not.toHaveBeenCalled();
+  });
+
+  it('should warn-log any other error', async () => {
+    const log = createLog();
+    const error = new Error('unexpected');
+
+    await expect(runTeardownStep(log, 'step', () => Promise.reject(error))).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith('step failed during teardown:', error);
+  });
+
+  it('should catch a synchronous throw from the step', async () => {
+    const log = createLog();
+    const error = new Error('sync');
+
+    await expect(
+      runTeardownStep(log, 'step', () => {
+        throw error;
+      }),
+    ).resolves.toBeUndefined();
+    expect(log.warn).toHaveBeenCalledWith('step failed during teardown:', error);
+  });
+
+  it('should give up on a stalled step after the default teardown timeout', async () => {
+    vi.useFakeTimers();
+    try {
+      const log = createLog();
+      const pending = runTeardownStep(log, 'step', () => new Promise(() => {}));
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+
+      await expect(pending).resolves.toBeUndefined();
+      expect(log.debug).toHaveBeenCalledWith('step timed out during teardown');
+    } finally {
+      vi.useRealTimers();
     }
   });
 });

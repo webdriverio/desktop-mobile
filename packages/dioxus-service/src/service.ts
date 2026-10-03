@@ -1,6 +1,12 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import {
+  createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  isBenignTeardownError,
+  runBounded,
+  runTeardownStep,
+} from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
@@ -107,37 +113,17 @@ export default class DioxusWorkerService {
   }
 
   async after(): Promise<void> {
-    // The runner deletes the session before afterSession(), so this is the last
-    // hook in which the unregistration scripts can still reach the app —
-    // otherwise window.__wdio_mocks__ stays populated across embedded-mode sessions.
-    try {
-      // Bound + benign-swallow: if the app has already exited, restoreAllMocks()'s
-      // browser.execute() can hang on a half-open socket and block the worker.
-      await runBounded(
-        () => restoreAllMocks(),
-        DEFAULT_TEARDOWN_TIMEOUT_MS,
-        () => log.debug('restoreAllMocks timed out during teardown'),
-      );
-    } catch (error) {
-      if (isBenignTeardownError(error)) {
-        log.debug('Ignoring benign teardown error during restoreAllMocks:', error);
-      } else {
-        log.warn('Failed to restore mocks during session cleanup:', error);
-      }
-    } finally {
-      // Clear unconditionally — if restoreAllMocks() throws, leaving the
-      // module-level mockStore populated causes the next session's createMock()
-      // to stack on top of stale entries.
-      mockStore.clear();
-    }
+    // Last hook with a live session — the runner deletes it before afterSession().
+    // Unrestored mocks leave window.__wdio_mocks__ populated across embedded-mode sessions.
+    await runTeardownStep(log, 'restoreAllMocks', () => restoreAllMocks());
+    mockStore.clear();
     log.debug('DioxusWorkerService.after — clearing window cache');
     clearWindowState();
   }
 
   /**
-   * The runner has already deleted the session when it calls this hook, so
-   * nothing here may talk to the app. The explicit delete below only fires from
-   * standalone cleanup(), which calls this with the session still live.
+   * Must not talk to the app. The delete below only fires from standalone
+   * cleanup(); under the testrunner sessionId is already undefined.
    */
   async afterSession(): Promise<void> {
     // Backstop: the runner skips after() on some exit paths (e.g. SIGINT during startup).

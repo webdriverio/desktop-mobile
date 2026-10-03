@@ -1,3 +1,4 @@
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../src/mockStore.js';
 import DioxusWorkerService from '../src/service.js';
@@ -125,9 +126,6 @@ describe('DioxusWorkerService', () => {
   });
 
   it('should still clear the mockStore in after() when mockRestore() rejects', async () => {
-    // The app may already be gone: browser.execute() in the unregistration
-    // script rejects and restoreAllMocks() bubbles the failure. The stale entry
-    // MUST still be evicted so the next session doesn't see it.
     const fakeMock = {
       getMockName: () => 'dioxus.greet',
       mockRestore: vi.fn().mockRejectedValue(new Error('session closed')),
@@ -149,7 +147,7 @@ describe('DioxusWorkerService', () => {
       const service = new DioxusWorkerService({}, {});
 
       const pending = service.after();
-      await vi.advanceTimersByTimeAsync(10_000);
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
 
       await expect(pending).resolves.toBeUndefined();
       expect(mockStore.getMocks()).toHaveLength(0);
@@ -234,7 +232,7 @@ describe('DioxusWorkerService', () => {
         await service.before({}, [], browser);
 
         const pending = service.afterSession();
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
 
         await expect(pending).resolves.toBeUndefined();
       } finally {
