@@ -3,9 +3,9 @@ import { closeLogWriter, getLogWriter } from '@wdio/native-core';
 import {
   boundedOnComplete,
   createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
   errorMessage,
   failStartup,
+  PROCESS_TEARDOWN_TIMEOUT_MS,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
@@ -133,7 +133,8 @@ export async function init(
     return browser;
   } catch (error) {
     if (browser) {
-      await safeDeleteSession(browser, 'startup cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
+      // The DELETE is what closes the app, so it gets the full process-teardown deadline.
+      await safeDeleteSession(browser, 'startup cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
     }
     return failStartup(error, 'Tauri standalone', () =>
       boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),

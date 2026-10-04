@@ -8,6 +8,7 @@ import type {
 } from '@wdio/native-types';
 import {
   createLogger,
+  errorMessage,
   formatDiagnosticResults,
   isErr,
   type NormalizedReadResult,
@@ -229,7 +230,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
       }
       this.#browserMode = true;
       log.info('Browser mode enabled — skipping Electron binary and CDP bridge setup');

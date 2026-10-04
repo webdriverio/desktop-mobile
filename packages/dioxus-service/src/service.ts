@@ -101,8 +101,7 @@ export default class DioxusWorkerService {
     log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
 
     try {
-      // If the app already exited, restoreAllMocks()'s browser.execute() can hang on a half-open
-      // socket and block the session delete below.
+      // Bounded so an already-exited app can't block the session delete below.
       await runBounded(
         () => restoreAllMocks(),
         DEFAULT_TEARDOWN_TIMEOUT_MS,
@@ -115,10 +114,6 @@ export default class DioxusWorkerService {
         log.warn('Failed to restore mocks during session cleanup:', error);
       }
     } finally {
-      // Clear unconditionally — if restoreAllMocks() throws (commonly when the
-      // browser session has already gone away and execute() rejects), leaving
-      // the module-level mockStore populated causes the next session's
-      // createMock() to stack on top of stale entries.
       mockStore.clear();
     }
 

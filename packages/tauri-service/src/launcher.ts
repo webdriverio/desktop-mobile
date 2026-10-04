@@ -11,7 +11,7 @@ import {
   startManagedDevServer,
 } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
-import { createLogger, formatDiagnosticResults, isErr } from '@wdio/native-utils';
+import { createLogger, errorMessage, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { resolveAppBinaryPath } from './appBinaryResolver.js';
@@ -237,7 +237,7 @@ export default class TauriLaunchService {
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
       }
       log.info('Browser mode enabled — skipping driver/binary setup');
       return;
@@ -1062,7 +1062,6 @@ export default class TauriLaunchService {
 
   private async stopSpawnedProcesses(): Promise<void> {
     try {
-      // Stop all worker test-runner-backends (per-worker mode)
       if (this.workerBackends.size > 0) {
         log.info(`Stopping ${this.workerBackends.size} worker test-runner-backend(s)...`);
         for (const [workerId, backend] of this.workerBackends) {
@@ -1076,14 +1075,12 @@ export default class TauriLaunchService {
         this.workerBackends.clear();
       }
 
-      // Stop shared test-runner-backend (if any)
       if (this.testRunnerBackend) {
         await stopTestRunnerBackend(this.testRunnerBackend);
         this.testRunnerBackend = undefined;
       }
 
       const embeddedCleanupErrors: unknown[] = [];
-      // Stop embedded driver processes if using embedded provider
       if (this.isEmbeddedMode) {
         log.info(`Stopping ${this.embeddedProcesses.size} embedded driver process(es)...`);
         for (const [key, process] of this.embeddedProcesses) {

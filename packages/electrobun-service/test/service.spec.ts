@@ -1,3 +1,4 @@
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const connectMock = vi.fn().mockResolvedValue(undefined);
@@ -493,6 +494,40 @@ describe('ElectrobunWorkerService', () => {
         execFileSyncMock.mockClear();
 
         await service.after();
+
+        expect(execFileSyncMock).toHaveBeenCalledWith(
+          'pkill',
+          ['-9', '-f', '^/home/runner/build/WDIOElectrobunE2E-dev/'],
+          expect.anything(),
+        );
+      } finally {
+        restorePlatform();
+      }
+    });
+
+    it('should still reap the WebKitGTK app tree when the console drain hangs', async () => {
+      mockPlatform('linux');
+      try {
+        const browser = makeW3CBrowser();
+        const cap = {
+          'webkitgtk:browserOptions': {
+            binary: '/home/runner/build/WDIOElectrobunE2E-dev/bin/launcher',
+            args: ['--automation'],
+          },
+        };
+        const service = new ElectrobunWorkerService({}, {});
+        await service.before(cap, [], browser);
+        execFileSyncMock.mockClear();
+        browser.execute.mockReturnValueOnce(new Promise(() => {}));
+
+        vi.useFakeTimers();
+        try {
+          const pending = service.after();
+          await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+          await pending;
+        } finally {
+          vi.useRealTimers();
+        }
 
         expect(execFileSyncMock).toHaveBeenCalledWith(
           'pkill',

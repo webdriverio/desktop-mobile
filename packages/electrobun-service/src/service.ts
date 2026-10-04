@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage, runBounded } from '@wdio/native-utils';
 
 import { classifyTarget } from './cefClassifier.js';
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
@@ -16,6 +16,8 @@ import type { ElectrobunServiceOptions } from './types.js';
 import { createWebDriverEvalBridge, installConsoleShim, type WebDriverEvalBridge } from './webdriverEval.js';
 
 const log = createLogger(SERVICE_NAME, 'service');
+
+const CONSOLE_DRAIN_TIMEOUT_MS = 2_000;
 
 /** Parse a `host:port` debuggerAddress into its parts. Defaults the host to localhost. */
 function parseDebuggerAddress(address: string): { host: string; port: number } {
@@ -154,13 +156,19 @@ export default class ElectrobunWorkerService {
   async after(): Promise<void> {
     // `after` runs before WDIO's deleteSession, so reaping the app here lets that DELETE return fast.
     // closeBridges() first — the console-shim drain needs the session still alive.
-    await this.closeBridges();
-    this.reapW3CApps();
+    try {
+      await this.closeBridges();
+    } finally {
+      this.reapW3CApps();
+    }
   }
 
   async afterSession(): Promise<void> {
-    await this.closeBridges();
-    this.reapW3CApps();
+    try {
+      await this.closeBridges();
+    } finally {
+      this.reapW3CApps();
+    }
   }
 
   /**
@@ -195,12 +203,13 @@ export default class ElectrobunWorkerService {
 
   private async closeBridges(): Promise<void> {
     for (const drain of this.consoleDrains) {
-      await drain().catch(() => {});
+      // Bounded so a hung app can't keep after() from reaching reapW3CApps().
+      await runBounded(drain, CONSOLE_DRAIN_TIMEOUT_MS).catch(() => {});
     }
     this.consoleDrains = [];
     for (const bridge of this.bridges) {
-      await bridge.close().catch((error: Error) => {
-        log.warn(`Failed to close CDP bridge: ${error.message}`);
+      await bridge.close().catch((error: unknown) => {
+        log.warn(`Failed to close CDP bridge: ${errorMessage(error)}`);
       });
     }
     this.bridges = [];

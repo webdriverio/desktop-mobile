@@ -168,7 +168,7 @@ export default class ElectrobunLaunchService extends BaseLauncher {
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
       }
       this.browserMode = true;
       log.info('Browser mode enabled — skipping Electrobun binary/CDP setup');

@@ -66,7 +66,7 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    // after() reaps the Linux app, which the DELETE needs to complete.
+    // Before the session delete below: after() reaps the Linux app, without which the DELETE hangs.
     await runBounded(
       () => service.after(),
       DEFAULT_TEARDOWN_TIMEOUT_MS,
@@ -91,7 +91,6 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     return;
   }
 
-  // after() covers afterSession()'s teardown too.
   const service = activeServices.get(browser);
   try {
     await runBounded(
