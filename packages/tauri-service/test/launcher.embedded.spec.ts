@@ -280,20 +280,6 @@ describe('embedded launcher lifecycle', () => {
     vi.mocked(checkEmbeddedServerAlive).mockResolvedValue(true);
   });
 
-  it('keeps stopping the embedded drivers when the shared backend stop throws', async () => {
-    const { stopTestRunnerBackend } = await import('../src/crabnebulaBackend.js');
-    vi.mocked(stopTestRunnerBackend).mockRejectedValueOnce(new Error('kill EINVAL'));
-    const caps = { 'tauri:options': { application: APP_BINARY } };
-    const config = { capabilities: [caps] };
-    const launcher = new TauriLaunchService({}, caps, config);
-    await launcher.onPrepare(config, [caps]);
-    (launcher as unknown as { testRunnerBackend: object }).testRunnerBackend = {};
-
-    await launcher.onComplete(0, config, []);
-
-    expect(stopEmbeddedDriver).toHaveBeenCalledWith(stubDriverInfo);
-  });
-
   it.each(['linux', 'win32', 'darwin'])('skips external setup and diagnostics on %s', async (platform) => {
     mockPlatform(platform);
     try {

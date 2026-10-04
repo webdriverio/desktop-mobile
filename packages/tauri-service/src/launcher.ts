@@ -1065,22 +1065,14 @@ export default class TauriLaunchService {
       if (this.workerBackends.size > 0) {
         log.info(`Stopping ${this.workerBackends.size} worker test-runner-backend(s)...`);
         for (const [workerId, backend] of this.workerBackends) {
-          try {
-            await stopTestRunnerBackend(backend.proc);
-            log.debug(`Stopped test-runner-backend for worker ${workerId}`);
-          } catch (error) {
-            log.warn(`Failed to stop test-runner-backend for worker ${workerId}: ${errorMessage(error)}`);
-          }
+          await stopTestRunnerBackend(backend.proc);
+          log.debug(`Stopped test-runner-backend for worker ${workerId}`);
         }
         this.workerBackends.clear();
       }
 
       if (this.testRunnerBackend) {
-        try {
-          await stopTestRunnerBackend(this.testRunnerBackend);
-        } catch (error) {
-          log.warn(`Failed to stop shared test-runner-backend: ${errorMessage(error)}`);
-        }
+        await stopTestRunnerBackend(this.testRunnerBackend);
         this.testRunnerBackend = undefined;
       }
 

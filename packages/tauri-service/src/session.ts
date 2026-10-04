@@ -144,12 +144,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
     const service = activeServices.get(browser);
-    const svc = service as unknown as { after?: () => Promise<void>; afterSession?: () => Promise<void> } | undefined;
-    try {
-      await svc?.after?.();
-    } catch (e) {
-      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
-    }
+    const svc = service as unknown as { afterSession?: () => Promise<void> } | undefined;
     try {
       await svc?.afterSession?.();
     } catch (e) {

@@ -178,11 +178,7 @@ export default class ElectrobunWorkerService {
   }
 
   async afterSession(): Promise<void> {
-    try {
-      await this.closeBridges();
-    } finally {
-      this.reapW3CApps();
-    }
+    await this.after();
   }
 
   /**
@@ -216,12 +212,14 @@ export default class ElectrobunWorkerService {
   }
 
   private async closeBridges(): Promise<void> {
-    for (const drain of this.consoleDrains) {
-      // Bounded so a hung app can't keep after() from reaching reapW3CApps().
-      await runBounded(drain, CONSOLE_DRAIN_TIMEOUT_MS, () =>
-        log.warn('Console log drain timed out; the final console output may be missing'),
-      ).catch(() => {});
-    }
+    // Bounded and in parallel, so hung apps can't keep after() from reaching reapW3CApps().
+    await Promise.all(
+      this.consoleDrains.map((drain) =>
+        runBounded(drain, CONSOLE_DRAIN_TIMEOUT_MS, () =>
+          log.warn('Console log drain timed out; the final console output may be missing'),
+        ).catch(() => {}),
+      ),
+    );
     this.consoleDrains = [];
     for (const bridge of this.bridges) {
       await bridge.close().catch((error: unknown) => {
