@@ -274,7 +274,6 @@ export default class TauriWorkerService {
     // Cleanup if needed
   }
 
-  /** The runner has already deleted the session here; the delete below is for standalone cleanup(). */
   async afterSession(_config: unknown, _capabilities: TauriCapabilities, _specs: string[]): Promise<void> {
     log.debug('Cleaning up session...');
     mockStore.clear();
@@ -285,6 +284,7 @@ export default class TauriWorkerService {
       return;
     }
 
+    // Only standalone cleanup() gets here with a live session; under the runner the delete is a no-op.
     if (!this.browser.isMultiremote) {
       const stdBrowser = this.browser as WebdriverIO.Browser;
       clearWindowState(stdBrowser.sessionId);

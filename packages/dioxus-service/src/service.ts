@@ -83,7 +83,6 @@ export default class DioxusWorkerService {
     clearWindowState();
   }
 
-  /** The runner has already deleted the session here; the delete below is for standalone cleanup(). */
   async afterSession(): Promise<void> {
     log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
     mockStore.clear();
@@ -94,6 +93,7 @@ export default class DioxusWorkerService {
     }
 
     try {
+      // Only standalone cleanup() gets here with a live session; under the runner the delete is a no-op.
       if (!this.browser.isMultiremote) {
         await safeDeleteSession(this.browser as WebdriverIO.Browser, 'afterSession', log);
       } else {
@@ -189,7 +189,7 @@ export default class DioxusWorkerService {
     }
   }
 
-  // The embedded app outlives the session, so clear mocks a previous session left registered.
+  // Clear mocks left registered by previous sessions.
   private async clearStaleMocks(browser: WebdriverIO.Browser): Promise<void> {
     try {
       await browser.execute(function clearStaleMocks() {
