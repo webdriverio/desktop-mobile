@@ -1125,7 +1125,7 @@ describe('TauriWorkerService', () => {
       expect(clearWindowState).toHaveBeenCalledWith('sess-b');
     });
 
-    it('should give the session DELETE the process-teardown deadline, since it closes the app', async () => {
+    it('should allow a stalled session delete the full process-teardown timeout', async () => {
       vi.useFakeTimers();
       try {
         const mockBrowser = createMockBrowser({ deleteSession: vi.fn(() => new Promise<void>(() => {})) });

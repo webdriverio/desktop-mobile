@@ -52,8 +52,7 @@ export async function init(
   const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
   const startTimeout = serviceOptions?.startTimeout ?? 60_000;
 
-  // WebdriverIO's remote() validates capabilities against the W3C spec and rejects unknown keys like
-  // "port" and "hostname".
+  // remote() rejects non-W3C capability keys such as port and hostname.
   const driverCapabilities = structuredClone(capabilities);
   delete (driverCapabilities as { port?: number }).port;
   delete (driverCapabilities as { hostname?: string }).hostname;
@@ -76,7 +75,6 @@ export async function init(
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {
-    // Short deadline: after a failed startup the DELETE rarely completes and only delays the real error.
     await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
     activeLaunchers.delete(browser);
     return failStartup(launcher, error, 'service.before cleanup');
@@ -95,8 +93,6 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so mock/window state
-    // would leak between sequential sessions.
     const service = activeServices.get(browser);
     try {
       await service?.after();

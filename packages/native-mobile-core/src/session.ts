@@ -132,8 +132,6 @@ export function createMobileSession<TOptions extends object, TCap extends object
       return;
     }
 
-    // WDIO's standalone remote() never runs the worker after hook, so mock state would leak between
-    // sequential sessions.
     const service = activeServices.get(browser);
     try {
       await service?.after();

@@ -61,20 +61,17 @@ export async function init(
 
   activeLaunchers.set(browser, launcher);
 
-  // Without the merge, options passed to init() never reach the worker.
   const serviceOptions = mergeServiceOptions(globalOptions, capability[CUSTOM_CAPABILITY_NAME]);
   const service = new ElectrobunWorkerService(serviceOptions, capability);
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    // after() closes the bridges and reaps the Linux app; without the reap the DELETE below can't finish.
-    // Bounded: its console-shim drain runs against the session that just failed.
+    // after() reaps the Linux app, which the DELETE needs to complete.
     await runBounded(
       () => service.after(),
       DEFAULT_TEARDOWN_TIMEOUT_MS,
       () => log.warn('service.after() timed out during startup cleanup'),
     ).catch((e: unknown) => log.warn(`service.after() failed during startup cleanup: ${errorMessage(e)}`));
-    // Short deadline: after a failed startup the DELETE rarely completes and only delays the real error.
     await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
@@ -90,16 +87,18 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (!launcher) {
-    // Not ours - its WebDriver session belongs to whoever opened it.
     log.warn('No launcher found for this browser instance');
     return;
   }
 
-  // WDIO's standalone remote() never runs the worker hooks. after() alone is the whole teardown:
-  // afterSession() delegates to the same closeBridges().
+  // after() covers afterSession()'s teardown too.
   const service = activeServices.get(browser);
   try {
-    await service?.after();
+    await runBounded(
+      async () => service?.after(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn('service.after() timed out during cleanup'),
+    );
   } catch (e) {
     log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
   } finally {

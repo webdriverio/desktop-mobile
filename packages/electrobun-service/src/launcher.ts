@@ -400,7 +400,6 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     }
   }
 
-  // Runs even when the dev-server stop throws, so apps, drivers and the log writer aren't left behind.
   private async stopSpawnedProcesses(): Promise<void> {
     try {
       for (const apps of this.spawnedAppsByCid.values()) {

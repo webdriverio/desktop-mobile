@@ -560,7 +560,7 @@ describe('session', () => {
     it('should wait for launcher cleanup before rejecting startup', async () => {
       const error = new Error('prepare failed');
       mockOnPrepare.mockRejectedValueOnce(error);
-      let finishCleanup!: () => void;
+      let finishCleanup: () => void = () => {};
       mockOnComplete.mockImplementationOnce(
         () =>
           new Promise<void>((resolve) => {
@@ -591,7 +591,7 @@ describe('session', () => {
       expect(mockOnComplete).toHaveBeenCalledOnce();
     });
 
-    it('should give up on the startup-failure delete after the short deadline', async () => {
+    it('should time out a stalled startup-failure delete at the default teardown timeout', async () => {
       vi.useFakeTimers();
       try {
         const startup = new Error('worker service failed');
@@ -675,7 +675,7 @@ describe('session', () => {
       } as unknown as TauriCapabilities;
       const browser = await init(capabilities);
       vi.clearAllMocks();
-      let finishStop!: () => void;
+      let finishStop: () => void = () => {};
       mockOnComplete.mockReturnValueOnce(
         new Promise<void>((resolve) => {
           finishStop = resolve;

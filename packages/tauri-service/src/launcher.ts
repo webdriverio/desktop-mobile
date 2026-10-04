@@ -1060,66 +1060,68 @@ export default class TauriLaunchService {
     }
   }
 
-  // Runs even when the dev-server stop throws, so the log writer, backends and drivers aren't left behind.
   private async stopSpawnedProcesses(): Promise<void> {
     try {
-      await closeLogWriter('tauri-service');
-    } catch {
-      // Log writer may not have been initialized
-    }
+      // Stop all worker test-runner-backends (per-worker mode)
+      if (this.workerBackends.size > 0) {
+        log.info(`Stopping ${this.workerBackends.size} worker test-runner-backend(s)...`);
+        for (const [workerId, backend] of this.workerBackends) {
+          try {
+            await stopTestRunnerBackend(backend.proc);
+            log.debug(`Stopped test-runner-backend for worker ${workerId}`);
+          } catch (error) {
+            log.warn(`Failed to stop test-runner-backend for worker ${workerId}: ${error}`);
+          }
+        }
+        this.workerBackends.clear();
+      }
 
-    // Stop all worker test-runner-backends (per-worker mode)
-    if (this.workerBackends.size > 0) {
-      log.info(`Stopping ${this.workerBackends.size} worker test-runner-backend(s)...`);
-      for (const [workerId, backend] of this.workerBackends) {
-        try {
-          await stopTestRunnerBackend(backend.proc);
-          log.debug(`Stopped test-runner-backend for worker ${workerId}`);
-        } catch (error) {
-          log.warn(`Failed to stop test-runner-backend for worker ${workerId}: ${error}`);
+      // Stop shared test-runner-backend (if any)
+      if (this.testRunnerBackend) {
+        await stopTestRunnerBackend(this.testRunnerBackend);
+        this.testRunnerBackend = undefined;
+      }
+
+      const embeddedCleanupErrors: unknown[] = [];
+      // Stop embedded driver processes if using embedded provider
+      if (this.isEmbeddedMode) {
+        log.info(`Stopping ${this.embeddedProcesses.size} embedded driver process(es)...`);
+        for (const [key, process] of this.embeddedProcesses) {
+          try {
+            await stopEmbeddedDriver(process);
+            this.embeddedProcesses.delete(key);
+            log.debug(`Stopped embedded driver: ${key}`);
+          } catch (error) {
+            log.warn(`Failed to stop embedded driver ${key}: ${error}`);
+            embeddedCleanupErrors.push(error);
+          }
         }
       }
-      this.workerBackends.clear();
-    }
 
-    // Stop shared test-runner-backend (if any)
-    if (this.testRunnerBackend) {
-      await stopTestRunnerBackend(this.testRunnerBackend);
-      this.testRunnerBackend = undefined;
-    }
+      await this.driverPool.stopAll();
+      this.instanceOptions.clear();
+      this.embeddedConfigs.clear();
+      this.portManager.clear();
+      this.backendPortManager.clear();
 
-    const embeddedCleanupErrors: unknown[] = [];
-    // Stop embedded driver processes if using embedded provider
-    if (this.isEmbeddedMode) {
-      log.info(`Stopping ${this.embeddedProcesses.size} embedded driver process(es)...`);
-      for (const [key, process] of this.embeddedProcesses) {
-        try {
-          await stopEmbeddedDriver(process);
-          this.embeddedProcesses.delete(key);
-          log.debug(`Stopped embedded driver: ${key}`);
-        } catch (error) {
-          log.warn(`Failed to stop embedded driver ${key}: ${error}`);
-          embeddedCleanupErrors.push(error);
-        }
+      if (embeddedCleanupErrors.length === 1) {
+        throw embeddedCleanupErrors[0];
+      }
+      if (embeddedCleanupErrors.length > 1) {
+        throw new AggregateError(embeddedCleanupErrors, 'Failed to stop embedded driver processes', {
+          cause: embeddedCleanupErrors[0],
+        });
+      }
+
+      log.debug('Tauri service completed');
+    } finally {
+      // Last, so the stopped processes' shutdown output still reaches the log file.
+      try {
+        await closeLogWriter('tauri-service');
+      } catch {
+        // Log writer may not have been initialized
       }
     }
-
-    await this.driverPool.stopAll();
-    this.instanceOptions.clear();
-    this.embeddedConfigs.clear();
-    this.portManager.clear();
-    this.backendPortManager.clear();
-
-    if (embeddedCleanupErrors.length === 1) {
-      throw embeddedCleanupErrors[0];
-    }
-    if (embeddedCleanupErrors.length > 1) {
-      throw new AggregateError(embeddedCleanupErrors, 'Failed to stop embedded driver processes', {
-        cause: embeddedCleanupErrors[0],
-      });
-    }
-
-    log.debug('Tauri service completed');
   }
 
   /**

@@ -88,7 +88,7 @@ describe('session', () => {
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
-    it('should give up on the startup-failure delete after the short deadline', async () => {
+    it('should time out a stalled startup-failure delete at the default teardown timeout', async () => {
       vi.useFakeTimers();
       try {
         serviceBeforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
@@ -185,7 +185,7 @@ describe('session', () => {
 
     it('should wait past the default teardown deadline for a slow multi-process onComplete', async () => {
       const browser = await init(makeCaps());
-      let finishStop!: () => void;
+      let finishStop: () => void = () => {};
       onCompleteMock.mockReturnValueOnce(
         new Promise<void>((resolve) => {
           finishStop = resolve;

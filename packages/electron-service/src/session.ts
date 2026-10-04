@@ -85,7 +85,6 @@ export async function init(
     await service.before(capability, [], browser);
   } catch (error) {
     // remote() already opened the session, so close it here before the failure propagates.
-    // Short deadline: after a failed startup the DELETE rarely completes and only delays the real error.
     await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
@@ -105,10 +104,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so mock state would
-    // leak between sequential sessions.
     const service = activeServices.get(browser);
-    // Safe without WDIO's hook args: the impls ignore them.
     const svc = service as unknown as
       | { after?: () => void | Promise<void>; afterSession?: () => Promise<void> }
       | undefined;

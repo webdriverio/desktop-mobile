@@ -98,7 +98,6 @@ describe('createMobileSession init', () => {
   it('should still stop the launcher when remote() rejects with a non-Error', async () => {
     resetMocks();
     remoteMock.mockRejectedValueOnce(undefined);
-    // toMatchObject, not toThrow: rejects.toThrow(string) passes on an `undefined` rejection.
     await expect(makeSession().init({ platformName: 'Android' })).rejects.toMatchObject({
       message: 'Mobile standalone startup failed: undefined',
     });
@@ -198,7 +197,7 @@ describe('createMobileSession cleanup', () => {
     resetMocks();
     const session = makeSession();
     const browser = await session.init({ platformName: 'Android' });
-    let finishDelete!: () => void;
+    let finishDelete: () => void = () => {};
     deleteSession.mockReturnValueOnce(
       new Promise<void>((resolve) => {
         finishDelete = resolve;
@@ -225,7 +224,7 @@ describe('createMobileSession cleanup', () => {
     resetMocks();
     const session = makeSession();
     const browser = await session.init({ platformName: 'Android' });
-    let finishStop!: () => void;
+    let finishStop: () => void = () => {};
     onComplete.mockReturnValueOnce(
       new Promise<void>((resolve) => {
         finishStop = resolve;

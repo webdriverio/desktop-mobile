@@ -133,7 +133,6 @@ export async function init(
     return browser;
   } catch (error) {
     if (browser) {
-      // Short deadline: after a failed startup the DELETE rarely completes and only delays the real error.
       await safeDeleteSession(browser, 'startup cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
     }
     return failStartup(error, 'Tauri standalone', () =>
@@ -151,10 +150,7 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so mock/window state
-    // would leak between sequential sessions.
     const service = activeServices.get(browser);
-    // Safe without WDIO's hook args: the impls ignore them.
     const svc = service as unknown as { after?: () => Promise<void>; afterSession?: () => Promise<void> } | undefined;
     try {
       await svc?.after?.();
@@ -169,8 +165,6 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
       activeServices.delete(browser);
     }
 
-    // No onWorkerEnd: onComplete stops every process it would, and its CrabNebula cycle would only
-    // restart the backend and driver for onComplete to kill.
     await boundedOnComplete(launcher, 'cleanup', log);
 
     await closeLogWriter('tauri-service').catch((e: unknown) =>

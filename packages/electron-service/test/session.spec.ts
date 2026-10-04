@@ -153,7 +153,6 @@ describe('Session Management', () => {
       remoteMock.mockRejectedValueOnce(undefined);
       const caps = baseCaps();
 
-      // toMatchObject, not toThrow: rejects.toThrow(string) passes on an `undefined` rejection.
       await expect(init([caps])).rejects.toMatchObject({ message: 'Electron standalone startup failed: undefined' });
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
@@ -177,7 +176,7 @@ describe('Session Management', () => {
       expect(mockClose).toHaveBeenCalledTimes(1);
     });
 
-    it('should give up on the startup-failure delete after the short deadline', async () => {
+    it('should time out a stalled startup-failure delete at the default teardown timeout', async () => {
       vi.useFakeTimers();
       try {
         beforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));

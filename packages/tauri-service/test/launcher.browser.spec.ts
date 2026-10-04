@@ -204,6 +204,17 @@ describe('TauriLaunchService — devServer management', () => {
     expect(driverPool.stopAll).toHaveBeenCalledOnce();
   });
 
+  it('should close the log writer after stopping the drivers', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare({} as Options.Testrunner, [{}] as TauriCapabilities[]);
+
+    await launcher.onComplete();
+    const { driverPool } = launcher as unknown as { driverPool: { stopAll: ReturnType<typeof vi.fn> } };
+    expect(vi.mocked(closeLogWriter).mock.invocationCallOrder[0]).toBeGreaterThan(
+      driverPool.stopAll.mock.invocationCallOrder[0],
+    );
+  });
+
   it('should throw SevereServiceError when the managed dev server fails to start', async () => {
     vi.mocked(startManagedDevServer).mockRejectedValue(new Error('boom'));
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });

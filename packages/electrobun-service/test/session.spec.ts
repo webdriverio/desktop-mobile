@@ -103,12 +103,11 @@ describe('session', () => {
       await expect(init(cap)).rejects.toThrow(/attach failed/);
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
-      // after() reaps the app first, so the DELETE can finish.
       expect(serviceAfterMock).toHaveBeenCalledTimes(1);
       expect(serviceAfterMock.mock.invocationCallOrder[0]).toBeLessThan(deleteSessionMock.mock.invocationCallOrder[0]);
     });
 
-    it('should not let a hung after() hold up a startup failure', async () => {
+    it('should time out a hung service.after() during startup cleanup', async () => {
       vi.useFakeTimers();
       try {
         serviceBeforeMock.mockRejectedValueOnce(new Error('attach failed'));
@@ -126,7 +125,7 @@ describe('session', () => {
       }
     });
 
-    it('should give up on the startup-failure delete after the short deadline', async () => {
+    it('should time out a stalled startup-failure delete at the default teardown timeout', async () => {
       vi.useFakeTimers();
       try {
         serviceBeforeMock.mockRejectedValueOnce(new Error('attach failed'));
@@ -228,7 +227,7 @@ describe('session', () => {
 
     it('should wait past the default teardown deadline for a slow multi-process onComplete', async () => {
       const browser = await init(createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' }));
-      let finishStop!: () => void;
+      let finishStop: () => void = () => {};
       onCompleteMock.mockReturnValueOnce(
         new Promise<void>((resolve) => {
           finishStop = resolve;
@@ -265,6 +264,23 @@ describe('session', () => {
       } finally {
         vi.useRealTimers();
       }
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should time out a hung service.after() during cleanup', async () => {
+      const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+      const browser = await init(cap);
+      serviceAfterMock.mockReturnValueOnce(new Promise<void>(() => {}));
+
+      vi.useFakeTimers();
+      try {
+        const cleanupPromise = cleanup(browser);
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
+        await expect(cleanupPromise).resolves.toBeUndefined();
+      } finally {
+        vi.useRealTimers();
+      }
+      expect(deleteSessionMock).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 

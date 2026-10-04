@@ -11,12 +11,9 @@ import type { Logger } from '@wdio/logger';
 
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
-// Default for teardown that waits on processes: onComplete stops them in sequence (one stop alone can
-// take the SIGTERM grace & SIGKILL wait), and a session DELETE can close the app. The shorter
-// DEFAULT_TEARDOWN_TIMEOUT_MS would abandon either mid-way.
+// Allows for each stopped process's SIGTERM grace + SIGKILL wait, which the default would cut short.
 export const PROCESS_TEARDOWN_TIMEOUT_MS = 30_000;
 
-// Matching a superset across services is safe: every entry is benign once teardown has begun.
 export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
   'session not found',
   'invalid session id',
@@ -31,7 +28,6 @@ export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
   'other side closed',
 ];
 
-// Teardown catches anything, including a bare `reject()`, so never assume an Error.
 export function errorMessage(error: unknown): string {
   if (error instanceof Error) {
     return error.message;
@@ -48,17 +44,13 @@ export function isBenignTeardownError(error: unknown): boolean {
   return BENIGN_TEARDOWN_ERROR_PATTERNS.some((pattern) => haystack.includes(pattern));
 }
 
-/**
- * Pass only teardowns whose failure means a leak; delete the session before calling, since a delete
- * error here is a symptom of the startup failure. Teardowns are thunks so callers compose their own
- * steps without this helper needing service types.
- */
+/** Pass only teardowns whose failure leaks something; their failures are aggregated with the startup error. */
 export async function failStartup(
   startupError: unknown,
   label: string,
   ...teardowns: Array<() => unknown>
 ): Promise<never> {
-  // A bare `reject()` or a string would otherwise reach the caller with no message or stack.
+  // Ensure an Error is propagated, even for a bare reject() or a string.
   const error =
     startupError instanceof Error
       ? startupError
@@ -77,9 +69,7 @@ export async function failStartup(
   throw error;
 }
 
-/**
- * On timeout the op is abandoned and this resolves `undefined` - it never rejects for a timeout.
- */
+/** On timeout, abandons the op and resolves undefined rather than rejecting. */
 export async function runBounded<T>(
   op: () => Promise<T>,
   timeoutMs: number,
@@ -87,8 +77,7 @@ export async function runBounded<T>(
 ): Promise<T | undefined> {
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
-    // An abandoned op can still reject after the deadline; this stops that surfacing as an
-    // unhandledRejection. The race still sees a rejection that lands before the timeout.
+    // Keep a rejection after the deadline from surfacing as an unhandledRejection.
     const opPromise = Promise.resolve(op());
     opPromise.catch(() => {});
     return await Promise.race([
@@ -107,9 +96,7 @@ export async function runBounded<T>(
   }
 }
 
-/**
- * Never throws: a failed delete during teardown leaks nothing that onComplete or process exit won't reap.
- */
+/** Never throws: onComplete or process exit reaps anything a failed delete leaves behind. */
 export async function safeDeleteSession(
   browser: WebdriverIO.Browser,
   context: string,
@@ -171,7 +158,7 @@ export async function boundedOnComplete(
     log.warn(`launcher.onComplete() failed during ${context}: ${errorMessage(e)}`);
     return;
   }
-  // A hung onComplete is the likeliest leak, so a caller that rethrows must see it too.
+  // A timeout counts as a failure: a hung onComplete is the likeliest leak.
   if (timedOut && options.rethrow) {
     throw new Error(`launcher.onComplete() timed out after ${timeoutMs}ms during ${context}`);
   }

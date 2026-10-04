@@ -100,7 +100,7 @@ describe('runBounded', () => {
     process.on('unhandledRejection', unhandled);
     try {
       vi.useFakeTimers();
-      let rejectOp!: (reason: unknown) => void;
+      let rejectOp: (reason: unknown) => void = () => {};
       const pending = runBounded(
         () =>
           new Promise<string>((_, reject) => {
@@ -378,7 +378,7 @@ describe('boundedOnComplete', () => {
     vi.useFakeTimers();
     try {
       const log = makeLog();
-      let rejectStop!: (error: Error) => void;
+      let rejectStop: (error: Error) => void = () => {};
       const onComplete = () =>
         new Promise<void>((_resolve, reject) => {
           rejectStop = reject;
