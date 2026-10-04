@@ -194,26 +194,13 @@ describe('TauriLaunchService — devServer management', () => {
     expect(managedStop).toHaveBeenCalledOnce();
   });
 
-  it('should keep tearing down when the dev server stop throws', async () => {
+  it('should close the log writer when the dev server stop throws', async () => {
     managedStop.mockRejectedValueOnce(new Error('dev server close boom'));
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
     await launcher.onPrepare({} as Options.Testrunner, [{}] as TauriCapabilities[]);
 
     await expect(launcher.onComplete()).rejects.toThrow('dev server close boom');
     expect(closeLogWriter).toHaveBeenCalledWith('tauri-service');
-    const { driverPool } = launcher as unknown as { driverPool: { stopAll: ReturnType<typeof vi.fn> } };
-    expect(driverPool.stopAll).toHaveBeenCalledOnce();
-  });
-
-  it('should close the log writer after stopping the drivers', async () => {
-    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
-    await launcher.onPrepare({} as Options.Testrunner, [{}] as TauriCapabilities[]);
-
-    await launcher.onComplete();
-    const { driverPool } = launcher as unknown as { driverPool: { stopAll: ReturnType<typeof vi.fn> } };
-    expect(vi.mocked(closeLogWriter).mock.invocationCallOrder[0]).toBeGreaterThan(
-      driverPool.stopAll.mock.invocationCallOrder[0],
-    );
   });
 
   it('should throw SevereServiceError when the managed dev server fails to start', async () => {

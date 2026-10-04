@@ -257,13 +257,6 @@ export default class DioxusLaunchService extends BaseLauncher {
     try {
       await this.#stopDevServer?.();
       this.#stopDevServer = undefined;
-    } finally {
-      await this.stopSpawnedProcesses();
-    }
-  }
-
-  private async stopSpawnedProcesses(): Promise<void> {
-    try {
       await this.stopAllEmbedded();
       await this.stopAllDrivers();
     } finally {

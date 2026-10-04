@@ -412,13 +412,6 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     try {
       await this.#stopDevServer?.();
       this.#stopDevServer = undefined;
-    } finally {
-      await this.stopSpawnedProcesses();
-    }
-  }
-
-  private async stopSpawnedProcesses(): Promise<void> {
-    try {
       for (const apps of this.spawnedAppsByCid.values()) {
         for (const app of apps) {
           await stopElectrobunApp(app).catch((error: unknown) => {

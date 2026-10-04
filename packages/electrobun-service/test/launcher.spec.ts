@@ -593,18 +593,6 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(stopElectrobunApp)).not.toHaveBeenCalled();
     });
 
-    it('should still close the log writer when stopping drivers throws', async () => {
-      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
-      await launcher.onPrepare(baseConfig, [{}]);
-      vi.spyOn(launcher as unknown as { stopAllDrivers: () => Promise<void> }, 'stopAllDrivers').mockRejectedValueOnce(
-        new Error('driver stop boom'),
-      );
-      vi.mocked(isLogWriterInitialized).mockReturnValueOnce(true);
-
-      await expect(launcher.onComplete()).rejects.toThrow('driver stop boom');
-      expect(closeLogWriter).toHaveBeenCalledWith('electrobun-service');
-    });
-
     it('should swallow a stopElectrobunApp rejection and still resolve', async () => {
       vi.mocked(stopElectrobunApp).mockRejectedValueOnce(new Error('kill failed'));
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });

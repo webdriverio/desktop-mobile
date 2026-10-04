@@ -1055,13 +1055,7 @@ export default class TauriLaunchService {
     try {
       await this.#stopDevServer?.();
       this.#stopDevServer = undefined;
-    } finally {
-      await this.stopSpawnedProcesses();
-    }
-  }
 
-  private async stopSpawnedProcesses(): Promise<void> {
-    try {
       if (this.workerBackends.size > 0) {
         log.info(`Stopping ${this.workerBackends.size} worker test-runner-backend(s)...`);
         for (const [workerId, backend] of this.workerBackends) {

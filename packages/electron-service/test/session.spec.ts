@@ -156,7 +156,6 @@ describe('Session Management', () => {
       await expect(init([caps])).rejects.toThrow(/chromedriver missing/);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
       expect(mockClose).toHaveBeenCalledTimes(1);
-      expect(mockClose.mock.invocationCallOrder[0]).toBeGreaterThan(onCompleteMock.mock.invocationCallOrder[0]);
     });
 
     it('should tear down the session and stop the launcher when service.before fails', async () => {

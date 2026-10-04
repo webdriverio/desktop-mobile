@@ -170,11 +170,8 @@ export default class ElectrobunWorkerService {
   async after(): Promise<void> {
     // `after` runs before WDIO's deleteSession, so reaping the app here lets that DELETE return fast.
     // closeBridges() first — the console-shim drain needs the session still alive.
-    try {
-      await this.closeBridges();
-    } finally {
-      this.reapW3CApps();
-    }
+    await this.closeBridges();
+    this.reapW3CApps();
   }
 
   async afterSession(): Promise<void> {

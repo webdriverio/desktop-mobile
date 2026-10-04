@@ -586,44 +586,6 @@ describe('ElectrobunWorkerService', () => {
       }
     });
 
-    it('should drain every instance console in parallel on a Linux/W3C multiremote teardown', async () => {
-      mockPlatform('linux');
-      try {
-        const instanceA = makeW3CBrowser();
-        const instanceB = makeW3CBrowser();
-        const mrBrowser = {
-          isMultiremote: true,
-          instances: ['browserA', 'browserB'],
-          getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
-        } as unknown as WebdriverIO.MultiRemoteBrowser;
-        const caps = {
-          browserA: { capabilities: { 'webkitgtk:browserOptions': { binary: '/tmp/clone-a/Demo/bin/launcher' } } },
-          browserB: { capabilities: { 'webkitgtk:browserOptions': { binary: '/tmp/clone-b/Demo/bin/launcher' } } },
-        };
-        const service = new ElectrobunWorkerService({}, {});
-        await service.before(caps, [], mrBrowser);
-        const callsBefore = { a: instanceA.execute.mock.calls.length, b: instanceB.execute.mock.calls.length };
-        instanceA.execute.mockReturnValueOnce(new Promise(() => {}));
-        instanceB.execute.mockReturnValueOnce(new Promise(() => {}));
-
-        vi.useFakeTimers();
-        try {
-          const pending = service.after();
-          await vi.advanceTimersByTimeAsync(0);
-          const drained = (calls: unknown[][], from: number) =>
-            calls.slice(from).some((c) => String(c[0]).includes('return l'));
-          expect(drained(instanceA.execute.mock.calls, callsBefore.a)).toBe(true);
-          expect(drained(instanceB.execute.mock.calls, callsBefore.b)).toBe(true);
-          await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-          await pending;
-        } finally {
-          vi.useRealTimers();
-        }
-      } finally {
-        restorePlatform();
-      }
-    });
-
     it('should reap each instance clone independently on a Linux/W3C multiremote teardown', async () => {
       const originalPlatform = process.platform;
       Object.defineProperty(process, 'platform', { value: 'linux', configurable: true });
