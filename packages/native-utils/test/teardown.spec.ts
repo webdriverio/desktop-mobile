@@ -111,8 +111,10 @@ describe('failStartup', () => {
     expect(teardown).toHaveBeenCalledTimes(1);
   });
 
-  it('should rethrow the original value as-is (not wrapped) when it is not an Error', async () => {
-    await expect(failStartup('boom', 'Widget standalone')).rejects.toBe('boom');
+  it('should wrap a non-Error startup value so the caller gets a message and stack', async () => {
+    const promise = failStartup('boom', 'Widget standalone');
+    await expect(promise).rejects.toThrow('Widget standalone startup failed: boom');
+    await expect(promise).rejects.toMatchObject({ cause: 'boom' });
   });
 
   it('should run every teardown in order, best-effort, even when one throws', async () => {
@@ -177,14 +179,14 @@ describe('safeDeleteSession', () => {
     expect(log.debug).not.toHaveBeenCalled();
   });
 
-  it('should delete the session and log nothing on success', async () => {
+  it('should delete the session, logging only which session at debug', async () => {
     const log = makeLog();
     const deleteSession = vi.fn().mockResolvedValue(undefined);
     await safeDeleteSession(makeBrowser('session-1', deleteSession), 'cleanup', log);
 
     expect(deleteSession).toHaveBeenCalledTimes(1);
     expect(log.warn).not.toHaveBeenCalled();
-    expect(log.debug).not.toHaveBeenCalled();
+    expect(log.debug).toHaveBeenCalledExactlyOnceWith('Deleting session during cleanup: session-1');
   });
 
   it('should swallow a benign failure and log it at debug, not warn', async () => {
@@ -192,7 +194,6 @@ describe('safeDeleteSession', () => {
     const deleteSession = vi.fn().mockRejectedValue(new Error('session not found'));
 
     await expect(safeDeleteSession(makeBrowser('session-1', deleteSession), 'cleanup', log)).resolves.toBeUndefined();
-    expect(log.debug).toHaveBeenCalledOnce();
     expect(log.debug).toHaveBeenCalledWith(expect.stringContaining('benign teardown error'));
     expect(log.warn).not.toHaveBeenCalled();
   });
@@ -204,7 +205,7 @@ describe('safeDeleteSession', () => {
     await expect(safeDeleteSession(makeBrowser('session-1', deleteSession), 'cleanup', log)).resolves.toBeUndefined();
     expect(log.warn).toHaveBeenCalledOnce();
     expect(log.warn).toHaveBeenCalledWith(expect.stringContaining('Failed to delete session'));
-    expect(log.debug).not.toHaveBeenCalled();
+    expect(log.debug).not.toHaveBeenCalledWith(expect.stringContaining('benign'));
   });
 
   it('should not throw for a non-Error rejection', async () => {

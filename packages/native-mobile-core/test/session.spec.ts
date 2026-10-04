@@ -98,7 +98,10 @@ describe('createMobileSession init', () => {
   it('should still stop the launcher when remote() rejects with a non-Error', async () => {
     resetMocks();
     remoteMock.mockRejectedValueOnce(undefined);
-    await expect(makeSession().init({ platformName: 'Android' })).rejects.toBeUndefined();
+    // toMatchObject, not toThrow: rejects.toThrow(string) passes on an `undefined` rejection.
+    await expect(makeSession().init({ platformName: 'Android' })).rejects.toMatchObject({
+      message: 'Mobile standalone startup failed: undefined',
+    });
     expect(onComplete).toHaveBeenCalled();
   });
 

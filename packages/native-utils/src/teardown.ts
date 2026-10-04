@@ -53,6 +53,11 @@ export async function failStartup(
   label: string,
   ...teardowns: Array<() => unknown>
 ): Promise<never> {
+  // A bare `reject()` or a string would otherwise reach the caller with no message or stack.
+  const error =
+    startupError instanceof Error
+      ? startupError
+      : new Error(`${label} startup failed: ${errorMessage(startupError)}`, { cause: startupError });
   const failures: unknown[] = [];
   for (const teardown of teardowns) {
     try {
@@ -62,11 +67,9 @@ export async function failStartup(
     }
   }
   if (failures.length > 0) {
-    throw new AggregateError([startupError, ...failures], `${label} startup and cleanup failed`, {
-      cause: startupError,
-    });
+    throw new AggregateError([error, ...failures], `${label} startup and cleanup failed`, { cause: error });
   }
-  throw startupError;
+  throw error;
 }
 
 /**
@@ -111,6 +114,7 @@ export async function safeDeleteSession(
   if (!browser.sessionId) {
     return;
   }
+  log.debug(`Deleting session during ${context}: ${browser.sessionId}`);
   try {
     await runBounded(
       () => browser.deleteSession(),

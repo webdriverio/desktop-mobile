@@ -125,12 +125,10 @@ export async function init(
     log.debug('Tauri standalone session initialized');
     return browser;
   } catch (error) {
-    const startupError =
-      error instanceof Error ? error : new Error('Tauri standalone session startup failed', { cause: error });
     if (browser) {
       await safeDeleteSession(browser, 'startup cleanup', log);
     }
-    return failStartup(startupError, 'Tauri standalone', () =>
+    return failStartup(error, 'Tauri standalone', () =>
       boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
     );
   }

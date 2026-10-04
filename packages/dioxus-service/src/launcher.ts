@@ -9,7 +9,7 @@ import {
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
-import { createLogger, isErr } from '@wdio/native-utils';
+import { createLogger, errorMessage, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 
@@ -254,8 +254,16 @@ export default class DioxusLaunchService extends BaseLauncher {
   }
 
   async onComplete(): Promise<void> {
-    await this.#stopDevServer?.();
-    this.#stopDevServer = undefined;
+    try {
+      await this.#stopDevServer?.();
+      this.#stopDevServer = undefined;
+    } finally {
+      await this.stopSpawnedProcesses();
+    }
+  }
+
+  // Runs even when the dev-server stop throws, so drivers and the log writer aren't left behind.
+  private async stopSpawnedProcesses(): Promise<void> {
     await this.stopAllEmbedded();
     // Stop any external (wdio-dioxus-driver) processes managed by BaseLauncher
     await this.stopAllDrivers();
@@ -265,7 +273,7 @@ export default class DioxusLaunchService extends BaseLauncher {
     try {
       await closeLogWriter('dioxus-service');
     } catch (error) {
-      log.warn(`Failed to close LogWriter: ${(error as Error).message}`);
+      log.warn(`Failed to close LogWriter: ${errorMessage(error)}`);
     }
   }
 }

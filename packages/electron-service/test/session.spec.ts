@@ -153,7 +153,8 @@ describe('Session Management', () => {
       remoteMock.mockRejectedValueOnce(undefined);
       const caps = baseCaps();
 
-      await expect(init([caps])).rejects.toBeUndefined();
+      // toMatchObject, not toThrow: rejects.toThrow(string) passes on an `undefined` rejection.
+      await expect(init([caps])).rejects.toMatchObject({ message: 'Electron standalone startup failed: undefined' });
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 

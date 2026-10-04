@@ -392,8 +392,16 @@ export default class ElectrobunLaunchService extends BaseLauncher {
   }
 
   async onComplete(): Promise<void> {
-    await this.#stopDevServer?.();
-    this.#stopDevServer = undefined;
+    try {
+      await this.#stopDevServer?.();
+      this.#stopDevServer = undefined;
+    } finally {
+      await this.stopSpawnedProcesses();
+    }
+  }
+
+  // Runs even when the dev-server stop throws, so apps, drivers and the log writer aren't left behind.
+  private async stopSpawnedProcesses(): Promise<void> {
     for (const apps of this.spawnedAppsByCid.values()) {
       for (const app of apps) {
         await stopElectrobunApp(app).catch((error: Error) => {

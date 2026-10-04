@@ -196,7 +196,7 @@ describe('TauriLaunchService — devServer management', () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
     await launcher.onPrepare({} as any, [{}] as any);
 
-    await expect(launcher.onComplete(0, {} as any, [] as any)).rejects.toThrow('dev server close boom');
+    await expect(launcher.onComplete()).rejects.toThrow('dev server close boom');
     expect(closeLogWriter).toHaveBeenCalledWith('tauri-service');
   });
 
