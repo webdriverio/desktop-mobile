@@ -1,5 +1,6 @@
 pub(crate) mod alert_state;
 mod executor;
+pub(crate) mod key_input;
 
 pub use alert_state::AlertStateManager;
 pub use executor::*;
