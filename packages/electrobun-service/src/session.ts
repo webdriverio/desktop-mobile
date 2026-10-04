@@ -11,6 +11,7 @@ import {
   DEFAULT_TEARDOWN_TIMEOUT_MS,
   errorMessage,
   failStartup as failStartupShared,
+  runBounded,
   safeDeleteSession,
 } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
@@ -67,9 +68,12 @@ export async function init(
     await service.before(capability, [], browser);
   } catch (error) {
     // after() closes the bridges and reaps the Linux app; without the reap the DELETE below can't finish.
-    await service
-      .after()
-      .catch((e: unknown) => log.warn(`service.after() failed during startup cleanup: ${errorMessage(e)}`));
+    // Bounded: its console-shim drain runs against the session that just failed.
+    await runBounded(
+      () => service.after(),
+      DEFAULT_TEARDOWN_TIMEOUT_MS,
+      () => log.warn('service.after() timed out during startup cleanup'),
+    ).catch((e: unknown) => log.warn(`service.after() failed during startup cleanup: ${errorMessage(e)}`));
     // Short deadline: after a failed startup the DELETE rarely completes and only delays the real error.
     await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
     activeLaunchers.delete(browser);

@@ -122,7 +122,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
       }
       log.info('Browser mode enabled — skipping driver/binary setup');
       return;
@@ -194,7 +194,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         await this.stopAllEmbedded();
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start embedded WebDriver for instance ${i}: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start embedded WebDriver for instance ${i}: ${errorMessage(error)}`);
       }
     }
   }
@@ -237,7 +237,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         throw error instanceof SevereServiceError
           ? error
           : new SevereServiceError(
-              `Failed to start embedded WebDriver for multiremote instance "${key}": ${(error as Error).message}`,
+              `Failed to start embedded WebDriver for multiremote instance "${key}": ${errorMessage(error)}`,
             );
       }
     }
@@ -247,7 +247,7 @@ export default class DioxusLaunchService extends BaseLauncher {
     for (const [id, info] of this.embeddedProcesses) {
       log.info(`Stopping embedded driver instance ${id}`);
       await stopEmbeddedDriver(info).catch((err) => {
-        log.warn(`Error stopping embedded driver ${id}: ${(err as Error).message}`);
+        log.warn(`Error stopping embedded driver ${id}: ${errorMessage(err)}`);
       });
     }
     this.embeddedProcesses.clear();
