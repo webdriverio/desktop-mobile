@@ -5,7 +5,7 @@ import {
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
-import { createLogger, isErr } from '@wdio/native-utils';
+import { createLogger, errorMessage, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 
 import { CUSTOM_CAPABILITY_NAME, DEFAULT_DEBUG_PORT_BASE, SERVICE_NAME } from './constants.js';
@@ -354,8 +354,8 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     if (apps) {
       this.spawnedAppsByCid.delete(cid);
       for (const app of apps) {
-        await stopElectrobunApp(app).catch((error: Error) => {
-          log.warn(`Worker ${cid}: failed to stop Electrobun app: ${error.message}`);
+        await stopElectrobunApp(app).catch((error: unknown) => {
+          log.warn(`Worker ${cid}: failed to stop Electrobun app: ${errorMessage(error)}`);
         });
       }
     }
@@ -363,8 +363,8 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     if (drivers) {
       this.webkitDriversByCid.delete(cid);
       for (const driver of drivers) {
-        await stopWebKitWebDriver(driver).catch((error: Error) => {
-          log.warn(`Worker ${cid}: failed to stop WebKitWebDriver: ${error.message}`);
+        await stopWebKitWebDriver(driver).catch((error: unknown) => {
+          log.warn(`Worker ${cid}: failed to stop WebKitWebDriver: ${errorMessage(error)}`);
         });
       }
     }
@@ -405,16 +405,16 @@ export default class ElectrobunLaunchService extends BaseLauncher {
     try {
       for (const apps of this.spawnedAppsByCid.values()) {
         for (const app of apps) {
-          await stopElectrobunApp(app).catch((error: Error) => {
-            log.warn(`Failed to stop Electrobun app: ${error.message}`);
+          await stopElectrobunApp(app).catch((error: unknown) => {
+            log.warn(`Failed to stop Electrobun app: ${errorMessage(error)}`);
           });
         }
       }
       this.spawnedAppsByCid.clear();
       for (const drivers of this.webkitDriversByCid.values()) {
         for (const driver of drivers) {
-          await stopWebKitWebDriver(driver).catch((error: Error) => {
-            log.warn(`Failed to stop WebKitWebDriver: ${error.message}`);
+          await stopWebKitWebDriver(driver).catch((error: unknown) => {
+            log.warn(`Failed to stop WebKitWebDriver: ${errorMessage(error)}`);
           });
         }
       }

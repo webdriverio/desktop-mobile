@@ -177,6 +177,21 @@ describe('Session Management', () => {
       expect(mockClose).toHaveBeenCalledTimes(1);
     });
 
+    it('should give up on the startup-failure delete after the short deadline', async () => {
+      vi.useFakeTimers();
+      try {
+        beforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
+        browserMock.deleteSession.mockReturnValueOnce(new Promise<void>(() => {}));
+        await Promise.all([
+          expect(init([baseCaps()])).rejects.toThrow(/bridge attach failed/),
+          vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS),
+        ]);
+        expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should surface both errors via AggregateError when onComplete also fails', async () => {
       remoteMock.mockRejectedValueOnce(new Error('chromedriver missing'));
       onCompleteMock.mockRejectedValueOnce(new Error('dev server stop boom'));

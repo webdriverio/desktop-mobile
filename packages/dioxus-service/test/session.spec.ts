@@ -88,6 +88,21 @@ describe('session', () => {
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
+    it('should give up on the startup-failure delete after the short deadline', async () => {
+      vi.useFakeTimers();
+      try {
+        serviceBeforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
+        deleteSessionMock.mockReturnValueOnce(new Promise<void>(() => {}));
+        await Promise.all([
+          expect(init(makeCaps())).rejects.toThrow(/bridge attach failed/),
+          vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS),
+        ]);
+        expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should swallow a benign deleteSession error when service.before fails', async () => {
       serviceBeforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
       deleteSessionMock.mockRejectedValueOnce(new Error('invalid session id'));

@@ -66,8 +66,11 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    // Short deadline: on Linux the DELETE can't finish until the app is reaped, which onComplete
-    // only does afterwards, so the default would just delay reporting the real error.
+    // after() closes the bridges and reaps the Linux app; without the reap the DELETE below can't finish.
+    await service
+      .after()
+      .catch((e: unknown) => log.warn(`service.after() failed during startup cleanup: ${errorMessage(e)}`));
+    // Short deadline: after a failed startup the DELETE rarely completes and only delays the real error.
     await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);

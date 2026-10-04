@@ -591,6 +591,24 @@ describe('session', () => {
       expect(mockOnComplete).toHaveBeenCalledOnce();
     });
 
+    it('should give up on the startup-failure delete after the short deadline', async () => {
+      vi.useFakeTimers();
+      try {
+        const startup = new Error('worker service failed');
+        mockBefore.mockRejectedValueOnce(startup);
+        mockRemote.mockResolvedValueOnce(
+          createMockBrowser({ deleteSession: vi.fn(() => new Promise<void>(() => {})) }),
+        );
+        await Promise.all([
+          expect(init({})).rejects.toThrow('worker service failed'),
+          vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS),
+        ]);
+        expect(mockOnComplete).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should warn on a non-benign session-cleanup failure and rethrow only the startup error', async () => {
       const startup = new Error('worker service failed');
       const deleteSession = vi.fn().mockRejectedValue(new Error('chrome not reachable'));

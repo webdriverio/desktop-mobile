@@ -103,6 +103,9 @@ describe('session', () => {
       await expect(init(cap)).rejects.toThrow(/attach failed/);
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      // after() reaps the app first, so the DELETE can finish.
+      expect(serviceAfterMock).toHaveBeenCalledTimes(1);
+      expect(serviceAfterMock.mock.invocationCallOrder[0]).toBeLessThan(deleteSessionMock.mock.invocationCallOrder[0]);
     });
 
     it('should give up on the startup-failure delete after the short deadline', async () => {

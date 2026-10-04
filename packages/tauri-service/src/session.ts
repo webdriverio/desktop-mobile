@@ -1,6 +1,13 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteSession } from '@wdio/native-utils';
+import {
+  boundedOnComplete,
+  createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
+  errorMessage,
+  failStartup,
+  safeDeleteSession,
+} from '@wdio/native-utils';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
@@ -126,7 +133,8 @@ export async function init(
     return browser;
   } catch (error) {
     if (browser) {
-      await safeDeleteSession(browser, 'startup cleanup', log);
+      // Short deadline: after a failed startup the DELETE rarely completes and only delays the real error.
+      await safeDeleteSession(browser, 'startup cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
     }
     return failStartup(error, 'Tauri standalone', () =>
       boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),

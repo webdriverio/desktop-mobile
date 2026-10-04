@@ -1,3 +1,4 @@
+import type { Options } from '@wdio/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/embeddedProvider.js', () => ({
@@ -77,6 +78,7 @@ vi.mock('@wdio/native-core', async (importOriginal) => ({
 import { closeLogWriter, startManagedDevServer } from '@wdio/native-core';
 import { ensureTauriDriver } from '../src/driverManager.js';
 import TauriLaunchService from '../src/launcher.js';
+import type { TauriCapabilities } from '../src/types.js';
 
 const DEV_SERVER = 'http://localhost:1420';
 
@@ -194,7 +196,7 @@ describe('TauriLaunchService — devServer management', () => {
   it('should keep tearing down when the dev server stop throws', async () => {
     managedStop.mockRejectedValueOnce(new Error('dev server close boom'));
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
-    await launcher.onPrepare({} as any, [{}] as any);
+    await launcher.onPrepare({} as Options.Testrunner, [{}] as TauriCapabilities[]);
 
     await expect(launcher.onComplete()).rejects.toThrow('dev server close boom');
     expect(closeLogWriter).toHaveBeenCalledWith('tauri-service');
