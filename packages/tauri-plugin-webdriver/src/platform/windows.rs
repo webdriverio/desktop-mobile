@@ -114,7 +114,7 @@ impl SendableComPtr {
 
 // Tauri doesn't re-export webview2-com and can move to a semver-incompatible version of it in a
 // minor release, so rebind onto our copy rather than tie the plugin to Tauri minors that match ours.
-#[allow(clippy::useless_transmute)] // same type when Tauri's webview2-com matches ours
+#[allow(clippy::useless_transmute)]
 fn rebind_controller(webview: &PlatformWebview) -> ICoreWebView2Controller {
     // SAFETY: both types are #[repr(transparent)] pointers to the same WebView2 COM object,
     // whose layout is fixed by WebView2, not by the crate version.
