@@ -112,19 +112,12 @@ impl SendableComPtr {
     }
 }
 
-/// Moves the controller Tauri hands out onto this crate's own `webview2-com` types.
-///
-/// Tauri exposes `webview2-com` types without re-exporting the crate, and a Tauri minor
-/// release can move to a semver-incompatible `webview2-com`. Cargo then builds both copies
-/// and their types don't unify, so using Tauri's type directly would tie the plugin to the
-/// Tauri minors that happen to share our `webview2-com`.
-// A no-op transmute whenever Tauri's `webview2-com` matches ours; not `expect`, since the
-// lint only fires in that case.
-#[allow(clippy::useless_transmute)]
+// Tauri doesn't re-export webview2-com and can move to a semver-incompatible version of it in a
+// minor release, so rebind onto our copy rather than tie the plugin to Tauri minors that match ours.
+#[allow(clippy::useless_transmute)] // same type when Tauri's webview2-com matches ours
 fn rebind_controller(webview: &PlatformWebview) -> ICoreWebView2Controller {
-    // SAFETY: both sides are `#[repr(transparent)]` wrappers over one COM interface pointer,
-    // and the IID and vtable are fixed by the WebView2 ABI, not by the crate version. The
-    // move hands over the reference `controller()` already AddRef'd, keeping the count balanced.
+    // SAFETY: both types are #[repr(transparent)] pointers to the same WebView2 COM object,
+    // whose layout is fixed by WebView2, not by the crate version.
     unsafe { std::mem::transmute::<_, ICoreWebView2Controller>(webview.controller()) }
 }
 
