@@ -11,7 +11,7 @@ import type { Logger } from '@wdio/logger';
 
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
-// Allows for each stopped process's SIGTERM grace + SIGKILL wait, which the default would cut short.
+// Long enough for a SIGTERM grace + SIGKILL wait; the 10s default would cut that short.
 export const PROCESS_TEARDOWN_TIMEOUT_MS = 30_000;
 
 export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
@@ -34,13 +34,21 @@ export function errorMessage(error: unknown): string {
   }
   // Protocol/CDP layers often reject with a plain `{ message }` object.
   const message = (error as { message?: unknown } | null | undefined)?.message;
-  return typeof message === 'string' ? message : String(error);
+  return typeof message === 'string' ? message : toSafeString(error);
+}
+
+// String() throws for objects without a usable toString(), e.g. null-prototype ones.
+function toSafeString(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return Object.prototype.toString.call(value);
+  }
 }
 
 export function isBenignTeardownError(error: unknown): boolean {
-  const haystack = `${(error as { message?: string })?.message ?? error ?? ''} ${
-    (error as { code?: string })?.code ?? ''
-  }`.toLowerCase();
+  const code = (error as { code?: unknown } | null | undefined)?.code;
+  const haystack = `${errorMessage(error)} ${code === undefined ? '' : toSafeString(code)}`.toLowerCase();
   return BENIGN_TEARDOWN_ERROR_PATTERNS.some((pattern) => haystack.includes(pattern));
 }
 

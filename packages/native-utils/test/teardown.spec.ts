@@ -29,6 +29,11 @@ describe('isBenignTeardownError', () => {
     expect(isBenignTeardownError(new Error('expected 1 to equal 2'))).toBe(false);
   });
 
+  it('should not throw for a Symbol or null-prototype rejection', () => {
+    expect(isBenignTeardownError(Symbol('boom'))).toBe(false);
+    expect(isBenignTeardownError(Object.create(null))).toBe(false);
+  });
+
   it('should not match undefined', () => {
     expect(isBenignTeardownError(undefined)).toBe(false);
   });
@@ -45,6 +50,11 @@ describe('errorMessage', () => {
 
   it('should read the message of a plain error-like object', () => {
     expect(errorMessage({ message: 'session not found', code: 'X' })).toBe('session not found');
+  });
+
+  it('should not throw for values String() cannot convert', () => {
+    expect(errorMessage(Object.create(null))).toBe('[object Object]');
+    expect(errorMessage(Symbol('boom'))).toBe('Symbol(boom)');
   });
 
   it('should stringify anything else', () => {
