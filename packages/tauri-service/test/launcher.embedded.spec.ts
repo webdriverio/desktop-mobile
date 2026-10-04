@@ -12,7 +12,8 @@ vi.mock('../src/diagnostics.js', () => ({
   diagnoseTauriEnvironment: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock('@wdio/native-utils', () => ({
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  errorMessage: (await importOriginal<typeof import('@wdio/native-utils')>()).errorMessage,
   createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   formatDiagnosticResults: vi.fn(),
   isErr: vi.fn().mockReturnValue(false),
@@ -277,6 +278,20 @@ describe('embedded launcher lifecycle', () => {
     vi.mocked(startEmbeddedDriver).mockResolvedValue(stubDriverInfo);
     vi.mocked(stopEmbeddedDriver).mockResolvedValue(undefined);
     vi.mocked(checkEmbeddedServerAlive).mockResolvedValue(true);
+  });
+
+  it('keeps stopping the embedded drivers when the shared backend stop throws', async () => {
+    const { stopTestRunnerBackend } = await import('../src/crabnebulaBackend.js');
+    vi.mocked(stopTestRunnerBackend).mockRejectedValueOnce(new Error('kill EINVAL'));
+    const caps = { 'tauri:options': { application: APP_BINARY } };
+    const config = { capabilities: [caps] };
+    const launcher = new TauriLaunchService({}, caps, config);
+    await launcher.onPrepare(config, [caps]);
+    (launcher as unknown as { testRunnerBackend: object }).testRunnerBackend = {};
+
+    await launcher.onComplete(0, config, []);
+
+    expect(stopEmbeddedDriver).toHaveBeenCalledWith(stubDriverInfo);
   });
 
   it.each(['linux', 'win32', 'darwin'])('skips external setup and diagnostics on %s', async (platform) => {

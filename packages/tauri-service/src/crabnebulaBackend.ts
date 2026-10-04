@@ -1,5 +1,5 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, runBounded } from '@wdio/native-utils';
 import { findTestRunnerBackend } from './driverManager.js';
 import { createLogCapture } from './logCapture.js';
 import type { TauriServiceOptions } from './types.js';
@@ -218,6 +218,14 @@ export async function waitTestRunnerBackendReady(
   });
 }
 
+const SIGTERM_GRACE_MS = 5_000;
+const SIGKILL_WAIT_MS = 5_000;
+
+// `killed` turns true as soon as a signal is sent; only exitCode/signalCode show the process has gone.
+function hasExited(proc: ChildProcess): boolean {
+  return proc.exitCode !== null || proc.signalCode !== null;
+}
+
 /**
  * Stop the test-runner-backend process
  * Sends SIGTERM first, then SIGKILL if process doesn't exit gracefully
@@ -225,11 +233,6 @@ export async function waitTestRunnerBackendReady(
  * @param proc - The ChildProcess to stop
  * @returns Promise that resolves when process has exited
  */
-// `killed` turns true as soon as a signal is sent; only exitCode/signalCode show the process has gone.
-function hasExited(proc: ChildProcess): boolean {
-  return proc.exitCode !== null || proc.signalCode !== null;
-}
-
 export async function stopTestRunnerBackend(proc: ChildProcess): Promise<void> {
   if (hasExited(proc)) {
     log.debug('test-runner-backend already stopped');
@@ -238,24 +241,24 @@ export async function stopTestRunnerBackend(proc: ChildProcess): Promise<void> {
 
   log.info('Stopping test-runner-backend');
 
-  // Send SIGTERM for graceful shutdown
-  proc.kill('SIGTERM');
-
-  // Wait for graceful shutdown with timeout
-  await new Promise<void>((resolve) => {
-    const killTimeout = setTimeout(() => {
-      if (!hasExited(proc)) {
-        log.warn('test-runner-backend did not exit gracefully, forcing kill');
-        proc.kill('SIGKILL');
-      }
-      resolve();
-    }, 5000);
-
-    proc.on('exit', () => {
-      clearTimeout(killTimeout);
-      resolve();
-    });
+  let onExit: () => void = () => {};
+  const exited = new Promise<true>((resolve) => {
+    onExit = () => resolve(true);
+    proc.once('exit', onExit);
   });
+  try {
+    proc.kill('SIGTERM');
+    if (!(await runBounded(() => exited, SIGTERM_GRACE_MS))) {
+      log.warn('test-runner-backend did not exit gracefully, forcing kill');
+      proc.kill('SIGKILL');
+      if (!(await runBounded(() => exited, SIGKILL_WAIT_MS))) {
+        log.warn('test-runner-backend did not exit after SIGKILL');
+        return;
+      }
+    }
+  } finally {
+    proc.off('exit', onExit);
+  }
 
   log.debug('test-runner-backend stopped');
 }

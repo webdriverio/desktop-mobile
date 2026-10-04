@@ -1076,7 +1076,11 @@ export default class TauriLaunchService {
       }
 
       if (this.testRunnerBackend) {
-        await stopTestRunnerBackend(this.testRunnerBackend);
+        try {
+          await stopTestRunnerBackend(this.testRunnerBackend);
+        } catch (error) {
+          log.warn(`Failed to stop shared test-runner-backend: ${errorMessage(error)}`);
+        }
         this.testRunnerBackend = undefined;
       }
 

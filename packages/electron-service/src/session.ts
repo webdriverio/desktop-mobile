@@ -28,8 +28,8 @@ function failStartup(launcher: ElectronLaunchService, error: unknown): Promise<n
   return failStartupShared(
     error,
     'Electron standalone',
-    () => writer.close(),
     () => boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
+    () => writer.close(),
   );
 }
 
