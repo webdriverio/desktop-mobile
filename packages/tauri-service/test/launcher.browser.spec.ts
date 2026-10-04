@@ -1,3 +1,4 @@
+import type { Options } from '@wdio/types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 vi.mock('../src/embeddedProvider.js', () => ({
@@ -12,7 +13,8 @@ vi.mock('../src/diagnostics.js', () => ({
   diagnoseTauriEnvironment: vi.fn().mockResolvedValue([]),
 }));
 
-vi.mock('@wdio/native-utils', () => ({
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  errorMessage: (await importOriginal<typeof import('@wdio/native-utils')>()).errorMessage,
   createLogger: () => ({ info: vi.fn(), debug: vi.fn(), warn: vi.fn(), error: vi.fn() }),
   formatDiagnosticResults: vi.fn(),
   isErr: (r: { ok: boolean }) => r.ok === false,
@@ -71,11 +73,13 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
 vi.mock('@wdio/native-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-core')>()),
   startManagedDevServer: vi.fn(),
+  closeLogWriter: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { startManagedDevServer } from '@wdio/native-core';
+import { closeLogWriter, startManagedDevServer } from '@wdio/native-core';
 import { ensureTauriDriver } from '../src/driverManager.js';
 import TauriLaunchService from '../src/launcher.js';
+import type { TauriCapabilities } from '../src/types.js';
 
 const DEV_SERVER = 'http://localhost:1420';
 
@@ -188,6 +192,15 @@ describe('TauriLaunchService — devServer management', () => {
     expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
     await launcher.onComplete(0, {} as any, [] as any);
     expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should close the log writer when the dev server stop throws', async () => {
+    managedStop.mockRejectedValueOnce(new Error('dev server close boom'));
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare({} as Options.Testrunner, [{}] as TauriCapabilities[]);
+
+    await expect(launcher.onComplete()).rejects.toThrow('dev server close boom');
+    expect(closeLogWriter).toHaveBeenCalledWith('tauri-service');
   });
 
   it('should throw SevereServiceError when the managed dev server fails to start', async () => {

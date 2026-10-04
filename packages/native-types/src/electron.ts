@@ -520,10 +520,6 @@ type ElectronServiceCustomCapability = {
    * custom capabilities to configure the Electron service
    */
   'wdio:electronServiceOptions'?: ElectronServiceOptions;
-  /**
-   * Chromium version for chromedriver fallback sources (automatically set by service)
-   */
-  'wdio:chromiumVersion'?: string;
 };
 
 type ElectronServiceRequestedStandaloneCapabilities = Capabilities.RequestedStandaloneCapabilities &
@@ -540,7 +536,6 @@ export interface ElectronStandaloneCapability {
   browserName: 'electron';
   'goog:chromeOptions'?: { binary?: string; args?: string[] };
   'wdio:electronServiceOptions'?: ElectronServiceOptions;
-  'wdio:chromiumVersion'?: string;
 }
 
 export type WdioElectronConfig = Omit<Options.Testrunner, 'capabilities'> & {

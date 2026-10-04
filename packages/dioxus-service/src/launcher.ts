@@ -9,7 +9,7 @@ import {
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
-import { createLogger, isErr } from '@wdio/native-utils';
+import { createLogger, errorMessage, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 
@@ -122,7 +122,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
       }
       log.info('Browser mode enabled — skipping driver/binary setup');
       return;
@@ -194,7 +194,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         await this.stopAllEmbedded();
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start embedded WebDriver for instance ${i}: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start embedded WebDriver for instance ${i}: ${errorMessage(error)}`);
       }
     }
   }
@@ -237,7 +237,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         throw error instanceof SevereServiceError
           ? error
           : new SevereServiceError(
-              `Failed to start embedded WebDriver for multiremote instance "${key}": ${(error as Error).message}`,
+              `Failed to start embedded WebDriver for multiremote instance "${key}": ${errorMessage(error)}`,
             );
       }
     }
@@ -247,25 +247,24 @@ export default class DioxusLaunchService extends BaseLauncher {
     for (const [id, info] of this.embeddedProcesses) {
       log.info(`Stopping embedded driver instance ${id}`);
       await stopEmbeddedDriver(info).catch((err) => {
-        log.warn(`Error stopping embedded driver ${id}: ${(err as Error).message}`);
+        log.warn(`Error stopping embedded driver ${id}: ${errorMessage(err)}`);
       });
     }
     this.embeddedProcesses.clear();
   }
 
   async onComplete(): Promise<void> {
-    await this.#stopDevServer?.();
-    this.#stopDevServer = undefined;
-    await this.stopAllEmbedded();
-    // Stop any external (wdio-dioxus-driver) processes managed by BaseLauncher
-    await this.stopAllDrivers();
-    // Flush + close the LogWriter (mirrors tauri-service/launcher.ts). Without
-    // this, bytes still in the WriteStream buffer at process exit can be
-    // silently dropped from the captured log file.
     try {
-      await closeLogWriter('dioxus-service');
-    } catch (error) {
-      log.warn(`Failed to close LogWriter: ${(error as Error).message}`);
+      await this.#stopDevServer?.();
+      this.#stopDevServer = undefined;
+      await this.stopAllEmbedded();
+      await this.stopAllDrivers();
+    } finally {
+      try {
+        await closeLogWriter('dioxus-service');
+      } catch (error) {
+        log.warn(`Failed to close LogWriter: ${errorMessage(error)}`);
+      }
     }
   }
 }

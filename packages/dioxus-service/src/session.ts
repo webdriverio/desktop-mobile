@@ -1,4 +1,10 @@
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import {
+  boundedOnComplete,
+  createLogger,
+  errorMessage,
+  failStartup as failStartupShared,
+  safeDeleteSession,
+} from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import DioxusLaunchService from './launcher.js';
@@ -10,49 +16,12 @@ const log = createLogger('dioxus-service', 'session');
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, DioxusLaunchService>();
 const activeServices = new WeakMap<WebdriverIO.Browser, DioxusWorkerService>();
 
-/**
- * Best-effort launcher teardown, bounded because onComplete stops a browser-mode dev server whose
- * close() is user-supplied and can hang.
- */
-async function stopLauncher(launcher: DioxusLaunchService, context: string): Promise<void> {
-  await runBounded(
-    () => launcher.onComplete(),
-    DEFAULT_TEARDOWN_TIMEOUT_MS,
-    () => log.warn(`launcher.onComplete() timed out during ${context}`),
-  ).catch((e: Error) => log.warn(`launcher.onComplete() failed during ${context}: ${e.message}`));
+function failStartup(launcher: DioxusLaunchService, error: unknown, context: string): Promise<never> {
+  return failStartupShared(error, 'Dioxus standalone', () =>
+    boundedOnComplete(launcher, context, log, { rethrow: true }),
+  );
 }
 
-/**
- * Best-effort deletion of the session during teardown. The driver socket may already be gone by
- * then, so a failure here is usually harmless, and the call is time-bounded so a stall can't block
- * the rest of teardown.
- */
-async function deleteSessionBounded(browser: WebdriverIO.Browser, context: string): Promise<void> {
-  if (!browser.sessionId) {
-    return;
-  }
-  try {
-    await runBounded(
-      () => browser.deleteSession(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.warn(`deleteSession timed out during ${context}`),
-    );
-  } catch (e) {
-    if (isBenignTeardownError(e)) {
-      log.debug(`Ignoring benign teardown error during deleteSession (${context}): ${(e as Error).message}`);
-    } else {
-      log.warn(`Failed to delete session during ${context}: ${(e as Error).message}`);
-    }
-  }
-}
-
-/**
- * Initialize Dioxus service in standalone mode.
- *
- * WDIO's `remote()` only invokes worker-level service hooks. This function
- * manually calls `launcher.onPrepare()` so the embedded WebDriver server is
- * started before the session is opened.
- */
 export async function init(
   capabilities: DioxusCapabilities,
   globalOptions?: DioxusServiceGlobalOptions,
@@ -67,10 +36,13 @@ export async function init(
   const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
   const port = (capabilities as { port?: number }).port;
   if (!port) {
-    await stopLauncher(launcher, 'port-check cleanup');
-    throw new Error(
-      'Dioxus driver port was not set on capabilities by onPrepare. ' +
-        'This usually means the launcher failed to start the embedded WebDriver server.',
+    return failStartup(
+      launcher,
+      new Error(
+        'Dioxus driver port was not set on capabilities by onPrepare. ' +
+          'This usually means the launcher failed to start the embedded WebDriver server.',
+      ),
+      'port-check cleanup',
     );
   }
 
@@ -79,9 +51,7 @@ export async function init(
   const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
   const startTimeout = serviceOptions?.startTimeout ?? 60_000;
 
-  // Strip non-W3C props that the launcher sets for its own connection bookkeeping.
-  // webdriverio's remote() validates capabilities against the W3C spec and rejects
-  // unknown keys like "port" and "hostname".
+  // remote() rejects non-W3C capability keys such as port and hostname.
   const driverCapabilities = structuredClone(capabilities);
   delete (driverCapabilities as { port?: number }).port;
   delete (driverCapabilities as { hostname?: string }).hostname;
@@ -93,10 +63,9 @@ export async function init(
     capabilities: driverCapabilities,
     connectionRetryTimeout: startTimeout * 4,
     connectionRetryCount: 10,
-  }).catch(async (error: Error) => {
-    log.error(`Failed to create remote session: ${error.message}`);
-    await stopLauncher(launcher, 'remote() cleanup');
-    throw error;
+  }).catch((error: unknown) => {
+    log.error(`Failed to create remote session: ${errorMessage(error)}`);
+    return failStartup(launcher, error, 'remote() cleanup');
   });
 
   activeLaunchers.set(browser, launcher);
@@ -105,10 +74,9 @@ export async function init(
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {
-    await deleteSessionBounded(browser, 'service.before cleanup');
-    await stopLauncher(launcher, 'service.before cleanup');
+    await safeDeleteSession(browser, 'service.before cleanup', log);
     activeLaunchers.delete(browser);
-    throw error;
+    return failStartup(launcher, error, 'service.before cleanup');
   }
   activeServices.set(browser, service);
 
@@ -128,16 +96,16 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     try {
       await service?.after();
     } catch (e: unknown) {
-      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
     }
     try {
       await service?.afterSession();
     } catch (e: unknown) {
-      log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.afterSession() failed during cleanup: ${errorMessage(e)}`);
     } finally {
       activeServices.delete(browser);
     }
-    await stopLauncher(launcher, 'cleanup');
+    await boundedOnComplete(launcher, 'cleanup', log);
     activeLaunchers.delete(browser);
     log.debug('Dioxus standalone session cleaned up');
   } else {

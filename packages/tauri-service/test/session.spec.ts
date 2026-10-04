@@ -12,6 +12,7 @@ const {
   mockLogWriterGetLogFile,
   mockRemote,
   mockHttpGet,
+  mockLog,
 } = vi.hoisted(() => ({
   mockOnPrepare: vi.fn().mockResolvedValue(undefined),
   mockOnWorkerStart: vi.fn().mockResolvedValue(undefined),
@@ -23,6 +24,7 @@ const {
   mockLogWriterGetLogFile: vi.fn().mockReturnValue('/tmp/logs/test.log'),
   mockRemote: vi.fn(),
   mockHttpGet: vi.fn(),
+  mockLog: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
 }));
 
 vi.mock('@wdio/native-core', () => ({
@@ -31,16 +33,12 @@ vi.mock('@wdio/native-core', () => ({
     getLogDir: mockLogWriterGetLogDir,
     getLogFile: mockLogWriterGetLogFile,
   }),
-  closeLogWriter: vi.fn(),
+  closeLogWriter: vi.fn().mockResolvedValue(undefined),
 }));
 
-vi.mock('@wdio/native-utils', () => ({
-  createLogger: () => ({
-    debug: vi.fn(),
-    info: vi.fn(),
-    warn: vi.fn(),
-    error: vi.fn(),
-  }),
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
+  createLogger: () => mockLog,
 }));
 
 vi.mock('../src/launcher.js', () => ({
@@ -73,9 +71,10 @@ vi.mock('node:http', () => ({
 }));
 
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import TauriLaunchService from '../src/launcher.js';
 import TauriWorkerService from '../src/service.js';
-import { cleanup, createTauriCapabilities, getTauriServiceStatus, init } from '../src/session.js';
+import { cleanup, createTauriCapabilities, init } from '../src/session.js';
 import type { TauriCapabilities } from '../src/types.js';
 
 function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO.Browser {
@@ -85,7 +84,7 @@ function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO
     instances: [],
     getInstance: vi.fn(),
     execute: vi.fn(),
-    deleteSession: vi.fn(),
+    deleteSession: vi.fn().mockResolvedValue(undefined),
     ...overrides,
   } as unknown as WebdriverIO.Browser;
 }
@@ -253,27 +252,6 @@ describe('session', () => {
       const caps = createTauriCapabilities('/app', { appArgs: [] });
       expect(caps['tauri:options']?.args).toEqual([]);
       expect(caps['wdio:tauriServiceOptions']?.appArgs).toEqual([]);
-    });
-  });
-
-  describe('getTauriServiceStatus', () => {
-    it('should return available true with version', () => {
-      const status = getTauriServiceStatus();
-
-      expect(status).toEqual({
-        available: true,
-        version: '0.0.0',
-      });
-    });
-
-    it('should have a version string', () => {
-      const status = getTauriServiceStatus();
-      expect(typeof status.version).toBe('string');
-    });
-
-    it('should have available as boolean', () => {
-      const status = getTauriServiceStatus();
-      expect(typeof status.available).toBe('boolean');
     });
   });
 
@@ -567,7 +545,7 @@ describe('session', () => {
     });
 
     it.each(['prepare', 'worker', 'remote', 'before'] as const)(
-      'cleans up when %s fails and preserves the original failure',
+      'should clean up when %s fails and preserves the original failure',
       async (stage) => {
         const error = new Error(`${stage} failed`);
         const hook = { prepare: mockOnPrepare, worker: mockOnWorkerStart, remote: mockRemote, before: mockBefore }[
@@ -579,10 +557,10 @@ describe('session', () => {
       },
     );
 
-    it('waits for launcher cleanup before rejecting startup', async () => {
+    it('should wait for launcher cleanup before rejecting startup', async () => {
       const error = new Error('prepare failed');
       mockOnPrepare.mockRejectedValueOnce(error);
-      let finishCleanup!: () => void;
+      let finishCleanup: () => void = () => {};
       mockOnComplete.mockImplementationOnce(
         () =>
           new Promise<void>((resolve) => {
@@ -600,19 +578,38 @@ describe('session', () => {
       expect(await result).toBe(error);
     });
 
-    it('preserves startup, session cleanup and launcher cleanup failures', async () => {
+    it('should preserve startup and launcher cleanup failures', async () => {
       const startup = new Error('worker service failed');
-      const sessionCleanup = new Error('delete session failed');
       const launcherCleanup = new Error('process did not exit');
-      const browser = createMockBrowser({ deleteSession: vi.fn().mockRejectedValue(sessionCleanup) });
-      mockRemote.mockResolvedValueOnce(browser);
+      mockRemote.mockResolvedValueOnce(createMockBrowser());
       mockBefore.mockRejectedValueOnce(startup);
       mockOnComplete.mockRejectedValueOnce(launcherCleanup);
       await expect(init({})).rejects.toMatchObject({
         cause: startup,
-        errors: [startup, sessionCleanup, launcherCleanup],
+        errors: [startup, launcherCleanup],
       });
       expect(mockOnComplete).toHaveBeenCalledOnce();
+    });
+
+    it('should warn on a non-benign session-cleanup failure and rethrow only the startup error', async () => {
+      const startup = new Error('worker service failed');
+      const deleteSession = vi.fn().mockRejectedValue(new Error('chrome not reachable'));
+      mockRemote.mockResolvedValueOnce(createMockBrowser({ deleteSession }));
+      mockBefore.mockRejectedValueOnce(startup);
+      await expect(init({})).rejects.toBe(startup);
+      expect(deleteSession).toHaveBeenCalledOnce();
+      expect(mockLog.warn).toHaveBeenCalledWith(
+        'Failed to delete session during startup cleanup: chrome not reachable',
+      );
+      expect(mockOnComplete).toHaveBeenCalledOnce();
+    });
+
+    it('should swallow a benign session-cleanup error and rethrow only the startup error', async () => {
+      const startup = new Error('worker service failed');
+      const browser = createMockBrowser({ deleteSession: vi.fn().mockRejectedValue(new Error('session not found')) });
+      mockRemote.mockResolvedValueOnce(browser);
+      mockBefore.mockRejectedValueOnce(startup);
+      await expect(init({})).rejects.toBe(startup);
     });
   });
 
@@ -625,7 +622,7 @@ describe('session', () => {
       });
     });
 
-    it('should call launcher lifecycle methods when launcher is found', async () => {
+    it('should stop the launcher via onComplete alone when launcher is found', async () => {
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -636,9 +633,49 @@ describe('session', () => {
 
       await cleanup(browser);
 
-      expect(mockOnWorkerEnd).toHaveBeenCalledWith('standalone');
-      expect(mockOnComplete).toHaveBeenCalledWith(0, expect.objectContaining({ capabilities: [] }), []);
-      expect(closeLogWriter).toHaveBeenCalled();
+      expect(mockOnWorkerEnd).not.toHaveBeenCalled();
+      expect(mockOnComplete).toHaveBeenCalled();
+    });
+
+    it('should swallow a launcher.onComplete failure during cleanup', async () => {
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+      } as unknown as TauriCapabilities;
+      const browser = await init(capabilities);
+      vi.clearAllMocks();
+      mockOnComplete.mockRejectedValueOnce(new Error('driver stop boom'));
+
+      await expect(cleanup(browser)).resolves.toBeUndefined();
+    });
+
+    it('should wait past the default teardown deadline for a slow multi-process onComplete', async () => {
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+      } as unknown as TauriCapabilities;
+      const browser = await init(capabilities);
+      vi.clearAllMocks();
+      let finishStop: () => void = () => {};
+      mockOnComplete.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishStop = resolve;
+        }),
+      );
+
+      vi.useFakeTimers();
+      try {
+        let settled = false;
+        const pending = cleanup(browser).then(() => {
+          settled = true;
+        });
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 5_000);
+        expect(settled).toBe(false);
+
+        finishStop();
+        await pending;
+        expect(settled).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should remove launcher from active launchers after cleanup', async () => {

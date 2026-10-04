@@ -1,7 +1,8 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage } from '@wdio/native-utils';
 import { findTestRunnerBackend } from './driverManager.js';
 import { createLogCapture } from './logCapture.js';
+import { signalAndWaitForExit } from './processExit.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service');
@@ -218,6 +219,9 @@ export async function waitTestRunnerBackendReady(
   });
 }
 
+const SIGTERM_GRACE_MS = 5_000;
+const SIGKILL_WAIT_MS = 5_000;
+
 /**
  * Stop the test-runner-backend process
  * Sends SIGTERM first, then SIGKILL if process doesn't exit gracefully
@@ -226,33 +230,22 @@ export async function waitTestRunnerBackendReady(
  * @returns Promise that resolves when process has exited
  */
 export async function stopTestRunnerBackend(proc: ChildProcess): Promise<void> {
-  if (proc.killed) {
-    log.debug('test-runner-backend already stopped');
-    return;
-  }
-
   log.info('Stopping test-runner-backend');
+  try {
+    if (await signalAndWaitForExit(proc, 'SIGTERM', SIGTERM_GRACE_MS)) {
+      log.debug('test-runner-backend stopped');
+      return;
+    }
 
-  // Send SIGTERM for graceful shutdown
-  proc.kill('SIGTERM');
-
-  // Wait for graceful shutdown with timeout
-  await new Promise<void>((resolve) => {
-    const killTimeout = setTimeout(() => {
-      if (!proc.killed) {
-        log.warn('test-runner-backend did not exit gracefully, forcing kill');
-        proc.kill('SIGKILL');
-      }
-      resolve();
-    }, 5000);
-
-    proc.on('exit', () => {
-      clearTimeout(killTimeout);
-      resolve();
-    });
-  });
-
-  log.debug('test-runner-backend stopped');
+    log.warn('test-runner-backend did not exit gracefully, forcing kill');
+    if (await signalAndWaitForExit(proc, 'SIGKILL', SIGKILL_WAIT_MS)) {
+      log.debug('test-runner-backend stopped');
+    } else {
+      log.warn('test-runner-backend did not exit after SIGKILL');
+    }
+  } catch (error) {
+    log.warn(`Failed to stop test-runner-backend: ${errorMessage(error)}`);
+  }
 }
 
 /**
