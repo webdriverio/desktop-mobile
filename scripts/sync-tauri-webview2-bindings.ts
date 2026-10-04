@@ -1,14 +1,8 @@
 #!/usr/bin/env node
 /**
- * Keeps tauri-plugin-wdio-webdriver's Windows bindings (webview2-com, windows, windows-core) on
- * the releases the latest Tauri 2 uses.
- *
- * The plugin rebinds Tauri's WebView2 controller onto its own webview2-com (`rebind_controller`
- * in packages/tauri-plugin-webdriver/src/platform/windows.rs), so every pairing builds. But while
- * the plugin's bindings differ from Tauri's, every app compiles both copies. Dependabot never
- * moves these crates: a 0.x minor counts as a major, which the cargo config ignores. So this
- * script follows Tauri instead. It resolves the plugin as a new consumer would, reads the
- * webview2-com that Tauri's wry depends on, and aligns the plugin's requirements with it.
+ * Keeps tauri-plugin-wdio-webdriver's Windows bindings (webview2-com, windows, windows-core) on the
+ * releases the latest Tauri 2 uses, so apps don't compile two copies. Dependabot won't move them: a
+ * 0.x minor counts as a major, which our cargo config ignores.
  *
  * Usage: node scripts/sync-tauri-webview2-bindings.ts [--write]
  *   default  report whether the bindings have drifted from Tauri's
@@ -25,7 +19,7 @@ import * as path from 'node:path';
 const REPO_ROOT = path.resolve(import.meta.dirname, '..');
 export const PLUGIN_DIR = 'packages/tauri-plugin-webdriver';
 
-/** Workspace manifests whose Cargo.lock includes the plugin (as itself or a path dependency). */
+/** Workspaces whose Cargo.lock builds the plugin. */
 export const LOCKED_WORKSPACES = [PLUGIN_DIR, 'fixtures/e2e-apps/tauri', 'fixtures/package-tests/tauri-app'];
 
 export const BINDING_CRATES = ['webview2-com', 'windows', 'windows-core'] as const;
@@ -40,13 +34,13 @@ interface CargoMetadata {
   resolve: { nodes: Array<{ id: string; deps: Array<{ pkg: string }> }> };
 }
 
-/** The Cargo requirement for the release line `version` belongs to: `0.39.1` → `0.39`. */
+/** `0.39.1` → `0.39` */
 export function requirementFor(version: string): string {
   const [major, minor] = version.split('.');
   return `${major}.${minor}`;
 }
 
-/** Reads the bindings Tauri's wry resolved to, and the Tauri release that brought them in. */
+/** The bindings Tauri's wry resolved to, plus the Tauri version. */
 export function tauriBindings(metadata: CargoMetadata): { tauri: string; versions: Bindings } {
   const packages = new Map(metadata.packages.map((pkg) => [pkg.id, pkg]));
   const nodes = new Map(metadata.resolve.nodes.map((node) => [node.id, node]));
@@ -112,7 +106,7 @@ export function readRequirements(manifest: string): Bindings {
   return Object.fromEntries(BINDING_CRATES.map((crate) => [crate, located[crate].requirement])) as Bindings;
 }
 
-/** Rewrites only the three requirement strings, leaving the rest of the manifest byte-for-byte intact. */
+/** Rewrites just the requirement strings, leaving the rest of the manifest untouched. */
 export function writeRequirements(manifest: string, next: Bindings): string {
   const located = locateRequirements(manifest);
   const lines = manifest.split('\n');
@@ -132,7 +126,7 @@ function cargo(args: string[], cwd: string): string {
   });
 }
 
-/** Resolves the plugin from scratch, ignoring its committed Cargo.lock, as a new consumer would. */
+/** Resolves the plugin without its Cargo.lock, as a new consumer would. */
 function resolveAsConsumer(): CargoMetadata {
   const scratch = fs.mkdtempSync(path.join(os.tmpdir(), 'tauri-bindings-'));
   try {
@@ -185,7 +179,7 @@ function main() {
 
   fs.writeFileSync(manifestPath, writeRequirements(manifest, target));
   for (const workspace of LOCKED_WORKSPACES) {
-    // --workspace keeps every locked version except the ones the new requirements force.
+    // Only moves the locked versions the new requirements force.
     cargo(['update', '--workspace'], path.join(REPO_ROOT, workspace));
   }
   console.log(`Updated ${PLUGIN_DIR}/Cargo.toml and re-locked ${LOCKED_WORKSPACES.join(', ')}.`);

@@ -14,8 +14,7 @@ import {
 const REPO_ROOT = new URL('../../', import.meta.url);
 const manifest = readFileSync(new URL(`${PLUGIN_DIR}/Cargo.toml`, REPO_ROOT), 'utf8');
 
-/** A resolved `cargo metadata` graph from `name@version` edges. */
-function graph(edges: Record<string, string[]>) {
+function metadataFromEdges(edges: Record<string, string[]>) {
   const ids = [...new Set([...Object.keys(edges), ...Object.values(edges).flat()])];
   return {
     packages: ids.map((id) => {
@@ -26,7 +25,6 @@ function graph(edges: Record<string, string[]>) {
   };
 }
 
-// The plugin still on older bindings than Tauri: both copies are in the graph.
 const DRIFTED = {
   'tauri-plugin-wdio-webdriver@1.4.0': ['tauri@2.12.0', 'webview2-com@0.38.2', 'windows@0.61.3'],
   'tauri@2.12.0': ['tauri-runtime-wry@2.12.0'],
@@ -48,7 +46,7 @@ describe('requirementFor', () => {
 
 describe('tauriBindings', () => {
   it("should read wry's webview2-com and that release's windows crates, not the plugin's copy", () => {
-    expect(tauriBindings(graph(DRIFTED))).toEqual({
+    expect(tauriBindings(metadataFromEdges(DRIFTED))).toEqual({
       tauri: '2.12.0',
       versions: { 'webview2-com': '0.39.1', windows: '0.62.2', 'windows-core': '0.62.2' },
     });
@@ -56,11 +54,13 @@ describe('tauriBindings', () => {
 
   it('should throw when Tauri no longer resolves wry', () => {
     const { 'wry@0.57.0': _, ...edges } = DRIFTED;
-    expect(() => tauriBindings(graph({ ...edges, 'tauri-runtime-wry@2.12.0': [] }))).toThrow(/one tauri and one wry/);
+    expect(() => tauriBindings(metadataFromEdges({ ...edges, 'tauri-runtime-wry@2.12.0': [] }))).toThrow(
+      /one tauri and one wry/,
+    );
   });
 
   it('should throw when wry has no webview2-com dependency', () => {
-    expect(() => tauriBindings(graph({ ...DRIFTED, 'wry@0.57.0': ['windows@0.62.2'] }))).toThrow(
+    expect(() => tauriBindings(metadataFromEdges({ ...DRIFTED, 'wry@0.57.0': ['windows@0.62.2'] }))).toThrow(
       /wry has no webview2-com dependency/,
     );
   });

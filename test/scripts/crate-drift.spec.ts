@@ -4,8 +4,7 @@ import { parse } from 'yaml';
 
 const REPO_ROOT = new URL('../../', import.meta.url);
 
-// crate-drift.yml is the only place a published crate is built against the dependency versions a
-// new consumer resolves, so a crate missing from its matrix can break for users with no signal.
+// A published crate missing from crate-drift.yml's matrix is never built against fresh dependencies.
 const workflow = parse(readFileSync(new URL('.github/workflows/crate-drift.yml', REPO_ROOT), 'utf8'));
 const legs: Array<{ label: string; targets: string; crates: string }> =
   workflow.jobs['fresh-deps'].strategy.matrix.include;
