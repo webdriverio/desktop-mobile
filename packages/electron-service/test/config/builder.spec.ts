@@ -55,7 +55,8 @@ describe('getConfig', () => {
     ])('%s', async (_title, scenario) => {
       const pkg = await getFixturePackageJson('config-formats', scenario);
       const config = await getConfig(pkg);
-      expect(config).toStrictEqual({
+      // Not toStrictEqual: smol-toml returns null-prototype objects, which it treats as a type mismatch.
+      expect(config).toEqual({
         appName: scenario,
         config: {
           productName: scenario,
