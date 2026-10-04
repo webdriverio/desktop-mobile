@@ -1,11 +1,18 @@
 // Standalone (`remote()`) session factory for Appium-driven mobile services.
-//
-// WDIO's `remote()` runs only worker-level hooks, so init() runs onPrepare before opening the
-// session — onPrepare mutates the capabilities in place, and remote() opens with them.
 
-import { createLogger } from '@wdio/native-utils';
+import {
+  boundedOnComplete,
+  createLogger,
+  errorMessage,
+  failStartup as failStartupShared,
+  safeDeleteSession,
+} from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
+
+// Appium's DELETE can uninstall the app or reset the device (`fullReset`), which routinely
+// outlasts the desktop teardown default.
+const APPIUM_DELETE_SESSION_TIMEOUT_MS = 120_000;
 
 /**
  * Appium-server connection for a standalone session.
@@ -21,21 +28,6 @@ interface MobileLauncherLike<TCap> {
   onPrepare(config: Options.Testrunner, capabilities: TCap[] | Record<string, { capabilities: TCap }>): Promise<void>;
   // Stop launcher-owned processes. RN-only - Flutter's launcher owns nothing to stop.
   onComplete?(): Promise<void>;
-}
-
-/**
- * Rethrow a startup failure after best-effort launcher teardown. A teardown failure joins the
- * original in an AggregateError rather than masking it.
- */
-async function failStartup<TCap>(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
-  try {
-    await launcher.onComplete?.();
-  } catch (cleanupError) {
-    throw new AggregateError([error, cleanupError], 'Mobile standalone startup and launcher cleanup failed', {
-      cause: error,
-    });
-  }
-  throw error;
 }
 
 interface MobileWorkerLike<TCap> {
@@ -69,6 +61,12 @@ export function createMobileSession<TOptions extends object, TCap extends object
   const activeLaunchers = new WeakMap<WebdriverIO.Browser, MobileLauncherLike<TCap>>();
   const activeServices = new WeakMap<WebdriverIO.Browser, MobileWorkerLike<TCap>>();
 
+  function failStartup(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
+    return failStartupShared(error, 'Mobile standalone', () =>
+      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
+    );
+  }
+
   async function init(
     capabilities: TCap | TCap[],
     globalOptions?: TOptions,
@@ -79,13 +77,14 @@ export function createMobileSession<TOptions extends object, TCap extends object
     const capability = (Array.isArray(capabilities) ? capabilities[0] : capabilities) as TCap | undefined;
     if (!capability) {
       throw new Error(
-        'createMobileSession.init(): no capability provided — pass a capability object or a non-empty capabilities array.',
+        'createMobileSession.init(): no capability provided - pass a capability object or a non-empty array.',
       );
     }
     const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
     const opts = (globalOptions ?? {}) as TOptions;
     const launcher = new deps.LauncherClass(opts, capability, testRunnerOpts);
 
+    // Mutates `capability` in place - remote() opens the session with the result.
     await launcher.onPrepare(testRunnerOpts, [capability]);
 
     // Construct the worker before opening the session
@@ -104,8 +103,8 @@ export function createMobileSession<TOptions extends object, TCap extends object
       ...deps.defaultConnection,
       ...connection,
       capabilities: capability as WebdriverIO.Capabilities,
-    }).catch((error: Error) => {
-      log.error(`Failed to create remote session: ${error.message}`);
+    }).catch((error: unknown) => {
+      log.error(`Failed to create remote session: ${errorMessage(error)}`);
       return failStartup(launcher, error);
     });
 
@@ -114,9 +113,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
     try {
       await service.before(capability, [], browser);
     } catch (error) {
-      await browser
-        .deleteSession()
-        .catch((e: Error) => log.warn(`deleteSession failed during service.before cleanup: ${e.message}`));
+      await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: APPIUM_DELETE_SESSION_TIMEOUT_MS });
       activeLaunchers.delete(browser);
       return failStartup(launcher, error);
     }
@@ -135,28 +132,20 @@ export function createMobileSession<TOptions extends object, TCap extends object
       return;
     }
 
+    // WDIO's standalone remote() never runs the worker after hook, so mock state would leak between
+    // sequential sessions.
     const service = activeServices.get(browser);
     try {
       await service?.after();
     } catch (e) {
-      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
     } finally {
       activeServices.delete(browser);
     }
 
-    try {
-      if (browser.sessionId) {
-        await browser.deleteSession();
-      }
-    } catch (e) {
-      log.warn(`Failed to delete session during cleanup: ${(e as Error).message}`);
-    }
+    await safeDeleteSession(browser, 'cleanup', log, { timeoutMs: APPIUM_DELETE_SESSION_TIMEOUT_MS });
 
-    try {
-      await launcher.onComplete?.();
-    } catch (e) {
-      log.warn(`launcher.onComplete() failed during cleanup: ${(e as Error).message}`);
-    }
+    await boundedOnComplete(launcher, 'cleanup', log);
 
     activeLaunchers.delete(browser);
     log.debug('Mobile standalone session cleaned up');

@@ -71,10 +71,12 @@ const linuxNativeApp = {
 vi.mock('@wdio/native-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-core')>()),
   startManagedDevServer: vi.fn(),
+  closeLogWriter: vi.fn().mockResolvedValue(undefined),
+  isLogWriterInitialized: vi.fn(),
 }));
 
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
-import { startManagedDevServer } from '@wdio/native-core';
+import { closeLogWriter, isLogWriterInitialized, startManagedDevServer } from '@wdio/native-core';
 import { resolveElectrobunApp, verifyCefRenderer, writeRemoteDebuggingPort } from '../src/electrobunConfig.js';
 import ElectrobunLaunchService from '../src/launcher.js';
 import { cloneAppBundle, spawnElectrobunApp, stopElectrobunApp } from '../src/nativeMode.js';
@@ -591,6 +593,18 @@ describe('ElectrobunLaunchService', () => {
       expect(vi.mocked(stopElectrobunApp)).not.toHaveBeenCalled();
     });
 
+    it('should still close the log writer when stopping drivers throws', async () => {
+      const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
+      await launcher.onPrepare(baseConfig, [{}]);
+      vi.spyOn(launcher as unknown as { stopAllDrivers: () => Promise<void> }, 'stopAllDrivers').mockRejectedValueOnce(
+        new Error('driver stop boom'),
+      );
+      vi.mocked(isLogWriterInitialized).mockReturnValueOnce(true);
+
+      await expect(launcher.onComplete()).rejects.toThrow('driver stop boom');
+      expect(closeLogWriter).toHaveBeenCalledWith('electrobun-service');
+    });
+
     it('should swallow a stopElectrobunApp rejection and still resolve', async () => {
       vi.mocked(stopElectrobunApp).mockRejectedValueOnce(new Error('kill failed'));
       const launcher = makeLauncher({ appBinaryPath: '/apps/Demo.app' });
@@ -648,6 +662,16 @@ describe('ElectrobunLaunchService — devServer management', () => {
     expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
     await launcher.onComplete();
     expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should still close the log writer when the dev server stop throws', async () => {
+    managedStop.mockRejectedValueOnce(new Error('dev server close boom'));
+    vi.mocked(isLogWriterInitialized).mockReturnValueOnce(true);
+    const launcher = makeLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' } as never);
+    await launcher.onPrepare(baseConfig, [{ browserName: 'electrobun' }] as never);
+
+    await expect(launcher.onComplete()).rejects.toThrow('dev server close boom');
+    expect(closeLogWriter).toHaveBeenCalledWith('electrobun-service');
   });
 
   it('should throw SevereServiceError when the managed dev server fails to start', async () => {

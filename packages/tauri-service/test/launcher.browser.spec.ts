@@ -71,9 +71,10 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
 vi.mock('@wdio/native-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-core')>()),
   startManagedDevServer: vi.fn(),
+  closeLogWriter: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { startManagedDevServer } from '@wdio/native-core';
+import { closeLogWriter, startManagedDevServer } from '@wdio/native-core';
 import { ensureTauriDriver } from '../src/driverManager.js';
 import TauriLaunchService from '../src/launcher.js';
 
@@ -188,6 +189,17 @@ describe('TauriLaunchService — devServer management', () => {
     expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
     await launcher.onComplete(0, {} as any, [] as any);
     expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should keep tearing down when the dev server stop throws', async () => {
+    managedStop.mockRejectedValueOnce(new Error('dev server close boom'));
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare({} as any, [{}] as any);
+
+    await expect(launcher.onComplete()).rejects.toThrow('dev server close boom');
+    expect(closeLogWriter).toHaveBeenCalledWith('tauri-service');
+    const { driverPool } = launcher as unknown as { driverPool: { stopAll: ReturnType<typeof vi.fn> } };
+    expect(driverPool.stopAll).toHaveBeenCalledOnce();
   });
 
   it('should throw SevereServiceError when the managed dev server fails to start', async () => {

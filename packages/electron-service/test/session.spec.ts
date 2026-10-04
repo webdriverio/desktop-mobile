@@ -1,4 +1,4 @@
-import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { cleanup, createElectronCapabilities, init } from '../src/session.js';
@@ -149,6 +149,15 @@ describe('Session Management', () => {
       expect(mockInitialize).not.toHaveBeenCalled();
     });
 
+    it('should still stop the launcher when remote() rejects with a non-Error', async () => {
+      remoteMock.mockRejectedValueOnce(undefined);
+      const caps = baseCaps();
+
+      // toMatchObject, not toThrow: rejects.toThrow(string) passes on an `undefined` rejection.
+      await expect(init([caps])).rejects.toMatchObject({ message: 'Electron standalone startup failed: undefined' });
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
     it('should close the log writer and stop the launcher when remote() fails', async () => {
       remoteMock.mockRejectedValueOnce(new Error('chromedriver missing'));
       const caps = baseCaps();
@@ -220,16 +229,22 @@ describe('Session Management', () => {
       await expect(cleanup(browser)).resolves.toBeUndefined();
     });
 
-    it('should not hang cleanup when launcher.onComplete never settles', async () => {
+    it('should give a hung launcher.onComplete the process-teardown deadline, then move on', async () => {
       const caps = baseCaps();
       const browser = await init([caps]);
       onCompleteMock.mockReturnValueOnce(new Promise<void>(() => {})); // a devServer stop() that hangs
 
       vi.useFakeTimers();
       try {
-        const cleanupPromise = cleanup(browser);
+        let settled = false;
+        const cleanupPromise = cleanup(browser).then(() => {
+          settled = true;
+        });
         await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
-        await expect(cleanupPromise).resolves.toBeUndefined();
+        expect(settled).toBe(false);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
+        await cleanupPromise;
+        expect(settled).toBe(true);
       } finally {
         vi.useRealTimers();
       }
@@ -244,7 +259,7 @@ describe('Session Management', () => {
       vi.useFakeTimers();
       try {
         const cleanupPromise = cleanup(browser);
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS + 1_000);
         await expect(cleanupPromise).resolves.toBeUndefined();
       } finally {
         vi.useRealTimers();

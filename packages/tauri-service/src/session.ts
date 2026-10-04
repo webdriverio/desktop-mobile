@@ -1,7 +1,6 @@
 import http from 'node:http';
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { createLogger } from '@wdio/native-utils';
-import type { Options } from '@wdio/types';
+import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteSession } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
@@ -9,10 +8,7 @@ import type { TauriCapabilities, TauriServiceGlobalOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'service');
 
-// Store launcher instances for cleanup (WeakMap for automatic GC if cleanup() not called)
 const activeLaunchers = new WeakMap<WebdriverIO.Browser, TauriLaunchService>();
-// Paired with activeLaunchers so cleanup() can drive the worker-service teardown
-// (mock store + window state) that WDIO's standalone path never invokes itself.
 const activeServices = new WeakMap<WebdriverIO.Browser, TauriWorkerService>();
 
 async function checkDriverHealth(hostname: string, port: number): Promise<boolean> {
@@ -29,24 +25,17 @@ async function checkDriverHealth(hostname: string, port: number): Promise<boolea
   });
 }
 
-/**
- * Initialize Tauri service in standalone mode
- */
 export async function init(
   capabilities: TauriCapabilities,
   globalOptions?: TauriServiceGlobalOptions,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing Tauri service in standalone mode...');
 
-  // Initialize standalone log writer if logging is enabled
   const serviceOptions = capabilities['wdio:tauriServiceOptions'];
   if (serviceOptions?.captureBackendLogs || serviceOptions?.captureFrontendLogs) {
     if (serviceOptions.logDir) {
-      // Use explicit logDir if provided
       const writer = getLogWriter('tauri-service');
-      console.log(`[DEBUG] Initializing log writer with logDir: ${serviceOptions.logDir}`);
       writer.initialize(serviceOptions.logDir);
-      console.log(`[DEBUG] Log writer initialized. Directory: ${writer.getLogDir()}, File: ${writer.getLogFile()}`);
       log.debug(`Log writer initialized at ${writer.getLogDir()}`);
     } else {
       log.warn('Standalone logging enabled but logDir not specified - logs will not be captured');
@@ -60,15 +49,12 @@ export async function init(
 
   let browser: WebdriverIO.Browser | undefined;
   try {
-    // Prepare the service
     await launcher.onPrepare(testRunnerOpts, [capabilities]);
 
-    // Start worker session
     await launcher.onWorkerStart('standalone', capabilities);
 
     log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, null, 2));
 
-    // Extract connection info from capabilities (set by launcher.onPrepare)
     const hostname = (capabilities as { hostname?: string }).hostname || 'localhost';
     const port = (capabilities as { port?: number }).port;
     if (!port) {
@@ -109,25 +95,23 @@ export async function init(
 
     log.debug(`Connection info for remote(): hostname=${hostname}, port=${port}, browserName=wry (display only)`);
 
-    // Verify driver is healthy before session creation
     const driverHealthy = await checkDriverHealth(hostname, port);
     if (!driverHealthy) {
       log.warn('tauri-driver health check failed before session creation');
     }
 
-    // Create worker service
     const service = new TauriWorkerService(capabilities['wdio:tauriServiceOptions'] || {}, capabilities);
 
     const startTimeout = serviceOptions?.startTimeout || 30000;
 
     log.debug(`Starting remote session with startTimeout=${startTimeout}ms`);
 
-    // Initialize session - connection info must be at top level, not in capabilities
-    // Use extended timeouts for native desktop apps which may take longer to start
     browser = await remote({
+      // connection info must be at top level, not in capabilities
       hostname,
       port,
       capabilities: driverCapabilities,
+      // native desktop apps can be slow to start
       connectionRetryTimeout: startTimeout * 4,
       connectionRetryCount: 10,
     });
@@ -141,25 +125,12 @@ export async function init(
     log.debug('Tauri standalone session initialized');
     return browser;
   } catch (error) {
-    const startupError =
-      error instanceof Error ? error : new Error('Tauri standalone session startup failed', { cause: error });
-    const failures: unknown[] = [startupError];
     if (browser) {
-      try {
-        await browser.deleteSession();
-      } catch (cleanupError) {
-        failures.push(cleanupError);
-      }
+      await safeDeleteSession(browser, 'startup cleanup', log);
     }
-    try {
-      await launcher.onComplete(0, testRunnerOpts, []);
-    } catch (cleanupError) {
-      failures.push(cleanupError);
-    }
-    if (failures.length > 1) {
-      throw new AggregateError(failures, 'Tauri standalone startup and cleanup failed', { cause: startupError });
-    }
-    throw startupError;
+    return failStartup(error, 'Tauri standalone', () =>
+      boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
+    );
   }
 }
 
@@ -172,41 +143,31 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
 
   const launcher = activeLaunchers.get(browser);
   if (launcher) {
-    // Drive the worker-service teardown (mock store clear, window state) that
-    // standalone init() set up via service.before(). Both calls are wrapped so
-    // a failure doesn't skip the launcher.onComplete that stops tauri-driver.
+    // WDIO's standalone remote() never runs the worker after/afterSession hooks, so mock/window state
+    // would leak between sequential sessions.
     const service = activeServices.get(browser);
-    // after()/afterSession() take WDIO hook args we don't have at the
-    // standalone cleanup site (no test config, no specs). Cast to a no-arg
-    // shape — Tauri's impls ignore their params.
+    // Safe without WDIO's hook args: the impls ignore them.
     const svc = service as unknown as { after?: () => Promise<void>; afterSession?: () => Promise<void> } | undefined;
     try {
       await svc?.after?.();
     } catch (e) {
-      log.warn(`service.after() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.after() failed during cleanup: ${errorMessage(e)}`);
     }
     try {
       await svc?.afterSession?.();
     } catch (e) {
-      log.warn(`service.afterSession() failed during cleanup: ${(e as Error).message}`);
+      log.warn(`service.afterSession() failed during cleanup: ${errorMessage(e)}`);
     } finally {
       activeServices.delete(browser);
     }
 
-    // End worker session
-    await launcher.onWorkerEnd('standalone');
+    // No onWorkerEnd: onComplete stops every process it would, and its CrabNebula cycle would only
+    // restart the backend and driver for onComplete to kill.
+    await boundedOnComplete(launcher, 'cleanup', log);
 
-    // Complete the launcher lifecycle to stop tauri-driver
-    // Create minimal config object matching Options.Testrunner
-    const minimalConfig: Options.Testrunner = {
-      capabilities: [],
-    } as Options.Testrunner;
-    await launcher.onComplete(0, minimalConfig, []);
-
-    // Close log writer
-    await closeLogWriter('tauri-service');
-
-    // Remove from active launchers
+    await closeLogWriter('tauri-service').catch((e: unknown) =>
+      log.warn(`Failed to close log writer during cleanup: ${errorMessage(e)}`),
+    );
     activeLaunchers.delete(browser);
     log.debug('Tauri standalone session cleaned up');
   } else {
@@ -245,24 +206,4 @@ export function createTauriCapabilities(
       autoInstallTauriDriver: options.autoInstallTauriDriver,
     },
   };
-}
-
-/**
- * Get Tauri service status
- */
-export function getTauriServiceStatus(): {
-  available: boolean;
-  version?: string;
-} {
-  try {
-    // This would be implemented to check if the service is available
-    return {
-      available: true,
-      version: '0.0.0',
-    };
-  } catch {
-    return {
-      available: false,
-    };
-  }
 }

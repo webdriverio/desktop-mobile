@@ -1,3 +1,4 @@
+import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { describe, expect, it, vi } from 'vitest';
 
@@ -94,6 +95,16 @@ describe('createMobileSession init', () => {
     expect(onComplete).toHaveBeenCalled();
   });
 
+  it('should still stop the launcher when remote() rejects with a non-Error', async () => {
+    resetMocks();
+    remoteMock.mockRejectedValueOnce(undefined);
+    // toMatchObject, not toThrow: rejects.toThrow(string) passes on an `undefined` rejection.
+    await expect(makeSession().init({ platformName: 'Android' })).rejects.toMatchObject({
+      message: 'Mobile standalone startup failed: undefined',
+    });
+    expect(onComplete).toHaveBeenCalled();
+  });
+
   it('should surface both the startup error and a launcher-cleanup failure via AggregateError', async () => {
     resetMocks();
     before.mockRejectedValueOnce(new Error('before boom'));
@@ -166,6 +177,75 @@ describe('createMobileSession cleanup', () => {
     const browser = await session.init({ platformName: 'Android' });
     onComplete.mockRejectedValueOnce(new Error('metro stop boom'));
     await expect(session.cleanup(browser)).resolves.toBeUndefined();
+  });
+
+  it('should bound a stalled launcher.onComplete during cleanup so it cannot hang', async () => {
+    resetMocks();
+    const session = makeSession();
+    const browser = await session.init({ platformName: 'Android' });
+    onComplete.mockReturnValueOnce(new Promise<void>(() => {}));
+    vi.useFakeTimers();
+    try {
+      const pending = session.cleanup(browser);
+      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
+      await expect(pending).resolves.toBeUndefined();
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should wait past the desktop teardown deadlines for a slow Appium deleteSession', async () => {
+    resetMocks();
+    const session = makeSession();
+    const browser = await session.init({ platformName: 'Android' });
+    let finishDelete!: () => void;
+    deleteSession.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishDelete = resolve;
+      }),
+    );
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const pending = session.cleanup(browser).then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
+      expect(settled).toBe(false);
+
+      finishDelete();
+      await pending;
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('should wait past the default teardown deadline for a slow Metro stop', async () => {
+    resetMocks();
+    const session = makeSession();
+    const browser = await session.init({ platformName: 'Android' });
+    let finishStop!: () => void;
+    onComplete.mockReturnValueOnce(
+      new Promise<void>((resolve) => {
+        finishStop = resolve;
+      }),
+    );
+    vi.useFakeTimers();
+    try {
+      let settled = false;
+      const pending = session.cleanup(browser).then(() => {
+        settled = true;
+      });
+      await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 5_000);
+      expect(settled).toBe(false);
+
+      finishStop();
+      await pending;
+      expect(settled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 
   it('should warn and no-op (no after, no deleteSession) for a browser it did not create', async () => {

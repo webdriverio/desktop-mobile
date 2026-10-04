@@ -1045,12 +1045,23 @@ export default class TauriLaunchService {
   /**
    * Complete service lifecycle
    */
-  async onComplete(_exitCode: number, _config: Options.Testrunner, _capabilities: TauriCapabilities[]): Promise<void> {
+  async onComplete(
+    _exitCode?: number,
+    _config?: Options.Testrunner,
+    _capabilities?: TauriCapabilities[],
+  ): Promise<void> {
     log.debug('Completing Tauri service...');
 
-    await this.#stopDevServer?.();
-    this.#stopDevServer = undefined;
+    try {
+      await this.#stopDevServer?.();
+      this.#stopDevServer = undefined;
+    } finally {
+      await this.stopSpawnedProcesses();
+    }
+  }
 
+  // Runs even when the dev-server stop throws, so the log writer, backends and drivers aren't left behind.
+  private async stopSpawnedProcesses(): Promise<void> {
     try {
       await closeLogWriter('tauri-service');
     } catch {

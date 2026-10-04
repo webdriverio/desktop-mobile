@@ -1,3 +1,4 @@
+import { PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../src/mockStore.js';
 import DioxusWorkerService from '../src/service.js';
@@ -200,12 +201,36 @@ describe('DioxusWorkerService', () => {
         await service.before({}, [], browser);
 
         const pending = service.afterSession();
-        await vi.advanceTimersByTimeAsync(10_000);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS);
 
         await expect(pending).resolves.toBeUndefined();
       } finally {
         vi.useRealTimers();
       }
+    });
+  });
+
+  describe('afterSession() multiremote teardown', () => {
+    it('should keep deleting the remaining instances when getInstance throws for one', async () => {
+      const healthy = {
+        sessionId: 'sess-b',
+        deleteSession: vi.fn().mockResolvedValue(undefined),
+      } as unknown as WebdriverIO.Browser;
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: vi.fn((name: string) => {
+          if (name === 'browserA') {
+            throw new Error('Multiremote object has no instance named "browserA"');
+          }
+          return healthy;
+        }),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new DioxusWorkerService({}, {});
+      (service as unknown as { browser: WebdriverIO.MultiRemoteBrowser }).browser = mrBrowser;
+
+      await expect(service.afterSession()).resolves.toBeUndefined();
+      expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
     });
   });
 

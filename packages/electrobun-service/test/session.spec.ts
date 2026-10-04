@@ -1,4 +1,4 @@
-import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 const onPrepareMock = vi.fn().mockResolvedValue(undefined);
@@ -105,6 +105,23 @@ describe('session', () => {
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
+    it('should give up on the startup-failure delete after the short deadline', async () => {
+      vi.useFakeTimers();
+      try {
+        serviceBeforeMock.mockRejectedValueOnce(new Error('attach failed'));
+        deleteSessionMock.mockReturnValueOnce(new Promise<void>(() => {}));
+        const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+        await Promise.all([
+          expect(init(cap)).rejects.toThrow(/attach failed/),
+          vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS),
+        ]);
+        expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should call launcher.onComplete when onPrepare fails', async () => {
       onPrepareMock.mockRejectedValueOnce(new Error('bundle resolve failed'));
       const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
@@ -180,12 +197,38 @@ describe('session', () => {
       vi.useFakeTimers();
       try {
         const cleanupPromise = cleanup(browser);
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS + 1_000);
         await expect(cleanupPromise).resolves.toBeUndefined();
       } finally {
         vi.useRealTimers();
       }
       expect(deleteSessionMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should wait past the default teardown deadline for a slow multi-process onComplete', async () => {
+      const browser = await init(createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' }));
+      let finishStop!: () => void;
+      onCompleteMock.mockReturnValueOnce(
+        new Promise<void>((resolve) => {
+          finishStop = resolve;
+        }),
+      );
+
+      vi.useFakeTimers();
+      try {
+        let settled = false;
+        const pending = cleanup(browser).then(() => {
+          settled = true;
+        });
+        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 5_000);
+        expect(settled).toBe(false);
+
+        finishStop();
+        await pending;
+        expect(settled).toBe(true);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('should not hang cleanup when browser.deleteSession never settles', async () => {
@@ -196,7 +239,7 @@ describe('session', () => {
       vi.useFakeTimers();
       try {
         const cleanupPromise = cleanup(browser);
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS + 1_000);
+        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS + 1_000);
         await expect(cleanupPromise).resolves.toBeUndefined();
       } finally {
         vi.useRealTimers();
