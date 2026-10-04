@@ -11,7 +11,7 @@ import {
   startManagedDevServer,
 } from '@wdio/native-core';
 import type { LogLevel } from '@wdio/native-types';
-import { createLogger, formatDiagnosticResults, isErr } from '@wdio/native-utils';
+import { createLogger, errorMessage, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { resolveAppBinaryPath } from './appBinaryResolver.js';
@@ -237,7 +237,7 @@ export default class TauriLaunchService {
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
       }
       log.info('Browser mode enabled — skipping driver/binary setup');
       return;
@@ -635,7 +635,7 @@ export default class TauriLaunchService {
           log.info(`tauri-driver listening on ${hostname}:${port}`);
         } catch (error) {
           log.error(`Failed to start tauri-driver: ${error}`);
-          throw new SevereServiceError(`Failed to start tauri-driver: ${(error as Error).message}`);
+          throw new SevereServiceError(`Failed to start tauri-driver: ${errorMessage(error)}`);
         }
 
         // Update the capabilities object with hostname and port so WDIO connects to tauri-driver
@@ -1045,70 +1045,70 @@ export default class TauriLaunchService {
   /**
    * Complete service lifecycle
    */
-  async onComplete(_exitCode: number, _config: Options.Testrunner, _capabilities: TauriCapabilities[]): Promise<void> {
+  async onComplete(
+    _exitCode?: number,
+    _config?: Options.Testrunner,
+    _capabilities?: TauriCapabilities[],
+  ): Promise<void> {
     log.debug('Completing Tauri service...');
 
-    await this.#stopDevServer?.();
-    this.#stopDevServer = undefined;
-
     try {
-      await closeLogWriter('tauri-service');
-    } catch {
-      // Log writer may not have been initialized
-    }
+      await this.#stopDevServer?.();
+      this.#stopDevServer = undefined;
 
-    // Stop all worker test-runner-backends (per-worker mode)
-    if (this.workerBackends.size > 0) {
-      log.info(`Stopping ${this.workerBackends.size} worker test-runner-backend(s)...`);
-      for (const [workerId, backend] of this.workerBackends) {
-        try {
+      if (this.workerBackends.size > 0) {
+        log.info(`Stopping ${this.workerBackends.size} worker test-runner-backend(s)...`);
+        for (const [workerId, backend] of this.workerBackends) {
           await stopTestRunnerBackend(backend.proc);
           log.debug(`Stopped test-runner-backend for worker ${workerId}`);
-        } catch (error) {
-          log.warn(`Failed to stop test-runner-backend for worker ${workerId}: ${error}`);
+        }
+        this.workerBackends.clear();
+      }
+
+      if (this.testRunnerBackend) {
+        await stopTestRunnerBackend(this.testRunnerBackend);
+        this.testRunnerBackend = undefined;
+      }
+
+      const embeddedCleanupErrors: unknown[] = [];
+      if (this.isEmbeddedMode) {
+        log.info(`Stopping ${this.embeddedProcesses.size} embedded driver process(es)...`);
+        for (const [key, process] of this.embeddedProcesses) {
+          try {
+            await stopEmbeddedDriver(process);
+            this.embeddedProcesses.delete(key);
+            log.debug(`Stopped embedded driver: ${key}`);
+          } catch (error) {
+            log.warn(`Failed to stop embedded driver ${key}: ${errorMessage(error)}`);
+            embeddedCleanupErrors.push(error);
+          }
         }
       }
-      this.workerBackends.clear();
-    }
 
-    // Stop shared test-runner-backend (if any)
-    if (this.testRunnerBackend) {
-      await stopTestRunnerBackend(this.testRunnerBackend);
-      this.testRunnerBackend = undefined;
-    }
+      await this.driverPool.stopAll();
+      this.instanceOptions.clear();
+      this.embeddedConfigs.clear();
+      this.portManager.clear();
+      this.backendPortManager.clear();
 
-    const embeddedCleanupErrors: unknown[] = [];
-    // Stop embedded driver processes if using embedded provider
-    if (this.isEmbeddedMode) {
-      log.info(`Stopping ${this.embeddedProcesses.size} embedded driver process(es)...`);
-      for (const [key, process] of this.embeddedProcesses) {
-        try {
-          await stopEmbeddedDriver(process);
-          this.embeddedProcesses.delete(key);
-          log.debug(`Stopped embedded driver: ${key}`);
-        } catch (error) {
-          log.warn(`Failed to stop embedded driver ${key}: ${error}`);
-          embeddedCleanupErrors.push(error);
-        }
+      if (embeddedCleanupErrors.length === 1) {
+        throw embeddedCleanupErrors[0];
+      }
+      if (embeddedCleanupErrors.length > 1) {
+        throw new AggregateError(embeddedCleanupErrors, 'Failed to stop embedded driver processes', {
+          cause: embeddedCleanupErrors[0],
+        });
+      }
+
+      log.debug('Tauri service completed');
+    } finally {
+      // Ensure the stopped processes' shutdown output still reaches the log file.
+      try {
+        await closeLogWriter('tauri-service');
+      } catch {
+        // Log writer may not have been initialized
       }
     }
-
-    await this.driverPool.stopAll();
-    this.instanceOptions.clear();
-    this.embeddedConfigs.clear();
-    this.portManager.clear();
-    this.backendPortManager.clear();
-
-    if (embeddedCleanupErrors.length === 1) {
-      throw embeddedCleanupErrors[0];
-    }
-    if (embeddedCleanupErrors.length > 1) {
-      throw new AggregateError(embeddedCleanupErrors, 'Failed to stop embedded driver processes', {
-        cause: embeddedCleanupErrors[0],
-      });
-    }
-
-    log.debug('Tauri service completed');
   }
 
   /**

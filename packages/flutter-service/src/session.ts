@@ -18,6 +18,7 @@ const session = createMobileSession<FlutterServiceGlobalOptions, FlutterCapabili
   LauncherClass: FlutterLaunchService,
   WorkerClass: FlutterWorkerService,
   logNamespace: SERVICE_NAME,
+  label: 'Flutter standalone',
 });
 
 /**
