@@ -5,14 +5,16 @@ use async_trait::async_trait;
 use base64::engine::general_purpose::STANDARD as BASE64_STANDARD;
 use base64::Engine as _;
 use serde_json::Value;
+use tauri::webview::PlatformWebview;
 use tauri::{Manager, Runtime, WebviewWindow};
 use tokio::sync::oneshot;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
-    ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Environment6,
-    ICoreWebView2ExecuteScriptCompletedHandler, ICoreWebView2PrintToPdfCompletedHandler,
-    ICoreWebView2ScriptDialogOpeningEventHandler, ICoreWebView2WebMessageReceivedEventHandler,
-    ICoreWebView2_7, COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG,
-    COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE, COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT,
+    ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Controller,
+    ICoreWebView2Environment6, ICoreWebView2ExecuteScriptCompletedHandler,
+    ICoreWebView2PrintToPdfCompletedHandler, ICoreWebView2ScriptDialogOpeningEventHandler,
+    ICoreWebView2WebMessageReceivedEventHandler, ICoreWebView2_7,
+    COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, COREWEBVIEW2_PRINT_ORIENTATION_LANDSCAPE,
+    COREWEBVIEW2_PRINT_ORIENTATION_PORTRAIT,
 };
 use windows::core::{Interface, HSTRING, PCWSTR};
 use windows::Win32::Foundation::HGLOBAL;
@@ -110,6 +112,15 @@ impl SendableComPtr {
     }
 }
 
+// Tauri doesn't re-export webview2-com and can move to a semver-incompatible version of it in a
+// minor release, so rebind onto our copy rather than tie the plugin to Tauri minors that match ours.
+#[allow(clippy::useless_transmute)]
+fn rebind_controller(webview: &PlatformWebview) -> ICoreWebView2Controller {
+    // SAFETY: both types are #[repr(transparent)] pointers to the same WebView2 COM object,
+    // whose layout is fixed by WebView2, not by the crate version.
+    unsafe { std::mem::transmute::<_, ICoreWebView2Controller>(webview.controller()) }
+}
+
 /// Windows `WebView2` executor
 #[derive(Clone)]
 pub struct WindowsExecutor<R: Runtime> {
@@ -144,7 +155,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
             move |webview| unsafe {
                 let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
-                if let Ok(webview2) = webview.controller().CoreWebView2() {
+                if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
                     let script_hstring = HSTRING::from(&script_owned);
 
                     let handler: ICoreWebView2ExecuteScriptCompletedHandler =
@@ -205,7 +216,7 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     let _ = webview.with_webview(move |webview| unsafe {
         let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
-        if let Ok(webview2) = webview.controller().CoreWebView2() {
+        if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
             // Disable default script dialogs so ScriptDialogOpening event fires
             if let Ok(settings) = webview2.Settings() {
                 if let Err(e) = settings.SetAreDefaultScriptDialogsEnabled(false) {
@@ -268,7 +279,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
 
         let result = self.window.with_webview(move |webview| {
             unsafe {
-                if let Ok(webview2) = webview.controller().CoreWebView2() {
+                if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
                     // Create an in-memory stream for the PNG image
                     let stream = match CreateStreamOnHGlobal(HGLOBAL::default(), true) {
                         Ok(s) => s,
@@ -375,7 +386,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
         let result = self.window.with_webview(move |webview| unsafe {
             let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
-            let webview2 = match webview.controller().CoreWebView2() {
+            let webview2 = match rebind_controller(&webview).CoreWebView2() {
                 Ok(wv) => wv,
                 Err(e) => {
                     if let Ok(mut guard) = tx.lock() {
@@ -549,7 +560,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for WindowsExecutor<R> {
             let handler_result = self.window.with_webview(move |webview| unsafe {
                 let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
-                if let Ok(webview2) = webview.controller().CoreWebView2() {
+                if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
                     let state = app_clone.state::<AsyncScriptState>();
                     register_message_handler(&webview2, state.inner());
                 }
