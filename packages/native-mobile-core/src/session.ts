@@ -40,8 +40,8 @@ export interface MobileSessionDeps<TOptions, TCap> {
   WorkerClass: new (options: TOptions, capability: TCap) => MobileWorkerLike<TCap>;
   defaultConnection?: AppiumServerConnection;
   logNamespace: string;
-  /** Names the service in startup errors, e.g. 'React Native standalone'. */
-  label: string;
+  /** Names the service in startup errors, e.g. 'React Native standalone'. Defaults to 'Mobile standalone'. */
+  label?: string;
 }
 
 export interface MobileSession<TOptions, TCap> {
@@ -64,7 +64,7 @@ export function createMobileSession<TOptions extends object, TCap extends object
   const activeServices = new WeakMap<WebdriverIO.Browser, MobileWorkerLike<TCap>>();
 
   function failStartup(launcher: MobileLauncherLike<TCap>, error: unknown): Promise<never> {
-    return failStartupShared(error, deps.label, () =>
+    return failStartupShared(error, deps.label ?? 'Mobile standalone', () =>
       boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
     );
   }

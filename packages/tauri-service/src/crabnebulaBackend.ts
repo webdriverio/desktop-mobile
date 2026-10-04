@@ -1,5 +1,5 @@
 import { type ChildProcess, execFileSync, spawn } from 'node:child_process';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage } from '@wdio/native-utils';
 import { findTestRunnerBackend } from './driverManager.js';
 import { createLogCapture } from './logCapture.js';
 import { signalAndWaitForExit } from './processExit.js';
@@ -231,16 +231,20 @@ const SIGKILL_WAIT_MS = 5_000;
  */
 export async function stopTestRunnerBackend(proc: ChildProcess): Promise<void> {
   log.info('Stopping test-runner-backend');
-  if (await signalAndWaitForExit(proc, 'SIGTERM', SIGTERM_GRACE_MS)) {
-    log.debug('test-runner-backend stopped');
-    return;
-  }
+  try {
+    if (await signalAndWaitForExit(proc, 'SIGTERM', SIGTERM_GRACE_MS)) {
+      log.debug('test-runner-backend stopped');
+      return;
+    }
 
-  log.warn('test-runner-backend did not exit gracefully, forcing kill');
-  if (await signalAndWaitForExit(proc, 'SIGKILL', SIGKILL_WAIT_MS)) {
-    log.debug('test-runner-backend stopped');
-  } else {
-    log.warn('test-runner-backend did not exit after SIGKILL');
+    log.warn('test-runner-backend did not exit gracefully, forcing kill');
+    if (await signalAndWaitForExit(proc, 'SIGKILL', SIGKILL_WAIT_MS)) {
+      log.debug('test-runner-backend stopped');
+    } else {
+      log.warn('test-runner-backend did not exit after SIGKILL');
+    }
+  } catch (error) {
+    log.warn(`Failed to stop test-runner-backend: ${errorMessage(error)}`);
   }
 }
 

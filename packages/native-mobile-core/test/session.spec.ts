@@ -47,7 +47,6 @@ const makeSession = () =>
     LauncherClass: FakeLauncher as never,
     WorkerClass: FakeWorker as never,
     logNamespace: 'test-service',
-    label: 'Mobile standalone',
   });
 
 const resetMocks = () => {
@@ -125,7 +124,6 @@ describe('createMobileSession init', () => {
       LauncherClass: NoCompleteLauncher as never,
       WorkerClass: FakeWorker as never,
       logNamespace: 'test-service',
-      label: 'Mobile standalone',
     });
     // No onComplete to call, so the original error propagates unchanged.
     await expect(session.init({ platformName: 'Android' })).rejects.toThrow('before boom');
@@ -154,7 +152,6 @@ describe('createMobileSession init', () => {
       LauncherClass: FakeLauncher as never,
       WorkerClass: ThrowingWorker as never,
       logNamespace: 'test-service',
-      label: 'Mobile standalone',
     });
     await expect(session.init({ platformName: 'Android' })).rejects.toThrow('worker ctor boom');
     expect(remoteMock).not.toHaveBeenCalled(); // constructed before remote(), so no live session leaks

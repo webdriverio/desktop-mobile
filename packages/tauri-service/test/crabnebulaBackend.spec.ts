@@ -236,6 +236,14 @@ describe('CrabNebula Backend', () => {
       }
     });
 
+    it('should not reject when the kill itself fails', async () => {
+      mockProc.kill = vi.fn(() => {
+        throw new Error('kill EPERM');
+      });
+
+      await expect(stopTestRunnerBackend(mockProc as ChildProcess)).resolves.toBeUndefined();
+    });
+
     it('should give up and drop its exit listener if the process survives SIGKILL', async () => {
       vi.useFakeTimers();
       try {

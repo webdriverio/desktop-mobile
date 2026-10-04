@@ -1069,7 +1069,7 @@ export default class TauriLaunchService {
             await stopTestRunnerBackend(backend.proc);
             log.debug(`Stopped test-runner-backend for worker ${workerId}`);
           } catch (error) {
-            log.warn(`Failed to stop test-runner-backend for worker ${workerId}: ${error}`);
+            log.warn(`Failed to stop test-runner-backend for worker ${workerId}: ${errorMessage(error)}`);
           }
         }
         this.workerBackends.clear();
@@ -1093,7 +1093,7 @@ export default class TauriLaunchService {
             this.embeddedProcesses.delete(key);
             log.debug(`Stopped embedded driver: ${key}`);
           } catch (error) {
-            log.warn(`Failed to stop embedded driver ${key}: ${error}`);
+            log.warn(`Failed to stop embedded driver ${key}: ${errorMessage(error)}`);
             embeddedCleanupErrors.push(error);
           }
         }

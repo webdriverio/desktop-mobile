@@ -11,7 +11,7 @@ import type { Logger } from '@wdio/logger';
 
 export const DEFAULT_TEARDOWN_TIMEOUT_MS = 10_000;
 
-// Long enough for a SIGTERM grace + SIGKILL wait; the 10s default would cut that short.
+// Long enough for a SIGTERM grace + SIGKILL wait, which DEFAULT_TEARDOWN_TIMEOUT_MS would cut short.
 export const PROCESS_TEARDOWN_TIMEOUT_MS = 30_000;
 
 export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
