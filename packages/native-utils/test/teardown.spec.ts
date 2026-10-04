@@ -3,6 +3,7 @@ import {
   BENIGN_TEARDOWN_ERROR_PATTERNS,
   boundedOnComplete,
   DEFAULT_TEARDOWN_TIMEOUT_MS,
+  errorMessage,
   failStartup,
   isBenignTeardownError,
   PROCESS_TEARDOWN_TIMEOUT_MS,
@@ -37,7 +38,27 @@ describe('isBenignTeardownError', () => {
   });
 });
 
+describe('errorMessage', () => {
+  it('should use an Error message', () => {
+    expect(errorMessage(new Error('boom'))).toBe('boom');
+  });
+
+  it('should read the message of a plain error-like object', () => {
+    expect(errorMessage({ message: 'session not found', code: 'X' })).toBe('session not found');
+  });
+
+  it('should stringify anything else', () => {
+    expect(errorMessage(undefined)).toBe('undefined');
+    expect(errorMessage('boom')).toBe('boom');
+    expect(errorMessage({ code: 1 })).toBe('[object Object]');
+  });
+});
+
 describe('runBounded', () => {
+  it('should accept an op that returns a plain value rather than a promise', async () => {
+    await expect(runBounded(() => 'done' as unknown as Promise<string>, 1000)).resolves.toBe('done');
+  });
+
   it('should return the operation result when it settles before the timeout', async () => {
     await expect(runBounded(() => Promise.resolve('done'), 1000)).resolves.toBe('done');
   });

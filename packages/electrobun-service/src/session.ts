@@ -8,6 +8,7 @@ import type {
 import {
   boundedOnComplete,
   createLogger,
+  DEFAULT_TEARDOWN_TIMEOUT_MS,
   errorMessage,
   failStartup as failStartupShared,
   safeDeleteSession,
@@ -65,7 +66,9 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    await safeDeleteSession(browser, 'service.before cleanup', log);
+    // Short deadline: on Linux the DELETE can't finish until the app is reaped, which onComplete
+    // only does afterwards, so the default would just delay reporting the real error.
+    await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }

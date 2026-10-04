@@ -105,6 +105,23 @@ describe('session', () => {
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
+    it('should give up on the startup-failure delete after the short deadline', async () => {
+      vi.useFakeTimers();
+      try {
+        serviceBeforeMock.mockRejectedValueOnce(new Error('attach failed'));
+        deleteSessionMock.mockReturnValueOnce(new Promise<void>(() => {}));
+        const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });
+
+        await Promise.all([
+          expect(init(cap)).rejects.toThrow(/attach failed/),
+          vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS),
+        ]);
+        expect(onCompleteMock).toHaveBeenCalledTimes(1);
+      } finally {
+        vi.useRealTimers();
+      }
+    });
+
     it('should call launcher.onComplete when onPrepare fails', async () => {
       onPrepareMock.mockRejectedValueOnce(new Error('bundle resolve failed'));
       const cap = createElectrobunCapabilities({ appBinaryPath: '/apps/Demo.app' });

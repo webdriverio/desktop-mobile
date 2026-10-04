@@ -264,16 +264,19 @@ export default class DioxusLaunchService extends BaseLauncher {
 
   // Runs even when the dev-server stop throws, so drivers and the log writer aren't left behind.
   private async stopSpawnedProcesses(): Promise<void> {
-    await this.stopAllEmbedded();
-    // Stop any external (wdio-dioxus-driver) processes managed by BaseLauncher
-    await this.stopAllDrivers();
-    // Flush + close the LogWriter (mirrors tauri-service/launcher.ts). Without
-    // this, bytes still in the WriteStream buffer at process exit can be
-    // silently dropped from the captured log file.
     try {
-      await closeLogWriter('dioxus-service');
-    } catch (error) {
-      log.warn(`Failed to close LogWriter: ${errorMessage(error)}`);
+      await this.stopAllEmbedded();
+      // Stop any external (wdio-dioxus-driver) processes managed by BaseLauncher
+      await this.stopAllDrivers();
+    } finally {
+      // Flush + close the LogWriter (mirrors tauri-service/launcher.ts). Without
+      // this, bytes still in the WriteStream buffer at process exit can be
+      // silently dropped from the captured log file.
+      try {
+        await closeLogWriter('dioxus-service');
+      } catch (error) {
+        log.warn(`Failed to close LogWriter: ${errorMessage(error)}`);
+      }
     }
   }
 }

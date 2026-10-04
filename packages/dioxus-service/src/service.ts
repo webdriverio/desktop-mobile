@@ -132,17 +132,14 @@ export default class DioxusWorkerService {
         await safeDeleteSession(this.browser as WebdriverIO.Browser, 'afterSession', log);
       } else {
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-        // In parallel, so several hung drivers cost one deadline rather than one each.
-        await Promise.all(
-          mrBrowser.instances.map(async (instanceName) => {
-            try {
-              const instance = mrBrowser.getInstance(instanceName);
-              await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
-            } catch (error) {
-              log.warn(`Failed to clean up instance ${instanceName}:`, error);
-            }
-          }),
-        );
+        for (const instanceName of mrBrowser.instances) {
+          try {
+            const instance = mrBrowser.getInstance(instanceName);
+            await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
+          } catch (error) {
+            log.warn(`Failed to clean up instance ${instanceName}:`, error);
+          }
+        }
       }
     } finally {
       clearWindowState();

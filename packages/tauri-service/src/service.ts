@@ -317,18 +317,15 @@ export default class TauriWorkerService {
       await safeDeleteSession(stdBrowser, 'afterSession', log);
     } else {
       const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
-      // In parallel, so several hung drivers cost one deadline rather than one each.
-      await Promise.all(
-        mrBrowser.instances.map(async (instanceName) => {
-          try {
-            const instance = mrBrowser.getInstance(instanceName);
-            clearWindowState(instance.sessionId);
-            await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
-          } catch (error) {
-            log.warn(`Failed to clean up instance ${instanceName}:`, error);
-          }
-        }),
-      );
+      for (const instanceName of mrBrowser.instances) {
+        try {
+          const instance = mrBrowser.getInstance(instanceName);
+          clearWindowState(instance.sessionId);
+          await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
+        } catch (error) {
+          log.warn(`Failed to clean up instance ${instanceName}:`, error);
+        }
+      }
     }
   }
 

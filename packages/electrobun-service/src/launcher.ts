@@ -402,26 +402,29 @@ export default class ElectrobunLaunchService extends BaseLauncher {
 
   // Runs even when the dev-server stop throws, so apps, drivers and the log writer aren't left behind.
   private async stopSpawnedProcesses(): Promise<void> {
-    for (const apps of this.spawnedAppsByCid.values()) {
-      for (const app of apps) {
-        await stopElectrobunApp(app).catch((error: Error) => {
-          log.warn(`Failed to stop Electrobun app: ${error.message}`);
-        });
+    try {
+      for (const apps of this.spawnedAppsByCid.values()) {
+        for (const app of apps) {
+          await stopElectrobunApp(app).catch((error: Error) => {
+            log.warn(`Failed to stop Electrobun app: ${error.message}`);
+          });
+        }
       }
-    }
-    this.spawnedAppsByCid.clear();
-    for (const drivers of this.webkitDriversByCid.values()) {
-      for (const driver of drivers) {
-        await stopWebKitWebDriver(driver).catch((error: Error) => {
-          log.warn(`Failed to stop WebKitWebDriver: ${error.message}`);
-        });
+      this.spawnedAppsByCid.clear();
+      for (const drivers of this.webkitDriversByCid.values()) {
+        for (const driver of drivers) {
+          await stopWebKitWebDriver(driver).catch((error: Error) => {
+            log.warn(`Failed to stop WebKitWebDriver: ${error.message}`);
+          });
+        }
       }
-    }
-    this.webkitDriversByCid.clear();
+      this.webkitDriversByCid.clear();
 
-    await this.stopAllDrivers();
-    if (isLogWriterInitialized(SERVICE_NAME)) {
-      await closeLogWriter(SERVICE_NAME);
+      await this.stopAllDrivers();
+    } finally {
+      if (isLogWriterInitialized(SERVICE_NAME)) {
+        await closeLogWriter(SERVICE_NAME);
+      }
     }
   }
 }

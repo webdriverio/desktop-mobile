@@ -121,6 +121,17 @@ describe('DioxusLaunchService — devServer management', () => {
     expect(closeLogWriter).toHaveBeenCalledWith('dioxus-service');
   });
 
+  it('should still close the log writer when stopping drivers throws', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare(baseConfig, [{}] as DioxusCapabilities[]);
+    vi.spyOn(launcher as unknown as { stopAllDrivers: () => Promise<void> }, 'stopAllDrivers').mockRejectedValueOnce(
+      new Error('driver stop boom'),
+    );
+
+    await expect(launcher.onComplete()).rejects.toThrow('driver stop boom');
+    expect(closeLogWriter).toHaveBeenCalledWith('dioxus-service');
+  });
+
   it('should skip the HEAD preflight when managing the dev server', async () => {
     const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
     vi.stubGlobal('fetch', fetchMock);

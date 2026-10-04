@@ -33,7 +33,12 @@ export const BENIGN_TEARDOWN_ERROR_PATTERNS = [
 
 // Teardown catches anything, including a bare `reject()`, so never assume an Error.
 export function errorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : String(error);
+  if (error instanceof Error) {
+    return error.message;
+  }
+  // Protocol/CDP layers often reject with a plain `{ message }` object.
+  const message = (error as { message?: unknown } | null | undefined)?.message;
+  return typeof message === 'string' ? message : String(error);
 }
 
 export function isBenignTeardownError(error: unknown): boolean {
@@ -84,7 +89,7 @@ export async function runBounded<T>(
   try {
     // An abandoned op can still reject after the deadline; this stops that surfacing as an
     // unhandledRejection. The race still sees a rejection that lands before the timeout.
-    const opPromise = op();
+    const opPromise = Promise.resolve(op());
     opPromise.catch(() => {});
     return await Promise.race([
       opPromise,
