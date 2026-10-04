@@ -61,8 +61,7 @@ describe('DioxusWorkerService', () => {
 
   it('should route browser.dioxus.execute through the underlying browser.execute', async () => {
     const browser = makeBrowser();
-    // First two calls: the injection script and the stale-mock reset (service.before).
-    // Third call: the dioxus.execute under test — return 'out'.
+    // The first two calls are the injection script and the stale-mock reset.
     vi.mocked(browser.execute)
       .mockResolvedValueOnce(undefined)
       .mockResolvedValueOnce(undefined)
@@ -121,14 +120,13 @@ describe('DioxusWorkerService', () => {
     await service.before({}, [], browser);
 
     const reset = vi.mocked(browser.execute).mock.calls[1][0] as () => void;
-    const fakeWindow = { __wdio_mocks__: { greet: () => 'stale' } };
-    vi.stubGlobal('window', fakeWindow);
+    vi.stubGlobal('__wdio_mocks__', { greet: () => 'stale' });
     try {
       reset();
+      expect((globalThis as { __wdio_mocks__?: unknown }).__wdio_mocks__).toEqual({});
     } finally {
       vi.unstubAllGlobals();
     }
-    expect(fakeWindow.__wdio_mocks__).toEqual({});
   });
 
   it('should not reset in-app mocks for the external driver provider', async () => {

@@ -148,8 +148,7 @@ try {
 
   console.log('✅ All Tauri standalone logging tests passed');
 } finally {
-  // Clean up - quit the app and stop tauri-driver. cleanupWdioSession() deletes the
-  // session itself (via the service's afterSession), so don't deleteSession() first.
+  // Clean up - quit the app and stop tauri-driver.
   await cleanupWdioSession(browser);
   console.log('✅ Cleanup complete');
 }

@@ -273,12 +273,7 @@ export default class TauriWorkerService {
     // Cleanup if needed
   }
 
-  /**
-   * Must not talk to the app: the runner has already deleted the session. In-app mocks go
-   * with the app, or are reset at the next session start in embedded mode (see before()).
-   * The deleteSession() below only fires from standalone cleanup(), which calls this with
-   * the session still live.
-   */
+  /** The runner has already deleted the session here; the delete below is for standalone cleanup(). */
   async afterSession(_config: unknown, _capabilities: TauriCapabilities, _specs: string[]): Promise<void> {
     log.debug('Cleaning up session...');
     mockStore.clear();

@@ -542,8 +542,6 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async afterSession() {
-    // No in-app restore: the runner has already deleted the session, and the app (or
-    // browser-mode page) goes with it.
     mockStore.clear();
   }
 
