@@ -1102,7 +1102,7 @@ export default class TauriLaunchService {
 
       log.debug('Tauri service completed');
     } finally {
-      // Last, so the stopped processes' shutdown output still reaches the log file.
+      // Ensure the stopped processes' shutdown output still reaches the log file.
       try {
         await closeLogWriter('tauri-service');
       } catch {

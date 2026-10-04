@@ -10,8 +10,7 @@ import {
 import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 
-// Appium's DELETE can uninstall the app or reset the device (`fullReset`), which routinely
-// outlasts the desktop teardown default.
+// Appium's DELETE can uninstall the app or reset the device (`fullReset`), outlasting the desktop default.
 const APPIUM_DELETE_SESSION_TIMEOUT_MS = 120_000;
 
 /**
@@ -40,7 +39,7 @@ export interface MobileSessionDeps<TOptions, TCap> {
   WorkerClass: new (options: TOptions, capability: TCap) => MobileWorkerLike<TCap>;
   defaultConnection?: AppiumServerConnection;
   logNamespace: string;
-  /** Names the service in startup errors, e.g. 'React Native standalone'. Defaults to 'Mobile standalone'. */
+  /** Names the service in startup errors. Defaults to 'Mobile standalone'. */
   label?: string;
 }
 

@@ -209,7 +209,7 @@ export default class ElectrobunWorkerService {
   }
 
   private async closeBridges(): Promise<void> {
-    // Bounded and in parallel, so hung apps can't keep after() from reaching reapW3CApps().
+    // Bounded and in parallel, so a hung app can't stop after() from killing the Linux app processes.
     await Promise.all(
       this.consoleDrains.map((drain) =>
         runBounded(drain, CONSOLE_DRAIN_TIMEOUT_MS, () =>

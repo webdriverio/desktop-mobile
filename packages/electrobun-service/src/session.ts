@@ -66,7 +66,7 @@ export async function init(
   try {
     await service.before(capability, [], browser);
   } catch (error) {
-    // Before the session delete below: after() reaps the Linux app, without which the DELETE hangs.
+    // Reap the app before session deletion to ensure it doesn't hang.
     await runBounded(
       () => service.after(),
       DEFAULT_TEARDOWN_TIMEOUT_MS,
