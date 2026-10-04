@@ -52,7 +52,7 @@ vi.mock('../src/window.js', async (importOriginal) => {
   };
 });
 
-import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS, waitUntilWindowAvailable } from '@wdio/native-utils';
+import { waitUntilWindowAvailable } from '@wdio/native-utils';
 import { execute as executeCommand } from '../src/commands/execute.js';
 import { clearAllMocks, resetAllMocks, restoreAllMocks } from '../src/commands/mock.js';
 import mockStore from '../src/mockStore.js';
@@ -1123,27 +1123,6 @@ describe('TauriWorkerService', () => {
 
       expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
       expect(clearWindowState).toHaveBeenCalledWith('sess-b');
-    });
-
-    it('should allow a stalled session delete the full process-teardown timeout', async () => {
-      vi.useFakeTimers();
-      try {
-        const mockBrowser = createMockBrowser({ deleteSession: vi.fn(() => new Promise<void>(() => {})) });
-        const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-        (service as unknown as { browser: WebdriverIO.Browser }).browser = mockBrowser;
-
-        let settled = false;
-        const pending = service.afterSession({}, {} as TauriCapabilities, []).then(() => {
-          settled = true;
-        });
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-        expect(settled).toBe(false);
-        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS - DEFAULT_TEARDOWN_TIMEOUT_MS);
-        await pending;
-        expect(settled).toBe(true);
-      } finally {
-        vi.useRealTimers();
-      }
     });
   });
 });

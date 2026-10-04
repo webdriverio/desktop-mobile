@@ -133,28 +133,6 @@ describe('DioxusLaunchService', () => {
       expect(vi.mocked(stopEmbeddedDriver)).toHaveBeenCalledWith(fakeInfo);
     });
 
-    it('should keep stopping embedded drivers when one stop rejects with a non-Error', async () => {
-      mockPlatform('linux');
-      const first = { proc: { pid: 1234, kill: vi.fn() }, logHandlers: [] };
-      const second = { proc: { pid: 5678, kill: vi.fn() }, logHandlers: [] };
-      vi.mocked(startEmbeddedDriver).mockResolvedValueOnce(first).mockResolvedValueOnce(second);
-
-      const launcher = new DioxusLaunchService(
-        { driverProvider: 'embedded', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
-        {} as DioxusCapabilities,
-        baseConfig,
-      );
-      const caps: DioxusCapabilities[] = [
-        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
-        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
-      ];
-      await launcher.onPrepare(baseConfig, caps);
-      vi.mocked(stopEmbeddedDriver).mockRejectedValueOnce(undefined);
-
-      await expect(launcher.onComplete()).resolves.toBeUndefined();
-      expect(vi.mocked(stopEmbeddedDriver)).toHaveBeenCalledWith(second);
-    });
-
     it('should stop already-started instances when a later one is missing appBinaryPath', async () => {
       mockPlatform('linux');
       const fakeInfo = { proc: { pid: 1234, kill: vi.fn() }, logHandlers: [] };

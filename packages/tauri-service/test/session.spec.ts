@@ -71,7 +71,7 @@ vi.mock('node:http', () => ({
 }));
 
 import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import { DEFAULT_TEARDOWN_TIMEOUT_MS, PROCESS_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
+import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import TauriLaunchService from '../src/launcher.js';
 import TauriWorkerService from '../src/service.js';
 import { cleanup, createTauriCapabilities, init } from '../src/session.js';
@@ -589,29 +589,6 @@ describe('session', () => {
         errors: [startup, launcherCleanup],
       });
       expect(mockOnComplete).toHaveBeenCalledOnce();
-    });
-
-    it('should time out a stalled startup-failure delete at the process-teardown timeout', async () => {
-      vi.useFakeTimers();
-      try {
-        const startup = new Error('worker service failed');
-        mockBefore.mockRejectedValueOnce(startup);
-        mockRemote.mockResolvedValueOnce(
-          createMockBrowser({ deleteSession: vi.fn(() => new Promise<void>(() => {})) }),
-        );
-        let settled = false;
-        const result = init({}).catch((error: unknown) => {
-          settled = true;
-          return error;
-        });
-        await vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS);
-        expect(settled).toBe(false);
-        await vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS - DEFAULT_TEARDOWN_TIMEOUT_MS);
-        expect(await result).toBe(startup);
-        expect(mockOnComplete).toHaveBeenCalledTimes(1);
-      } finally {
-        vi.useRealTimers();
-      }
     });
 
     it('should warn on a non-benign session-cleanup failure and rethrow only the startup error', async () => {

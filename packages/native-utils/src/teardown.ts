@@ -34,21 +34,13 @@ export function errorMessage(error: unknown): string {
   }
   // Protocol/CDP layers often reject with a plain `{ message }` object.
   const message = (error as { message?: unknown } | null | undefined)?.message;
-  return typeof message === 'string' ? message : toSafeString(error);
-}
-
-// String() throws for objects without a usable toString(), e.g. null-prototype ones.
-function toSafeString(value: unknown): string {
-  try {
-    return String(value);
-  } catch {
-    return Object.prototype.toString.call(value);
-  }
+  return typeof message === 'string' ? message : String(error);
 }
 
 export function isBenignTeardownError(error: unknown): boolean {
-  const code = (error as { code?: unknown } | null | undefined)?.code;
-  const haystack = `${errorMessage(error)} ${code === undefined ? '' : toSafeString(code)}`.toLowerCase();
+  const haystack = `${(error as { message?: string })?.message ?? error ?? ''} ${
+    (error as { code?: string })?.code ?? ''
+  }`.toLowerCase();
   return BENIGN_TEARDOWN_ERROR_PATTERNS.some((pattern) => haystack.includes(pattern));
 }
 
@@ -86,7 +78,7 @@ export async function runBounded<T>(
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     // Keep a rejection after the deadline from surfacing as an unhandledRejection.
-    const opPromise = Promise.resolve(op());
+    const opPromise = op();
     opPromise.catch(() => {});
     return await Promise.race([
       opPromise,

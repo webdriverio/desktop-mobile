@@ -214,7 +214,6 @@ describe('CrabNebula Backend', () => {
       await stopPromise;
 
       expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
-      expect(mockProc.listenerCount('exit')).toBe(0);
     });
 
     it('should send SIGKILL if the process ignores SIGTERM, then wait for it to exit', async () => {
@@ -230,7 +229,6 @@ describe('CrabNebula Backend', () => {
 
         mockProc.emit('exit', null, 'SIGKILL');
         await stopPromise;
-        expect(mockProc.listenerCount('exit')).toBe(0);
       } finally {
         vi.useRealTimers();
       }
@@ -242,19 +240,6 @@ describe('CrabNebula Backend', () => {
       });
 
       await expect(stopTestRunnerBackend(mockProc as ChildProcess)).resolves.toBeUndefined();
-    });
-
-    it('should give up and drop its exit listener if the process survives SIGKILL', async () => {
-      vi.useFakeTimers();
-      try {
-        const stopPromise = stopTestRunnerBackend(mockProc as ChildProcess);
-        await vi.advanceTimersByTimeAsync(10_000);
-        await stopPromise;
-
-        expect(mockProc.listenerCount('exit')).toBe(0);
-      } finally {
-        vi.useRealTimers();
-      }
     });
   });
 

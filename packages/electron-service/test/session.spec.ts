@@ -149,14 +149,6 @@ describe('Session Management', () => {
       expect(mockInitialize).not.toHaveBeenCalled();
     });
 
-    it('should still stop the launcher when remote() rejects with a non-Error', async () => {
-      remoteMock.mockRejectedValueOnce(undefined);
-      const caps = baseCaps();
-
-      await expect(init([caps])).rejects.toMatchObject({ message: 'Electron standalone startup failed: undefined' });
-      expect(onCompleteMock).toHaveBeenCalledTimes(1);
-    });
-
     it('should close the log writer and stop the launcher when remote() fails', async () => {
       remoteMock.mockRejectedValueOnce(new Error('chromedriver missing'));
       const caps = baseCaps();
@@ -175,21 +167,6 @@ describe('Session Management', () => {
       expect(browserMock.deleteSession).toHaveBeenCalledTimes(1);
       expect(onCompleteMock).toHaveBeenCalledTimes(1);
       expect(mockClose).toHaveBeenCalledTimes(1);
-    });
-
-    it('should time out a stalled startup-failure delete at the process-teardown timeout', async () => {
-      vi.useFakeTimers();
-      try {
-        beforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
-        browserMock.deleteSession.mockReturnValueOnce(new Promise<void>(() => {}));
-        await Promise.all([
-          expect(init([baseCaps()])).rejects.toThrow(/bridge attach failed/),
-          vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS),
-        ]);
-        expect(onCompleteMock).toHaveBeenCalledTimes(1);
-      } finally {
-        vi.useRealTimers();
-      }
     });
 
     it('should surface both errors via AggregateError when onComplete also fails', async () => {

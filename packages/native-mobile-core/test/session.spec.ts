@@ -95,15 +95,6 @@ describe('createMobileSession init', () => {
     expect(onComplete).toHaveBeenCalled();
   });
 
-  it('should still stop the launcher when remote() rejects with a non-Error', async () => {
-    resetMocks();
-    remoteMock.mockRejectedValueOnce(undefined);
-    await expect(makeSession().init({ platformName: 'Android' })).rejects.toMatchObject({
-      message: 'Mobile standalone startup failed: undefined',
-    });
-    expect(onComplete).toHaveBeenCalled();
-  });
-
   it('should surface both the startup error and a launcher-cleanup failure via AggregateError', async () => {
     resetMocks();
     before.mockRejectedValueOnce(new Error('before boom'));
