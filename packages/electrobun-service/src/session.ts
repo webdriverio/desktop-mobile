@@ -72,7 +72,7 @@ export async function init(
       DEFAULT_TEARDOWN_TIMEOUT_MS,
       () => log.warn('service.after() timed out during startup cleanup'),
     ).catch((e: unknown) => log.warn(`service.after() failed during startup cleanup: ${errorMessage(e)}`));
-    await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
+    await safeDeleteSession(browser, 'service.before cleanup', log);
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }

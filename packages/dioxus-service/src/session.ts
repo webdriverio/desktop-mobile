@@ -1,7 +1,6 @@
 import {
   boundedOnComplete,
   createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
   errorMessage,
   failStartup as failStartupShared,
   safeDeleteSession,
@@ -75,7 +74,7 @@ export async function init(
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {
-    await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
+    await safeDeleteSession(browser, 'service.before cleanup', log);
     activeLaunchers.delete(browser);
     return failStartup(launcher, error, 'service.before cleanup');
   }

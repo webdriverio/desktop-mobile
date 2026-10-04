@@ -125,7 +125,7 @@ describe('session', () => {
       }
     });
 
-    it('should time out a stalled startup-failure delete at the default teardown timeout', async () => {
+    it('should time out a stalled startup-failure delete at the process-teardown timeout', async () => {
       vi.useFakeTimers();
       try {
         serviceBeforeMock.mockRejectedValueOnce(new Error('attach failed'));
@@ -134,7 +134,7 @@ describe('session', () => {
 
         await Promise.all([
           expect(init(cap)).rejects.toThrow(/attach failed/),
-          vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS),
+          vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS),
         ]);
         expect(onCompleteMock).toHaveBeenCalledTimes(1);
       } finally {

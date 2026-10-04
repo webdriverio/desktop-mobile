@@ -336,8 +336,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
                 }
               } else {
                 // Generate comprehensive error message based on what failed
-                const errorMessage = generateBinaryPathErrorMessage(binaryResult, appBuildInfo);
-                throw new Error(errorMessage);
+                throw new Error(generateBinaryPathErrorMessage(binaryResult, appBuildInfo));
               }
             } catch (e) {
               // Fallback to original error handling for backward compatibility
@@ -354,7 +353,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
             }
           } catch (e) {
             log.error(String(e));
-            throw new SevereServiceError((e as Error).message);
+            throw new SevereServiceError(errorMessage(e));
           }
         }
 
@@ -471,8 +470,8 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
       });
       formatDiagnosticResults(results, 'electron-service');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
-      const msg = `Failed to assign debugging ports to Electron instances: ${errorMessage}`;
+      const detail = error instanceof Error ? error.stack || error.message : String(error);
+      const msg = `Failed to assign debugging ports to Electron instances: ${detail}`;
       log.error(msg);
       throw new SevereServiceError(msg);
     }

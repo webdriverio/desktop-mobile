@@ -8,7 +8,6 @@ import type {
 import {
   boundedOnComplete,
   createLogger,
-  DEFAULT_TEARDOWN_TIMEOUT_MS,
   errorMessage,
   failStartup as failStartupShared,
   safeDeleteSession,
@@ -85,7 +84,7 @@ export async function init(
     await service.before(capability, [], browser);
   } catch (error) {
     // remote() already opened the session, so close it here before the failure propagates.
-    await safeDeleteSession(browser, 'service.before cleanup', log, { timeoutMs: DEFAULT_TEARDOWN_TIMEOUT_MS });
+    await safeDeleteSession(browser, 'service.before cleanup', log);
     activeLaunchers.delete(browser);
     return failStartup(launcher, error);
   }

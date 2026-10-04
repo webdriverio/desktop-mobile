@@ -144,7 +144,7 @@ export default class ElectrobunWorkerService {
         const summary = raw.map((t) => ({ type: t.type, url: t.url, title: t.title }));
         log.warn(`CDP bridge connect failed at ${host}:${port}; raw /json targets: ${JSON.stringify(summary)}`);
       } catch (probeError) {
-        log.warn(`CDP bridge connect failed; /json probe also failed: ${(probeError as Error).message}`);
+        log.warn(`CDP bridge connect failed; /json probe also failed: ${errorMessage(probeError)}`);
       }
       throw error;
     }
@@ -218,7 +218,9 @@ export default class ElectrobunWorkerService {
   private async closeBridges(): Promise<void> {
     for (const drain of this.consoleDrains) {
       // Bounded so a hung app can't keep after() from reaching reapW3CApps().
-      await runBounded(drain, CONSOLE_DRAIN_TIMEOUT_MS).catch(() => {});
+      await runBounded(drain, CONSOLE_DRAIN_TIMEOUT_MS, () =>
+        log.warn('Console log drain timed out; the final console output may be missing'),
+      ).catch(() => {});
     }
     this.consoleDrains = [];
     for (const bridge of this.bridges) {
@@ -328,7 +330,7 @@ async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBrid
     }
     log.warn('No non-blank content window found; element commands may target a blank document.');
   } catch (error) {
-    log.warn(`Could not sync the WebDriver window to the active target: ${(error as Error).message}`);
+    log.warn(`Could not sync the WebDriver window to the active target: ${errorMessage(error)}`);
   }
 }
 

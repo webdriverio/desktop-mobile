@@ -1,13 +1,6 @@
 import http from 'node:http';
-import { closeLogWriter, getLogWriter } from '@wdio/native-core';
-import {
-  boundedOnComplete,
-  createLogger,
-  errorMessage,
-  failStartup,
-  PROCESS_TEARDOWN_TIMEOUT_MS,
-  safeDeleteSession,
-} from '@wdio/native-utils';
+import { getLogWriter } from '@wdio/native-core';
+import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteSession } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
@@ -133,8 +126,7 @@ export async function init(
     return browser;
   } catch (error) {
     if (browser) {
-      // The DELETE is what closes the app, so it gets the full process-teardown deadline.
-      await safeDeleteSession(browser, 'startup cleanup', log, { timeoutMs: PROCESS_TEARDOWN_TIMEOUT_MS });
+      await safeDeleteSession(browser, 'startup cleanup', log);
     }
     return failStartup(error, 'Tauri standalone', () =>
       boundedOnComplete(launcher, 'startup cleanup', log, { rethrow: true }),
@@ -167,10 +159,6 @@ export async function cleanup(browser: WebdriverIO.Browser): Promise<void> {
     }
 
     await boundedOnComplete(launcher, 'cleanup', log);
-
-    await closeLogWriter('tauri-service').catch((e: unknown) =>
-      log.warn(`Failed to close log writer during cleanup: ${errorMessage(e)}`),
-    );
     activeLaunchers.delete(browser);
     log.debug('Tauri standalone session cleaned up');
   } else {

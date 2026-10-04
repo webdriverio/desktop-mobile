@@ -176,14 +176,14 @@ describe('Session Management', () => {
       expect(mockClose).toHaveBeenCalledTimes(1);
     });
 
-    it('should time out a stalled startup-failure delete at the default teardown timeout', async () => {
+    it('should time out a stalled startup-failure delete at the process-teardown timeout', async () => {
       vi.useFakeTimers();
       try {
         beforeMock.mockRejectedValueOnce(new Error('bridge attach failed'));
         browserMock.deleteSession.mockReturnValueOnce(new Promise<void>(() => {}));
         await Promise.all([
           expect(init([baseCaps()])).rejects.toThrow(/bridge attach failed/),
-          vi.advanceTimersByTimeAsync(DEFAULT_TEARDOWN_TIMEOUT_MS),
+          vi.advanceTimersByTimeAsync(PROCESS_TEARDOWN_TIMEOUT_MS),
         ]);
         expect(onCompleteMock).toHaveBeenCalledTimes(1);
       } finally {

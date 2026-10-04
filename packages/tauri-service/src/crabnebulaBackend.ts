@@ -225,8 +225,13 @@ export async function waitTestRunnerBackendReady(
  * @param proc - The ChildProcess to stop
  * @returns Promise that resolves when process has exited
  */
+// `killed` turns true as soon as a signal is sent; only exitCode/signalCode show the process has gone.
+function hasExited(proc: ChildProcess): boolean {
+  return proc.exitCode !== null || proc.signalCode !== null;
+}
+
 export async function stopTestRunnerBackend(proc: ChildProcess): Promise<void> {
-  if (proc.killed) {
+  if (hasExited(proc)) {
     log.debug('test-runner-backend already stopped');
     return;
   }
@@ -239,7 +244,7 @@ export async function stopTestRunnerBackend(proc: ChildProcess): Promise<void> {
   // Wait for graceful shutdown with timeout
   await new Promise<void>((resolve) => {
     const killTimeout = setTimeout(() => {
-      if (!proc.killed) {
+      if (!hasExited(proc)) {
         log.warn('test-runner-backend did not exit gracefully, forcing kill');
         proc.kill('SIGKILL');
       }

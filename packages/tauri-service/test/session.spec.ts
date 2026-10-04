@@ -591,7 +591,7 @@ describe('session', () => {
       expect(mockOnComplete).toHaveBeenCalledOnce();
     });
 
-    it('should allow a stalled startup-failure delete the full process-teardown timeout', async () => {
+    it('should time out a stalled startup-failure delete at the process-teardown timeout', async () => {
       vi.useFakeTimers();
       try {
         const startup = new Error('worker service failed');
@@ -656,13 +656,11 @@ describe('session', () => {
 
       await cleanup(browser);
 
-      // onWorkerEnd's CrabNebula cycle would restart processes only for onComplete to kill them.
       expect(mockOnWorkerEnd).not.toHaveBeenCalled();
       expect(mockOnComplete).toHaveBeenCalled();
-      expect(closeLogWriter).toHaveBeenCalled();
     });
 
-    it('should still close the log writer when launcher.onComplete fails during cleanup', async () => {
+    it('should swallow a launcher.onComplete failure during cleanup', async () => {
       const capabilities = {
         'tauri:options': { application: '/app' },
       } as unknown as TauriCapabilities;
@@ -671,7 +669,6 @@ describe('session', () => {
       mockOnComplete.mockRejectedValueOnce(new Error('driver stop boom'));
 
       await expect(cleanup(browser)).resolves.toBeUndefined();
-      expect(closeLogWriter).toHaveBeenCalled();
     });
 
     it('should wait past the default teardown deadline for a slow multi-process onComplete', async () => {

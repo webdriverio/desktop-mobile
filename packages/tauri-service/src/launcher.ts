@@ -635,7 +635,7 @@ export default class TauriLaunchService {
           log.info(`tauri-driver listening on ${hostname}:${port}`);
         } catch (error) {
           log.error(`Failed to start tauri-driver: ${error}`);
-          throw new SevereServiceError(`Failed to start tauri-driver: ${(error as Error).message}`);
+          throw new SevereServiceError(`Failed to start tauri-driver: ${errorMessage(error)}`);
         }
 
         // Update the capabilities object with hostname and port so WDIO connects to tauri-driver
