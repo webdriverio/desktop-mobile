@@ -185,6 +185,6 @@ function main() {
   console.log(`Updated ${PLUGIN_DIR}/Cargo.toml and re-locked ${LOCKED_WORKSPACES.join(', ')}.`);
 }
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
   main();
 }

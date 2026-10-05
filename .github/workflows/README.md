@@ -92,5 +92,5 @@ Release notes can be enhanced with LLM (Ollama). If `OLLAMA_API_KEY` is not set 
 ## Other Workflows
 
 - **`ci.yml`** - Build, test, lint
-- **`crate-drift.yml`** - Nightly build of the published Rust crates against fresh dependencies, plus the Tauri plugin's Windows binding sync
+- **`crate-drift.yml`** - Nightly build of our Rust crates' current source against fresh dependencies, plus the Tauri plugin's Windows binding sync
 - **`release-preview.yml`** - Preview release outcome on PRs with release labels

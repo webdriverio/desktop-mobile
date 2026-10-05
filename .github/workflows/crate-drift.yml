@@ -2,10 +2,11 @@ name: Crate Drift
 
 # CI builds the published Rust crates only against their committed Cargo.lock files, but apps that
 # depend on them (and `cargo install` without --locked) resolve fresh versions. A Tauri minor can
-# then break a crate for users while CI stays green. This workflow builds every published crate
-# against freshly resolved dependencies: natively on Linux, as a Windows cross-check from the same
-# runner, and natively on macOS for the Tauri crates, whose macOS code needs the Apple SDK. A
-# failure files a tracking issue, and the issue closes itself once the build passes again.
+# then break a crate for users while CI stays green. This workflow builds the current source of
+# every published crate against freshly resolved dependencies: natively on Linux, as a Windows
+# cross-check from the same runner, and natively on macOS for the Tauri crates, whose macOS code
+# needs the Apple SDK. A failure files a tracking issue, and the issue closes itself once the
+# build passes again.
 #
 # It also keeps the webdriver plugin's Windows bindings on the releases the latest Tauri uses
 # (scripts/sync-tauri-webview2-bindings.ts). A mismatch never breaks builds, it only makes apps
@@ -113,7 +114,11 @@ jobs:
             # `cargo update` re-resolves every dependency to its newest compatible release, which is
             # what a new consumer of the published crate gets.
             log="$RUNNER_TEMP/update-${crate//\//-}.log"
-            cargo update --manifest-path "$crate/Cargo.toml" > "$log" 2>&1 || status=1
+            if ! cargo update --manifest-path "$crate/Cargo.toml" > "$log" 2>&1; then
+              status=1
+              echo "::error title=cargo update failed::$crate"
+              cat "$log"
+            fi
             {
               echo "<details><summary><code>$crate</code>: releases newer than its Cargo.lock</summary>"
               echo
@@ -185,7 +190,8 @@ jobs:
           # webview2-com line. That makes it the PR's identity: an open PR with this title may
           # carry maintainer fixes, and a closed one was declined, so both are left alone.
           title="chore(tauri): move the webdriver plugin to webview2-com $WEBVIEW2_COM"
-          prs=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state all --limit 50 --json number,title,state)
+          prs=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state all --limit 50 \
+            --json number,title,state,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)]')
           same=$(jq -r --arg t "$title" '[.[] | select(.title == $t and .state != "MERGED")][0].state // empty' <<< "$prs")
           if [ -n "$same" ]; then
             echo "Already proposed ($same PR titled \"$title\"); leaving it alone."
@@ -224,7 +230,8 @@ jobs:
         env:
           TAURI: ${{ steps.sync.outputs.tauri }}
         run: |
-          open=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state open --json number --jq '.[0].number // empty')
+          open=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state open --json number,isCrossRepository \
+            --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')
           if [ -n "$open" ]; then
             gh pr close "$open" --repo "$REPO" --delete-branch \
               --comment "The plugin's bindings already match Tauri $TAURI's, so this is no longer needed."
@@ -249,11 +256,12 @@ jobs:
         run: |
           set -euo pipefail
           results="$FRESH $SYNC"
-          case " $results " in
-            # A superseded run says nothing about the crates.
-            *" cancelled "*) echo "Run was cancelled; not reporting."; exit 0 ;;
-          esac
-          title='Crate Drift: published crates fail against fresh dependencies'
+          # A superseded run with no failures says nothing about the crates.
+          if [[ " $results " != *" failure "* && " $results " == *" cancelled "* ]]; then
+            echo "Run was cancelled; not reporting."
+            exit 0
+          fi
+          title='Crate Drift: Rust crates fail against fresh dependencies'
           issue=$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number,title \
             | jq -r --arg t "$title" '[.[] | select(.title == $t)][0].number // empty')
           jobs="Fresh deps: \`$FRESH\` · binding sync: \`$SYNC\`"
@@ -265,7 +273,7 @@ jobs:
               gh issue create --repo "$REPO" --title "$title" --label 'area:dependencies' --body "$(cat <<EOF
           The nightly [Crate Drift run]($RUN_URL) failed. $jobs
 
-          A \`fresh deps\` failure means a published crate no longer builds against the dependency versions a new consumer resolves today, even though CI (which builds against the committed Cargo.lock files) may still be green. The run's step summary lists which releases were picked up. A \`binding sync\` failure means \`scripts/sync-tauri-webview2-bindings.ts\` itself errored.
+          A \`fresh deps\` failure means the current source of a crate we publish no longer builds against the dependency versions a new consumer resolves today, even though CI (which builds against the committed Cargo.lock files) may still be green. The run's step summary lists which releases were picked up. A \`binding sync\` failure means the sync script, or pushing and opening its PR, failed.
 
           This issue closes itself once a nightly run passes again.
           EOF
