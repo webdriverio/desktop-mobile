@@ -19,7 +19,11 @@ function isExecuteOptions(arg: unknown): arg is TauriExecuteOptions {
 const DIRECT_EVAL_PORT_ENV_VAR = 'TAURI_WEBDRIVER_PORT';
 const DIRECT_EVAL_DEFAULT_PORT = 4445;
 
-function getDirectEvalPort(): number {
+function getDirectEvalPort(browser: WebdriverIO.Browser): number {
+  // The embedded server serves /wdio/eval on its WebDriver port, so the session's own connection
+  // port is authoritative: it reflects embeddedPort and differs per multiremote instance.
+  const sessionPort = browser.options.port;
+  if (sessionPort) return sessionPort;
   const envPort = process.env[DIRECT_EVAL_PORT_ENV_VAR];
   if (envPort) {
     const port = parseInt(envPort, 10);
@@ -88,7 +92,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
 
   if (provider === 'embedded') {
     const scriptString = typeof script === 'function' ? script.toString() : script;
-    const port = getDirectEvalPort();
+    const port = getDirectEvalPort(browser);
     const client = getOrCreateDirectEvalClient(browser, port);
     const wrapped = wrapScriptForDirectEval(scriptString, JSON.stringify(userArgs));
 

@@ -12,6 +12,7 @@ describe('isMockFunction Command', () => {
         execute: vi.fn(),
       },
       execute: vi.fn().mockResolvedValue(true),
+      options: {},
     } as unknown as WebdriverIO.Browser;
     // createMock calls execute() which uses the embedded path (fetch) by default
     vi.stubGlobal(

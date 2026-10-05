@@ -20,6 +20,21 @@ describe('Tauri Multiremote - Advanced Patterns', () => {
     expect(resultB).toBe(2);
   });
 
+  it("should evaluate on each instance's own app", async () => {
+    const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
+    const browserA = multi.getInstance('browserA');
+    const browserB = multi.getInstance('browserB');
+
+    const [argsA, argsB] = (await Promise.all([
+      browserA.tauri.execute(({ core }) => core.invoke('get_command_line_args')),
+      browserB.tauri.execute(({ core }) => core.invoke('get_command_line_args')),
+    ])) as [string[], string[]];
+
+    // endsWith: on Windows msedgedriver may re-prefix args as Chrome switches
+    expect(argsA.some((arg) => arg.endsWith('browser=A'))).toBe(true);
+    expect(argsB.some((arg) => arg.endsWith('browser=B'))).toBe(true);
+  });
+
   it('should handle sequential execution in multiremote', async () => {
     const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
     const browserA = multi.getInstance('browserA');

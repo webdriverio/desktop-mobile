@@ -26,9 +26,10 @@ vi.mock('@wdio/native-utils', async (importOriginal) => {
   };
 });
 
-function createMockBrowser(executeFn?: (...args: unknown[]) => unknown) {
+function createMockBrowser(executeFn?: (...args: unknown[]) => unknown, port?: number) {
   return {
     execute: vi.fn(executeFn ?? (() => undefined)),
+    options: { port },
   } as unknown as WebdriverIO.Browser;
 }
 
@@ -242,6 +243,51 @@ describe('execute — embedded provider (direct eval)', () => {
 
       expect(mockFn.mock.calls[0][0]).toBe('http://127.0.0.1:9000/wdio/eval');
       expect(mockFn.mock.calls[1][0]).toBe('http://127.0.0.1:9001/wdio/eval');
+    });
+  });
+
+  describe('port selection', () => {
+    afterEach(() => {
+      delete process.env.TAURI_WEBDRIVER_PORT;
+    });
+
+    it("should evaluate on the session's own port", async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      await execute(createMockBrowser(undefined, 45783), '() => 1');
+      expect(mockFn.mock.calls[0][0]).toBe('http://127.0.0.1:45783/wdio/eval');
+    });
+
+    it('should prefer the session port over TAURI_WEBDRIVER_PORT', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      process.env.TAURI_WEBDRIVER_PORT = '9000';
+      await execute(createMockBrowser(undefined, 45783), '() => 1');
+      expect(mockFn.mock.calls[0][0]).toBe('http://127.0.0.1:45783/wdio/eval');
+    });
+
+    it('should evaluate each multiremote instance on its own port', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      await execute(createMockBrowser(undefined, 4445), '() => 1');
+      await execute(createMockBrowser(undefined, 4446), '() => 2');
+      expect(mockFn.mock.calls[0][0]).toBe('http://127.0.0.1:4445/wdio/eval');
+      expect(mockFn.mock.calls[1][0]).toBe('http://127.0.0.1:4446/wdio/eval');
+    });
+
+    it('should fall back to TAURI_WEBDRIVER_PORT when the session has no port', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      process.env.TAURI_WEBDRIVER_PORT = '9000';
+      await execute(browser, '() => 1');
+      expect(mockFn.mock.calls[0][0]).toBe('http://127.0.0.1:9000/wdio/eval');
+    });
+
+    it('should fall back to 4445 when neither the session nor the env var sets a port', async () => {
+      const mockFn = mockFetch({ value: 1 });
+      vi.stubGlobal('fetch', mockFn);
+      await execute(browser, '() => 1');
+      expect(mockFn.mock.calls[0][0]).toBe('http://127.0.0.1:4445/wdio/eval');
     });
   });
 });
