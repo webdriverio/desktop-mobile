@@ -51,7 +51,8 @@ export const config = {
     {
       browserName: 'dioxus',
       'dioxus:options': {
-        application: './target/debug/my-app'
+        // Debug build from `dx build --desktop` (Linux path; see the Quick Start for macOS and Windows)
+        application: './target/dx/my-app/debug/linux/app/my-app'
       }
     }
   ]
@@ -64,7 +65,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 
 **Getting Started**
 - [Quick Start Guide](./docs/quick-start.md) - Set up in minutes
-- [Bridge Setup](./docs/plugin-setup.md) - Install wdio-dioxus-bridge
+- [Bridge Setup](./docs/plugin-setup.md) - Install wdio-dioxus-embedded-driver in your app
 
 **Reference**
 - [Configuration](./docs/configuration.md) - All service options

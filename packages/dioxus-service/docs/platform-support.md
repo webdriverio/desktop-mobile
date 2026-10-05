@@ -14,14 +14,14 @@ Complete guide to platform-specific requirements, limitations, and driver setup 
 
 ### `'embedded'` (Recommended Everywhere)
 
-The embedded WebDriver provider uses `wdio-dioxus-embedded-driver` wired into the app via `wdio_dioxus_bridge::install(config)`. No external driver process is needed.
+The embedded WebDriver provider uses `wdio-dioxus-embedded-driver` wired into the app via `wdio_dioxus_embedded_driver::install(config)`, which also installs the bridge. No external driver process is needed.
 
 **Works on:** Windows, Linux, macOS
 
 **Requirements:**
-- `wdio-dioxus-bridge = "1"` in `Cargo.toml`
-- `wdio_dioxus_bridge::install(config)` in `main.rs` inside `#[cfg(debug_assertions)]`
-- Debug build of the app (`cargo build`)
+- `wdio-dioxus-embedded-driver = "1"` in `Cargo.toml`
+- `wdio_dioxus_embedded_driver::install(config)` in `main.rs` inside `#[cfg(debug_assertions)]` (`wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server)
+- Debug build of the app (`dx build --desktop`; see [Bridge Setup](./plugin-setup.md#step-3-build-in-debug-mode) for why not `cargo build`)
 
 **Configuration:**
 ```typescript
@@ -55,12 +55,12 @@ services: [['@wdio/dioxus-service', {
 
 ### `'embedded'` Provider (Recommended)
 
-No external driver needed. Ensure the bridge is in your app and use a debug build.
+No external driver needed. Ensure the embedded driver is installed in your app and use a debug build.
 
 ```typescript
 services: [['@wdio/dioxus-service', {
   driverProvider: 'embedded',
-  appBinaryPath: './target/debug/my_app.exe',
+  appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe',
 }]]
 ```
 
@@ -70,14 +70,14 @@ Uses `wdio-dioxus-driver` → `msedgedriver.exe` → Dioxus app via WebView2 aut
 
 **Setup:**
 
-1. Build a debug binary: `cargo build`
+1. Build a debug binary: `dx build --desktop`
 2. Configure the service:
    ```typescript
    services: [['@wdio/dioxus-service', {
      driverProvider: 'external',
      autoInstallDioxusDriver: true,
      autoDownloadEdgeDriver: true,
-     appBinaryPath: './target/debug/my_app.exe',
+     appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe',
    }]]
    ```
 
@@ -112,7 +112,7 @@ Attempting to set `driverProvider: 'external'` on Linux throws a `SevereServiceE
 ```typescript
 services: [['@wdio/dioxus-service', {
   driverProvider: 'embedded',  // The only supported option on Linux
-  appBinaryPath: './target/debug/my_app',
+  appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',
 }]]
 ```
 
@@ -170,7 +170,7 @@ xvfb-run -a npx wdio run wdio.conf.ts
 ```typescript
 services: [['@wdio/dioxus-service', {
   driverProvider: 'embedded',  // Default, and the only option on macOS
-  appBinaryPath: './target/debug/my_app',
+  appBinaryPath: './target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app',
 }]]
 ```
 
@@ -208,7 +208,9 @@ jobs:
           node-version: '20'
 
       - run: npm install
-      - run: cargo build
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall dioxus-cli --no-confirm
+      - run: dx build --desktop
 
       - name: Run E2E (Linux, headless)
         if: runner.os == 'Linux'

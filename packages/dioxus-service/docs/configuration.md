@@ -26,7 +26,7 @@ export const config = {
 
 Select which driver provider to use for WebDriver communication.
 
-- `'embedded'`: Use the embedded WebDriver server wired in via `wdio-dioxus-bridge::install()`. No external driver needed. Works on all three platforms.
+- `'embedded'`: Use the embedded WebDriver server wired in via `wdio_dioxus_embedded_driver::install()`. No external driver needed. Works on all three platforms.
 - `'external'`: Use `wdio-dioxus-driver` + msedgedriver (Windows only in v1). Linux is blocked pending an upstream Dioxus PR; macOS is not supported.
 
 **Platform × Provider matrix:**
@@ -53,13 +53,13 @@ Path to the compiled Dioxus application binary.
 
 **Example:**
 ```typescript
-appBinaryPath: './target/debug/my_app',    // debug build (bridge active)
-appBinaryPath: './target/release/my_app',  // release build (bridge inactive)
+appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',    // debug build (driver and bridge active)
+appBinaryPath: './target/dx/my_app/release/linux/app/my_app',  // release build (driver and bridge inactive)
 ```
 
 **Default:** Auto-detected from `dioxus:options.application` capability if not provided.
 
-**Note:** For testing, always use a debug build (`cargo build` without `--release`) so the bridge is compiled in.
+**Note:** For testing, always use a debug build (`dx build --desktop` without `--release`) so the driver and bridge are compiled in. See [Finding Your Binary Path](#finding-your-binary-path) for the location on each platform. Other examples on this page use `./target/debug/my_app` for brevity; that's where `cargo build` puts the binary, which only works for apps that don't load files with `asset!()`.
 
 ---
 
@@ -143,7 +143,7 @@ Each worker instance gets a unique port (basePort + workerIndex).
 embeddedPort: 4445
 ```
 
-**Default:** `4445`
+**Default:** `4444`
 
 ---
 
@@ -513,27 +513,30 @@ services: [
 
 ## Finding Your Binary Path
 
+Build with `dx` rather than `cargo build`: `dx` bundles the files your app loads with `asset!()`, and a plain `cargo build` binary can't load them. `dx` prints the bundle path when the build finishes.
+
 ### Debug Build (for testing)
 
 ```bash
-cargo build
+dx build --desktop
 ```
 
 Binary locations:
-- Windows: `target\debug\my_app.exe`
-- Linux/macOS: `target/debug/my_app`
+- Windows: `target\dx\my_app\debug\windows\app\my_app.exe`
+- Linux: `target/dx/my_app/debug/linux/app/my_app`
+- macOS: `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app`
 
-### Release Build (for production — bridge compiled out)
+### Release Build (for production — driver and bridge compiled out)
 
 ```bash
-cargo build --release
+dx build --desktop --release
 ```
 
-Binary locations:
-- Windows: `target\release\my_app.exe`
-- Linux/macOS: `target/release/my_app`
+Binary locations: as above, with `release` in place of `debug`.
 
-**Always use a debug build for testing** so the bridge code is present.
+**Always use a debug build for testing** so the driver and bridge code is present.
+
+If your app doesn't use `asset!()`, `cargo build` also works; its binary is at `target/debug/my_app` (`target\debug\my_app.exe` on Windows).
 
 ## See Also
 

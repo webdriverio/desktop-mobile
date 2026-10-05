@@ -9,6 +9,8 @@ The `wdio-dioxus-bridge` is a **required** Rust crate that enables WebdriverIO t
 - **Log Forwarding** - Capture console logs from both the frontend webview and Rust backend
 - **Invoke Interception** - Enable mocking without modifying backend command handlers
 
+You don't add the bridge directly. `wdio-dioxus-embedded-driver`, which runs the WebDriver server that the service connects to, installs the bridge for you. Calling `wdio_dioxus_bridge::install(config)` on its own registers the bridge but doesn't start the WebDriver server, so the service can't connect.
+
 Unlike Tauri's plugin system, Dioxus has no plugin-trait interface. The bridge is therefore a plain Rust crate (not a plugin) that wires itself into the Dioxus `desktop::Config` via a single `install()` call. It uses a `wdio://` custom protocol registered on the webview to communicate with the WDIO service process.
 
 No capability permission system is involved — the bridge communicates through its own protocol channel, not through Dioxus's IPC machinery.
@@ -22,14 +24,14 @@ No capability permission system is involved — the bridge communicates through 
 | `browser.dioxus.listWindows()` / `switchWindow()` | ✅ Yes |
 | Backend log capture (`captureBackendLogs`) | ✅ Yes |
 | Frontend log capture (`captureFrontendLogs`) | ✅ Yes |
-| Embedded WebDriver server | ✅ Yes (wired in automatically) |
+| Embedded WebDriver server | ✅ Yes (via `wdio-dioxus-embedded-driver`) |
 | `browser.dioxus.triggerDeeplink()` | ✅ Yes (platform-level; no bridge needed) |
 
 ## Installation
 
-### Step 1: Add the Bridge Crate
+### Step 1: Add the Embedded Driver Crate
 
-Add `wdio-dioxus-bridge` to your `Cargo.toml`. The recommended placement is under `[dependencies]` (not `[dev-dependencies]`) because the `#[cfg(debug_assertions)]` guard in your Rust code controls when the bridge code is actually compiled and linked:
+Add `wdio-dioxus-embedded-driver` to your `Cargo.toml`. It depends on `wdio-dioxus-bridge`, so you don't need to add the bridge separately. The recommended placement is under `[dependencies]` (not `[dev-dependencies]`) because the `#[cfg(debug_assertions)]` guard in your Rust code controls when the driver code is actually compiled and linked:
 
 ```toml
 [package]
@@ -39,16 +41,16 @@ edition = "2021"
 
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version (the bridge tracks the latest release)
-wdio-dioxus-bridge = "1"
+wdio-dioxus-embedded-driver = "1"
 ```
 
 > **Why `[dependencies]` and not `[dev-dependencies]`?**
 >
-> `[dev-dependencies]` are only available in test builds (`cargo test`), not in normal `cargo build` invocations. Since the bridge must be present for `cargo build` to compile the `#[cfg(debug_assertions)]`-guarded block, place it in `[dependencies]`. The guard ensures the bridge code is dead-code-eliminated from release builds (`cargo build --release`) automatically.
+> `[dev-dependencies]` are only available in test builds (`cargo test`), not in normal builds. Since the driver must be present for a debug build to compile the `#[cfg(debug_assertions)]`-guarded block, place it in `[dependencies]`. The guard ensures the driver and bridge code are dead-code-eliminated from release builds automatically.
 
-### Step 2: Wire the Bridge in `main.rs`
+### Step 2: Wire the Driver in `main.rs`
 
-Call `wdio_dioxus_bridge::install(config)` inside a `#[cfg(debug_assertions)]` block:
+Call `wdio_dioxus_embedded_driver::install(config)` inside a `#[cfg(debug_assertions)]` block. Call it last in your `Config` builder chain, so later calls don't shadow the bridge's `with_on_window` hook:
 
 ```rust
 use dioxus::prelude::*;
@@ -58,7 +60,7 @@ fn main() {
 
     #[cfg(debug_assertions)]
     {
-        config = wdio_dioxus_bridge::install(config);
+        config = wdio_dioxus_embedded_driver::install(config);
     }
 
     dioxus::LaunchBuilder::desktop()
@@ -75,39 +77,49 @@ fn App() -> Element {
 ```
 
 The `#[cfg(debug_assertions)]` guard means:
-- **Debug builds** (`cargo build`): bridge is active, WDIO can connect
-- **Release builds** (`cargo build --release`): bridge code is not compiled, no test plumbing ships to users
+- **Debug builds** (`dx build --desktop`): driver and bridge are active, WDIO can connect
+- **Release builds** (`dx build --desktop --release`): driver and bridge code is not compiled, no test plumbing ships to users
 
 ### Step 3: Build in Debug Mode
 
-For testing, always use a debug build:
+For testing, always use a debug build, and build with `dx` rather than `cargo build`:
 
 ```bash
-cargo build
-# Binary: target/debug/my_app (or my_app.exe on Windows)
+dx build --desktop
 ```
+
+`dx` bundles the files your app loads with `asset!()`. A plain `cargo build` binary can't resolve those paths, so stylesheets, images and fonts fail to load during tests. If your app doesn't use `asset!()`, `cargo build` also works, and the binary is at `target/debug/my_app`.
+
+`dx` prints the bundle path when the build finishes. The debug binary is at:
+
+| Platform | Binary path |
+|----------|-------------|
+| macOS | `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app` |
+| Linux | `target/dx/my_app/debug/linux/app/my_app` |
+| Windows | `target\dx\my_app\debug\windows\app\my_app.exe` |
 
 The service's `appBinaryPath` or `dioxus:options.application` should point to the debug binary.
 
 ### Step 4: Verify
 
-Build should complete without errors. The bridge registers itself on the Dioxus `Config` and the embedded WebDriver server is wired automatically — no further Rust code is needed.
+Build should complete without errors. `install()` registers the bridge on the Dioxus `Config` and starts the embedded WebDriver server — no further Rust code is needed.
 
-## What the Bridge Does Internally
+## What Happens Internally
 
-When `wdio_dioxus_bridge::install(config)` is called:
+When `wdio_dioxus_embedded_driver::install(config)` is called:
 
-1. **Checks `DIOXUS_WEBVIEW_AUTOMATION`** via `wdio_dioxus_bridge::automation::is_requested()`. If the environment variable is not set, the bridge is a no-op.
-2. **Registers a `wdio://` custom protocol** on the webview. This protocol is the IPC channel between the WDIO service process and the app's webview.
-3. **Wires the embedded WebDriver server** (`wdio-dioxus-embedded-driver`) that listens on the port specified by `DIOXUS_WEBVIEW_AUTOMATION_PORT` (set by the service).
-4. **Injects the guest-js bundle** into the webview. This bundle patches the invoke API for mock interception and sets up console log forwarding.
-5. **Starts the log forwarder** that reads Rust `log` crate output and forwards it to the WDIO log capture pipeline.
+1. **Sets a per-port webview data directory** in the system temp folder, so parallel app instances (multiremote) don't share WebView2/WebKit state.
+2. **Installs the bridge**, which:
+   - registers a `wdio://` custom protocol on the webview (`http://wdio.invoke/` on Windows). This protocol is the IPC channel between the WDIO service process and the app's webview.
+   - registers built-in commands for log forwarding and window management.
+   - injects the guest-js bundle into the webview. This bundle patches the invoke API for mock interception, sets up console log forwarding, and runs the polling loop that executes WebDriver scripts.
+3. **Starts the embedded WebDriver server** on a background thread, listening on `127.0.0.1` at the port in `WDIO_EMBEDDED_PORT` (default `4444`). `@wdio/dioxus-service` sets this variable when it launches the app; change it with the `embeddedPort` service option.
 
-This is controlled entirely by environment variables set by `@wdio/dioxus-service` when it launches the app binary. In a normal app run (not driven by WDIO), the bridge is loaded but takes no action.
+None of this depends on the environment: every debug build that calls `install()` starts the server, including normal development runs. Use `automation::is_requested()` (below) if you only want it while WDIO is driving the app.
 
 ## `automation::is_requested()`
 
-You can use `wdio_dioxus_bridge::automation::is_requested()` in your app code to check whether the app is running under WDIO automation:
+You can use `wdio_dioxus_embedded_driver::automation::is_requested()` in your app code to check whether the app is running under WDIO automation:
 
 ```rust
 fn main() {
@@ -115,8 +127,8 @@ fn main() {
 
     #[cfg(debug_assertions)]
     {
-        if wdio_dioxus_bridge::automation::is_requested() {
-            config = wdio_dioxus_bridge::install(config);
+        if wdio_dioxus_embedded_driver::automation::is_requested() {
+            config = wdio_dioxus_embedded_driver::install(config);
         }
     }
 
@@ -124,11 +136,11 @@ fn main() {
 }
 ```
 
-`is_requested()` returns `true` when `DIOXUS_WEBVIEW_AUTOMATION=true` is set in the process environment. `@wdio/dioxus-service` sets this variable when launching your app. Calling `install(config)` without checking this first is also safe — the function checks internally and short-circuits.
+`is_requested()` returns `true` when `DIOXUS_WEBVIEW_AUTOMATION=true` is set in the process environment. `@wdio/dioxus-service` sets this variable when launching your app. Without this check, `install()` runs on every debug launch.
 
 ## Production Considerations
 
-The `#[cfg(debug_assertions)]` guard is the canonical way to ensure the bridge never ships in production:
+The `#[cfg(debug_assertions)]` guard is the canonical way to ensure the driver and bridge never ship in production:
 
 ```rust
 fn main() {
@@ -137,23 +149,23 @@ fn main() {
     // This entire block is removed by the compiler in release builds.
     #[cfg(debug_assertions)]
     {
-        config = wdio_dioxus_bridge::install(config);
+        config = wdio_dioxus_embedded_driver::install(config);
     }
 
     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
 }
 ```
 
-When you build with `cargo build --release`, the compiler strips the bridge entirely. No test plumbing is present in the binary that ships to users.
+When you build with `dx build --desktop --release`, the compiler strips the driver and bridge entirely. No test plumbing is present in the binary that ships to users.
 
 If you want additional isolation, you can use a Cargo feature flag:
 
 ```toml
 [features]
-wdio = ["dep:wdio-dioxus-bridge"]
+wdio = ["dep:wdio-dioxus-embedded-driver"]
 
 [dependencies]
-wdio-dioxus-bridge = { version = "1", optional = true }
+wdio-dioxus-embedded-driver = { version = "1", optional = true }
 ```
 
 ```rust
@@ -162,25 +174,30 @@ fn main() {
 
     #[cfg(feature = "wdio")]
     {
-        config = wdio_dioxus_bridge::install(config);
+        config = wdio_dioxus_embedded_driver::install(config);
     }
 
     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
 }
 ```
 
-Build with `cargo build --features wdio` for test builds, and `cargo build` for production.
+Build with `dx build --desktop --features wdio` for test builds, and `dx build --desktop` for production.
 
 ## Troubleshooting
 
-### "bridge not available" or execute always returns undefined
+### "Embedded WebDriver server did not become ready" or "bridge not available"
 
-The bridge is not wired in. Check:
+The embedded driver is not wired in. Check:
 
-1. `wdio-dioxus-bridge = "1"` is in `[dependencies]` (not only `[dev-dependencies]`).
-2. `wdio_dioxus_bridge::install(config)` is called inside `#[cfg(debug_assertions)]`.
-3. You are building with `cargo build` (debug mode), not `cargo build --release`.
+1. `wdio-dioxus-embedded-driver = "1"` is in `[dependencies]` (not only `[dev-dependencies]`).
+2. `wdio_dioxus_embedded_driver::install(config)` is called inside `#[cfg(debug_assertions)]`. `wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server.
+3. You are building in debug mode (`dx build --desktop`), not with `--release`.
 4. The `'dioxus:options'.application` path points to the debug binary.
+5. Nothing else is listening on the embedded port (`4444` by default). Set `embeddedPort` to use a different one.
+
+### Styles or images are missing during tests
+
+The app was built with `cargo build`, which doesn't bundle the files loaded with `asset!()`. Build with `dx build --desktop` and point `'dioxus:options'.application` at the `dx` output (see [Step 3](#step-3-build-in-debug-mode)).
 
 ### Compilation errors from `wdio-dioxus-bridge`
 
@@ -197,3 +214,4 @@ The bridge is not wired in. Check:
 - [Usage Examples](./usage-examples.md) for testing patterns
 - [Configuration](./configuration.md) for service options
 - [wdio-dioxus-bridge README](../../dioxus-bridge/README.md) for bridge crate details
+- [wdio-dioxus-embedded-driver README](../../dioxus-embedded-driver/README.md) for embedded driver details

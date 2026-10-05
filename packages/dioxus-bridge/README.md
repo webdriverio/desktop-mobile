@@ -6,23 +6,27 @@ detection inside Dioxus desktop apps, consumed by
 
 ## Features
 
-- **`install(config)`** — drop-in helper that wires the bridge into your Dioxus `desktop::Config`. Registers the `wdio://` custom protocol, starts the embedded WebDriver server, injects the guest-js bundle, and activates log forwarding — all in a single call.
+- **`install(config)`** — wires the bridge into your Dioxus `desktop::Config`. Registers the `wdio://` custom protocol, injects the guest-js bundle, and activates log forwarding. It does **not** start a WebDriver server; see [Quick Start](#quick-start).
 - **`automation::is_requested()`** — returns `true` when `DIOXUS_WEBVIEW_AUTOMATION=true` is set in the process environment (i.e. the app is running under `@wdio/dioxus-service`).
 - **`wdio://` custom protocol** — IPC channel between the service and the webview, used for execute, mock dispatch, and log forwarding.
 - **Mock dispatch** — guest-js bundle injected into the webview patches the invoke API and exposes `window.__wdio_mocks__` for per-command mock registration.
 - **Log forwarding** — Rust `log` crate output is captured and forwarded to the WDIO log capture pipeline. Frontend console forwarding is handled by the guest-js bundle.
-- **Embedded WebDriver server** — `wdio-dioxus-embedded-driver` is wired in automatically; no external driver process needed.
-
 ## Quick Start
+
+To use `@wdio/dioxus-service`, don't add this crate directly. Add
+[`wdio-dioxus-embedded-driver`](../dioxus-embedded-driver/) instead: its
+`install()` installs this bridge **and** starts the WebDriver server the
+service connects to. Calling `wdio_dioxus_bridge::install(config)` on its own
+doesn't start that server, so the service times out waiting for it.
 
 ```toml
 # Cargo.toml
 [dependencies]
-wdio-dioxus-bridge = "1"
+wdio-dioxus-embedded-driver = "1"
 ```
 
-Wire into `main.rs`, guarded for debug builds so the bridge never ships in
-release binaries:
+Wire into `main.rs`, guarded for debug builds so the driver and bridge never
+ship in release binaries:
 
 ```rust,ignore
 fn main() {
@@ -30,7 +34,7 @@ fn main() {
 
     #[cfg(debug_assertions)]
     {
-        config = wdio_dioxus_bridge::install(config);
+        config = wdio_dioxus_embedded_driver::install(config);
     }
 
     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
@@ -43,19 +47,22 @@ fn main() {
 
 ## How It Works
 
-When `install(config)` is called:
+When the bridge is installed (by `wdio_dioxus_embedded_driver::install()`, or
+directly via `install(config)`):
 
-1. Checks `DIOXUS_WEBVIEW_AUTOMATION`. If not set, returns config unchanged (no-op).
-2. Registers the `wdio://` custom protocol on the Wry/Dioxus webview.
-3. Starts `wdio-dioxus-embedded-driver`'s HTTP server on `DIOXUS_WEBVIEW_AUTOMATION_PORT`.
+1. Logs whether `DIOXUS_WEBVIEW_AUTOMATION` is set. This doesn't gate anything; the bridge installs either way.
+2. Registers the `wdio://` custom protocol on the Wry/Dioxus webview (`http://wdio.invoke/` on Windows).
+3. Registers built-in commands for log forwarding and window management.
 4. Injects the guest-js bundle into the webview.
-5. Starts the log forwarder for Rust `log` crate output.
+
+The bridge never starts a WebDriver server itself; `wdio-dioxus-embedded-driver`
+does that after installing the bridge.
 
 The bridge uses Dioxus's webview configuration API, not Dioxus's plugin-trait system (Dioxus has no such system). This is why it is called a "bridge" rather than a "plugin".
 
 ## Naming
 
-The companion npm package `@wdio/dioxus-bridge` ships the guest-js bundle (no `-js` suffix, matching the convention from `@wdio/tauri-plugin`). It is **not a separate user-installable package** — `build.rs` bundles it into the Rust crate at compile time, so adding `wdio-dioxus-bridge` to `Cargo.toml` is all that is needed. The Rust crate is named `wdio-dioxus-bridge` ("bridge" rather than "plugin" because Dioxus has no plugin-trait system).
+The companion npm package `@wdio/dioxus-bridge` ships the guest-js bundle (no `-js` suffix, matching the convention from `@wdio/tauri-plugin`). It is **not a separate user-installable package** — `build.rs` bundles it into the Rust crate at compile time, so no separate npm install is needed. The Rust crate is named `wdio-dioxus-bridge` ("bridge" rather than "plugin" because Dioxus has no plugin-trait system).
 
 ## Platform Support
 

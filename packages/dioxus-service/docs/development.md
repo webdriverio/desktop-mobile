@@ -100,7 +100,7 @@ See the [Monorepo Setup Guide](../../docs/setup.md#code-quality) for formatting 
 
 Located in `src/providers/embedded.ts`:
 
-- Spawns the Dioxus app with `DIOXUS_WEBVIEW_AUTOMATION=true` and `DIOXUS_WEBVIEW_AUTOMATION_PORT`
+- Spawns the Dioxus app with `DIOXUS_WEBVIEW_AUTOMATION=true` and `WDIO_EMBEDDED_PORT`
 - Polls the embedded WebDriver server `/status` endpoint on startup
 - Each worker gets a unique port (basePort + workerIndex)
 

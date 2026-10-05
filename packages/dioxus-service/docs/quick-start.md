@@ -13,6 +13,11 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
+3. **Dioxus CLI (`dx`)** - Builds the app and bundles the files it loads with `asset!()`. Install the version that matches your `dioxus` crate:
+   ```bash
+   cargo binstall dioxus-cli   # or: cargo install dioxus-cli --locked
+   ```
+
 ### Platform-Specific Requirements
 
 #### Windows
@@ -61,7 +66,7 @@ edition = "2021"
 
 [dependencies]
 dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version (the bridge tracks the latest release)
-wdio-dioxus-bridge = "1"
+wdio-dioxus-embedded-driver = "1"
 ```
 
 Edit `src/main.rs`:
@@ -74,7 +79,7 @@ fn main() {
 
     #[cfg(debug_assertions)]
     {
-        config = wdio_dioxus_bridge::install(config);
+        config = wdio_dioxus_embedded_driver::install(config);
     }
 
     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
@@ -90,23 +95,31 @@ fn App() -> Element {
 
 ## Bridge Setup
 
-The `wdio-dioxus-bridge` crate is **required** for testing — it enables `browser.dioxus.execute()`, mocking, and log capture.
+The `wdio-dioxus-embedded-driver` crate is **required** for testing. It runs the WebDriver server that the service connects to, and installs `wdio-dioxus-bridge`, which enables `browser.dioxus.execute()`, mocking, and log capture.
 
-The `#[cfg(debug_assertions)]` guard ensures the bridge is compiled out of release builds. See [Bridge Setup](./plugin-setup.md) for the full rationale and setup options.
+Calling `wdio_dioxus_bridge::install(config)` on its own is not enough: it doesn't start the WebDriver server, so the service can't connect.
+
+The `#[cfg(debug_assertions)]` guard ensures the driver and bridge are compiled out of release builds. See [Bridge Setup](./plugin-setup.md) for the full rationale and setup options.
 
 ## Building the Dioxus App
 
 ```bash
-# Build for testing (debug build, bridge is active)
-cargo build
+# Build for testing (debug build, driver and bridge are active)
+dx build --desktop
 
-# Or release build (bridge compiled out, for production)
-cargo build --release
+# Or release build (driver and bridge compiled out, for production)
+dx build --desktop --release
 ```
 
-The debug binary is at:
-- `target/debug/my_app` (Linux/macOS)
-- `target\debug\my_app.exe` (Windows)
+Build with `dx` rather than `cargo build`. `dx` bundles the files your app loads with `asset!()`; a plain `cargo build` binary can't resolve those paths, so stylesheets, images and fonts fail to load during tests. If your app doesn't use `asset!()`, `cargo build` also works, and the binary is at `target/debug/my_app`.
+
+`dx` prints the bundle path when the build finishes. The debug binary is at:
+
+| Platform | Binary path |
+|----------|-------------|
+| macOS | `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app` |
+| Linux | `target/dx/my_app/debug/linux/app/my_app` |
+| Windows | `target\dx\my_app\debug\windows\app\my_app.exe` |
 
 ## WebdriverIO Installation
 
@@ -121,6 +134,13 @@ npm install --save-dev @wdio/cli @wdio/dioxus-service
 Create `wdio.conf.ts`:
 
 ```typescript
+// dx puts the binary in a different place on each OS
+const appPaths: Record<string, string> = {
+  darwin: './target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app',
+  linux: './target/dx/my_app/debug/linux/app/my_app',
+  win32: './target/dx/my_app/debug/windows/app/my_app.exe',
+};
+
 export const config = {
   runner: 'local',
   specs: ['./test/specs/**/*.spec.ts'],
@@ -133,7 +153,7 @@ export const config = {
   capabilities: [{
     browserName: 'dioxus',
     'dioxus:options': {
-      application: './target/debug/my_app',  // Path to debug binary
+      application: appPaths[process.platform],  // Path to debug binary
     },
   }],
 
@@ -209,25 +229,31 @@ npx wdio run wdio.conf.ts --logLevel debug
 
 ## Troubleshooting
 
-### "Bridge not available" or execute returns undefined
+### "Embedded WebDriver server did not become ready" or "Bridge not available"
 
-The `wdio-dioxus-bridge` crate is not wired into your app. Make sure:
+The embedded driver is not wired into your app. Make sure:
 
 1. Add to `[dependencies]` in `Cargo.toml`:
    ```toml
-   wdio-dioxus-bridge = "1"
+   wdio-dioxus-embedded-driver = "1"
    ```
 
-2. Call `wdio_dioxus_bridge::install(config)` in `main.rs` inside a `#[cfg(debug_assertions)]` block.
+2. Call `wdio_dioxus_embedded_driver::install(config)` in `main.rs` inside a `#[cfg(debug_assertions)]` block. `wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server.
 
-3. Build in debug mode (`cargo build`, not `cargo build --release`).
+3. Build in debug mode (`dx build --desktop`, not `dx build --desktop --release`).
+
+4. Nothing else is listening on the embedded port (`4444` by default). Set `embeddedPort` in the service options to use a different one.
+
+### Styles or images are missing during tests
+
+The app was built with `cargo build`, which doesn't bundle the files loaded with `asset!()`. Build with `dx build --desktop` and point `dioxus:options.application` at the `dx` output (see [Building the Dioxus App](#building-the-dioxus-app)).
 
 ### "Application not found at path"
 
 The `appBinaryPath` or `dioxus:options.application` is wrong. Verify:
 
-1. You built the app: `cargo build`
-2. The path exists: `./target/debug/my_app`
+1. You built the app: `dx build --desktop`
+2. The path exists: `dx` prints it when the build finishes (see [Building the Dioxus App](#building-the-dioxus-app))
 3. Update the path in `wdio.conf.ts` if needed
 
 ### Tests timeout on Windows (`'external'` provider)
@@ -281,13 +307,13 @@ capabilities: [
   {
     browserName: 'dioxus',
     'dioxus:options': {
-      application: './target/debug/my_app',
+      application: appPaths[process.platform],
     },
   },
   {
     browserName: 'dioxus',
     'dioxus:options': {
-      application: './target/debug/my_app',
+      application: appPaths[process.platform],
     },
   },
 ],
@@ -318,8 +344,13 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - uses: cargo-bins/cargo-binstall@main
+
+      - name: Install Dioxus CLI
+        run: cargo binstall dioxus-cli --no-confirm
+
       - name: Build Dioxus app
-        run: cargo build
+        run: dx build --desktop
 
       - name: Run tests (Linux needs a virtual display for desktop apps)
         if: runner.os == 'Linux'
