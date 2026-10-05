@@ -40,12 +40,12 @@
   "dependencies": {
     "@wdio/native-utils": "workspace:*",
     "wait-port": "^1.1.0",
-    "ws": "^8.21.3"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
     "@repo/test-utils": "workspace:*",
     "@types/node": "^26.6.4",
-    "@types/ws": "^8.18.1",
+    "@types/ws": "^8.18.2",
     "@vitest/coverage-v8": "^5.0.3",
     "@wdio/bundler": "workspace:*",
     "cross-env": "^10.1.0",
