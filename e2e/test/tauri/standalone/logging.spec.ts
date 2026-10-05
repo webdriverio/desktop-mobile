@@ -148,11 +148,7 @@ try {
 
   console.log('✅ All Tauri standalone logging tests passed');
 } finally {
-  // Clean up - quit the app and stop tauri-driver. cleanupWdioSession() drives the
-  // service's afterSession, which restores mocks (a live-session round-trip) and then
-  // deletes the session itself — so we must NOT deleteSession() first, or that mock
-  // restore runs against a dead session and retries "Session not found" for the full
-  // connectionRetryCount (~60s) before teardown continues.
+  // Clean up - quit the app and stop tauri-driver.
   await cleanupWdioSession(browser);
   console.log('✅ Cleanup complete');
 }

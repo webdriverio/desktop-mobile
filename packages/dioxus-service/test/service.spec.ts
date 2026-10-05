@@ -62,9 +62,11 @@ describe('DioxusWorkerService', () => {
 
   it('should route browser.dioxus.execute through the underlying browser.execute', async () => {
     const browser = makeBrowser();
-    // First call: the injection script (handled by service.before).
-    // Second call: the dioxus.execute under test — return 'out'.
-    vi.mocked(browser.execute).mockResolvedValueOnce(undefined).mockResolvedValueOnce('out');
+    // The first two calls are the injection script and the stale-mock reset.
+    vi.mocked(browser.execute)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce(undefined)
+      .mockResolvedValueOnce('out');
 
     const service = new DioxusWorkerService({}, {});
     await service.before({}, [], browser);
@@ -113,43 +115,46 @@ describe('DioxusWorkerService', () => {
     expect((browser as unknown as Installed).dioxus).toBeDefined();
   });
 
-  it('should leave the mockStore intact in after() so afterSession() can restore mocks', async () => {
-    const fakeMock = { getMockName: () => 'dioxus.greet' };
-    mockStore.setMock(fakeMock as any);
-    expect(mockStore.getMocks()).toHaveLength(1);
-
+  it('should clear stale in-app mocks at session start in embedded mode', async () => {
+    const browser = makeBrowser();
     const service = new DioxusWorkerService({}, {});
-    await service.after();
+    await service.before({}, [], browser);
 
-    expect(mockStore.getMocks()).toHaveLength(1);
+    const reset = vi.mocked(browser.execute).mock.calls[1][0] as () => void;
+    vi.stubGlobal('__wdio_mocks__', { greet: () => 'stale' });
+    try {
+      reset();
+      expect((globalThis as { __wdio_mocks__?: unknown }).__wdio_mocks__).toEqual({});
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
-  it('should clear the process-wide mockStore in afterSession()', async () => {
+  it('should not reset in-app mocks for the external driver provider', async () => {
+    const browser = makeBrowser();
+    const service = new DioxusWorkerService({ driverProvider: 'external' }, {});
+    await service.before({}, [], browser);
+
+    expect(browser.execute).toHaveBeenCalledTimes(1);
+  });
+
+  it('should continue when the stale-mock reset fails', async () => {
+    const browser = makeBrowser();
+    vi.mocked(browser.execute).mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('no such window'));
+    const service = new DioxusWorkerService({}, {});
+
+    await expect(service.before({}, [], browser)).resolves.toBeUndefined();
+    expect((browser as unknown as Installed).dioxus).toBeDefined();
+  });
+
+  it('should clear the mockStore in afterSession() without restoring mocks in the app', async () => {
     const fakeMock = { getMockName: () => 'dioxus.greet', mockRestore: vi.fn().mockResolvedValue(undefined) };
     mockStore.setMock(fakeMock as any);
-    expect(mockStore.getMocks()).toHaveLength(1);
 
     const service = new DioxusWorkerService({}, {});
     await service.afterSession();
 
-    expect(fakeMock.mockRestore).toHaveBeenCalled();
-    expect(mockStore.getMocks()).toHaveLength(0);
-  });
-
-  it('should still clear the mockStore in afterSession() when mockRestore() rejects', async () => {
-    // Simulates a closed browser session: browser.execute() in the
-    // unregistration script rejects, restoreAllMocks() bubbles the failure.
-    // The stale entry MUST still be evicted so the next session doesn't see it.
-    const fakeMock = {
-      getMockName: () => 'dioxus.greet',
-      mockRestore: vi.fn().mockRejectedValue(new Error('session closed')),
-    };
-    mockStore.setMock(fakeMock as any);
-
-    const service = new DioxusWorkerService({}, {});
-    await service.afterSession();
-
-    expect(fakeMock.mockRestore).toHaveBeenCalled();
+    expect(fakeMock.mockRestore).not.toHaveBeenCalled();
     expect(mockStore.getMocks()).toHaveLength(0);
   });
 
@@ -162,6 +167,19 @@ describe('DioxusWorkerService', () => {
         deleteSession: vi.fn(deleteSession),
       } as unknown as WebdriverIO.Browser;
     }
+
+    it('should not talk to the app once the runner has deleted the session', async () => {
+      const browser = makeNativeBrowser(() => Promise.resolve());
+      const service = new DioxusWorkerService({}, {});
+      await service.before({}, [], browser);
+      vi.mocked(browser.execute).mockClear();
+      (browser as { sessionId?: string }).sessionId = undefined;
+
+      await service.afterSession();
+
+      expect(browser.execute).not.toHaveBeenCalled();
+      expect(browser.deleteSession).not.toHaveBeenCalled();
+    });
 
     it('should delete the session when one is present', async () => {
       const browser = makeNativeBrowser(() => Promise.resolve());

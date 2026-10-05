@@ -19,6 +19,7 @@ WDIO runs launcher and worker services in **separate processes**. Every service 
 - `onWorkerStart` is for per-worker setup (debugger ports, per-worker driver spawning)
 - Throw `SevereServiceError` (from `webdriverio`) for critical launcher failures that should stop the runner
 - Regular `Error` in service hooks gets logged but doesn't stop the runner
+- Don't call into the app from `afterSession` as the runner has deleted the session by then
 
 ## Entry Point (`index.ts`)
 ```typescript
