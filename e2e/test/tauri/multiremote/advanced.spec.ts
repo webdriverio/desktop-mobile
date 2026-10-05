@@ -2,7 +2,7 @@ import { expect, multiRemoteBrowser } from '@wdio/globals';
 import '@wdio/native-types';
 
 describe('Tauri Multiremote - Advanced Patterns', () => {
-  it("should evaluate on each instance's own app", async () => {
+  it('should execute commands on the targeted instance', async () => {
     const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
     const browserA = multi.getInstance('browserA');
     const browserB = multi.getInstance('browserB');
