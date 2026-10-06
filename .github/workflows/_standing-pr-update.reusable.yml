@@ -32,6 +32,8 @@ jobs:
         with:
           fetch-depth: 0
           ssh-key: ${{ secrets.ssh_key }}
+          # On a pull_request event the default ref is the PR's merge ref; build from the base branch.
+          ref: ${{ github.event_name == 'pull_request' && github.event.pull_request.base.ref || '' }}
 
       - name: Configure Git
         run: |
