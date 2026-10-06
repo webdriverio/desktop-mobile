@@ -150,18 +150,14 @@ jobs:
     name: Sync Tauri webview2 bindings
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    permissions:
-      contents: write
-      pull-requests: write
-      actions: write
-      statuses: write
     env:
-      GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       BOT_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
     steps:
       - name: 👷 Checkout Repository
         uses: actions/checkout@v7
+        with:
+          persist-credentials: false
 
       - name: 🛠️ Setup Node.js
         uses: actions/setup-node@v7
@@ -185,6 +181,8 @@ jobs:
         if: steps.sync.outputs.drift == 'true' && github.ref == 'refs/heads/main'
         shell: bash
         env:
+          # Unlike GITHUB_TOKEN, the bot's token triggers CI on the PR.
+          GH_TOKEN: ${{ secrets.WDIO_BOT_GITHUB_TOKEN }}
           TAURI: ${{ steps.sync.outputs.tauri }}
           WEBVIEW2_COM: ${{ steps.sync.outputs.webview2_com }}
           FROM: ${{ steps.sync.outputs.from }}
@@ -206,7 +204,8 @@ jobs:
           open=$(jq -r '[.[] | select(.state == "OPEN")][0].number // empty' <<< "$prs")
           if [ -n "$open" ]; then
             others=$(gh api "repos/$REPO/pulls/$open/commits" --paginate \
-              | jq -r --arg bot "$BOT_EMAIL" '.[] | select(.commit.author.email != $bot) | .sha' | wc -l)
+              | jq -r --arg bot "$BOT_EMAIL" '.[] | select(.commit.author.email != $bot or .commit.committer.email != $bot) | .sha' \
+              | wc -l)
             if [ "$others" -gt 0 ]; then
               echo "PR #$open has commits from someone other than the bot; leaving it alone."
               exit 0
@@ -217,12 +216,13 @@ jobs:
           git config user.email "$BOT_EMAIL"
           git switch -c "$SYNC_BRANCH"
           git commit -qam "$title"
+          gh auth setup-git
           git push --force origin "$SYNC_BRANCH"
 
           body=$(cat <<EOF
           Tauri $TAURI's wry uses **$TO**, but the plugin declares **$FROM**. Until they match, apps on the latest Tauri compile two copies of webview2-com. The plugin rebinds Tauri's WebView2 controller onto its own bindings (\`rebind_controller\` in \`packages/tauri-plugin-webdriver/src/platform/windows.rs\`), so nothing is broken in the meantime; this only saves apps the second copy.
 
-          Opened by the nightly [Crate Drift]($RUN_URL) workflow via \`scripts/sync-tauri-webview2-bindings.ts\`. CI was dispatched on this branch and reports as \`CI / Required\`. If the new bindings need code changes, push them here: once the branch has commits from anyone else, the workflow leaves it alone. Add \`bump:patch\` to publish the plugin with the new bindings.
+          Opened by the nightly [Crate Drift]($RUN_URL) workflow via \`scripts/sync-tauri-webview2-bindings.ts\`. If the new bindings need code changes, push them here: once the branch has commits from anyone else, the workflow leaves it alone. Add \`bump:patch\` to publish the plugin with the new bindings.
           EOF
           )
           if [ -n "$open" ]; then
@@ -231,24 +231,19 @@ jobs:
             gh pr create --repo "$REPO" --base main --head "$SYNC_BRANCH" --title "$title" --body "$body"
           fi
 
-          # A PR opened with GITHUB_TOKEN triggers no workflows. Dispatch CI, which posts
-          # `CI / Required` to the branch head, and post the verdict crabnebula-verify.yml gives
-          # every same-repo PR, since it never sees this one.
-          gh api "repos/$REPO/statuses/$(git rev-parse HEAD)" -f state=success -f context='CrabNebula / macOS' \
-            -f description='Not applicable (internal PR or no Tauri changes).'
-          gh workflow run ci.yml --repo "$REPO" --ref "$SYNC_BRANCH" -f force_all=false
-
       - name: 🧹 Close a sync PR that is no longer needed
         if: steps.sync.outputs.drift == 'false' && github.ref == 'refs/heads/main'
         shell: bash
         env:
+          GH_TOKEN: ${{ secrets.WDIO_BOT_GITHUB_TOKEN }}
           TAURI: ${{ steps.sync.outputs.tauri }}
         run: |
           open=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state open --json number,isCrossRepository \
             --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')
           if [ -n "$open" ]; then
             others=$(gh api "repos/$REPO/pulls/$open/commits" --paginate \
-              | jq -r --arg bot "$BOT_EMAIL" '.[] | select(.commit.author.email != $bot) | .sha' | wc -l)
+              | jq -r --arg bot "$BOT_EMAIL" '.[] | select(.commit.author.email != $bot or .commit.committer.email != $bot) | .sha' \
+              | wc -l)
             if [ "$others" -gt 0 ]; then
               echo "PR #$open has commits from someone other than the bot; leaving it open."
               exit 0

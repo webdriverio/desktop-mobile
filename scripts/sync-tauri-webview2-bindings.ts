@@ -50,7 +50,9 @@ export function tauriBindings(metadata: CargoMetadata): { tauri: string; version
       .get(nodeId)
       ?.deps.map((d) => packages.get(d.pkg))
       .find((pkg) => pkg?.name === name);
-    if (!dep) throw new Error(`${packages.get(nodeId)?.name} has no ${name} dependency in the resolved graph`);
+    if (!dep) {
+      throw new Error(`${packages.get(nodeId)?.name} has no ${name} dependency in the resolved graph`);
+    }
     return dep;
   };
 
@@ -83,7 +85,9 @@ function locateRequirements(manifest: string): Record<BindingCrate, { line: numb
       return;
     }
     const entry = /^([\w-]+)\s*=\s*"([^"]*)"$/.exec(text);
-    if (!entry) return;
+    if (!entry) {
+      return;
+    }
     const [, key, requirement] = entry;
     if (section === WINDOWS_DEPS_HEADER && (key === 'webview2-com' || key === 'windows-core')) {
       found[key] = { line, requirement };
@@ -145,7 +149,9 @@ function resolveAsConsumer(): CargoMetadata {
 
 function appendFile(envVar: string, content: string) {
   const file = process.env[envVar];
-  if (file) fs.appendFileSync(file, content);
+  if (file) {
+    fs.appendFileSync(file, content);
+  }
 }
 
 function main() {
