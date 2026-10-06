@@ -1,0 +1,3 @@
+disallowed-methods = [
+  { path = "tauri::Listener::once", reason = "panics when a queued emit is replayed (tauri-apps/tauri#16214); use `listen`" },
+]

@@ -70,10 +70,6 @@ gtk = "0.18"
 version = "0.18"
 features = [ "png" ]
 
-[dev-dependencies.tauri]
-version = "2.10.0"
-features = [ "test" ]
-
 [build-dependencies.tauri-plugin]
 version = "2.5.3"
 features = [ "build" ]
