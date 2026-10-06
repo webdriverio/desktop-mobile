@@ -3,12 +3,13 @@ name: Build Dioxus Crates (Reusable)
 permissions:
   contents: read
 
-# Reusable job that verifies the wdio-dioxus-bridge and wdio-dioxus-driver
-# Rust crates compile cleanly and their unit tests pass. Gated on
-# `run_dioxus` from _ci-detect-changes.reusable.yml.
+# Reusable job that verifies the wdio-dioxus-bridge, wdio-dioxus-driver and
+# wdio-dioxus-embedded-driver Rust crates compile cleanly and their unit tests
+# pass. Gated on `run_dioxus` from _ci-detect-changes.reusable.yml.
 #
-# v1 scope: Linux only. The bridge crate has unit tests; the driver crate
-# is a transparent WebDriver proxy with no unit tests (covered by E2E later).
+# v1 scope: Linux only. The bridge and embedded-driver crates have unit tests;
+# the driver crate is a transparent WebDriver proxy with no unit tests
+# (covered by E2E later).
 # Cross-platform validation (Windows for the external provider, macOS for
 # the embedded provider) lands in PR3 / Feature Complete.
 
@@ -42,7 +43,8 @@ jobs:
             ~/.cargo/git
             packages/dioxus-bridge/target
             packages/dioxus-driver/target
-          key: ${{ runner.os }}-cargo-dioxus-${{ hashFiles('packages/dioxus-bridge/Cargo.toml', 'packages/dioxus-driver/Cargo.toml') }}
+            packages/dioxus-embedded-driver/target
+          key: ${{ runner.os }}-cargo-dioxus-${{ hashFiles('packages/dioxus-bridge/Cargo.toml', 'packages/dioxus-driver/Cargo.toml', 'packages/dioxus-embedded-driver/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-cargo-dioxus-
 
@@ -98,3 +100,7 @@ jobs:
       - name: cargo check (wdio-dioxus-driver)
         run: cargo check
         working-directory: packages/dioxus-driver
+
+      - name: cargo test (wdio-dioxus-embedded-driver)
+        run: cargo test
+        working-directory: packages/dioxus-embedded-driver
