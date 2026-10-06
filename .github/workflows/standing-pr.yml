@@ -13,11 +13,26 @@ name: Standing Release PR
 on:
   push:
     branches: [main]
+  pull_request:
+    # A maintainer unticking a package in the standing PR's selection list is an `edited` event.
+    # Without this trigger the selection only applies on the next push to main, so merging in
+    # between ships the stale selection. Merges are still detected from the push, not `closed`.
+    types: [edited]
+    branches: [main]
   workflow_dispatch: {}
 
+# `release/next` mirrors ci.standingPr.branch: workflow expressions can't read the config.
 concurrency:
-  group: standing-release-pr
-  cancel-in-progress: false
+  # Maintainer edits to the standing PR share a per-PR group that cancels in-progress runs, so a
+  # flurry of ticks collapses into one rebuild of the latest selection. Edits to any other PR (and
+  # bot edits) get a throwaway group: they do nothing here, and in the shared group they could
+  # displace a pending push update. Push and dispatch runs never cancel each other.
+  group: >-
+    ${{ github.event_name != 'pull_request' && 'standing-release-pr'
+    || (github.event.pull_request.head.ref == 'release/next' && github.event.sender.type != 'Bot')
+    && format('standing-release-pr-edit-{0}', github.event.pull_request.number)
+    || format('standing-release-pr-noop-{0}', github.run_id) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write
@@ -31,6 +46,7 @@ jobs:
   # commits as "unreleased" before the dispatched release.yml run finishes tagging.
   detect-release-merge:
     name: Detect release merge
+    if: github.event_name != 'pull_request'
     runs-on: ubuntu-latest
     outputs:
       pr_number: ${{ steps.detect.outputs.pr_number }}
@@ -106,7 +122,19 @@ jobs:
   update-release-pr:
     name: Update Release PR
     needs: detect-release-merge
-    if: needs.detect-release-merge.outputs.pr_number == ''
+    # Push/dispatch: rebuild unless the push is the standing-PR merge itself. Pull request: a
+    # maintainer edited the open standing PR. The sender guard stops the bot's own body rewrite
+    # from re-triggering the update.
+    if: >-
+      !cancelled() && (
+        (github.event_name != 'pull_request'
+          && needs.detect-release-merge.result == 'success'
+          && needs.detect-release-merge.outputs.pr_number == '')
+        || (github.event_name == 'pull_request'
+          && github.event.pull_request.state == 'open'
+          && github.event.pull_request.head.ref == 'release/next'
+          && github.event.sender.type != 'Bot')
+      )
     uses: ./.github/workflows/_standing-pr-update.reusable.yml
     permissions:
       contents: write
