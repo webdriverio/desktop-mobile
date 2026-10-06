@@ -3,7 +3,7 @@ name: Rust Clippy (Reusable)
 permissions:
   contents: read
 
-# Lints first-party Rust crates with clippy, then tests the `test-crates` subset.
+# Lints first-party Rust crates with clippy, then tests those listed in `test-crates`.
 
 on:
   workflow_call:

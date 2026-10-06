@@ -135,7 +135,7 @@ jobs:
       crates: |
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
-      # No tests live in the platform modules, so one OS covers them.
+      # None of the tests are OS-gated, so one OS covers them.
       test-crates: |
         packages/tauri-plugin-webdriver
 
