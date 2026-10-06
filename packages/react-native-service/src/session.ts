@@ -19,6 +19,7 @@ const session = createMobileSession<ReactNativeServiceGlobalOptions, ReactNative
   LauncherClass: ReactNativeLaunchService,
   WorkerClass: ReactNativeWorkerService,
   logNamespace: SERVICE_NAME,
+  label: 'React Native standalone',
 });
 
 /**

@@ -1632,48 +1632,12 @@ describe('Electron Worker Service', () => {
 });
 
 describe('Electron Worker Service - afterSession()', () => {
-  it('should restore mocks, then clear the mock store', async () => {
-    vi.mocked(restoreAllMocks).mockResolvedValueOnce(undefined);
+  it('should clear the mock store without restoring mocks in the app', async () => {
     const instance = new ElectronWorkerService({}, {});
 
     await instance.afterSession();
 
-    expect(restoreAllMocks).toHaveBeenCalledTimes(1);
+    expect(restoreAllMocks).not.toHaveBeenCalled();
     expect(mockStore.clear).toHaveBeenCalledTimes(1);
-  });
-
-  it('should swallow a benign CDP disconnect error and still clear the store', async () => {
-    // The Windows hang: a CDP send() during teardown rejects with "WebSocket is
-    // not connected" once the debugger socket is gone; left to propagate it fails
-    // an otherwise-green run. It must be swallowed, and the store still cleared.
-    vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('WebSocket is not connected'));
-    const instance = new ElectronWorkerService({}, {});
-
-    await expect(instance.afterSession()).resolves.toBeUndefined();
-    expect(mockStore.clear).toHaveBeenCalledTimes(1);
-  });
-
-  it('should still clear the store after a non-benign restore error', async () => {
-    vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('unexpected teardown failure'));
-    const instance = new ElectronWorkerService({}, {});
-
-    await expect(instance.afterSession()).resolves.toBeUndefined();
-    expect(mockStore.clear).toHaveBeenCalledTimes(1);
-  });
-
-  it('should not hang when restoreAllMocks never settles, bounded by timeout', async () => {
-    vi.useFakeTimers();
-    try {
-      vi.mocked(restoreAllMocks).mockImplementationOnce(() => new Promise<void>(() => {}));
-      const instance = new ElectronWorkerService({}, {});
-
-      const pending = instance.afterSession();
-      await vi.advanceTimersByTimeAsync(10_000);
-
-      await expect(pending).resolves.toBeUndefined();
-      expect(mockStore.clear).toHaveBeenCalledTimes(1);
-    } finally {
-      vi.useRealTimers();
-    }
   });
 });

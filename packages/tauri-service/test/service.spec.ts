@@ -57,6 +57,7 @@ import { execute as executeCommand } from '../src/commands/execute.js';
 import { clearAllMocks, resetAllMocks, restoreAllMocks } from '../src/commands/mock.js';
 import mockStore from '../src/mockStore.js';
 import TauriWorkerService from '../src/service.js';
+import type { TauriCapabilities } from '../src/types.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
@@ -1026,24 +1027,6 @@ describe('TauriWorkerService', () => {
       expect(clearWindowState).toHaveBeenCalledWith();
     });
 
-    it('should call restoreAllMocks before clearing mock store', async () => {
-      const callOrder: string[] = [];
-      vi.mocked(restoreAllMocks).mockImplementation(async () => {
-        callOrder.push('restoreAllMocks');
-      });
-      vi.mocked(mockStore.clear).mockImplementation(() => {
-        callOrder.push('mockStore.clear');
-      });
-
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      (service as any).browser = mockBrowser;
-
-      await service.afterSession({}, {} as any, []);
-
-      expect(callOrder).toEqual(['restoreAllMocks', 'mockStore.clear']);
-    });
-
     it('should handle deleteSession errors gracefully', async () => {
       const mockBrowser = createMockBrowser({
         deleteSession: vi.fn().mockRejectedValue(new Error('session error')),
@@ -1054,14 +1037,77 @@ describe('TauriWorkerService', () => {
       await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
     });
 
-    it('should handle restoreAllMocks errors gracefully', async () => {
-      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore error'));
-      const mockBrowser = createMockBrowser();
+    it('should not talk to the app once the runner has deleted the session', async () => {
+      const mockBrowser = createMockBrowser({ sessionId: undefined });
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
       (service as any).browser = mockBrowser;
 
-      await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
-      expect(mockBrowser.deleteSession).toHaveBeenCalled();
+      await service.afterSession({}, {} as any, []);
+
+      expect(restoreAllMocks).not.toHaveBeenCalled();
+      expect(mockBrowser.execute).not.toHaveBeenCalled();
+      expect(mockBrowser.deleteSession).not.toHaveBeenCalled();
+      expect(mockStore.clear).toHaveBeenCalled();
+    });
+
+    it('should delete each instance session and clear its window state for multiremote', async () => {
+      const instanceA = createMockBrowser({ sessionId: 'sess-a' });
+      const instanceB = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: vi.fn((name: string) => (name === 'browserA' ? instanceA : instanceB)),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as unknown as { browser: WebdriverIO.MultiRemoteBrowser }).browser = mrBrowser;
+
+      await service.afterSession({}, {} as TauriCapabilities, []);
+
+      expect(instanceA.deleteSession).toHaveBeenCalledTimes(1);
+      expect(instanceB.deleteSession).toHaveBeenCalledTimes(1);
+      expect(clearWindowState).toHaveBeenCalledWith('sess-a');
+      expect(clearWindowState).toHaveBeenCalledWith('sess-b');
+    });
+
+    it('should keep deleting the remaining instances when one instance delete fails', async () => {
+      const failing = createMockBrowser({
+        sessionId: 'sess-a',
+        deleteSession: vi.fn().mockRejectedValue(new Error('instance a boom')),
+      });
+      const healthy = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: vi.fn((name: string) => (name === 'browserA' ? failing : healthy)),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as unknown as { browser: WebdriverIO.MultiRemoteBrowser }).browser = mrBrowser;
+
+      await expect(service.afterSession({}, {} as TauriCapabilities, [])).resolves.not.toThrow();
+
+      expect(failing.deleteSession).toHaveBeenCalledTimes(1);
+      expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
+    });
+
+    it('should keep cleaning up the remaining instances when getInstance throws for one', async () => {
+      const healthy = createMockBrowser({ sessionId: 'sess-b' });
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: vi.fn((name: string) => {
+          if (name === 'browserA') {
+            throw new Error('Multiremote object has no instance named "browserA"');
+          }
+          return healthy;
+        }),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+      (service as unknown as { browser: WebdriverIO.MultiRemoteBrowser }).browser = mrBrowser;
+
+      await expect(service.afterSession({}, {} as TauriCapabilities, [])).resolves.not.toThrow();
+
+      expect(healthy.deleteSession).toHaveBeenCalledTimes(1);
+      expect(clearWindowState).toHaveBeenCalledWith('sess-b');
     });
   });
 });

@@ -8,6 +8,7 @@ import type {
 } from '@wdio/native-types';
 import {
   createLogger,
+  errorMessage,
   formatDiagnosticResults,
   isErr,
   type NormalizedReadResult,
@@ -16,6 +17,9 @@ import {
 import { getAppBuildInfo } from './appBuildInfo.js';
 import { getBinaryPath } from './binaryPath.js';
 import { getElectronVersion } from './electronVersion.js';
+
+// a Chromium version is four numbers; an Electron version is three, plus an optional -prerelease or +build suffix
+const FULL_CHROMIUM_VERSION = /^\d+\.\d+\.\d+\.\d+$/;
 
 const log = createLogger('electron-service', 'launcher');
 
@@ -222,6 +226,11 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
             delete chromeOpts.binary;
           }
           delete (cap as Record<string, unknown>)['wdio:enforceWebDriverClassic'];
+          // an Electron browserVersion means nothing to system Chrome; a full Chromium version still picks that build
+          if (!FULL_CHROMIUM_VERSION.test(cap.browserVersion ?? '')) {
+            delete cap.browserVersion;
+          }
+          delete (cap as Record<string, unknown>)['wdio:electronVersion'];
         }
       } catch (error) {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
@@ -229,7 +238,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         this.#stopDevServer = undefined;
         throw error instanceof SevereServiceError
           ? error
-          : new SevereServiceError(`Failed to start dev server: ${(error as Error).message}`);
+          : new SevereServiceError(`Failed to start dev server: ${errorMessage(error)}`);
       }
       this.#browserMode = true;
       log.info('Browser mode enabled — skipping Electron binary and CDP bridge setup');
@@ -254,10 +263,18 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
 
     await Promise.all(
       caps.map(async (cap) => {
-        const electronVersion = cap.browserVersion || localElectronVersion || '';
-        let chromiumVersion: string | undefined = await getChromiumVersion(electronVersion);
+        const electronVersion =
+          ((cap as Record<string, unknown>)['wdio:electronVersion'] as string | undefined) ||
+          cap.browserVersion ||
+          localElectronVersion ||
+          '';
+        // castlabs builds (`X.Y.Z+wvcus`) are an upstream release with the same Chromium
+        const releaseVersion = electronVersion.split('+')[0];
+        let chromiumVersion: string | undefined = await getChromiumVersion(releaseVersion);
 
-        (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:electronVersion'] = electronVersion;
+        if (releaseVersion && !FULL_CHROMIUM_VERSION.test(releaseVersion)) {
+          (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:electronVersion'] = releaseVersion;
+        }
 
         if (Number.parseInt(electronVersion.split('.')[0], 10) < 26 && !cap['wdio:chromedriverOptions']?.binary) {
           const invalidElectronVersionError = new SevereServiceError(
@@ -319,8 +336,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
                 }
               } else {
                 // Generate comprehensive error message based on what failed
-                const errorMessage = generateBinaryPathErrorMessage(binaryResult, appBuildInfo);
-                throw new Error(errorMessage);
+                throw new Error(generateBinaryPathErrorMessage(binaryResult, appBuildInfo));
               }
             } catch (e) {
               // Fallback to original error handling for backward compatibility
@@ -337,7 +353,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
             }
           } catch (e) {
             log.error(String(e));
-            throw new SevereServiceError((e as Error).message);
+            throw new SevereServiceError(errorMessage(e));
           }
         }
 
@@ -358,8 +374,6 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
         } else {
           log.warn(`Found Electron v${electronVersion}, but no matching Chromedriver version is known`);
         }
-
-        (cap as ElectronServiceCapabilities & Record<string, unknown>)['wdio:chromiumVersion'] = chromiumVersion;
 
         cap.browserName = 'chrome';
         cap['goog:chromeOptions'] = getChromeOptions({ appBinaryPath, appArgs }, cap);
@@ -447,12 +461,17 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
       const firstCap = caps[0];
       const appBinaryPath = (firstCap?.['goog:chromeOptions'] as Record<string, unknown>)?.binary as string | undefined;
       const electronVersion = (firstCap as Record<string, unknown>)?.['wdio:electronVersion'] as string | undefined;
-      const chromiumVersion = (firstCap as Record<string, unknown>)?.['wdio:chromiumVersion'] as string | undefined;
-      const results = await diagnoseElectronEnvironment({ appBinaryPath, electronVersion, chromiumVersion });
+      const results = await diagnoseElectronEnvironment({
+        appBinaryPath,
+        electronVersion,
+        chromiumVersion: FULL_CHROMIUM_VERSION.test(firstCap?.browserVersion ?? '')
+          ? firstCap?.browserVersion
+          : undefined,
+      });
       formatDiagnosticResults(results, 'electron-service');
     } catch (error) {
-      const errorMessage = error instanceof Error ? error.stack || error.message : String(error);
-      const msg = `Failed to assign debugging ports to Electron instances: ${errorMessage}`;
+      const detail = error instanceof Error ? error.stack || error.message : String(error);
+      const msg = `Failed to assign debugging ports to Electron instances: ${detail}`;
       log.error(msg);
       throw new SevereServiceError(msg);
     }

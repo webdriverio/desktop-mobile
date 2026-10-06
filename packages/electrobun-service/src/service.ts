@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage, runBounded } from '@wdio/native-utils';
 
 import { classifyTarget } from './cefClassifier.js';
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
@@ -16,6 +16,8 @@ import type { ElectrobunServiceOptions } from './types.js';
 import { createWebDriverEvalBridge, installConsoleShim, type WebDriverEvalBridge } from './webdriverEval.js';
 
 const log = createLogger(SERVICE_NAME, 'service');
+
+const CONSOLE_DRAIN_TIMEOUT_MS = 2_000;
 
 /** Parse a `host:port` debuggerAddress into its parts. Defaults the host to localhost. */
 function parseDebuggerAddress(address: string): { host: string; port: number } {
@@ -142,7 +144,7 @@ export default class ElectrobunWorkerService {
         const summary = raw.map((t) => ({ type: t.type, url: t.url, title: t.title }));
         log.warn(`CDP bridge connect failed at ${host}:${port}; raw /json targets: ${JSON.stringify(summary)}`);
       } catch (probeError) {
-        log.warn(`CDP bridge connect failed; /json probe also failed: ${(probeError as Error).message}`);
+        log.warn(`CDP bridge connect failed; /json probe also failed: ${errorMessage(probeError)}`);
       }
       throw error;
     }
@@ -173,8 +175,7 @@ export default class ElectrobunWorkerService {
   }
 
   async afterSession(): Promise<void> {
-    await this.closeBridges();
-    this.reapW3CApps();
+    await this.after();
   }
 
   /**
@@ -208,13 +209,18 @@ export default class ElectrobunWorkerService {
   }
 
   private async closeBridges(): Promise<void> {
-    for (const drain of this.consoleDrains) {
-      await drain().catch(() => {});
-    }
+    // Bounded and in parallel, so a hung app can't stop after() from killing the Linux app processes.
+    await Promise.all(
+      this.consoleDrains.map((drain) =>
+        runBounded(drain, CONSOLE_DRAIN_TIMEOUT_MS, () =>
+          log.warn('Console log drain timed out; the final console output may be missing'),
+        ).catch(() => {}),
+      ),
+    );
     this.consoleDrains = [];
     for (const bridge of this.bridges) {
-      await bridge.close().catch((error: Error) => {
-        log.warn(`Failed to close CDP bridge: ${error.message}`);
+      await bridge.close().catch((error: unknown) => {
+        log.warn(`Failed to close CDP bridge: ${errorMessage(error)}`);
       });
     }
     this.bridges = [];
@@ -319,7 +325,7 @@ async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBrid
     }
     log.warn('No non-blank content window found; element commands may target a blank document.');
   } catch (error) {
-    log.warn(`Could not sync the WebDriver window to the active target: ${(error as Error).message}`);
+    log.warn(`Could not sync the WebDriver window to the active target: ${errorMessage(error)}`);
   }
 }
 

@@ -8,7 +8,7 @@
     "test": "wdio run wdio.conf.ts"
   },
   "dependencies": {
-    "electrobun": "2.0.1"
+    "electrobun": "2.0.2"
   },
   "devDependencies": {
     "@types/bun": "1.4.2",

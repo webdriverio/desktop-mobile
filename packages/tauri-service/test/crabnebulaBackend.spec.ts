@@ -50,6 +50,7 @@ describe('CrabNebula Backend', () => {
   beforeEach(() => {
     vi.resetAllMocks();
     mockProc = new EventEmitter() as EventEmitter & Partial<ChildProcess>;
+    Object.assign(mockProc, { exitCode: null, signalCode: null });
     Object.defineProperty(mockProc, 'killed', {
       value: false,
       writable: true,
@@ -195,8 +196,8 @@ describe('CrabNebula Backend', () => {
   });
 
   describe('stopTestRunnerBackend', () => {
-    it('should return early if process already killed', async () => {
-      Object.defineProperty(mockProc, 'killed', { value: true, writable: true, configurable: true });
+    it('should return early if the process has already exited', async () => {
+      Object.assign(mockProc, { exitCode: 0 });
 
       await stopTestRunnerBackend(mockProc as ChildProcess);
 
@@ -215,25 +216,30 @@ describe('CrabNebula Backend', () => {
       expect(mockProc.kill).toHaveBeenCalledWith('SIGTERM');
     });
 
-    it('should send SIGKILL if process does not exit gracefully', async () => {
+    it('should send SIGKILL if the process ignores SIGTERM, then wait for it to exit', async () => {
       vi.useFakeTimers();
+      try {
+        let settled = false;
+        const stopPromise = stopTestRunnerBackend(mockProc as ChildProcess).then(() => {
+          settled = true;
+        });
+        await vi.advanceTimersByTimeAsync(5000);
+        expect(mockProc.kill).toHaveBeenCalledWith('SIGKILL');
+        expect(settled).toBe(false);
 
-      const killCalls: string[] = [];
-      mockProc.kill = vi.fn((signal: string) => {
-        killCalls.push(signal);
-        return true;
-      }) as any;
+        mockProc.emit('exit', null, 'SIGKILL');
+        await stopPromise;
+      } finally {
+        vi.useRealTimers();
+      }
+    });
 
-      const stopPromise = stopTestRunnerBackend(mockProc as ChildProcess);
+    it('should not reject when the kill itself fails', async () => {
+      mockProc.kill = vi.fn(() => {
+        throw new Error('kill EPERM');
+      });
 
-      vi.advanceTimersByTime(6000);
-
-      await stopPromise;
-
-      expect(killCalls).toContain('SIGTERM');
-      expect(killCalls).toContain('SIGKILL');
-
-      vi.useRealTimers();
+      await expect(stopTestRunnerBackend(mockProc as ChildProcess)).resolves.toBeUndefined();
     });
   });
 

@@ -62,7 +62,7 @@
     "protocol-install:electron-forge": "../fixtures/e2e-apps/electron-forge/scripts/protocol-install.sh"
   },
   "dependencies": {
-    "@wdio/appium-service": "9.31.9",
+    "@wdio/appium-service": "9.32.0",
     "@wdio/cli": "catalog:default",
     "@wdio/dioxus-service": "link:../packages/dioxus-service",
     "@wdio/electrobun-service": "link:../packages/electrobun-service",
@@ -77,26 +77,26 @@
     "@wdio/visual-service": "^10.1.0",
     "@wdio/xvfb": "catalog:default",
     "electron": "catalog:default",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "webdriverio": "catalog:default"
   },
   "devDependencies": {
     "@crabnebula/tauri-driver": "^2.0.9",
-    "@crabnebula/test-runner-backend": "^0.2.9",
+    "@crabnebula/test-runner-backend": "^0.3.0",
     "@electron-forge/cli": "catalog:default",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.6.2",
-    "@vitest/spy": "^5.0.1",
+    "@types/node": "^26.6.4",
+    "@vitest/spy": "^5.0.3",
     "@wdio/native-types": "workspace:*",
     "@wdio/types": "catalog:default",
-    "appium": "^3.7.0",
+    "appium": "^3.8.0",
     "appium-flutter-driver": "^4.0.0",
     "appium-uiautomator2-driver": "^8.7.0",
-    "appium-xcuitest-driver": "^12.13.1",
+    "appium-xcuitest-driver": "^12.13.3",
     "cross-env": "^10.1.0",
     "p-limit": "^7.3.3",
     "typescript": "^6.0.3",
-    "wait-on": "^9.1.0",
+    "wait-on": "^9.5.1",
     "zod": "^4.6.5"
   }
 }

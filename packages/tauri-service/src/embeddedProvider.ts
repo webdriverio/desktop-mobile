@@ -4,6 +4,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { createLogger } from '@wdio/native-utils';
 import { throwIfAborted } from './errors.js';
 import { createLogCapture } from './logCapture.js';
+import { signalAndWaitForExit } from './processExit.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
@@ -225,40 +226,6 @@ export async function stopEmbeddedDriver(info: EmbeddedDriverInfo): Promise<void
   if (!(await signalAndWaitForExit(child, 'SIGKILL', 1000))) {
     throw new Error(`Embedded driver process ${child.pid} did not exit after SIGKILL`);
   }
-}
-
-function signalAndWaitForExit(child: ChildProcess, signal: NodeJS.Signals, timeoutMs: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      clearTimeout(timer);
-      child.removeListener('exit', onExit);
-      child.removeListener('error', onError);
-    };
-    const onExit = () => {
-      cleanup();
-      resolve(true);
-    };
-    const onError = (error: Error) => {
-      cleanup();
-      reject(error);
-    };
-    const timer = setTimeout(() => {
-      cleanup();
-      resolve(false);
-    }, timeoutMs);
-    timer.unref();
-    // Register before kill: a child can exit as soon as the signal is sent.
-    child.once('exit', onExit);
-    child.once('error', onError);
-    try {
-      child.kill(signal);
-      if (child.exitCode !== null || child.signalCode !== null) onExit();
-    } catch (error) {
-      cleanup();
-      reject(error);
-    }
-  });
 }
 
 /**

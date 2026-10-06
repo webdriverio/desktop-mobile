@@ -85,8 +85,13 @@ where
     F: FnOnce() -> tauri::Result<()>,
 {
     let (sender, receiver) = tokio::sync::oneshot::channel();
-    let listener_id = window.once(event_name, move |_| {
-        let _ = sender.send(());
+    // Not `once`: Tauri defers removing a listener while it is emitting and can replay a queued
+    // event to it first, which panics inside `once`. Repeat deliveries are ignored here instead.
+    let sender_slot = std::sync::Mutex::new(Some(sender));
+    let listener_id = window.listen(event_name, move |_| {
+        if let Some(sender) = sender_slot.lock().ok().and_then(|mut slot| slot.take()) {
+            let _ = sender.send(());
+        }
     });
 
     if let Err(error) = change() {
@@ -102,11 +107,11 @@ where
             tracing::debug!("Window event listener closed while waiting to {operation}");
         }
         Err(_) => {
-            window.unlisten(listener_id);
             tracing::debug!("Timed out waiting to {operation}");
         }
     }
 
+    window.unlisten(listener_id);
     Ok(())
 }
 

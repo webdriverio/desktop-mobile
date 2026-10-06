@@ -1,6 +1,6 @@
 {
   "name": "@wdio/flutter-service",
-  "version": "1.0.0-next.2",
+  "version": "1.0.0-next.3",
   "description": "WebdriverIO service for testing Flutter mobile applications",
   "author": "WebdriverIO Community",
   "homepage": "https://github.com/webdriverio/desktop-mobile/tree/main/packages/flutter-service",
@@ -55,17 +55,17 @@
     "@wdio/types": "catalog:default",
     "tslib": "^2.8.1",
     "webdriverio": "catalog:default",
-    "ws": "^8.21.3"
+    "ws": "^8.22.0"
   },
   "devDependencies": {
-    "@types/node": "^26.6.2",
-    "@types/ws": "^8.18.1",
-    "@vitest/coverage-v8": "^5.0.1",
+    "@types/node": "^26.6.4",
+    "@types/ws": "^8.18.2",
+    "@vitest/coverage-v8": "^5.0.3",
     "@wdio/bundler": "workspace:*",
     "shx": "^0.4.0",
-    "tsx": "^4.23.13",
+    "tsx": "^4.23.15",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.3"
   },
   "peerDependencies": {
     "webdriverio": "^9.0.0"

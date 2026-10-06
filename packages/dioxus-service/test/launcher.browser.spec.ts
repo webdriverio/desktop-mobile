@@ -11,9 +11,10 @@ vi.mock('../src/providers/embedded.js', () => ({
 vi.mock('@wdio/native-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-core')>()),
   startManagedDevServer: vi.fn(),
+  closeLogWriter: vi.fn().mockResolvedValue(undefined),
 }));
 
-import { startManagedDevServer } from '@wdio/native-core';
+import { closeLogWriter, startManagedDevServer } from '@wdio/native-core';
 import DioxusLaunchService from '../src/launcher.js';
 import { startEmbeddedDriver } from '../src/providers/embedded.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
@@ -109,6 +110,15 @@ describe('DioxusLaunchService — devServer management', () => {
     expect(startManagedDevServer).toHaveBeenCalledWith('pnpm dev', DEV_SERVER);
     await launcher.onComplete();
     expect(managedStop).toHaveBeenCalledOnce();
+  });
+
+  it('should still close the log writer when the dev server stop throws', async () => {
+    managedStop.mockRejectedValueOnce(new Error('dev server close boom'));
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    await launcher.onPrepare(baseConfig, [{}] as DioxusCapabilities[]);
+
+    await expect(launcher.onComplete()).rejects.toThrow('dev server close boom');
+    expect(closeLogWriter).toHaveBeenCalledWith('dioxus-service');
   });
 
   it('should skip the HEAD preflight when managing the dev server', async () => {

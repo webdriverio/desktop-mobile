@@ -1,6 +1,6 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, DEFAULT_TEARDOWN_TIMEOUT_MS, isBenignTeardownError, runBounded } from '@wdio/native-utils';
+import { createLogger, safeDeleteSession } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
@@ -12,34 +12,6 @@ import { clearWindowState, listWindowLabels, switchWindowByLabel } from './windo
 
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
-
-/**
- * Delete a WebDriver session defensively during teardown. Bounded by a timeout
- * so a hanging/retrying DELETE can't block the worker until the CI step timeout,
- * and benign "session already gone / connection closed" errors are debug-logged
- * rather than rethrown — left to propagate, the retried DELETE closes the socket
- * and a libuv double-close assertion crashes the Windows worker after the test
- * already passed. See @wdio/native-utils teardown helpers.
- */
-async function safeDeleteSession(browser: WebdriverIO.Browser, label: string): Promise<void> {
-  if (!browser.sessionId) {
-    return;
-  }
-  log.debug(`Deleting session${label ? ` for ${label}` : ''}: ${browser.sessionId}`);
-  try {
-    await runBounded(
-      () => browser.deleteSession(),
-      DEFAULT_TEARDOWN_TIMEOUT_MS,
-      () => log.debug(`deleteSession timed out after ${DEFAULT_TEARDOWN_TIMEOUT_MS}ms${label ? ` (${label})` : ''}`),
-    );
-  } catch (error) {
-    if (isBenignTeardownError(error)) {
-      log.debug(`Ignoring benign teardown error during deleteSession${label ? ` (${label})` : ''}:`, error);
-      return;
-    }
-    throw error;
-  }
-}
 
 export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
@@ -107,43 +79,13 @@ export default class DioxusWorkerService {
   }
 
   async after(): Promise<void> {
-    // mockStore is cleared in afterSession() *after* restoreAllMocks() so the
-    // unregistration script can still iterate registered mocks. Clearing here
-    // would leave window.__wdio_mocks__ populated across embedded-mode sessions.
     log.debug('DioxusWorkerService.after — clearing window cache');
     clearWindowState();
   }
 
-  /**
-   * Explicitly delete the WebDriver session. Without this, WDIO's `bail`/retry
-   * features hit "invalid session id" on the second attempt because the worker
-   * is reused but the previous session is no longer valid server-side.
-   */
   async afterSession(): Promise<void> {
     log.debug('DioxusWorkerService.afterSession — deleting WebDriver session');
-
-    try {
-      // Bound + benign-swallow like the delete below: if the app has already
-      // exited, restoreAllMocks()'s browser.execute() can hang on a half-open
-      // socket and block the worker before safeDeleteSession() is ever reached.
-      await runBounded(
-        () => restoreAllMocks(),
-        DEFAULT_TEARDOWN_TIMEOUT_MS,
-        () => log.debug('restoreAllMocks timed out during teardown'),
-      );
-    } catch (error) {
-      if (isBenignTeardownError(error)) {
-        log.debug('Ignoring benign teardown error during restoreAllMocks:', error);
-      } else {
-        log.warn('Failed to restore mocks during session cleanup:', error);
-      }
-    } finally {
-      // Clear unconditionally — if restoreAllMocks() throws (commonly when the
-      // browser session has already gone away and execute() rejects), leaving
-      // the module-level mockStore populated causes the next session's
-      // createMock() to stack on top of stale entries.
-      mockStore.clear();
-    }
+    mockStore.clear();
 
     if (!this.browser) {
       clearWindowState();
@@ -151,20 +93,20 @@ export default class DioxusWorkerService {
     }
 
     try {
+      // Only standalone cleanup() gets here with a live session; under the runner the delete is a no-op.
       if (!this.browser.isMultiremote) {
-        await safeDeleteSession(this.browser as WebdriverIO.Browser, '');
+        await safeDeleteSession(this.browser as WebdriverIO.Browser, 'afterSession', log);
       } else {
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
         for (const instanceName of mrBrowser.instances) {
           try {
-            await safeDeleteSession(mrBrowser.getInstance(instanceName), `instance ${instanceName}`);
+            const instance = mrBrowser.getInstance(instanceName);
+            await safeDeleteSession(instance, `afterSession (instance ${instanceName})`, log);
           } catch (error) {
-            log.warn(`Failed to delete session for instance ${instanceName}:`, error);
+            log.warn(`Failed to clean up instance ${instanceName}:`, error);
           }
         }
       }
-    } catch (error) {
-      log.warn('Failed to delete session:', error);
     } finally {
       clearWindowState();
     }
@@ -241,6 +183,22 @@ export default class DioxusWorkerService {
           'In native mode: is wdio_dioxus_bridge::install() wired into the Dioxus app? Underlying error:',
         err,
       );
+    }
+    if (this.isEmbedded) {
+      await this.clearStaleMocks(browser);
+    }
+  }
+
+  // Clear mocks left registered by previous sessions.
+  private async clearStaleMocks(browser: WebdriverIO.Browser): Promise<void> {
+    try {
+      await browser.execute(function clearStaleMocks() {
+        const page = globalThis as { __wdio_mocks__?: Record<string, unknown> };
+        if (page.__wdio_mocks__) page.__wdio_mocks__ = {};
+      });
+      log.debug('Cleared stale mocks at session start');
+    } catch (err) {
+      log.warn('Failed to clear stale mocks at session start:', err);
     }
   }
 }
