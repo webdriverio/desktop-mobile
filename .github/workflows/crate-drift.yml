@@ -1,8 +1,6 @@
 name: Crate Drift
 
 # Builds each published crate against freshly resolved dependencies and tracks failures in an issue.
-# CI only builds against the committed Cargo.lock files, but apps that depend on the crates resolve
-# fresh versions, so an upstream release can break them for users while CI stays green.
 
 on:
   schedule:
