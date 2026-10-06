@@ -1,0 +1,163 @@
+name: Crate Drift
+
+# Builds each published crate against freshly resolved dependencies, as consuming apps do, and
+# tracks failures in an issue.
+
+on:
+  schedule:
+    - cron: '41 4 * * *'
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - '.github/workflows/crate-drift.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: crate-drift-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  fresh-deps:
+    name: Fresh deps [${{ matrix.label }}]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux + Windows cross-check
+            os: ubuntu-latest
+            targets: host x86_64-pc-windows-msvc
+            crates: |
+              packages/tauri-plugin
+              packages/tauri-plugin-webdriver
+              packages/dioxus-bridge
+              packages/dioxus-embedded-driver
+              packages/dioxus-driver
+          - label: macOS
+            os: macos-latest
+            targets: host
+            # The dioxus crates have no macOS-specific code - Linux leg covers them.
+            crates: |
+              packages/tauri-plugin
+              packages/tauri-plugin-webdriver
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: 🦀 Install Rust toolchain
+        shell: bash
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          rustup update stable
+          rustup default stable
+          for target in $TARGETS; do
+            [ "$target" = host ] || rustup target add "$target"
+          done
+
+      - name: 🦀 Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: crate-drift
+          workspaces: ${{ matrix.crates }}
+          cache-on-failure: true
+          # ~/.cargo/bin/ can carry over stale binaries across runs, breaking the toolchain.
+          cache-bin: false
+          # The key is lockfile-based, so cached fresh builds would never refresh.
+          cache-targets: false
+
+      - name: 🦀 Install Linux system dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev
+
+      - name: 🔍 cargo check against fresh dependencies
+        shell: bash
+        env:
+          CRATES: ${{ matrix.crates }}
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          set -uo pipefail
+          # Shared across crates: their fresh dependency graphs overlap heavily.
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/target"
+          status=0
+          for crate in $CRATES; do
+            # `cargo update` re-resolves every dependency to its newest compatible release, which is
+            # what a new consumer of the published crate gets.
+            log="$RUNNER_TEMP/update-${crate//\//-}.log"
+            if ! cargo update --manifest-path "$crate/Cargo.toml" > "$log" 2>&1; then
+              status=1
+              echo "::error title=cargo update failed::$crate"
+              cat "$log"
+            fi
+            {
+              echo "<details><summary><code>$crate</code>: releases newer than its Cargo.lock</summary>"
+              echo
+              echo '```'
+              grep -E '^\s+(Updating|Adding|Removing|Downgrading) [A-Za-z0-9_-]+ v' "$log" || echo '(none)'
+              echo '```'
+              echo '</details>'
+            } >> "$GITHUB_STEP_SUMMARY"
+
+            for target in $TARGETS; do
+              args=(); [ "$target" = host ] || args=(--target "$target")
+              echo "::group::cargo check $crate ($target)"
+              # macOS runners ship bash 3.2, where "${args[@]}" on an empty array trips `set -u`.
+              if ! cargo check --manifest-path "$crate/Cargo.toml" ${args[@]+"${args[@]}"}; then
+                echo "::error file=$crate/Cargo.toml::$crate fails to build for $target against fresh dependencies"
+                status=1
+              fi
+              echo "::endgroup::"
+            done
+          done
+          exit "$status"
+
+  report:
+    name: Report
+    needs: [fresh-deps]
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
+    runs-on: ubuntu-latest
+    permissions:
+      issues: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      RESULT: ${{ needs.fresh-deps.result }}
+    steps:
+      - name: 📋 File or close the tracking issue
+        shell: bash
+        run: |
+          set -euo pipefail
+          title='Crate Drift: Rust crates fail against fresh dependencies'
+          issue=$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number,title \
+            | jq -r --arg t "$title" '[.[] | select(.title == $t)][0].number // empty')
+
+          # Superseded runs skip this job; a job that hit its timeout reports as cancelled.
+          if [ "$RESULT" = failure ] || [ "$RESULT" = cancelled ]; then
+            if [ -n "$issue" ]; then
+              gh issue comment "$issue" --repo "$REPO" --body "Still failing in [this run]($RUN_URL)."
+            else
+              gh issue create --repo "$REPO" --title "$title" --label 'area:dependencies' --body "$(cat <<EOF
+          The nightly [Crate Drift run]($RUN_URL) failed: a crate we publish no longer builds against freshly resolved dependencies, though CI on the committed lockfiles may still pass. The step summary lists the releases picked up.
+
+          This issue closes itself once a nightly run passes again.
+          EOF
+              )"
+            fi
+          elif [ -n "$issue" ]; then
+            gh issue close "$issue" --repo "$REPO" --comment "Passing again in [this run]($RUN_URL)."
+          fi

@@ -86,6 +86,7 @@ describe('classifyFile', () => {
     ['.github/workflows/_ci-e2e-react-native-ios.reusable.yml', 'react-native'],
     ['.github/workflows/_ci-build-react-native-ios-app.reusable.yml', 'react-native'],
     ['.github/workflows/codeql.yml', 'none'],
+    ['.github/workflows/crate-drift.yml', 'none'],
     ['.github/workflows/release-preview.yml', 'none'],
     ['.github/workflows/some-future-workflow.yml', 'unknown'],
     ['.github/codeql/artifact-poisoning-analysis.json', 'none'],
