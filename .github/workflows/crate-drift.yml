@@ -1,15 +1,8 @@
 name: Crate Drift
 
-# CI builds the published Rust crates only against their committed Cargo.lock files, but apps that
-# depend on them (and `cargo install` without --locked) resolve fresh versions. A Tauri minor can
-# then break a crate for users while CI stays green. This workflow builds the current source of
-# every published crate against freshly resolved dependencies: natively on Linux, as a Windows
-# cross-check from the same runner, and natively on macOS for the Tauri crates, whose macOS code
-# needs the Apple SDK. A failure files a tracking issue, and the issue closes itself once the
-# build passes again.
-#
-# The tracking issue is only filed from main. Pull requests that touch this workflow run the build
-# without it.
+# CI builds our published crates against their committed Cargo.lock files, but apps that depend on
+# them resolve fresh versions, so an upstream release can break them for users while CI stays green.
+# This builds each crate against freshly resolved dependencies and tracks failures in an issue.
 
 on:
   schedule:
@@ -35,8 +28,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # Every crate this repo publishes to crates.io (guarded by test/scripts/crate-drift.spec.ts).
-          # A Windows cross-check needs no MSVC toolchain: `cargo check` stops before linking.
           - label: Linux + Windows cross-check
             os: ubuntu-latest
             targets: host x86_64-pc-windows-msvc
@@ -46,10 +37,10 @@ jobs:
               packages/dioxus-bridge
               packages/dioxus-embedded-driver
               packages/dioxus-driver
-          # The dioxus crates have no macOS-specific code, so the Linux leg covers them.
           - label: macOS
             os: macos-latest
             targets: host
+            # The dioxus crates have no macOS-specific code - Linux leg covers them.
             crates: |
               packages/tauri-plugin
               packages/tauri-plugin-webdriver
@@ -76,15 +67,12 @@ jobs:
           cache-on-failure: true
           # ~/.cargo/bin/ can carry over stale binaries across runs, breaking the toolchain.
           cache-bin: false
-          # The key comes from the committed locks, so cached builds of fresh dependencies would
-          # never refresh and would take GBs of the repo's shared cache quota.
+          # The key is lockfile-based, so cached fresh builds would never refresh.
           cache-targets: false
 
       - name: 🦀 Install Linux system dependencies
         if: runner.os == 'Linux'
         shell: bash
-        # Same set as the clippy jobs: webkit2gtk/soup/javascriptcoregtk back the Linux webview for
-        # the tauri plugin and the dioxus crates; libxdo is a hard link dependency of dioxus-desktop.
         run: |
           sudo apt-get update
           sudo apt-get install -y \
@@ -165,7 +153,7 @@ jobs:
               gh issue comment "$issue" --repo "$REPO" --body "Still failing in [this run]($RUN_URL)."
             else
               gh issue create --repo "$REPO" --title "$title" --label 'area:dependencies' --body "$(cat <<EOF
-          The nightly [Crate Drift run]($RUN_URL) failed: the current source of a crate we publish no longer builds against the dependency versions a new consumer resolves today, even though CI (which builds against the committed Cargo.lock files) may still be green. The run's step summary lists which releases were picked up.
+          The nightly [Crate Drift run]($RUN_URL) failed: a crate we publish no longer builds against freshly resolved dependencies, though CI on the committed lockfiles may still pass. The step summary lists the releases picked up.
 
           This issue closes itself once a nightly run passes again.
           EOF
