@@ -87,9 +87,9 @@ where
     let (sender, receiver) = tokio::sync::oneshot::channel();
     // Not `once`: Tauri defers removing a listener while it is emitting and can replay a queued
     // event to it first, which panics inside `once`. Repeat deliveries are ignored here instead.
-    let sender = std::sync::Mutex::new(Some(sender));
+    let sender_slot = std::sync::Mutex::new(Some(sender));
     let listener_id = window.listen(event_name, move |_| {
-        if let Some(sender) = sender.lock().ok().and_then(|mut slot| slot.take()) {
+        if let Some(sender) = sender_slot.lock().ok().and_then(|mut slot| slot.take()) {
             let _ = sender.send(());
         }
     });
