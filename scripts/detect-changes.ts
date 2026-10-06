@@ -21,7 +21,7 @@
  *   - fixtures/{e2e-apps,package-tests}/<svc>[-...]/** → that service; unrecognised dir → unknown
  *   - .github/workflows/: core-infra list → all; meta list → none;
  *     actions/** → all; service token in filename → that service; else → unknown
- *   - scripts/: service token in filename → that service; else → all (cross-service tooling)
+ *   - scripts/: meta-workflow-only → none; service token in filename → that service; else → all
  *   - root infra files (package.json, lockfile, turbo.json, tsconfig*…) → all
  *   - biome.jsonc, eslint.config.js → none (the lint job has no `if:` gate)
  *   - everything else (docs/, .claude/, dotfiles…) → none
@@ -69,6 +69,9 @@ const META_WORKFLOWS = new Set([
   'expense.yml',
   'release-preview.yml',
 ]);
+
+// Scripts only meta-workflows run.
+const META_SCRIPTS = new Set(['sync-tauri-webview2-bindings.ts']);
 
 // Workspace / dependency / build / test configuration at the repo root.
 const ROOT_INFRA_FILES = new Set([
@@ -203,7 +206,9 @@ export function classifyFile(file: string, services: string[]): Verdict {
   if (file.startsWith('.github/')) return 'none';
 
   if (file.startsWith('scripts/')) {
-    return serviceForToken(path.basename(file), services) ?? 'all';
+    const name = path.basename(file);
+    if (META_SCRIPTS.has(name)) return 'none';
+    return serviceForToken(name, services) ?? 'all';
   }
 
   if (!file.includes('/')) {

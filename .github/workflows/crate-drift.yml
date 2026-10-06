@@ -112,6 +112,8 @@ jobs:
           TARGETS: ${{ matrix.targets }}
         run: |
           set -uo pipefail
+          # Shared across crates: their fresh dependency graphs overlap heavily.
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/target"
           status=0
           for crate in $CRATES; do
             # `cargo update` re-resolves every dependency to its newest compatible release, which is
@@ -156,6 +158,7 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
+      BOT_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
     steps:
       - name: 👷 Checkout Repository
         uses: actions/checkout@v7
@@ -187,7 +190,6 @@ jobs:
           FROM: ${{ steps.sync.outputs.from }}
           TO: ${{ steps.sync.outputs.to }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-          BOT_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
         run: |
           set -euo pipefail
           # The title names the target bindings, so it only changes when Tauri moves to another
@@ -245,6 +247,12 @@ jobs:
           open=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state open --json number,isCrossRepository \
             --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')
           if [ -n "$open" ]; then
+            others=$(gh api "repos/$REPO/pulls/$open/commits" --paginate \
+              | jq -r --arg bot "$BOT_EMAIL" '.[] | select(.commit.author.email != $bot) | .sha' | wc -l)
+            if [ "$others" -gt 0 ]; then
+              echo "PR #$open has commits from someone other than the bot; leaving it open."
+              exit 0
+            fi
             gh pr close "$open" --repo "$REPO" --delete-branch \
               --comment "The plugin's bindings already match Tauri $TAURI's, so this is no longer needed."
           fi
@@ -252,7 +260,7 @@ jobs:
   report:
     name: Report
     needs: [fresh-deps, sync-bindings]
-    if: always() && github.ref == 'refs/heads/main'
+    if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
       issues: write
@@ -268,17 +276,13 @@ jobs:
         run: |
           set -euo pipefail
           results="$FRESH $SYNC"
-          # A superseded run with no failures says nothing about the crates.
-          if [[ " $results " != *" failure "* && " $results " == *" cancelled "* ]]; then
-            echo "Run was cancelled; not reporting."
-            exit 0
-          fi
           title='Crate Drift: Rust crates fail against fresh dependencies'
           issue=$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number,title \
             | jq -r --arg t "$title" '[.[] | select(.title == $t)][0].number // empty')
           jobs="Fresh deps: \`$FRESH\` · binding sync: \`$SYNC\`"
 
-          if [[ " $results " == *" failure "* ]]; then
+          # Superseded runs skip this job; a job that hit its timeout reports as cancelled.
+          if [[ " $results " == *" failure "* || " $results " == *" cancelled "* ]]; then
             if [ -n "$issue" ]; then
               gh issue comment "$issue" --repo "$REPO" --body "Still failing in [this run]($RUN_URL). $jobs"
             else
