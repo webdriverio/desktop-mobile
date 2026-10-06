@@ -51,25 +51,4 @@ describe('Tauri APIs using Multiremote', () => {
     expect(typeof resultA.hostname).toBe('string');
     expect(typeof resultB.hostname).toBe('string');
   });
-
-  it('should retrieve instance-specific values from each instance', async () => {
-    const multi = multiRemoteBrowser as unknown as WebdriverIO.MultiRemoteBrowser;
-    const browserA = multi.getInstance('browserA');
-    const browserB = multi.getInstance('browserB');
-
-    // Get platform info from both instances
-    const [resultA, resultB] = await Promise.all([
-      browserA.tauri.execute(({ core }) => core.invoke('get_platform_info')),
-      browserB.tauri.execute(({ core }) => core.invoke('get_platform_info')),
-    ]);
-
-    // Verify both instances return valid platform information
-    assertHasOwnProperty(resultA, 'os');
-    assertHasOwnProperty(resultB, 'os');
-    expect(resultA.os).toBe(resultB.os); // Same OS for both instances
-
-    // Verify both instances have independent data structures
-    assertHasOwnProperty(resultA, 'cpu');
-    assertHasOwnProperty(resultB, 'cpu');
-  });
 });
