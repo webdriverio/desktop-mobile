@@ -8,12 +8,8 @@ name: Crate Drift
 # needs the Apple SDK. A failure files a tracking issue, and the issue closes itself once the
 # build passes again.
 #
-# It also keeps the webdriver plugin's Windows bindings on the releases the latest Tauri uses
-# (scripts/sync-tauri-webview2-bindings.ts). A mismatch never breaks builds, it only makes apps
-# compile webview2-com twice, so drift becomes a PR rather than a failure.
-#
-# The side effects (the tracking issue and the sync PR) only run on main. Pull requests that touch
-# this workflow or the sync script run every check without them.
+# The tracking issue is only filed from main. Pull requests that touch this workflow run the build
+# without it.
 
 on:
   schedule:
@@ -22,7 +18,6 @@ on:
   pull_request:
     paths:
       - '.github/workflows/crate-drift.yml'
-      - 'scripts/sync-tauri-webview2-bindings.ts'
 
 permissions:
   contents: read
@@ -30,9 +25,6 @@ permissions:
 concurrency:
   group: crate-drift-${{ github.ref }}
   cancel-in-progress: true
-
-env:
-  SYNC_BRANCH: chore/tauri-webview2-bindings
 
 jobs:
   fresh-deps:
@@ -146,115 +138,9 @@ jobs:
           done
           exit "$status"
 
-  sync-bindings:
-    name: Sync Tauri webview2 bindings
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    env:
-      REPO: ${{ github.repository }}
-      BOT_EMAIL: 41898282+github-actions[bot]@users.noreply.github.com
-    steps:
-      - name: 👷 Checkout Repository
-        uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-
-      - name: 🛠️ Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: '24'
-
-      - name: 🦀 Install Rust toolchain
-        shell: bash
-        run: |
-          rustup update stable
-          rustup default stable
-
-      - name: 🔄 Align the bindings with the latest Tauri
-        id: sync
-        shell: bash
-        run: |
-          node scripts/sync-tauri-webview2-bindings.ts --write
-          git diff --stat
-
-      - name: 📬 Open or refresh the sync PR
-        if: steps.sync.outputs.drift == 'true' && github.ref == 'refs/heads/main'
-        shell: bash
-        env:
-          # Unlike GITHUB_TOKEN, the bot's token triggers CI on the PR.
-          GH_TOKEN: ${{ secrets.WDIO_BOT_GITHUB_TOKEN }}
-          TAURI: ${{ steps.sync.outputs.tauri }}
-          WEBVIEW2_COM: ${{ steps.sync.outputs.webview2_com }}
-          FROM: ${{ steps.sync.outputs.from }}
-          TO: ${{ steps.sync.outputs.to }}
-          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-        run: |
-          set -euo pipefail
-          # The title names the target bindings, so it only changes when Tauri moves to another
-          # webview2-com line. That makes it the PR's identity: an open PR with this title may
-          # carry maintainer fixes, and a closed one was declined, so both are left alone.
-          title="chore(tauri): move the webdriver plugin to webview2-com $WEBVIEW2_COM"
-          prs=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state all --limit 50 \
-            --json number,title,state,isCrossRepository --jq '[.[] | select(.isCrossRepository | not)]')
-          same=$(jq -r --arg t "$title" '[.[] | select(.title == $t and .state != "MERGED")][0].state // empty' <<< "$prs")
-          if [ -n "$same" ]; then
-            echo "Already proposed ($same PR titled \"$title\"); leaving it alone."
-            exit 0
-          fi
-          open=$(jq -r '[.[] | select(.state == "OPEN")][0].number // empty' <<< "$prs")
-          if [ -n "$open" ]; then
-            others=$(gh api "repos/$REPO/pulls/$open/commits" --paginate \
-              | jq -r --arg bot "$BOT_EMAIL" '.[] | select(.commit.author.email != $bot or .commit.committer.email != $bot) | .sha' \
-              | wc -l)
-            if [ "$others" -gt 0 ]; then
-              echo "PR #$open has commits from someone other than the bot; leaving it alone."
-              exit 0
-            fi
-          fi
-
-          git config user.name 'github-actions[bot]'
-          git config user.email "$BOT_EMAIL"
-          git switch -c "$SYNC_BRANCH"
-          git commit -qam "$title"
-          gh auth setup-git
-          git push --force origin "$SYNC_BRANCH"
-
-          body=$(cat <<EOF
-          Tauri $TAURI's wry uses **$TO**, but the plugin declares **$FROM**. Until they match, apps on the latest Tauri compile two copies of webview2-com. The plugin rebinds Tauri's WebView2 controller onto its own bindings (\`rebind_controller\` in \`packages/tauri-plugin-webdriver/src/platform/windows.rs\`), so nothing is broken in the meantime; this only saves apps the second copy.
-
-          Opened by the nightly [Crate Drift]($RUN_URL) workflow via \`scripts/sync-tauri-webview2-bindings.ts\`. If the new bindings need code changes, push them here: once the branch has commits from anyone else, the workflow leaves it alone. Add \`bump:patch\` to publish the plugin with the new bindings.
-          EOF
-          )
-          if [ -n "$open" ]; then
-            gh pr edit "$open" --repo "$REPO" --title "$title" --body "$body"
-          else
-            gh pr create --repo "$REPO" --base main --head "$SYNC_BRANCH" --title "$title" --body "$body"
-          fi
-
-      - name: 🧹 Close a sync PR that is no longer needed
-        if: steps.sync.outputs.drift == 'false' && github.ref == 'refs/heads/main'
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.WDIO_BOT_GITHUB_TOKEN }}
-          TAURI: ${{ steps.sync.outputs.tauri }}
-        run: |
-          open=$(gh pr list --repo "$REPO" --head "$SYNC_BRANCH" --state open --json number,isCrossRepository \
-            --jq '[.[] | select(.isCrossRepository | not)][0].number // empty')
-          if [ -n "$open" ]; then
-            others=$(gh api "repos/$REPO/pulls/$open/commits" --paginate \
-              | jq -r --arg bot "$BOT_EMAIL" '.[] | select(.commit.author.email != $bot or .commit.committer.email != $bot) | .sha' \
-              | wc -l)
-            if [ "$others" -gt 0 ]; then
-              echo "PR #$open has commits from someone other than the bot; leaving it open."
-              exit 0
-            fi
-            gh pr close "$open" --repo "$REPO" --delete-branch \
-              --comment "The plugin's bindings already match Tauri $TAURI's, so this is no longer needed."
-          fi
-
   report:
     name: Report
-    needs: [fresh-deps, sync-bindings]
+    needs: [fresh-deps]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
@@ -263,28 +149,23 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      FRESH: ${{ needs.fresh-deps.result }}
-      SYNC: ${{ needs.sync-bindings.result }}
+      RESULT: ${{ needs.fresh-deps.result }}
     steps:
       - name: 📋 File or close the tracking issue
         shell: bash
         run: |
           set -euo pipefail
-          results="$FRESH $SYNC"
           title='Crate Drift: Rust crates fail against fresh dependencies'
           issue=$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number,title \
             | jq -r --arg t "$title" '[.[] | select(.title == $t)][0].number // empty')
-          jobs="Fresh deps: \`$FRESH\` · binding sync: \`$SYNC\`"
 
           # Superseded runs skip this job; a job that hit its timeout reports as cancelled.
-          if [[ " $results " == *" failure "* || " $results " == *" cancelled "* ]]; then
+          if [ "$RESULT" = failure ] || [ "$RESULT" = cancelled ]; then
             if [ -n "$issue" ]; then
-              gh issue comment "$issue" --repo "$REPO" --body "Still failing in [this run]($RUN_URL). $jobs"
+              gh issue comment "$issue" --repo "$REPO" --body "Still failing in [this run]($RUN_URL)."
             else
               gh issue create --repo "$REPO" --title "$title" --label 'area:dependencies' --body "$(cat <<EOF
-          The nightly [Crate Drift run]($RUN_URL) failed. $jobs
-
-          A \`fresh deps\` failure means the current source of a crate we publish no longer builds against the dependency versions a new consumer resolves today, even though CI (which builds against the committed Cargo.lock files) may still be green. The run's step summary lists which releases were picked up. A \`binding sync\` failure means the sync script, or pushing and opening its PR, failed.
+          The nightly [Crate Drift run]($RUN_URL) failed: the current source of a crate we publish no longer builds against the dependency versions a new consumer resolves today, even though CI (which builds against the committed Cargo.lock files) may still be green. The run's step summary lists which releases were picked up.
 
           This issue closes itself once a nightly run passes again.
           EOF

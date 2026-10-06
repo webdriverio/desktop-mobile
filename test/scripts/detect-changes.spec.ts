@@ -92,7 +92,6 @@ describe('classifyFile', () => {
     ['.github/codeql/artifact-poisoning-analysis.json', 'none'],
     // scripts
     ['scripts/update-tauri-version.ts', 'tauri'],
-    ['scripts/sync-tauri-webview2-bindings.ts', 'none'],
     ['scripts/test-package.ts', 'all'],
     ['scripts/detect-changes.ts', 'all'],
     // root config

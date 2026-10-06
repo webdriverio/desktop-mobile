@@ -21,7 +21,7 @@
  *   - fixtures/{e2e-apps,package-tests}/<svc>[-...]/** → that service; unrecognised dir → unknown
  *   - .github/workflows/: core-infra list → all; meta list → none;
  *     actions/** → all; service token in filename → that service; else → unknown
- *   - scripts/: meta-workflow-only → none; service token in filename → that service; else → all
+ *   - scripts/: service token in filename → that service; else → all (cross-service tooling)
  *   - root infra files (package.json, lockfile, turbo.json, tsconfig*…) → all
  *   - biome.jsonc, eslint.config.js → none (the lint job has no `if:` gate)
  *   - everything else (docs/, .claude/, dotfiles…) → none
@@ -69,9 +69,6 @@ const META_WORKFLOWS = new Set([
   'expense.yml',
   'release-preview.yml',
 ]);
-
-// Scripts only meta-workflows run.
-const META_SCRIPTS = new Set(['sync-tauri-webview2-bindings.ts']);
 
 // Workspace / dependency / build / test configuration at the repo root.
 const ROOT_INFRA_FILES = new Set([
@@ -173,16 +170,12 @@ function serviceForToken(filename: string, services: string[]): string | undefin
  * Returns: 'none' | 'shared' | 'all' | a service name.
  */
 export function classifyFile(file: string, services: string[]): Verdict {
-  if (file.endsWith('.md')) {
-    return 'none';
-  }
+  if (file.endsWith('.md')) return 'none';
 
   const pkg = file.match(/^packages\/([^/]+)\//);
   if (pkg) {
     const dir = pkg[1];
-    if (SHARED_PACKAGES.has(dir) || SHARED_PACKAGE_PREFIXES.some((p) => dir.startsWith(p))) {
-      return 'shared';
-    }
+    if (SHARED_PACKAGES.has(dir) || SHARED_PACKAGE_PREFIXES.some((p) => dir.startsWith(p))) return 'shared';
     return serviceForDir(dir, services) ?? 'unknown';
   }
 
@@ -190,59 +183,33 @@ export function classifyFile(file: string, services: string[]): Verdict {
     const test = file.match(/^e2e\/test\/([^/]+)\//);
     // serviceForDir (not exact match) so suffixed dirs like `dioxus-browser`
     // route to their service — mirrors the wdio.<svc>-*.conf.ts rule below.
-    if (test) {
-      return serviceForDir(test[1], services) ?? 'all';
-    }
+    if (test) return serviceForDir(test[1], services) ?? 'all';
     const conf = file.match(/^e2e\/wdio\.([^/]+)\.conf\.ts$/);
-    if (conf) {
-      return serviceForDir(conf[1], services) ?? 'all';
-    }
+    if (conf) return serviceForDir(conf[1], services) ?? 'all';
     return 'all';
   }
 
   const fixture = file.match(/^fixtures\/(?:e2e-apps|package-tests)\/([^/]+)\//);
-  if (fixture) {
-    return serviceForDir(fixture[1], services) ?? 'unknown';
-  }
-  if (file.startsWith('fixtures/')) {
-    return 'unknown';
-  }
+  if (fixture) return serviceForDir(fixture[1], services) ?? 'unknown';
+  if (file.startsWith('fixtures/')) return 'unknown';
 
-  if (file.startsWith('.github/workflows/actions/')) {
-    return 'all';
-  }
+  if (file.startsWith('.github/workflows/actions/')) return 'all';
   if (file.startsWith('.github/workflows/')) {
     const name = path.basename(file);
-    if (CORE_INFRA_WORKFLOWS.has(name)) {
-      return 'all';
-    }
-    if (META_WORKFLOWS.has(name)) {
-      return 'none';
-    }
+    if (CORE_INFRA_WORKFLOWS.has(name)) return 'all';
+    if (META_WORKFLOWS.has(name)) return 'none';
     return serviceForToken(name, services) ?? 'unknown';
   }
-  if (file.startsWith('.github/')) {
-    return 'none';
-  }
+  if (file.startsWith('.github/')) return 'none';
 
   if (file.startsWith('scripts/')) {
-    const name = path.basename(file);
-    if (META_SCRIPTS.has(name)) {
-      return 'none';
-    }
-    return serviceForToken(name, services) ?? 'all';
+    return serviceForToken(path.basename(file), services) ?? 'all';
   }
 
   if (!file.includes('/')) {
-    if (LINT_ONLY_FILES.has(file)) {
-      return 'none';
-    }
-    if (ROOT_INFRA_FILES.has(file)) {
-      return 'all';
-    }
-    if (file.startsWith('tsconfig') && file.endsWith('.json')) {
-      return 'all';
-    }
+    if (LINT_ONLY_FILES.has(file)) return 'none';
+    if (ROOT_INFRA_FILES.has(file)) return 'all';
+    if (file.startsWith('tsconfig') && file.endsWith('.json')) return 'all';
   }
 
   return 'none';
