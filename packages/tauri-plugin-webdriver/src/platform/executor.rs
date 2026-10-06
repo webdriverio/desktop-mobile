@@ -65,33 +65,40 @@ fn physical_window_chrome_to_logical(
 }
 
 #[cfg(desktop)]
-const WINDOW_CHANGE_EVENT_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
+const WINDOW_CHANGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
-/// Apply a native window change and wait for Tauri to confirm it via `event_name`.
+/// Physical-to-logical rounding can leave a requested logical value off by one pixel.
+#[cfg(desktop)]
+const LOGICAL_ROUNDING_TOLERANCE: u32 = 1;
+
+/// Apply a native window change and wait until `is_applied` reports that it has landed.
+///
+/// `event_name` only triggers a re-check: on Linux tao emits both move and resize for every
+/// configure event, so an event can predate this change or belong to another window.
+/// `is_applied` should return `true` when it can't read the window state, so a failing getter
+/// doesn't hold the command until the timeout.
 ///
 /// Only a failure of the native call itself is an error. A window manager may clamp or
-/// ignore a request, in which case the confirming event never arrives — `Set Window Rect`
-/// is best-effort, so callers report the rect the window actually ended up with instead
-/// of failing the command.
+/// ignore a request, in which case the state never matches — `Set Window Rect` is
+/// best-effort, so after the timeout callers report the rect the window actually ended up
+/// with instead of failing the command.
 #[cfg(desktop)]
-async fn apply_window_change<R, F>(
+async fn apply_window_change<R, F, A>(
     window: &WebviewWindow<R>,
     event_name: &'static str,
     operation: &'static str,
     change: F,
+    is_applied: A,
 ) -> Result<(), WebDriverErrorResponse>
 where
     R: Runtime,
     F: FnOnce() -> tauri::Result<()>,
+    A: Fn() -> bool,
 {
-    let (sender, receiver) = tokio::sync::oneshot::channel();
-    // Not `once`: Tauri defers removing a listener while it is emitting and can replay a queued
-    // event to it first, which panics inside `once`. Repeat deliveries are ignored here instead.
-    let sender_slot = std::sync::Mutex::new(Some(sender));
-    let listener_id = window.listen(event_name, move |_| {
-        if let Some(sender) = sender_slot.lock().ok().and_then(|mut slot| slot.take()) {
-            let _ = sender.send(());
-        }
+    let notify = std::sync::Arc::new(tokio::sync::Notify::new());
+    let listener_id = window.listen(event_name, {
+        let notify = std::sync::Arc::clone(&notify);
+        move |_| notify.notify_one()
     });
 
     if let Err(error) = change() {
@@ -101,18 +108,98 @@ where
         )));
     }
 
-    match tokio::time::timeout(WINDOW_CHANGE_EVENT_TIMEOUT, receiver).await {
-        Ok(Ok(())) => {}
-        Ok(Err(_)) => {
-            tracing::debug!("Window event listener closed while waiting to {operation}");
-        }
-        Err(_) => {
-            tracing::debug!("Timed out waiting to {operation}");
-        }
+    if !wait_until_applied(&notify, WINDOW_CHANGE_TIMEOUT, is_applied).await {
+        tracing::debug!("Timed out waiting to {operation}");
     }
 
     window.unlisten(listener_id);
     Ok(())
+}
+
+/// Wait until `is_applied` holds, re-checking it each time `notify` fires. Returns `false` on
+/// timeout.
+#[cfg(desktop)]
+async fn wait_until_applied(
+    notify: &tokio::sync::Notify,
+    timeout: std::time::Duration,
+    is_applied: impl Fn() -> bool,
+) -> bool {
+    tokio::time::timeout(timeout, async {
+        while !is_applied() {
+            notify.notified().await;
+        }
+    })
+    .await
+    .is_ok()
+}
+
+#[cfg(desktop)]
+fn has_logical_position<R: Runtime>(window: &WebviewWindow<R>, x: i32, y: i32) -> bool {
+    match (window.outer_position(), window.scale_factor()) {
+        (Ok(position), Ok(scale_factor)) => {
+            let position = position.to_logical::<i32>(scale_factor);
+            position.x.abs_diff(x) <= LOGICAL_ROUNDING_TOLERANCE
+                && position.y.abs_diff(y) <= LOGICAL_ROUNDING_TOLERANCE
+        }
+        _ => true,
+    }
+}
+
+#[cfg(desktop)]
+fn has_logical_inner_size<R: Runtime>(window: &WebviewWindow<R>, size: LogicalSize<u32>) -> bool {
+    match (window.inner_size(), window.scale_factor()) {
+        (Ok(inner_size), Ok(scale_factor)) => {
+            let inner_size = inner_size.to_logical::<u32>(scale_factor);
+            inner_size.width.abs_diff(size.width) <= LOGICAL_ROUNDING_TOLERANCE
+                && inner_size.height.abs_diff(size.height) <= LOGICAL_ROUNDING_TOLERANCE
+        }
+        _ => true,
+    }
+}
+
+#[cfg(all(test, desktop))]
+mod wait_until_applied_tests {
+    use super::*;
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::sync::Arc;
+    use std::time::Duration;
+    use tokio::sync::Notify;
+
+    const SHORT_TIMEOUT: Duration = Duration::from_millis(50);
+
+    #[tokio::test]
+    async fn returns_at_once_when_already_applied() {
+        let notify = Notify::new();
+        assert!(wait_until_applied(&notify, SHORT_TIMEOUT, || true).await);
+    }
+
+    #[tokio::test]
+    async fn a_stale_event_does_not_end_the_wait() {
+        let notify = Notify::new();
+        notify.notify_one();
+        assert!(!wait_until_applied(&notify, SHORT_TIMEOUT, || false).await);
+    }
+
+    #[tokio::test]
+    async fn ends_when_a_later_event_finds_the_change_applied() {
+        let notify = Arc::new(Notify::new());
+        let applied = Arc::new(AtomicBool::new(false));
+        notify.notify_one();
+        let landing = tokio::spawn({
+            let notify = Arc::clone(&notify);
+            let applied = Arc::clone(&applied);
+            async move {
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                applied.store(true, Ordering::SeqCst);
+                notify.notify_one();
+            }
+        });
+
+        let is_applied = || applied.load(Ordering::SeqCst);
+        assert!(wait_until_applied(&notify, Duration::from_secs(5), is_applied).await);
+        assert!(is_applied(), "returned before the change landed");
+        landing.await.unwrap();
+    }
 }
 
 #[cfg(all(test, desktop))]
@@ -1667,6 +1754,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 "tauri://resize",
                 "exit window fullscreen state",
                 || self.window().set_fullscreen(false),
+                || !self.window().is_fullscreen().unwrap_or(false),
             )
             .await?;
         }
@@ -1681,6 +1769,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 "tauri://resize",
                 "restore maximized window",
                 || self.window().unmaximize(),
+                || !self.window().is_maximized().unwrap_or(false),
             )
             .await?;
         }
@@ -1710,10 +1799,16 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         let chrome_size = physical_window_chrome_to_logical(outer_size, inner_size, scale_factor);
 
         if rect.x != current_rect.x || rect.y != current_rect.y {
-            apply_window_change(self.window(), "tauri://move", "set window position", || {
-                self.window()
-                    .set_position(LogicalPosition::new(rect.x, rect.y))
-            })
+            apply_window_change(
+                self.window(),
+                "tauri://move",
+                "set window position",
+                || {
+                    self.window()
+                        .set_position(LogicalPosition::new(rect.x, rect.y))
+                },
+                || has_logical_position(self.window(), rect.x, rect.y),
+            )
             .await?;
         }
 
@@ -1724,9 +1819,13 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 rect.width.saturating_sub(chrome_size.width),
                 rect.height.saturating_sub(chrome_size.height),
             );
-            apply_window_change(self.window(), "tauri://resize", "set window size", || {
-                self.window().set_size(inner_size)
-            })
+            apply_window_change(
+                self.window(),
+                "tauri://resize",
+                "set window size",
+                || self.window().set_size(inner_size),
+                || has_logical_inner_size(self.window(), inner_size),
+            )
             .await?;
         }
 
@@ -1736,9 +1835,13 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     /// Maximize window
     #[cfg(desktop)]
     async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        apply_window_change(self.window(), "tauri://resize", "maximize window", || {
-            self.window().maximize()
-        })
+        apply_window_change(
+            self.window(),
+            "tauri://resize",
+            "maximize window",
+            || self.window().maximize(),
+            || self.window().is_maximized().unwrap_or(true),
+        )
         .await?;
         self.get_window_rect().await
     }
@@ -1758,6 +1861,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
             "tauri://resize",
             "enter window fullscreen state",
             || self.window().set_fullscreen(true),
+            || self.window().is_fullscreen().unwrap_or(true),
         )
         .await?;
         self.get_window_rect().await
