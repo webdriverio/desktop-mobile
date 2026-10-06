@@ -3,15 +3,7 @@ name: Rust Clippy (Reusable)
 permissions:
   contents: read
 
-# Lints the first-party Rust crates with `cargo clippy --all-targets -- -D warnings`,
-# then runs `cargo test` for any crates listed in `test-crates`.
-#
-# Nothing else in CI lints Rust. The only Rust that gets compiled today is the
-# dioxus crates on Linux and the fixture apps, so the platform modules in
-# tauri-plugin-webdriver (macos.rs / windows.rs / linux.rs) are each seen by
-# exactly one runner and never under lint — which is how `clippy::incompatible_msrv`
-# violations reached `main` unnoticed. Hence the per-OS call sites in ci.yml:
-# linting on one OS would leave two thirds of that crate unchecked.
+# Lints first-party Rust crates with clippy, then tests the `test-crates` subset.
 
 on:
   workflow_call:
@@ -26,7 +18,7 @@ on:
         required: true
         type: string
       test-crates:
-        description: 'Newline-separated crate directories (a subset of crates) to also run `cargo test` for'
+        description: 'Newline-separated crate directories to test'
         required: false
         type: string
         default: ''
