@@ -135,6 +135,8 @@ jobs:
       crates: |
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
+      test-crates: |
+        packages/tauri-plugin-webdriver
 
   clippy-tauri-crates-windows:
     name: Clippy Tauri Crates [Windows]
