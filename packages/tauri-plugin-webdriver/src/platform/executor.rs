@@ -71,17 +71,14 @@ const WINDOW_CHANGE_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 #[cfg(desktop)]
 const LOGICAL_ROUNDING_TOLERANCE: u32 = 1;
 
-/// Apply a native window change and wait until `is_applied` reports that it has landed.
+/// Apply a native window change and wait until `is_applied` confirms it.
 ///
-/// `event_name` only triggers a re-check: on Linux tao emits both move and resize for every
-/// configure event, so an event can predate this change or belong to another window.
-/// `is_applied` should return `true` when it can't read the window state, so a failing getter
-/// doesn't hold the command until the timeout.
+/// `event_name` only triggers a re-check, as the event can predate this change or come from
+/// another window. `is_applied` should return `true` if it can't read the window state, rather
+/// than wait out the timeout.
 ///
-/// Only a failure of the native call itself is an error. A window manager may clamp or
-/// ignore a request, in which case the state never matches — `Set Window Rect` is
-/// best-effort, so after the timeout callers report the rect the window actually ended up
-/// with instead of failing the command.
+/// Only the native call failing is an error; a change the window manager clamps or ignores
+/// just times out.
 #[cfg(desktop)]
 async fn apply_window_change<R, F, A>(
     window: &WebviewWindow<R>,
@@ -116,8 +113,7 @@ where
     Ok(())
 }
 
-/// Wait until `is_applied` holds, re-checking it each time `notify` fires. Returns `false` on
-/// timeout.
+/// Wait until `is_applied` holds, re-checking on each `notify`; returns `false` on timeout.
 #[cfg(desktop)]
 async fn wait_until_applied(
     notify: &tokio::sync::Notify,
