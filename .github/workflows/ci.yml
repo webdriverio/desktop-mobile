@@ -135,6 +135,9 @@ jobs:
       crates: |
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
+      # The crate's tests are OS-independent, so they run on this leg only.
+      test-crates: |
+        packages/tauri-plugin-webdriver
 
   clippy-tauri-crates-windows:
     name: Clippy Tauri Crates [Windows]
