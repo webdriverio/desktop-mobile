@@ -1,8 +1,10 @@
 # Edge WebDriver Management for Windows
 
+> **Not available yet.** This page describes the Windows `'external'` provider, which the service doesn't support yet: selecting `driverProvider: 'external'` fails at startup ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). The default `'embedded'` provider doesn't use msedgedriver, so none of this applies to it.
+
 ## Overview
 
-On Windows, Dioxus applications use Microsoft Edge WebView2, which requires `msedgedriver.exe` for WebDriver automation when using the `'external'` driver provider. The dioxus-service automatically handles Edge WebDriver version matching to prevent version mismatch errors.
+On Windows, Dioxus applications use Microsoft Edge WebView2, which requires `msedgedriver.exe` for WebDriver automation when using the `'external'` driver provider. Once `'external'` is available, the service will handle Edge WebDriver version matching to prevent version mismatch errors.
 
 This document only applies to the `'external'` driver provider on Windows. The `'embedded'` provider (recommended) has no Edge WebDriver dependency.
 

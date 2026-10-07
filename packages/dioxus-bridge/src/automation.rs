@@ -9,7 +9,7 @@
 //! **v1 status:** Dioxus's public Config API doesn't expose `WebContext`,
 //! so this function currently only *reports* whether the env var is set
 //! (via the `tracing` crate). Flipping the flag requires an upstream Dioxus
-//! PR — see `spike/FINDINGS.md`. The function exists now so the API surface
+//! change — webdriverio/desktop-mobile#712. The function exists now so the API surface
 //! is in place; once the upstream PR lands, this module will gain the call
 //! to `WebContext::set_allows_automation(true)` and Linux `'external'`
 //! provider unblocks.
@@ -28,7 +28,7 @@ pub fn report() {
       target: "wdio_dioxus_bridge",
       "{ENV_VAR}=true detected — running under @wdio/dioxus-service. Note: in v1, \
        this crate cannot flip Wry's automation mode from a third-party hook. See \
-       spike/FINDINGS.md."
+       https://github.com/webdriverio/desktop-mobile/issues/712."
     );
   } else {
     tracing::debug!(target: "wdio_dioxus_bridge", "{ENV_VAR} not set — automation disabled");

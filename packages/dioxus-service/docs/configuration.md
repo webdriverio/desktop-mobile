@@ -27,22 +27,21 @@ export const config = {
 Select which driver provider to use for WebDriver communication.
 
 - `'embedded'`: Use the embedded WebDriver server wired in via `wdio_dioxus_embedded_driver::install()`. No external driver needed. Works on all three platforms.
-- `'external'`: Use `wdio-dioxus-driver` + msedgedriver (Windows only in v1). Linux is blocked pending an upstream Dioxus PR; macOS is not supported.
+- `'external'`: Not available yet; selecting it fails at startup on every platform. Windows support through `wdio-dioxus-driver` + msedgedriver is [#713](https://github.com/webdriverio/desktop-mobile/issues/713); Linux also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)); macOS can't be supported.
 
 **Platform × Provider matrix:**
 
 | Platform | `'embedded'` | `'external'` |
 |----------|-------------|-------------|
-| Windows  | ✅ Yes      | ✅ Yes      |
-| Linux    | ✅ Yes      | ❌ Blocked in v1 |
+| Windows  | ✅ Yes      | ❌ Not available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) |
+| Linux    | ✅ Yes      | ❌ Needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)) |
 | macOS    | ✅ Yes      | ❌ Not supported |
 
 **Default:** `'embedded'`
 
 **Example:**
 ```typescript
-driverProvider: 'embedded'   // Recommended everywhere
-driverProvider: 'external'   // Windows only in v1
+driverProvider: 'embedded'
 ```
 
 ---
@@ -79,56 +78,25 @@ appArgs: ['--window-size=1920,1080']
 
 ### `autoInstallDioxusDriver` (boolean, optional)
 
-Automatically install `wdio-dioxus-driver` if not found in PATH. Only relevant when `driverProvider: 'external'`. Requires Rust toolchain (`cargo`).
-
-**Example:**
-```typescript
-autoInstallDioxusDriver: true
-```
-
-**Default:** `false`
+Reserved for the `'external'` provider, which isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Accepted but currently ignored.
 
 ---
 
 ### `autoDownloadEdgeDriver` (boolean, optional)
 
-Automatically download MSEdgeDriver on Windows if a version mismatch is detected. Only relevant when `driverProvider: 'external'` on Windows.
-
-**Example:**
-```typescript
-autoDownloadEdgeDriver: true  // Windows + external provider only
-```
-
-**Default:** `true`
-
-**Note:** Ignored on Linux and macOS. See [Edge WebDriver (Windows)](./edge-webdriver-windows.md).
+Reserved for the `'external'` provider, which isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Accepted but currently ignored.
 
 ---
 
 ### `dioxusDriverPort` (number, optional)
 
-Port for `wdio-dioxus-driver` to listen on. Only used when `driverProvider: 'external'`.
-
-**Example:**
-```typescript
-dioxusDriverPort: 4444
-```
-
-**Default:** `4444`
+Reserved for the `'external'` provider, which isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Accepted but currently ignored.
 
 ---
 
 ### `dioxusDriverPath` (string, optional)
 
-Path to the `wdio-dioxus-driver` executable if not in PATH. Only used when `driverProvider: 'external'`.
-
-**Example:**
-```typescript
-dioxusDriverPath: '/usr/local/bin/wdio-dioxus-driver'
-dioxusDriverPath: 'C:\\tools\\wdio-dioxus-driver.exe'
-```
-
-**Default:** Use `wdio-dioxus-driver` from PATH.
+Reserved for the `'external'` provider, which isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Accepted but currently ignored.
 
 ---
 
@@ -171,7 +139,7 @@ Timeout in milliseconds for the Dioxus app to start and become ready.
 startTimeout: 60000  // 60 seconds
 ```
 
-**Default:** `60000` for the `'embedded'` provider; `30000` for `'external'`.
+**Default:** `60000`
 
 ---
 
@@ -465,7 +433,7 @@ export const config = {
 
 ## Platform-Specific Configuration
 
-### Windows (`'embedded'` — recommended)
+### Windows
 
 ```typescript
 services: [
@@ -476,20 +444,7 @@ services: [
 ]
 ```
 
-### Windows (`'external'`)
-
-```typescript
-services: [
-  ['@wdio/dioxus-service', {
-    driverProvider: 'external',
-    autoInstallDioxusDriver: true,
-    autoDownloadEdgeDriver: true,
-    appBinaryPath: './target/debug/my_app.exe',
-  }]
-]
-```
-
-### Linux (embedded only)
+### Linux
 
 ```typescript
 services: [
@@ -500,7 +455,7 @@ services: [
 ]
 ```
 
-### macOS (embedded only)
+### macOS
 
 ```typescript
 services: [

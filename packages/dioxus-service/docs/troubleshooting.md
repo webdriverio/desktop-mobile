@@ -54,72 +54,17 @@ The app was built with `cargo build`. Files loaded with `asset!()` are only bund
 
 ---
 
-## Driver Installation Issues
-
-### "wdio-dioxus-driver not found" (`'external'` provider, Windows)
-
-The service cannot find the wdio-dioxus-driver executable.
-
-**Solution 1: Enable Auto-Installation**
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'external',
-  autoInstallDioxusDriver: true,
-}]]
-```
-
-**Solution 2: Manual Installation**
-
-```bash
-cargo install wdio-dioxus-driver
-```
-
-**Solution 3: Specify Path Manually**
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'external',
-  dioxusDriverPath: '/custom/path/wdio-dioxus-driver',
-}]]
-```
-
-### "MSEdgeDriver not found" (Windows, `'external'` provider)
-
-**Solution 1: Enable Auto-Download**
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'external',
-  autoDownloadEdgeDriver: true,  // Default: true
-}]]
-```
-
-**Solution 2: Manual Download**
-
-1. Check your WebView2 version (right-click your binary → Properties → Details)
-2. Download matching MSEdgeDriver from [Microsoft Edge WebDriver](https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/)
-3. Add to PATH
-
-See [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for detailed setup.
-
----
-
 ## Provider Issues
 
-### "external provider not supported on Linux"
+### "driverProvider: 'external' is not supported"
 
-`'external'` is blocked on Linux in v1 — an upstream Dioxus PR is pending. Use `driverProvider: 'embedded'` instead.
+`'external'` isn't available yet on any platform: the service doesn't start `wdio-dioxus-driver`. Windows support is planned ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)); Linux also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)); macOS can't be supported. Use the default embedded provider:
 
 ```typescript
 services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',  // The only supported option on Linux
+  driverProvider: 'embedded',
 }]]
 ```
-
-### "external provider not supported on macOS"
-
-`'external'` is not supported on macOS. Use `driverProvider: 'embedded'`.
 
 ### "No driverProvider configured" or service fails to start
 

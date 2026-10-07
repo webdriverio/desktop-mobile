@@ -6,9 +6,9 @@ Complete guide to platform-specific requirements, limitations, and driver setup 
 
 | Platform | Supported | Driver Providers | Notes |
 |----------|-----------|-----------------|-------|
-| **Windows** | ✅ Yes | `'embedded'`, `'external'` | `'embedded'` recommended; `'external'` requires wdio-dioxus-driver + msedgedriver |
-| **Linux** | ✅ Yes | `'embedded'` only | `'external'` blocked in v1 — upstream Dioxus PR pending |
-| **macOS** | ✅ Yes | `'embedded'` only | `'external'` not supported |
+| **Windows** | ✅ Yes | `'embedded'` | `'external'` isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) |
+| **Linux** | ✅ Yes | `'embedded'` | `'external'` also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)) |
+| **macOS** | ✅ Yes | `'embedded'` | `'external'` can't be supported |
 
 ## Driver Providers
 
@@ -30,26 +30,13 @@ services: [['@wdio/dioxus-service', {
 }]]
 ```
 
-### `'external'` (Windows Only in v1)
+### `'external'` (Not Available Yet)
 
-The external provider uses `wdio-dioxus-driver` (a fork of `tauri-driver`) + `msedgedriver.exe`.
+The external provider would use `wdio-dioxus-driver` (a fork of `tauri-driver`) + `msedgedriver.exe`. It isn't available yet: the service doesn't start `wdio-dioxus-driver`, so selecting `'external'` fails at startup on every platform.
 
-**Works on:** Windows only in v1
-
-**Not supported on:** Linux (blocked — see below), macOS (never supported)
-
-**Requirements:**
-- `wdio-dioxus-driver` installed via `cargo install wdio-dioxus-driver`
-- `msedgedriver.exe` (auto-managed by the service with `autoDownloadEdgeDriver: true`)
-
-**Configuration:**
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'external',
-  autoInstallDioxusDriver: true,
-  autoDownloadEdgeDriver: true,
-}]]
-```
+- **Windows:** planned ([#713](https://github.com/webdriverio/desktop-mobile/issues/713))
+- **Linux:** also needs an upstream Dioxus change that allows WebKit automation ([#712](https://github.com/webdriverio/desktop-mobile/issues/712))
+- **macOS:** can't be supported; no WebDriver can drive an embedded WKWebView
 
 ## Windows
 
@@ -66,24 +53,7 @@ services: [['@wdio/dioxus-service', {
 
 ### `'external'` Provider
 
-Uses `wdio-dioxus-driver` → `msedgedriver.exe` → Dioxus app via WebView2 automation.
-
-**Setup:**
-
-1. Build a debug binary: `dx build --desktop`
-2. Configure the service:
-   ```typescript
-   services: [['@wdio/dioxus-service', {
-     driverProvider: 'external',
-     autoInstallDioxusDriver: true,
-     autoDownloadEdgeDriver: true,
-     appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe',
-   }]]
-   ```
-
-The service auto-manages `msedgedriver.exe` to match the WebView2 version in your binary.
-
-See [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for detailed setup.
+Not available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)).
 
 ### Windows-Specific Features
 
@@ -98,13 +68,12 @@ See [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for detailed setup.
 - **Visual C++ Build Tools** or Visual Studio
 - **Rust toolchain**
 - **Node.js 18+**
-- For `'external'` provider: wdio-dioxus-driver + msedgedriver (auto-managed)
 
 ## Linux
 
 ### `'embedded'` Provider Only
 
-`'external'` is blocked in v1 due to a missing upstream Dioxus API — the automation toggle that wdio-dioxus-driver needs to pass to Wry has not yet landed in the Dioxus/Wry codebase. This is tracked and will be enabled in v1.1 once the upstream PR merges.
+`'external'` isn't available on Linux. Besides the launcher support missing on every platform ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)), WebKitWebDriver can only drive a WebKit context that allows automation, and Dioxus doesn't let apps allow it yet ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)).
 
 Attempting to set `driverProvider: 'external'` on Linux throws a `SevereServiceError` at startup with an explanatory message.
 
@@ -149,7 +118,7 @@ xvfb-run -a npx wdio run wdio.conf.ts
 - ✅ Screenshot capture
 - ✅ Headless testing with Xvfb
 - ✅ Multiremote testing
-- ❌ `'external'` provider (v1 — v1.1 target)
+- ❌ `'external'` provider ([#712](https://github.com/webdriverio/desktop-mobile/issues/712))
 
 ### Linux Distribution Support
 
@@ -246,12 +215,12 @@ describe('Platform-specific features', () => {
 | Provider | Windows | Linux | macOS |
 |----------|---------|-------|-------|
 | `'embedded'` | ✅ | ✅ | ✅ |
-| `'external'` | ✅ | ❌ (v1.1) | ❌ (never) |
+| `'external'` | ❌ ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) | ❌ ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)) | ❌ (never) |
 
 Use `'embedded'` everywhere for the simplest, most consistent setup.
 
 ## See Also
 
 - [Quick Start](./quick-start.md) for setup instructions
-- [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for Windows `'external'` details
+- [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for the planned Windows `'external'` provider
 - [Troubleshooting](./troubleshooting.md) for common issues

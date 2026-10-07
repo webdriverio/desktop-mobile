@@ -1,6 +1,10 @@
 import { describe, expect, it } from 'vitest';
 
-import { linuxExternalProviderUnsupported, SevereServiceError } from '../src/errors.js';
+import {
+  linuxExternalProviderUnsupported,
+  SevereServiceError,
+  windowsExternalProviderUnsupported,
+} from '../src/errors.js';
 
 describe('errors', () => {
   describe('linuxExternalProviderUnsupported', () => {
@@ -17,8 +21,22 @@ describe('errors', () => {
       expect(linuxExternalProviderUnsupported().message).toContain('upstream Dioxus');
     });
 
-    it('should reference the spike findings document', () => {
-      expect(linuxExternalProviderUnsupported().message).toContain('FINDINGS.md');
+    it('should link the tracking issue', () => {
+      expect(linuxExternalProviderUnsupported().message).toContain('desktop-mobile/issues/712');
+    });
+  });
+
+  describe('windowsExternalProviderUnsupported', () => {
+    it('should return a SevereServiceError instance', () => {
+      expect(windowsExternalProviderUnsupported()).toBeInstanceOf(SevereServiceError);
+    });
+
+    it('should point users at the embedded provider', () => {
+      expect(windowsExternalProviderUnsupported().message).toContain("'embedded'");
+    });
+
+    it('should link the tracking issue', () => {
+      expect(windowsExternalProviderUnsupported().message).toContain('desktop-mobile/issues/713');
     });
   });
 });

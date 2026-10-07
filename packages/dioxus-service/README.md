@@ -11,7 +11,6 @@ Enables cross-platform E2E testing of Dioxus apps via the extensive WebdriverIO 
 ## Features
 
 - 🚗 Embedded WebDriver server — no external driver required on any platform
-- 🔧 Automatic Edge WebDriver management on Windows (`'external'` provider)
 - 📦 Automatic Dioxus binary path detection
 - 🌐 Cross-platform support (Windows, Linux, macOS)
 - 🔗 Full Dioxus API access via `browser.dioxus.execute()`
@@ -76,7 +75,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 - [Browser Mode](./docs/browser-mode.md) - Test the renderer in Chrome without a Dioxus binary
 - [Usage Examples](./docs/usage-examples.md) - Common testing patterns
 - [Log Forwarding](./docs/log-forwarding.md) - Capture app logs
-- [Edge WebDriver (Windows)](./docs/edge-webdriver-windows.md) - Windows `'external'` provider setup
+- [Edge WebDriver (Windows)](./docs/edge-webdriver-windows.md) - For the Windows `'external'` provider, which isn't available yet
 - [Deeplink Testing](./docs/deeplink-testing.md) - Test protocol handlers
 - [Coexistence](./docs/coexistence.md) - Using alongside Tauri and Electron services
 - [Visual Testing](../../docs/visual-testing.md) - Visual regression with `@wdio/visual-service`
@@ -90,15 +89,15 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 
 | Platform | Supported | Driver Providers | Notes |
 |----------|-----------|------------------|-------|
-| **Windows** | ✅ Yes | `'embedded'`, `'external'` | `'embedded'` recommended; `'external'` requires `wdio-dioxus-driver` + msedgedriver |
-| **Linux** | ✅ Yes | `'embedded'` only | `'external'` blocked in v1 (upstream Dioxus PR pending) |
-| **macOS** | ✅ Yes | `'embedded'` only | `'external'` not supported |
+| **Windows** | ✅ Yes | `'embedded'` | `'external'` isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) |
+| **Linux** | ✅ Yes | `'embedded'` | `'external'` also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)) |
+| **macOS** | ✅ Yes | `'embedded'` | `'external'` can't be supported |
 
 See [Platform Support](./docs/platform-support.md) for detailed information.
 
-> **Choosing a driver provider:**
-> - **`'embedded'`** (recommended) — Native support on all three platforms, no external driver needed
-> - **`'external'`** — Windows only in v1; uses `wdio-dioxus-driver` + msedgedriver
+> **Driver providers:**
+> - **`'embedded'`** (the default) — Native support on all three platforms, no external driver needed
+> - **`'external'`** — Not available yet. Selecting it fails at startup on every platform. Windows support via `wdio-dioxus-driver` + msedgedriver is [#713](https://github.com/webdriverio/desktop-mobile/issues/713)
 
 ## Example Projects
 

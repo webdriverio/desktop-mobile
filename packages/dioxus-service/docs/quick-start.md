@@ -24,7 +24,7 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
 
 - **Microsoft Visual C++ Build Tools** - Download from [Microsoft Visual C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
 - The `'embedded'` provider (recommended) requires no additional setup.
-- The `'external'` provider requires `wdio-dioxus-driver` and msedgedriver — see [Edge WebDriver (Windows)](./edge-webdriver-windows.md).
+- The `'external'` provider isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)); use `'embedded'`.
 
 #### Linux
 
@@ -40,7 +40,7 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
   sudo pacman -S webkit2gtk-4.1 gtk3
   ```
 
-The `'embedded'` provider is the only supported provider on Linux in v1. `'external'` is blocked pending an upstream Dioxus PR — see [Platform Support](./platform-support.md).
+Use the `'embedded'` provider. `'external'` isn't available yet and on Linux also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)).
 
 #### macOS
 
@@ -256,18 +256,14 @@ The `appBinaryPath` or `dioxus:options.application` is wrong. Verify:
 2. The path exists: `dx` prints it when the build finishes (see [Building the Dioxus App](#building-the-dioxus-app))
 3. Update the path in `wdio.conf.ts` if needed
 
-### Tests timeout on Windows (`'external'` provider)
+### "driverProvider: 'external' is not supported"
 
-Edge WebDriver version mismatch. See [Edge WebDriver (Windows)](./edge-webdriver-windows.md).
-
-### Linux: "external provider not supported"
-
-`'external'` is blocked on Linux in v1. Use `driverProvider: 'embedded'` instead.
+`'external'` isn't available yet on any platform ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Use `driverProvider: 'embedded'`, the default.
 
 ## Next Steps
 
 1. **Add more tests** - See [Usage Examples](./usage-examples.md) for patterns
-2. **Advanced features** - Read about [Mocking](./api-reference.md#mock-functions) and [Log Forwarding](./log-forwarding.md)
+2. **Advanced features** - Read about [Mocking](./api-reference.md#browserdioxusmockcommand) and [Log Forwarding](./log-forwarding.md)
 3. **Configure the service** - See [Configuration](./configuration.md) for all options
 4. **Debug issues** - Check [Troubleshooting](./troubleshooting.md)
 
