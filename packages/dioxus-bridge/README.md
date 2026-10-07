@@ -77,4 +77,3 @@ The companion npm package `@wdio/dioxus-bridge` ships the guest-js bundle (no `-
 - [App Setup guide](../dioxus-service/docs/app-setup.md) — full integration instructions
 - [`@wdio/dioxus-service`](../dioxus-service/) — the WebdriverIO service
 - [`wdio-dioxus-embedded-driver`](../dioxus-embedded-driver/) — the embedded WebDriver server
-- [v1.0.0 Release Notes](./docs/release-notes/v1.0.0.md)
