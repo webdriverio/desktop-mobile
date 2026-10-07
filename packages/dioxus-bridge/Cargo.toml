@@ -34,5 +34,3 @@ features = [ "sync", "rt-multi-thread", "macros" ]
 
 [features]
 default = []
-# Does nothing. Earlier docs told apps to enable it; it stays so their manifests still resolve.
-with-bridge = []

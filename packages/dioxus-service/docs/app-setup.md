@@ -9,6 +9,8 @@ Your Dioxus app needs one crate, `wdio-dioxus-embedded-driver`, and one call to 
 
 You don't add `wdio-dioxus-bridge` yourself. Calling `wdio_dioxus_bridge::install(config)` on its own sets up the bridge but doesn't start the WebDriver server, so the service can't connect.
 
+The same setup works for both driver providers. With `driverProvider: 'external'` (Windows), the service connects through msedgedriver instead, and the embedded server goes unused.
+
 Dioxus has no plugin system like Tauri's, so there are no plugins to register and no capability permissions to grant. `install()` wires everything into the Dioxus `desktop::Config`, and the bridge talks to the service over its own `wdio://` custom protocol on the webview.
 
 ## What `install()` Provides
@@ -98,7 +100,19 @@ The service's `appBinaryPath` or `dioxus:options.application` should point to th
 
 ### Step 4: Verify
 
-Build should complete without errors. `install()` registers the bridge on the Dioxus `Config` and starts the embedded WebDriver server — no further Rust code is needed.
+Run the debug binary, then check the embedded server from another terminal:
+
+```bash
+curl http://127.0.0.1:4444/status
+```
+
+Once the app's window has loaded, the server reports it's ready:
+
+```json
+{"value":{"message":"wdio-dioxus-embedded-driver is ready","ready":true}}
+```
+
+`"ready": false` ("waiting for webview") means the server is running but the window hasn't registered with the bridge yet. If nothing is listening on the port, the driver isn't installed or this is a release build; see [Troubleshooting](#troubleshooting).
 
 ## What Happens Internally
 

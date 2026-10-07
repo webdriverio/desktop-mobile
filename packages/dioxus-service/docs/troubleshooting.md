@@ -319,6 +319,24 @@ xvfb-run -a npx wdio run wdio.conf.ts
    APP_BINARY="./target/dx/my_app/debug/linux/app/my_app" npm run test:e2e
    ```
 
+### macOS: Commands Stall or Time Out on CI
+
+On a headless macOS runner, WKWebView can suspend the page of a window that isn't visible. The bridge runs its command loop in the page, so commands stall until they time out, usually between specs.
+
+Dioxus doesn't yet let apps turn this off. [DioxusLabs/dioxus#5587](https://github.com/DioxusLabs/dioxus/pull/5587) adds `Config::with_background_throttling`. Until it's released, you can patch `dioxus-desktop` with that change, as this repo's e2e app does (see the `[patch.crates-io]` block in [`fixtures/e2e-apps/dioxus/Cargo.toml`](../../../fixtures/e2e-apps/dioxus/Cargo.toml)), and disable throttling only under automation:
+
+```rust
+#[cfg(debug_assertions)]
+{
+    if wdio_dioxus_embedded_driver::automation::is_requested() {
+        config = config.with_background_throttling(
+            dioxus::desktop::wry::BackgroundThrottlingPolicy::Disabled,
+        );
+    }
+    config = wdio_dioxus_embedded_driver::install(config);
+}
+```
+
 ---
 
 ## Debug Mode

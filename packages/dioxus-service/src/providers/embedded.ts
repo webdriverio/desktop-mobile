@@ -109,12 +109,12 @@ export async function startEmbeddedDriver(
     ...process.env,
     ...options.env,
     [EMBEDDED_PORT_ENV_VAR]: String(port),
-    // Bridge reads this to opt into automation-only behaviour. Currently:
-    // disables WKWebView background throttling on macOS so the WebContent
-    // process running the polling loop doesn't get suspended on a
-    // headless CI runner. The external driver path sets the same env var
-    // in dioxus-driver's webdriver.rs; the embedded path has no external
-    // driver subprocess so we set it here.
+    // Apps check this via `automation::is_requested()` for automation-only
+    // setup, such as disabling WKWebView background throttling on macOS so
+    // the bridge's polling loop isn't suspended on a headless CI runner.
+    // The external driver path sets the same env var in dioxus-driver's
+    // webdriver.rs; the embedded path has no external driver subprocess so
+    // we set it here.
     DIOXUS_WEBVIEW_AUTOMATION: 'true',
   };
 
