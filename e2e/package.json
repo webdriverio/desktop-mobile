@@ -92,7 +92,7 @@
     "appium": "^3.8.0",
     "appium-flutter-driver": "^4.0.0",
     "appium-uiautomator2-driver": "^8.7.0",
-    "appium-xcuitest-driver": "^12.13.3",
+    "appium-xcuitest-driver": "^12.15.0",
     "cross-env": "^10.1.0",
     "p-limit": "^7.3.3",
     "typescript": "^6.0.3",
