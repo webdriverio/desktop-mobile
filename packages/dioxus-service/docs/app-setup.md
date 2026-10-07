@@ -9,7 +9,7 @@ Your Dioxus app needs one crate, `wdio-dioxus-embedded-driver`, and one call to 
 
 You don't add `wdio-dioxus-bridge` yourself. Calling `wdio_dioxus_bridge::install(config)` on its own sets up the bridge but doesn't start the WebDriver server, so the service can't connect.
 
-The same setup works for both driver providers. With `driverProvider: 'external'` (Windows), the service connects through msedgedriver instead, and the embedded server goes unused.
+This is the setup for the embedded provider (`driverProvider: 'embedded'`, the default), the only provider the service starts in v1. Its launcher doesn't start `wdio-dioxus-driver` for `'external'` yet.
 
 Dioxus has no plugin system like Tauri's, so there are no plugins to register and no capability permissions to grant. `install()` wires everything into the Dioxus `desktop::Config`, and the bridge talks to the service over its own `wdio://` custom protocol on the webview.
 
@@ -122,7 +122,7 @@ When `wdio_dioxus_embedded_driver::install(config)` is called:
 2. **Installs the bridge**, which:
    - registers a `wdio://` custom protocol on the webview (`http://wdio.invoke/` on Windows). This protocol is the IPC channel between the WDIO service process and the app's webview.
    - registers built-in commands for log forwarding and window management.
-   - injects the guest-js bundle into the webview. This bundle patches the invoke API for mock interception, sets up console log forwarding, and runs the polling loop that executes WebDriver scripts.
+   - injects the guest-js bundle into the webview. This bundle exposes `window.__WDIO_DIOXUS__.invoke` (which the service patches at session start to intercept mocked commands), sets up console log forwarding, and runs the polling loop that executes WebDriver scripts.
 3. **Starts the embedded WebDriver server** on a background thread, listening on `127.0.0.1` at the port in `WDIO_EMBEDDED_PORT` (default `4444`). `@wdio/dioxus-service` sets this variable when it launches the app; change it with the `embeddedPort` service option.
 
 None of this depends on the environment: every debug build that calls `install()` starts the server, including normal development runs. Use `automation::is_requested()` (below) if you only want it while WDIO is driving the app.
