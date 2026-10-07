@@ -55,7 +55,7 @@ import type { ElectronServiceCapabilities } from '@wdio/electron-service';
 
 ## What's New in v10
 
-For the full list of new features (console log capture, class mocking, deeplink testing, `electronBuilderConfig`, `getElectronBinaryPath()`, and more), see the [v10.0.0 release notes](../release-notes/v10.0.0.md). All new features are additive and require no migration action.
+For the full list of new features (console log capture, class mocking, deeplink testing, `electronBuilderConfig`, `getElectronBinaryPath()`, and more), see the [v10.0.0 release notes](https://github.com/webdriverio/desktop-mobile/releases/tag/wdio-electron-service%40v10.0.0). All new features are additive and require no migration action.
 
 ## Breaking Changes
 

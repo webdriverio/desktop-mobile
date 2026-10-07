@@ -11,7 +11,7 @@ Enables cross-platform E2E testing of Electron apps via the extensive WebdriverI
 
 Spiritual successor to [Spectron](https://github.com/electron-userland/spectron) ([RIP](https://github.com/electron-userland/spectron/issues/1045)).
 
-> **v10 highlights** — the package is now scoped as `@wdio/electron-service`. v10 adds class mocking (`browser.electron.mock('Tray')`), main- and renderer-process console log capture, deeplink testing (`browser.electron.triggerDeeplink()`), an `electronBuilderConfig` option for projects with multiple build configs, and a `mode: 'browser'` option for testing the renderer in plain Chrome against a Vite dev server without an Electron binary. See the [v10.0.0 release notes](./docs/release-notes/v10.0.0.md) for the full list, or the [v9 → v10 migration guide](./docs/migration/v9-to-v10.md) if you're upgrading.
+> **v10 highlights** — the package is now scoped as `@wdio/electron-service`. v10 adds class mocking (`browser.electron.mock('Tray')`), main- and renderer-process console log capture, deeplink testing (`browser.electron.triggerDeeplink()`), an `electronBuilderConfig` option for projects with multiple build configs, and a `mode: 'browser'` option for testing the renderer in plain Chrome against a Vite dev server without an Electron binary. See the [v10.0.0 release notes](https://github.com/webdriverio/desktop-mobile/releases/tag/wdio-electron-service%40v10.0.0) for the full list, or the [v9 → v10 migration guide](./docs/migration/v9-to-v10.md) if you're upgrading.
 
 ### Features
 
@@ -138,7 +138,7 @@ This is because WDIO uses Chrome for Testing to download Chromedriver, which onl
 - **[Common Issues](./docs/common-issues.md)** — known issues and workarounds
 
 ### Migration & Release Notes
-- **[v10.0.0 Release Notes](./docs/release-notes/v10.0.0.md)** — full list of v10 changes
+- **[v10.0.0 Release Notes](https://github.com/webdriverio/desktop-mobile/releases/tag/wdio-electron-service%40v10.0.0)** — full list of v10 changes
 - **[v9 → v10 Migration](./docs/migration/v9-to-v10.md)** — required upgrade actions
 - **[v8 → v9 Migration](./docs/migration/v8-to-v9.md)**
 
