@@ -1,18 +1,9 @@
-//! Automation env-var detection.
+//! Whether the app was launched by `@wdio/dioxus-service`, which sets
+//! `DIOXUS_WEBVIEW_AUTOMATION=true` in the app's environment.
 //!
-//! `@wdio/dioxus-service`'s launcher sets `DIOXUS_WEBVIEW_AUTOMATION=true` on
-//! the spawned driver process (which then propagates to the Dioxus app via
-//! msedgedriver / WebKitWebDriver). The bridge crate reads this at startup
-//! to detect "we're running under test" and to (eventually) flip Wry's
-//! `WebContext::set_allows_automation`.
-//!
-//! **v1 status:** Dioxus's public Config API doesn't expose `WebContext`,
-//! so this function currently only *reports* whether the env var is set
-//! (via the `tracing` crate). Flipping the flag requires an upstream Dioxus
-//! change — webdriverio/desktop-mobile#712. The function exists now so the API surface
-//! is in place; once the upstream PR lands, this module will gain the call
-//! to `WebContext::set_allows_automation(true)` and Linux `'external'`
-//! provider unblocks.
+//! Once Dioxus lets apps allow WebKit automation, this is where the bridge
+//! should turn it on; until then the `'external'` provider can't drive Linux
+//! (webdriverio/desktop-mobile#712).
 
 const ENV_VAR: &str = "DIOXUS_WEBVIEW_AUTOMATION";
 
@@ -24,12 +15,7 @@ pub fn is_requested() -> bool {
 /// Log the current automation env-var state. Called from `crate::install`.
 pub fn report() {
   if is_requested() {
-    tracing::info!(
-      target: "wdio_dioxus_bridge",
-      "{ENV_VAR}=true detected — running under @wdio/dioxus-service. Note: in v1, \
-       this crate cannot flip Wry's automation mode from a third-party hook. See \
-       https://github.com/webdriverio/desktop-mobile/issues/712."
-    );
+    tracing::info!(target: "wdio_dioxus_bridge", "{ENV_VAR}=true: running under @wdio/dioxus-service");
   } else {
     tracing::debug!(target: "wdio_dioxus_bridge", "{ENV_VAR} not set — automation disabled");
   }
@@ -40,16 +26,11 @@ mod tests {
   use super::*;
   use std::sync::Mutex;
 
-  // Cargo runs unit tests in this module *concurrently* by default (one
-  // thread per logical CPU). `std::env::set_var` / `remove_var` mutate the
-  // whole process environment, so without serialisation two tests racing
-  // each other can read stale values. We guard every env-var mutation
-  // with this lock to keep them deterministic.
+  // Tests run in parallel and the environment is process-wide.
   static ENV_LOCK: Mutex<()> = Mutex::new(());
 
-  /// RAII helper: take the env-var lock, set ENV_VAR to the supplied value
-  /// (or remove it when `None`), and ensure it's removed when the guard
-  /// drops so a test failure in the middle never leaks state.
+  /// Holds the lock while ENV_VAR is set (or removed, for `None`), and
+  /// removes it on drop so a failing test doesn't leak it.
   struct EnvGuard {
     _lock: std::sync::MutexGuard<'static, ()>,
   }

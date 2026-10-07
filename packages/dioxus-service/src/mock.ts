@@ -11,9 +11,8 @@
 // `mock.update()` syncs the inner mock's call history back into the outer
 // mock so the test sees up-to-date state.
 //
-// Lean v1: no browser-mode special case (mode: 'browser' lands in PR3) and
-// no wrapperMock destructuring proxy (Tauri's pattern, defer until users
-// ask).
+// There's no wrapperMock destructuring proxy (tauri-service has one); add it
+// if users ask.
 
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';

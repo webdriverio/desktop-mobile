@@ -15,8 +15,7 @@
 //     `return (${script})()` before passing to `browser.execute`, mirroring
 //     the Tauri analogue (packages/tauri-service/src/mock.ts).
 //
-// Multi-window routing + the windowLabel sentinel from Tauri's equivalent
-// are deferred to a Phase 4 multi-window commit.
+// There's no windowLabel option yet: scripts run in the current window.
 
 import type { DioxusAPIs } from '@wdio/native-types';
 

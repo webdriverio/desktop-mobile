@@ -1,17 +1,15 @@
 //! W3C Actions handler (`POST`/`DELETE /session/{id}/actions`).
 //!
-//! Unlike the Tauri driver — which dispatches real OS-level input through a
-//! native platform executor — the Dioxus embedded driver has no native input
-//! path: every command is JavaScript run inside the webview through the bridge
-//! IPC channel. So pointer/key/wheel actions are **synthesized as DOM events**
-//! (`MouseEvent`/`KeyboardEvent`/`WheelEvent`) dispatched on the element under
-//! the resolved coordinates, matching what a real browser produces for input.
+//! The embedded driver has no native input path: every command is JavaScript
+//! run inside the webview through the bridge IPC channel. So pointer/key/wheel
+//! actions are **synthesized as DOM events** (`MouseEvent`/`KeyboardEvent`/
+//! `WheelEvent`) dispatched on the element under the resolved coordinates,
+//! matching what a real browser produces for input.
 //!
 //! Pointer `origin` resolution (`viewport` / `pointer` / element-center via
 //! `getBoundingClientRect`) is handled up front so `element.click(options)` —
 //! which WDIO sends as a `pointerMove` with an element origin and x/y defaulting
-//! to 0 — lands on the element's center rather than viewport `(0, 0)`. This is
-//! the bug that #423 hit on the Tauri side; it is fixed here from the start.
+//! to 0 — lands on the element's center rather than viewport `(0, 0)`.
 
 use std::collections::HashMap;
 use std::sync::Arc;
