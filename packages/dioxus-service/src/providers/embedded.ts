@@ -30,12 +30,14 @@ function sleep(ms: number): Promise<void> {
 async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<void> {
   const statusUrl = `http://127.0.0.1:${port}/status`;
   const deadline = Date.now() + timeoutMs;
+  let serverAnswered = false;
 
   log.info(`Polling embedded WebDriver status at ${statusUrl}…`);
 
   while (Date.now() < deadline) {
     try {
       const response = await fetch(statusUrl, { signal: AbortSignal.timeout(STATUS_TIMEOUT_MS) });
+      serverAnswered = true;
       if (response.ok) {
         const data = (await response.json()) as { value?: { ready?: boolean } };
         if (data?.value?.ready === true) {
@@ -51,12 +53,19 @@ async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<voi
     await sleep(POLL_INTERVAL_MS);
   }
 
+  const notReady = `Embedded WebDriver server did not become ready on port ${port} within ${timeoutMs}ms`;
+  if (serverAnswered) {
+    throw new Error(
+      `${notReady}: it answered, but the app's window never registered with the bridge. ` +
+        `If another process is using port ${port}, set embeddedPort in wdio:dioxusServiceOptions ` +
+        `or the ${EMBEDDED_PORT_ENV_VAR} env var.`,
+    );
+  }
   throw new Error(
-    `Embedded WebDriver server did not become ready on port ${port} within ${timeoutMs}ms. ` +
-      `Ensure wdio_dioxus_embedded_driver::install(config) is called in your app's main.rs ` +
-      `(inside a #[cfg(debug_assertions)] block) and the app was built in debug mode. ` +
-      `To use a different port, set embeddedPort in wdio:dioxusServiceOptions or ` +
-      `the ${EMBEDDED_PORT_ENV_VAR} env var.`,
+    `${notReady}: nothing answered, so the server never started. Check that main.rs calls ` +
+      `wdio_dioxus_embedded_driver::install(config) inside #[cfg(debug_assertions)] ` +
+      `(wdio_dioxus_bridge::install(config) on its own doesn't start the server), and that the app ` +
+      `is a debug build (dx build --desktop, not --release).`,
   );
 }
 
@@ -179,7 +188,8 @@ export async function startEmbeddedDriver(
         new Error(
           `Failed to spawn Dioxus app "${appBinaryPath}": ${err.message}. ` +
             `Ensure the binary exists and is executable. ` +
-            `Build with \`cargo build\` (not --release) for embedded-driver support.`,
+            `Build with \`dx build --desktop\` (not --release); its debug binary is under ` +
+            `\`target/dx/<app>/debug/\`.`,
         ),
       );
     };
