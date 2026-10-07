@@ -52,7 +52,7 @@ const result = await browser.dioxus.execute(
 const href = await browser.dioxus.execute('window.location.href');
 ```
 
-**Note:** Requires `wdio-dioxus-bridge` to be installed. See [Bridge Setup](./plugin-setup.md).
+**Note:** Requires the bridge, which `wdio_dioxus_embedded_driver::install(config)` installs in the app. See [App Setup](./app-setup.md).
 
 ---
 
@@ -491,7 +491,7 @@ if (result.ok) {
 
 ## Notes
 
-- All `browser.dioxus.*` methods require `wdio-dioxus-bridge` to be installed in the Dioxus app. See [Bridge Setup](./plugin-setup.md).
+- All `browser.dioxus.*` methods require the bridge, which `wdio_dioxus_embedded_driver::install(config)` installs in the Dioxus app. See [App Setup](./app-setup.md).
 - Mocking requires the bridge for invoke interception to work.
 - `triggerDeeplink` requires your app to register a custom URL scheme.
 - `emitEvent` is deferred to v1.1.

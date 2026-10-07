@@ -46,11 +46,11 @@ cargo clean
 dx build --desktop
 ```
 
-See [Bridge Setup](./plugin-setup.md) for the complete installation guide.
+See [App Setup](./app-setup.md) for the complete installation guide.
 
 ### Styles or images are missing during tests
 
-The app was built with `cargo build`. Files loaded with `asset!()` are only bundled by `dx`; in a plain `cargo build` binary their paths point at files that don't exist, so they fail to load. Build with `dx build --desktop` and point `appBinaryPath` or `dioxus:options.application` at the `dx` output (see [Bridge Setup](./plugin-setup.md#step-3-build-in-debug-mode) for the path on each platform).
+The app was built with `cargo build`. Files loaded with `asset!()` are only bundled by `dx`; in a plain `cargo build` binary their paths point at files that don't exist, so they fail to load. Build with `dx build --desktop` and point `appBinaryPath` or `dioxus:options.application` at the `dx` output (see [App Setup](./app-setup.md#step-3-build-in-debug-mode) for the path on each platform).
 
 ---
 
@@ -346,7 +346,7 @@ If you're still stuck:
 
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
-3. **See [Bridge Setup](./plugin-setup.md)** for bridge requirements
+3. **See [App Setup](./app-setup.md)** for what the app needs
 4. **Check [Platform Support](./platform-support.md)** for platform-specific issues
 5. **Enable debug logging** to see detailed output
 6. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)

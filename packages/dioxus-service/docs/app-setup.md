@@ -1,31 +1,27 @@
-# Bridge Setup
+# App Setup
 
 ## Overview
 
-The `wdio-dioxus-bridge` is a **required** Rust crate that enables WebdriverIO testing of Dioxus desktop applications. It provides:
+Your Dioxus app needs one crate, `wdio-dioxus-embedded-driver`, and one call to `wdio_dioxus_embedded_driver::install(config)`. That call:
 
-- **Execute API** - Run JavaScript code from tests with access to Dioxus IPC (`invoke`)
-- **Mocking Support** - Mock Dioxus backend commands for isolated testing
-- **Log Forwarding** - Capture console logs from both the frontend webview and Rust backend
-- **Invoke Interception** - Enable mocking without modifying backend command handlers
+- starts the WebDriver server that `@wdio/dioxus-service` connects to, inside your app's process
+- installs `wdio-dioxus-bridge`, which provides the Execute API, mocking, log forwarding and window management
 
-You don't add the bridge directly. `wdio-dioxus-embedded-driver`, which runs the WebDriver server that the service connects to, installs the bridge for you. Calling `wdio_dioxus_bridge::install(config)` on its own registers the bridge but doesn't start the WebDriver server, so the service can't connect.
+You don't add `wdio-dioxus-bridge` yourself. Calling `wdio_dioxus_bridge::install(config)` on its own sets up the bridge but doesn't start the WebDriver server, so the service can't connect.
 
-Unlike Tauri's plugin system, Dioxus has no plugin-trait interface. The bridge is therefore a plain Rust crate (not a plugin) that wires itself into the Dioxus `desktop::Config` via a single `install()` call. It uses a `wdio://` custom protocol registered on the webview to communicate with the WDIO service process.
+Dioxus has no plugin system like Tauri's, so there are no plugins to register and no capability permissions to grant. `install()` wires everything into the Dioxus `desktop::Config`, and the bridge talks to the service over its own `wdio://` custom protocol on the webview.
 
-No capability permission system is involved — the bridge communicates through its own protocol channel, not through Dioxus's IPC machinery.
-
-## What the Bridge Provides
+## What `install()` Provides
 
 | Feature | Available |
 |---------|-----------|
+| Embedded WebDriver server | ✅ Yes |
 | `browser.dioxus.execute()` | ✅ Yes |
 | `browser.dioxus.mock()` and all mock operations | ✅ Yes |
 | `browser.dioxus.listWindows()` / `switchWindow()` | ✅ Yes |
 | Backend log capture (`captureBackendLogs`) | ✅ Yes |
 | Frontend log capture (`captureFrontendLogs`) | ✅ Yes |
-| Embedded WebDriver server | ✅ Yes (via `wdio-dioxus-embedded-driver`) |
-| `browser.dioxus.triggerDeeplink()` | ✅ Yes (platform-level; no bridge needed) |
+| `browser.dioxus.triggerDeeplink()` | ✅ Yes (platform-level; works without `install()`) |
 
 ## Installation
 

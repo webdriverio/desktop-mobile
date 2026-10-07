@@ -33,7 +33,7 @@ fn main() {
 
 Call `install()` last in your `Config` builder chain so later calls don't shadow the bridge's `with_on_window` hook. To register custom commands for `browser.dioxus.execute()`, use `install_with_commands(config, |registry| { ... })` instead.
 
-Build the app with `dx build --desktop` rather than `cargo build`, so the files it loads with `asset!()` are bundled. See the [Bridge Setup guide](../dioxus-service/docs/plugin-setup.md) for the full instructions.
+Build the app with `dx build --desktop` rather than `cargo build`, so the files it loads with `asset!()` are bundled. See the [App Setup guide](../dioxus-service/docs/app-setup.md) for the full instructions.
 
 ## How It Works
 
@@ -80,4 +80,4 @@ WDIO_EMBEDDED_PORT=4445 npx wdio run wdio.conf.ts
 
 - [`wdio-dioxus-bridge`](../dioxus-bridge/) — the IPC bridge this crate installs
 - [`@wdio/dioxus-service`](../dioxus-service/) — the WebdriverIO service
-- [Bridge Setup](../dioxus-service/docs/plugin-setup.md) — how to integrate the driver into your Dioxus app
+- [App Setup](../dioxus-service/docs/app-setup.md) — how to integrate the driver into your Dioxus app

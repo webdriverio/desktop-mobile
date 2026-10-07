@@ -11,28 +11,33 @@
 //!
 //! # Quick start
 //!
-//! Add to `Cargo.toml`:
+//! Apps don't depend on this crate directly. Add
+//! [`wdio-dioxus-embedded-driver`] instead: its `install()` installs this
+//! bridge and starts the WebDriver server that `@wdio/dioxus-service`
+//! connects to. Calling [`install`] from this crate on its own sets up the
+//! bridge but starts no server, so the service can't connect.
+//!
 //! ```toml
-//! [dependencies.wdio-dioxus-bridge]
-//! version = "1"
-//! features = ["with-bridge"]
+//! [dependencies]
+//! wdio-dioxus-embedded-driver = "1"
 //! ```
 //!
-//! Wire into your `main.rs`, guarded for debug builds so the bridge never
-//! ships in release:
+//! Wire it into your `main.rs`, guarded for debug builds so the driver and
+//! bridge never ship in release:
 //!
 //! ```ignore
 //! fn main() {
 //!     let mut config = dioxus::desktop::Config::new();
 //!     #[cfg(debug_assertions)]
 //!     {
-//!         config = wdio_dioxus_bridge::install(config);
+//!         config = wdio_dioxus_embedded_driver::install(config);
 //!     }
 //!     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
 //! }
 //! ```
 //!
 //! [`@wdio/dioxus-service`]: https://www.npmjs.com/package/@wdio/dioxus-service
+//! [`wdio-dioxus-embedded-driver`]: https://docs.rs/wdio-dioxus-embedded-driver
 //!
 //! # Multi-window note
 //!
@@ -41,9 +46,9 @@
 //! callback in an `Option` with no getter, so a subsequent
 //! `config.with_on_window(...)` call by user code would silently replace
 //! the bridge's hook and break multi-window support. **Call
-//! `wdio_dioxus_bridge::install(config)` last in your Config builder
-//! chain**, or invoke [`window_state::register_window`] from your own
-//! on-window callback.
+//! `wdio_dioxus_embedded_driver::install(config)` last in your Config
+//! builder chain**, or invoke [`window_state::register_window`] from your
+//! own on-window callback.
 
 pub mod automation;
 pub mod deeplink;

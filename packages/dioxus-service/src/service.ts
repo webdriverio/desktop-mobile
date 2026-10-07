@@ -180,7 +180,7 @@ export default class DioxusWorkerService {
     } catch (err) {
       log.warn(
         'Failed to inject mock-spy infrastructure; browser.dioxus.mock() calls will fail. ' +
-          'In native mode: is wdio_dioxus_bridge::install() wired into the Dioxus app? Underlying error:',
+          'In native mode: is wdio_dioxus_embedded_driver::install() wired into the Dioxus app? Underlying error:',
         err,
       );
     }

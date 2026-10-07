@@ -43,7 +43,7 @@ fn main() {
 
 > The `#[cfg(debug_assertions)]` guard is intentional — production builds
 > should not ship test plumbing. See
-> `packages/dioxus-service/docs/plugin-setup.md` for the rationale.
+> `packages/dioxus-service/docs/app-setup.md` for the rationale.
 
 ## How It Works
 
@@ -74,7 +74,7 @@ The companion npm package `@wdio/dioxus-bridge` ships the guest-js bundle (no `-
 
 ## See Also
 
-- [Bridge Setup guide](../dioxus-service/docs/plugin-setup.md) — full integration instructions
+- [App Setup guide](../dioxus-service/docs/app-setup.md) — full integration instructions
 - [`@wdio/dioxus-service`](../dioxus-service/) — the WebdriverIO service
 - [`wdio-dioxus-embedded-driver`](../dioxus-embedded-driver/) — the embedded WebDriver server
 - [v1.0.0 Release Notes](./docs/release-notes/v1.0.0.md)

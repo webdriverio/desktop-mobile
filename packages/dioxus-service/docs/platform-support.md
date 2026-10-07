@@ -21,7 +21,7 @@ The embedded WebDriver provider uses `wdio-dioxus-embedded-driver` wired into th
 **Requirements:**
 - `wdio-dioxus-embedded-driver = "1"` in `Cargo.toml`
 - `wdio_dioxus_embedded_driver::install(config)` in `main.rs` inside `#[cfg(debug_assertions)]` (`wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server)
-- Debug build of the app (`dx build --desktop`; see [Bridge Setup](./plugin-setup.md#step-3-build-in-debug-mode) for why not `cargo build`)
+- Debug build of the app (`dx build --desktop`; see [App Setup](./app-setup.md#step-3-build-in-debug-mode) for why not `cargo build`)
 
 **Configuration:**
 ```typescript

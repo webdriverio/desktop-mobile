@@ -65,7 +65,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 
 **Getting Started**
 - [Quick Start Guide](./docs/quick-start.md) - Set up in minutes
-- [Bridge Setup](./docs/plugin-setup.md) - Install wdio-dioxus-embedded-driver in your app
+- [App Setup](./docs/app-setup.md) - Install wdio-dioxus-embedded-driver in your app
 
 **Reference**
 - [Configuration](./docs/configuration.md) - All service options

@@ -93,13 +93,13 @@ fn App() -> Element {
 }
 ```
 
-## Bridge Setup
+## The Embedded Driver
 
 The `wdio-dioxus-embedded-driver` crate is **required** for testing. It runs the WebDriver server that the service connects to, and installs `wdio-dioxus-bridge`, which enables `browser.dioxus.execute()`, mocking, and log capture.
 
 Calling `wdio_dioxus_bridge::install(config)` on its own is not enough: it doesn't start the WebDriver server, so the service can't connect.
 
-The `#[cfg(debug_assertions)]` guard ensures the driver and bridge are compiled out of release builds. See [Bridge Setup](./plugin-setup.md) for the full rationale and setup options.
+The `#[cfg(debug_assertions)]` guard ensures the driver and bridge are compiled out of release builds. See [App Setup](./app-setup.md) for the full rationale and setup options.
 
 ## Building the Dioxus App
 
@@ -365,7 +365,7 @@ jobs:
 
 - [Configuration Reference](./configuration.md)
 - [API Reference](./api-reference.md)
-- [Bridge Setup](./plugin-setup.md)
+- [App Setup](./app-setup.md)
 - [Platform Support](./platform-support.md)
 - [Troubleshooting](./troubleshooting.md)
 - [WebdriverIO Documentation](https://webdriver.io/docs)

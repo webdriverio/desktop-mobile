@@ -372,5 +372,5 @@ it('should persist state across reload', async () => {
 - [API Reference](./api-reference.md) for complete API documentation
 - [Configuration](./configuration.md) for testing setup options
 - [Log Forwarding](./log-forwarding.md) for logging patterns
-- [Bridge Setup](./plugin-setup.md) for bridge configuration
+- [App Setup](./app-setup.md) for setting up the Dioxus app
 - [Troubleshooting](./troubleshooting.md) for common issues
