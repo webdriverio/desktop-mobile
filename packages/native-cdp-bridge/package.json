@@ -49,7 +49,7 @@
     "@vitest/coverage-v8": "^5.0.3",
     "@wdio/bundler": "workspace:*",
     "cross-env": "^10.1.0",
-    "devtools-protocol": "^0.0.1709723",
+    "devtools-protocol": "^0.0.1710668",
     "get-port": "^7.1.0",
     "nock": "^14.0.17",
     "shx": "^0.4.0",
