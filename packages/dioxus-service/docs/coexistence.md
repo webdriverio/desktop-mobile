@@ -43,9 +43,7 @@ your-monorepo/
 ```typescript
 export const config = {
   specs: ['./test/dioxus/**/*.spec.ts'],
-  services: [['@wdio/dioxus-service', {
-    driverProvider: 'embedded',
-  }]],
+  services: ['@wdio/dioxus-service'],
   capabilities: [{
     browserName: 'dioxus',
     'dioxus:options': {
@@ -140,7 +138,7 @@ If you want to run Dioxus and Tauri tests in a single WDIO session (not recommen
 export const config = {
   specs: ['./test/**/*.spec.ts'],
   services: [
-    ['@wdio/dioxus-service', { driverProvider: 'embedded' }],
+    '@wdio/dioxus-service',
     ['@wdio/tauri-service', { driverProvider: 'embedded' }],
   ],
   capabilities: [
@@ -168,7 +166,7 @@ If running multiple services simultaneously, ensure their embedded ports do not 
 
 ```typescript
 services: [
-  ['@wdio/dioxus-service', { driverProvider: 'embedded', embeddedPort: 4445 }],
+  ['@wdio/dioxus-service', { embeddedPort: 4445 }],
   ['@wdio/tauri-service', { driverProvider: 'embedded', embeddedPort: 4450 }],
 ],
 ```

@@ -21,9 +21,9 @@ import type {
  * - `'embedded'` — wdio-dioxus-embedded-driver in-process WebDriver server
  *   (works on all platforms; the default).
  * - `'external'` — wdio-dioxus-driver subprocess. Not implemented yet: the
- *   launcher throws `SevereServiceError` on every platform. Windows support is
- *   webdriverio/desktop-mobile#713; Linux also needs an upstream Dioxus change
- *   (webdriverio/desktop-mobile#712); macOS can't be supported.
+ *   launcher throws `SevereServiceError` on every platform. Windows and Linux
+ *   support is webdriverio/desktop-mobile#713 (Linux also needs an upstream
+ *   Dioxus change); macOS can't be supported.
  */
 export type DioxusDriverProvider = 'external' | 'embedded';
 

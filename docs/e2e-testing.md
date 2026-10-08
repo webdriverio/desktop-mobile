@@ -169,8 +169,6 @@ export const config: Options.Testrunner = {
 | `'embedded'` (default) | ✅ | ✅ | ✅ | Recommended for all platforms |
 | `'external'` | ✅ | ❌ | ❌ (v1.1) | Windows-only in v1; Linux support deferred |
 
-For the `'external'` provider on Windows, see [edge-webdriver-windows.md](../packages/dioxus-service/docs/edge-webdriver-windows.md).
-
 ## Test Modes
 
 ### Single Browser

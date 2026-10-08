@@ -5,7 +5,7 @@ import { getLogDirName } from './lib/utils.js';
 
 // Exit 78 on darwin/linux — 'external' provider not supported on these platforms.
 // macOS: wdio-dioxus-driver doesn't run on macOS.
-// Linux: blocked until Dioxus lets apps allow WebKit automation (webdriverio/desktop-mobile#712).
+// Linux: blocked until Dioxus lets apps allow WebKit automation (webdriverio/desktop-mobile#713).
 if (process.platform === 'darwin' || process.platform === 'linux') {
   console.log('Skipping Dioxus external-provider tests on this platform — use embedded provider');
   process.exit(78);

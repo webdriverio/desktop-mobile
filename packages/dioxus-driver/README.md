@@ -22,10 +22,8 @@ WebDriver intermediary node for [Dioxus](https://dioxuslabs.com/) desktop applic
 | Platform | Status |
 |---|---|
 | Windows | ✅ Supported in v1 |
-| Linux | 🚫 Blocked until Dioxus exposes Wry's automation toggle ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)) |
+| Linux | 🚫 Blocked until Dioxus exposes Wry's automation toggle ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) |
 | macOS | ❌ Not supported (inherits upstream `tauri-driver`'s limitation) |
-
-With `@wdio/dioxus-service`, use the default `driverProvider: 'embedded'` on every platform; see the [service docs](../dioxus-service/).
 
 ## Install
 

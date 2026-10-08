@@ -13,7 +13,7 @@
 //! [WebDriver Remote Ends](https://www.w3.org/TR/webdriver/#dfn-remote-ends) run.
 //!
 //! v1 supports Windows only. Linux requires an upstream Dioxus change exposing
-//! Wry's automation toggle (webdriverio/desktop-mobile#712).
+//! Wry's automation toggle (webdriverio/desktop-mobile#713).
 
 #[cfg(any(target_os = "linux", windows))]
 mod cli;

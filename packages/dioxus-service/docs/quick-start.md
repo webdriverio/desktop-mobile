@@ -23,8 +23,6 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
 #### Windows
 
 - **Microsoft Visual C++ Build Tools** - Download from [Microsoft Visual C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-- The `'embedded'` provider (recommended) requires no additional setup.
-- The `'external'` provider isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)); use `'embedded'`.
 
 #### Linux
 
@@ -40,11 +38,9 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
   sudo pacman -S webkit2gtk-4.1 gtk3
   ```
 
-Use the `'embedded'` provider. `'external'` isn't available yet and on Linux also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)).
-
 #### macOS
 
-✅ **Supported** - Use the embedded WebDriver provider (`driverProvider: 'embedded'`, the default) for native macOS testing without external dependencies. `'external'` is not supported on macOS. See [Platform Support](./platform-support.md) for details.
+✅ **Supported** - No additional setup. See [Platform Support](./platform-support.md) for details.
 
 ## Setting Up a Dioxus App
 
@@ -146,9 +142,7 @@ export const config = {
   specs: ['./test/specs/**/*.spec.ts'],
   maxInstances: 1,
 
-  services: [['@wdio/dioxus-service', {
-    driverProvider: 'embedded',  // Recommended on all platforms
-  }]],
+  services: ['@wdio/dioxus-service'],
 
   capabilities: [{
     browserName: 'dioxus',
@@ -255,10 +249,6 @@ The `appBinaryPath` or `dioxus:options.application` is wrong. Verify:
 1. You built the app: `dx build --desktop`
 2. The path exists: `dx` prints it when the build finishes (see [Building the Dioxus App](#building-the-dioxus-app))
 3. Update the path in `wdio.conf.ts` if needed
-
-### "driverProvider: 'external' is not supported"
-
-`'external'` isn't available yet on any platform ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Use `driverProvider: 'embedded'`, the default.
 
 ## Next Steps
 

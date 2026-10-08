@@ -21,7 +21,7 @@ export function linuxExternalProviderUnsupported(): Error {
       "Use driverProvider: 'embedded' instead (this is the recommended path on " +
       'all platforms). Linux external-provider support needs an upstream ' +
       'Dioxus change that allows WebKit automation — see ' +
-      'https://github.com/webdriverio/desktop-mobile/issues/712.',
+      'https://github.com/webdriverio/desktop-mobile/issues/713.',
   );
 }
 

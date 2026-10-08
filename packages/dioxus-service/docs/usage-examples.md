@@ -303,9 +303,6 @@ const browser = await startWdioSession({
   'dioxus:options': {
     application: './target/debug/my_app',
   },
-  'wdio:dioxusServiceOptions': {
-    driverProvider: 'embedded',
-  },
 });
 
 const heading = await browser.$('h1');

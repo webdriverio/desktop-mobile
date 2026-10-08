@@ -6,7 +6,7 @@ In-process WebDriver server for [Dioxus](https://dioxuslabs.com/) desktop applic
 
 `wdio-dioxus-embedded-driver` is a Rust crate that implements a W3C WebDriver HTTP server that runs **inside your Dioxus application process**. `wdio_dioxus_embedded_driver::install(config)` installs the bridge and starts this server, which listens for WebDriver connections from `@wdio/dioxus-service`.
 
-This is the component that makes the `'embedded'` driver provider work. It means you do not need any external driver process (`wdio-dioxus-driver`, `webkit2gtk-driver`, or `msedgedriver`) — the WebDriver server lives inside the app itself.
+This is the WebDriver server `@wdio/dioxus-service` connects to. It lives inside the app itself, so there's no driver to install.
 
 ## Quick Start
 
@@ -57,8 +57,6 @@ The embedded driver works on all three platforms:
 | Linux    | ✅ |
 | macOS    | ✅ |
 
-This is why `'embedded'` is the recommended driver provider for `@wdio/dioxus-service` — it eliminates platform-specific driver installation on all three OSes.
-
 ## Configuration
 
 Port is controlled via `@wdio/dioxus-service`:
@@ -66,7 +64,6 @@ Port is controlled via `@wdio/dioxus-service`:
 ```typescript
 // wdio.conf.ts
 services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',
   embeddedPort: 4445,  // Optional, defaults to 4444
 }]]
 ```

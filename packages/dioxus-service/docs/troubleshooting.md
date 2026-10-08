@@ -54,30 +54,6 @@ The app was built with `cargo build`. Files loaded with `asset!()` are only bund
 
 ---
 
-## Provider Issues
-
-### "driverProvider: 'external' is not supported"
-
-`'external'` isn't available yet on any platform: the service doesn't start `wdio-dioxus-driver`. Windows support is planned ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)); Linux also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)); macOS can't be supported. Use the default embedded provider:
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',
-}]]
-```
-
-### "No driverProvider configured" or service fails to start
-
-Set `driverProvider` explicitly:
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',  // Recommended everywhere
-}]]
-```
-
----
-
 ## Application Issues
 
 ### "Application not found at path"

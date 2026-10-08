@@ -3,7 +3,7 @@
 //!
 //! Once Dioxus lets apps allow WebKit automation, this is where the bridge
 //! should turn it on; until then the `'external'` provider can't drive Linux
-//! (webdriverio/desktop-mobile#712).
+//! (webdriverio/desktop-mobile#713).
 
 const ENV_VAR: &str = "DIOXUS_WEBVIEW_AUTOMATION";
 

@@ -9,8 +9,6 @@ Your Dioxus app needs one crate, `wdio-dioxus-embedded-driver`, and one call to 
 
 You don't add `wdio-dioxus-bridge` yourself. Calling `wdio_dioxus_bridge::install(config)` on its own sets up the bridge but doesn't start the WebDriver server, so the service can't connect.
 
-This is the setup for the embedded provider (`driverProvider: 'embedded'`, the default), the only provider the service starts in v1. Its launcher doesn't start `wdio-dioxus-driver` for `'external'` yet.
-
 Dioxus has no plugin system like Tauri's, so there are no plugins to register and no capability permissions to grant. `install()` wires everything into the Dioxus `desktop::Config`, and the bridge talks to the service over its own `wdio://` custom protocol on the webview.
 
 ## What `install()` Provides

@@ -99,10 +99,6 @@ Located in `src/providers/embedded.ts`:
 - Polls the embedded WebDriver server `/status` endpoint on startup
 - Each worker gets a unique port (basePort + workerIndex)
 
-### External Driver Provider
-
-Not implemented: `onPrepare` throws `SevereServiceError` for `'external'` on every platform. Windows support is [#713](https://github.com/webdriverio/desktop-mobile/issues/713); Linux also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)). `e2e/wdio.dioxus.conf.ts` holds an external-provider config that CI doesn't run.
-
 ### Bridge Communication
 
 `wdio-dioxus-bridge` provides:
@@ -113,18 +109,11 @@ Not implemented: `onPrepare` throws `SevereServiceError` for `'external'` on eve
 
 ### Cross-Platform Support
 
-| Platform | Provider | Status |
-|----------|----------|--------|
-| Windows | `embedded` | Supported |
-| Windows | `external` | Not implemented ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) |
-| Linux | `embedded` | Supported |
-| Linux | `external` | Not implemented; also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)) |
-| macOS | `embedded` | Supported |
-| macOS | `external` | Not supported |
-
-## Linux `'external'` Blocker
-
-WebKitWebDriver can only drive a WebKit context that allows automation. Wry exposes `WebContext::set_allows_automation`, but `dioxus-desktop` builds its own `WebContext` and doesn't let apps set it, so `'external'` can't work on Linux until Dioxus does ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)).
+| Platform | Status |
+|----------|--------|
+| Windows | Supported |
+| Linux | Supported |
+| macOS | Supported |
 
 ## Common Tasks
 

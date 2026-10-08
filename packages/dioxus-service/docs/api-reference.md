@@ -447,15 +447,10 @@ interface DioxusCapabilities extends WebdriverIO.Capabilities {
 interface DioxusServiceOptions {
   mode?: 'native' | 'browser';
   devServerUrl?: string;
-  driverProvider?: 'external' | 'embedded'; // 'external' isn't available yet
-  dioxusDriverPort?: number; // reserved for 'external'
-  dioxusDriverPath?: string; // reserved for 'external'
   embeddedPort?: number;
   appBinaryPath?: string;
   appArgs?: string[];
   env?: Record<string, string>;
-  autoInstallDioxusDriver?: boolean; // reserved for 'external'
-  autoDownloadEdgeDriver?: boolean; // reserved for 'external'
   windowLabel?: string;
   captureBackendLogs?: boolean;
   captureFrontendLogs?: boolean;

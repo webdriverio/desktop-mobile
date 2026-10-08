@@ -11,7 +11,6 @@ export const config = {
   services: [
     ['@wdio/dioxus-service', {
       // Service options go here
-      driverProvider: 'embedded',
       captureBackendLogs: true,
       captureFrontendLogs: true,
     }]
@@ -21,30 +20,6 @@ export const config = {
 ```
 
 ## Service Options
-
-### `driverProvider` ('external' | 'embedded', optional)
-
-Select which driver provider to use for WebDriver communication.
-
-- `'embedded'`: Use the embedded WebDriver server wired in via `wdio_dioxus_embedded_driver::install()`. No external driver needed. Works on all three platforms.
-- `'external'`: Not available yet; selecting it fails at startup on every platform. Windows support through `wdio-dioxus-driver` + msedgedriver is [#713](https://github.com/webdriverio/desktop-mobile/issues/713); Linux also needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)); macOS can't be supported.
-
-**Platform × Provider matrix:**
-
-| Platform | `'embedded'` | `'external'` |
-|----------|-------------|-------------|
-| Windows  | ✅ Yes      | ❌ Not available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) |
-| Linux    | ✅ Yes      | ❌ Needs an upstream Dioxus change ([#712](https://github.com/webdriverio/desktop-mobile/issues/712)) |
-| macOS    | ✅ Yes      | ❌ Not supported |
-
-**Default:** `'embedded'`
-
-**Example:**
-```typescript
-driverProvider: 'embedded'
-```
-
----
 
 ### `appBinaryPath` (string, optional)
 
@@ -76,33 +51,9 @@ appArgs: ['--window-size=1920,1080']
 
 ---
 
-### `autoInstallDioxusDriver` (boolean, optional)
-
-Reserved for the `'external'` provider, which isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Accepted but currently ignored.
-
----
-
-### `autoDownloadEdgeDriver` (boolean, optional)
-
-Reserved for the `'external'` provider, which isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Accepted but currently ignored.
-
----
-
-### `dioxusDriverPort` (number, optional)
-
-Reserved for the `'external'` provider, which isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Accepted but currently ignored.
-
----
-
-### `dioxusDriverPath` (string, optional)
-
-Reserved for the `'external'` provider, which isn't available yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)). Accepted but currently ignored.
-
----
-
 ### `embeddedPort` (number, optional)
 
-Port for the embedded WebDriver server. Only used when `driverProvider: 'embedded'`.
+Port for the embedded WebDriver server.
 
 Each worker instance gets a unique port (basePort + workerIndex).
 
@@ -125,8 +76,6 @@ statusPollTimeout: 5000
 ```
 
 **Default:** `2000`
-
-**Note:** Only applies when `driverProvider: 'embedded'`.
 
 ---
 
@@ -391,7 +340,6 @@ export const config = {
 
   services: [
     ['@wdio/dioxus-service', {
-      driverProvider: 'embedded',
       appBinaryPath: './target/debug/my_app',
       appArgs: [],
       embeddedPort: 4445,
@@ -433,38 +381,7 @@ export const config = {
 
 ## Platform-Specific Configuration
 
-### Windows
-
-```typescript
-services: [
-  ['@wdio/dioxus-service', {
-    driverProvider: 'embedded',
-    appBinaryPath: './target/debug/my_app.exe',
-  }]
-]
-```
-
-### Linux
-
-```typescript
-services: [
-  ['@wdio/dioxus-service', {
-    driverProvider: 'embedded',  // Only supported option on Linux
-    appBinaryPath: './target/debug/my_app',
-  }]
-]
-```
-
-### macOS
-
-```typescript
-services: [
-  ['@wdio/dioxus-service', {
-    driverProvider: 'embedded',  // Only supported option on macOS
-    appBinaryPath: './target/debug/my_app',
-  }]
-]
-```
+The configuration is the same on every platform; only the binary path differs. See [Finding Your Binary Path](#finding-your-binary-path).
 
 ## Finding Your Binary Path
 

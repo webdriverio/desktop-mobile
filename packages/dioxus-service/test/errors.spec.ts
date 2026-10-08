@@ -22,7 +22,7 @@ describe('errors', () => {
     });
 
     it('should link the tracking issue', () => {
-      expect(linuxExternalProviderUnsupported().message).toContain('desktop-mobile/issues/712');
+      expect(linuxExternalProviderUnsupported().message).toContain('desktop-mobile/issues/713');
     });
   });
 
