@@ -13,7 +13,8 @@
           "@wdio/dioxus-service",
           "@wdio/dioxus-bridge",
           "wdio-dioxus-embedded-driver",
-          "wdio-dioxus-driver"
+          "wdio-dioxus-driver",
+          "wdio-dioxus"
         ],
         "sync": "independent"
       },
@@ -71,7 +72,7 @@
       "scope:native-cdp-bridge": "@wdio/native-cdp-bridge",
       "scope:native-mobile-core": "@wdio/native-mobile-core",
       "scope:tauri": "@wdio/tauri-*,tauri-plugin-wdio*",
-      "scope:dioxus": "@wdio/dioxus-*,wdio-dioxus-*",
+      "scope:dioxus": "@wdio/dioxus-*,wdio-dioxus,wdio-dioxus-*",
       "scope:electron": "@wdio/electron-*",
       "scope:electrobun": "@wdio/electrobun-*",
       "scope:react-native": "@wdio/react-native-*",
@@ -173,7 +174,8 @@
         "@wdio/native-core",
         "wdio-dioxus-bridge",
         "wdio-dioxus-embedded-driver",
-        "wdio-dioxus-driver"
+        "wdio-dioxus-driver",
+        "wdio-dioxus"
       ]
     }
   }

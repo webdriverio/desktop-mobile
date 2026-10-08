@@ -35,6 +35,7 @@ jobs:
               packages/tauri-plugin-webdriver
               packages/dioxus-bridge
               packages/dioxus-embedded-driver
+              packages/dioxus-wdio
               packages/dioxus-driver
           - label: macOS
             os: macos-latest

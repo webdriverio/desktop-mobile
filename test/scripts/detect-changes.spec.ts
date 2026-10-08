@@ -48,6 +48,7 @@ describe('classifyFile', () => {
     ['packages/tauri-plugin-webdriver/Cargo.toml', 'tauri'],
     ['packages/dioxus-bridge/src/lib.rs', 'dioxus'],
     ['packages/dioxus-embedded-driver/src/lib.rs', 'dioxus'],
+    ['packages/dioxus-wdio/src/lib.rs', 'dioxus'],
     ['packages/native-utils/src/teardown.ts', 'shared'],
     ['packages/native-core/src/index.ts', 'shared'],
     ['packages/native-mobile-core/src/launcher.ts', 'shared'],

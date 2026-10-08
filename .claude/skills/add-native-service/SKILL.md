@@ -58,7 +58,7 @@ Resolves to a point on two axes (plus a plumbing sub-axis).
 | | Description | Reference |
 |---|---|---|
 | **external** | A driver subprocess proxies WebDriver to the platform webview driver (`msedgedriver` / `webkit2gtk-driver`). Driver is a fork of `tauri-driver`. **Not available on macOS** for any Wry service. | Tauri (Linux/Windows), Dioxus (Windows only) |
-| **embedded** | An in-process W3C WebDriver HTTP server compiled into the app. No external driver to install — works on all 3 OSes. Delivered as a **plugin the app registers** (Tauri → `tauri-plugin-wdio-webdriver`) or a **crate wired via the bridge** (Dioxus → `wdio-dioxus-embedded-driver`). | Tauri + Dioxus (Dioxus default) |
+| **embedded** | An in-process W3C WebDriver HTTP server compiled into the app. No external driver to install — works on all 3 OSes. Delivered as a **plugin the app registers** (Tauri → `tauri-plugin-wdio-webdriver`) or a **crate behind the app-side crate's `install()`** (Dioxus → `wdio-dioxus-embedded-driver`, started by `wdio-dioxus`). | Tauri + Dioxus (Dioxus default) |
 
 **Both shipped Wry services support both providers** (Tauri also offers a CrabNebula provider). Pick `'embedded'` as the default if you can — it removes per-OS driver installation. How the embedded server is delivered follows Axis 2b: a plugin where the framework has a plugin system, a bridge-wired crate where it doesn't.
 
@@ -401,6 +401,7 @@ Don't introduce a new per-framework gradient or container style — pick `.conta
 | npm bridge JS bundle | `@wdio/<framework>-bridge` (no `-js`) | `@wdio/dioxus-bridge` | Wry/bridge |
 | Rust bridge crate | `wdio-<framework>-bridge` | `wdio-dioxus-bridge` | Wry/bridge |
 | Rust driver crate (external) | `wdio-<framework>-driver` (NOT `<framework>-driver`) | `wdio-dioxus-driver` | Wry/external |
+| Rust app-side crate (bridge route) | `wdio-<framework>` | `wdio-dioxus` | Wry, no plugin system |
 | Rust embedded server (bridge route) | `wdio-<framework>-embedded-driver` | `wdio-dioxus-embedded-driver` | Wry/embedded, no plugin system |
 | Rust embedded server (plugin route) | `<framework>-plugin-wdio-webdriver`-style | `tauri-plugin-wdio-webdriver` | Wry/embedded, has plugin system |
 
@@ -484,7 +485,7 @@ The 6-PR split, mirroring the tables above:
 
 - **CDP** — `packages/electron-service/` + the shared `packages/native-cdp-bridge/`. The reference for any new CDP-based service.
 - **Wry / plugin system** — `packages/tauri-service/` + `packages/tauri-plugin/` (execute/mock) + `packages/tauri-plugin-webdriver/` (`tauri-plugin-wdio-webdriver`, embedded server). Mature; all providers (external, embedded, CrabNebula), multiremote, browser mode. The reference for the **plugin-route embedded provider**.
-- **Wry / no plugin system (bridge)** — `packages/dioxus-service/` + `dioxus-bridge` / `dioxus-embedded-driver` / `dioxus-driver`. The reference for the **bridge-route embedded provider** and for frameworks without a plugin system.
+- **Wry / no plugin system (bridge)** — `packages/dioxus-service/` + `dioxus-wdio` / `dioxus-bridge` / `dioxus-embedded-driver` / `dioxus-driver`. The reference for the **bridge-route embedded provider** and for frameworks without a plugin system.
 - **Mobile / Appium** — `packages/react-native-service/` + `e2e/wdio.react-native.conf.ts` + the two `.github/workflows/_ci-e2e-react-native*.reusable.yml`. The reference for any Appium-driven mobile service; the worked example of the **Hermes-CDP Tier-1** JS-realm sub-axis (caps mutation, device pool, contexts, `mobile: deepLink`, dual-arch E2E). Types: `packages/native-types/src/react-native.ts`.
 - **Plan files** — `~/.claude/plans/<plan>.md`. Start every service with a plan capturing Strategy, Package layout, Phasing, Risks, Open decisions.
 - **Spike findings** — `spike/FINDINGS.md`.

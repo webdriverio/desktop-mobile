@@ -59,6 +59,7 @@ const ARTEFACTS: Artefact[] = [
     // order so the real publish succeeds.
     tolerate: 'no matching package named `wdio-dioxus-bridge` found',
   },
+  { name: 'wdio-dioxus', kind: 'crate', packagePath: 'packages/dioxus-wdio', scope: 'dioxus' },
 ];
 
 type Outcome = 'pass' | 'expected-fail' | 'fail';

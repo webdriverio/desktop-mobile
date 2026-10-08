@@ -40,6 +40,7 @@ packages/
 ├── flutter-service/        # Flutter WDIO service (Android + iOS via appium-flutter-driver + Dart VM Service)
 ├── native-mobile-core/     # Shared Appium-mobile layer (DeviceManager, MobileBaseLauncher, session/caps/deeplink/contexts/logs) — RN + Flutter
 ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
+├── dioxus-wdio/            # Dioxus app-side crate (Rust, wdio-dioxus) — the one crate apps add; installs the bridge + embedded driver
 ├── dioxus-bridge/          # Dioxus bridge crate (Rust) — IPC, mocking, log forwarding
 ├── dioxus-embedded-driver/ # Dioxus in-process WebDriver server (Rust)
 ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows 'external' provider)

@@ -129,6 +129,7 @@ desktop-mobile/
 │   ├── tauri-service/          # Tauri WDIO service
 │   ├── dioxus-service/         # Dioxus WDIO service
 │   ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
+│   ├── dioxus-wdio/            # Dioxus app-side crate (Rust, wdio-dioxus)
 │   ├── dioxus-bridge/          # Dioxus bridge crate (Rust)
 │   ├── dioxus-embedded-driver/ # Dioxus embedded WebDriver server (Rust)
 │   ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows)
