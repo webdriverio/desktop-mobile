@@ -12,14 +12,9 @@
 //! }
 //! ```
 //!
-//! [`install`] does nothing unless the service launched the app. The service's
-//! `driverProvider` decides the rest, so switching provider doesn't change the
-//! app:
-//!
-//! - `'embedded'`: installs [`wdio-dioxus-bridge`] and starts the in-app
-//!   WebDriver server from [`wdio-dioxus-embedded-driver`].
-//! - `'external'`: installs the bridge only; `wdio-dioxus-driver` and the
-//!   platform's WebDriver drive the app from outside.
+//! [`install`] does nothing unless the service launched the app. When it did,
+//! it installs [`wdio-dioxus-bridge`] and starts the in-app WebDriver server
+//! from [`wdio-dioxus-embedded-driver`].
 //!
 //! [`@wdio/dioxus-service`]: https://www.npmjs.com/package/@wdio/dioxus-service
 //! [`wdio-dioxus-bridge`]: https://docs.rs/wdio-dioxus-bridge
@@ -29,9 +24,9 @@ use dioxus_desktop::Config;
 
 pub use wdio_dioxus_bridge::{automation, deeplink, window_state, CommandRegistry};
 
-/// Set by `@wdio/dioxus-service` only when it launches the app for the
-/// embedded provider.
-const EMBEDDED_PORT_ENV_VAR: &str = "WDIO_EMBEDDED_PORT";
+/// Set to `external` by `wdio-dioxus-driver`, which drives the app from
+/// outside, so the app needs the bridge but not its own WebDriver server.
+const PROVIDER_ENV_VAR: &str = "WDIO_DIOXUS_PROVIDER";
 
 /// Installs WDIO support into a Dioxus [`Config`]. Does nothing unless
 /// `@wdio/dioxus-service` launched the app.
@@ -53,8 +48,8 @@ pub fn install(config: Config) -> Config {
 /// ```
 #[must_use]
 pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, register: F) -> Config {
-  let embedded_port_set = std::env::var_os(EMBEDDED_PORT_ENV_VAR).is_some();
-  match mode(automation::is_requested(), embedded_port_set) {
+  let external_provider = std::env::var(PROVIDER_ENV_VAR).is_ok_and(|provider| provider == "external");
+  match mode(automation::is_requested(), external_provider) {
     Mode::Off => config,
     Mode::Embedded => install_embedded(config, register),
     Mode::BridgeOnly => install_bridge(config, register),
@@ -68,11 +63,11 @@ enum Mode {
   BridgeOnly,
 }
 
-fn mode(automation_requested: bool, embedded_port_set: bool) -> Mode {
-  match (automation_requested, embedded_port_set) {
+fn mode(automation_requested: bool, external_provider: bool) -> Mode {
+  match (automation_requested, external_provider) {
     (false, _) => Mode::Off,
-    (true, true) => Mode::Embedded,
-    (true, false) => Mode::BridgeOnly,
+    (true, false) => Mode::Embedded,
+    (true, true) => Mode::BridgeOnly,
   }
 }
 
@@ -83,11 +78,6 @@ fn install_embedded<F: FnOnce(&CommandRegistry)>(config: Config, register: F) ->
 
 #[cfg(not(feature = "embedded"))]
 fn install_embedded<F: FnOnce(&CommandRegistry)>(config: Config, register: F) -> Config {
-  tracing::warn!(
-    target: "wdio_dioxus",
-    "{EMBEDDED_PORT_ENV_VAR} is set, but wdio-dioxus was built without its `embedded` feature, \
-     so the embedded WebDriver server isn't started"
-  );
   install_bridge(config, register)
 }
 
@@ -108,18 +98,12 @@ mod tests {
   }
 
   #[test]
-  fn should_start_the_embedded_server_when_the_service_sets_a_port() {
-    assert_eq!(mode(true, true), Mode::Embedded);
+  fn should_start_the_embedded_server_by_default() {
+    assert_eq!(mode(true, false), Mode::Embedded);
   }
 
   #[test]
-  fn should_install_only_the_bridge_without_a_port() {
-    assert_eq!(mode(true, false), Mode::BridgeOnly);
-  }
-
-  #[cfg(feature = "embedded")]
-  #[test]
-  fn should_read_the_same_port_variable_as_the_embedded_driver() {
-    assert_eq!(EMBEDDED_PORT_ENV_VAR, wdio_dioxus_embedded_driver::PORT_ENV_VAR);
+  fn should_install_only_the_bridge_for_the_external_provider() {
+    assert_eq!(mode(true, true), Mode::BridgeOnly);
   }
 }

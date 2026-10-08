@@ -28,14 +28,7 @@ See the [App Setup guide](https://github.com/webdriverio/desktop-mobile/blob/mai
 
 ## What `install()` Does
 
-`install()` does nothing unless `@wdio/dioxus-service` launched the app. The service's `driverProvider` decides the rest, so switching provider doesn't change your app:
-
-| `driverProvider` | `install()` |
-|---|---|
-| `'embedded'` (default) | Installs the bridge and starts the in-app WebDriver server |
-| `'external'` | Installs the bridge only; `wdio-dioxus-driver` drives the app from outside. Not available in the service yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) |
-
-The bridge provides `browser.dioxus.execute()`, mocking, log forwarding and window management.
+`install()` does nothing unless `@wdio/dioxus-service` launched the app. When it did, `install()` starts the in-app WebDriver server the service connects to, and installs the bridge, which provides `browser.dioxus.execute()`, mocking, log forwarding and window management.
 
 ## Custom Commands
 
@@ -46,9 +39,3 @@ config = wdio_dioxus::install_with_commands(config, |registry| {
 ```
 
 Tests call them with `browser.dioxus.execute(({ invoke }) => invoke('get_version'))`.
-
-## Features
-
-| Feature | Default | |
-|---|---|---|
-| `embedded` | ✅ | The in-app WebDriver server. Without it, the app can only be driven by the `'external'` provider. |

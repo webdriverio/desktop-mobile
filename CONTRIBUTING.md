@@ -411,14 +411,14 @@ See ReleaseKit's [versioning docs](https://github.com/goosewobbler/releasekit/bl
 
 GitHub release notes are published per **user-installed** package — not per internal dependency. Packages that users only consume transitively are versioned and tagged but skipped from release notes (configured via `publish.githubRelease.skipPackages` in `releasekit.config.json`).
 
-| Framework | Packages with release notes | Skipped (internal only) |
+| Framework | Packages with release notes | Skipped |
 |-----------|-----------------------------|-------------------------|
 | Electron  | `@wdio/electron-service` | `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-core` |
 | Tauri     | `@wdio/tauri-service`, `tauri-plugin`, `tauri-plugin-webdriver` | — |
 | Dioxus    | `@wdio/dioxus-service` | `wdio-dioxus`, `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver` |
 | Electrobun | `@wdio/electrobun-service` | `@wdio/native-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types` |
 
-Tauri publishes three sets of release notes because `tauri-plugin` and `tauri-plugin-webdriver` are installed and configured directly by users in their Tauri app (Cargo dependency, capability/permission setup), so their breaking changes need their own changelog entries. Electron's and Dioxus's internal packages have no equivalent direct-install surface — users only wire in the bridge crate once and changes are transparent thereafter.
+Tauri publishes three sets of release notes because `tauri-plugin` and `tauri-plugin-webdriver` are installed and configured directly by users in their Tauri app (Cargo dependency, capability/permission setup), so their breaking changes need their own changelog entries. Electron's internal packages have no equivalent direct-install surface. Dioxus apps add one crate, `wdio-dioxus`, but it's tied to the service: it's released alongside `@wdio/dioxus-service`, and its changes go in the service's release notes.
 
 ## Getting Help
 

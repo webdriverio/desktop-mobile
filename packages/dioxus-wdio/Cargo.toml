@@ -21,7 +21,6 @@ embedded = [ "dep:wdio-dioxus-embedded-driver" ]
 
 [dependencies]
 dioxus-desktop = "0.7"
-tracing = "0.1"
 
 [dependencies.wdio-dioxus-bridge]
 path = "../dioxus-bridge"

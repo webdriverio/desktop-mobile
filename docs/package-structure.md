@@ -79,7 +79,7 @@ packages/dioxus-bridge/
 
 packages/dioxus-wdio/
 ├── src/
-│   └── lib.rs                        # install(): bridge, plus the embedded driver when the service sets a port
+│   └── lib.rs                        # install(): bridge + embedded driver (bridge only under wdio-dioxus-driver)
 ├── Cargo.toml
 └── README.md
 

@@ -25,7 +25,7 @@ External is **not available on macOS** for Wry today, and on Linux depends on th
 **Two delivery routes, mirroring the in-app plumbing axis (below):**
 
 - **Plugin route (Tauri)** — `tauri-plugin-wdio-webdriver` (`packages/tauri-plugin-webdriver/`, a *second* crate alongside the execute/mock plugin `tauri-plugin-wdio`). The app registers it explicitly: `tauri_plugin_wdio_webdriver::init()` in `lib.rs`. If the server doesn't come up, the service error tells the user to register the plugin or fall back to `driverProvider: 'external'`.
-- **Bridge route (Dioxus)** — `wdio-dioxus-embedded-driver`, a standalone crate that depends on the bridge crate (`wdio-<framework>-bridge = { path = "../<framework>-bridge" }`). Apps don't add it directly: they add the app-side crate `wdio-dioxus` (`packages/dioxus-wdio/`) and call its `install()`, which installs the bridge and starts the embedded server only when the service sets the port variable. Without the port it installs the bridge alone, for the external provider, so switching provider doesn't change the app.
+- **Bridge route (Dioxus)** — `wdio-dioxus-embedded-driver`, a standalone crate that depends on the bridge crate (`wdio-<framework>-bridge = { path = "../<framework>-bridge" }`). Apps don't add it directly: they add the app-side crate `wdio-dioxus` (`packages/dioxus-wdio/`) and call its `install()`, which installs the bridge and starts the embedded server when the service launched the app. When `wdio-dioxus-driver` launched it instead, the driver sets `WDIO_DIOXUS_PROVIDER=external` and `install()` installs the bridge alone, so switching provider doesn't change the app.
 
 Structure (mirror `packages/dioxus-embedded-driver/`):
 
