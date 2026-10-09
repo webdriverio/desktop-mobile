@@ -15,8 +15,7 @@
 //     `return (${script})()` before passing to `browser.execute`, mirroring
 //     the Tauri analogue (packages/tauri-service/src/mock.ts).
 //
-// Multi-window routing + the windowLabel sentinel from Tauri's equivalent
-// are deferred to a Phase 4 multi-window commit.
+// No per-call windowLabel option yet (#722): scripts run in the current window.
 
 import type { DioxusAPIs } from '@wdio/native-types';
 
@@ -79,7 +78,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
       if (!dx || typeof dx.invoke !== 'function') {
         throw new Error(
           '[wdio-dioxus-service] window.__WDIO_DIOXUS__.invoke is not installed. ' +
-          'Did you forget to call wdio_dioxus_bridge::install(config) in your Dioxus main.rs?'
+          'Did you forget to call wdio_dioxus_embedded_driver::install(config) in your Dioxus main.rs?'
         );
       }
       return new Promise(function (resolve, reject) {

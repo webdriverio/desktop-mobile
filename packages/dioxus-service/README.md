@@ -10,8 +10,7 @@ Enables cross-platform E2E testing of Dioxus apps via the extensive WebdriverIO 
 
 ## Features
 
-- 🚗 Embedded WebDriver server — no external driver required on any platform
-- 🔧 Automatic Edge WebDriver management on Windows (`'external'` provider)
+- 🚗 WebDriver server built into your app — no separate driver to install on any platform
 - 📦 Automatic Dioxus binary path detection
 - 🌐 Cross-platform support (Windows, Linux, macOS)
 - 🔗 Full Dioxus API access via `browser.dioxus.execute()`
@@ -51,7 +50,8 @@ export const config = {
     {
       browserName: 'dioxus',
       'dioxus:options': {
-        application: './target/debug/my-app'
+        // Debug build from `dx build --desktop` (Linux path; see the Quick Start for macOS and Windows)
+        application: './target/dx/my-app/debug/linux/app/my-app'
       }
     }
   ]
@@ -64,7 +64,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 
 **Getting Started**
 - [Quick Start Guide](./docs/quick-start.md) - Set up in minutes
-- [Bridge Setup](./docs/plugin-setup.md) - Install wdio-dioxus-bridge
+- [App Setup](./docs/app-setup.md) - Install wdio-dioxus-embedded-driver in your app
 
 **Reference**
 - [Configuration](./docs/configuration.md) - All service options
@@ -75,11 +75,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 - [Browser Mode](./docs/browser-mode.md) - Test the renderer in Chrome without a Dioxus binary
 - [Usage Examples](./docs/usage-examples.md) - Common testing patterns
 - [Log Forwarding](./docs/log-forwarding.md) - Capture app logs
-- [Edge WebDriver (Windows)](./docs/edge-webdriver-windows.md) - Windows `'external'` provider setup
 - [Deeplink Testing](./docs/deeplink-testing.md) - Test protocol handlers
-- [Coexistence](./docs/coexistence.md) - Using alongside Tauri and Electron services
-- [Visual Testing](../../docs/visual-testing.md) - Visual regression with `@wdio/visual-service`
-- [Video Recording](../../docs/video-recording.md) - Record video of test runs with `wdio-video-reporter`
 
 **Help & Support**
 - [Troubleshooting](./docs/troubleshooting.md) - Common issues and solutions
@@ -87,17 +83,13 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 
 ## Platform Support
 
-| Platform | Supported | Driver Providers | Notes |
-|----------|-----------|------------------|-------|
-| **Windows** | ✅ Yes | `'embedded'`, `'external'` | `'embedded'` recommended; `'external'` requires `wdio-dioxus-driver` + msedgedriver |
-| **Linux** | ✅ Yes | `'embedded'` only | `'external'` blocked in v1 (upstream Dioxus PR pending) |
-| **macOS** | ✅ Yes | `'embedded'` only | `'external'` not supported |
+| Platform | Supported |
+|----------|-----------|
+| **Windows** | ✅ Yes |
+| **Linux** | ✅ Yes |
+| **macOS** | ✅ Yes |
 
-See [Platform Support](./docs/platform-support.md) for detailed information.
-
-> **Choosing a driver provider:**
-> - **`'embedded'`** (recommended) — Native support on all three platforms, no external driver needed
-> - **`'external'`** — Windows only in v1; uses `wdio-dioxus-driver` + msedgedriver
+The WebDriver server runs inside your app on every platform, so there's no driver to install. See [Platform Support](./docs/platform-support.md) for detailed information.
 
 ## Example Projects
 

@@ -18,13 +18,12 @@ import type {
 /**
  * Dioxus driver provider.
  *
- * - `'external'` — wdio-dioxus-driver subprocess (Windows only in v1; Linux
- *   blocked pending an upstream Dioxus PR per spike/FINDINGS.md).
  * - `'embedded'` — wdio-dioxus-embedded-driver in-process WebDriver server
- *   (works on all platforms; recommended default).
- *
- * Per Phase -1 spike findings, the launcher throws `SevereServiceError` on
- * Linux when `'external'` is selected.
+ *   (works on all platforms; the default).
+ * - `'external'` — wdio-dioxus-driver subprocess. Not implemented yet: the
+ *   launcher throws `SevereServiceError` on every platform. Windows and Linux
+ *   support is webdriverio/desktop-mobile#713 (Linux also needs an upstream
+ *   Dioxus change); macOS can't be supported.
  */
 export type DioxusDriverProvider = 'external' | 'embedded';
 
@@ -114,9 +113,9 @@ export interface DioxusServiceOptions extends BaseServiceOptions, DriverProvider
   devServerUrl?: string;
 
   driverProvider?: DioxusDriverProvider;
-  /** Base port for the wdio-dioxus-driver process. Defaults to 4444. */
+  /** Base port for the wdio-dioxus-driver process (`'external'` provider, not implemented yet). Defaults to 9515. */
   dioxusDriverPort?: number;
-  /** Path override for wdio-dioxus-driver. */
+  /** Path override for wdio-dioxus-driver. Reserved for the `'external'` provider; currently ignored. */
   dioxusDriverPath?: string;
   /** Port for the embedded WebDriver server (when provider is 'embedded'). */
   embeddedPort?: number;
@@ -126,9 +125,9 @@ export interface DioxusServiceOptions extends BaseServiceOptions, DriverProvider
   appArgs?: string[];
   /** Environment variables for the driver subprocess. */
   env?: Record<string, string>;
-  /** Auto-install wdio-dioxus-driver via cargo if missing (defaults to true). */
+  /** Auto-install wdio-dioxus-driver via cargo if missing. Reserved for `'external'`; currently ignored. */
   autoInstallDioxusDriver?: boolean;
-  /** Auto-download msedgedriver on Windows (defaults to true). */
+  /** Auto-download msedgedriver on Windows. Reserved for the `'external'` provider; currently ignored. */
   autoDownloadEdgeDriver?: boolean;
   /** Default window label for execute/mock calls. */
   windowLabel?: string;

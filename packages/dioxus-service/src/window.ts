@@ -9,10 +9,6 @@
 //     the user last switch to?" without re-querying the bridge.
 //   - `switchWindowByLabel` which validates the label exists, resolves it
 //     to a WebDriver handle, and updates the cache.
-//
-// Phase 4 scope: provider 'external' only (Windows/Linux msedgedriver
-// proxy). Phase 6 (embedded provider) will branch the switch path so the
-// embedded driver can switch by label directly without handle resolution.
 
 import { createLogger } from '@wdio/native-utils';
 

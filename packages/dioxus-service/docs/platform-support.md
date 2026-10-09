@@ -1,96 +1,45 @@
 # Platform Support
 
-Complete guide to platform-specific requirements, limitations, and driver setup for Dioxus testing.
+Platform-specific requirements and setup for Dioxus testing.
 
 ## Platform Support Overview
 
-| Platform | Supported | Driver Providers | Notes |
-|----------|-----------|-----------------|-------|
-| **Windows** | ✅ Yes | `'embedded'`, `'external'` | `'embedded'` recommended; `'external'` requires wdio-dioxus-driver + msedgedriver |
-| **Linux** | ✅ Yes | `'embedded'` only | `'external'` blocked in v1 — upstream Dioxus PR pending |
-| **macOS** | ✅ Yes | `'embedded'` only | `'external'` not supported |
+| Platform | Supported |
+|----------|-----------|
+| **Windows** | ✅ Yes |
+| **Linux** | ✅ Yes |
+| **macOS** | ✅ Yes |
 
-## Driver Providers
+## How the Service Drives Your App
 
-### `'embedded'` (Recommended Everywhere)
-
-The embedded WebDriver provider uses `wdio-dioxus-embedded-driver` wired into the app via `wdio_dioxus_bridge::install(config)`. No external driver process is needed.
-
-**Works on:** Windows, Linux, macOS
+The WebDriver server runs inside your app, so there's no driver to install on any platform. It comes from `wdio-dioxus-embedded-driver`, wired into the app via `wdio_dioxus_embedded_driver::install(config)`, which also installs the bridge.
 
 **Requirements:**
-- `wdio-dioxus-bridge = "1"` in `Cargo.toml`
-- `wdio_dioxus_bridge::install(config)` in `main.rs` inside `#[cfg(debug_assertions)]`
-- Debug build of the app (`cargo build`)
+- `wdio-dioxus-embedded-driver = "1"` in `Cargo.toml`
+- `wdio_dioxus_embedded_driver::install(config)` in `main.rs` inside `#[cfg(debug_assertions)]` (`wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server)
+- Debug build of the app (`dx build --desktop`; see [App Setup](./app-setup.md#step-3-build-in-debug-mode) for why not `cargo build`)
 
-**Configuration:**
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',  // Default, recommended
-}]]
-```
+### Limitations
 
-### `'external'` (Windows Only in v1)
+On every platform (#721):
 
-The external provider uses `wdio-dioxus-driver` (a fork of `tauri-driver`) + `msedgedriver.exe`.
-
-**Works on:** Windows only in v1
-
-**Not supported on:** Linux (blocked — see below), macOS (never supported)
-
-**Requirements:**
-- `wdio-dioxus-driver` installed via `cargo install wdio-dioxus-driver`
-- `msedgedriver.exe` (auto-managed by the service with `autoDownloadEdgeDriver: true`)
-
-**Configuration:**
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'external',
-  autoInstallDioxusDriver: true,
-  autoDownloadEdgeDriver: true,
-}]]
-```
+- Screenshots, of the page or an element, return a blank 1×1 image.
+- Alerts, frames, shadow roots and printing aren't supported.
+- Cookie commands only see cookies the page's JavaScript can read, so not HttpOnly cookies.
 
 ## Windows
 
-### `'embedded'` Provider (Recommended)
-
-No external driver needed. Ensure the bridge is in your app and use a debug build.
-
 ```typescript
 services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',
-  appBinaryPath: './target/debug/my_app.exe',
+  appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe',
 }]]
 ```
-
-### `'external'` Provider
-
-Uses `wdio-dioxus-driver` → `msedgedriver.exe` → Dioxus app via WebView2 automation.
-
-**Setup:**
-
-1. Build a debug binary: `cargo build`
-2. Configure the service:
-   ```typescript
-   services: [['@wdio/dioxus-service', {
-     driverProvider: 'external',
-     autoInstallDioxusDriver: true,
-     autoDownloadEdgeDriver: true,
-     appBinaryPath: './target/debug/my_app.exe',
-   }]]
-   ```
-
-The service auto-manages `msedgedriver.exe` to match the WebView2 version in your binary.
-
-See [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for detailed setup.
 
 ### Windows-Specific Features
 
 - ✅ Full Dioxus invoke API via `browser.dioxus.execute()`
 - ✅ Command mocking
 - ✅ Log capture (frontend and backend)
-- ✅ Screenshot capture
 - ✅ Multiremote testing
 
 ### Windows Requirements
@@ -98,21 +47,12 @@ See [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for detailed setup.
 - **Visual C++ Build Tools** or Visual Studio
 - **Rust toolchain**
 - **Node.js 18+**
-- For `'external'` provider: wdio-dioxus-driver + msedgedriver (auto-managed)
 
 ## Linux
 
-### `'embedded'` Provider Only
-
-`'external'` is blocked in v1 due to a missing upstream Dioxus API — the automation toggle that wdio-dioxus-driver needs to pass to Wry has not yet landed in the Dioxus/Wry codebase. This is tracked and will be enabled in v1.1 once the upstream PR merges.
-
-Attempting to set `driverProvider: 'external'` on Linux throws a `SevereServiceError` at startup with an explanatory message.
-
-**Configuration:**
 ```typescript
 services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',  // The only supported option on Linux
-  appBinaryPath: './target/debug/my_app',
+  appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',
 }]]
 ```
 
@@ -146,10 +86,8 @@ xvfb-run -a npx wdio run wdio.conf.ts
 - ✅ Full Dioxus invoke API
 - ✅ Command mocking
 - ✅ Log capture
-- ✅ Screenshot capture
 - ✅ Headless testing with Xvfb
 - ✅ Multiremote testing
-- ❌ `'external'` provider (v1 — v1.1 target)
 
 ### Linux Distribution Support
 
@@ -162,15 +100,9 @@ xvfb-run -a npx wdio run wdio.conf.ts
 
 ## macOS
 
-### `'embedded'` Provider Only
-
-`'external'` is not supported on macOS and never will be — it inherits the same WKWebView limitation as the upstream `tauri-driver` fork it is based on.
-
-**Configuration:**
 ```typescript
 services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',  // Default, and the only option on macOS
-  appBinaryPath: './target/debug/my_app',
+  appBinaryPath: './target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app',
 }]]
 ```
 
@@ -179,9 +111,7 @@ services: [['@wdio/dioxus-service', {
 - ✅ Full Dioxus invoke API
 - ✅ Command mocking
 - ✅ Log capture
-- ✅ Screenshot capture
 - ✅ Multiremote testing
-- ❌ `'external'` provider (not supported, no timeline)
 
 ## Cross-Platform Tips
 
@@ -208,7 +138,9 @@ jobs:
           node-version: '20'
 
       - run: npm install
-      - run: cargo build
+      - uses: cargo-bins/cargo-binstall@main
+      - run: cargo binstall dioxus-cli --no-confirm
+      - run: dx build --desktop
 
       - name: Run E2E (Linux, headless)
         if: runner.os == 'Linux'
@@ -239,17 +171,7 @@ describe('Platform-specific features', () => {
 });
 ```
 
-## Summary
-
-| Provider | Windows | Linux | macOS |
-|----------|---------|-------|-------|
-| `'embedded'` | ✅ | ✅ | ✅ |
-| `'external'` | ✅ | ❌ (v1.1) | ❌ (never) |
-
-Use `'embedded'` everywhere for the simplest, most consistent setup.
-
 ## See Also
 
 - [Quick Start](./quick-start.md) for setup instructions
-- [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for Windows `'external'` details
 - [Troubleshooting](./troubleshooting.md) for common issues

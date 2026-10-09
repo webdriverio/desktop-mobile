@@ -4,7 +4,7 @@ Guide for developing and contributing to `@wdio/dioxus-service`.
 
 ## Prerequisites
 
-See the [Monorepo Setup Guide](../../docs/setup.md) for Node.js, pnpm, and Git setup.
+See the [Monorepo Setup Guide](../../../docs/setup.md) for Node.js, pnpm, and Git setup.
 
 **Dioxus-specific requirement — Rust Toolchain:**
 
@@ -17,7 +17,7 @@ Install via [rustup](https://rustup.rs) if not present.
 
 ## Setup
 
-Follow the [Monorepo Setup Guide](../../docs/setup.md) to clone the repo and install dependencies, then build the Dioxus service:
+Follow the [Monorepo Setup Guide](../../../docs/setup.md) to clone the repo and install dependencies, then build the Dioxus service:
 
 ```bash
 pnpm --filter @wdio/dioxus-service build
@@ -66,7 +66,7 @@ pnpm --filter @wdio/dioxus-service test
 pnpm --filter @wdio/dioxus-service test:coverage
 ```
 
-Coverage threshold: ≥ 80% statement coverage, as per [AGENTS.md](../../AGENTS.md).
+Coverage threshold: ≥ 80% statement coverage, as per [AGENTS.md](../../../AGENTS.md).
 
 ### Watch Mode
 
@@ -79,20 +79,15 @@ pnpm --filter @wdio/dioxus-service test:watch
 Run the full E2E suite against the built fixture app:
 
 ```bash
-# Embedded provider (all platforms)
 cd e2e && pnpm wdio run wdio.dioxus-embedded.conf.ts
-
-# External provider (Windows only)
-cd e2e && pnpm wdio run wdio.dioxus-external.conf.ts
 ```
 
 Platform-specific notes:
 - **Linux**: Run under Xvfb: `xvfb-run -a pnpm wdio run wdio.dioxus-embedded.conf.ts`
-- **Windows `'external'`**: Requires `wdio-dioxus-driver` and msedgedriver (auto-managed)
 
 ## Code Quality
 
-See the [Monorepo Setup Guide](../../docs/setup.md#code-quality) for formatting and linting commands.
+See the [Monorepo Setup Guide](../../../docs/setup.md#code-quality) for formatting and linting commands.
 
 ## Key Features
 
@@ -100,40 +95,25 @@ See the [Monorepo Setup Guide](../../docs/setup.md#code-quality) for formatting 
 
 Located in `src/providers/embedded.ts`:
 
-- Spawns the Dioxus app with `DIOXUS_WEBVIEW_AUTOMATION=true` and `DIOXUS_WEBVIEW_AUTOMATION_PORT`
+- Spawns the Dioxus app with `DIOXUS_WEBVIEW_AUTOMATION=true` and `WDIO_EMBEDDED_PORT`
 - Polls the embedded WebDriver server `/status` endpoint on startup
 - Each worker gets a unique port (basePort + workerIndex)
-
-### External Driver Provider (Windows)
-
-Located in `src/providers/external.ts`:
-
-- Spawns `wdio-dioxus-driver` which proxies to `msedgedriver.exe`
-- Auto-downloads matching msedgedriver version
-- Only active on Windows; throws `SevereServiceError` on Linux and macOS
 
 ### Bridge Communication
 
 `wdio-dioxus-bridge` provides:
 
 - Script execution via the `wdio://` custom protocol
-- Command mocking via invoke interception (guest-js bundle)
+- `window.__WDIO_DIOXUS__.invoke`, which the service patches with `@wdio/native-spy`'s interceptor for command mocking
 - Log forwarding via the bridge's log pipeline
 
 ### Cross-Platform Support
 
-| Platform | Provider | Status |
-|----------|----------|--------|
-| Windows | `embedded` | Supported |
-| Windows | `external` | Supported |
-| Linux | `embedded` | Supported |
-| Linux | `external` | v1.1 (blocked upstream) |
-| macOS | `embedded` | Supported |
-| macOS | `external` | Not supported |
-
-## Spike Findings
-
-The `spike/FINDINGS.md` document explains why `'external'` on Linux is deferred to v1.1: the upstream Dioxus/Wry codebase does not yet expose the automation toggle that `wdio-dioxus-driver` needs to pass to enable WebView2/WebKitGTK automation mode. Once the upstream PR lands, this block will be removed.
+| Platform | Status |
+|----------|--------|
+| Windows | Supported |
+| Linux | Supported |
+| macOS | Supported |
 
 ## Common Tasks
 
@@ -175,11 +155,11 @@ node --inspect-brk node_modules/vitest/vitest.mjs run
 
 ## Dependency Management
 
-Dependencies are managed via the monorepo's catalog system. See [Dependency Management](../../docs/setup.md#dependency-management) for details.
+Dependencies are managed via the monorepo's catalog system. See [Dependency Management](../../../docs/setup.md#dependency-management) for details.
 
 ## Release
 
-Releases run through GitHub Actions via [`release.yml`](../../.github/workflows/release.yml), which delegates to [`_release.reusable.yml`](../../.github/workflows/_release.reusable.yml). For Dioxus, **six artefacts** publish together as a scope:
+Releases run through GitHub Actions via [`release.yml`](../../../.github/workflows/release.yml), which delegates to [`_release.reusable.yml`](../../../.github/workflows/_release.reusable.yml). For Dioxus, **six artefacts** publish together as a scope:
 
 | Artefact | Registry | Initial version |
 |---|---|---|
@@ -254,11 +234,11 @@ wdio-dioxus-bridge = { path = "../dioxus-bridge", version = "1.0.0-rc.0" }
 
 The `version` field tracks the bridge crate version — bump it alongside any bridge release. Same convention applies to any future Dioxus crate that depends on another.
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for the broader release process across all services.
+See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for the broader release process across all services.
 
 ## Contributing
 
-See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines, commit message format, and PR process.
+See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for contribution guidelines, commit message format, and PR process.
 
 - **Questions**: [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
 - **Bugs**: [GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)

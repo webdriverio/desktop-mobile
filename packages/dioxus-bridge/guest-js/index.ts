@@ -10,10 +10,7 @@
  * the page when running E2E specs; tests can also call it directly from the
  * frontend code under test (e.g., to opt into mocking).
  *
- * Phase 3 will add the mock-interception Proxy here, mirroring
- * packages/tauri-plugin/guest-js/index.ts's `window.__wdio_spy__` /
- * `window.__wdio_mocks__` shape. For now this is the minimum viable IPC
- * client.
+ * Mocking isn't implemented here: the service patches `invoke` at session start.
  */
 
 declare global {

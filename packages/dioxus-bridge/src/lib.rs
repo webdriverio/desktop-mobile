@@ -1,49 +1,16 @@
-//! `wdio-dioxus-bridge` — bridge crate consumed by Dioxus desktop apps that
-//! want to be testable via `@wdio/dioxus-service`.
+//! Internal crate used by [`wdio-dioxus-embedded-driver`] to connect a Dioxus
+//! desktop app to [`@wdio/dioxus-service`]. It provides the `wdio://` IPC
+//! channel ([`invoke`]), log forwarding ([`log_bridge`]), the window registry
+//! behind `listWindows` / `switchWindow` ([`window_state`]), automation
+//! detection ([`automation`]) and a deeplink helper ([`deeplink`]).
 //!
-//! Ships the automation env-var reader ([`automation`]), the `wdio://invoke`
-//! IPC channel ([`invoke`]), frontend/backend log forwarding
-//! ([`log_bridge`]), a multi-window registry ([`window_state`]) that
-//! auto-labels Dioxus windows for [`@wdio/dioxus-service`]'s `switchWindow`
-//! / `listWindows` APIs, and an optional deeplink reference helper
-//! ([`deeplink`]) for apps that want to wire `Config::with_custom_protocol`
-//! with one line.
-//!
-//! # Quick start
-//!
-//! Add to `Cargo.toml`:
-//! ```toml
-//! [dependencies.wdio-dioxus-bridge]
-//! version = "1"
-//! features = ["with-bridge"]
-//! ```
-//!
-//! Wire into your `main.rs`, guarded for debug builds so the bridge never
-//! ships in release:
-//!
-//! ```ignore
-//! fn main() {
-//!     let mut config = dioxus::desktop::Config::new();
-//!     #[cfg(debug_assertions)]
-//!     {
-//!         config = wdio_dioxus_bridge::install(config);
-//!     }
-//!     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
-//! }
-//! ```
+//! [`install`] registers each window from a [`Config::with_on_window`]
+//! callback. Dioxus keeps only one, so a later `with_on_window` call replaces
+//! the bridge's; an app that needs its own callback must call
+//! [`window_state::register_window`] from it.
 //!
 //! [`@wdio/dioxus-service`]: https://www.npmjs.com/package/@wdio/dioxus-service
-//!
-//! # Multi-window note
-//!
-//! [`install`] calls [`Config::with_on_window`] to feed each newly-built
-//! window into the window-state registry. Dioxus stores the on-window
-//! callback in an `Option` with no getter, so a subsequent
-//! `config.with_on_window(...)` call by user code would silently replace
-//! the bridge's hook and break multi-window support. **Call
-//! `wdio_dioxus_bridge::install(config)` last in your Config builder
-//! chain**, or invoke [`window_state::register_window`] from your own
-//! on-window callback.
+//! [`wdio-dioxus-embedded-driver`]: https://docs.rs/wdio-dioxus-embedded-driver
 
 pub mod automation;
 pub mod deeplink;
@@ -58,24 +25,15 @@ use serde_json::{json, Value};
 pub use invoke::CommandRegistry;
 pub use log_bridge::FRONTEND_MARKER;
 
-/// The bundled `@wdio/dioxus-bridge` guest-js — embedded at build time by
-/// `build.rs` from the committed `dist-js/index.js`. The bundle is checked
-/// into git (and shipped to npm via the package `files` allowlist) so that
-/// git/crates.io consumers of this crate receive it; without it the bridge
-/// injects nothing and every round-trip silently times out at runtime, so
-/// `build.rs` fails the build loudly when it is missing. Rebuild with
+/// The guest-js bundle, embedded by `build.rs` from `dist-js/index.js`. It's
+/// committed so crates.io and git builds have it; rebuild it with
 /// `pnpm --filter @wdio/dioxus-bridge build` after editing `guest-js/`.
 const GUEST_JS_BUNDLE: &str = include_str!(concat!(env!("OUT_DIR"), "/guest_js_bundle.js"));
 
-/// Install the WDIO bridge into a Dioxus [`Config`]:
-///
-/// 1. Reports the [`automation`] env-var state via tracing.
-/// 2. Registers the `wdio://` custom protocol handler backed by a fresh
-///    [`CommandRegistry`] (with the built-in `__ping` command).
-/// 3. Injects the `@wdio/dioxus-bridge` guest-js bundle into the webview's
-///    document `<head>` so `window.__WDIO_DIOXUS__.invoke` is available
-///    before any app code runs.
-/// 4. Returns the [`Config`] for chainability with the app's own builders.
+/// Installs the bridge into a Dioxus [`Config`]: registers the `wdio://`
+/// protocol, the built-in commands and the window hook, and injects the
+/// guest-js bundle into the page `<head>` so `window.__WDIO_DIOXUS__.invoke`
+/// exists before app code runs.
 pub fn install(config: Config) -> Config {
   install_with_registry(config, CommandRegistry::new())
 }
@@ -86,10 +44,8 @@ pub fn install_with_registry(config: Config, registry: CommandRegistry) -> Confi
   install_with_registry_and_config(config, registry, None)
 }
 
-/// Variant of [`install_with_registry`] that also signals the embedded
-/// WebDriver port to the guest-js bundle. Called by
-/// `wdio-dioxus-embedded-driver` so the JS polling loop knows which port is
-/// active without requiring a separate environment variable read in JS.
+/// Variant of [`install`] for `wdio-dioxus-embedded-driver`: also registers
+/// the commands its guest-js polling loop uses, and starts that loop.
 pub fn install_with_embedded_port(config: Config, port: u16) -> Config {
   embedded::init();
   install_with_registry_and_config(config, CommandRegistry::new(), Some(port))
@@ -117,13 +73,9 @@ fn install_with_registry_and_config(
 
   let registry_for_handler = registry;
 
-  // Compute the `wdio://invoke` URL for the current platform. wry doesn't
-  // register arbitrary custom schemes with WebView2 on Windows; instead it
-  // intercepts `http://{scheme}.*` (see wry::custom_protocol_workaround).
-  // From a page's perspective the scheme `wdio://` is unknown on Windows
-  // and `fetch('wdio://invoke')` is rejected at the network layer before
-  // ever reaching our handler — so we expose the platform-correct URL via
-  // `window.__WDIO_BRIDGE_URL__` and let guest-js use it.
+  // On Windows, Wry serves custom protocols as `http://{scheme}.*`, and
+  // WebView2 rejects a `fetch('wdio://invoke')`, so guest-js reads the URL
+  // from `window.__WDIO_BRIDGE_URL__`.
   let bridge_url = if cfg!(target_os = "windows") {
     "http://wdio.invoke/"
   } else {
@@ -163,9 +115,7 @@ fn register_window_commands(registry: &CommandRegistry) {
 }
 
 fn register_embedded_commands(registry: &CommandRegistry) {
-  // __embedded_poll — non-blocking: returns the next pending eval request or
-  // null. Called by the guest-js polling loop every ~10 ms when the embedded
-  // driver is active.
+  // Non-blocking: returns the next pending eval request, or null.
   registry.register("__embedded_poll", |_args| {
     match embedded::poll_next() {
       Some((id, script, args)) => Ok(json!({ "id": id, "script": script, "args": args })),
@@ -173,8 +123,7 @@ fn register_embedded_commands(registry: &CommandRegistry) {
     }
   });
 
-  // __embedded_result — receives the JS-evaluated result for a previously
-  // polled request and delivers it to the waiting Axum handler.
+  // Hands a polled request's result back to the waiting WebDriver handler.
   registry.register("__embedded_result", |args| {
     let id = args["id"].as_str().ok_or("missing id")?.to_string();
     let result = match args["error"].as_str() {

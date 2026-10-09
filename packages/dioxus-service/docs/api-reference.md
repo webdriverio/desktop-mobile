@@ -52,7 +52,7 @@ const result = await browser.dioxus.execute(
 const href = await browser.dioxus.execute('window.location.href');
 ```
 
-**Note:** Requires `wdio-dioxus-bridge` to be installed. See [Bridge Setup](./plugin-setup.md).
+**Note:** Requires the bridge, which `wdio_dioxus_embedded_driver::install(config)` installs in the app. See [App Setup](./app-setup.md).
 
 ---
 
@@ -150,16 +150,16 @@ await browser.dioxus.restoreAllMocks();
 Switch the active Dioxus window for subsequent operations. Changes the window that `browser.dioxus.execute()` and other Dioxus-specific operations target.
 
 **Parameters:**
-- `label` (string) - The window label to switch to (e.g., `'main'`, `'settings'`)
+- `label` (string) - The window label to switch to. Windows are labelled in the order they open: `'main'`, then `'window-1'`, `'window-2'` and so on
 
 **Returns:** `Promise<void>`
 
 **Example:**
 ```typescript
-// Switch to the settings window
-await browser.dioxus.switchWindow('settings');
+// Switch to the second window the app opened
+await browser.dioxus.switchWindow('window-1');
 
-// Now executes in the settings window context
+// Now executes in that window
 const data = await browser.dioxus.execute(({ invoke }) => invoke('get_settings'));
 
 // Switch back to main window
@@ -179,7 +179,7 @@ Get a list of all available Dioxus window labels in the application.
 **Example:**
 ```typescript
 const windows = await browser.dioxus.listWindows();
-console.log(windows); // ['main', 'settings', 'dialog']
+console.log(windows); // ['main', 'window-1']
 ```
 
 ---
@@ -447,15 +447,10 @@ interface DioxusCapabilities extends WebdriverIO.Capabilities {
 interface DioxusServiceOptions {
   mode?: 'native' | 'browser';
   devServerUrl?: string;
-  driverProvider?: 'external' | 'embedded';
-  dioxusDriverPort?: number;
-  dioxusDriverPath?: string;
   embeddedPort?: number;
   appBinaryPath?: string;
   appArgs?: string[];
   env?: Record<string, string>;
-  autoInstallDioxusDriver?: boolean;
-  autoDownloadEdgeDriver?: boolean;
   windowLabel?: string;
   captureBackendLogs?: boolean;
   captureFrontendLogs?: boolean;
@@ -491,7 +486,7 @@ if (result.ok) {
 
 ## Notes
 
-- All `browser.dioxus.*` methods require `wdio-dioxus-bridge` to be installed in the Dioxus app. See [Bridge Setup](./plugin-setup.md).
+- All `browser.dioxus.*` methods require the bridge, which `wdio_dioxus_embedded_driver::install(config)` installs in the Dioxus app. See [App Setup](./app-setup.md).
 - Mocking requires the bridge for invoke interception to work.
 - `triggerDeeplink` requires your app to register a custom URL scheme.
 - `emitEvent` is deferred to v1.1.

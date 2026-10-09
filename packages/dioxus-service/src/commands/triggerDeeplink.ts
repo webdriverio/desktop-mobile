@@ -1,19 +1,12 @@
 // browser.dioxus.triggerDeeplink implementation.
 //
-// Phase 5 MVP: provider 'external' only (Windows + Linux). The deeplink is
-// triggered by spawning the OS-native protocol handler — the same path
-// the user's app would see in production. That's the most realistic test
-// of registered URI handlers and bypasses any IPC mocking.
+// The deeplink is triggered by spawning the OS-native protocol handler — the
+// same path the user's app would see in production. That's the most realistic
+// test of registered URI handlers and bypasses any IPC mocking.
 //
 //   - Windows: `rundll32.exe url.dll,FileProtocolHandler <url>`
-//   - macOS:   `open <url>` (Dioxus MVP does not yet support 'external'
-//              on darwin, but this stays platform-aware so a future Phase
-//              re-enables it without code changes here)
+//   - macOS:   `open <url>`
 //   - Linux:   `gio open <url>`
-//
-// Provider 'embedded' will need a different path that injects the URL via
-// `browser.execute` to bypass single-instance IPC mechanisms; that branch
-// lands in Phase 6 alongside the embedded provider itself.
 
 import { executeDeeplinkCommand, getPlatformCommand, validateDeeplinkUrl } from '@wdio/native-core';
 import { createLogger } from '@wdio/native-utils';

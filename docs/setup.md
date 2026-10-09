@@ -413,7 +413,7 @@ For working with Dioxus packages:
 
 No Dioxus CLI (`dx`) is required for testing — the service builds and runs the app binary directly.
 
-See the [Dioxus Bridge Setup](../packages/dioxus-service/docs/plugin-setup.md) and [Quick Start](../packages/dioxus-service/docs/quick-start.md) for detailed setup instructions.
+See the [Dioxus App Setup](../packages/dioxus-service/docs/app-setup.md) and [Quick Start](../packages/dioxus-service/docs/quick-start.md) for detailed setup instructions.
 
 ## Next Steps
 
@@ -424,7 +424,7 @@ See the [Dioxus Bridge Setup](../packages/dioxus-service/docs/plugin-setup.md) a
 - Explore the Tauri service implementation in `packages/tauri-service/`
 - Explore the Dioxus service implementation in `packages/dioxus-service/`
 - See [Tauri Plugin README](../packages/tauri-plugin/README.md) for Tauri plugin setup
-- See [Dioxus Bridge Setup](../packages/dioxus-service/docs/plugin-setup.md) for Dioxus bridge setup
+- See [Dioxus App Setup](../packages/dioxus-service/docs/app-setup.md) for Dioxus app setup
 
 ## AI-Assisted Development
 

@@ -60,7 +60,7 @@ describe('DioxusLaunchService', () => {
       await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).resolves.toBeUndefined();
     });
 
-    it('should not throw on Windows + provider=external', async () => {
+    it('should throw SevereServiceError on Windows + provider=external', async () => {
       mockPlatform('win32');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'external' } as DioxusServiceGlobalOptions,
@@ -68,7 +68,9 @@ describe('DioxusLaunchService', () => {
         baseConfig,
       );
 
-      await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).resolves.toBeUndefined();
+      await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).rejects.toThrow(
+        /'external' is not supported on Windows/,
+      );
     });
 
     it('should not throw on macOS + provider=embedded', async () => {

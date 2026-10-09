@@ -11,7 +11,6 @@ export const config = {
   services: [
     ['@wdio/dioxus-service', {
       // Service options go here
-      driverProvider: 'embedded',
       captureBackendLogs: true,
       captureFrontendLogs: true,
     }]
@@ -22,44 +21,19 @@ export const config = {
 
 ## Service Options
 
-### `driverProvider` ('external' | 'embedded', optional)
-
-Select which driver provider to use for WebDriver communication.
-
-- `'embedded'`: Use the embedded WebDriver server wired in via `wdio-dioxus-bridge::install()`. No external driver needed. Works on all three platforms.
-- `'external'`: Use `wdio-dioxus-driver` + msedgedriver (Windows only in v1). Linux is blocked pending an upstream Dioxus PR; macOS is not supported.
-
-**Platform × Provider matrix:**
-
-| Platform | `'embedded'` | `'external'` |
-|----------|-------------|-------------|
-| Windows  | ✅ Yes      | ✅ Yes      |
-| Linux    | ✅ Yes      | ❌ Blocked in v1 |
-| macOS    | ✅ Yes      | ❌ Not supported |
-
-**Default:** `'embedded'`
-
-**Example:**
-```typescript
-driverProvider: 'embedded'   // Recommended everywhere
-driverProvider: 'external'   // Windows only in v1
-```
-
----
-
 ### `appBinaryPath` (string, optional)
 
 Path to the compiled Dioxus application binary.
 
 **Example:**
 ```typescript
-appBinaryPath: './target/debug/my_app',    // debug build (bridge active)
-appBinaryPath: './target/release/my_app',  // release build (bridge inactive)
+appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',    // debug build (driver and bridge active)
+appBinaryPath: './target/dx/my_app/release/linux/app/my_app',  // release build (driver and bridge inactive)
 ```
 
 **Default:** Auto-detected from `dioxus:options.application` capability if not provided.
 
-**Note:** For testing, always use a debug build (`cargo build` without `--release`) so the bridge is compiled in.
+**Note:** For testing, always use a debug build (`dx build --desktop` without `--release`) so the driver and bridge are compiled in. See [Finding Your Binary Path](#finding-your-binary-path) for the location on each platform. Other examples on this page use `./target/debug/my_app` for brevity; that's where `cargo build` puts the binary, which only works for apps that don't load files with `asset!()`.
 
 ---
 
@@ -77,64 +51,9 @@ appArgs: ['--window-size=1920,1080']
 
 ---
 
-### `autoInstallDioxusDriver` (boolean, optional)
-
-Automatically install `wdio-dioxus-driver` if not found in PATH. Only relevant when `driverProvider: 'external'`. Requires Rust toolchain (`cargo`).
-
-**Example:**
-```typescript
-autoInstallDioxusDriver: true
-```
-
-**Default:** `false`
-
----
-
-### `autoDownloadEdgeDriver` (boolean, optional)
-
-Automatically download MSEdgeDriver on Windows if a version mismatch is detected. Only relevant when `driverProvider: 'external'` on Windows.
-
-**Example:**
-```typescript
-autoDownloadEdgeDriver: true  // Windows + external provider only
-```
-
-**Default:** `true`
-
-**Note:** Ignored on Linux and macOS. See [Edge WebDriver (Windows)](./edge-webdriver-windows.md).
-
----
-
-### `dioxusDriverPort` (number, optional)
-
-Port for `wdio-dioxus-driver` to listen on. Only used when `driverProvider: 'external'`.
-
-**Example:**
-```typescript
-dioxusDriverPort: 4444
-```
-
-**Default:** `4444`
-
----
-
-### `dioxusDriverPath` (string, optional)
-
-Path to the `wdio-dioxus-driver` executable if not in PATH. Only used when `driverProvider: 'external'`.
-
-**Example:**
-```typescript
-dioxusDriverPath: '/usr/local/bin/wdio-dioxus-driver'
-dioxusDriverPath: 'C:\\tools\\wdio-dioxus-driver.exe'
-```
-
-**Default:** Use `wdio-dioxus-driver` from PATH.
-
----
-
 ### `embeddedPort` (number, optional)
 
-Port for the embedded WebDriver server. Only used when `driverProvider: 'embedded'`.
+Port for the embedded WebDriver server.
 
 Each worker instance gets a unique port (basePort + workerIndex).
 
@@ -143,7 +62,7 @@ Each worker instance gets a unique port (basePort + workerIndex).
 embeddedPort: 4445
 ```
 
-**Default:** `4445`
+**Default:** `4444`
 
 ---
 
@@ -158,8 +77,6 @@ statusPollTimeout: 5000
 
 **Default:** `2000`
 
-**Note:** Only applies when `driverProvider: 'embedded'`.
-
 ---
 
 ### `startTimeout` (number, optional)
@@ -171,20 +88,20 @@ Timeout in milliseconds for the Dioxus app to start and become ready.
 startTimeout: 60000  // 60 seconds
 ```
 
-**Default:** `60000` for the `'embedded'` provider; `30000` for `'external'`.
+**Default:** `60000`
 
 ---
 
 ### `windowLabel` (string, optional)
 
-The default window label to target for Dioxus operations. Controls which webview window `browser.dioxus.execute()` and other Dioxus-specific operations target by default.
+The window the session starts in. It only takes effect per capability, in `wdio:dioxusServiceOptions` (#722). Windows are labelled in the order they open: `main`, then `window-1`, `window-2` and so on. The session waits up to 10 seconds for the window to open.
 
 **Example:**
 ```typescript
-windowLabel: 'settings'  // Target the settings window by default
+windowLabel: 'window-1'  // Start in the second window the app opens
 ```
 
-**Default:** `'main'`
+**Default:** the first window to open (`main`)
 
 **Note:** Override at runtime with `browser.dioxus.switchWindow(label)`.
 
@@ -423,7 +340,6 @@ export const config = {
 
   services: [
     ['@wdio/dioxus-service', {
-      driverProvider: 'embedded',
       appBinaryPath: './target/debug/my_app',
       appArgs: [],
       embeddedPort: 4445,
@@ -433,7 +349,6 @@ export const config = {
       captureFrontendLogs: true,
       backendLogLevel: 'debug',
       frontendLogLevel: 'debug',
-      windowLabel: 'main',
       clearMocks: false,
       resetMocks: false,
       restoreMocks: false,
@@ -465,80 +380,39 @@ export const config = {
 
 ## Platform-Specific Configuration
 
-### Windows (`'embedded'` — recommended)
-
-```typescript
-services: [
-  ['@wdio/dioxus-service', {
-    driverProvider: 'embedded',
-    appBinaryPath: './target/debug/my_app.exe',
-  }]
-]
-```
-
-### Windows (`'external'`)
-
-```typescript
-services: [
-  ['@wdio/dioxus-service', {
-    driverProvider: 'external',
-    autoInstallDioxusDriver: true,
-    autoDownloadEdgeDriver: true,
-    appBinaryPath: './target/debug/my_app.exe',
-  }]
-]
-```
-
-### Linux (embedded only)
-
-```typescript
-services: [
-  ['@wdio/dioxus-service', {
-    driverProvider: 'embedded',  // Only supported option on Linux
-    appBinaryPath: './target/debug/my_app',
-  }]
-]
-```
-
-### macOS (embedded only)
-
-```typescript
-services: [
-  ['@wdio/dioxus-service', {
-    driverProvider: 'embedded',  // Only supported option on macOS
-    appBinaryPath: './target/debug/my_app',
-  }]
-]
-```
+The configuration is the same on every platform; only the binary path differs. See [Finding Your Binary Path](#finding-your-binary-path).
 
 ## Finding Your Binary Path
+
+Build with `dx` rather than `cargo build`: `dx` bundles the files your app loads with `asset!()`, and a plain `cargo build` binary can't load them. `dx` prints the bundle path when the build finishes.
 
 ### Debug Build (for testing)
 
 ```bash
-cargo build
+dx build --desktop
 ```
 
 Binary locations:
-- Windows: `target\debug\my_app.exe`
-- Linux/macOS: `target/debug/my_app`
+- Windows: `target\dx\my_app\debug\windows\app\my_app.exe`
+- Linux: `target/dx/my_app/debug/linux/app/my_app`
+- macOS: `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app`
 
-### Release Build (for production — bridge compiled out)
+### Release Build (for production — driver and bridge compiled out)
 
 ```bash
-cargo build --release
+dx build --desktop --release
 ```
 
-Binary locations:
-- Windows: `target\release\my_app.exe`
-- Linux/macOS: `target/release/my_app`
+Binary locations: as above, with `release` in place of `debug`.
 
-**Always use a debug build for testing** so the bridge code is present.
+**Always use a debug build for testing** so the driver and bridge code is present.
+
+If your app doesn't use `asset!()`, `cargo build` also works; its binary is at `target/debug/my_app` (`target\debug\my_app.exe` on Windows).
 
 ## See Also
 
 - [Quick Start](./quick-start.md) for getting started
-- [Bridge Setup](./plugin-setup.md) for bridge configuration
+- [App Setup](./app-setup.md) for setting up the Dioxus app
 - [API Reference](./api-reference.md) for available functions
 - [Log Forwarding](./log-forwarding.md) for logging configuration
 - [Platform Support](./platform-support.md) for per-platform details

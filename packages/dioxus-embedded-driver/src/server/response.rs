@@ -1,5 +1,3 @@
-// Copied verbatim from packages/tauri-plugin-webdriver/src/server/response.rs
-// (no Tauri deps in this file).
 use axum::{
   http::StatusCode,
   response::{IntoResponse, Response},

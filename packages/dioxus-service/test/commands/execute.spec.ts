@@ -52,7 +52,7 @@ describe('execute command', () => {
 
     const [wrappedScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
     expect(wrappedScript).toContain('window.__WDIO_DIOXUS__.invoke is not installed');
-    expect(wrappedScript).toContain('wdio_dioxus_bridge::install');
+    expect(wrappedScript).toContain('wdio_dioxus_embedded_driver::install');
   });
 
   it('should unwrap the embedded envelope for function-form scripts', async () => {

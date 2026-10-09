@@ -29,8 +29,8 @@ RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
 # Dioxus desktop renders through Wry → WebKitGTK; these are the build deps.
-# Unlike Tauri, the 'embedded' driver needs NO system WebKitWebDriver binary —
-# the driver is compiled into the app — so webkit2gtk-driver is omitted.
+# The embedded driver is compiled into the app, so no system WebKitWebDriver
+# (webkit2gtk-driver) is needed.
 RUN apt-get update -qq && \
     apt-get install -y \
         libwebkit2gtk-4.1-dev \

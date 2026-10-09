@@ -4,122 +4,61 @@ Solutions for common issues when testing Dioxus applications with WebdriverIO.
 
 ## Bridge Issues
 
-### "Bridge not available" or execute always returns undefined
+### "Embedded WebDriver server did not become ready", "Bridge not available", or execute always returns undefined
 
-The `wdio-dioxus-bridge` crate is not wired into your app.
+The embedded driver is not wired into your app. It runs the WebDriver server the service connects to and installs the `wdio-dioxus-bridge` crate.
 
-**Check 1: Bridge crate in dependencies**
+**Check 1: Embedded driver crate in dependencies**
 
 ```toml
 # Cargo.toml
 [dependencies]
-wdio-dioxus-bridge = "1"
+wdio-dioxus-embedded-driver = "1"
 ```
 
-**Check 2: Bridge installed in `main.rs`**
+**Check 2: Embedded driver installed in `main.rs`**
 
 ```rust
 fn main() {
     let mut config = dioxus::desktop::Config::new();
     #[cfg(debug_assertions)]
     {
-        config = wdio_dioxus_bridge::install(config);
+        config = wdio_dioxus_embedded_driver::install(config);
     }
     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
 }
 ```
 
+`wdio_dioxus_bridge::install(config)` on its own doesn't start the WebDriver server, so the service times out waiting for it.
+
 **Check 3: Debug build used for testing**
 
-The bridge is only compiled in debug builds. Ensure you are using `cargo build` (not `cargo build --release`) and the binary path in your config points to `target/debug/my_app`, not `target/release/my_app`.
+The driver and bridge are only compiled in debug builds. Ensure you are using `dx build --desktop` (not `dx build --desktop --release`) and the binary path in your config points to the `debug` output, not the `release` one.
 
-**Check 4: Rebuild application**
+**Check 4: Port is free**
+
+The embedded driver listens on port `4444` by default. If another process already holds that port, the service can't reach your app. Stop the other process, or set `embeddedPort` in the service options.
+
+**Check 5: Rebuild application**
 
 ```bash
 cargo clean
-cargo build
+dx build --desktop
 ```
 
-See [Bridge Setup](./plugin-setup.md) for the complete installation guide.
+See [App Setup](./app-setup.md) for the complete installation guide.
 
----
+### Styles or images are missing during tests
 
-## Driver Installation Issues
+The app was built with `cargo build`. Files loaded with `asset!()` are only bundled by `dx`; in a plain `cargo build` binary their paths point at files that don't exist, so they fail to load. Build with `dx build --desktop` and point `appBinaryPath` or `dioxus:options.application` at the `dx` output (see [App Setup](./app-setup.md#step-3-build-in-debug-mode) for the path on each platform).
 
-### "wdio-dioxus-driver not found" (`'external'` provider, Windows)
+### Compilation errors from `wdio-dioxus-bridge`
 
-The service cannot find the wdio-dioxus-driver executable.
+`wdio-dioxus-bridge` tracks the latest Dioxus release; the exact version it supports is its own `dioxus-desktop` dependency — see the bridge's [dependencies on crates.io](https://crates.io/crates/wdio-dioxus-bridge).
 
-**Solution 1: Enable Auto-Installation**
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'external',
-  autoInstallDioxusDriver: true,
-}]]
-```
-
-**Solution 2: Manual Installation**
-
-```bash
-cargo install wdio-dioxus-driver
-```
-
-**Solution 3: Specify Path Manually**
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'external',
-  dioxusDriverPath: '/custom/path/wdio-dioxus-driver',
-}]]
-```
-
-### "MSEdgeDriver not found" (Windows, `'external'` provider)
-
-**Solution 1: Enable Auto-Download**
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'external',
-  autoDownloadEdgeDriver: true,  // Default: true
-}]]
-```
-
-**Solution 2: Manual Download**
-
-1. Check your WebView2 version (right-click your binary → Properties → Details)
-2. Download matching MSEdgeDriver from [Microsoft Edge WebDriver](https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/)
-3. Add to PATH
-
-See [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for detailed setup.
-
----
-
-## Provider Issues
-
-### "external provider not supported on Linux"
-
-`'external'` is blocked on Linux in v1 — an upstream Dioxus PR is pending. Use `driverProvider: 'embedded'` instead.
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',  // The only supported option on Linux
-}]]
-```
-
-### "external provider not supported on macOS"
-
-`'external'` is not supported on macOS. Use `driverProvider: 'embedded'`.
-
-### "No driverProvider configured" or service fails to start
-
-Set `driverProvider` explicitly:
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  driverProvider: 'embedded',  // Recommended everywhere
-}]]
-```
+1. Update your Rust toolchain: `rustup update`
+2. Clear the Cargo cache: `cargo clean && dx build --desktop`
+3. Pin your `dioxus` to the same minor as the bridge's `dioxus-desktop` dependency (link above)
 
 ---
 
@@ -132,23 +71,28 @@ The Dioxus app binary cannot be found.
 **Solution 1: Verify Binary Exists**
 
 ```bash
-ls -la target/debug/my_app         # Linux/macOS
-dir target\debug\my_app.exe        # Windows
+ls -la target/dx/my_app/debug/linux/app/my_app                      # Linux
+ls -la target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app  # macOS
+dir target\dx\my_app\debug\windows\app\my_app.exe                   # Windows
 ```
 
 **Solution 2: Build the Application**
 
 ```bash
-cargo build  # Debug build (bridge active)
+dx build --desktop  # Debug build (driver and bridge active)
 ```
+
+`dx` prints the bundle path when the build finishes.
 
 **Solution 3: Use Correct Path**
 
 ```typescript
 services: [['@wdio/dioxus-service', {
-  appBinaryPath: './target/debug/my_app',   // Linux/macOS
+  appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',   // Linux
   // or
-  appBinaryPath: './target/debug/my_app.exe',  // Windows
+  appBinaryPath: './target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app',   // macOS
+  // or
+  appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe',  // Windows
 }]]
 ```
 
@@ -158,15 +102,15 @@ services: [['@wdio/dioxus-service', {
 import path from 'path';
 
 services: [['@wdio/dioxus-service', {
-  appBinaryPath: path.resolve('./target/debug/my_app'),
+  appBinaryPath: path.resolve('./target/dx/my_app/debug/linux/app/my_app'),
 }]]
 ```
 
 ### Debug vs. Release Build Mismatch
 
-The bridge is only compiled into debug builds. If you point `appBinaryPath` at a release binary, the bridge will not be present and `browser.dioxus.execute()` will fail.
+The driver and bridge are only compiled into debug builds. If you point `appBinaryPath` at a release binary, they will not be present and the service can't connect.
 
-Always use `cargo build` (without `--release`) for testing.
+Always use `dx build --desktop` (without `--release`) for testing.
 
 ### Commands Timing Out
 
@@ -251,7 +195,7 @@ await mock.mockReturnValue({ id: 1 });
 
 ### Window Label Not Found
 
-**Error:** `Window label "settings" not found. Available windows: main`
+**Error:** `window label "window-1" not found. Available: main`
 
 **Solution:**
 
@@ -296,13 +240,31 @@ xvfb-run -a npx wdio run wdio.conf.ts
    ```
 
 3. **Release binary used instead of debug**
-   - Ensure `cargo build` (not `cargo build --release`) is run in CI
-   - Verify the binary path in `wdio.conf.ts` points to `target/debug/`, not `target/release/`
+   - Ensure `dx build --desktop` (not `dx build --desktop --release`) is run in CI
+   - Verify the binary path in `wdio.conf.ts` points to the `debug` output, not the `release` one
 
 4. **Environment Variables**
    ```bash
-   APP_BINARY="./target/debug/my_app" npm run test:e2e
+   APP_BINARY="./target/dx/my_app/debug/linux/app/my_app" npm run test:e2e
    ```
+
+### macOS: Commands Stall or Time Out on CI
+
+On a headless macOS runner, WKWebView can suspend the page of a window that isn't visible. The bridge runs its command loop in the page, so commands stall until they time out, usually between specs.
+
+Dioxus doesn't yet let apps turn this off. [DioxusLabs/dioxus#5587](https://github.com/DioxusLabs/dioxus/pull/5587) adds `Config::with_background_throttling`. Until it's released, you can patch `dioxus-desktop` with that change, as this repo's e2e app does (see the `[patch.crates-io]` block in [`fixtures/e2e-apps/dioxus/Cargo.toml`](../../../fixtures/e2e-apps/dioxus/Cargo.toml)), and disable throttling only under automation:
+
+```rust
+#[cfg(debug_assertions)]
+{
+    if wdio_dioxus_embedded_driver::automation::is_requested() {
+        config = config.with_background_throttling(
+            dioxus::desktop::wry::BackgroundThrottlingPolicy::Disabled,
+        );
+    }
+    config = wdio_dioxus_embedded_driver::install(config);
+}
+```
 
 ---
 
@@ -331,7 +293,7 @@ If you're still stuck:
 
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
-3. **See [Bridge Setup](./plugin-setup.md)** for bridge requirements
+3. **See [App Setup](./app-setup.md)** for what the app needs
 4. **Check [Platform Support](./platform-support.md)** for platform-specific issues
 5. **Enable debug logging** to see detailed output
 6. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)

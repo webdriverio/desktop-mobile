@@ -337,8 +337,7 @@ When contributing to the Dioxus service or its Rust crates (`wdio-dioxus-bridge`
   pnpm wdio run wdio.dioxus-embedded.conf.ts
   ```
 - The `'external'` provider is Windows-only in v1. Linux support is deferred to v1.1. Do not attempt to test the `'external'` provider on Linux or macOS.
-- When changing the bridge crate, also update `packages/dioxus-bridge/docs/release-notes/` as appropriate
-- See [bridge setup docs](packages/dioxus-service/docs/plugin-setup.md) for how the bridge integrates with a Dioxus application
+- See [App Setup](packages/dioxus-service/docs/app-setup.md) for how the embedded driver and bridge integrate with a Dioxus application
 
 ### Shared Utilities
 
