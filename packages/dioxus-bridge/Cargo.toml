@@ -34,4 +34,3 @@ features = [ "sync", "rt-multi-thread", "macros" ]
 
 [features]
 default = []
-with-bridge = []
