@@ -15,7 +15,7 @@
 //     `return (${script})()` before passing to `browser.execute`, mirroring
 //     the Tauri analogue (packages/tauri-service/src/mock.ts).
 //
-// There's no windowLabel option yet: scripts run in the current window.
+// No per-call windowLabel option yet (#722): scripts run in the current window.
 
 import type { DioxusAPIs } from '@wdio/native-types';
 

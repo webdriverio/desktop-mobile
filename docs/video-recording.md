@@ -8,7 +8,7 @@ A complete working setup for every currently supported framework — see the [RE
 
 `wdio-video-reporter` captures via **screenshot stitching**, not a real video pipeline: it takes one screenshot after each command in a configurable allowlist (`click`, `setValue`, `keys`, navigation, etc.), optionally plus an interval timer, and stitches the frames into a `.webm` (or `.mp4`) at the end of each test. Practical consequences:
 
-- **Resolution and content** match whatever `browser.saveScreenshot` returns — renderer-only for webview-scoped providers (Electron, Tauri-`embedded`, Tauri-`official`, Dioxus-`embedded`); full OS window only on Tauri-`crabnebula` via its Screen Recording path.
+- **Resolution and content** match whatever `browser.saveScreenshot` returns — renderer-only for webview-scoped providers (Electron, Tauri-`embedded`, Tauri-`official`); full OS window only on Tauri-`crabnebula` via its Screen Recording path. Dioxus screenshots are blank for now (#721), so Dioxus recordings are too.
 - **Frame rate is effectively the test's command rate**, not real video. With `videoSlowdownMultiplier: 3` (default) you get a 3–10 fps slideshow.
 - **Cursor motion between frames is invisible** ([upstream #588](https://github.com/webdriverio-community/wdio-video-reporter/issues/588)).
 - **Native dialogs, OS menus, tray pop-ups are not captured** — they're outside the webview, and the reporter is webview-scoped (with the noted CrabNebula exception).

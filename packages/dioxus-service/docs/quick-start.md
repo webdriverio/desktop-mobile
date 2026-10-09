@@ -13,10 +13,11 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
-3. **Dioxus CLI (`dx`)** - Builds the app and bundles the files it loads with `asset!()`. Install the version that matches your `dioxus` crate:
+3. **Dioxus CLI (`dx`)** - Builds the app and bundles the files it loads with `asset!()`. Install the version that matches your `dioxus` crate, for example:
    ```bash
-   cargo binstall dioxus-cli   # or: cargo install dioxus-cli --locked
+   cargo install dioxus-cli --locked --version 0.7.10
    ```
+   [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), if you have it, downloads a prebuilt `dx` instead of compiling it: `cargo binstall dioxus-cli --version 0.7.10`.
 
 ### Platform-Specific Requirements
 

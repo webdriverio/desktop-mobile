@@ -10,9 +10,6 @@
 // the inner mock via browser.execute. After every assertion-touching method,
 // `mock.update()` syncs the inner mock's call history back into the outer
 // mock so the test sees up-to-date state.
-//
-// There's no wrapperMock destructuring proxy (tauri-service has one); add it
-// if users ask.
 
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';

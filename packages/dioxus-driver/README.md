@@ -33,7 +33,7 @@ cargo install wdio-dioxus-driver --locked
 
 ## Use
 
-`@wdio/dioxus-service` doesn't start it yet ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)), so run it yourself and point WebdriverIO's `hostname` and `port` at it:
+`@wdio/dioxus-service` doesn't start it yet, so run it yourself and point WebdriverIO's `hostname` and `port` at it:
 
 ```sh
 wdio-dioxus-driver --port 4444 --native-port 4445

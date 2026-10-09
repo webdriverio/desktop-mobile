@@ -94,14 +94,14 @@ startTimeout: 60000  // 60 seconds
 
 ### `windowLabel` (string, optional)
 
-The default window label to target for Dioxus operations. Controls which webview window `browser.dioxus.execute()` and other Dioxus-specific operations target by default.
+The window the session starts in. It only takes effect per capability, in `wdio:dioxusServiceOptions` (#722). Windows are labelled in the order they open: `main`, then `window-1`, `window-2` and so on. The session waits up to 10 seconds for the window to open.
 
 **Example:**
 ```typescript
-windowLabel: 'settings'  // Target the settings window by default
+windowLabel: 'window-1'  // Start in the second window the app opens
 ```
 
-**Default:** `'main'`
+**Default:** the first window to open (`main`)
 
 **Note:** Override at runtime with `browser.dioxus.switchWindow(label)`.
 
@@ -349,7 +349,6 @@ export const config = {
       captureFrontendLogs: true,
       backendLogLevel: 'debug',
       frontendLogLevel: 'debug',
-      windowLabel: 'main',
       clearMocks: false,
       resetMocks: false,
       restoreMocks: false,

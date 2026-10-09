@@ -150,16 +150,16 @@ await browser.dioxus.restoreAllMocks();
 Switch the active Dioxus window for subsequent operations. Changes the window that `browser.dioxus.execute()` and other Dioxus-specific operations target.
 
 **Parameters:**
-- `label` (string) - The window label to switch to (e.g., `'main'`, `'settings'`)
+- `label` (string) - The window label to switch to. Windows are labelled in the order they open: `'main'`, then `'window-1'`, `'window-2'` and so on
 
 **Returns:** `Promise<void>`
 
 **Example:**
 ```typescript
-// Switch to the settings window
-await browser.dioxus.switchWindow('settings');
+// Switch to the second window the app opened
+await browser.dioxus.switchWindow('window-1');
 
-// Now executes in the settings window context
+// Now executes in that window
 const data = await browser.dioxus.execute(({ invoke }) => invoke('get_settings'));
 
 // Switch back to main window
@@ -179,7 +179,7 @@ Get a list of all available Dioxus window labels in the application.
 **Example:**
 ```typescript
 const windows = await browser.dioxus.listWindows();
-console.log(windows); // ['main', 'settings', 'dialog']
+console.log(windows); // ['main', 'window-1']
 ```
 
 ---

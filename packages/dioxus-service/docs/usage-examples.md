@@ -207,7 +207,7 @@ describe('Multi-Window Testing', () => {
     const windows = await browser.dioxus.listWindows();
     console.log('Available windows:', windows);
     expect(windows).toContain('main');
-    expect(windows).toContain('settings');
+    expect(windows).toContain('window-1');
   });
 
   it('should switch between windows', async () => {
@@ -216,7 +216,7 @@ describe('Multi-Window Testing', () => {
     });
     expect(mainContent).toBe('Main Window');
 
-    await browser.dioxus.switchWindow('settings');
+    await browser.dioxus.switchWindow('window-1');
 
     const settingsContent = await browser.dioxus.execute(() => {
       return document.querySelector('h1')?.textContent;
@@ -228,7 +228,7 @@ describe('Multi-Window Testing', () => {
 
   it('should handle non-existent window gracefully', async () => {
     await expect(browser.dioxus.switchWindow('nonexistent')).rejects.toThrow(
-      'Window label "nonexistent" not found'
+      'window label "nonexistent" not found'
     );
   });
 });
@@ -241,7 +241,7 @@ Configuration for a default window:
 capabilities: [{
   browserName: 'dioxus',
   'wdio:dioxusServiceOptions': {
-    windowLabel: 'settings',  // Default to settings window
+    windowLabel: 'window-1',  // Start in the second window the app opens
   },
 }]
 ```

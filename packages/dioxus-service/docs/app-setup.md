@@ -13,15 +13,13 @@ Dioxus has no plugin system like Tauri's, so there are no plugins to register an
 
 ## What `install()` Provides
 
-| Feature | Available |
-|---------|-----------|
-| Embedded WebDriver server | ✅ Yes |
-| `browser.dioxus.execute()` | ✅ Yes |
-| `browser.dioxus.mock()` and all mock operations | ✅ Yes |
-| `browser.dioxus.listWindows()` / `switchWindow()` | ✅ Yes |
-| Backend log capture (`captureBackendLogs`) | ✅ Yes |
-| Frontend log capture (`captureFrontendLogs`) | ✅ Yes |
-| `browser.dioxus.triggerDeeplink()` | ✅ Yes (platform-level; works without `install()`) |
+- The embedded WebDriver server
+- `browser.dioxus.execute()`
+- `browser.dioxus.mock()` and all mock operations
+- `browser.dioxus.listWindows()` and `switchWindow()`
+- Backend and frontend log capture (`captureBackendLogs`, `captureFrontendLogs`)
+
+`browser.dioxus.triggerDeeplink()` doesn't need `install()`: it opens the URL through the operating system.
 
 ## Installation
 
@@ -110,7 +108,7 @@ Once the app's window has loaded, the server reports it's ready:
 {"value":{"message":"wdio-dioxus-embedded-driver is ready","ready":true}}
 ```
 
-`"ready": false` ("waiting for webview") means the server is running but the window hasn't registered with the bridge yet. If nothing is listening on the port, the driver isn't installed or this is a release build; see [Troubleshooting](#troubleshooting).
+`"ready": false` ("waiting for webview") means the server is running but the window hasn't registered with the bridge yet. If nothing is listening on the port, the driver isn't installed or this is a release build; see [Troubleshooting](./troubleshooting.md#bridge-issues).
 
 ## What Happens Internally
 
@@ -191,33 +189,10 @@ fn main() {
 
 Build with `dx build --desktop --features wdio` for test builds, and `dx build --desktop` for production.
 
-## Troubleshooting
-
-### "Embedded WebDriver server did not become ready" or "bridge not available"
-
-The embedded driver is not wired in. Check:
-
-1. `wdio-dioxus-embedded-driver = "1"` is in `[dependencies]` (not only `[dev-dependencies]`).
-2. `wdio_dioxus_embedded_driver::install(config)` is called inside `#[cfg(debug_assertions)]`. `wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server.
-3. You are building in debug mode (`dx build --desktop`), not with `--release`.
-4. The `'dioxus:options'.application` path points to the debug binary.
-5. Nothing else is listening on the embedded port (`4444` by default). Set `embeddedPort` to use a different one.
-
-### Styles or images are missing during tests
-
-The app was built with `cargo build`, which doesn't bundle the files loaded with `asset!()`. Build with `dx build --desktop` and point `'dioxus:options'.application` at the `dx` output (see [Step 3](#step-3-build-in-debug-mode)).
-
-### Compilation errors from `wdio-dioxus-bridge`
-
-`wdio-dioxus-bridge` tracks the latest Dioxus release; the exact version it supports is its own `dioxus-desktop` dependency — see the bridge's [dependencies on crates.io](https://crates.io/crates/wdio-dioxus-bridge).
-
-1. Update your Rust toolchain: `rustup update`
-2. Clear the Cargo cache: `cargo clean && cargo build`
-3. Pin your `dioxus` to the same minor as the bridge's `dioxus-desktop` dependency (link above)
-
 ## See Also
 
 - [Quick Start](./quick-start.md) for minimal test setup
+- [Troubleshooting](./troubleshooting.md) if the service can't connect or the build fails
 - [API Reference](./api-reference.md) for available functions
 - [Usage Examples](./usage-examples.md) for testing patterns
 - [Configuration](./configuration.md) for service options

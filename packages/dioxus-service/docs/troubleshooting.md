@@ -52,6 +52,14 @@ See [App Setup](./app-setup.md) for the complete installation guide.
 
 The app was built with `cargo build`. Files loaded with `asset!()` are only bundled by `dx`; in a plain `cargo build` binary their paths point at files that don't exist, so they fail to load. Build with `dx build --desktop` and point `appBinaryPath` or `dioxus:options.application` at the `dx` output (see [App Setup](./app-setup.md#step-3-build-in-debug-mode) for the path on each platform).
 
+### Compilation errors from `wdio-dioxus-bridge`
+
+`wdio-dioxus-bridge` tracks the latest Dioxus release; the exact version it supports is its own `dioxus-desktop` dependency — see the bridge's [dependencies on crates.io](https://crates.io/crates/wdio-dioxus-bridge).
+
+1. Update your Rust toolchain: `rustup update`
+2. Clear the Cargo cache: `cargo clean && dx build --desktop`
+3. Pin your `dioxus` to the same minor as the bridge's `dioxus-desktop` dependency (link above)
+
 ---
 
 ## Application Issues
@@ -187,7 +195,7 @@ await mock.mockReturnValue({ id: 1 });
 
 ### Window Label Not Found
 
-**Error:** `Window label "settings" not found. Available windows: main`
+**Error:** `window label "window-1" not found. Available: main`
 
 **Solution:**
 
