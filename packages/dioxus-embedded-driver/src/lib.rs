@@ -21,11 +21,9 @@
 //! }
 //! ```
 //!
-//! [`install`] does nothing unless `DIOXUS_WEBVIEW_AUTOMATION=true`, which
-//! `@wdio/dioxus-service` sets on the app it launches, so normal debug runs
-//! don't open the port or load the bridge. To drive an app you launched
-//! yourself, set that variable. The server port is read from
-//! `WDIO_EMBEDDED_PORT` (default 4444), which the service also sets.
+//! [`install`] does nothing unless `DIOXUS_WEBVIEW_AUTOMATION=true`, so
+//! everyday debug runs don't start the server. `@wdio/dioxus-service` sets it,
+//! along with the port in `WDIO_EMBEDDED_PORT` (default 4444).
 
 pub mod server;
 pub mod webdriver;

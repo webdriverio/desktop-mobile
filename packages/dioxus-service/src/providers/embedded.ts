@@ -63,9 +63,9 @@ async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<voi
   }
   throw new Error(
     `${notReady}: nothing answered, so the server never started. Check that main.rs calls ` +
-      `wdio_dioxus_embedded_driver::install(config) inside #[cfg(debug_assertions)] ` +
-      `(wdio_dioxus_bridge::install(config) on its own doesn't start the server), and that the app ` +
-      `is a debug build (dx build --desktop, not --release).`,
+      `wdio_dioxus_embedded_driver::install(config) inside #[cfg(debug_assertions)], and that the app ` +
+      `is a debug build from dx build --desktop. wdio_dioxus_bridge::install(config) on its own ` +
+      `doesn't start the server.`,
   );
 }
 
@@ -188,8 +188,7 @@ export async function startEmbeddedDriver(
         new Error(
           `Failed to spawn Dioxus app "${appBinaryPath}": ${err.message}. ` +
             `Ensure the binary exists and is executable. ` +
-            `Build with \`dx build --desktop\` (not --release); its debug binary is under ` +
-            `\`target/dx/<app>/debug/\`.`,
+            `Build it with \`dx build --desktop\`, which puts the debug binary under \`target/dx/<app>/debug/\`.`,
         ),
       );
     };
