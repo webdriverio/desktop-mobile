@@ -19,6 +19,14 @@ The WebDriver server runs inside your app, so there's no driver to install on an
 - `wdio_dioxus_embedded_driver::install(config)` in `main.rs` inside `#[cfg(debug_assertions)]` (`wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server)
 - Debug build of the app (`dx build --desktop`; see [App Setup](./app-setup.md#step-3-build-in-debug-mode) for why not `cargo build`)
 
+### Limitations
+
+On every platform (#721):
+
+- Screenshots, of the page or an element, return a blank 1×1 image.
+- Alerts, frames, shadow roots and printing aren't supported.
+- Cookie commands only see cookies the page's JavaScript can read, so not HttpOnly cookies.
+
 ## Windows
 
 ```typescript
@@ -32,7 +40,6 @@ services: [['@wdio/dioxus-service', {
 - ✅ Full Dioxus invoke API via `browser.dioxus.execute()`
 - ✅ Command mocking
 - ✅ Log capture (frontend and backend)
-- ✅ Screenshot capture
 - ✅ Multiremote testing
 
 ### Windows Requirements
@@ -79,7 +86,6 @@ xvfb-run -a npx wdio run wdio.conf.ts
 - ✅ Full Dioxus invoke API
 - ✅ Command mocking
 - ✅ Log capture
-- ✅ Screenshot capture
 - ✅ Headless testing with Xvfb
 - ✅ Multiremote testing
 
@@ -105,7 +111,6 @@ services: [['@wdio/dioxus-service', {
 - ✅ Full Dioxus invoke API
 - ✅ Command mocking
 - ✅ Log capture
-- ✅ Screenshot capture
 - ✅ Multiremote testing
 
 ## Cross-Platform Tips
