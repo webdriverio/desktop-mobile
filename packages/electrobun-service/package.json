@@ -50,7 +50,6 @@
   },
   "dependencies": {
     "@wdio/globals": "catalog:default",
-    "@wdio/logger": "catalog:default",
     "@wdio/native-cdp-bridge": "workspace:*",
     "@wdio/native-core": "workspace:*",
     "@wdio/native-spy": "workspace:*",

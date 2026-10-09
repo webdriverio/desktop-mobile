@@ -42,7 +42,6 @@
     "lint:fix": "biome check --write --linter-enabled=true --formatter-enabled=false src/"
   },
   "dependencies": {
-    "@wdio/logger": "catalog:default",
     "@wdio/native-types": "workspace:*",
     "@wdio/native-utils": "workspace:*",
     "debug": "^4.4.3",
