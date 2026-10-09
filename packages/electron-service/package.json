@@ -63,7 +63,6 @@
     "@electron/fuses": "^2.1.3",
     "@electron/packager": "^20.3.0",
     "@wdio/globals": "catalog:default",
-    "@wdio/logger": "catalog:default",
     "@wdio/native-cdp-bridge": "workspace:*",
     "@wdio/native-core": "workspace:*",
     "@wdio/native-types": "workspace:*",

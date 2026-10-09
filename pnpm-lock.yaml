@@ -1074,9 +1074,6 @@ importers:
       '@wdio/globals':
         specifier: catalog:default
         version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
-      '@wdio/logger':
-        specifier: catalog:default
-        version: 9.29.1
       '@wdio/native-core':
         specifier: workspace:*
         version: link:../native-core
@@ -1138,9 +1135,6 @@ importers:
       '@wdio/globals':
         specifier: catalog:default
         version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
-      '@wdio/logger':
-        specifier: catalog:default
-        version: 9.29.1
       '@wdio/native-cdp-bridge':
         specifier: workspace:*
         version: link:../native-cdp-bridge
@@ -1213,10 +1207,7 @@ importers:
         version: 20.3.0(supports-color@8.1.1)
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
-      '@wdio/logger':
-        specifier: catalog:default
-        version: 9.29.1
+        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.12.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/native-cdp-bridge':
         specifier: workspace:*
         version: link:../native-cdp-bridge
@@ -1433,9 +1424,6 @@ importers:
 
   packages/native-core:
     dependencies:
-      '@wdio/logger':
-        specifier: catalog:default
-        version: 9.29.1
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../native-types
@@ -1579,9 +1567,6 @@ importers:
 
   packages/native-utils:
     dependencies:
-      '@wdio/logger':
-        specifier: catalog:default
-        version: 9.29.1
       debug:
         specifier: ^4.4.3
         version: 4.4.3(supports-color@8.1.1)
@@ -1616,6 +1601,9 @@ importers:
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
+      '@wdio/logger':
+        specifier: catalog:default
+        version: 9.29.1
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../native-types
@@ -1723,9 +1711,6 @@ importers:
       '@wdio/globals':
         specifier: catalog:default
         version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
-      '@wdio/logger':
-        specifier: catalog:default
-        version: 9.29.1
       '@wdio/native-core':
         specifier: workspace:*
         version: link:../native-core
@@ -11495,7 +11480,7 @@ snapshots:
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
     dependencies:
-      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.12.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
