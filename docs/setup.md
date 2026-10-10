@@ -428,12 +428,7 @@ See the [Dioxus App Setup](../packages/dioxus-service/docs/app-setup.md) and [Qu
 
 ## AI-Assisted Development
 
-This project uses Agent OS for AI-assisted development. The [AGENTS.md](../AGENTS.md) file contains context for AI tools like Claude Code, Cursor, and others.
-
-Available slash commands (Claude Code):
-- `/discover-standards` - Extract patterns from the codebase into documented standards
-- `/inject-standards` - Inject standards into context for consistent AI assistance
-- `/shape-spec` - Enhanced spec shaping with standards awareness
+[AGENTS.md](../AGENTS.md) holds the repo's guidance for coding agents. Claude Code, Codex, Cursor and others read it. Claude Code also loads the skills in `.claude/skills/`, such as `add-native-service`.
 
 ## Getting Help
 

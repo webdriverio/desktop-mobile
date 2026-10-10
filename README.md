@@ -76,39 +76,6 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 - 🖥️ **Browser-only mode** - Validate UI in Chrome against a dev server, no native binary
 - 🔧 **Consistent cross-platform API** - Familiar WDIO patterns across all frameworks and platforms
 
-## Project Structure
-
-```
-desktop-mobile/
-├── packages/                    # Service packages
-│   ├── electron-service/        # Electron service implementation
-│   ├── tauri-service/           # Tauri service implementation
-│   ├── dioxus-service/          # Dioxus service implementation
-│   ├── electrobun-service/      # Electrobun service implementation
-│   ├── native-cdp-bridge/      # Shared CDP bridge (single + multi-target)
-│   ├── native-utils/            # Cross-platform utilities
-│   ├── native-types/            # TypeScript type definitions
-│   ├── native-spy/              # Spy utilities for mocking
-│   ├── bundler/                 # Build tool for packaging
-│   ├── tauri-plugin/            # Tauri plugin for backend access
-│   ├── dioxus-bridge/           # Dioxus bridge crate (Rust)
-│   ├── dioxus-embedded-driver/  # Dioxus embedded WebDriver server (Rust)
-│   └── dioxus-driver/           # Dioxus external WebDriver proxy (Rust, Windows)
-├── fixtures/                   # Test fixtures and example apps
-│   ├── e2e-apps/               # E2E test applications
-│   ├── package-tests/          # Package integration tests
-│   └── config-formats/         # Configuration format test fixtures
-├── e2e/                        # End-to-end test suites
-│   ├── test/                   # Test specifications
-│   │   ├── electron/           # Electron E2E tests
-│   │   ├── tauri/              # Tauri E2E tests
-│   │   └── dioxus/             # Dioxus E2E tests
-│   └── scripts/                # Test execution scripts
-├── docs/                       # Documentation
-└── scripts/                    # Build and utility scripts
-```
-
-
 ## Development
 
 ### Requirements
