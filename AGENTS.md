@@ -16,7 +16,7 @@ Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and
 
 ## Gotchas
 
-- The Rust crates use 2-space indentation and have no rustfmt config, so `cargo fmt` reformats whole files. Don't run it.
+- The Dioxus crates use 2-space indentation but have no rustfmt config, so `cargo fmt` reformats whole files there. Don't run it on them. The Tauri crates follow rustfmt's defaults.
 - Every crate and Rust fixture commits its `Cargo.lock`. Commit it with any dependency change, and give a new crate one.
 - `fixtures/package-tests/*` install in isolation, so they use explicit versions, never `catalog:`. Only `fixtures/e2e-apps/*` and `e2e/` use the pnpm catalogs.
 - The package-test fixtures pin `@electron-forge/*` and `electron-builder` to exact versions. Bump those in their own PR.
