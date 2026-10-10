@@ -59,7 +59,8 @@ This document describes the architecture of the WebdriverIO Desktop & Mobile mon
 |---------|---------------|
 | `@wdio/native-cdp-bridge` | Shared CDP bridge: single-target (`CdpBridge`) + multi-target (`MultiTargetCdpBridge`, one connection per window), with target classification injected per service |
 | `@wdio/tauri-plugin` | Tauri v2 plugin for backend command invocation |
-| `wdio-dioxus-bridge` | Dioxus bridge crate — IPC channel, mock dispatch, log forwarding, embedded driver wiring |
+| `wdio-dioxus` | The crate Dioxus apps add — `install()` installs the bridge, plus the embedded driver under the embedded provider |
+| `wdio-dioxus-bridge` | Dioxus bridge crate — IPC channel, mock dispatch, log forwarding |
 | `wdio-dioxus-embedded-driver` | In-process WebDriver HTTP server for Dioxus |
 | `wdio-dioxus-driver` | External WebDriver proxy (fork of tauri-driver); Windows `'external'` provider only |
 

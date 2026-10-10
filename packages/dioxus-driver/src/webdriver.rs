@@ -7,6 +7,7 @@
 //     binary (see packages/dioxus-bridge/src/automation.rs); on Windows it's
 //     a no-op at the Wry level, but we set it anyway for forward compat with
 //     the bridge crate.
+//   - Adds `WDIO_DIOXUS_PROVIDER=external`.
 
 use crate::cli::Args;
 use std::{
@@ -54,6 +55,8 @@ pub fn native(args: &Args) -> Command {
 
   let mut cmd = Command::new(native_binary);
   cmd.env("DIOXUS_WEBVIEW_AUTOMATION", "true");
+  // Tells `wdio-dioxus` in the app to skip its embedded WebDriver server.
+  cmd.env("WDIO_DIOXUS_PROVIDER", "external");
   cmd.arg(format!("--port={}", args.native_port));
   cmd.arg(format!("--host={}", args.native_host));
 

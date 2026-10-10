@@ -77,6 +77,12 @@ packages/dioxus-bridge/
 ├── Cargo.toml                        # Rust crate manifest
 └── README.md                         # Package documentation
 
+packages/dioxus-wdio/
+├── src/
+│   └── lib.rs                        # install(): bridge + embedded driver (bridge only under wdio-dioxus-driver)
+├── Cargo.toml
+└── README.md
+
 packages/dioxus-embedded-driver/
 ├── src/
 │   └── lib.rs                        # Embedded WebDriver HTTP server
@@ -111,6 +117,7 @@ All npm packages use the `@wdio/` scope:
 
 Rust crates use the `wdio-` prefix (kebab-case, matching Cargo conventions):
 
+- `wdio-dioxus` — the crate apps add; installs the bridge and, for the embedded provider, the embedded driver
 - `wdio-dioxus-bridge` — bridge crate (not "plugin" — Dioxus has no plugin-trait system)
 - `wdio-dioxus-embedded-driver` — in-process WebDriver server
 - `wdio-dioxus-driver` — external WebDriver proxy (Windows `'external'` provider)

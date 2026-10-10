@@ -20,7 +20,7 @@ jobs:
     runs-on: ${{ inputs.os }}
     timeout-minutes: 45
     env:
-      # One target dir for all three crates, which build the same dioxus-desktop stack.
+      # One target dir for all the crates, which build the same dioxus-desktop stack.
       CARGO_TARGET_DIR: ${{ github.workspace }}/target
     steps:
       - name: Checkout Repository
@@ -37,7 +37,7 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-dioxus-${{ hashFiles('packages/dioxus-bridge/Cargo.toml', 'packages/dioxus-driver/Cargo.toml', 'packages/dioxus-embedded-driver/Cargo.toml') }}
+          key: ${{ runner.os }}-cargo-dioxus-${{ hashFiles('packages/dioxus-bridge/Cargo.toml', 'packages/dioxus-driver/Cargo.toml', 'packages/dioxus-embedded-driver/Cargo.toml', 'packages/dioxus-wdio/Cargo.toml') }}
           restore-keys: |
             ${{ runner.os }}-cargo-dioxus-
 
@@ -97,3 +97,11 @@ jobs:
       - name: cargo test (wdio-dioxus-embedded-driver)
         run: cargo test
         working-directory: packages/dioxus-embedded-driver
+
+      - name: cargo test (wdio-dioxus)
+        run: cargo test
+        working-directory: packages/dioxus-wdio
+
+      - name: cargo test (wdio-dioxus, bridge only)
+        run: cargo test --no-default-features
+        working-directory: packages/dioxus-wdio

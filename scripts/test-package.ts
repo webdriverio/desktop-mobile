@@ -779,47 +779,35 @@ async function testExample(
       }
     }
 
-    // For Dioxus apps, copy the embedded driver as a Rust path dependency
+    // For Dioxus apps, copy wdio-dioxus and the crates it depends on by path, keeping
+    // their sibling layout so their own `../dioxus-*` path deps still resolve.
     if (service === 'dioxus') {
-      const embeddedDriverSourceDir = join(rootDir, 'packages', 'dioxus-embedded-driver');
-      const embeddedDriverDestDir = join(tempDir, 'packages', 'dioxus-embedded-driver');
       const cargoTomlPath = join(packageDir, 'src-dioxus', 'Cargo.toml');
 
       if (existsSync(cargoTomlPath)) {
         let cargoToml = readFileSync(cargoTomlPath, 'utf-8');
-        if (cargoToml.includes('wdio-dioxus-embedded-driver') && cargoToml.includes('path =')) {
-          if (existsSync(embeddedDriverSourceDir)) {
-            log(`Copying embedded driver source for Rust dependency resolution...`);
-            mkdirSync(dirname(embeddedDriverDestDir), { recursive: true });
-            cpSync(embeddedDriverSourceDir, embeddedDriverDestDir, { recursive: true });
-            log(`✅ Embedded driver source copied to ${embeddedDriverDestDir}`);
-
-            // wdio-dioxus-embedded-driver has a path dep on wdio-dioxus-bridge
-            // (path = "../dioxus-bridge"). Copy the bridge alongside the driver so
-            // Cargo can resolve it from the isolated tempDir.
-            const bridgeSourceDir = join(rootDir, 'packages', 'dioxus-bridge');
-            const bridgeDestDir = join(tempDir, 'packages', 'dioxus-bridge');
-            if (existsSync(bridgeSourceDir)) {
-              cpSync(bridgeSourceDir, bridgeDestDir, { recursive: true });
-              log(`✅ Bridge source copied to ${bridgeDestDir}`);
+        if (cargoToml.includes('wdio-dioxus') && cargoToml.includes('path =')) {
+          for (const crateDir of ['dioxus-wdio', 'dioxus-embedded-driver', 'dioxus-bridge']) {
+            const sourceDir = join(rootDir, 'packages', crateDir);
+            if (existsSync(sourceDir)) {
+              cpSync(sourceDir, join(tempDir, 'packages', crateDir), { recursive: true });
+              log(`✅ ${crateDir} source copied for Rust dependency resolution`);
             } else {
-              log(`⚠️  Bridge source not found at ${bridgeSourceDir}`);
+              log(`⚠️  ${crateDir} source not found at ${sourceDir}`);
             }
+          }
 
-            const oldPathPattern =
-              /(wdio-dioxus-embedded-driver\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/dioxus-embedded-driver"(\s*[,}])/;
-            if (oldPathPattern.test(cargoToml)) {
-              const absoluteDriverPath = normalize(embeddedDriverDestDir).replace(/\\/g, '/');
-              cargoToml = cargoToml.replace(oldPathPattern, `$1"${absoluteDriverPath}"$2`);
-              writeFileSync(cargoTomlPath, cargoToml);
-              log(`✅ Updated Cargo.toml path dependency to: ${absoluteDriverPath}`);
-            } else {
-              log(
-                `⚠️  Could not rewrite wdio-dioxus-embedded-driver path dep — pattern did not match. Cargo build may fail if the relative path is unreachable from the isolated environment.`,
-              );
-            }
+          const oldPathPattern =
+            /(wdio-dioxus\s*=\s*\{\s*path\s*=\s*)"\.\.\/\.\.\/\.\.\/\.\.\/packages\/dioxus-wdio"(\s*[,}])/;
+          if (oldPathPattern.test(cargoToml)) {
+            const absoluteCratePath = normalize(join(tempDir, 'packages', 'dioxus-wdio')).replace(/\\/g, '/');
+            cargoToml = cargoToml.replace(oldPathPattern, `$1"${absoluteCratePath}"$2`);
+            writeFileSync(cargoTomlPath, cargoToml);
+            log(`✅ Updated Cargo.toml path dependency to: ${absoluteCratePath}`);
           } else {
-            log(`⚠️  Embedded driver source not found at ${embeddedDriverSourceDir}`);
+            log(
+              `⚠️  Could not rewrite wdio-dioxus path dep — pattern did not match. Cargo build may fail if the relative path is unreachable from the isolated environment.`,
+            );
           }
         }
       }

@@ -2,7 +2,7 @@
 
 For apps that embed a system webview via **Wry** and expose no CDP. The test process drives a **W3C WebDriver** endpoint, and the app needs **in-app Rust plumbing** to inject test hooks. Two driver models (often both shipped); two in-app plumbing styles.
 
-References: `packages/tauri-service/` + `packages/tauri-plugin/` (external driver, plugin crate); `packages/dioxus-service/` + `dioxus-bridge` / `dioxus-embedded-driver` / `dioxus-driver` (embedded driver, bridge crate).
+References: `packages/tauri-service/` + `packages/tauri-plugin/` (external driver, plugin crate); `packages/dioxus-service/` + `dioxus-wdio` / `dioxus-bridge` / `dioxus-embedded-driver` / `dioxus-driver` (embedded driver, bridge crate).
 
 ## Driver models
 
@@ -20,12 +20,12 @@ External is **not available on macOS** for Wry today, and on Linux depends on th
 
 ### Embedded provider — in-process WebDriver server
 
-**Recommended default, and supported by both shipped Wry services.** A W3C WebDriver HTTP server (Axum) compiled into the app. No external driver to install — **works on all three OSes** (macOS additionally requires the app-level `with_background_throttling` mitigation — see the macOS gotcha at the end of this file; without it the embedded loop silently hangs on headless CI). The service spawns the app directly, sets the automation env vars (`<FRAMEWORK>_WEBVIEW_AUTOMATION` + a port var — use `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` for a new service as Dioxus does; Tauri's `TAURI_WEBDRIVER_PORT` predates the convention), polls `/status` until `ready: true`, then opens a WebDriver session pointed at that port.
+**Recommended default, and supported by both shipped Wry services.** A W3C WebDriver HTTP server (Axum) compiled into the app. No external driver to install — **works on all three OSes** (macOS additionally requires the app-level `with_background_throttling` mitigation — see the macOS gotcha at the end of this file; without it the embedded loop silently hangs on headless CI). The service spawns the app directly, sets the automation env vars (`<FRAMEWORK>_WEBVIEW_AUTOMATION` + a port var — Dioxus uses `WDIO_EMBEDDED_PORT`, Tauri `TAURI_WEBDRIVER_PORT`), polls `/status` until `ready: true`, then opens a WebDriver session pointed at that port.
 
 **Two delivery routes, mirroring the in-app plumbing axis (below):**
 
 - **Plugin route (Tauri)** — `tauri-plugin-wdio-webdriver` (`packages/tauri-plugin-webdriver/`, a *second* crate alongside the execute/mock plugin `tauri-plugin-wdio`). The app registers it explicitly: `tauri_plugin_wdio_webdriver::init()` in `lib.rs`. If the server doesn't come up, the service error tells the user to register the plugin or fall back to `driverProvider: 'external'`.
-- **Bridge route (Dioxus)** — `wdio-dioxus-embedded-driver`, a standalone crate the bridge starts automatically when the automation port is set (no explicit app registration beyond installing the bridge). The embedded crate depends on the bridge crate (`wdio-<framework>-bridge = { path = "../<framework>-bridge" }`).
+- **Bridge route (Dioxus)** — `wdio-dioxus-embedded-driver`, a standalone crate that depends on the bridge crate (`wdio-<framework>-bridge = { path = "../<framework>-bridge" }`). Apps don't add it directly: they add the app-side crate `wdio-dioxus` (`packages/dioxus-wdio/`) and call its `install()`, which installs the bridge and starts the embedded server when the service launched the app. When `wdio-dioxus-driver` launched it instead, the driver sets `WDIO_DIOXUS_PROVIDER=external` and `install()` installs the bridge alone, so switching provider doesn't change the app.
 
 Structure (mirror `packages/dioxus-embedded-driver/`):
 

@@ -176,6 +176,7 @@ jobs:
         packages/dioxus-bridge
         packages/dioxus-driver
         packages/dioxus-embedded-driver
+        packages/dioxus-wdio
 
   # Build Tauri E2E app binaries - only if Tauri tests will run
   build-tauri-e2e-app-linux:

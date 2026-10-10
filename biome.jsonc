@@ -25,6 +25,7 @@
       "!**/dioxus-bridge/target",
       "!**/dioxus-driver/target",
       "!**/dioxus-embedded-driver/target",
+      "!**/dioxus-wdio/target",
       "!**/src-tauri/target",
       "!**/src-tauri/target/**/.fingerprint/**/*.json",
       // ignore tauri plugin build.rs-generated permission files (no trailing newline)
