@@ -81,7 +81,7 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 ### Requirements
 
 - Node.js 24 LTS
-- pnpm 11.20.0
+- pnpm 12, through Corepack (`corepack enable`), which uses the exact version pinned in `package.json`
 
 ### Setup
 

@@ -11,10 +11,10 @@ Before you begin, ensure you have the following installed:
   node --version  # Should be v24.x
   ```
 
-- **pnpm**: Version 10.27.0 or higher
+- **pnpm**: Version 12, through Corepack, which uses the exact version pinned in `package.json`
   ```bash
-  npm install -g pnpm
-  pnpm --version  # Should be 10.27.0+
+  corepack enable
+  pnpm --version  # Should be 12.x
   ```
 
 - **Git**: For version control
@@ -116,42 +116,6 @@ pnpm dev
 
 # Watch mode for specific package
 pnpm --filter wdio-electron-service dev
-```
-
-## Monorepo Structure
-
-```
-desktop-mobile/
-├── .github/
-│   └── workflows/          # CI/CD workflows
-├── packages/               # All packages
-│   ├── electron-service/       # Electron WDIO service
-│   ├── tauri-service/          # Tauri WDIO service
-│   ├── dioxus-service/         # Dioxus WDIO service
-│   ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
-│   ├── dioxus-bridge/          # Dioxus bridge crate (Rust)
-│   ├── dioxus-embedded-driver/ # Dioxus embedded WebDriver server (Rust)
-│   ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows)
-│   ├── native-cdp-bridge/      # Shared Chrome DevTools Protocol bridge (single + multi-target)
-│   ├── native-utils/           # Cross-platform utilities
-│   ├── native-types/           # Shared TypeScript type definitions
-│   ├── native-spy/             # Spy utilities for mocking
-│   └── bundler/                # Build tooling
-├── fixtures/              # Test fixtures and example apps
-│   ├── e2e-apps/         # E2E test applications
-│   │   ├── electron-*/   # Electron E2E apps
-│   │   ├── tauri/        # Tauri E2E app
-│   │   └── dioxus/       # Dioxus E2E app
-│   └── package-tests/     # Package test fixtures
-│       └── tauri-app/     # Tauri package test app
-├── e2e/                  # E2E test scenarios
-├── docs/                 # Documentation
-├── scripts/              # Build and utility scripts
-├── package.json          # Root package.json
-├── pnpm-workspace.yaml   # Workspace configuration
-├── turbo.json           # Turborepo configuration
-├── tsconfig.base.json   # Base TypeScript config
-└── vitest.config.ts     # Vitest configuration
 ```
 
 ## Working with Packages
