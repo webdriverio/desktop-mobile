@@ -91,7 +91,6 @@ desktop-mobile/
 │   ├── native-spy/              # Spy utilities for mocking
 │   ├── bundler/                 # Build tool for packaging
 │   ├── tauri-plugin/            # Tauri plugin for backend access
-│   ├── dioxus-wdio/             # Dioxus app-side crate (Rust, wdio-dioxus)
 │   ├── dioxus-bridge/           # Dioxus bridge crate (Rust)
 │   ├── dioxus-embedded-driver/  # Dioxus embedded WebDriver server (Rust)
 │   └── dioxus-driver/           # Dioxus external WebDriver proxy (Rust, Windows)

@@ -72,7 +72,7 @@
       "scope:native-cdp-bridge": "@wdio/native-cdp-bridge",
       "scope:native-mobile-core": "@wdio/native-mobile-core",
       "scope:tauri": "@wdio/tauri-*,tauri-plugin-wdio*",
-      "scope:dioxus": "@wdio/dioxus-*,wdio-dioxus,wdio-dioxus-*",
+      "scope:dioxus": "@wdio/dioxus-*,wdio-dioxus*",
       "scope:electron": "@wdio/electron-*",
       "scope:electrobun": "@wdio/electrobun-*",
       "scope:react-native": "@wdio/react-native-*",
