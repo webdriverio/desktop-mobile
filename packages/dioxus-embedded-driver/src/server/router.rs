@@ -47,26 +47,11 @@ pub fn create_router(state: Arc<AppState>) -> Router {
       "/session/{session_id}/element/{element_id}/elements",
       post(handlers::element::find_all_from_element),
     )
-    .route(
-      "/session/{session_id}/element/{element_id}/click",
-      post(handlers::element::click),
-    )
-    .route(
-      "/session/{session_id}/element/{element_id}/clear",
-      post(handlers::element::clear),
-    )
-    .route(
-      "/session/{session_id}/element/{element_id}/value",
-      post(handlers::element::send_keys),
-    )
-    .route(
-      "/session/{session_id}/element/{element_id}/text",
-      get(handlers::element::get_text),
-    )
-    .route(
-      "/session/{session_id}/element/{element_id}/name",
-      get(handlers::element::get_tag_name),
-    )
+    .route("/session/{session_id}/element/{element_id}/click", post(handlers::element::click))
+    .route("/session/{session_id}/element/{element_id}/clear", post(handlers::element::clear))
+    .route("/session/{session_id}/element/{element_id}/value", post(handlers::element::send_keys))
+    .route("/session/{session_id}/element/{element_id}/text", get(handlers::element::get_text))
+    .route("/session/{session_id}/element/{element_id}/name", get(handlers::element::get_tag_name))
     .route(
       "/session/{session_id}/element/{element_id}/attribute/{name}",
       get(handlers::element::get_attribute),
@@ -79,10 +64,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
       "/session/{session_id}/element/{element_id}/css/{property_name}",
       get(handlers::element::get_css_value),
     )
-    .route(
-      "/session/{session_id}/element/{element_id}/rect",
-      get(handlers::element::get_rect),
-    )
+    .route("/session/{session_id}/element/{element_id}/rect", get(handlers::element::get_rect))
     .route(
       "/session/{session_id}/element/{element_id}/selected",
       get(handlers::element::is_selected),
@@ -91,10 +73,7 @@ pub fn create_router(state: Arc<AppState>) -> Router {
       "/session/{session_id}/element/{element_id}/displayed",
       get(handlers::element::is_displayed),
     )
-    .route(
-      "/session/{session_id}/element/{element_id}/enabled",
-      get(handlers::element::is_enabled),
-    )
+    .route("/session/{session_id}/element/{element_id}/enabled", get(handlers::element::is_enabled))
     .route(
       "/session/{session_id}/element/{element_id}/screenshot",
       get(handlers::element::take_screenshot),
