@@ -24,7 +24,8 @@
     "build:js": "tsx scripts/build-guest-js.ts",
     "build:rust": "cargo build",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:unit": "vitest run --coverage"
   },
   "keywords": [
     "tauri",

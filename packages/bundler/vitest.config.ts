@@ -17,10 +17,10 @@ export default defineConfig({
         'src/cli/types.ts',
       ],
       thresholds: {
-        statements: 70,
-        branches: 65,
-        functions: 75,
-        lines: 70,
+        statements: 80,
+        branches: 80,
+        functions: 80,
+        lines: 80,
       },
     },
     testTimeout: 30000, // 30 seconds for integration tests

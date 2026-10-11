@@ -13,7 +13,6 @@ export default defineConfig({
     exclude: [...configDefaults.exclude, 'example*/**/*', 'test/integration/**'],
     // Coverage configuration
     coverage: {
-      enabled: true,
       provider: 'v8',
       reporter: ['text', 'json', 'html', 'lcov'],
       reportsDirectory: './coverage',
