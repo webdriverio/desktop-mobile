@@ -6,8 +6,6 @@ import type { TauriCommandContext, TauriResult } from '../types.js';
 import { getCurrentWindowLabel, getDefaultWindowLabel, getSessionProvider } from '../window.js';
 import { wrapScriptForDirectEval } from '../wrapForDirectEval.js';
 
-export { clearPluginAvailabilityCache } from '../pluginCache.js';
-
 const log = createLogger('tauri-service', 'service');
 
 const directEvalClientCache = new WeakMap<WebdriverIO.Browser, { client: DirectEvalClient; port: number }>();

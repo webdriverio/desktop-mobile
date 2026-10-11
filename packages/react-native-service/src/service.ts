@@ -1,3 +1,4 @@
+import { triggerDeeplink } from '@wdio/native-mobile-core';
 import type { ReactNativeServiceAPI } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
@@ -10,7 +11,6 @@ import {
 import { emitEvent } from './commands/emitEvent.js';
 import { executeScript } from './commands/execute.js';
 import { listContexts, switchContext } from './commands/switchContext.js';
-import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import {
   CUSTOM_CAPABILITY_NAME,
   DEFAULT_METRO_HOST,
