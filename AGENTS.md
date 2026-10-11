@@ -40,20 +40,4 @@ Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and
 
 ### Comments
 
-- Default to writing no comments. Add one only when the **why** is
-  non-obvious — a hidden constraint, a subtle invariant, a workaround for a
-  specific bug, behavior that would surprise a reader. If removing the
-  comment wouldn't confuse a future reader, don't write it.
-- Don't restate what the code already says. A descriptive variable or
-  function name removes the need for a comment that describes the same
-  thing in prose.
-- Don't couple comments to details that drift without signal — specific
-  version numbers, transient stack traces, "this used to do X". These rot
-  silently as the environment changes. Keep the rationale, drop the
-  citation: `// Forge silently broke packaging in a patch release` rather
-  than `// Forge 7.11.2 silently broke packaging`.
-- **Do** link load-bearing tracking refs — an issue or PR whose resolution
-  removes or rewrites the commented code. These are the opposite of drift:
-  they're an active signal to update. `// Workaround for forge/forge#4219;
-  drop once a fix lands` is useful even years later.
-- JSDoc for public APIs only when necessary.
+Default to none. Write one only when the *why* is non-obvious: a hidden constraint, a workaround, behavior that would surprise a reader. Don't restate the code, and don't cite details that drift silently (versions, stack traces, "this used to do X"). Do link an issue or PR whose resolution would change the code: `// Workaround for forge/forge#4219; drop once a fix lands`. JSDoc only where a public API needs it.
