@@ -188,6 +188,20 @@
           }
         }
       }
+    },
+    {
+      // A package's root index.ts is its public entry point, so it's the only file that re-exports.
+      "includes": [
+        "packages/*/src/**",
+        "!packages/*/src/index.ts"
+      ],
+      "linter": {
+        "rules": {
+          "performance": {
+            "noBarrelFile": "error"
+          }
+        }
+      }
     }
   ],
   "assist": {
