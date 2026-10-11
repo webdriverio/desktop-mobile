@@ -56,9 +56,7 @@ where
     cb(&url);
     let mut response = Response::new(Cow::Borrowed(b"" as &[u8]));
     *response.status_mut() = StatusCode::OK;
-    response
-      .headers_mut()
-      .insert("content-type", HeaderValue::from_static("text/plain"));
+    response.headers_mut().insert("content-type", HeaderValue::from_static("text/plain"));
     response
   })
 }

@@ -92,11 +92,7 @@ pub fn register_window(window: &Arc<Window>) -> String {
   let mut counter = r.total_registered.lock().expect("window-state registry poisoned");
   let label = allocate_label(*counter);
   *counter += 1;
-  entries.push(Entry {
-    id,
-    label: label.clone(),
-    window: Arc::downgrade(window),
-  });
+  entries.push(Entry { id, label: label.clone(), window: Arc::downgrade(window) });
   label
 }
 
@@ -104,11 +100,7 @@ pub fn register_window(window: &Arc<Window>) -> String {
 pub fn list_labels() -> Vec<String> {
   let r = registry();
   let entries = r.entries.lock().expect("window-state registry poisoned");
-  entries
-    .iter()
-    .filter(|e| e.window.upgrade().is_some())
-    .map(|e| e.label.clone())
-    .collect()
+  entries.iter().filter(|e| e.window.upgrade().is_some()).map(|e| e.label.clone()).collect()
 }
 
 /// Label of the currently-focused window, if any. Walks the live entries
@@ -149,12 +141,8 @@ pub fn get_window_states() -> Vec<WindowState> {
 pub fn label_for_id(id: WindowId) -> Option<String> {
   let r = registry();
   let entries = r.entries.lock().expect("window-state registry poisoned");
-  entries
-    .iter()
-    .find(|e| e.id == id)
-    .map(|e| e.label.clone())
+  entries.iter().find(|e| e.id == id).map(|e| e.label.clone())
 }
-
 
 #[cfg(test)]
 mod tests {

@@ -63,7 +63,9 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
 
             // Arc so the (non-generic) objc2 message handler can hold its own clone; see eval_channel.
             #[cfg(target_os = "macos")]
-            app.manage(std::sync::Arc::new(eval_channel::EvalResultRegistry::default()));
+            app.manage(std::sync::Arc::new(
+                eval_channel::EvalResultRegistry::default(),
+            ));
 
             // Start the macOS headless run-loop pump early (before any webview loads); Once-guarded,
             // so the on_webview_ready registration remains a fallback. See #540.

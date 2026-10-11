@@ -46,8 +46,14 @@ pub async fn set(
 ) -> WebDriverResult {
   let mut sessions = state.sessions.write().await;
   let session = sessions.get_mut(&session_id)?;
-  if let Some(v) = req.implicit { session.timeouts.implicit_ms = v; }
-  if let Some(v) = req.page_load { session.timeouts.page_load_ms = v; }
-  if let Some(v) = req.script { session.timeouts.script_ms = v; }
+  if let Some(v) = req.implicit {
+    session.timeouts.implicit_ms = v;
+  }
+  if let Some(v) = req.page_load {
+    session.timeouts.page_load_ms = v;
+  }
+  if let Some(v) = req.script {
+    session.timeouts.script_ms = v;
+  }
   Ok(WebDriverResponse::null())
 }
