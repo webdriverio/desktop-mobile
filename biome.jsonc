@@ -134,6 +134,22 @@
       }
     },
     {
+      // Package code logs through createLogger from @wdio/native-utils. The bundler CLI prints to the
+      // terminal, and tauri-service's src/scripts run in the app's webview.
+      "includes": [
+        "packages/*/src/**",
+        "!packages/bundler/src/cli/**",
+        "!packages/tauri-service/src/scripts/**"
+      ],
+      "linter": {
+        "rules": {
+          "suspicious": {
+            "noConsole": "error"
+          }
+        }
+      }
+    },
+    {
       "includes": [
         "fixtures/electron-apps/*-cjs/**/*.ts"
       ],
