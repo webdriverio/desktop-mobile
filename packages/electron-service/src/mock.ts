@@ -14,8 +14,6 @@ import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './m
 const log = createLogger('electron-service', 'mock');
 const browserInterceptor = createIpcInterceptor('electron');
 
-export { createClassMock } from './classMock.js';
-
 export async function createMock(
   apiName: string,
   funcName: string,

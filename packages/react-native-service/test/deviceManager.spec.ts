@@ -6,7 +6,7 @@ vi.mock('@wdio/native-utils', async (importOriginal) => {
   return { ...mod, createLogger: () => ({ ...h, info: vi.fn(), error: vi.fn() }) };
 });
 
-import { DeviceManager } from '../src/deviceManager.js';
+import { DeviceManager } from '@wdio/native-mobile-core';
 
 const DEVICES = [{ udid: 'd0' }, { udid: 'd1' }, { udid: 'd2' }];
 
