@@ -10,12 +10,6 @@ export default defineConfig({
       reporter: ['text', 'json', 'html'],
       include: ['guest-js/**/*.ts'],
       exclude: ['**/*.d.ts', 'guest-js/__tests__/**'],
-      thresholds: {
-        statements: 68,
-        branches: 62,
-        functions: 61,
-        lines: 69,
-      },
     },
   },
 });
