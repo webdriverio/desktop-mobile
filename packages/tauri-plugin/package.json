@@ -38,8 +38,8 @@
     "node": ">=18.20.0"
   },
   "dependencies": {
-    "@tauri-apps/api": "2.12.1",
-    "@tauri-apps/plugin-log": "2.10.0",
+    "@tauri-apps/api": "2.12.3",
+    "@tauri-apps/plugin-log": "2.10.1",
     "@wdio/native-spy": "workspace:*",
     "@wdio/native-utils": "workspace:*"
   },
