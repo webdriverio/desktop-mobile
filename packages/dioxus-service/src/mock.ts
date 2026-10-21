@@ -131,7 +131,8 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
-  // Run in `finally` by the methods below, so a dead app still leaves the outer mock and the store clean.
+  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`
+  // so a dead app still drops the store entry.
   const localOps: Required<LocalMockOps> = {
     mockClear: () => outerMockClear(),
     mockReset: () => {
@@ -154,20 +155,14 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   registerLocalMockOps(mock, localOps, browserToUse);
 
   mock.mockClear = async () => {
-    try {
-      await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockClear'));
-    } finally {
-      localOps.mockClear();
-    }
+    await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockClear'));
+    localOps.mockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
-    try {
-      await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
-    } finally {
-      localOps.mockReset();
-    }
+    await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
+    localOps.mockReset();
     return mock;
   };
 

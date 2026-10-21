@@ -249,7 +249,8 @@ export async function createMock(
     return mock;
   };
 
-  // Run in `finally` by the methods below; restore keeps the store entry (see mockRestore).
+  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`
+  // (keeping the store entry, see mockRestore).
   const localOps: Required<LocalMockOps> = {
     mockClear: () => outerMockClear(),
     mockReset: () => {
@@ -267,20 +268,14 @@ export async function createMock(
   registerLocalMockOps(mock, localOps);
 
   mock.mockClear = async () => {
-    try {
-      await evaluateInRealm<void>(bridge, buildClearScript(target), mockContext);
-    } finally {
-      localOps.mockClear();
-    }
+    await evaluateInRealm<void>(bridge, buildClearScript(target), mockContext);
+    localOps.mockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
-    try {
-      await evaluateInRealm<void>(bridge, buildResetScript(target), mockContext);
-    } finally {
-      localOps.mockReset();
-    }
+    await evaluateInRealm<void>(bridge, buildResetScript(target), mockContext);
+    localOps.mockReset();
     return mock;
   };
 

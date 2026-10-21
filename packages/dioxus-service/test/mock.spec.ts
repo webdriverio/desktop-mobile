@@ -124,7 +124,7 @@ describe('createMock', () => {
     expect(mockStore.getMocks()).toHaveLength(0);
   });
 
-  it('should still clear the outer calls and keep the name when the reset call fails', async () => {
+  it('should keep the outer calls and the name when the reset call fails', async () => {
     const browser = makeBrowser();
     const m = await createMock('greet', browser);
     (m as unknown as (...a: unknown[]) => unknown)('arg');
@@ -132,7 +132,7 @@ describe('createMock', () => {
 
     await expect(m.mockReset()).rejects.toMatchObject({ message: 'invalid session id' });
 
-    expect(m.mock.calls).toHaveLength(0);
+    expect(m.mock.calls).toHaveLength(1);
     expect(m.getMockName()).toBe('dioxus.greet');
     expect(browser.execute).toHaveBeenCalledOnce();
   });

@@ -127,18 +127,22 @@ describe('restoreAllMocks Command', () => {
     expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
   });
 
-  it('should only clean up locally and report one failure when the session is gone', async () => {
+  it('should make one per-mock app call and then only clean up locally when the session is gone', async () => {
     const localOps = [vi.fn(), vi.fn(), vi.fn()];
     registerLocalMockOps(mockedGetPlatformInfo, { mockRestore: localOps[0] }, globalThis.browser);
     registerLocalMockOps(mockedReadClipboard, { mockRestore: localOps[1] }, globalThis.browser);
     registerLocalMockOps(mockedWriteClipboard, { mockRestore: localOps[2] }, globalThis.browser);
     (globalThis.browser as any).execute.mockRejectedValue(new Error('invalid session id'));
+    mockedGetPlatformInfo.mockRestore.mockRejectedValue(new Error('invalid session id'));
 
     await expect(restoreAllMocks()).rejects.toMatchObject({
-      errors: [expect.objectContaining({ message: 'invalid session id' })],
+      errors: [
+        expect.objectContaining({ message: 'invalid session id' }),
+        expect.objectContaining({ message: 'invalid session id' }),
+      ],
     });
 
-    expect(mockedGetPlatformInfo.mockRestore).not.toHaveBeenCalled();
+    expect(mockedGetPlatformInfo.mockRestore).toHaveBeenCalledOnce();
     expect(mockedReadClipboard.mockRestore).not.toHaveBeenCalled();
     expect(mockedWriteClipboard.mockRestore).not.toHaveBeenCalled();
     for (const localOp of localOps) {

@@ -124,18 +124,17 @@ describe('allMocks helpers', () => {
       expect(b.mock.calls).toHaveLength(0);
     });
 
-    it('should make one CDP call, empty the store and report one failure once the connection is gone', async () => {
-      const { bridge } = makeBridge({ api: { a: () => 1, b: () => 2 } });
+    it('should stop making CDP calls after two connection failures and still empty the store', async () => {
+      const { bridge } = makeBridge({ api: { a: () => 1, b: () => 2, c: () => 3 } });
       await createMock('api.a', bridge, store);
       await createMock('api.b', bridge, store);
+      await createMock('api.c', bridge, store);
       const send = vi.mocked(bridge.send);
       send.mockClear().mockRejectedValue(new Error('WebSocket is not connected'));
 
-      await expect(restoreAllMocks(store)).rejects.toMatchObject({
-        errors: [expect.objectContaining({ message: 'WebSocket is not connected' })],
-      });
+      await expect(restoreAllMocks(store)).rejects.toBeInstanceOf(AggregateError);
 
-      expect(send).toHaveBeenCalledOnce();
+      expect(send).toHaveBeenCalledTimes(2);
       expect(store.getMocks()).toEqual([]);
     });
 

@@ -241,7 +241,8 @@ export async function createMock(
       mock.mockClear = asyncMockClear;
     }
   };
-  // Run in `finally` by the methods below, so a dead app still leaves the outer mock and the store clean.
+  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`
+  // so a dead app still drops the store entry.
   const localOps: Required<LocalMockOps> = {
     mockClear: () => outerMockClear(),
     mockReset: () => {
@@ -259,20 +260,14 @@ export async function createMock(
   registerLocalMockOps(mock, localOps);
 
   mock.mockClear = async () => {
-    try {
-      await evaluateInActiveTarget<void>(bridge, buildClearScript(target), mockContext);
-    } finally {
-      localOps.mockClear();
-    }
+    await evaluateInActiveTarget<void>(bridge, buildClearScript(target), mockContext);
+    localOps.mockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
-    try {
-      await evaluateInActiveTarget<void>(bridge, buildResetScript(target), mockContext);
-    } finally {
-      localOps.mockReset();
-    }
+    await evaluateInActiveTarget<void>(bridge, buildResetScript(target), mockContext);
+    localOps.mockReset();
     return mock;
   };
 

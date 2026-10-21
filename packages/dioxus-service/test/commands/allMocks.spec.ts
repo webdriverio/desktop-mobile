@@ -93,7 +93,7 @@ describe('all-mocks helpers', () => {
   });
 
   describe('restoreAllMocks against a dead app', () => {
-    it('should make one app call, empty the store and report one failure', async () => {
+    it('should stop calling the app after two connection failures and still empty the store', async () => {
       const browser = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
       markAsEmbedded(browser);
       await createMock('a', browser);
@@ -102,10 +102,13 @@ describe('all-mocks helpers', () => {
       vi.mocked(browser.execute).mockClear().mockRejectedValue(new Error('WebSocket is not connected'));
 
       await expect(restoreAllMocks()).rejects.toMatchObject({
-        errors: [expect.objectContaining({ message: 'WebSocket is not connected' })],
+        errors: [
+          expect.objectContaining({ message: 'WebSocket is not connected' }),
+          expect.objectContaining({ message: 'WebSocket is not connected' }),
+        ],
       });
 
-      expect(browser.execute).toHaveBeenCalledOnce();
+      expect(browser.execute).toHaveBeenCalledTimes(2);
       expect(mockStore.getMocks()).toEqual([]);
     });
 
@@ -121,11 +124,9 @@ describe('all-mocks helpers', () => {
       vi.mocked(dead.execute).mockClear().mockRejectedValue(new Error('invalid session id'));
       vi.mocked(healthy.execute).mockClear();
 
-      await expect(restoreAllMocks()).rejects.toMatchObject({
-        errors: [expect.objectContaining({ message: 'invalid session id' })],
-      });
+      await expect(restoreAllMocks()).rejects.toBeInstanceOf(AggregateError);
 
-      expect(dead.execute).toHaveBeenCalledOnce();
+      expect(dead.execute).toHaveBeenCalledTimes(2);
       expect(healthy.execute).toHaveBeenCalledTimes(2);
       expect(mockStore.getMocks()).toEqual([]);
     });

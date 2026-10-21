@@ -30,31 +30,31 @@ describe('bulk ops against an unreachable VM service', () => {
     const store = new FlutterMockStore();
     const a = await createFlutterMock('Svc.a', () => Promise.resolve(client), store);
     const b = await createFlutterMock('Svc.b', () => Promise.resolve(client), store);
-    (a as unknown as (...args: unknown[]) => unknown)('call');
-    (b as unknown as (...args: unknown[]) => unknown)('call');
+    const c = await createFlutterMock('Svc.c', () => Promise.resolve(client), store);
+    for (const mock of [a, b, c]) {
+      (mock as unknown as (...args: unknown[]) => unknown)('call');
+    }
     const send = client.callServiceExtension as ReturnType<typeof vi.fn>;
     send.mockClear().mockRejectedValue(new Error('WebSocket is not connected'));
-    return { store, b, send };
+    return { store, c, send };
   }
 
-  it('should make one VM call on restoreAllMocks and still empty the store', async () => {
+  it('should stop making VM calls on restoreAllMocks after two failures and still empty the store', async () => {
     const { store, send } = await storeWithDeadClient();
 
-    await expect(restoreAllMocks(store)).rejects.toMatchObject({
-      errors: [expect.objectContaining({ message: 'WebSocket is not connected' })],
-    });
+    await expect(restoreAllMocks(store)).rejects.toBeInstanceOf(AggregateError);
 
-    expect(send).toHaveBeenCalledOnce();
+    expect(send).toHaveBeenCalledTimes(2);
     expect(store.getMocks()).toEqual([]);
   });
 
   it('should leave the skipped mocks untouched on clearAllMocks, since a clear is success-only', async () => {
-    const { store, b, send } = await storeWithDeadClient();
+    const { store, c, send } = await storeWithDeadClient();
 
     await expect(clearAllMocks(store)).rejects.toBeInstanceOf(AggregateError);
 
-    expect(send).toHaveBeenCalledOnce();
-    expect(b.mock.calls).toEqual([['call']]);
+    expect(send).toHaveBeenCalledTimes(2);
+    expect(c.mock.calls).toEqual([['call']]);
   });
 });
 

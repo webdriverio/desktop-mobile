@@ -216,8 +216,7 @@ export default class FlutterWorkerService {
     const store = this.store;
     const wantsLifecycle = this.options.clearMocks || this.options.resetMocks || this.options.restoreMocks;
     // Run the lifecycle even if the socket dropped mid-test: each op resolves the client lazily
-    // (reconnect-on-demand), so stale Dart mock state still gets cleared once the app is reachable
-    // again. No mocks → no-op (and no reconnect attempt).
+    // (reconnect-on-demand). No mocks → no-op (and no reconnect attempt).
     if (!store || !wantsLifecycle || store.getMocks().length === 0) {
       return;
     }

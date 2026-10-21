@@ -218,20 +218,20 @@ describe('createMock', () => {
       return mock;
     }
 
-    it('should still clear the outer calls on mockClear', async () => {
+    it('should keep the outer calls on mockClear, so they stay in step with the app', async () => {
       const mock = await mockWithOneCall();
 
       await expect(mock.mockClear()).rejects.toMatchObject({ message: 'invalid session id' });
 
-      expect(mock.mock.calls).toHaveLength(0);
+      expect(mock.mock.calls).toHaveLength(1);
     });
 
-    it('should still reset the outer mock, keep its name and its async mockClear on mockReset', async () => {
+    it('should keep the outer calls, its name and its async mockClear on mockReset', async () => {
       const mock = await mockWithOneCall();
 
       await expect(mock.mockReset()).rejects.toMatchObject({ message: 'invalid session id' });
 
-      expect(mock.mock.calls).toHaveLength(0);
+      expect(mock.mock.calls).toHaveLength(1);
       expect(mock.getMockName()).toBe('tauri.my_cmd');
       mockExecute.mockClear();
       await mock.mockClear();

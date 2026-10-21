@@ -59,6 +59,19 @@ describe('restoreElectronFunctionality()', () => {
     expect(result).toBe('SUCCESS_FALLBACK');
   });
 
+  it('should reject when the in-app restore throws', async () => {
+    const electron = {
+      get app(): never {
+        throw new Error('app is gone');
+      },
+    };
+    mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(electron, ...args));
+
+    await expect(restoreElectronFunctionality('app', 'getName', globalThis.browser)).rejects.toMatchObject({
+      message: 'Failed to restore electron.app.getName: Error: app is gone',
+    });
+  });
+
   it('should return NO_RESTORE_AVAILABLE when no restore path exists', async () => {
     const electronApp: Record<string, unknown> = { getName: () => 'current' };
     const electron = { app: electronApp };
@@ -101,20 +114,17 @@ describe('buildMockMethods() when the app call fails', () => {
     mockExecute.mockRejectedValue(new Error('WebSocket is not connected'));
   });
 
-  it.each(['mockClear', 'mockRestore'] as const)('should still clear the outer mock when %s fails', async (op) => {
-    await expect(mock[op]()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
+  it('should still clear the outer mock when mockRestore fails', async () => {
+    await expect(mock.mockRestore()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
 
     expect(outerMock.mockClear).toHaveBeenCalledOnce();
   });
 
-  it('should still reset the outer mock and keep its name and async mockClear when mockReset fails', async () => {
-    const asyncMockClear = mock.mockClear;
+  it.each(['mockClear', 'mockReset'] as const)('should leave the outer mock alone when %s fails', async (op) => {
+    await expect(mock[op]()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
 
-    await expect(mock.mockReset()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
-
-    expect(outerMock.mockReset).toHaveBeenCalledOnce();
-    expect(outerMock.mockName).toHaveBeenCalledWith('electron.app.getName');
-    expect(mock.mockClear).toBe(asyncMockClear);
+    expect(outerMock.mockClear).not.toHaveBeenCalled();
+    expect(outerMock.mockReset).not.toHaveBeenCalled();
     expect(mockExecute).toHaveBeenCalledOnce();
   });
 

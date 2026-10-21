@@ -95,37 +95,67 @@ describe('runBulkMockOp', () => {
     expect(b.mockRestore).toHaveBeenCalledOnce();
   });
 
-  it('should skip the remaining app calls but run every local half once the app is unreachable', async () => {
-    const dead = fakeMock();
+  it('should go local-only after two consecutive connection failures, including the failed mocks', async () => {
+    const first = fakeMock();
+    const second = fakeMock();
     const withLocal = fakeMock();
     const withoutLocal = fakeMock();
-    const deadLocal = vi.fn();
+    const firstLocal = vi.fn();
+    const secondLocal = vi.fn();
     const local = vi.fn();
-    registerLocalMockOps(dead, { mockRestore: deadLocal });
-    registerLocalMockOps(withLocal, { mockRestore: local });
-    const connectionError = new Error('WebSocket is not connected');
-    dead.mockRestore.mockRejectedValue(connectionError);
+    registerLocalMockOps(first, { mockClear: firstLocal });
+    registerLocalMockOps(second, { mockClear: secondLocal });
+    registerLocalMockOps(withLocal, { mockClear: local });
+    first.mockClear.mockRejectedValue(new Error('WebSocket is not connected'));
+    second.mockClear.mockRejectedValue(new Error('Request timed out!'));
 
     const result = runBulkMockOp(
       [
-        ['dead', dead],
+        ['first', first],
+        ['second', second],
         ['withLocal', withLocal],
         ['withoutLocal', withoutLocal],
       ],
-      'mockRestore',
+      'mockClear',
     );
 
     await expect(result).rejects.toMatchObject({
-      errors: [connectionError],
       message:
-        'mockRestore failed: dead: WebSocket is not connected ' +
+        'mockClear failed: first: WebSocket is not connected; second: Request timed out! ' +
         '(app unreachable: skipped the app call for 2 other mock(s))',
     });
-    expect(withLocal.mockRestore).not.toHaveBeenCalled();
-    expect(withoutLocal.mockRestore).not.toHaveBeenCalled();
+    expect(withLocal.mockClear).not.toHaveBeenCalled();
+    expect(withoutLocal.mockClear).not.toHaveBeenCalled();
     expect(local).toHaveBeenCalledOnce();
-    // The failed mock's own method already ran its local half; the helper doesn't repeat it.
-    expect(deadLocal).not.toHaveBeenCalled();
+    expect(firstLocal).toHaveBeenCalledOnce();
+    expect(secondLocal).toHaveBeenCalledOnce();
+  });
+
+  it('should keep making app calls after a single connection failure, and a success resets the count', async () => {
+    const blip = fakeMock();
+    const ok = fakeMock();
+    const laterBlip = fakeMock();
+    const last = fakeMock();
+    const blipLocal = vi.fn();
+    registerLocalMockOps(blip, { mockReset: blipLocal });
+    blip.mockReset.mockRejectedValue(new Error('socket hang up'));
+    laterBlip.mockReset.mockRejectedValue(new Error('socket hang up'));
+
+    await expect(
+      runBulkMockOp(
+        [
+          ['blip', blip],
+          ['ok', ok],
+          ['laterBlip', laterBlip],
+          ['last', last],
+        ],
+        'mockReset',
+      ),
+    ).rejects.toBeInstanceOf(AggregateError);
+
+    expect(ok.mockReset).toHaveBeenCalledOnce();
+    expect(last.mockReset).toHaveBeenCalledOnce();
+    expect(blipLocal).not.toHaveBeenCalled();
   });
 
   it('should keep making app calls for mocks on a healthy connection when another connection is gone', async () => {
@@ -133,63 +163,73 @@ describe('runBulkMockOp', () => {
     const browserB = {};
     const deadA = fakeMock();
     const healthyB = fakeMock();
+    const alsoDeadA = fakeMock();
     const otherA = fakeMock();
-    const healthyBLocal = vi.fn();
     const otherALocal = vi.fn();
     registerLocalMockOps(deadA, {}, browserA);
-    registerLocalMockOps(healthyB, { mockRestore: healthyBLocal }, browserB);
+    registerLocalMockOps(healthyB, {}, browserB);
+    registerLocalMockOps(alsoDeadA, {}, browserA);
     registerLocalMockOps(otherA, { mockRestore: otherALocal }, browserA);
     deadA.mockRestore.mockRejectedValue(new Error('invalid session id'));
+    alsoDeadA.mockRestore.mockRejectedValue(new Error('invalid session id'));
 
     await expect(
       runBulkMockOp(
         [
           ['deadA', deadA],
           ['healthyB', healthyB],
+          ['alsoDeadA', alsoDeadA],
           ['otherA', otherA],
         ],
         'mockRestore',
       ),
-    ).rejects.toMatchObject({ errors: [expect.objectContaining({ message: 'invalid session id' })] });
+    ).rejects.toBeInstanceOf(AggregateError);
 
     expect(healthyB.mockRestore).toHaveBeenCalledOnce();
-    expect(healthyBLocal).not.toHaveBeenCalled();
     expect(otherA.mockRestore).not.toHaveBeenCalled();
     expect(otherALocal).toHaveBeenCalledOnce();
   });
 
-  it('should only skip the mocks on the connection a failed bulk app call used', async () => {
+  it('should count a failed bulk app call towards its own connection only', async () => {
     const browserA = {};
     const browserB = {};
     const onA = fakeMock();
     const onB = fakeMock();
+    const laterOnA = fakeMock();
     registerLocalMockOps(onA, {}, browserA);
     registerLocalMockOps(onB, {}, browserB);
+    registerLocalMockOps(laterOnA, {}, browserA);
+    onA.mockReset.mockRejectedValue(new Error('invalid session id'));
 
     await expect(
       runBulkMockOp(
         [
           ['onA', onA],
           ['onB', onB],
+          ['laterOnA', laterOnA],
         ],
         'mockReset',
         { bulkAppCall: () => Promise.reject(new Error('invalid session id')), bulkAppConnection: browserA },
       ),
     ).rejects.toBeInstanceOf(AggregateError);
 
-    expect(onA.mockReset).not.toHaveBeenCalled();
+    expect(onA.mockReset).toHaveBeenCalledOnce();
     expect(onB.mockReset).toHaveBeenCalledOnce();
+    expect(laterOnA.mockReset).not.toHaveBeenCalled();
   });
 
-  it('should keep making app calls after a failure that only mentions a timeout', async () => {
-    const busy = fakeMock();
+  it('should not count a failure that names a timeout-like mock as a connection failure', async () => {
+    const first = fakeMock();
+    const second = fakeMock();
     const next = fakeMock();
-    busy.mockClear.mockRejectedValue(new Error('browser.electrobun.mock("window.setTimeout") failed: timed out'));
+    first.mockClear.mockRejectedValue(new Error('browser.electrobun.mock("window.setTimeout") failed: recorder gone'));
+    second.mockClear.mockRejectedValue(new Error('WebSocket is not connected'));
 
     await expect(
       runBulkMockOp(
         [
-          ['window.setTimeout', busy],
+          ['window.setTimeout', first],
+          ['second', second],
           ['next', next],
         ],
         'mockClear',
@@ -197,20 +237,5 @@ describe('runBulkMockOp', () => {
     ).rejects.toBeInstanceOf(AggregateError);
 
     expect(next.mockClear).toHaveBeenCalledOnce();
-  });
-
-  it('should skip every per-mock app call when the bulk app call finds the app unreachable', async () => {
-    const a = fakeMock();
-    const local = vi.fn();
-    registerLocalMockOps(a, { mockReset: local });
-
-    await expect(
-      runBulkMockOp([['a', a]], 'mockReset', {
-        bulkAppCall: () => Promise.reject(new Error('invalid session id')),
-      }),
-    ).rejects.toMatchObject({ errors: [expect.objectContaining({ message: 'invalid session id' })] });
-
-    expect(a.mockReset).not.toHaveBeenCalled();
-    expect(local).toHaveBeenCalledOnce();
   });
 });
