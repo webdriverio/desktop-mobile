@@ -6,7 +6,7 @@ Guidance for coding agents working in this repo: the commands to run, the checks
 
 - **One package:** `pnpm --filter <package> test` (unit tests), `test:integration`, `typecheck` or `build`. These skip Turborepo, so they run against your workspace dependencies' built `dist/`, which may be stale. Build those first with `pnpm turbo run build --filter=<package>^...`.
 - **All packages:** `pnpm turbo run typecheck test --filter=./packages/*` is what the pre-push hook runs, and `pnpm build` builds every package. Turborepo caches both; add `--force` to rerun a cached pass. Don't run the root `pnpm test`: it also runs the E2E matrix and every package-test app.
-- **Lint:** `pnpm lint` runs Biome and ESLint over the whole repo. It doesn't run through Turborepo, so don't pass it `--force`. A package's own `lint` script is Biome only and misses rules such as `vitest/valid-expect`. To lint just what you changed, run `pnpm exec eslint <files>`.
+- **Lint:** `pnpm lint` runs Biome and ESLint over the whole repo. It doesn't run through Turborepo, so don't pass it `--force`. A package's own `lint` script is Biome only and misses rules such as `vitest/valid-expect`. To check just what you changed, run `pnpm exec biome check <files>` and `pnpm exec eslint <files>`, as the commit hook does.
 - **E2E** (`e2e/`, the `pnpm e2e*` scripts) needs the fixture app in `fixtures/e2e-apps/` built first, and it's slow. CI runs it for the services a PR touches; locally, run the tests of the packages you changed. See [docs/e2e-testing.md](./docs/e2e-testing.md).
 - **Rust crates** (packages with a `Cargo.toml`): from the crate's directory, `cargo test` and `cargo clippy --all-targets -- -D warnings`. CI fails on clippy warnings.
 

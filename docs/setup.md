@@ -11,7 +11,7 @@ Before you begin, ensure you have the following installed:
   node --version  # Should be v24.x
   ```
 
-- **pnpm**: Version 12; `package.json` pins the exact version
+- **pnpm**: Version 12 ([installation](https://pnpm.io/installation)); `package.json` pins the exact version
 
 - **Git**: For version control
   ```bash

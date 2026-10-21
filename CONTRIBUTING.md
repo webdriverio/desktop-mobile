@@ -10,13 +10,13 @@ Please be respectful and constructive in all interactions. We aim to create a we
 
 ### Prerequisites
 
-- Node.js 24 LTS (contributor toolchain — end-user Node range is defined per-package via `engines`)
+- Node.js 24 LTS
 - pnpm 12
 - Git
 
 For Tauri and Dioxus contributions, you also need:
 
-- Rust (stable toolchain via `rustup`)
+- Rust
 
 ### Setup
 
