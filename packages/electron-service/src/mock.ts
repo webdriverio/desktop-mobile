@@ -181,7 +181,7 @@ export async function createMock(
   wrapperMock.__isElectronMock = true;
   wrapperMock.__accessor = mock.__accessor;
   wrapperMock.__applyCalls = mock.__applyCalls.bind(mock);
-  registerLocalMockOps(wrapperMock, localOps);
+  registerLocalMockOps(wrapperMock, localOps, browserToUse);
 
   return wrapperMock;
 }
@@ -331,7 +331,7 @@ export async function createElectronBrowserModeMock(
     mockReset: resetOuter,
     mockRestore: resetOuter,
   };
-  registerLocalMockOps(mock, localOps);
+  registerLocalMockOps(mock, localOps, browser);
 
   mock.mockClear = async () => {
     try {

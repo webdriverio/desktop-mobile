@@ -32,7 +32,7 @@ These iterate the store and operate on each mock:
 All three go through `runBulkMockOp` from `@wdio/native-utils`, with the service's own name matcher:
 - Every matching mock is attempted, then the failures are thrown together as one `AggregateError`. A failure is never swallowed.
 - Each mock method runs its test-process half (outer mock history, `deleteMock`) in `finally`, so a dead app still leaves the store clean.
-- The mock registers that half with `registerLocalMockOps`. Once an app call fails with a connection-level error, the remaining mocks only get their local half instead of one app call each.
+- The mock registers that half with `registerLocalMockOps`, along with the connection its app calls use. A store shared across multiremote instances keys this by the mock's browser; a per-session store can omit it. Once an app call fails with a connection-level error, the remaining mocks on that connection only get their local half. Mocks on other connections still get their app calls.
 
 ## Rules
 - Store key is the mock name (e.g. `electron.dialog.showOpenDialog` or `tauri.invoke`)

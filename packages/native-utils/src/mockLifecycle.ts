@@ -7,10 +7,13 @@ export type LocalMockOps = Partial<Record<MockLifecycleOp, () => void>>;
 
 type LifecycleMock = Record<MockLifecycleOp, () => unknown>;
 
-const localMockOps = new WeakMap<object, LocalMockOps>();
+const SHARED_CONNECTION = Symbol('shared connection');
 
-export function registerLocalMockOps(mock: object, ops: LocalMockOps): void {
-  localMockOps.set(mock, ops);
+const registrations = new WeakMap<object, { ops: LocalMockOps; connection: unknown }>();
+
+/** `connection` keys the app channel the mock's app calls use (e.g. its browser); omit it for a single-session store. */
+export function registerLocalMockOps(mock: object, ops: LocalMockOps, connection: unknown = SHARED_CONNECTION): void {
+  registrations.set(mock, { ops, connection });
 }
 
 function isAppUnreachable(error: unknown): boolean {
@@ -22,11 +25,13 @@ export interface BulkMockOpOptions {
   matches?: (name: string) => boolean;
   /** One in-app call for the whole batch, run before the per-mock ops. */
   bulkAppCall?: () => Promise<unknown>;
+  /** The connection `bulkAppCall` uses, keyed as in `registerLocalMockOps`. */
+  bulkAppConnection?: unknown;
 }
 
 /**
  * Attempts `op` on every matching mock, then throws an AggregateError of the failures.
- * Once the app is unreachable, the remaining mocks only get their registered local half.
+ * Once a connection is unreachable, the remaining mocks on it only get their registered local half.
  */
 export async function runBulkMockOp(
   entries: Iterable<readonly [string, LifecycleMock]>,
@@ -34,11 +39,11 @@ export async function runBulkMockOp(
   options: BulkMockOpOptions = {},
 ): Promise<number> {
   const failures: Array<{ name: string; error: unknown }> = [];
-  let appReachable = true;
-  const fail = (name: string, error: unknown) => {
+  const unreachable = new Set<unknown>();
+  const fail = (name: string, error: unknown, connection: unknown) => {
     failures.push({ name, error });
     if (isAppUnreachable(error)) {
-      appReachable = false;
+      unreachable.add(connection);
     }
   };
 
@@ -46,7 +51,7 @@ export async function runBulkMockOp(
     try {
       await options.bulkAppCall();
     } catch (error) {
-      fail('all mocks (in-app)', error);
+      fail('all mocks (in-app)', error, options.bulkAppConnection ?? SHARED_CONNECTION);
     }
   }
 
@@ -56,9 +61,11 @@ export async function runBulkMockOp(
     if (options.matches && !options.matches(name)) {
       continue;
     }
-    if (!appReachable) {
+    const registration = registrations.get(mock);
+    const connection = registration?.connection ?? SHARED_CONNECTION;
+    if (unreachable.has(connection)) {
       try {
-        localMockOps.get(mock)?.[op]?.();
+        registration?.ops[op]?.();
       } catch (error) {
         failures.push({ name, error });
       }
@@ -69,7 +76,7 @@ export async function runBulkMockOp(
       await mock[op]();
       processed++;
     } catch (error) {
-      fail(name, error);
+      fail(name, error, connection);
     }
   }
 

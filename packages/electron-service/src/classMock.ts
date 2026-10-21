@@ -93,7 +93,7 @@ async function createPrototypeMock(
     return mock;
   };
 
-  registerLocalMockOps(mock, localOps);
+  registerLocalMockOps(mock, localOps, browserToUse);
   return mock;
 }
 
@@ -262,7 +262,7 @@ export async function createClassMock(
     },
     mockRestore: () => constructorOuterMockClear(),
   };
-  registerLocalMockOps(constructorMock, constructorLocalOps);
+  registerLocalMockOps(constructorMock, constructorLocalOps, browserToUse);
 
   constructorMock.mockClear = async () => {
     try {

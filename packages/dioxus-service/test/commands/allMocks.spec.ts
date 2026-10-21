@@ -108,6 +108,27 @@ describe('all-mocks helpers', () => {
       expect(browser.execute).toHaveBeenCalledOnce();
       expect(mockStore.getMocks()).toEqual([]);
     });
+
+    it('should still restore the mocks of a healthy multiremote instance when another instance is dead', async () => {
+      const dead = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+      const healthy = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+      markAsEmbedded(dead);
+      markAsEmbedded(healthy);
+      await createMock('a', dead);
+      await createMock('b', healthy);
+      await createMock('c', dead);
+      await createMock('d', healthy);
+      vi.mocked(dead.execute).mockClear().mockRejectedValue(new Error('invalid session id'));
+      vi.mocked(healthy.execute).mockClear();
+
+      await expect(restoreAllMocks()).rejects.toMatchObject({
+        errors: [expect.objectContaining({ message: 'invalid session id' })],
+      });
+
+      expect(dead.execute).toHaveBeenCalledOnce();
+      expect(healthy.execute).toHaveBeenCalledTimes(2);
+      expect(mockStore.getMocks()).toEqual([]);
+    });
   });
 
   describe('isMockFunction', () => {

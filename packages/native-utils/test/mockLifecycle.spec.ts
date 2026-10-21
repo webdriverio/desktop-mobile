@@ -128,6 +128,59 @@ describe('runBulkMockOp', () => {
     expect(deadLocal).not.toHaveBeenCalled();
   });
 
+  it('should keep making app calls for mocks on a healthy connection when another connection is gone', async () => {
+    const browserA = {};
+    const browserB = {};
+    const deadA = fakeMock();
+    const healthyB = fakeMock();
+    const otherA = fakeMock();
+    const healthyBLocal = vi.fn();
+    const otherALocal = vi.fn();
+    registerLocalMockOps(deadA, {}, browserA);
+    registerLocalMockOps(healthyB, { mockRestore: healthyBLocal }, browserB);
+    registerLocalMockOps(otherA, { mockRestore: otherALocal }, browserA);
+    deadA.mockRestore.mockRejectedValue(new Error('invalid session id'));
+
+    await expect(
+      runBulkMockOp(
+        [
+          ['deadA', deadA],
+          ['healthyB', healthyB],
+          ['otherA', otherA],
+        ],
+        'mockRestore',
+      ),
+    ).rejects.toMatchObject({ errors: [expect.objectContaining({ message: 'invalid session id' })] });
+
+    expect(healthyB.mockRestore).toHaveBeenCalledOnce();
+    expect(healthyBLocal).not.toHaveBeenCalled();
+    expect(otherA.mockRestore).not.toHaveBeenCalled();
+    expect(otherALocal).toHaveBeenCalledOnce();
+  });
+
+  it('should only skip the mocks on the connection a failed bulk app call used', async () => {
+    const browserA = {};
+    const browserB = {};
+    const onA = fakeMock();
+    const onB = fakeMock();
+    registerLocalMockOps(onA, {}, browserA);
+    registerLocalMockOps(onB, {}, browserB);
+
+    await expect(
+      runBulkMockOp(
+        [
+          ['onA', onA],
+          ['onB', onB],
+        ],
+        'mockReset',
+        { bulkAppCall: () => Promise.reject(new Error('invalid session id')), bulkAppConnection: browserA },
+      ),
+    ).rejects.toBeInstanceOf(AggregateError);
+
+    expect(onA.mockReset).not.toHaveBeenCalled();
+    expect(onB.mockReset).toHaveBeenCalledOnce();
+  });
+
   it('should treat a timed-out app call as an unreachable app', async () => {
     const stalled = fakeMock();
     const next = fakeMock();
