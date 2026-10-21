@@ -9,7 +9,6 @@ use tauri::Runtime;
 use crate::platform::{ModifierState, PointerEventType};
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
-use crate::webdriver::ActionState;
 
 #[derive(Debug, Deserialize)]
 pub struct ActionsRequest {
@@ -252,7 +251,7 @@ pub async fn perform<R: Runtime + 'static>(
                                         .action_state
                                         .press_pointer_button(id, *button)
                                 };
-                                let canceled = executor
+                                let pointer_down_canceled = executor
                                     .dispatch_pointer_event(
                                         PointerEventType::Down,
                                         pointer_state.x,
@@ -261,7 +260,7 @@ pub async fn perform<R: Runtime + 'static>(
                                         input_state,
                                     )
                                     .await?;
-                                if canceled {
+                                if pointer_down_canceled {
                                     let mut sessions = state.sessions.write().await;
                                     if let Ok(session) = sessions.get_mut(&session_id) {
                                         session.action_state.cancel_pointer_down(id);
@@ -418,24 +417,14 @@ pub async fn release<R: Runtime + 'static>(
     Path(session_id): Path<String>,
 ) -> WebDriverResult {
     // Get session state and clear tracked actions
-    let (current_window, timeouts, frame_context, pressed_keys, mut pointer_inputs) = {
+    let (current_window, timeouts, frame_context, mut taken) = {
         let mut sessions = state.sessions.write().await;
         let session = sessions.get_mut(&session_id)?;
-        let pressed_keys: Vec<String> = session.action_state.pressed_keys.drain().collect();
-        let pointer_inputs = ActionState {
-            pressed_buttons: std::mem::take(&mut session.action_state.pressed_buttons),
-            canceled_pointer_downs: std::mem::take(
-                &mut session.action_state.canceled_pointer_downs,
-            ),
-            ..ActionState::default()
-        };
-        session.action_state.pointer_position = (0, 0);
         (
             session.current_window.clone(),
             session.timeouts.clone(),
             session.frame_context.clone(),
-            pressed_keys,
-            pointer_inputs,
+            std::mem::take(&mut session.action_state),
         )
     };
 
@@ -443,26 +432,18 @@ pub async fn release<R: Runtime + 'static>(
     let modifier_state = ModifierState::default();
 
     // Release all pressed keys (keyUp events)
-    for key in pressed_keys {
+    for key in &taken.pressed_keys {
         executor
-            .dispatch_key_event(&key, false, &modifier_state)
+            .dispatch_key_event(key, false, &modifier_state)
             .await?;
     }
 
-    // Release all pressed pointer buttons (pointerUp events)
-    let held_buttons: Vec<(String, u32)> = pointer_inputs
-        .pressed_buttons
-        .iter()
-        .flat_map(|(source_id, buttons)| {
-            buttons
-                .iter()
-                .map(move |&button| (source_id.clone(), button))
-        })
-        .collect();
-    for (source_id, button) in held_buttons {
-        let input_state = pointer_inputs.release_pointer_button(&source_id, button);
+    // Release all pressed pointer buttons where the pointer last was
+    let (x, y) = taken.pointer_position;
+    for (source_id, button) in taken.held_pointer_buttons() {
+        let input_state = taken.release_pointer_button(&source_id, button);
         executor
-            .dispatch_pointer_event(PointerEventType::Up, 0, 0, button, input_state)
+            .dispatch_pointer_event(PointerEventType::Up, x, y, button, input_state)
             .await?;
     }
 

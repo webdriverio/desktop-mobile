@@ -12,6 +12,7 @@ use tauri::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
 use tauri::Manager;
 
 use crate::platform::alert_state::{AlertStateManager, AlertType};
+use crate::platform::pointer_input::{pointer_event_script, PointerInputState};
 use crate::server::response::WebDriverErrorResponse;
 
 /// Element bounding rectangle
@@ -284,15 +285,6 @@ pub enum PointerEventType {
     Up,
     Move,
     Click,
-}
-
-/// Session input state a dispatched pointer event carries
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub struct PointerInputState {
-    /// DOM `buttons` bitmask of the buttons held once the event applies
-    pub buttons: u32,
-    /// A canceled `pointerdown` suppresses compatibility mouse events until release
-    pub suppress_mouse_events: bool,
 }
 
 /// Cookie data
@@ -1631,7 +1623,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         Ok(())
     }
 
-    /// Dispatch a pointer/mouse event. Returns whether the pointer event was
+    /// Dispatch a pointer/mouse event. Returns whether its `pointerdown` was
     /// canceled (a listener called `preventDefault()`).
     async fn dispatch_pointer_event(
         &self,
@@ -1641,74 +1633,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         button: u32,
         input_state: PointerInputState,
     ) -> Result<bool, WebDriverErrorResponse> {
-        let (pointer_event_name, mouse_event_name) = match event_type {
-            PointerEventType::Down => (Some("pointerdown"), "mousedown"),
-            PointerEventType::Up => (Some("pointerup"), "mouseup"),
-            PointerEventType::Move => (Some("pointermove"), "mousemove"),
-            // Manually dispatched mousedown/mouseup do NOT make the browser
-            // synthesize a click, so element click handlers never fire. The
-            // actions handler emits this explicitly after a same-spot down+up.
-            PointerEventType::Click => (None, "click"),
-        };
-
-        let PointerInputState {
-            buttons,
-            suppress_mouse_events,
-        } = input_state;
-        let is_down = matches!(event_type, PointerEventType::Down);
-        // click is not a compatibility mouse event, so a canceled pointerdown never suppresses it.
-        let suppress_mouse_event =
-            suppress_mouse_events && !matches!(event_type, PointerEventType::Click);
-
-        // Pointer Events: a `pointermove` that doesn't change a button reports -1.
-        let pointer_button = if matches!(event_type, PointerEventType::Move) {
-            -1
-        } else {
-            i64::from(button)
-        };
-        let pressure = if buttons == 0 { "0" } else { "0.5" };
-        let pointer_dispatch = pointer_event_name.map_or_else(String::new, |name| {
-            format!(
-                r"canceled = !el.dispatchEvent(new PointerEvent('{name}', {{
-                    pointerId: 1,
-                    pointerType: 'mouse',
-                    isPrimary: true,
-                    bubbles: true,
-                    cancelable: true,
-                    composed: true,
-                    clientX: {x},
-                    clientY: {y},
-                    button: {pointer_button},
-                    buttons: {buttons},
-                    pressure: {pressure}
-                }}));"
-            )
-        });
-
-        // A pointerdown canceled in this same dispatch suppresses its own mousedown;
-        // the caller records it so later events in the press are suppressed too.
-        let script = format!(
-            r"(function() {{
-                var el = document.elementFromPoint({x}, {y});
-                if (!el) el = document.body;
-
-                var canceled = false;
-                {pointer_dispatch}
-
-                if (!{suppress_mouse_event} && !(canceled && {is_down})) {{
-                    el.dispatchEvent(new MouseEvent('{mouse_event_name}', {{
-                        bubbles: true,
-                        cancelable: true,
-                        clientX: {x},
-                        clientY: {y},
-                        button: {button},
-                        buttons: {buttons}
-                    }}));
-                }}
-                return canceled;
-            }})()"
-        );
-
+        let script = pointer_event_script(event_type, x, y, button, input_state);
         let result = self.evaluate_js(&script).await?;
         extract_bool_value(&result)
     }

@@ -24,38 +24,41 @@ pub struct ActionState {
 }
 
 impl ActionState {
-    /// Record a press and return the input state its events carry.
     pub fn press_pointer_button(&mut self, source_id: &str, button: u32) -> PointerInputState {
-        self.pressed_buttons
+        let held = self
+            .pressed_buttons
             .entry(source_id.to_string())
-            .or_default()
-            .insert(button);
-        self.pointer_input_state(source_id)
+            .or_default();
+        let chorded = held.iter().any(|&other| other != button);
+        held.insert(button);
+        PointerInputState {
+            chorded,
+            ..self.pointer_input_state(source_id)
+        }
     }
 
-    /// Record a release and return the input state its events carry.
     pub fn release_pointer_button(&mut self, source_id: &str, button: u32) -> PointerInputState {
         let input_state = self.pointer_release_state(source_id, button);
         self.commit_pointer_release(source_id, button);
         input_state
     }
 
-    /// Input state a release's events carry, without recording the release: one
-    /// that fails to dispatch must leave the button held so `releaseActions`
-    /// can still send it. The release that leaves no button held is the last
-    /// one suppressed.
+    /// Computed without recording the release, so one that fails to dispatch
+    /// leaves the button held for `releaseActions` to retry.
     pub fn pointer_release_state(&self, source_id: &str, button: u32) -> PointerInputState {
-        let buttons = self.pressed_buttons.get(source_id).map_or(0, |pressed| {
-            dom_buttons_mask(pressed.iter().filter(|&&held| held != button))
-        });
+        let remaining: Vec<&u32> = self
+            .pressed_buttons
+            .get(source_id)
+            .map(|pressed| pressed.iter().filter(|&&held| held != button).collect())
+            .unwrap_or_default();
         PointerInputState {
-            buttons,
+            buttons: dom_buttons_mask(remaining.iter().copied()),
             suppress_mouse_events: self.canceled_pointer_downs.contains(source_id),
+            chorded: !remaining.is_empty(),
         }
     }
 
-    /// Record a dispatched release; it ends mouse-event suppression once the
-    /// source holds no buttons.
+    /// Suppression ends once the source holds no buttons.
     pub fn commit_pointer_release(&mut self, source_id: &str, button: u32) {
         if let Some(buttons) = self.pressed_buttons.get_mut(source_id) {
             buttons.remove(&button);
@@ -69,7 +72,6 @@ impl ActionState {
         }
     }
 
-    /// Record that the source's `pointerdown` was canceled.
     pub fn cancel_pointer_down(&mut self, source_id: &str) {
         self.canceled_pointer_downs.insert(source_id.to_string());
     }
@@ -83,7 +85,23 @@ impl ActionState {
         PointerInputState {
             buttons,
             suppress_mouse_events: self.canceled_pointer_downs.contains(source_id),
+            chorded: false,
         }
+    }
+
+    /// Sorted by source, then button, so releasing them is deterministic.
+    pub fn held_pointer_buttons(&self) -> Vec<(String, u32)> {
+        let mut held: Vec<(String, u32)> = self
+            .pressed_buttons
+            .iter()
+            .flat_map(|(source_id, buttons)| {
+                buttons
+                    .iter()
+                    .map(move |&button| (source_id.clone(), button))
+            })
+            .collect();
+        held.sort();
+        held
     }
 }
 
@@ -223,6 +241,14 @@ mod tests {
         PointerInputState {
             buttons,
             suppress_mouse_events,
+            chorded: false,
+        }
+    }
+
+    fn chord(buttons: u32, suppress_mouse_events: bool) -> PointerInputState {
+        PointerInputState {
+            chorded: true,
+            ..input(buttons, suppress_mouse_events)
         }
     }
 
@@ -231,12 +257,12 @@ mod tests {
         let mut state = ActionState::default();
 
         assert_eq!(state.press_pointer_button("mouse", 0), input(1, false));
-        assert_eq!(state.press_pointer_button("mouse", 2), input(3, false));
-        assert_eq!(state.press_pointer_button("mouse", 1), input(7, false));
+        assert_eq!(state.press_pointer_button("mouse", 2), chord(3, false));
+        assert_eq!(state.press_pointer_button("mouse", 1), chord(7, false));
         assert_eq!(state.pointer_input_state("mouse"), input(7, false));
 
-        assert_eq!(state.release_pointer_button("mouse", 0), input(6, false));
-        assert_eq!(state.release_pointer_button("mouse", 1), input(2, false));
+        assert_eq!(state.release_pointer_button("mouse", 0), chord(6, false));
+        assert_eq!(state.release_pointer_button("mouse", 1), chord(2, false));
         assert_eq!(state.release_pointer_button("mouse", 2), input(0, false));
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
     }
@@ -245,11 +271,19 @@ mod tests {
     fn held_buttons_are_tracked_per_source() {
         let mut state = ActionState::default();
 
-        state.press_pointer_button("a", 0);
-        state.press_pointer_button("b", 2);
+        assert_eq!(state.press_pointer_button("a", 0), input(1, false));
+        assert_eq!(state.press_pointer_button("b", 2), input(2, false));
 
         assert_eq!(state.pointer_input_state("a"), input(1, false));
         assert_eq!(state.pointer_input_state("b"), input(2, false));
+    }
+
+    #[test]
+    fn pressing_a_held_button_again_is_not_a_chord() {
+        let mut state = ActionState::default();
+        state.press_pointer_button("mouse", 0);
+
+        assert_eq!(state.press_pointer_button("mouse", 0), input(1, false));
     }
 
     #[test]
@@ -269,9 +303,9 @@ mod tests {
         let mut state = ActionState::default();
         state.press_pointer_button("mouse", 0);
         state.cancel_pointer_down("mouse");
-        state.press_pointer_button("mouse", 2);
 
-        assert_eq!(state.release_pointer_button("mouse", 0), input(2, true));
+        assert_eq!(state.press_pointer_button("mouse", 2), chord(3, true));
+        assert_eq!(state.release_pointer_button("mouse", 0), chord(2, true));
         assert_eq!(state.pointer_input_state("mouse"), input(2, true));
         assert_eq!(state.release_pointer_button("mouse", 2), input(0, true));
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
@@ -298,6 +332,22 @@ mod tests {
 
         assert_eq!(state.release_pointer_button("mouse", 0), input(0, true));
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
+    }
+
+    #[test]
+    fn held_pointer_buttons_are_listed_by_source_then_button() {
+        let mut state = ActionState::default();
+        for (source_id, button) in [("b", 0), ("a", 2), ("b", 1), ("a", 0), ("a", 1)] {
+            state.press_pointer_button(source_id, button);
+        }
+
+        let held = state.held_pointer_buttons();
+
+        let expected = [("a", 0), ("a", 1), ("a", 2), ("b", 0), ("b", 1)];
+        assert_eq!(
+            held,
+            expected.map(|(source_id, button)| (source_id.to_string(), button))
+        );
     }
 
     #[test]
