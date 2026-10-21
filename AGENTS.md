@@ -12,7 +12,7 @@ Guidance for coding agents working in this repo: the commands to run, the checks
 
 ## Before you push
 
-Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and `test` for every package when you push. If you skip the hooks, run those checks yourself for what you changed. New logic needs unit tests; the coverage target is 80%.
+Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and `test` for every package when you push. If you skip the hooks, run those checks yourself for what you changed. New logic needs unit tests.
 
 ## Gotchas
 
