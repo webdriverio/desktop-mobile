@@ -249,8 +249,7 @@ export async function createMock(
     return mock;
   };
 
-  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`
-  // (keeping the store entry, see mockRestore).
+  // The test-process half, run once the app call succeeds.
   const localOps: Required<LocalMockOps> = {
     mockClear: () => outerMockClear(),
     mockReset: () => {
@@ -280,13 +279,8 @@ export async function createMock(
   };
 
   mock.mockRestore = async () => {
-    try {
-      await evaluateInRealm<void>(bridge, buildRestoreScript(target), mockContext);
-    } finally {
-      localOps.mockRestore();
-    }
-    // Store deletion stays outside finally: if the CDP uninstall threw, the Hermes
-    // spy is still active and the entry should remain so subsequent calls still work.
+    await evaluateInRealm<void>(bridge, buildRestoreScript(target), mockContext);
+    localOps.mockRestore();
     store.deleteMock(target);
     return mock;
   };

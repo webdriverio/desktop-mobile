@@ -19,10 +19,6 @@ export function registerLocalMockOps(mock: object, ops: LocalMockOps, connection
 // One connection-level failure can be a transient blip; two in a row mean the app is gone.
 const UNREACHABLE_AFTER = 2;
 
-function isConnectionFailure(error: unknown): boolean {
-  return isBenignTeardownError(error) || /\btime(?:d)? ?out\b/i.test(errorMessage(error));
-}
-
 export interface BulkMockOpOptions {
   /** Which store entries the op applies to; every entry when omitted. */
   matches?: (name: string) => boolean;
@@ -54,7 +50,7 @@ export async function runBulkMockOp(
   const isUnreachable = (connection: unknown) => (streaks.get(connection)?.length ?? 0) >= UNREACHABLE_AFTER;
   const fail = (connection: unknown, name: string, error: unknown, mock?: object) => {
     failures.push({ name, error });
-    if (!isConnectionFailure(error)) {
+    if (!isBenignTeardownError(error)) {
       streaks.delete(connection);
       return;
     }

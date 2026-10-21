@@ -340,7 +340,7 @@ export async function buildMockMethods(
     return mock;
   };
 
-  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`.
+  // The test-process half, run once the app call succeeds.
   const localOps: Required<LocalMockOps> = {
     mockClear: () => outerMockClear(),
     mockReset: () => {
@@ -404,31 +404,28 @@ export async function buildMockMethods(
   };
 
   mock.mockRestore = async () => {
-    try {
-      if (accessor.kind === 'api') {
-        await restoreElectronFunctionality(accessor.apiName, accessor.funcName, browserToUse);
-      } else {
-        await browserToUse.electron.execute<void, [string, string, ExecuteOpts]>(
-          (electron, className, methodName) => {
-            const cls = electron[className as keyof typeof electron] as unknown as {
-              prototype: Record<string, () => unknown>;
-            };
-            const globalApi = globalThis as unknown as Record<string, Record<string, Record<string, () => unknown>>>;
-            const originalFn = globalApi.__protoOriginals?.[className]?.[methodName];
-            if (originalFn !== undefined) {
-              cls.prototype[methodName] = originalFn;
-            } else {
-              delete cls.prototype[methodName];
-            }
-          },
-          accessor.className,
-          accessor.methodName,
-          { internal: true },
-        );
-      }
-    } finally {
-      localOps.mockRestore();
+    if (accessor.kind === 'api') {
+      await restoreElectronFunctionality(accessor.apiName, accessor.funcName, browserToUse);
+    } else {
+      await browserToUse.electron.execute<void, [string, string, ExecuteOpts]>(
+        (electron, className, methodName) => {
+          const cls = electron[className as keyof typeof electron] as unknown as {
+            prototype: Record<string, () => unknown>;
+          };
+          const globalApi = globalThis as unknown as Record<string, Record<string, Record<string, () => unknown>>>;
+          const originalFn = globalApi.__protoOriginals?.[className]?.[methodName];
+          if (originalFn !== undefined) {
+            cls.prototype[methodName] = originalFn;
+          } else {
+            delete cls.prototype[methodName];
+          }
+        },
+        accessor.className,
+        accessor.methodName,
+        { internal: true },
+      );
     }
+    localOps.mockRestore();
     return mock;
   };
 

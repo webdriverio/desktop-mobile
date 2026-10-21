@@ -107,7 +107,7 @@ describe('runBulkMockOp', () => {
     registerLocalMockOps(second, { mockClear: secondLocal });
     registerLocalMockOps(withLocal, { mockClear: local });
     first.mockClear.mockRejectedValue(new Error('WebSocket is not connected'));
-    second.mockClear.mockRejectedValue(new Error('Request timed out!'));
+    second.mockClear.mockRejectedValue(new Error('socket hang up'));
 
     const result = runBulkMockOp(
       [
@@ -121,7 +121,7 @@ describe('runBulkMockOp', () => {
 
     await expect(result).rejects.toMatchObject({
       message:
-        'mockClear failed: first: WebSocket is not connected; second: Request timed out! ' +
+        'mockClear failed: first: WebSocket is not connected; second: socket hang up ' +
         '(app unreachable: skipped the app call for 2 other mock(s))',
     });
     expect(withLocal.mockClear).not.toHaveBeenCalled();
@@ -218,18 +218,20 @@ describe('runBulkMockOp', () => {
     expect(laterOnA.mockReset).not.toHaveBeenCalled();
   });
 
-  it('should not count a failure that names a timeout-like mock as a connection failure', async () => {
-    const first = fakeMock();
-    const second = fakeMock();
+  it('should keep making app calls after failures that only mention a timeout', async () => {
+    const namedTimeout = fakeMock();
+    const slow = fakeMock();
     const next = fakeMock();
-    first.mockClear.mockRejectedValue(new Error('browser.electrobun.mock("window.setTimeout") failed: recorder gone'));
-    second.mockClear.mockRejectedValue(new Error('WebSocket is not connected'));
+    namedTimeout.mockClear.mockRejectedValue(
+      new Error('browser.electrobun.mock("Api.timeout") failed: TypeError: recorder is not a function'),
+    );
+    slow.mockClear.mockRejectedValue(new Error('script timeout'));
 
     await expect(
       runBulkMockOp(
         [
-          ['window.setTimeout', first],
-          ['second', second],
+          ['Api.timeout', namedTimeout],
+          ['slow', slow],
           ['next', next],
         ],
         'mockClear',
