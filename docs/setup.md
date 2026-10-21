@@ -11,11 +11,7 @@ Before you begin, ensure you have the following installed:
   node --version  # Should be v24.x
   ```
 
-- **pnpm**: Version 12, through Corepack, which uses the exact version pinned in `package.json`
-  ```bash
-  corepack enable
-  pnpm --version  # Should be 12.x
-  ```
+- **pnpm**: Version 12; `package.json` pins the exact version
 
 - **Git**: For version control
   ```bash
@@ -46,18 +42,18 @@ This will:
 ### 3. Build All Packages
 
 ```bash
-pnpm turbo build
+pnpm build
 ```
 
-This builds all packages in the correct dependency order using Turborepo's intelligent caching.
+This builds every package in `packages/`, in dependency order, and Turborepo caches the results. It doesn't build the fixture apps; see [e2e-testing.md](./e2e-testing.md) for those.
 
 ### 4. Run Tests
 
 ```bash
-pnpm test
+pnpm turbo run test --filter=./packages/*
 ```
 
-This runs tests for all packages and ensures everything is working correctly.
+This runs every package's unit tests. Avoid the root `pnpm test`: it also runs the E2E and package tests, which need built apps.
 
 ## Development Workflow
 
@@ -65,7 +61,7 @@ This runs tests for all packages and ensures everything is working correctly.
 
 ```bash
 # Build all packages
-pnpm turbo build
+pnpm build
 
 # Build a specific package
 pnpm --filter @wdio/electron-service build
@@ -73,14 +69,14 @@ pnpm --filter @wdio/tauri-service build
 
 # Clean and rebuild
 pnpm clean
-pnpm turbo build
+pnpm build
 ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
-pnpm test
+# Run every package's tests
+pnpm turbo run test --filter=./packages/*
 
 # Run tests with coverage
 pnpm test:coverage
@@ -111,11 +107,8 @@ pnpm typecheck
 ### Development Mode
 
 ```bash
-# Watch mode for all packages
-pnpm dev
-
-# Watch mode for specific package
-pnpm --filter wdio-electron-service dev
+# Rebuild a package when its source changes
+pnpm --filter @wdio/electron-service dev
 ```
 
 ## Working with Packages
@@ -215,7 +208,7 @@ The local cache is stored in `.turbo/` and is automatically used.
 pnpm clean:cache
 
 # Force rebuild (bypass cache)
-pnpm turbo build --force
+pnpm build --force
 ```
 
 ## Common Tasks
@@ -236,8 +229,8 @@ pnpm clean:cache
 # Run the same checks as CI
 pnpm lint
 pnpm typecheck
-pnpm test
-pnpm turbo build
+pnpm turbo run test --filter=./packages/*
+pnpm build
 ```
 
 ### Update Dependencies
@@ -259,7 +252,7 @@ Try cleaning and reinstalling:
 ```bash
 pnpm clean
 pnpm install
-pnpm turbo build
+pnpm build
 ```
 
 ### TypeScript errors after adding dependencies
@@ -267,7 +260,7 @@ pnpm turbo build
 Rebuild the project:
 
 ```bash
-pnpm turbo build --force
+pnpm build --force
 ```
 
 ### Test failures
@@ -275,8 +268,8 @@ pnpm turbo build --force
 Make sure packages are built:
 
 ```bash
-pnpm turbo build
-pnpm test
+pnpm build
+pnpm turbo run test --filter=./packages/*
 ```
 
 ### Pre-commit hooks not running

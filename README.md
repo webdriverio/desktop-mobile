@@ -81,14 +81,14 @@ See [ROADMAP.md](./ROADMAP.md) for detailed sequencing, os support, and timeline
 ### Requirements
 
 - Node.js 24 LTS
-- pnpm 12, through Corepack (`corepack enable`), which uses the exact version pinned in `package.json`
+- pnpm 12
 
 ### Setup
 
 ```bash
-pnpm install  # Install dependencies
-pnpm build    # Build all packages
-pnpm test     # Run tests
+pnpm install                               # Install dependencies
+pnpm build                                 # Build all packages
+pnpm turbo run test --filter=./packages/*  # Run the packages' tests
 ```
 
 See [docs/setup.md](./docs/setup.md) for detailed setup instructions and [CONTRIBUTING.md](./CONTRIBUTING.md) for the full command reference.
