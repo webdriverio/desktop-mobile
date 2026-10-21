@@ -37,7 +37,6 @@ Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and
 - Operations that can fail return a `Result<T, E>`: check `.ok`, then read `.value` or `.error`. There's no `.success` or `.data`.
 - Prefer `undefined` to `null`.
 - Avoid `any`. Biome only warns about it.
-- No barrel files (an `index.ts` that only re-exports), except a package's root `index.ts`.
 
 ### Comments
 
