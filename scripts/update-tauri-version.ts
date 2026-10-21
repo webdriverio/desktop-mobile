@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 
 import { execSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -190,6 +190,16 @@ function updateTauriConfSchema(path: string, major: number) {
   console.log('✅ tauri.conf.json updated\n');
 }
 
+function updateCargoLock(fixtureDir: string) {
+  const cargoLock = join(fixtureDir, 'Cargo.lock');
+  console.log(`📝 Updating ${cargoLock}...`);
+  // `cargo metadata` makes only the lockfile changes the new Cargo.toml requirements need.
+  // `cargo update -p tauri ...` re-resolves more than that and flips shared deps (e.g.
+  // `windows-sys`) between versions on every run, which churns the committed lockfile.
+  execSync('cargo metadata --format-version 1', { cwd: fixtureDir, stdio: ['ignore', 'ignore', 'inherit'] });
+  console.log('✅ Cargo.lock updated\n');
+}
+
 function runCommand(command: string, cwd?: string) {
   console.log(`📝 Running: ${command}`);
   try {
@@ -279,18 +289,7 @@ function main() {
       majorUpgrades.push({ fixture: fixture.name, from: currentMajor });
     }
 
-    const cargoLock = join(dirname(fixture.cargoToml), 'Cargo.lock');
-    const pnpmLock = join(fixture.packageJson, 'pnpm-lock.yaml');
-
-    if (existsSync(cargoLock)) {
-      console.log(`  🗑️  Deleting Cargo.lock...`);
-      execSync(`rm ${cargoLock}`);
-    }
-
-    if (existsSync(pnpmLock)) {
-      console.log(`  🗑️  Deleting pnpm-lock.yaml...`);
-      execSync(`rm ${pnpmLock}`);
-    }
+    updateCargoLock(dirname(fixture.packageJson));
   }
 
   console.log('📦 Installing dependencies...');
