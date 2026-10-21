@@ -70,6 +70,9 @@ export async function restoreElectronFunctionality(
     { internal: true },
   );
   log.debug(`[${apiName}.${funcName}] restoreElectronFunctionality result:`, result);
+  if (result?.startsWith('ERROR: ')) {
+    throw new Error(`Failed to restore electron.${apiName}.${funcName}: ${result.slice('ERROR: '.length)}`);
+  }
   return result;
 }
 
@@ -337,7 +340,7 @@ export async function buildMockMethods(
     return mock;
   };
 
-  // Run in `finally` by the methods below, so a dead app still leaves the outer mock clean.
+  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`.
   const localOps: Required<LocalMockOps> = {
     mockClear: () => outerMockClear(),
     mockReset: () => {
@@ -354,54 +357,48 @@ export async function buildMockMethods(
   };
 
   mock.mockClear = async () => {
-    try {
-      await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
-        (electron, accessor) => {
-          let innerMock: Mock | undefined;
-          if (accessor.kind === 'api') {
-            innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
-              accessor.funcName
-            ];
-          } else {
-            const cls = electron[accessor.className as keyof typeof electron] as unknown as
-              | { prototype: Record<string, Mock> }
-              | undefined;
-            innerMock = cls?.prototype?.[accessor.methodName];
-          }
-          innerMock?.mockClear?.();
-        },
-        accessor,
-        { internal: true },
-      );
-    } finally {
-      localOps.mockClear();
-    }
+    await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
+      (electron, accessor) => {
+        let innerMock: Mock | undefined;
+        if (accessor.kind === 'api') {
+          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
+            accessor.funcName
+          ];
+        } else {
+          const cls = electron[accessor.className as keyof typeof electron] as unknown as
+            | { prototype: Record<string, Mock> }
+            | undefined;
+          innerMock = cls?.prototype?.[accessor.methodName];
+        }
+        innerMock?.mockClear?.();
+      },
+      accessor,
+      { internal: true },
+    );
+    localOps.mockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
-    try {
-      await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
-        (electron, accessor) => {
-          let innerMock: Mock | undefined;
-          if (accessor.kind === 'api') {
-            innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
-              accessor.funcName
-            ];
-          } else {
-            const cls = electron[accessor.className as keyof typeof electron] as unknown as
-              | { prototype: Record<string, Mock> }
-              | undefined;
-            innerMock = cls?.prototype?.[accessor.methodName];
-          }
-          innerMock?.mockReset?.();
-        },
-        accessor,
-        { internal: true },
-      );
-    } finally {
-      localOps.mockReset();
-    }
+    await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
+      (electron, accessor) => {
+        let innerMock: Mock | undefined;
+        if (accessor.kind === 'api') {
+          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
+            accessor.funcName
+          ];
+        } else {
+          const cls = electron[accessor.className as keyof typeof electron] as unknown as
+            | { prototype: Record<string, Mock> }
+            | undefined;
+          innerMock = cls?.prototype?.[accessor.methodName];
+        }
+        innerMock?.mockReset?.();
+      },
+      accessor,
+      { internal: true },
+    );
+    localOps.mockReset();
     await mock.mockClear();
     return mock;
   };

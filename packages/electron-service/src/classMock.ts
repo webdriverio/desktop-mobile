@@ -248,7 +248,7 @@ export async function createClassMock(
     return constructorMock;
   };
 
-  // Run in `finally` by the methods below, so a dead app still leaves the outer mock clean.
+  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`.
   const constructorLocalOps: Required<LocalMockOps> = {
     mockClear: () => constructorOuterMockClear(),
     mockReset: () => {
@@ -265,34 +265,28 @@ export async function createClassMock(
   registerLocalMockOps(constructorMock, constructorLocalOps, browserToUse);
 
   constructorMock.mockClear = async () => {
-    try {
-      await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
-        (electron, className) => {
-          const mockObj = electron[className as keyof typeof electron] as unknown as Mock;
-          mockObj.mockClear();
-        },
-        className,
-        { internal: true },
-      );
-    } finally {
-      constructorLocalOps.mockClear();
-    }
+    await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
+      (electron, className) => {
+        const mockObj = electron[className as keyof typeof electron] as unknown as Mock;
+        mockObj.mockClear();
+      },
+      className,
+      { internal: true },
+    );
+    constructorLocalOps.mockClear();
     return constructorMock;
   };
 
   constructorMock.mockReset = async () => {
-    try {
-      await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
-        (electron, className) => {
-          const mockObj = electron[className as keyof typeof electron] as unknown as Mock;
-          mockObj.mockReset();
-        },
-        className,
-        { internal: true },
-      );
-    } finally {
-      constructorLocalOps.mockReset();
-    }
+    await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
+      (electron, className) => {
+        const mockObj = electron[className as keyof typeof electron] as unknown as Mock;
+        mockObj.mockReset();
+      },
+      className,
+      { internal: true },
+    );
+    constructorLocalOps.mockReset();
     await constructorMock.mockClear();
     return constructorMock;
   };

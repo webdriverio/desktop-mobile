@@ -423,7 +423,7 @@ describe('createElectronBrowserModeMock()', () => {
   });
 
   it.each(['mockClear', 'mockReset', 'mockRestore'] as const)(
-    'should still clear the outer calls when %s fails in the page',
+    'should keep the outer calls when %s fails in the page',
     async (op) => {
       const mock = await createElectronBrowserModeMock('get-user', mockBrowser as unknown as WebdriverIO.Browser);
       mockBrowser.execute.mockResolvedValueOnce(makeCallData([['alice']], [{ type: 'return', value: 1 }], [1]));
@@ -432,9 +432,9 @@ describe('createElectronBrowserModeMock()', () => {
 
       await expect(mock[op]()).rejects.toMatchObject({ message: 'page closed' });
 
-      expect(mock.mock.calls).toStrictEqual([]);
+      expect(mock.mock.calls).toStrictEqual([['alice']]);
       expect(mock.getMockName()).toBe('electron.get-user');
-      // Registration, update and the failed op: the local reset must not add another page call.
+      // Registration, update and the failed op: nothing else may call the page.
       expect(mockBrowser.execute).toHaveBeenCalledTimes(3);
     },
   );
