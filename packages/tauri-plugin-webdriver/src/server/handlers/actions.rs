@@ -273,11 +273,11 @@ pub async fn perform<R: Runtime + 'static>(
                             }
                             PointerAction::PointerUp { button } => {
                                 let input_state = {
-                                    let mut sessions = state.sessions.write().await;
+                                    let sessions = state.sessions.read().await;
                                     sessions
-                                        .get_mut(&session_id)?
+                                        .get(&session_id)?
                                         .action_state
-                                        .release_pointer_button(id, *button)
+                                        .pointer_release_state(id, *button)
                                 };
                                 executor
                                     .dispatch_pointer_event(
@@ -288,6 +288,12 @@ pub async fn perform<R: Runtime + 'static>(
                                         input_state,
                                     )
                                     .await?;
+                                {
+                                    let mut sessions = state.sessions.write().await;
+                                    if let Ok(session) = sessions.get_mut(&session_id) {
+                                        session.action_state.commit_pointer_release(id, *button);
+                                    }
+                                }
                                 // A primary press + release on the same spot is a
                                 // click; emit the click event the browser would
                                 // synthesize for real input so element handlers fire.

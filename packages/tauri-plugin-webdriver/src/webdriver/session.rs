@@ -33,21 +33,40 @@ impl ActionState {
         self.pointer_input_state(source_id)
     }
 
-    /// Record a release and return the input state its events carry. The release
-    /// that leaves no button held is the last one suppressed.
+    /// Record a release and return the input state its events carry.
     pub fn release_pointer_button(&mut self, source_id: &str, button: u32) -> PointerInputState {
-        let suppress_mouse_events = self.canceled_pointer_downs.contains(source_id);
+        let input_state = self.pointer_release_state(source_id, button);
+        self.commit_pointer_release(source_id, button);
+        input_state
+    }
+
+    /// Input state a release's events carry, without recording the release: one
+    /// that fails to dispatch must leave the button held so `releaseActions`
+    /// can still send it. The release that leaves no button held is the last
+    /// one suppressed.
+    pub fn pointer_release_state(&self, source_id: &str, button: u32) -> PointerInputState {
+        let buttons = self.pressed_buttons.get(source_id).map_or(0, |pressed| {
+            dom_buttons_mask(pressed.iter().filter(|&&held| held != button))
+        });
+        PointerInputState {
+            buttons,
+            suppress_mouse_events: self.canceled_pointer_downs.contains(source_id),
+        }
+    }
+
+    /// Record a dispatched release; it ends mouse-event suppression once the
+    /// source holds no buttons.
+    pub fn commit_pointer_release(&mut self, source_id: &str, button: u32) {
         if let Some(buttons) = self.pressed_buttons.get_mut(source_id) {
             buttons.remove(&button);
         }
-        let input_state = PointerInputState {
-            suppress_mouse_events,
-            ..self.pointer_input_state(source_id)
-        };
-        if input_state.buttons == 0 {
+        let still_held = self
+            .pressed_buttons
+            .get(source_id)
+            .is_some_and(|buttons| !buttons.is_empty());
+        if !still_held {
             self.canceled_pointer_downs.remove(source_id);
         }
-        input_state
     }
 
     /// Record that the source's `pointerdown` was canceled.
@@ -57,16 +76,19 @@ impl ActionState {
 
     /// Input state for an event that doesn't change the held buttons.
     pub fn pointer_input_state(&self, source_id: &str) -> PointerInputState {
-        let buttons = self.pressed_buttons.get(source_id).map_or(0, |pressed| {
-            pressed
-                .iter()
-                .fold(0, |mask, &button| mask | dom_buttons_bit(button))
-        });
+        let buttons = self
+            .pressed_buttons
+            .get(source_id)
+            .map_or(0, |pressed| dom_buttons_mask(pressed.iter()));
         PointerInputState {
             buttons,
             suppress_mouse_events: self.canceled_pointer_downs.contains(source_id),
         }
     }
+}
+
+fn dom_buttons_mask<'a>(buttons: impl Iterator<Item = &'a u32>) -> u32 {
+    buttons.fold(0, |mask, &button| mask | dom_buttons_bit(button))
 }
 
 /// The DOM `buttons` bitmask swaps the middle and secondary buttons relative to
@@ -252,6 +274,20 @@ mod tests {
         assert_eq!(state.release_pointer_button("mouse", 0), input(2, true));
         assert_eq!(state.pointer_input_state("mouse"), input(2, true));
         assert_eq!(state.release_pointer_button("mouse", 2), input(0, true));
+        assert_eq!(state.pointer_input_state("mouse"), input(0, false));
+    }
+
+    #[test]
+    fn an_uncommitted_release_leaves_the_button_held() {
+        let mut state = ActionState::default();
+        state.press_pointer_button("mouse", 0);
+        state.cancel_pointer_down("mouse");
+
+        assert_eq!(state.pointer_release_state("mouse", 0), input(0, true));
+        assert_eq!(state.pointer_input_state("mouse"), input(1, true));
+
+        // releaseActions can still release it.
+        assert_eq!(state.release_pointer_button("mouse", 0), input(0, true));
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
     }
 
