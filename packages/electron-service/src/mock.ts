@@ -311,7 +311,6 @@ export async function createElectronBrowserModeMock(
   };
 
   const resetOuter = () => {
-    implState = null;
     const currentName = outerMock.getMockName();
     // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
     const asyncMockClear = mock.mockClear;
@@ -323,33 +322,40 @@ export async function createElectronBrowserModeMock(
     }
     outerMock.mockName(currentName);
   };
-  // Run in `finally` by the methods below, so a dead page still leaves the outer mock clean.
+  const resetLocally = () => {
+    implState = null;
+    resetOuter();
+  };
   const localOps: Required<LocalMockOps> = {
     mockClear: () => outerMockClear(),
-    mockReset: resetOuter,
-    mockRestore: resetOuter,
+    mockReset: resetLocally,
+    mockRestore: resetLocally,
   };
   registerLocalMockOps(mock, localOps, browser);
 
+  // The methods below run the outer half in `finally`, so a dead page still leaves the outer mock clean.
+  // implState is cleared before the await, so an implementation set meanwhile survives for re-registration.
   mock.mockClear = async () => {
     try {
       await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockClear'));
     } finally {
-      localOps.mockClear();
+      outerMockClear();
     }
     return mock;
   };
 
   mock.mockReset = async () => {
+    implState = null;
     try {
       await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
     } finally {
-      localOps.mockReset();
+      resetOuter();
     }
     return mock;
   };
 
   mock.mockRestore = async () => {
+    implState = null;
     // There is no original Electron API to restore in browser mode — the IPC interceptor
     // is always synthetic. Deregistering the channel would make future ipcRenderer.invoke
     // calls throw "unmocked channel", breaking restoreMocks: true across tests.
@@ -357,7 +363,7 @@ export async function createElectronBrowserModeMock(
     try {
       await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
     } finally {
-      localOps.mockRestore();
+      resetOuter();
     }
     return mock;
   };

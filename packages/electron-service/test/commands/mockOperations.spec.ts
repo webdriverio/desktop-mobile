@@ -52,7 +52,8 @@ describe.each([
     expect(mockedShowOpenDialog[mockMethod]).not.toHaveBeenCalled();
   });
 
-  it('should match the apiName literally rather than as a pattern', async () => {
+  it('should match the apiName only up to a dot boundary', async () => {
+    await fn('ap');
     await fn('a.p');
     expect(mockedGetName[mockMethod]).not.toHaveBeenCalled();
     expect(mockedShowOpenDialog[mockMethod]).not.toHaveBeenCalled();

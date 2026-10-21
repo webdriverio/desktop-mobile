@@ -831,6 +831,17 @@ describe('Electron Worker Service', () => {
 
       expect(fn).toHaveBeenCalled();
     });
+
+    it('should still reset and restore when clearing fails, then report the failure', async () => {
+      instance = new ElectronWorkerService({ clearMocks: true, resetMocks: true, restoreMocks: true }, {});
+      await instance.before({}, [], browser);
+      vi.mocked(commands.clearAllMocks).mockRejectedValueOnce(new Error('clear failed'));
+
+      await expect(instance.beforeTest()).rejects.toMatchObject({ message: 'clear failed' });
+
+      expect(commands.resetAllMocks).toHaveBeenCalled();
+      expect(commands.restoreAllMocks).toHaveBeenCalled();
+    });
   });
 
   describe('beforeCommand()', () => {

@@ -181,22 +181,22 @@ describe('runBulkMockOp', () => {
     expect(onB.mockReset).toHaveBeenCalledOnce();
   });
 
-  it('should treat a timed-out app call as an unreachable app', async () => {
-    const stalled = fakeMock();
+  it('should keep making app calls after a failure that only mentions a timeout', async () => {
+    const busy = fakeMock();
     const next = fakeMock();
-    stalled.mockClear.mockRejectedValue(new Error('Request timeout exceeded waiting for response: 7'));
+    busy.mockClear.mockRejectedValue(new Error('browser.electrobun.mock("window.setTimeout") failed: timed out'));
 
     await expect(
       runBulkMockOp(
         [
-          ['stalled', stalled],
+          ['window.setTimeout', busy],
           ['next', next],
         ],
         'mockClear',
       ),
     ).rejects.toBeInstanceOf(AggregateError);
 
-    expect(next.mockClear).not.toHaveBeenCalled();
+    expect(next.mockClear).toHaveBeenCalledOnce();
   });
 
   it('should skip every per-mock app call when the bulk app call finds the app unreachable', async () => {

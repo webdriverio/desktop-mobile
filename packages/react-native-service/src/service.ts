@@ -1,6 +1,6 @@
 import { triggerDeeplink } from '@wdio/native-mobile-core';
 import type { ReactNativeServiceAPI } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage } from '@wdio/native-utils';
 
 import {
   clearAllMocks,
@@ -150,7 +150,7 @@ export default class ReactNativeWorkerService {
       // otherwise ensureHermes blocks on the connect-retry budget (~60s) and throws "Hermes
       // inspector is not connected" when the app/bridge is down. With mocks present, ensureHermes
       // first (like mock/execute): each entry's mockClear/Reset/Restore drives a native CDP op,
-      // so a dropped bridge must be re-attached (and mocks rewired) or the op would only warn.
+      // so a dropped bridge must be re-attached (and mocks rewired) or every op would fail.
       clearAllMocks: async (targetPrefix?: string) => {
         if (store.getMocks().length === 0) {
           return;
@@ -202,14 +202,28 @@ export default class ReactNativeWorkerService {
     // resetMocks already clears call history (mockReset → mockClear), so a separate clear
     // pass is only needed when it targets mocks reset won't touch — i.e. a different prefix.
     const clearRedundant = this.options.resetMocks && this.options.clearMocksPrefix === this.options.resetMocksPrefix;
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    const attempt = async (op: () => Promise<void>) => {
+      try {
+        await op();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
     if (this.options.clearMocks && !clearRedundant) {
-      await clearAllMocks(store, this.options.clearMocksPrefix);
+      await attempt(() => clearAllMocks(store, this.options.clearMocksPrefix));
     }
     if (this.options.resetMocks) {
-      await resetAllMocks(store, this.options.resetMocksPrefix);
+      await attempt(() => resetAllMocks(store, this.options.resetMocksPrefix));
     }
     if (this.options.restoreMocks) {
-      await restoreAllMocks(store, this.options.restoreMocksPrefix);
+      await attempt(() => restoreAllMocks(store, this.options.restoreMocksPrefix));
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
     }
   }
 

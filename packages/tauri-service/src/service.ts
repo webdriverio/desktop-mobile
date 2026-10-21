@@ -2,6 +2,7 @@ import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
 import {
   createLogger,
+  errorMessage,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
   safeDeleteSession,
@@ -223,14 +224,28 @@ export default class TauriWorkerService {
   }
 
   async beforeTest(_test: unknown, _context: unknown): Promise<void> {
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    const attempt = async (op: () => Promise<void>) => {
+      try {
+        await op();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
     if (this.clearMocks) {
-      await clearAllMocks.call({ browser: this.browser }, this.clearMocksPrefix);
+      await attempt(() => clearAllMocks.call({ browser: this.browser }, this.clearMocksPrefix));
     }
     if (this.resetMocks) {
-      await resetAllMocks.call({ browser: this.browser }, this.resetMocksPrefix);
+      await attempt(() => resetAllMocks.call({ browser: this.browser }, this.resetMocksPrefix));
     }
     if (this.restoreMocks) {
-      await restoreAllMocks.call({ browser: this.browser }, this.restoreMocksPrefix);
+      await attempt(() => restoreAllMocks.call({ browser: this.browser }, this.restoreMocksPrefix));
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
     }
   }
 

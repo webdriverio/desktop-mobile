@@ -11,7 +11,7 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import { createLogger, installMockSyncOverride, waitUntilWindowAvailable } from '@wdio/native-utils';
+import { createLogger, errorMessage, installMockSyncOverride, waitUntilWindowAvailable } from '@wdio/native-utils';
 import type { Capabilities, Services } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
@@ -514,14 +514,28 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async beforeTest() {
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    const attempt = async (op: () => Promise<void>) => {
+      try {
+        await op();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
     if (this.clearMocks) {
-      await clearAllMocks();
+      await attempt(() => clearAllMocks());
     }
     if (this.resetMocks) {
-      await resetAllMocks();
+      await attempt(() => resetAllMocks());
     }
     if (this.restoreMocks) {
-      await restoreAllMocks();
+      await attempt(() => restoreAllMocks());
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
     }
   }
 
