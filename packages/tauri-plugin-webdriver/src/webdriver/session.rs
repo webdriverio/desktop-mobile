@@ -51,48 +51,33 @@ impl ActionState {
         })
     }
 
+    /// `None` when the button isn't held, which W3C makes a no-op. Suppression ends
+    /// with the release that leaves the source holding no buttons.
     pub fn release_pointer_button(
         &mut self,
         source_id: &str,
         button: u32,
     ) -> Option<PointerInputState> {
-        let input_state = self.pointer_release_state(source_id, button)?;
-        self.commit_pointer_release(source_id, button);
-        Some(input_state)
-    }
-
-    /// `None` when the button isn't held (a W3C no-op). Not recorded, so a release
-    /// that fails to dispatch leaves the button held for `releaseActions` to retry.
-    pub fn pointer_release_state(&self, source_id: &str, button: u32) -> Option<PointerInputState> {
-        let pressed = self
+        let held = self
             .pressed_buttons
-            .get(source_id)
-            .filter(|pressed| pressed.contains(&button))?;
-        let remaining: Vec<&u32> = pressed.iter().filter(|&&held| held != button).collect();
-        Some(PointerInputState {
-            buttons: dom_buttons_mask(remaining.iter().copied()),
+            .get_mut(source_id)
+            .filter(|held| held.contains(&button))?;
+        held.remove(&button);
+        let chorded = !held.is_empty();
+        let input_state = PointerInputState {
+            buttons: dom_buttons_mask(held.iter()),
             suppress_mouse_events: self.canceled_pointer_downs.contains(source_id),
-            chorded: !remaining.is_empty(),
+            chorded,
             clicks: button == 0
                 && self.click_anchors.get(source_id) == Some(&self.pointer_position),
-        })
-    }
-
-    /// Suppression ends once the source holds no buttons.
-    pub fn commit_pointer_release(&mut self, source_id: &str, button: u32) {
-        if let Some(buttons) = self.pressed_buttons.get_mut(source_id) {
-            buttons.remove(&button);
-        }
+        };
         if button == 0 {
             self.click_anchors.remove(source_id);
         }
-        let still_held = self
-            .pressed_buttons
-            .get(source_id)
-            .is_some_and(|buttons| !buttons.is_empty());
-        if !still_held {
+        if !chorded {
             self.canceled_pointer_downs.remove(source_id);
         }
+        Some(input_state)
     }
 
     pub fn cancel_pointer_down(&mut self, source_id: &str) {
@@ -376,26 +361,6 @@ mod tests {
         assert_eq!(
             state.release_pointer_button("mouse", 2),
             Some(input(0, true))
-        );
-        assert_eq!(state.pointer_input_state("mouse"), input(0, false));
-    }
-
-    #[test]
-    fn an_uncommitted_release_leaves_the_button_held() {
-        let mut state = ActionState::default();
-        state.press_pointer_button("mouse", 0);
-        state.cancel_pointer_down("mouse");
-
-        assert_eq!(
-            state.pointer_release_state("mouse", 0),
-            Some(clicking(input(0, true)))
-        );
-        assert_eq!(state.pointer_input_state("mouse"), input(1, true));
-
-        // releaseActions can still release it.
-        assert_eq!(
-            state.release_pointer_button("mouse", 0),
-            Some(clicking(input(0, true)))
         );
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
     }

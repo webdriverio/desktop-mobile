@@ -286,11 +286,11 @@ async fn perform_actions<R: Runtime + 'static>(
                             }
                             PointerAction::PointerUp { button } => {
                                 let release = {
-                                    let sessions = state.sessions.read().await;
+                                    let mut sessions = state.sessions.write().await;
                                     sessions
-                                        .get(&session_id)?
+                                        .get_mut(&session_id)?
                                         .action_state
-                                        .pointer_release_state(id, *button)
+                                        .release_pointer_button(id, *button)
                                 };
                                 let Some(input_state) = release else {
                                     continue;
@@ -304,10 +304,6 @@ async fn perform_actions<R: Runtime + 'static>(
                                         input_state,
                                     )
                                     .await?;
-                                let mut sessions = state.sessions.write().await;
-                                if let Ok(session) = sessions.get_mut(&session_id) {
-                                    session.action_state.commit_pointer_release(id, *button);
-                                }
                             }
                             PointerAction::PointerMove { x, y, origin, .. } => {
                                 let (target_x, target_y) = match origin {
