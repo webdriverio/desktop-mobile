@@ -248,7 +248,7 @@ export async function createClassMock(
     return constructorMock;
   };
 
-  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`.
+  // The test-process half, run once the app call succeeds.
   const constructorLocalOps: Required<LocalMockOps> = {
     mockClear: () => constructorOuterMockClear(),
     mockReset: () => {
@@ -292,22 +292,19 @@ export async function createClassMock(
   };
 
   constructorMock.mockRestore = async () => {
-    try {
-      await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
-        (_electron, className) => {
-          const classMocks = (globalThis as Record<string, unknown>).__electronClassMocks as
-            | Record<string, unknown>
-            | undefined;
-          if (classMocks) {
-            delete classMocks[className];
-          }
-        },
-        className,
-        { internal: true },
-      );
-    } finally {
-      constructorLocalOps.mockRestore();
-    }
+    await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
+      (_electron, className) => {
+        const classMocks = (globalThis as Record<string, unknown>).__electronClassMocks as
+          | Record<string, unknown>
+          | undefined;
+        if (classMocks) {
+          delete classMocks[className];
+        }
+      },
+      className,
+      { internal: true },
+    );
+    constructorLocalOps.mockRestore();
     return constructorMock;
   };
 

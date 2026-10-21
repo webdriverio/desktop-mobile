@@ -114,19 +114,16 @@ describe('buildMockMethods() when the app call fails', () => {
     mockExecute.mockRejectedValue(new Error('WebSocket is not connected'));
   });
 
-  it('should still clear the outer mock when mockRestore fails', async () => {
-    await expect(mock.mockRestore()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
+  it.each(['mockClear', 'mockReset', 'mockRestore'] as const)(
+    'should leave the outer mock alone when %s fails',
+    async (op) => {
+      await expect(mock[op]()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
 
-    expect(outerMock.mockClear).toHaveBeenCalledOnce();
-  });
-
-  it.each(['mockClear', 'mockReset'] as const)('should leave the outer mock alone when %s fails', async (op) => {
-    await expect(mock[op]()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
-
-    expect(outerMock.mockClear).not.toHaveBeenCalled();
-    expect(outerMock.mockReset).not.toHaveBeenCalled();
-    expect(mockExecute).toHaveBeenCalledOnce();
-  });
+      expect(outerMock.mockClear).not.toHaveBeenCalled();
+      expect(outerMock.mockReset).not.toHaveBeenCalled();
+      expect(mockExecute).toHaveBeenCalledOnce();
+    },
+  );
 
   it('should return local halves that never call the app', () => {
     localOps.mockClear();
