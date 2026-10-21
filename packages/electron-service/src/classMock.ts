@@ -1,6 +1,6 @@
 import { type Mock, fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, ElectronClassMock, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 import mockStore from './mockStore.js';
 
@@ -42,7 +42,7 @@ async function createPrototypeMock(
     { internal: true },
   );
 
-  await buildMockMethods(mock, {
+  const localOps = await buildMockMethods(mock, {
     accessor: { kind: 'prototype', className, methodName },
     outerMock,
     outerMockClear: outerMock.mockClear.bind(outerMock),
@@ -93,6 +93,7 @@ async function createPrototypeMock(
     return mock;
   };
 
+  registerLocalMockOps(mock, localOps);
   return mock;
 }
 
@@ -247,53 +248,72 @@ export async function createClassMock(
     return constructorMock;
   };
 
+  // Run in `finally` by the methods below, so a dead app still leaves the outer mock clean.
+  const constructorLocalOps: Required<LocalMockOps> = {
+    mockClear: () => constructorOuterMockClear(),
+    mockReset: () => {
+      // Temporarily restore the sync mockClear so constructorOuterMockReset's internal
+      // mockFn.mockClear() doesn't fire the async CDP override unawaited, racing against
+      // the explicit await in mockReset.
+      const asyncMockClearFn = constructorMock.mockClear;
+      (constructorMock as unknown as { mockClear: () => void }).mockClear = constructorOuterMockClear;
+      constructorOuterMockReset();
+      constructorMock.mockClear = asyncMockClearFn;
+    },
+    mockRestore: () => constructorOuterMockClear(),
+  };
+  registerLocalMockOps(constructorMock, constructorLocalOps);
+
   constructorMock.mockClear = async () => {
-    await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
-      (electron, className) => {
-        const mockObj = electron[className as keyof typeof electron] as unknown as Mock;
-        mockObj.mockClear();
-      },
-      className,
-      { internal: true },
-    );
-    constructorOuterMockClear();
+    try {
+      await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
+        (electron, className) => {
+          const mockObj = electron[className as keyof typeof electron] as unknown as Mock;
+          mockObj.mockClear();
+        },
+        className,
+        { internal: true },
+      );
+    } finally {
+      constructorLocalOps.mockClear();
+    }
     return constructorMock;
   };
 
   constructorMock.mockReset = async () => {
-    await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
-      (electron, className) => {
-        const mockObj = electron[className as keyof typeof electron] as unknown as Mock;
-        mockObj.mockReset();
-      },
-      className,
-      { internal: true },
-    );
-    // Temporarily restore the sync mockClear so constructorOuterMockReset's internal
-    // mockFn.mockClear() doesn't fire the async CDP override unawaited, racing against
-    // the explicit await below.
-    const asyncMockClearFn = constructorMock.mockClear;
-    (constructorMock as unknown as { mockClear: () => void }).mockClear = constructorOuterMockClear;
-    constructorOuterMockReset();
-    constructorMock.mockClear = asyncMockClearFn;
+    try {
+      await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
+        (electron, className) => {
+          const mockObj = electron[className as keyof typeof electron] as unknown as Mock;
+          mockObj.mockReset();
+        },
+        className,
+        { internal: true },
+      );
+    } finally {
+      constructorLocalOps.mockReset();
+    }
     await constructorMock.mockClear();
     return constructorMock;
   };
 
   constructorMock.mockRestore = async () => {
-    await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
-      (_electron, className) => {
-        const classMocks = (globalThis as Record<string, unknown>).__electronClassMocks as
-          | Record<string, unknown>
-          | undefined;
-        if (classMocks) {
-          delete classMocks[className];
-        }
-      },
-      className,
-      { internal: true },
-    );
-    constructorOuterMockClear();
+    try {
+      await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
+        (_electron, className) => {
+          const classMocks = (globalThis as Record<string, unknown>).__electronClassMocks as
+            | Record<string, unknown>
+            | undefined;
+          if (classMocks) {
+            delete classMocks[className];
+          }
+        },
+        className,
+        { internal: true },
+      );
+    } finally {
+      constructorLocalOps.mockRestore();
+    }
     return constructorMock;
   };
 

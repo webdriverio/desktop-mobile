@@ -1,5 +1,5 @@
 import { forEachMock } from './forEachMock.js';
 
 export async function restoreAllMocks(apiName?: string) {
-  await forEachMock(apiName, (mock) => mock.mockRestore());
+  await forEachMock(apiName, 'mockRestore');
 }

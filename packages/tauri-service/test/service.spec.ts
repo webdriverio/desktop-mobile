@@ -1087,7 +1087,6 @@ describe('TauriWorkerService', () => {
       (service as any).browser = mockBrowser;
 
       await expect(service.afterSession({}, {} as any, [])).resolves.not.toThrow();
-      expect(mockStore.clear).toHaveBeenCalled();
     });
 
     it('should not talk to the app once the runner has deleted the session', async () => {

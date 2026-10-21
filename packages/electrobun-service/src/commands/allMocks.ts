@@ -3,13 +3,9 @@
 // multi-suite run can isolate e.g. all 'api.*' mocks. isMockFunction is a
 // structural check used by callers to branch on mock-vs-plain functions.
 
-import type { ElectrobunMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
 
-import { SERVICE_NAME } from '../constants.js';
 import type { ElectrobunMockStore } from '../mockStore.js';
-
-const log = createLogger(SERVICE_NAME, 'mock');
 
 function matchesPrefix(target: string, prefix?: string): boolean {
   if (!prefix) {
@@ -24,36 +20,20 @@ function matchesPrefix(target: string, prefix?: string): boolean {
   return target === base || target.startsWith(`${base}.`);
 }
 
-async function forEachMock(
-  store: ElectrobunMockStore,
-  prefix: string | undefined,
-  fn: (mock: ElectrobunMock) => Promise<unknown>,
-): Promise<void> {
-  // Snapshot first: mockRestore mutates the store mid-iteration.
-  for (const [target, mock] of store.getMocks()) {
-    if (matchesPrefix(target, prefix)) {
-      // Best-effort per entry (matching closeBridges/stopElectrobunApp teardown): a single
-      // mock's CDP call failing — e.g. the connection dropped or the inner recorder is gone
-      // — must not abort the bulk op and leave the remaining mocks installed/unsynced.
-      try {
-        await fn(mock);
-      } catch (error) {
-        log.warn(`bulk mock op failed for '${target}', continuing: ${(error as Error).message}`);
-      }
-    }
-  }
+async function forEachMock(store: ElectrobunMockStore, prefix: string | undefined, op: MockLifecycleOp): Promise<void> {
+  await runBulkMockOp(store.getMocks(), op, { matches: (target) => matchesPrefix(target, prefix) });
 }
 
 export async function clearAllMocks(store: ElectrobunMockStore, prefix?: string): Promise<void> {
-  await forEachMock(store, prefix, (mock) => mock.mockClear());
+  await forEachMock(store, prefix, 'mockClear');
 }
 
 export async function resetAllMocks(store: ElectrobunMockStore, prefix?: string): Promise<void> {
-  await forEachMock(store, prefix, (mock) => mock.mockReset());
+  await forEachMock(store, prefix, 'mockReset');
 }
 
 export async function restoreAllMocks(store: ElectrobunMockStore, prefix?: string): Promise<void> {
-  await forEachMock(store, prefix, (mock) => mock.mockRestore());
+  await forEachMock(store, prefix, 'mockRestore');
 }
 
 /**

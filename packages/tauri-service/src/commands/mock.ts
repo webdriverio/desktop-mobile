@@ -1,5 +1,5 @@
 import type { TauriMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, runBulkMockOp } from '@wdio/native-utils';
 import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
 
@@ -28,27 +28,6 @@ function shouldProcessMock(mockName: string, commandPrefix?: string): boolean {
   }
   const escapedPrefix = escapeRegex(commandPrefix);
   return new RegExp(`^tauri\\.${escapedPrefix}`).test(mockName);
-}
-
-async function forEachMock(
-  mocks: Array<[string, TauriMock]>,
-  commandPrefix: string | undefined,
-  fn: (mock: TauriMock) => Promise<unknown>,
-): Promise<number> {
-  let processedCount = 0;
-  for (const [mockName, mock] of mocks) {
-    if (shouldProcessMock(mockName, commandPrefix)) {
-      // A mock's app round-trip fails once the app or connection is gone; that must not leave
-      // the remaining mocks untouched.
-      try {
-        await fn(mock);
-        processedCount++;
-      } catch (error) {
-        log.warn(`bulk mock op failed for '${mockName}', continuing: ${(error as Error).message}`);
-      }
-    }
-  }
-  return processedCount;
 }
 
 export async function mock(this: TauriServiceContext, command: string): Promise<TauriMock> {
@@ -91,7 +70,9 @@ export async function mock(this: TauriServiceContext, command: string): Promise<
 
 export async function clearAllMocks(this: TauriServiceContext, commandPrefix?: string): Promise<void> {
   const mocks = mockStore.getMocks();
-  const clearedCount = await forEachMock(mocks, commandPrefix, (mock) => mock.mockClear());
+  const clearedCount = await runBulkMockOp(mocks, 'mockClear', {
+    matches: (name) => shouldProcessMock(name, commandPrefix),
+  });
 
   log.debug(
     `clearAllMocks: cleared ${clearedCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
@@ -105,27 +86,29 @@ export async function resetAllMocks(this: TauriServiceContext | undefined, comma
     throw new Error('resetAllMocks requires a valid browser context');
   }
 
-  // Reset mocks in the injection script (with prefix filtering if provided)
-  await (browserContext as WebdriverIO.Browser).execute<void, [string]>((prefix) => {
-    // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-    if (window.__wdio_mocks__) {
-      // @ts-expect-error - Reset each mock
-      for (const [commandName, mock] of Object.entries(window.__wdio_mocks__)) {
-        // Filter by prefix if provided
-        if (!prefix || commandName.startsWith(prefix)) {
-          // @ts-expect-error - mock has mockReset method
-          if (mock && typeof mock.mockReset === 'function') {
-            // @ts-expect-error - mock has mockReset method
-            mock.mockReset();
+  const stdBrowser = browserContext as WebdriverIO.Browser;
+  const mocks = mockStore.getMocks();
+  const resetCount = await runBulkMockOp(mocks, 'mockReset', {
+    matches: (name) => shouldProcessMock(name, commandPrefix),
+    // Reset mocks in the injection script (with prefix filtering if provided)
+    bulkAppCall: () =>
+      stdBrowser.execute<void, [string]>((prefix) => {
+        // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+        if (window.__wdio_mocks__) {
+          // @ts-expect-error - Reset each mock
+          for (const [commandName, mock] of Object.entries(window.__wdio_mocks__)) {
+            // Filter by prefix if provided
+            if (!prefix || commandName.startsWith(prefix)) {
+              // @ts-expect-error - mock has mockReset method
+              if (mock && typeof mock.mockReset === 'function') {
+                // @ts-expect-error - mock has mockReset method
+                mock.mockReset();
+              }
+            }
           }
         }
-      }
-    }
-  }, commandPrefix ?? '');
-
-  // Reset outer mocks (with prefix filtering)
-  const mocks = mockStore.getMocks();
-  const resetCount = await forEachMock(mocks, commandPrefix, (mock) => mock.mockReset());
+      }, commandPrefix ?? ''),
+  });
 
   log.debug(
     `resetAllMocks: reset ${resetCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
@@ -139,30 +122,32 @@ export async function restoreAllMocks(this: TauriServiceContext | undefined, com
     throw new Error('restoreAllMocks requires a valid browser context');
   }
 
-  // Restore mocks in the injection script (with prefix filtering if provided)
-  await (browserContext as WebdriverIO.Browser).execute<void, [string]>((prefix) => {
-    // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-    if (window.__wdio_mocks__) {
-      if (!prefix) {
-        // No prefix: clear all mocks
+  const stdBrowser = browserContext as WebdriverIO.Browser;
+  const mocks = mockStore.getMocks();
+  const restoredCount = await runBulkMockOp(mocks, 'mockRestore', {
+    matches: (name) => shouldProcessMock(name, commandPrefix),
+    // Restore mocks in the injection script (with prefix filtering if provided)
+    bulkAppCall: () =>
+      stdBrowser.execute<void, [string]>((prefix) => {
         // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-        window.__wdio_mocks__ = {};
-      } else {
-        // With prefix: selectively delete matching mocks
-        // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-        for (const commandName of Object.keys(window.__wdio_mocks__)) {
-          if (commandName.startsWith(prefix)) {
+        if (window.__wdio_mocks__) {
+          if (!prefix) {
+            // No prefix: clear all mocks
             // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-            delete window.__wdio_mocks__[commandName];
+            window.__wdio_mocks__ = {};
+          } else {
+            // With prefix: selectively delete matching mocks
+            // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+            for (const commandName of Object.keys(window.__wdio_mocks__)) {
+              if (commandName.startsWith(prefix)) {
+                // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+                delete window.__wdio_mocks__[commandName];
+              }
+            }
           }
         }
-      }
-    }
-  }, commandPrefix ?? '');
-
-  // Restore outer mocks (with prefix filtering)
-  const mocks = mockStore.getMocks();
-  const restoredCount = await forEachMock(mocks, commandPrefix, (mock) => mock.mockRestore());
+      }, commandPrefix ?? ''),
+  });
 
   log.debug(
     `restoreAllMocks: restored ${restoredCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,

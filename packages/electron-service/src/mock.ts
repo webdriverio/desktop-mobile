@@ -8,7 +8,7 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 
 const log = createLogger('electron-service', 'mock');
@@ -147,7 +147,7 @@ export async function createMock(
     return mock;
   };
 
-  await buildMockMethods(mock, {
+  const localOps = await buildMockMethods(mock, {
     accessor: { kind: 'api', apiName, funcName },
     outerMock,
     outerMockClear: outerMock.mockClear.bind(outerMock),
@@ -179,6 +179,7 @@ export async function createMock(
   wrapperMock.__isElectronMock = true;
   wrapperMock.__accessor = mock.__accessor;
   wrapperMock.__applyCalls = mock.__applyCalls.bind(mock);
+  registerLocalMockOps(wrapperMock, localOps);
 
   return wrapperMock;
 }
@@ -309,33 +310,55 @@ export async function createElectronBrowserModeMock(
     return mock;
   };
 
+  const resetOuter = () => {
+    implState = null;
+    const currentName = outerMock.getMockName();
+    // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
+    const asyncMockClear = mock.mockClear;
+    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+    try {
+      outerMockReset();
+    } finally {
+      mock.mockClear = asyncMockClear;
+    }
+    outerMock.mockName(currentName);
+  };
+  // Run in `finally` by the methods below, so a dead page still leaves the outer mock clean.
+  const localOps: Required<LocalMockOps> = {
+    mockClear: () => outerMockClear(),
+    mockReset: resetOuter,
+    mockRestore: resetOuter,
+  };
+  registerLocalMockOps(mock, localOps);
+
   mock.mockClear = async () => {
-    await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockClear'));
-    outerMockClear();
+    try {
+      await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockClear'));
+    } finally {
+      localOps.mockClear();
+    }
     return mock;
   };
 
   mock.mockReset = async () => {
-    implState = null;
-    const currentName = outerMock.getMockName();
-    await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
-    outerMockClear();
-    outerMockReset();
-    outerMock.mockName(currentName);
+    try {
+      await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
+    } finally {
+      localOps.mockReset();
+    }
     return mock;
   };
 
   mock.mockRestore = async () => {
-    implState = null;
     // There is no original Electron API to restore in browser mode — the IPC interceptor
     // is always synthetic. Deregistering the channel would make future ipcRenderer.invoke
     // calls throw "unmocked channel", breaking restoreMocks: true across tests.
     // Behave like mockReset: clear history and implementation but keep the channel alive.
-    const currentName = outerMock.getMockName();
-    await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
-    outerMockClear();
-    outerMockReset();
-    outerMock.mockName(currentName);
+    try {
+      await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
+    } finally {
+      localOps.mockRestore();
+    }
     return mock;
   };
 

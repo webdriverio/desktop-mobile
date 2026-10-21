@@ -1,7 +1,7 @@
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { AbstractFn, TauriMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
 import { execute as tauriExecute } from './commands/execute.js';
 import mockStore from './mockStore.js';
 
@@ -147,36 +147,53 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
+  // Run in `finally` by the methods below, so a dead app still leaves the outer mock and the store clean.
+  const localOps: Required<LocalMockOps> = {
+    mockClear: () => outerMockClear(),
+    mockReset: () => {
+      const currentName = outerMock.getMockName();
+      // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
+      // call doesn't fire the async override, which would defer outerMockClear() and race
+      // against auto-sync populating state.calls.
+      const asyncMockClearFn = mock.mockClear;
+      (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+      wrapperMock.mockClear = outerMockClear as unknown as typeof wrapperMock.mockClear;
+      outerMockClear();
+      outerMockReset();
+      mock.mockClear = asyncMockClearFn;
+      wrapperMock.mockClear = asyncMockClearFn;
+      outerMock.mockName(currentName);
+    },
+    mockRestore: () => {
+      outerMockClear();
+      mockStore.deleteMock(`tauri.${command}`);
+    },
+  };
+
   mock.mockClear = async () => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockClear'));
-    outerMockClear();
+    try {
+      await tauriExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockClear'));
+    } finally {
+      localOps.mockClear();
+    }
     return mock;
   };
 
   mock.mockReset = async () => {
-    const currentName = outerMock.getMockName();
-
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
-
-    // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
-    // call doesn't fire the async override, which would defer outerMockClear() and race
-    // against auto-sync populating state.calls.
-    const asyncMockClearFn = mock.mockClear;
-    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
-    wrapperMock.mockClear = outerMockClear as unknown as typeof wrapperMock.mockClear;
-    outerMockClear();
-    outerMockReset();
-    mock.mockClear = asyncMockClearFn;
-    wrapperMock.mockClear = asyncMockClearFn;
-    outerMock.mockName(currentName);
-
+    try {
+      await tauriExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
+    } finally {
+      localOps.mockReset();
+    }
     return mock;
   };
 
   mock.mockRestore = async () => {
-    await tauriExecute<void>(browserToUse, interceptor.buildUnregistrationScript(command));
-    outerMockClear();
-    mockStore.deleteMock(`tauri.${command}`);
+    try {
+      await tauriExecute<void>(browserToUse, interceptor.buildUnregistrationScript(command));
+    } finally {
+      localOps.mockRestore();
+    }
     return mock;
   };
 
@@ -216,6 +233,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   wrapperMock.update = mock.update.bind(mock);
 
   wrapperMock.__isTauriMock = true;
+  registerLocalMockOps(wrapperMock, localOps);
 
   return wrapperMock;
 }
@@ -326,28 +344,49 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     return mock;
   };
 
+  // Run in `finally` by the methods below, so a dead page still leaves the outer mock and the store clean.
+  const localOps: Required<LocalMockOps> = {
+    mockClear: () => outerMockClear(),
+    mockReset: () => {
+      const currentName = outerMock.getMockName();
+      const asyncMockClearFn = mock.mockClear;
+      (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+      outerMockClear();
+      outerMockReset();
+      mock.mockClear = asyncMockClearFn;
+      outerMock.mockName(currentName);
+    },
+    mockRestore: () => {
+      outerMockClear();
+      mockStore.deleteMock(`tauri.${command}`);
+    },
+  };
+  registerLocalMockOps(mock, localOps);
+
   mock.mockClear = async () => {
-    await runInterceptorScript<void>(browser, interceptor.buildInnerInvocationScript(command, 'mockClear'));
-    outerMockClear();
+    try {
+      await runInterceptorScript<void>(browser, interceptor.buildInnerInvocationScript(command, 'mockClear'));
+    } finally {
+      localOps.mockClear();
+    }
     return mock;
   };
 
   mock.mockReset = async () => {
-    const currentName = outerMock.getMockName();
-    await runInterceptorScript<void>(browser, interceptor.buildInnerInvocationScript(command, 'mockReset'));
-    const asyncMockClearFn = mock.mockClear;
-    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
-    outerMockClear();
-    outerMockReset();
-    mock.mockClear = asyncMockClearFn;
-    outerMock.mockName(currentName);
+    try {
+      await runInterceptorScript<void>(browser, interceptor.buildInnerInvocationScript(command, 'mockReset'));
+    } finally {
+      localOps.mockReset();
+    }
     return mock;
   };
 
   mock.mockRestore = async () => {
-    await runInterceptorScript<void>(browser, interceptor.buildUnregistrationScript(command));
-    outerMockClear();
-    mockStore.deleteMock(`tauri.${command}`);
+    try {
+      await runInterceptorScript<void>(browser, interceptor.buildUnregistrationScript(command));
+    } finally {
+      localOps.mockRestore();
+    }
     return mock;
   };
 

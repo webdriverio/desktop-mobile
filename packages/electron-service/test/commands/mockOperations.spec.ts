@@ -52,12 +52,19 @@ describe.each([
     expect(mockedShowOpenDialog[mockMethod]).not.toHaveBeenCalled();
   });
 
-  it('should keep going through the remaining mocks when one fails', async () => {
-    (mockedGetName[mockMethod] as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('app is gone'));
+  it('should match the apiName literally rather than as a pattern', async () => {
+    await fn('a.p');
+    expect(mockedGetName[mockMethod]).not.toHaveBeenCalled();
+    expect(mockedShowOpenDialog[mockMethod]).not.toHaveBeenCalled();
+  });
 
-    await expect(fn()).resolves.toBeUndefined();
+  it('should attempt every mock and then report the one that failed', async () => {
+    (mockedGetName[mockMethod] as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('inner mock gone'));
 
-    expect(mockedGetName[mockMethod]).toHaveBeenCalled();
+    await expect(fn()).rejects.toMatchObject({
+      message: `${mockMethod} failed: electron.app.getName: inner mock gone`,
+    });
+
     expect(mockedShowOpenDialog[mockMethod]).toHaveBeenCalled();
   });
 });

@@ -39,11 +39,11 @@ describe('clearAllMocks', () => {
     expect(mocks['api2.post'].mockClear).not.toHaveBeenCalled();
   });
 
-  it('should continue on per-mock failure', async () => {
+  it('should finish the bulk op and then report the failed mock', async () => {
     const store = storeWith('a', 'b');
     const [, first] = store.getMocks()[0];
     vi.mocked(first.mockClear).mockRejectedValueOnce(new Error('boom'));
-    await expect(clearAllMocks(store)).resolves.toBeUndefined();
+    await expect(clearAllMocks(store)).rejects.toMatchObject({ message: 'mockClear failed: a: boom' });
     const [, second] = store.getMocks()[1];
     expect(second.mockClear).toHaveBeenCalledOnce();
   });

@@ -345,6 +345,20 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     await expect(bridge.connect()).rejects.toThrow();
   });
 
+  it('should log a pruned connection that fails to close on refresh', async () => {
+    const main = target('A', 'views://mainview/index.html');
+    h.targets = [main, target('B', 'views://secondview/index.html')];
+    const bridge = makeBridge();
+    await bridge.connect();
+    h.failingCloses.add(main.webSocketDebuggerUrl);
+
+    h.targets = [target('B', 'views://secondview/index.html')];
+    await expect(bridge.refresh()).resolves.toBeDefined();
+
+    expect(h.closed).toBe(1);
+    expect(h.warn).toHaveBeenCalledWith('Failed to close CDP connection [main]: close failed');
+  });
+
   it('should auto-advance the active target when the active window is pruned on refresh', async () => {
     h.targets = [target('A', 'views://mainview/index.html'), target('B', 'views://secondview/index.html')];
     const bridge = makeBridge();

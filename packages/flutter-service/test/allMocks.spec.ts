@@ -54,13 +54,13 @@ describe('clear/reset/restoreAllMocks', () => {
     expect((b as unknown as { mockClear: ReturnType<typeof vi.fn> }).mockClear).not.toHaveBeenCalled();
   });
 
-  it('should continue past a failing entry', async () => {
+  it('should continue past a failing entry and then report it', async () => {
     const store = new FlutterMockStore();
     const bad = makeMock({ mockClear: vi.fn().mockRejectedValue(new Error('boom')) });
     const good = makeMock();
     store.setMock('A.x', bad);
     store.setMock('A.y', good);
-    await clearAllMocks(store);
+    await expect(clearAllMocks(store)).rejects.toMatchObject({ message: 'mockClear failed: A.x: boom' });
     expect((good as unknown as { mockClear: ReturnType<typeof vi.fn> }).mockClear).toHaveBeenCalled();
   });
 });
