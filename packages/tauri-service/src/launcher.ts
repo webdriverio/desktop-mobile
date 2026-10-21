@@ -140,7 +140,7 @@ export default class TauriLaunchService {
     const isCrabNebula = mergedOptions.driverProvider === 'crabnebula';
     const isEmbedded = isEmbeddedProvider(mergedOptions);
 
-    if (isEmbedded && !(firstCap?.['wdio:tauriServiceOptions']?.driverProvider ?? this.options.driverProvider)) {
+    if (isEmbedded && !mergedOptions.driverProvider) {
       log.info(
         `No driverProvider configured — defaulting to embedded WebDriver provider (port ${getEmbeddedPort(mergedOptions)}). ` +
           `Set driverProvider: 'external' to use tauri-driver instead.`,

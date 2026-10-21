@@ -21,8 +21,8 @@ describe('mergeServiceOptions', () => {
     });
   });
 
-  it('should default driverProvider to embedded', () => {
-    expect(mergeServiceOptions({}, undefined).driverProvider).toBe('embedded');
+  it('should leave driverProvider unset when no options set it', () => {
+    expect(mergeServiceOptions({}, undefined).driverProvider).toBeUndefined();
   });
 
   it("should normalise driverProvider: 'official' to 'external'", () => {

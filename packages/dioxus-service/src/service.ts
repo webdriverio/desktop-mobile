@@ -26,7 +26,7 @@ export default class DioxusWorkerService {
     // The launcher writes mode: 'browser' onto each capability; in multiremote that is each instance's capabilities.
     const browserModeOptions =
       capOptions ??
-      Object.values((_capabilities ?? {}) as Record<string, { capabilities?: DioxusCapabilities } | undefined>)
+      Object.values(_capabilities as Record<string, { capabilities?: DioxusCapabilities } | undefined>)
         .map((entry) => entry?.capabilities?.['wdio:dioxusServiceOptions'])
         .find((instanceOptions) => instanceOptions?.mode === 'browser');
     this.devServerUrl = browserModeOptions?.devServerUrl ?? _options.devServerUrl;
