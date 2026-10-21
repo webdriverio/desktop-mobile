@@ -51,4 +51,13 @@ describe.each([
     expect(mockedGetName[mockMethod]).toHaveBeenCalled();
     expect(mockedShowOpenDialog[mockMethod]).not.toHaveBeenCalled();
   });
+
+  it('should keep going through the remaining mocks when one fails', async () => {
+    (mockedGetName[mockMethod] as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('app is gone'));
+
+    await expect(fn()).resolves.toBeUndefined();
+
+    expect(mockedGetName[mockMethod]).toHaveBeenCalled();
+    expect(mockedShowOpenDialog[mockMethod]).toHaveBeenCalled();
+  });
 });

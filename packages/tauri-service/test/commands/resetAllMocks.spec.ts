@@ -106,6 +106,16 @@ describe('resetAllMocks Command', () => {
     expect(mockedWriteClipboard.mockReset).not.toHaveBeenCalled();
   });
 
+  it('should keep going through the remaining mocks when one mockReset fails', async () => {
+    mockedGetPlatformInfo.mockReset.mockRejectedValue(new Error('app is gone'));
+
+    await expect(resetAllMocks()).resolves.toBeUndefined();
+
+    expect(mockedGetPlatformInfo.mockReset).toHaveBeenCalled();
+    expect(mockedReadClipboard.mockReset).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockReset).toHaveBeenCalled();
+  });
+
   it('should throw when no browser context is available', async () => {
     delete (globalThis as any).browser;
     await expect(resetAllMocks.call({})).rejects.toThrow('resetAllMocks requires a valid browser context');
