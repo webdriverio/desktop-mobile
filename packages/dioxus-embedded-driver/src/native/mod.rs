@@ -7,6 +7,11 @@ use tokio::sync::oneshot;
 
 use crate::server::response::WebDriverErrorResponse;
 
+#[cfg(target_os = "linux")]
+mod linux;
+#[cfg(target_os = "linux")]
+use linux as platform;
+
 #[cfg(target_os = "macos")]
 mod macos;
 #[cfg(target_os = "macos")]
@@ -22,7 +27,7 @@ use windows as platform;
 pub(crate) type Reply<T> = oneshot::Sender<Result<T, String>>;
 
 /// Captures the visible page of the window labelled `label` as a base64 PNG.
-#[cfg(any(target_os = "macos", target_os = "windows"))]
+#[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
 pub async fn screenshot(label: &str, timeout: Duration) -> Result<String, WebDriverErrorResponse> {
   let (tx, rx) = oneshot::channel();
   let queued = wdio_dioxus_bridge::webview::run_on_main_thread(
@@ -41,7 +46,7 @@ pub async fn screenshot(label: &str, timeout: Duration) -> Result<String, WebDri
 }
 
 /// Fails where native capture isn't wired yet, rather than return a blank image.
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+#[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
 pub async fn screenshot(_label: &str, _timeout: Duration) -> Result<String, WebDriverErrorResponse> {
   Err(WebDriverErrorResponse::unsupported_operation(
     "screenshots are not supported by the Dioxus embedded driver on this platform",

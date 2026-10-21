@@ -49,7 +49,7 @@ mod tests {
     });
   }
 
-  #[cfg(any(target_os = "macos", target_os = "windows"))]
+  #[cfg(any(target_os = "linux", target_os = "macos", target_os = "windows"))]
   #[test]
   fn page_screenshot_of_an_unattached_window_is_no_such_window() {
     tokio::runtime::Runtime::new().unwrap().block_on(async {

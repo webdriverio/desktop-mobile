@@ -66,3 +66,14 @@ webview2-com = "0.38"
 [target."cfg(target_os = \"windows\")".dependencies.windows]
 version = "0.61"
 features = [ "Win32_Foundation", "Win32_System_Com", "Win32_System_Com_StructuredStorage" ]
+
+# Same semver lines as wry and gtk, so Cargo resolves the one copy they use and
+# the `webkit2gtk::WebView` wry hands out is the type this crate calls. A
+# caret, not wry's exact pin, so a wry patch bump can't make resolution fail.
+# cairo-rs is here only to turn on PNG encoding.
+[target."cfg(target_os = \"linux\")".dependencies]
+webkit2gtk = "2.0"
+
+[target."cfg(target_os = \"linux\")".dependencies.cairo-rs]
+version = "0.18"
+features = [ "png" ]

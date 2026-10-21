@@ -4667,6 +4667,7 @@ dependencies = [
  "axum",
  "base64",
  "block2",
+ "cairo-rs",
  "dioxus-desktop",
  "objc2",
  "objc2-app-kit",
@@ -4679,6 +4680,7 @@ dependencies = [
  "tracing",
  "uuid",
  "wdio-dioxus-bridge",
+ "webkit2gtk",
  "webview2-com",
  "windows",
 ]
