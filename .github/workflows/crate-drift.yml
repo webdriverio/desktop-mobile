@@ -122,6 +122,17 @@ jobs:
               fi
               echo "::endgroup::"
             done
+
+            # Committed generated permission files must match what fresh dependencies generate.
+            if ! changes=$(git status --short --untracked-files=all -- "$crate/permissions"); then
+              echo "::error file=$crate/Cargo.toml::git status failed for $crate/permissions"
+              status=1
+            elif [ -n "$changes" ]; then
+              echo "$changes"
+              git diff -- "$crate/permissions"
+              echo "::error file=$crate/Cargo.toml::$crate's generated permission files change against fresh dependencies; regenerate and commit them"
+              status=1
+            fi
           done
           exit "$status"
 
