@@ -67,23 +67,43 @@ pub fn pointer_event_script(
         }
     });
 
-    // click is not a compatibility mouse event, so suppression never drops it.
-    let mouse_dispatch = if suppress_mouse_events && !matches!(event_type, PointerEventType::Click)
-    {
-        String::new()
-    } else {
-        format!(
-            r"if (!pointerDownCanceled) {{
-                el.dispatchEvent(new MouseEvent('{mouse_event_name}', {{
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: {x},
-                    clientY: {y},
-                    button: {button},
-                    buttons: {buttons},
-                }}));
+    let detail = u8::from(!matches!(event_type, PointerEventType::Move));
+    let mouse_event = format!(
+        r"new MouseEvent('{mouse_event_name}', {{
+            bubbles: true,
+            cancelable: true,
+            composed: true,
+            view: window,
+            detail: {detail},
+            clientX: {x},
+            clientY: {y},
+            button: {button},
+            buttons: {buttons},
+        }})"
+    );
+    let mouse_dispatch = match event_type {
+        // Browsers send click, which suppression never drops, to the nearest common ancestor of
+        // the press and release targets.
+        PointerEventType::Click => format!(
+            r"var target = window.__wdioPointerDownTarget;
+            while (target && !target.contains(el)) {{
+                target = target.parentNode;
+            }}
+            if (target) {{
+                target.dispatchEvent({mouse_event});
             }}"
-        )
+        ),
+        _ if suppress_mouse_events => String::new(),
+        _ => format!(
+            r"if (!pointerDownCanceled) {{
+                el.dispatchEvent({mouse_event});
+            }}"
+        ),
+    };
+    let record_down_target = if matches!(event_type, PointerEventType::Down) && button == 0 {
+        "window.__wdioPointerDownTarget = el;"
+    } else {
+        ""
     };
 
     format!(
@@ -92,6 +112,7 @@ pub fn pointer_event_script(
             if (!el) {{
                 el = document.body;
             }}
+            {record_down_target}
             var pointerDownCanceled = false;
             {pointer_dispatch}
             {mouse_dispatch}
@@ -136,6 +157,10 @@ mod tests {
         assert!(script.contains("button: 0,"));
         assert!(script.contains("buttons: 1,"));
         assert!(script.contains("return pointerDownCanceled;"));
+        assert!(script.contains("window.__wdioPointerDownTarget = el;"));
+        assert!(script.contains("view: window,"));
+        assert!(script.contains("detail: 1,"));
+        assert_eq!(script.matches("composed: true,").count(), 2);
     }
 
     #[test]
@@ -205,6 +230,9 @@ mod tests {
         let script = pointer_event_script(PointerEventType::Click, 0, 0, 0, state(0, false, false));
 
         assert!(!script.contains("new PointerEvent("));
-        assert!(script.contains("new MouseEvent('click'"));
+        assert!(script.contains("var target = window.__wdioPointerDownTarget;"));
+        assert!(script.contains("while (target && !target.contains(el)) {"));
+        assert!(script.contains("target.dispatchEvent(new MouseEvent('click'"));
+        assert!(script.contains("detail: 1,"));
     }
 }

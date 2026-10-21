@@ -244,12 +244,15 @@ pub async fn perform<R: Runtime + 'static>(
                     if let Some(action) = actions.get(tick) {
                         match action {
                             PointerAction::PointerDown { button } => {
-                                let input_state = {
+                                let press = {
                                     let mut sessions = state.sessions.write().await;
                                     sessions
                                         .get_mut(&session_id)?
                                         .action_state
                                         .press_pointer_button(id, *button)
+                                };
+                                let Some(input_state) = press else {
+                                    continue;
                                 };
                                 let pointer_down_canceled = executor
                                     .dispatch_pointer_event(
@@ -271,12 +274,15 @@ pub async fn perform<R: Runtime + 'static>(
                                 }
                             }
                             PointerAction::PointerUp { button } => {
-                                let input_state = {
+                                let release = {
                                     let sessions = state.sessions.read().await;
                                     sessions
                                         .get(&session_id)?
                                         .action_state
                                         .pointer_release_state(id, *button)
+                                };
+                                let Some(input_state) = release else {
+                                    continue;
                                 };
                                 executor
                                     .dispatch_pointer_event(
@@ -351,12 +357,14 @@ pub async fn perform<R: Runtime + 'static>(
                                 };
                                 pointer_state.x = target_x;
                                 pointer_state.y = target_y;
+                                // Persisted per move so releaseActions after a failed chain
+                                // and a later origin: "pointer" move both start from here.
                                 let input_state = {
-                                    let sessions = state.sessions.read().await;
-                                    sessions
-                                        .get(&session_id)?
-                                        .action_state
-                                        .pointer_input_state(id)
+                                    let mut sessions = state.sessions.write().await;
+                                    let action_state =
+                                        &mut sessions.get_mut(&session_id)?.action_state;
+                                    action_state.pointer_position = (target_x, target_y);
+                                    action_state.pointer_input_state(id)
                                 };
                                 executor
                                     .dispatch_pointer_event(
@@ -399,15 +407,6 @@ pub async fn perform<R: Runtime + 'static>(
         }
     }
 
-    // Persist the final pointer position so a later performActions call with
-    // origin: "pointer" resolves relative to it instead of (0, 0).
-    {
-        let mut sessions = state.sessions.write().await;
-        if let Ok(session) = sessions.get_mut(&session_id) {
-            session.action_state.pointer_position = (pointer_state.x, pointer_state.y);
-        }
-    }
-
     Ok(WebDriverResponse::null())
 }
 
@@ -441,10 +440,11 @@ pub async fn release<R: Runtime + 'static>(
     // Release all pressed pointer buttons where the pointer last was
     let (x, y) = taken.pointer_position;
     for (source_id, button) in taken.held_pointer_buttons() {
-        let input_state = taken.release_pointer_button(&source_id, button);
-        executor
-            .dispatch_pointer_event(PointerEventType::Up, x, y, button, input_state)
-            .await?;
+        if let Some(input_state) = taken.release_pointer_button(&source_id, button) {
+            executor
+                .dispatch_pointer_event(PointerEventType::Up, x, y, button, input_state)
+                .await?;
+        }
     }
 
     Ok(WebDriverResponse::null())

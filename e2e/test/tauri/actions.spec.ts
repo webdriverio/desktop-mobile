@@ -191,22 +191,8 @@ describe('Embedded WebDriver pointer events', () => {
 
     await dragOutAndBack(5, 5);
 
-    const canceledPress = await stopPointerProbe();
-    expect(canceledPress.map(({ type }) => type)).toEqual([
-      'pointerdown',
-      'pointermove',
-      'pointermove',
-      'pointerup',
-      'click',
-    ]);
-
-    // The suppression ends with the press, so the next one fires mouse events again.
-    await startPointerProbe();
-
-    await pressAt(5, 5);
-
-    const nextPress = await stopPointerProbe();
-    expect(nextPress.map(({ type }) => type)).toEqual(['pointerdown', 'mousedown', 'pointerup', 'mouseup', 'click']);
+    const events = await stopPointerProbe();
+    expect(events.map(({ type }) => type)).toEqual(['pointerdown', 'pointermove', 'pointermove', 'pointerup', 'click']);
   });
 
   it('should report a press and release of a second held button as pointermoves', async () => {

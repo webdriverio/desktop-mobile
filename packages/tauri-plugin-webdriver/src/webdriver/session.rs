@@ -24,38 +24,50 @@ pub struct ActionState {
 }
 
 impl ActionState {
-    pub fn press_pointer_button(&mut self, source_id: &str, button: u32) -> PointerInputState {
+    /// `None` when the button is already held, which W3C makes a no-op.
+    pub fn press_pointer_button(
+        &mut self,
+        source_id: &str,
+        button: u32,
+    ) -> Option<PointerInputState> {
         let held = self
             .pressed_buttons
             .entry(source_id.to_string())
             .or_default();
-        let chorded = held.iter().any(|&other| other != button);
+        if held.contains(&button) {
+            return None;
+        }
+        let chorded = !held.is_empty();
         held.insert(button);
-        PointerInputState {
+        Some(PointerInputState {
             chorded,
             ..self.pointer_input_state(source_id)
-        }
+        })
     }
 
-    pub fn release_pointer_button(&mut self, source_id: &str, button: u32) -> PointerInputState {
-        let input_state = self.pointer_release_state(source_id, button);
+    pub fn release_pointer_button(
+        &mut self,
+        source_id: &str,
+        button: u32,
+    ) -> Option<PointerInputState> {
+        let input_state = self.pointer_release_state(source_id, button)?;
         self.commit_pointer_release(source_id, button);
-        input_state
+        Some(input_state)
     }
 
-    /// Computed without recording the release, so one that fails to dispatch
-    /// leaves the button held for `releaseActions` to retry.
-    pub fn pointer_release_state(&self, source_id: &str, button: u32) -> PointerInputState {
-        let remaining: Vec<&u32> = self
+    /// `None` when the button isn't held (a W3C no-op). Not recorded, so a release
+    /// that fails to dispatch leaves the button held for `releaseActions` to retry.
+    pub fn pointer_release_state(&self, source_id: &str, button: u32) -> Option<PointerInputState> {
+        let pressed = self
             .pressed_buttons
             .get(source_id)
-            .map(|pressed| pressed.iter().filter(|&&held| held != button).collect())
-            .unwrap_or_default();
-        PointerInputState {
+            .filter(|pressed| pressed.contains(&button))?;
+        let remaining: Vec<&u32> = pressed.iter().filter(|&&held| held != button).collect();
+        Some(PointerInputState {
             buttons: dom_buttons_mask(remaining.iter().copied()),
             suppress_mouse_events: self.canceled_pointer_downs.contains(source_id),
             chorded: !remaining.is_empty(),
-        }
+        })
     }
 
     /// Suppression ends once the source holds no buttons.
@@ -256,14 +268,32 @@ mod tests {
     fn held_buttons_use_the_dom_buttons_bitmask() {
         let mut state = ActionState::default();
 
-        assert_eq!(state.press_pointer_button("mouse", 0), input(1, false));
-        assert_eq!(state.press_pointer_button("mouse", 2), chord(3, false));
-        assert_eq!(state.press_pointer_button("mouse", 1), chord(7, false));
+        assert_eq!(
+            state.press_pointer_button("mouse", 0),
+            Some(input(1, false))
+        );
+        assert_eq!(
+            state.press_pointer_button("mouse", 2),
+            Some(chord(3, false))
+        );
+        assert_eq!(
+            state.press_pointer_button("mouse", 1),
+            Some(chord(7, false))
+        );
         assert_eq!(state.pointer_input_state("mouse"), input(7, false));
 
-        assert_eq!(state.release_pointer_button("mouse", 0), chord(6, false));
-        assert_eq!(state.release_pointer_button("mouse", 1), chord(2, false));
-        assert_eq!(state.release_pointer_button("mouse", 2), input(0, false));
+        assert_eq!(
+            state.release_pointer_button("mouse", 0),
+            Some(chord(6, false))
+        );
+        assert_eq!(
+            state.release_pointer_button("mouse", 1),
+            Some(chord(2, false))
+        );
+        assert_eq!(
+            state.release_pointer_button("mouse", 2),
+            Some(input(0, false))
+        );
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
     }
 
@@ -271,19 +301,20 @@ mod tests {
     fn held_buttons_are_tracked_per_source() {
         let mut state = ActionState::default();
 
-        assert_eq!(state.press_pointer_button("a", 0), input(1, false));
-        assert_eq!(state.press_pointer_button("b", 2), input(2, false));
+        assert_eq!(state.press_pointer_button("a", 0), Some(input(1, false)));
+        assert_eq!(state.press_pointer_button("b", 2), Some(input(2, false)));
 
         assert_eq!(state.pointer_input_state("a"), input(1, false));
         assert_eq!(state.pointer_input_state("b"), input(2, false));
     }
 
     #[test]
-    fn pressing_a_held_button_again_is_not_a_chord() {
+    fn pressing_a_held_button_again_does_nothing() {
         let mut state = ActionState::default();
         state.press_pointer_button("mouse", 0);
 
-        assert_eq!(state.press_pointer_button("mouse", 0), input(1, false));
+        assert_eq!(state.press_pointer_button("mouse", 0), None);
+        assert_eq!(state.pointer_input_state("mouse"), input(1, false));
     }
 
     #[test]
@@ -293,9 +324,15 @@ mod tests {
         state.cancel_pointer_down("mouse");
 
         assert_eq!(state.pointer_input_state("mouse"), input(1, true));
-        assert_eq!(state.release_pointer_button("mouse", 0), input(0, true));
+        assert_eq!(
+            state.release_pointer_button("mouse", 0),
+            Some(input(0, true))
+        );
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
-        assert_eq!(state.press_pointer_button("mouse", 0), input(1, false));
+        assert_eq!(
+            state.press_pointer_button("mouse", 0),
+            Some(input(1, false))
+        );
     }
 
     #[test]
@@ -304,10 +341,16 @@ mod tests {
         state.press_pointer_button("mouse", 0);
         state.cancel_pointer_down("mouse");
 
-        assert_eq!(state.press_pointer_button("mouse", 2), chord(3, true));
-        assert_eq!(state.release_pointer_button("mouse", 0), chord(2, true));
+        assert_eq!(state.press_pointer_button("mouse", 2), Some(chord(3, true)));
+        assert_eq!(
+            state.release_pointer_button("mouse", 0),
+            Some(chord(2, true))
+        );
         assert_eq!(state.pointer_input_state("mouse"), input(2, true));
-        assert_eq!(state.release_pointer_button("mouse", 2), input(0, true));
+        assert_eq!(
+            state.release_pointer_button("mouse", 2),
+            Some(input(0, true))
+        );
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
     }
 
@@ -317,21 +360,28 @@ mod tests {
         state.press_pointer_button("mouse", 0);
         state.cancel_pointer_down("mouse");
 
-        assert_eq!(state.pointer_release_state("mouse", 0), input(0, true));
+        assert_eq!(
+            state.pointer_release_state("mouse", 0),
+            Some(input(0, true))
+        );
         assert_eq!(state.pointer_input_state("mouse"), input(1, true));
 
         // releaseActions can still release it.
-        assert_eq!(state.release_pointer_button("mouse", 0), input(0, true));
+        assert_eq!(
+            state.release_pointer_button("mouse", 0),
+            Some(input(0, true))
+        );
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
     }
 
     #[test]
-    fn releasing_an_unpressed_button_clears_suppression() {
+    fn releasing_an_unpressed_button_does_nothing() {
         let mut state = ActionState::default();
+        state.press_pointer_button("mouse", 0);
         state.cancel_pointer_down("mouse");
 
-        assert_eq!(state.release_pointer_button("mouse", 0), input(0, true));
-        assert_eq!(state.pointer_input_state("mouse"), input(0, false));
+        assert_eq!(state.release_pointer_button("mouse", 2), None);
+        assert_eq!(state.pointer_input_state("mouse"), input(1, true));
     }
 
     #[test]
