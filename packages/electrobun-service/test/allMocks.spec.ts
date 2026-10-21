@@ -105,7 +105,7 @@ describe('allMocks helpers', () => {
       expect(b.mock.calls).toHaveLength(1);
     });
 
-    it('should continue the bulk op when one mock throws', async () => {
+    it('should finish the bulk op and then report the mock that threw', async () => {
       const { bridge, window } = makeBridge({ api: { a: () => 1, b: () => 2 } });
       const a = await createMock('api.a', bridge, store);
       const b = await createMock('api.b', bridge, store);
@@ -115,12 +115,28 @@ describe('allMocks helpers', () => {
       await b.update();
       expect(a.mock.calls).toHaveLength(1);
       expect(b.mock.calls).toHaveLength(1);
-      vi.spyOn(a, 'mockClear').mockRejectedValueOnce(new Error('cdp connection dropped'));
+      vi.spyOn(a, 'mockClear').mockRejectedValueOnce(new Error('inner recorder missing'));
 
-      await clearAllMocks(store);
+      await expect(clearAllMocks(store)).rejects.toMatchObject({
+        message: 'mockClear failed: api.a: inner recorder missing',
+      });
 
-      // a threw and was skipped, but b must still be cleared.
       expect(b.mock.calls).toHaveLength(0);
+    });
+
+    it('should make one CDP call, empty the store and report one failure once the connection is gone', async () => {
+      const { bridge } = makeBridge({ api: { a: () => 1, b: () => 2 } });
+      await createMock('api.a', bridge, store);
+      await createMock('api.b', bridge, store);
+      const send = vi.mocked(bridge.send);
+      send.mockClear().mockRejectedValue(new Error('WebSocket is not connected'));
+
+      await expect(restoreAllMocks(store)).rejects.toMatchObject({
+        errors: [expect.objectContaining({ message: 'WebSocket is not connected' })],
+      });
+
+      expect(send).toHaveBeenCalledOnce();
+      expect(store.getMocks()).toEqual([]);
     });
 
     it('should reset implementations across all mocks', async () => {

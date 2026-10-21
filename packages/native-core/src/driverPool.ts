@@ -100,28 +100,36 @@ export class DriverPool {
   }
 
   async stopAll(): Promise<void> {
-    const count = this.drivers.size;
-    if (count === 0) {
+    const entries = Array.from(this.drivers.entries());
+    if (entries.length === 0) {
       return;
     }
 
-    log.info(`Stopping ${count} driver(s)...`);
+    log.info(`Stopping ${entries.length} driver(s)...`);
 
-    const entries = Array.from(this.drivers.entries());
     const results = await Promise.allSettled(
       entries.map(([identifier, info]) => {
         log.debug(`Stopping driver [${identifier}]...`);
         return info.process.stop(info.driverName);
       }),
     );
-    this.drivers.clear();
-
-    // Resolve anyway: callers run the rest of their onComplete cleanup after this.
-    results.forEach((result, i) => {
-      if (result.status === 'rejected') {
-        log.warn(`Failed to stop driver [${entries[i][0]}]: ${errorMessage(result.reason)}`);
+    // Only drop what was stopped: a driver registered while stopping must stay tracked.
+    for (const [identifier, info] of entries) {
+      if (this.drivers.get(identifier) === info) {
+        this.drivers.delete(identifier);
       }
+    }
+
+    const failures = entries.flatMap(([identifier], i) => {
+      const result = results[i];
+      return result.status === 'rejected' ? [{ identifier, reason: result.reason as unknown }] : [];
     });
+    if (failures.length > 0) {
+      throw new AggregateError(
+        failures.map(({ reason }) => reason),
+        `Failed to stop driver(s): ${failures.map(({ identifier, reason }) => `${identifier}: ${errorMessage(reason)}`).join('; ')}`,
+      );
+    }
 
     log.debug('All drivers stopped');
   }

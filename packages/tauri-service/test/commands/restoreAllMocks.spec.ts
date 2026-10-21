@@ -1,3 +1,4 @@
+import { registerLocalMockOps } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { restoreAllMocks } from '../../src/commands/mock.js';
@@ -103,14 +104,46 @@ describe('restoreAllMocks Command', () => {
     expect(mockedWriteClipboard.mockRestore).not.toHaveBeenCalled();
   });
 
-  it('should keep going through the remaining mocks when one mockRestore fails', async () => {
-    mockedGetPlatformInfo.mockRestore.mockRejectedValue(new Error('app is gone'));
+  it('should attempt every mock and then report the one whose mockRestore failed', async () => {
+    mockedGetPlatformInfo.mockRestore.mockRejectedValue(new Error('inner mock gone'));
 
-    await expect(restoreAllMocks()).resolves.toBeUndefined();
+    await expect(restoreAllMocks()).rejects.toMatchObject({
+      message: 'mockRestore failed: tauri.get_platform_info: inner mock gone',
+    });
+
+    expect(mockedReadClipboard.mockRestore).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
+  });
+
+  it('should still run every mockRestore and report the failure when the in-app bulk call fails', async () => {
+    (globalThis.browser as any).execute.mockRejectedValue(new Error('script error'));
+
+    await expect(restoreAllMocks()).rejects.toMatchObject({
+      message: 'mockRestore failed: all mocks (in-app): script error',
+    });
 
     expect(mockedGetPlatformInfo.mockRestore).toHaveBeenCalled();
     expect(mockedReadClipboard.mockRestore).toHaveBeenCalled();
     expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
+  });
+
+  it('should only clean up locally and report one failure when the session is gone', async () => {
+    const localOps = [vi.fn(), vi.fn(), vi.fn()];
+    registerLocalMockOps(mockedGetPlatformInfo, { mockRestore: localOps[0] });
+    registerLocalMockOps(mockedReadClipboard, { mockRestore: localOps[1] });
+    registerLocalMockOps(mockedWriteClipboard, { mockRestore: localOps[2] });
+    (globalThis.browser as any).execute.mockRejectedValue(new Error('invalid session id'));
+
+    await expect(restoreAllMocks()).rejects.toMatchObject({
+      errors: [expect.objectContaining({ message: 'invalid session id' })],
+    });
+
+    expect(mockedGetPlatformInfo.mockRestore).not.toHaveBeenCalled();
+    expect(mockedReadClipboard.mockRestore).not.toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockRestore).not.toHaveBeenCalled();
+    for (const localOp of localOps) {
+      expect(localOp).toHaveBeenCalledOnce();
+    }
   });
 
   it('should throw when no browser context is available', async () => {

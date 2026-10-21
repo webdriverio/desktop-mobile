@@ -74,6 +74,61 @@ describe('restoreElectronFunctionality()', () => {
   });
 });
 
+describe('buildMockMethods() when the app call fails', () => {
+  let outerMock: Mock;
+  let mock: ElectronFunctionMock;
+  let localOps: Awaited<ReturnType<typeof buildMockMethods>>;
+
+  beforeEach(async () => {
+    outerMock = vi.fn() as unknown as Mock;
+    outerMock.getMockName = vi.fn(() => 'electron.app.getName');
+    outerMock.mockName = vi.fn();
+    outerMock.mockClear = vi.fn();
+    outerMock.mockReset = vi.fn();
+    outerMock.mockImplementation = vi.fn();
+    outerMock.mockImplementationOnce = vi.fn();
+    mock = vi.fn() as unknown as ElectronFunctionMock;
+
+    localOps = await buildMockMethods(mock, {
+      accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
+      outerMock,
+      outerMockClear: outerMock.mockClear.bind(outerMock),
+      outerMockReset: outerMock.mockReset.bind(outerMock),
+      outerMockImplementation: outerMock.mockImplementation.bind(outerMock),
+      outerMockImplementationOnce: outerMock.mockImplementationOnce.bind(outerMock),
+      browserToUse: globalThis.browser,
+    });
+    mockExecute.mockRejectedValue(new Error('WebSocket is not connected'));
+  });
+
+  it.each(['mockClear', 'mockRestore'] as const)('should still clear the outer mock when %s fails', async (op) => {
+    await expect(mock[op]()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
+
+    expect(outerMock.mockClear).toHaveBeenCalledOnce();
+  });
+
+  it('should still reset the outer mock and keep its name and async mockClear when mockReset fails', async () => {
+    const asyncMockClear = mock.mockClear;
+
+    await expect(mock.mockReset()).rejects.toMatchObject({ message: 'WebSocket is not connected' });
+
+    expect(outerMock.mockReset).toHaveBeenCalledOnce();
+    expect(outerMock.mockName).toHaveBeenCalledWith('electron.app.getName');
+    expect(mock.mockClear).toBe(asyncMockClear);
+    expect(mockExecute).toHaveBeenCalledOnce();
+  });
+
+  it('should return local halves that never call the app', () => {
+    localOps.mockClear();
+    localOps.mockReset();
+    localOps.mockRestore();
+
+    expect(mockExecute).not.toHaveBeenCalled();
+    expect(outerMock.mockClear).toHaveBeenCalledTimes(2);
+    expect(outerMock.mockReset).toHaveBeenCalledOnce();
+  });
+});
+
 describe('buildMockMethods() with prototype accessor', () => {
   let innerMock: Record<string, Mock>;
   let outerMock: Mock;

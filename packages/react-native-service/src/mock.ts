@@ -15,7 +15,7 @@
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
 import { fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, MockResult, ReactNativeMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
 
 import { evaluateInRealm, jsonLiteral } from './commands/execute.js';
 import { SERVICE_NAME } from './constants.js';
@@ -249,20 +249,11 @@ export async function createMock(
     return mock;
   };
 
-  mock.mockClear = async () => {
-    try {
-      await evaluateInRealm<void>(bridge, buildClearScript(target), mockContext);
-    } finally {
-      outerMockClear();
-    }
-    return mock;
-  };
-
-  mock.mockReset = async () => {
-    const currentName = outerMock.getMockName();
-    try {
-      await evaluateInRealm<void>(bridge, buildResetScript(target), mockContext);
-    } finally {
+  // Run in `finally` by the methods below; restore keeps the store entry (see mockRestore).
+  const localOps: Required<LocalMockOps> = {
+    mockClear: () => outerMockClear(),
+    mockReset: () => {
+      const currentName = outerMock.getMockName();
       // Use outerMockClear, not outerMockReset: native mockReset calls this.mockClear()
       // via dynamic property lookup, which after our overwrite would invoke the async CDP
       // mockClear and leak an unhandled rejection. Native _mockImplementation is always
@@ -270,6 +261,25 @@ export async function createMock(
       // history is sufficient.
       outerMockClear();
       outerMock.mockName(currentName);
+    },
+    mockRestore: () => outerMockClear(), // same reason as mockReset above
+  };
+  registerLocalMockOps(mock, localOps);
+
+  mock.mockClear = async () => {
+    try {
+      await evaluateInRealm<void>(bridge, buildClearScript(target), mockContext);
+    } finally {
+      localOps.mockClear();
+    }
+    return mock;
+  };
+
+  mock.mockReset = async () => {
+    try {
+      await evaluateInRealm<void>(bridge, buildResetScript(target), mockContext);
+    } finally {
+      localOps.mockReset();
     }
     return mock;
   };
@@ -278,7 +288,7 @@ export async function createMock(
     try {
       await evaluateInRealm<void>(bridge, buildRestoreScript(target), mockContext);
     } finally {
-      outerMockClear(); // same reason as mockReset above
+      localOps.mockRestore();
     }
     // Store deletion stays outside finally: if the CDP uninstall threw, the Hermes
     // spy is still active and the entry should remain so subsequent calls still work.

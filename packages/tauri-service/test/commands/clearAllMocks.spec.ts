@@ -64,12 +64,13 @@ describe('clearAllMocks Command', () => {
     expect(mockedWriteClipboard.mockClear).not.toHaveBeenCalled();
   });
 
-  it('should keep going through the remaining mocks when one mockClear fails', async () => {
-    mockedGetPlatformInfo.mockClear.mockRejectedValue(new Error('app is gone'));
+  it('should attempt every mock and then report the one whose mockClear failed', async () => {
+    mockedGetPlatformInfo.mockClear.mockRejectedValue(new Error('inner mock gone'));
 
-    await expect(clearAllMocks()).resolves.toBeUndefined();
+    await expect(clearAllMocks()).rejects.toMatchObject({
+      message: 'mockClear failed: tauri.get_platform_info: inner mock gone',
+    });
 
-    expect(mockedGetPlatformInfo.mockClear).toHaveBeenCalled();
     expect(mockedReadClipboard.mockClear).toHaveBeenCalled();
     expect(mockedWriteClipboard.mockClear).toHaveBeenCalled();
   });

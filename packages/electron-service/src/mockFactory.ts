@@ -1,6 +1,6 @@
 import type { Mock } from '@wdio/native-spy';
 import type { AbstractFn, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, type LocalMockOps } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'mock');
 
@@ -91,7 +91,10 @@ interface BuildMockMethodsOpts {
   browserToUse: WebdriverIO.Browser;
 }
 
-export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMockMethodsOpts): Promise<void> {
+export async function buildMockMethods(
+  mock: ElectronFunctionMock,
+  opts: BuildMockMethodsOpts,
+): Promise<Required<LocalMockOps>> {
   const {
     accessor,
     outerMock,
@@ -334,83 +337,101 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
     return mock;
   };
 
+  // Run in `finally` by the methods below, so a dead app still leaves the outer mock clean.
+  const localOps: Required<LocalMockOps> = {
+    mockClear: () => outerMockClear(),
+    mockReset: () => {
+      const currentName = outerMock.getMockName();
+      // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
+      // doesn't fire the async CDP override unawaited, racing against the explicit await in mockReset.
+      const asyncMockClearFn = mock.mockClear;
+      (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+      outerMockReset();
+      mock.mockClear = asyncMockClearFn;
+      outerMock.mockName(currentName);
+    },
+    mockRestore: () => outerMockClear(),
+  };
+
   mock.mockClear = async () => {
-    await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
-      (electron, accessor) => {
-        let innerMock: Mock | undefined;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as
-            | { prototype: Record<string, Mock> }
-            | undefined;
-          innerMock = cls?.prototype?.[accessor.methodName];
-        }
-        innerMock?.mockClear?.();
-      },
-      accessor,
-      { internal: true },
-    );
-    outerMockClear();
+    try {
+      await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
+        (electron, accessor) => {
+          let innerMock: Mock | undefined;
+          if (accessor.kind === 'api') {
+            innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
+              accessor.funcName
+            ];
+          } else {
+            const cls = electron[accessor.className as keyof typeof electron] as unknown as
+              | { prototype: Record<string, Mock> }
+              | undefined;
+            innerMock = cls?.prototype?.[accessor.methodName];
+          }
+          innerMock?.mockClear?.();
+        },
+        accessor,
+        { internal: true },
+      );
+    } finally {
+      localOps.mockClear();
+    }
     return mock;
   };
 
   mock.mockReset = async () => {
-    const currentName = outerMock.getMockName();
-    await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
-      (electron, accessor) => {
-        let innerMock: Mock | undefined;
-        if (accessor.kind === 'api') {
-          innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
-            accessor.funcName
-          ];
-        } else {
-          const cls = electron[accessor.className as keyof typeof electron] as unknown as
-            | { prototype: Record<string, Mock> }
-            | undefined;
-          innerMock = cls?.prototype?.[accessor.methodName];
-        }
-        innerMock?.mockReset?.();
-      },
-      accessor,
-      { internal: true },
-    );
-    // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
-    // doesn't fire the async CDP override unawaited, racing against the explicit await below.
-    const asyncMockClearFn = mock.mockClear;
-    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
-    outerMockReset();
-    mock.mockClear = asyncMockClearFn;
-    outerMock.mockName(currentName);
+    try {
+      await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
+        (electron, accessor) => {
+          let innerMock: Mock | undefined;
+          if (accessor.kind === 'api') {
+            innerMock = (electron[accessor.apiName as keyof typeof electron] as unknown as Record<string, Mock>)?.[
+              accessor.funcName
+            ];
+          } else {
+            const cls = electron[accessor.className as keyof typeof electron] as unknown as
+              | { prototype: Record<string, Mock> }
+              | undefined;
+            innerMock = cls?.prototype?.[accessor.methodName];
+          }
+          innerMock?.mockReset?.();
+        },
+        accessor,
+        { internal: true },
+      );
+    } finally {
+      localOps.mockReset();
+    }
     await mock.mockClear();
     return mock;
   };
 
   mock.mockRestore = async () => {
-    if (accessor.kind === 'api') {
-      await restoreElectronFunctionality(accessor.apiName, accessor.funcName, browserToUse);
-    } else {
-      await browserToUse.electron.execute<void, [string, string, ExecuteOpts]>(
-        (electron, className, methodName) => {
-          const cls = electron[className as keyof typeof electron] as unknown as {
-            prototype: Record<string, () => unknown>;
-          };
-          const globalApi = globalThis as unknown as Record<string, Record<string, Record<string, () => unknown>>>;
-          const originalFn = globalApi.__protoOriginals?.[className]?.[methodName];
-          if (originalFn !== undefined) {
-            cls.prototype[methodName] = originalFn;
-          } else {
-            delete cls.prototype[methodName];
-          }
-        },
-        accessor.className,
-        accessor.methodName,
-        { internal: true },
-      );
+    try {
+      if (accessor.kind === 'api') {
+        await restoreElectronFunctionality(accessor.apiName, accessor.funcName, browserToUse);
+      } else {
+        await browserToUse.electron.execute<void, [string, string, ExecuteOpts]>(
+          (electron, className, methodName) => {
+            const cls = electron[className as keyof typeof electron] as unknown as {
+              prototype: Record<string, () => unknown>;
+            };
+            const globalApi = globalThis as unknown as Record<string, Record<string, Record<string, () => unknown>>>;
+            const originalFn = globalApi.__protoOriginals?.[className]?.[methodName];
+            if (originalFn !== undefined) {
+              cls.prototype[methodName] = originalFn;
+            } else {
+              delete cls.prototype[methodName];
+            }
+          },
+          accessor.className,
+          accessor.methodName,
+          { internal: true },
+        );
+      }
+    } finally {
+      localOps.mockRestore();
     }
-    outerMockClear();
     return mock;
   };
 
@@ -470,4 +491,6 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
       { internal: true },
     )) as ReturnType<typeof callbackFn>;
   };
+
+  return localOps;
 }

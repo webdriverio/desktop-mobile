@@ -29,6 +29,11 @@ These iterate the store and operate on each mock:
 - `resetAllMocks()` — calls `mockReset()` on each mock
 - `restoreAllMocks()` — calls `mockRestore()` on each mock
 
+All three go through `runBulkMockOp` from `@wdio/native-utils`, with the service's own name matcher:
+- Every matching mock is attempted, then the failures are thrown together as one `AggregateError`. A failure is never swallowed.
+- Each mock method runs its test-process half (outer mock history, `deleteMock`) in `finally`, so a dead app still leaves the store clean.
+- The mock registers that half with `registerLocalMockOps`. Once an app call fails with a connection-level error, the remaining mocks only get their local half instead of one app call each.
+
 ## Rules
 - Store key is the mock name (e.g. `electron.dialog.showOpenDialog` or `tauri.invoke`)
 - Always `clear()` in session cleanup to prevent leaks across retries

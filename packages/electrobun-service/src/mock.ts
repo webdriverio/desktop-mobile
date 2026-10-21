@@ -21,7 +21,7 @@
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import { fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, ElectrobunMock, MockResult } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
 
 import { evaluateInActiveTarget, jsonLiteral } from './commands/execute.js';
 import { SERVICE_NAME } from './constants.js';
@@ -231,26 +231,57 @@ export async function createMock(
     return mock;
   };
 
+  const resetOuter = () => {
+    // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
+    const asyncMockClear = mock.mockClear;
+    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+    try {
+      outerMockReset();
+    } finally {
+      mock.mockClear = asyncMockClear;
+    }
+  };
+  // Run in `finally` by the methods below, so a dead app still leaves the outer mock and the store clean.
+  const localOps: Required<LocalMockOps> = {
+    mockClear: () => outerMockClear(),
+    mockReset: () => {
+      const currentName = outerMock.getMockName();
+      resetOuter();
+      outerMock.mockName(currentName);
+    },
+    mockRestore: () => {
+      // Match vitest semantics: restore fully resets the outer spy (history +
+      // implementation), not just clears its call history.
+      resetOuter();
+      store.deleteMock(target);
+    },
+  };
+  registerLocalMockOps(mock, localOps);
+
   mock.mockClear = async () => {
-    await evaluateInActiveTarget<void>(bridge, buildClearScript(target), mockContext);
-    outerMockClear();
+    try {
+      await evaluateInActiveTarget<void>(bridge, buildClearScript(target), mockContext);
+    } finally {
+      localOps.mockClear();
+    }
     return mock;
   };
 
   mock.mockReset = async () => {
-    const currentName = outerMock.getMockName();
-    await evaluateInActiveTarget<void>(bridge, buildResetScript(target), mockContext);
-    outerMockReset();
-    outerMock.mockName(currentName);
+    try {
+      await evaluateInActiveTarget<void>(bridge, buildResetScript(target), mockContext);
+    } finally {
+      localOps.mockReset();
+    }
     return mock;
   };
 
   mock.mockRestore = async () => {
-    await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target), mockContext);
-    // Match vitest semantics: restore fully resets the outer spy (history +
-    // implementation), not just clears its call history.
-    outerMockReset();
-    store.deleteMock(target);
+    try {
+      await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target), mockContext);
+    } finally {
+      localOps.mockRestore();
+    }
     return mock;
   };
 

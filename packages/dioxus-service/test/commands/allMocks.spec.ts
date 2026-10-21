@@ -1,6 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from '../../src/commands/allMocks.js';
+import { markAsEmbedded } from '../../src/commands/execute.js';
+import { createMock } from '../../src/mock.js';
 import mockStore from '../../src/mockStore.js';
 
 function fakeMock(name: string) {
@@ -74,20 +76,37 @@ describe('all-mocks helpers', () => {
     { name: 'resetAllMocks', op: resetAllMocks, method: 'mockReset' },
     { name: 'restoreAllMocks', op: restoreAllMocks, method: 'mockRestore' },
   ] as const)('$name with a failing mock', ({ op, method }) => {
-    it(`should still call ${method} on the remaining mocks`, async () => {
-      const dead = fakeMock('dioxus.dead');
+    it(`should call ${method} on the remaining mocks and then report the failure`, async () => {
+      const failing = fakeMock('dioxus.failing');
       const a = fakeMock('dioxus.a');
       const b = fakeMock('dioxus.b');
-      dead[method].mockRejectedValue(new Error('instance is gone'));
-      mockStore.setMock(dead);
+      failing[method].mockRejectedValue(new Error('inner mock gone'));
+      mockStore.setMock(failing);
       mockStore.setMock(a);
       mockStore.setMock(b);
 
-      await expect(op()).resolves.toBeUndefined();
+      await expect(op()).rejects.toMatchObject({ message: `${method} failed: dioxus.failing: inner mock gone` });
 
-      expect(dead[method]).toHaveBeenCalled();
       expect(a[method]).toHaveBeenCalled();
       expect(b[method]).toHaveBeenCalled();
+    });
+  });
+
+  describe('restoreAllMocks against a dead app', () => {
+    it('should make one app call, empty the store and report one failure', async () => {
+      const browser = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+      markAsEmbedded(browser);
+      await createMock('a', browser);
+      await createMock('b', browser);
+      await createMock('c', browser);
+      vi.mocked(browser.execute).mockClear().mockRejectedValue(new Error('WebSocket is not connected'));
+
+      await expect(restoreAllMocks()).rejects.toMatchObject({
+        errors: [expect.objectContaining({ message: 'WebSocket is not connected' })],
+      });
+
+      expect(browser.execute).toHaveBeenCalledOnce();
+      expect(mockStore.getMocks()).toEqual([]);
     });
   });
 
