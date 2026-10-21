@@ -20,7 +20,13 @@ const h = vi.hoisted(() => ({
   cdpMethodListeners: new Map<string, Map<string, Set<(...args: unknown[]) => void>>>(),
   // Maps webSocketDebuggerUrl → listeners removed via off().
   removedListeners: new Map<string, Array<{ event: string; listener: (...args: unknown[]) => void }>>(),
+  warn: vi.fn(),
 }));
+
+vi.mock('@wdio/native-utils', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@wdio/native-utils')>();
+  return { ...actual, createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: h.warn, error: vi.fn() }) };
+});
 
 vi.mock('../src/devTool.js', () => ({
   DevTool: class {
@@ -121,6 +127,7 @@ beforeEach(() => {
   h.failEnable = false;
   h.closed = 0;
   h.failingCloses.clear();
+  h.warn.mockClear();
   h.connectGate = undefined;
   h.listGate = undefined;
   h.disconnectHandlers.clear();
@@ -170,6 +177,8 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
 
     expect(h.closed).toBe(2);
     expect(bridge.activeLabel).toBeUndefined();
+    expect(h.warn).toHaveBeenCalledTimes(1);
+    expect(h.warn).toHaveBeenCalledWith('Failed to close CDP connection [main]: close failed');
     // The connections map was cleared, so a second close() has nothing left to close.
     await bridge.close();
     expect(h.closed).toBe(2);

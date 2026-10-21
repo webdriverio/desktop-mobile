@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage } from '@wdio/native-utils';
 
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping.js';
 
@@ -271,9 +271,15 @@ export class MultiTargetCdpBridge extends EventEmitter {
 
   async close(): Promise<void> {
     this.#closed = true;
-    await Promise.allSettled([...this.#connections.values()].map((connection) => connection.close()));
+    const connections = [...this.#connections];
+    const results = await Promise.allSettled(connections.map(([, connection]) => connection.close()));
     this.#connections.clear();
     this.#activeLabel = undefined;
+    results.forEach((result, i) => {
+      if (result.status === 'rejected') {
+        log.warn(`Failed to close CDP connection [${connections[i][0]}]: ${errorMessage(result.reason)}`);
+      }
+    });
   }
 
   async #discover(): Promise<void> {
