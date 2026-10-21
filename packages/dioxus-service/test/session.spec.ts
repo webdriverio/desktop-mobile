@@ -136,6 +136,53 @@ describe('session', () => {
     });
   });
 
+  describe('browser mode', () => {
+    const devServerUrl = 'http://localhost:8080';
+
+    // The launcher's browser-mode onPrepare starts no embedded driver, so no port is set.
+    function makeBrowserModeCaps(): DioxusCapabilities {
+      return {
+        browserName: 'chrome',
+        'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl },
+      } as DioxusCapabilities;
+    }
+
+    it('should open the session through WebdriverIO without a driver port', async () => {
+      const caps = makeBrowserModeCaps();
+
+      const browser = await init(caps);
+
+      expect(remoteMock).toHaveBeenCalledWith({ capabilities: caps });
+      expect(serviceBeforeMock).toHaveBeenCalledWith(caps, [], browser);
+    });
+
+    it('should detect browser mode set in the global options', async () => {
+      const caps = { browserName: 'chrome' } as DioxusCapabilities;
+
+      await init(caps, { mode: 'browser', devServerUrl });
+
+      expect(remoteMock).toHaveBeenCalledWith({ capabilities: caps });
+    });
+
+    it('should stop the launcher, which stops the managed dev server, on cleanup', async () => {
+      const browser = await init(makeBrowserModeCaps());
+      expect(onCompleteMock).not.toHaveBeenCalled();
+
+      await cleanup(browser);
+
+      expect(serviceAfterSessionMock).toHaveBeenCalledTimes(1);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('should stop the launcher when the browser session fails to start', async () => {
+      const error = new Error('chromedriver failed to start');
+      remoteMock.mockRejectedValueOnce(error);
+
+      await expect(init(makeBrowserModeCaps())).rejects.toBe(error);
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe('cleanup', () => {
     it('should run service teardown and stop the launcher', async () => {
       const browser = await init(makeCaps());

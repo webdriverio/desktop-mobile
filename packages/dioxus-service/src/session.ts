@@ -30,40 +30,50 @@ export async function init(
 
   const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
   const launcher = new DioxusLaunchService(globalOptions ?? {}, capabilities, testRunnerOpts);
+  const browserMode = { ...globalOptions, ...capabilities['wdio:dioxusServiceOptions'] }.mode === 'browser';
 
   await launcher.onPrepare(testRunnerOpts, [capabilities]);
 
-  const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
-  const port = (capabilities as { port?: number }).port;
-  if (!port) {
-    return failStartup(
-      launcher,
-      new Error(
-        'Dioxus driver port was not set on capabilities by onPrepare. ' +
-          'This usually means the launcher failed to start the embedded WebDriver server.',
-      ),
-      'port-check cleanup',
-    );
+  const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
+
+  let remoteOptions: Parameters<typeof remote>[0];
+  if (browserMode) {
+    // Browser mode has no embedded driver: WebdriverIO starts and manages chromedriver itself.
+    remoteOptions = { capabilities };
+  } else {
+    const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
+    const port = (capabilities as { port?: number }).port;
+    if (!port) {
+      return failStartup(
+        launcher,
+        new Error(
+          'Dioxus driver port was not set on capabilities by onPrepare. ' +
+            'This usually means the launcher failed to start the embedded WebDriver server.',
+        ),
+        'port-check cleanup',
+      );
+    }
+
+    log.debug(`Standalone connection: ${hostname}:${port}`);
+
+    const startTimeout = serviceOptions?.startTimeout ?? 60_000;
+
+    // remote() rejects non-W3C capability keys such as port and hostname.
+    const driverCapabilities = structuredClone(capabilities);
+    delete (driverCapabilities as { port?: number }).port;
+    delete (driverCapabilities as { hostname?: string }).hostname;
+    delete (driverCapabilities as { browserName?: string }).browserName;
+
+    remoteOptions = {
+      hostname,
+      port,
+      capabilities: driverCapabilities,
+      connectionRetryTimeout: startTimeout * 4,
+      connectionRetryCount: 10,
+    };
   }
 
-  log.debug(`Standalone connection: ${hostname}:${port}`);
-
-  const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
-  const startTimeout = serviceOptions?.startTimeout ?? 60_000;
-
-  // remote() rejects non-W3C capability keys such as port and hostname.
-  const driverCapabilities = structuredClone(capabilities);
-  delete (driverCapabilities as { port?: number }).port;
-  delete (driverCapabilities as { hostname?: string }).hostname;
-  delete (driverCapabilities as { browserName?: string }).browserName;
-
-  const browser = await remote({
-    hostname,
-    port,
-    capabilities: driverCapabilities,
-    connectionRetryTimeout: startTimeout * 4,
-    connectionRetryCount: 10,
-  }).catch((error: unknown) => {
+  const browser = await remote(remoteOptions).catch((error: unknown) => {
     log.error(`Failed to create remote session: ${errorMessage(error)}`);
     return failStartup(launcher, error, 'remote() cleanup');
   });

@@ -25,6 +25,68 @@ async function checkDriverHealth(hostname: string, port: number): Promise<boolea
   });
 }
 
+async function driverRemoteOptions(
+  capabilities: TauriCapabilities,
+  startTimeout: number,
+): Promise<Parameters<typeof remote>[0]> {
+  const hostname = (capabilities as { hostname?: string }).hostname || 'localhost';
+  const port = (capabilities as { port?: number }).port;
+  if (!port) {
+    throw new Error(
+      'Tauri driver port was not set on capabilities by onPrepare. ' +
+        'This usually means the launcher failed to allocate a port.',
+    );
+  }
+
+  // Create a deep clone for driver initialization so we can strip unsupported props
+  const driverCapabilities = structuredClone(capabilities);
+
+  const stripUnsupportedProps = (cap: TauriCapabilities | undefined) => {
+    if (!cap || typeof cap !== 'object') {
+      return;
+    }
+    delete (cap as { hostname?: string }).hostname;
+    delete (cap as { port?: number }).port;
+    delete (cap as { browserName?: string }).browserName;
+  };
+
+  if (Array.isArray(driverCapabilities)) {
+    for (const cap of driverCapabilities) {
+      stripUnsupportedProps(cap);
+    }
+  } else if (driverCapabilities && typeof driverCapabilities === 'object') {
+    const maybeMultiRemote = driverCapabilities as Record<string, { capabilities?: TauriCapabilities }>;
+    const entries = Object.values(maybeMultiRemote);
+    const isMultiRemote = entries.every((entry) => entry && typeof entry === 'object' && 'capabilities' in entry);
+    if (isMultiRemote) {
+      for (const entry of entries) {
+        stripUnsupportedProps(entry?.capabilities);
+      }
+    } else {
+      stripUnsupportedProps(driverCapabilities as TauriCapabilities);
+    }
+  }
+
+  log.debug(`Connection info for remote(): hostname=${hostname}, port=${port}, browserName=wry (display only)`);
+
+  const driverHealthy = await checkDriverHealth(hostname, port);
+  if (!driverHealthy) {
+    log.warn('tauri-driver health check failed before session creation');
+  }
+
+  log.debug(`Starting remote session with startTimeout=${startTimeout}ms`);
+
+  return {
+    // connection info must be at top level, not in capabilities
+    hostname,
+    port,
+    capabilities: driverCapabilities,
+    // native desktop apps can be slow to start
+    connectionRetryTimeout: startTimeout * 4,
+    connectionRetryCount: 10,
+  };
+}
+
 export async function init(
   capabilities: TauriCapabilities,
   globalOptions?: TauriServiceGlobalOptions,
@@ -47,6 +109,8 @@ export async function init(
     : { capabilities: [] };
   const launcher = new TauriLaunchService(globalOptions || {}, capabilities, testRunnerOpts);
 
+  const browserMode = { ...globalOptions, ...serviceOptions }.mode === 'browser';
+
   let browser: WebdriverIO.Browser | undefined;
   try {
     await launcher.onPrepare(testRunnerOpts, [capabilities]);
@@ -55,66 +119,17 @@ export async function init(
 
     log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, null, 2));
 
-    const hostname = (capabilities as { hostname?: string }).hostname || 'localhost';
-    const port = (capabilities as { port?: number }).port;
-    if (!port) {
-      throw new Error(
-        'Tauri driver port was not set on capabilities by onPrepare. ' +
-          'This usually means the launcher failed to allocate a port.',
-      );
-    }
+    // Browser mode has no Tauri driver: WebdriverIO starts and manages chromedriver itself.
+    const remoteOptions = browserMode
+      ? { capabilities }
+      : await driverRemoteOptions(capabilities, serviceOptions?.startTimeout || 30000);
 
-    // Create a deep clone for driver initialization so we can strip unsupported props
-    const driverCapabilities = structuredClone(capabilities);
+    const service = new TauriWorkerService(
+      { ...globalOptions, ...capabilities['wdio:tauriServiceOptions'] },
+      capabilities,
+    );
 
-    const stripUnsupportedProps = (cap: TauriCapabilities | undefined) => {
-      if (!cap || typeof cap !== 'object') {
-        return;
-      }
-      delete (cap as { hostname?: string }).hostname;
-      delete (cap as { port?: number }).port;
-      delete (cap as { browserName?: string }).browserName;
-    };
-
-    if (Array.isArray(driverCapabilities)) {
-      for (const cap of driverCapabilities) {
-        stripUnsupportedProps(cap);
-      }
-    } else if (driverCapabilities && typeof driverCapabilities === 'object') {
-      const maybeMultiRemote = driverCapabilities as Record<string, { capabilities?: TauriCapabilities }>;
-      const entries = Object.values(maybeMultiRemote);
-      const isMultiRemote = entries.every((entry) => entry && typeof entry === 'object' && 'capabilities' in entry);
-      if (isMultiRemote) {
-        for (const entry of entries) {
-          stripUnsupportedProps(entry?.capabilities);
-        }
-      } else {
-        stripUnsupportedProps(driverCapabilities as TauriCapabilities);
-      }
-    }
-
-    log.debug(`Connection info for remote(): hostname=${hostname}, port=${port}, browserName=wry (display only)`);
-
-    const driverHealthy = await checkDriverHealth(hostname, port);
-    if (!driverHealthy) {
-      log.warn('tauri-driver health check failed before session creation');
-    }
-
-    const service = new TauriWorkerService(capabilities['wdio:tauriServiceOptions'] || {}, capabilities);
-
-    const startTimeout = serviceOptions?.startTimeout || 30000;
-
-    log.debug(`Starting remote session with startTimeout=${startTimeout}ms`);
-
-    browser = await remote({
-      // connection info must be at top level, not in capabilities
-      hostname,
-      port,
-      capabilities: driverCapabilities,
-      // native desktop apps can be slow to start
-      connectionRetryTimeout: startTimeout * 4,
-      connectionRetryCount: 10,
-    });
+    browser = await remote(remoteOptions);
 
     log.debug('Remote session created successfully, initializing service...');
 
