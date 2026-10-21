@@ -31,8 +31,10 @@ These iterate the store and operate on each mock:
 
 All three go through `runBulkMockOp` from `@wdio/native-utils`, with the service's own name matcher:
 - Every matching mock is attempted, then the failures are thrown together as one `AggregateError`. A failure is never swallowed.
-- Each mock method runs its test-process half (outer mock history, `deleteMock`) in `finally`, so a dead app still leaves the store clean.
-- The mock registers that half with `registerLocalMockOps`, along with the connection its app calls use. A store shared across multiremote instances keys this by the mock's browser; a per-session store can omit it. Once an app call fails with a connection-level error, the remaining mocks on that connection only get their local half. Mocks on other connections still get their app calls.
+- Most mock methods run their test-process half (outer mock history, plus `deleteMock` on restore) in `finally`, so a dead app still leaves the store clean. There are two exceptions, both deliberate:
+  - Flutter's `mockClear`/`mockReset` are success-only. Clearing the outer mock while the Dart side still holds calls would let a later `update()` read them back.
+  - React Native's `mockRestore` keeps its store entry when the uninstall fails, because its `mock()` rewires an existing entry.
+- The mock registers that half with `registerLocalMockOps`, along with the connection its app calls use. A store shared across multiremote instances keys this by the mock's browser; a per-session store can omit it. Once an app call fails with a connection-level error (`isBenignTeardownError`), the remaining mocks on that connection only get their local half. Mocks on other connections still get their app calls.
 
 ## Rules
 - Store key is the mock name (e.g. `electron.dialog.showOpenDialog` or `tauri.invoke`)

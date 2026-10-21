@@ -61,7 +61,7 @@ describe('DriverPool.stopAll', () => {
     expect(pool.getStatus().identifiers).toEqual([]);
   });
 
-  it('should stop every driver, empty the pool and then report each failed stop', async () => {
+  it('should stop every driver, keep tracking the ones that failed and then report them', async () => {
     const pool = new DriverPool();
     await startDrivers(pool, ['a', 'b', 'c']);
     h.failingStops.add('a');
@@ -75,7 +75,7 @@ describe('DriverPool.stopAll', () => {
       message: 'Failed to stop driver(s): a: kill failed for a; c: kill failed for c',
     });
     expect(h.stopCalls).toEqual(['a', 'b', 'c']);
-    expect(pool.getStatus().identifiers).toEqual([]);
+    expect(pool.getStatus().identifiers).toEqual(['a', 'c']);
   });
 
   it('should keep tracking a driver registered while the others are stopping', async () => {

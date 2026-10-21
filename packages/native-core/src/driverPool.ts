@@ -113,21 +113,21 @@ export class DriverPool {
         return info.process.stop(info.driverName);
       }),
     );
-    // Only drop what was stopped: a driver registered while stopping must stay tracked.
-    for (const [identifier, info] of entries) {
-      if (this.drivers.get(identifier) === info) {
+    // Drop only drivers that stopped; a failed one, or one registered meanwhile, stays tracked.
+    const failures: Array<{ identifier: string; reason: unknown }> = [];
+    entries.forEach(([identifier, info], i) => {
+      const result = results[i];
+      if (result.status === 'rejected') {
+        failures.push({ identifier, reason: result.reason });
+      } else if (this.drivers.get(identifier) === info) {
         this.drivers.delete(identifier);
       }
-    }
-
-    const failures = entries.flatMap(([identifier], i) => {
-      const result = results[i];
-      return result.status === 'rejected' ? [{ identifier, reason: result.reason as unknown }] : [];
     });
     if (failures.length > 0) {
+      const details = failures.map(({ identifier, reason }) => `${identifier}: ${errorMessage(reason)}`).join('; ');
       throw new AggregateError(
         failures.map(({ reason }) => reason),
-        `Failed to stop driver(s): ${failures.map(({ identifier, reason }) => `${identifier}: ${errorMessage(reason)}`).join('; ')}`,
+        `Failed to stop driver(s): ${details}`,
       );
     }
 

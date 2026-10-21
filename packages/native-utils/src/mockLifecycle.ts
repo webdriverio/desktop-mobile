@@ -11,13 +11,9 @@ const SHARED_CONNECTION = Symbol('shared connection');
 
 const registrations = new WeakMap<object, { ops: LocalMockOps; connection: unknown }>();
 
-/** `connection` keys the app channel the mock's app calls use (e.g. its browser); omit it for a single-session store. */
+/** `connection` keys the channel the mock's app calls use (e.g. its browser); omit it for a single-session store. */
 export function registerLocalMockOps(mock: object, ops: LocalMockOps, connection: unknown = SHARED_CONNECTION): void {
   registrations.set(mock, { ops, connection });
-}
-
-function isAppUnreachable(error: unknown): boolean {
-  return isBenignTeardownError(error) || /time(?:d)?\s?out/i.test(errorMessage(error));
 }
 
 export interface BulkMockOpOptions {
@@ -42,7 +38,7 @@ export async function runBulkMockOp(
   const unreachable = new Set<unknown>();
   const fail = (name: string, error: unknown, connection: unknown) => {
     failures.push({ name, error });
-    if (isAppUnreachable(error)) {
+    if (isBenignTeardownError(error)) {
       unreachable.add(connection);
     }
   };

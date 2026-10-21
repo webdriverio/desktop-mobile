@@ -7,6 +7,6 @@ export async function forEachMock(apiName: string | undefined, op: MockLifecycle
   // Only function mocks are stored: a class mock stores its constructor and method mocks individually.
   const mocks = mockStore.getMocks() as Array<[string, ElectronFunctionMock]>;
   await runBulkMockOp(mocks, op, {
-    matches: (name) => !apiName || name.startsWith(`electron.${apiName}`),
+    matches: (name) => !apiName || name === `electron.${apiName}` || name.startsWith(`electron.${apiName}.`),
   });
 }
