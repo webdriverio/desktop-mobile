@@ -286,6 +286,15 @@ pub enum PointerEventType {
     Click,
 }
 
+/// Session input state a dispatched pointer event carries
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub struct PointerInputState {
+    /// DOM `buttons` bitmask of the buttons held once the event applies
+    pub buttons: u32,
+    /// A canceled `pointerdown` suppresses compatibility mouse events until release
+    pub suppress_mouse_events: bool,
+}
+
 /// Cookie data
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct Cookie {
@@ -1622,14 +1631,16 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         Ok(())
     }
 
-    /// Dispatch a pointer/mouse event
+    /// Dispatch a pointer/mouse event. Returns whether the pointer event was
+    /// canceled (a listener called `preventDefault()`).
     async fn dispatch_pointer_event(
         &self,
         event_type: PointerEventType,
         x: i32,
         y: i32,
         button: u32,
-    ) -> Result<(), WebDriverErrorResponse> {
+        input_state: PointerInputState,
+    ) -> Result<bool, WebDriverErrorResponse> {
         let (pointer_event_name, mouse_event_name) = match event_type {
             PointerEventType::Down => (Some("pointerdown"), "mousedown"),
             PointerEventType::Up => (Some("pointerup"), "mouseup"),
@@ -1640,20 +1651,14 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
             PointerEventType::Click => (None, "click"),
         };
 
-        // `buttons` is a bitmask in which the middle and secondary buttons swap
-        // places relative to `button`: button 1 (middle) is 4, button 2 (right) is 2.
-        let button_bit = match button {
-            1 => 4,
-            2 => 2,
-            other => 1u32.checked_shl(other).unwrap_or(0),
-        };
-        let (pressed_bit, released_bit) = match event_type {
-            PointerEventType::Down => (button_bit, 0),
-            PointerEventType::Up => (0, button_bit),
-            PointerEventType::Move | PointerEventType::Click => (0, 0),
-        };
+        let PointerInputState {
+            buttons,
+            suppress_mouse_events,
+        } = input_state;
         let is_down = matches!(event_type, PointerEventType::Down);
-        let is_click = matches!(event_type, PointerEventType::Click);
+        // click is not a compatibility mouse event, so a canceled pointerdown never suppresses it.
+        let suppress_mouse_event =
+            suppress_mouse_events && !matches!(event_type, PointerEventType::Click);
 
         // Pointer Events: a `pointermove` that doesn't change a button reports -1.
         let pointer_button = if matches!(event_type, PointerEventType::Move) {
@@ -1661,9 +1666,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         } else {
             i64::from(button)
         };
+        let pressure = if buttons == 0 { "0" } else { "0.5" };
         let pointer_dispatch = pointer_event_name.map_or_else(String::new, |name| {
             format!(
-                r"var pointerEvent = new PointerEvent('{name}', {{
+                r"canceled = !el.dispatchEvent(new PointerEvent('{name}', {{
                     pointerId: 1,
                     pointerType: 'mouse',
                     isPrimary: true,
@@ -1673,49 +1679,38 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                     clientX: {x},
                     clientY: {y},
                     button: {pointer_button},
-                    buttons: buttons,
-                    pressure: buttons ? 0.5 : 0
-                }});
-                if (!el.dispatchEvent(pointerEvent) && {is_down}) {{
-                    window.__wdioPointerDownCanceled = true;
-                }}"
+                    buttons: {buttons},
+                    pressure: {pressure}
+                }}));"
             )
         });
 
-        // Each action is a separate evaluation, so the held buttons and a canceled
-        // pointerdown live on `window` between calls. As in browsers, a canceled
-        // pointerdown suppresses the compatibility mouse events (but not click)
-        // until every button is released.
+        // A pointerdown canceled in this same dispatch suppresses its own mousedown;
+        // the caller records it so later events in the press are suppressed too.
         let script = format!(
             r"(function() {{
                 var el = document.elementFromPoint({x}, {y});
                 if (!el) el = document.body;
 
-                var buttons = ((window.__wdioPointerButtons || 0) | {pressed_bit}) & ~{released_bit};
-                window.__wdioPointerButtons = buttons;
-
+                var canceled = false;
                 {pointer_dispatch}
 
-                var suppressMouseEvent = window.__wdioPointerDownCanceled === true && !{is_click};
-                if (buttons === 0) {{
-                    window.__wdioPointerDownCanceled = false;
-                }}
-                if (!suppressMouseEvent) {{
+                if (!{suppress_mouse_event} && !(canceled && {is_down})) {{
                     el.dispatchEvent(new MouseEvent('{mouse_event_name}', {{
                         bubbles: true,
                         cancelable: true,
                         clientX: {x},
                         clientY: {y},
                         button: {button},
-                        buttons: buttons
+                        buttons: {buttons}
                     }}));
                 }}
-                return true;
+                return canceled;
             }})()"
         );
 
-        self.evaluate_js(&script).await?;
-        Ok(())
+        let result = self.evaluate_js(&script).await?;
+        extract_bool_value(&result)
     }
 
     /// Dispatch a scroll/wheel event

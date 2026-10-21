@@ -8,7 +8,7 @@ use crate::mobile::{
 };
 use crate::platform::{
     wrap_script_for_frame_context, Cookie, FrameId, PlatformExecutor, PointerEventType,
-    PrintOptions, WindowRect,
+    PointerInputState, PrintOptions, WindowRect,
 };
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
@@ -292,7 +292,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
         x: i32,
         y: i32,
         _button: u32,
-    ) -> Result<(), WebDriverErrorResponse> {
+        _input_state: PointerInputState,
+    ) -> Result<bool, WebDriverErrorResponse> {
         let webdriver = self.window.app_handle().state::<Webdriver<R>>();
 
         let touch_type = match event_type {
@@ -300,7 +301,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
             PointerEventType::Up => "up",
             PointerEventType::Move => "move",
             // The native touch down+up already makes the WebView fire click.
-            PointerEventType::Click => return Ok(()),
+            PointerEventType::Click => return Ok(false),
         };
 
         let args = TouchArgs {
@@ -315,7 +316,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
             .await
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
 
-        Ok(())
+        Ok(false)
     }
 
     // Alert handling via plugin

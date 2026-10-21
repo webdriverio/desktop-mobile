@@ -7,8 +7,8 @@ use crate::mobile::{
     AlertResult, EvaluateJsArgs, JsResult, ScreenshotArgs, SendAlertTextArgs, TouchArgs, Webdriver,
 };
 use crate::platform::{
-    wrap_script_for_frame_context, FrameId, PlatformExecutor, PointerEventType, PrintOptions,
-    WindowRect,
+    wrap_script_for_frame_context, FrameId, PlatformExecutor, PointerEventType, PointerInputState,
+    PrintOptions, WindowRect,
 };
 use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
@@ -226,7 +226,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for IOSExecutor<R> {
         x: i32,
         y: i32,
         _button: u32,
-    ) -> Result<(), WebDriverErrorResponse> {
+        _input_state: PointerInputState,
+    ) -> Result<bool, WebDriverErrorResponse> {
         let webdriver = self.window.app_handle().state::<Webdriver<R>>();
 
         let touch_type = match event_type {
@@ -234,7 +235,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for IOSExecutor<R> {
             PointerEventType::Up => "up",
             PointerEventType::Move => "move",
             // The iOS plugin only dispatches synthetic pointer events, so Actions get no click here yet.
-            PointerEventType::Click => return Ok(()),
+            PointerEventType::Click => return Ok(false),
         };
 
         let args = TouchArgs {
@@ -249,7 +250,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for IOSExecutor<R> {
             .await
             .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
 
-        Ok(())
+        Ok(false)
     }
 
     // Alert handling via plugin

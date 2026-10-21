@@ -9,6 +9,7 @@ use tauri::Runtime;
 use crate::platform::{ModifierState, PointerEventType};
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
+use crate::webdriver::ActionState;
 
 #[derive(Debug, Deserialize)]
 pub struct ActionsRequest {
@@ -244,35 +245,47 @@ pub async fn perform<R: Runtime + 'static>(
                     if let Some(action) = actions.get(tick) {
                         match action {
                             PointerAction::PointerDown { button } => {
-                                executor
+                                let input_state = {
+                                    let mut sessions = state.sessions.write().await;
+                                    sessions
+                                        .get_mut(&session_id)?
+                                        .action_state
+                                        .press_pointer_button(id, *button)
+                                };
+                                let canceled = executor
                                     .dispatch_pointer_event(
                                         PointerEventType::Down,
                                         pointer_state.x,
                                         pointer_state.y,
                                         *button,
+                                        input_state,
                                     )
                                     .await?;
+                                if canceled {
+                                    let mut sessions = state.sessions.write().await;
+                                    if let Ok(session) = sessions.get_mut(&session_id) {
+                                        session.action_state.cancel_pointer_down(id);
+                                    }
+                                }
                                 if *button == 0 {
                                     primary_down_pos = Some((pointer_state.x, pointer_state.y));
                                 }
-                                // Track pressed button
-                                let mut sessions = state.sessions.write().await;
-                                if let Ok(session) = sessions.get_mut(&session_id) {
-                                    session
-                                        .action_state
-                                        .pressed_buttons
-                                        .entry(id.clone())
-                                        .or_default()
-                                        .insert(*button);
-                                }
                             }
                             PointerAction::PointerUp { button } => {
+                                let input_state = {
+                                    let mut sessions = state.sessions.write().await;
+                                    sessions
+                                        .get_mut(&session_id)?
+                                        .action_state
+                                        .release_pointer_button(id, *button)
+                                };
                                 executor
                                     .dispatch_pointer_event(
                                         PointerEventType::Up,
                                         pointer_state.x,
                                         pointer_state.y,
                                         *button,
+                                        input_state,
                                     )
                                     .await?;
                                 // A primary press + release on the same spot is a
@@ -289,19 +302,11 @@ pub async fn perform<R: Runtime + 'static>(
                                                 pointer_state.x,
                                                 pointer_state.y,
                                                 *button,
+                                                input_state,
                                             )
                                             .await?;
                                     }
                                     primary_down_pos = None;
-                                }
-                                // Remove from tracked buttons
-                                let mut sessions = state.sessions.write().await;
-                                if let Ok(session) = sessions.get_mut(&session_id) {
-                                    if let Some(buttons) =
-                                        session.action_state.pressed_buttons.get_mut(id)
-                                    {
-                                        buttons.remove(button);
-                                    }
                                 }
                             }
                             PointerAction::PointerMove { x, y, origin, .. } => {
@@ -341,12 +346,20 @@ pub async fn perform<R: Runtime + 'static>(
                                 };
                                 pointer_state.x = target_x;
                                 pointer_state.y = target_y;
+                                let input_state = {
+                                    let sessions = state.sessions.read().await;
+                                    sessions
+                                        .get(&session_id)?
+                                        .action_state
+                                        .pointer_input_state(id)
+                                };
                                 executor
                                     .dispatch_pointer_event(
                                         PointerEventType::Move,
                                         pointer_state.x,
                                         pointer_state.y,
                                         0,
+                                        input_state,
                                     )
                                     .await?;
                             }
@@ -399,18 +412,24 @@ pub async fn release<R: Runtime + 'static>(
     Path(session_id): Path<String>,
 ) -> WebDriverResult {
     // Get session state and clear tracked actions
-    let (current_window, timeouts, frame_context, pressed_keys, pressed_buttons) = {
+    let (current_window, timeouts, frame_context, pressed_keys, mut pointer_inputs) = {
         let mut sessions = state.sessions.write().await;
         let session = sessions.get_mut(&session_id)?;
         let pressed_keys: Vec<String> = session.action_state.pressed_keys.drain().collect();
-        let pressed_buttons = std::mem::take(&mut session.action_state.pressed_buttons);
+        let pointer_inputs = ActionState {
+            pressed_buttons: std::mem::take(&mut session.action_state.pressed_buttons),
+            canceled_pointer_downs: std::mem::take(
+                &mut session.action_state.canceled_pointer_downs,
+            ),
+            ..ActionState::default()
+        };
         session.action_state.pointer_position = (0, 0);
         (
             session.current_window.clone(),
             session.timeouts.clone(),
             session.frame_context.clone(),
             pressed_keys,
-            pressed_buttons,
+            pointer_inputs,
         )
     };
 
@@ -425,12 +444,20 @@ pub async fn release<R: Runtime + 'static>(
     }
 
     // Release all pressed pointer buttons (pointerUp events)
-    for (_source_id, buttons) in pressed_buttons {
-        for button in buttons {
-            executor
-                .dispatch_pointer_event(PointerEventType::Up, 0, 0, button)
-                .await?;
-        }
+    let held_buttons: Vec<(String, u32)> = pointer_inputs
+        .pressed_buttons
+        .iter()
+        .flat_map(|(source_id, buttons)| {
+            buttons
+                .iter()
+                .map(move |&button| (source_id.clone(), button))
+        })
+        .collect();
+    for (source_id, button) in held_buttons {
+        let input_state = pointer_inputs.release_pointer_button(&source_id, button);
+        executor
+            .dispatch_pointer_event(PointerEventType::Up, 0, 0, button, input_state)
+            .await?;
     }
 
     Ok(WebDriverResponse::null())
