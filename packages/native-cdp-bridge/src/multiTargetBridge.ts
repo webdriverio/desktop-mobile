@@ -271,7 +271,7 @@ export class MultiTargetCdpBridge extends EventEmitter {
 
   async close(): Promise<void> {
     this.#closed = true;
-    await Promise.all([...this.#connections.values()].map((connection) => connection.close()));
+    await Promise.allSettled([...this.#connections.values()].map((connection) => connection.close()));
     this.#connections.clear();
     this.#activeLabel = undefined;
   }

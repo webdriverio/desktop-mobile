@@ -30,6 +30,27 @@ function shouldProcessMock(mockName: string, commandPrefix?: string): boolean {
   return new RegExp(`^tauri\\.${escapedPrefix}`).test(mockName);
 }
 
+async function forEachMock(
+  mocks: Array<[string, TauriMock]>,
+  commandPrefix: string | undefined,
+  fn: (mock: TauriMock) => Promise<unknown>,
+): Promise<number> {
+  let processedCount = 0;
+  for (const [mockName, mock] of mocks) {
+    if (shouldProcessMock(mockName, commandPrefix)) {
+      // A mock's app round-trip fails once the app or connection is gone; that must not leave
+      // the remaining mocks untouched.
+      try {
+        await fn(mock);
+        processedCount++;
+      } catch (error) {
+        log.warn(`bulk mock op failed for '${mockName}', continuing: ${(error as Error).message}`);
+      }
+    }
+  }
+  return processedCount;
+}
+
 export async function mock(this: TauriServiceContext, command: string): Promise<TauriMock> {
   // First try returning an existing mock without requiring a browser context
   try {
@@ -70,14 +91,7 @@ export async function mock(this: TauriServiceContext, command: string): Promise<
 
 export async function clearAllMocks(this: TauriServiceContext, commandPrefix?: string): Promise<void> {
   const mocks = mockStore.getMocks();
-  let clearedCount = 0;
-
-  for (const [mockName, mock] of mocks) {
-    if (shouldProcessMock(mockName, commandPrefix)) {
-      await mock.mockClear();
-      clearedCount++;
-    }
-  }
+  const clearedCount = await forEachMock(mocks, commandPrefix, (mock) => mock.mockClear());
 
   log.debug(
     `clearAllMocks: cleared ${clearedCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
@@ -111,13 +125,7 @@ export async function resetAllMocks(this: TauriServiceContext | undefined, comma
 
   // Reset outer mocks (with prefix filtering)
   const mocks = mockStore.getMocks();
-  let resetCount = 0;
-  for (const [mockName, mock] of mocks) {
-    if (shouldProcessMock(mockName, commandPrefix)) {
-      await mock.mockReset();
-      resetCount++;
-    }
-  }
+  const resetCount = await forEachMock(mocks, commandPrefix, (mock) => mock.mockReset());
 
   log.debug(
     `resetAllMocks: reset ${resetCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,
@@ -154,13 +162,7 @@ export async function restoreAllMocks(this: TauriServiceContext | undefined, com
 
   // Restore outer mocks (with prefix filtering)
   const mocks = mockStore.getMocks();
-  let restoredCount = 0;
-  for (const [mockName, mock] of mocks) {
-    if (shouldProcessMock(mockName, commandPrefix)) {
-      await mock.mockRestore();
-      restoredCount++;
-    }
-  }
+  const restoredCount = await forEachMock(mocks, commandPrefix, (mock) => mock.mockRestore());
 
   log.debug(
     `restoreAllMocks: restored ${restoredCount} of ${mocks.length} mocks${commandPrefix ? ` (prefix: ${commandPrefix})` : ''}`,

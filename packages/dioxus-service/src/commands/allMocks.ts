@@ -3,8 +3,11 @@
 // runs can isolate to e.g. all `dioxus.fs.*` mocks.
 
 import type { DioxusMock } from '@wdio/native-types';
+import { createLogger } from '@wdio/native-utils';
 
 import mockStore from '../mockStore.js';
+
+const log = createLogger('dioxus-service', 'mock');
 
 function matchesPrefix(name: string, prefix?: string): boolean {
   if (!prefix) {
@@ -19,7 +22,13 @@ function matchesPrefix(name: string, prefix?: string): boolean {
 async function forEachMock(prefix: string | undefined, fn: (m: DioxusMock) => Promise<unknown>): Promise<void> {
   for (const [name, m] of mockStore.getMocks()) {
     if (matchesPrefix(name, prefix)) {
-      await fn(m);
+      // A mock's app round-trip fails once the app or connection is gone (in multiremote, one
+      // dead instance); that must not leave the remaining mocks untouched.
+      try {
+        await fn(m);
+      } catch (error) {
+        log.warn(`bulk mock op failed for '${name}', continuing: ${(error as Error).message}`);
+      }
     }
   }
 }

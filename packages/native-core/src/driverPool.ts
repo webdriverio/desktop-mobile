@@ -9,7 +9,7 @@
 // driver path + native driver path first, then pass them via
 // `DriverStartConfig`. The pool itself stays a thin lifecycle manager.
 
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage } from '@wdio/native-utils';
 
 import { DriverProcess } from './driverProcess.js';
 
@@ -107,14 +107,21 @@ export class DriverPool {
 
     log.info(`Stopping ${count} driver(s)...`);
 
-    const stopPromises: Promise<void>[] = [];
-    for (const [identifier, info] of this.drivers.entries()) {
-      log.debug(`Stopping driver [${identifier}]...`);
-      stopPromises.push(info.process.stop(info.driverName));
-    }
-
-    await Promise.all(stopPromises);
+    const entries = Array.from(this.drivers.entries());
+    const results = await Promise.allSettled(
+      entries.map(([identifier, info]) => {
+        log.debug(`Stopping driver [${identifier}]...`);
+        return info.process.stop(info.driverName);
+      }),
+    );
     this.drivers.clear();
+
+    // Resolve anyway: callers run the rest of their onComplete cleanup after this.
+    results.forEach((result, i) => {
+      if (result.status === 'rejected') {
+        log.warn(`Failed to stop driver [${entries[i][0]}]: ${errorMessage(result.reason)}`);
+      }
+    });
 
     log.debug('All drivers stopped');
   }

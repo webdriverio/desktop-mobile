@@ -69,6 +69,28 @@ describe('all-mocks helpers', () => {
     });
   });
 
+  describe.each([
+    { name: 'clearAllMocks', op: clearAllMocks, method: 'mockClear' },
+    { name: 'resetAllMocks', op: resetAllMocks, method: 'mockReset' },
+    { name: 'restoreAllMocks', op: restoreAllMocks, method: 'mockRestore' },
+  ] as const)('$name with a failing mock', ({ op, method }) => {
+    it(`should still call ${method} on the remaining mocks`, async () => {
+      const dead = fakeMock('dioxus.dead');
+      const a = fakeMock('dioxus.a');
+      const b = fakeMock('dioxus.b');
+      dead[method].mockRejectedValue(new Error('instance is gone'));
+      mockStore.setMock(dead);
+      mockStore.setMock(a);
+      mockStore.setMock(b);
+
+      await expect(op()).resolves.toBeUndefined();
+
+      expect(dead[method]).toHaveBeenCalled();
+      expect(a[method]).toHaveBeenCalled();
+      expect(b[method]).toHaveBeenCalled();
+    });
+  });
+
   describe('isMockFunction', () => {
     it('should return true for a value with __isDioxusMock=true', () => {
       const fn = (() => undefined) as unknown as Record<string, unknown>;

@@ -64,6 +64,16 @@ describe('clearAllMocks Command', () => {
     expect(mockedWriteClipboard.mockClear).not.toHaveBeenCalled();
   });
 
+  it('should keep going through the remaining mocks when one mockClear fails', async () => {
+    mockedGetPlatformInfo.mockClear.mockRejectedValue(new Error('app is gone'));
+
+    await expect(clearAllMocks()).resolves.toBeUndefined();
+
+    expect(mockedGetPlatformInfo.mockClear).toHaveBeenCalled();
+    expect(mockedReadClipboard.mockClear).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockClear).toHaveBeenCalled();
+  });
+
   it('should escape regex metacharacters in prefix so dot is literal', async () => {
     const mockedDotCommand = {
       getMockName: () => 'tauri.get_platform.info',
