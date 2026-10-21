@@ -49,6 +49,21 @@ describe('DioxusLaunchService — browser mode', () => {
     expect(caps[0]['dioxus:options']).toBeUndefined();
   });
 
+  it('reports browser mode only once a browser-mode onPrepare succeeds', async () => {
+    const launcher = createLauncher();
+    expect(launcher.isBrowserMode).toBe(false);
+
+    await expect(
+      launcher.onPrepare(baseConfig, [{ 'wdio:dioxusServiceOptions': { mode: 'browser' } }] as any[]),
+    ).rejects.toThrow('devServerUrl is required');
+    expect(launcher.isBrowserMode).toBe(false);
+
+    await launcher.onPrepare(baseConfig, [
+      { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+    ] as any[]);
+    expect(launcher.isBrowserMode).toBe(true);
+  });
+
   it('does not start the embedded driver in browser mode', async () => {
     const launcher = createLauncher();
     const caps: any[] = [{ 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } }];

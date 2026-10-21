@@ -59,7 +59,11 @@ export default class TauriWorkerService {
       (capabilities as { alwaysMatch?: { 'wdio:tauriServiceOptions'?: TauriServiceOptions } })?.alwaysMatch?.[
         'wdio:tauriServiceOptions'
       ];
-    const merged = { ...options, ...capabilityOptions };
+    // An undefined capability value must not mask a global option (the launcher merges with `??`).
+    const definedCapabilityOptions = Object.fromEntries(
+      Object.entries(capabilityOptions ?? {}).filter(([, value]) => value !== undefined),
+    ) as TauriServiceOptions;
+    const merged = { ...options, ...definedCapabilityOptions };
     this.clearMocks = merged.clearMocks ?? false;
     this.clearMocksPrefix = merged.clearMocksPrefix;
     this.resetMocks = merged.resetMocks ?? false;

@@ -22,6 +22,46 @@ function failStartup(launcher: DioxusLaunchService, error: unknown, context: str
   );
 }
 
+function driverRemoteOptions(capabilities: DioxusCapabilities): Parameters<typeof remote>[0] {
+  const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
+  const port = (capabilities as { port?: number }).port;
+  if (!port) {
+    throw new Error(
+      'Dioxus driver port was not set on capabilities by onPrepare. ' +
+        'This usually means the launcher failed to start the embedded WebDriver server.',
+    );
+  }
+
+  log.debug(`Standalone connection: ${hostname}:${port}`);
+
+  const startTimeout = capabilities['wdio:dioxusServiceOptions']?.startTimeout ?? 60_000;
+
+  // remote() rejects non-W3C keys such as port and hostname. A shallow copy, as a deep clone throws
+  // on function-valued options such as devServer.
+  const driverCapabilities = { ...capabilities };
+  delete (driverCapabilities as { port?: number }).port;
+  delete (driverCapabilities as { hostname?: string }).hostname;
+  delete (driverCapabilities as { browserName?: string }).browserName;
+
+  return {
+    hostname,
+    port,
+    capabilities: driverCapabilities,
+    connectionRetryTimeout: startTimeout * 4,
+    connectionRetryCount: 10,
+  };
+}
+
+// WebdriverIO writes session defaults into the capabilities it is given; keep the caller's object intact.
+function browserSessionCapabilities(capabilities: DioxusCapabilities): DioxusCapabilities {
+  const copy: Record<string, unknown> = { ...capabilities };
+  const chromeOptions = copy['goog:chromeOptions'];
+  if (chromeOptions && typeof chromeOptions === 'object') {
+    copy['goog:chromeOptions'] = { ...chromeOptions };
+  }
+  return copy as DioxusCapabilities;
+}
+
 export async function init(
   capabilities: DioxusCapabilities,
   globalOptions?: DioxusServiceGlobalOptions,
@@ -30,47 +70,17 @@ export async function init(
 
   const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
   const launcher = new DioxusLaunchService(globalOptions ?? {}, capabilities, testRunnerOpts);
-  const browserMode = { ...globalOptions, ...capabilities['wdio:dioxusServiceOptions'] }.mode === 'browser';
 
   await launcher.onPrepare(testRunnerOpts, [capabilities]);
 
-  const serviceOptions = capabilities['wdio:dioxusServiceOptions'];
-
   let remoteOptions: Parameters<typeof remote>[0];
-  if (browserMode) {
+  try {
     // Browser mode has no embedded driver: WebdriverIO starts and manages chromedriver itself.
-    remoteOptions = { capabilities };
-  } else {
-    const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
-    const port = (capabilities as { port?: number }).port;
-    if (!port) {
-      return failStartup(
-        launcher,
-        new Error(
-          'Dioxus driver port was not set on capabilities by onPrepare. ' +
-            'This usually means the launcher failed to start the embedded WebDriver server.',
-        ),
-        'port-check cleanup',
-      );
-    }
-
-    log.debug(`Standalone connection: ${hostname}:${port}`);
-
-    const startTimeout = serviceOptions?.startTimeout ?? 60_000;
-
-    // remote() rejects non-W3C capability keys such as port and hostname.
-    const driverCapabilities = structuredClone(capabilities);
-    delete (driverCapabilities as { port?: number }).port;
-    delete (driverCapabilities as { hostname?: string }).hostname;
-    delete (driverCapabilities as { browserName?: string }).browserName;
-
-    remoteOptions = {
-      hostname,
-      port,
-      capabilities: driverCapabilities,
-      connectionRetryTimeout: startTimeout * 4,
-      connectionRetryCount: 10,
-    };
+    remoteOptions = launcher.isBrowserMode
+      ? { capabilities: browserSessionCapabilities(capabilities) }
+      : driverRemoteOptions(capabilities);
+  } catch (error) {
+    return failStartup(launcher, error, 'session-options cleanup');
   }
 
   const browser = await remote(remoteOptions).catch((error: unknown) => {
@@ -80,7 +90,7 @@ export async function init(
 
   activeLaunchers.set(browser, launcher);
 
-  const service = new DioxusWorkerService(serviceOptions ?? {}, capabilities);
+  const service = new DioxusWorkerService(capabilities['wdio:dioxusServiceOptions'] ?? {}, capabilities);
   try {
     await service.before(capabilities, [], browser);
   } catch (error) {

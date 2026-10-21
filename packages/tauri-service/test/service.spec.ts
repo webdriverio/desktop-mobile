@@ -62,6 +62,7 @@ import {
   clearWindowState,
   ensureActiveWindowFocus,
   setCurrentWindowLabel,
+  setSessionProvider,
   suppressActiveWindowFocus,
   withInternalWindowSwitch,
 } from '../src/window.js';
@@ -92,6 +93,32 @@ describe('TauriWorkerService', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('option merging', () => {
+    it('should keep a global option when the capability sets it to undefined', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService(
+        { driverProvider: 'external' },
+        { 'wdio:tauriServiceOptions': { driverProvider: undefined } },
+      );
+
+      await service.before({} as never, [], mockBrowser);
+
+      expect(setSessionProvider).toHaveBeenCalledWith(mockBrowser, 'external');
+    });
+
+    it('should let a defined capability option override the global one', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService(
+        { driverProvider: 'external' },
+        { 'wdio:tauriServiceOptions': { driverProvider: 'crabnebula' } },
+      );
+
+      await service.before({} as never, [], mockBrowser);
+
+      expect(setSessionProvider).toHaveBeenCalledWith(mockBrowser, 'crabnebula');
+    });
   });
 
   describe('console wrapping', () => {

@@ -8,11 +8,15 @@ const serviceAfterMock = vi.fn().mockResolvedValue(undefined);
 const serviceAfterSessionMock = vi.fn().mockResolvedValue(undefined);
 const remoteMock = vi.fn();
 const deleteSessionMock = vi.fn().mockResolvedValue(undefined);
+const launcherState = { isBrowserMode: false };
 
 vi.mock('../src/launcher.js', () => ({
   default: class {
     onPrepare = onPrepareMock;
     onComplete = onCompleteMock;
+    get isBrowserMode() {
+      return launcherState.isBrowserMode;
+    }
   },
 }));
 
@@ -57,6 +61,7 @@ describe('session', () => {
     serviceAfterSessionMock.mockResolvedValue(undefined);
     remoteMock.mockResolvedValue(makeBrowser());
     deleteSessionMock.mockResolvedValue(undefined);
+    launcherState.isBrowserMode = false;
   });
 
   afterEach(() => {
@@ -71,6 +76,35 @@ describe('session', () => {
       expect(remoteMock).toHaveBeenCalledTimes(1);
       expect(serviceBeforeMock).toHaveBeenCalledTimes(1);
       expect(browser).toBeDefined();
+    });
+
+    it('should open a native session when the capability options hold a devServer function', async () => {
+      const caps = makeCaps();
+      caps['wdio:dioxusServiceOptions'] = {
+        ...caps['wdio:dioxusServiceOptions'],
+        devServer: async () => ({ url: 'http://localhost:8080', close: async () => {} }),
+      };
+
+      await init(caps);
+
+      expect(remoteMock).toHaveBeenCalledWith(expect.objectContaining({ hostname: '127.0.0.1', port: 9515 }));
+      expect(remoteMock.mock.calls[0][0].capabilities).not.toHaveProperty('port');
+      expect(caps).toHaveProperty('port', 9515);
+    });
+
+    it('should stop the launcher when building the session options throws', async () => {
+      const error = new Error('capability could not be read');
+      const caps = makeCaps();
+      Object.defineProperty(caps, 'test:unreadable', {
+        enumerable: true,
+        get: () => {
+          throw error;
+        },
+      });
+
+      await expect(init(caps)).rejects.toBe(error);
+      expect(remoteMock).not.toHaveBeenCalled();
+      expect(onCompleteMock).toHaveBeenCalledTimes(1);
     });
 
     it('should stop the launcher when remote() fails', async () => {
@@ -139,6 +173,12 @@ describe('session', () => {
   describe('browser mode', () => {
     const devServerUrl = 'http://localhost:8080';
 
+    beforeEach(() => {
+      onPrepareMock.mockImplementation(async () => {
+        launcherState.isBrowserMode = true;
+      });
+    });
+
     // The launcher's browser-mode onPrepare starts no embedded driver, so no port is set.
     function makeBrowserModeCaps(): DioxusCapabilities {
       return {
@@ -156,12 +196,37 @@ describe('session', () => {
       expect(serviceBeforeMock).toHaveBeenCalledWith(caps, [], browser);
     });
 
-    it('should detect browser mode set in the global options', async () => {
+    it('should open a browser-mode session when mode comes from the global options', async () => {
       const caps = { browserName: 'chrome' } as DioxusCapabilities;
 
       await init(caps, { mode: 'browser', devServerUrl });
 
       expect(remoteMock).toHaveBeenCalledWith({ capabilities: caps });
+    });
+
+    it("should follow the launcher's browser-mode decision", async () => {
+      const caps = { browserName: 'chrome' } as DioxusCapabilities;
+
+      await init(caps);
+
+      expect(remoteMock).toHaveBeenCalledWith({ capabilities: caps });
+    });
+
+    it("should keep WebdriverIO's capability writes off the caller's object", async () => {
+      remoteMock.mockImplementationOnce(async ({ capabilities: sessionCapabilities }) => {
+        sessionCapabilities.webSocketUrl = true;
+        sessionCapabilities['goog:chromeOptions'].binary = '/path/to/chrome';
+        return makeBrowser();
+      });
+      const caps = {
+        ...makeBrowserModeCaps(),
+        'goog:chromeOptions': { args: ['--headless'] },
+      } as DioxusCapabilities & { 'goog:chromeOptions': unknown };
+
+      await init(caps);
+
+      expect(caps).not.toHaveProperty('webSocketUrl');
+      expect(caps['goog:chromeOptions']).toEqual({ args: ['--headless'] });
     });
 
     it('should stop the launcher, which stops the managed dev server, on cleanup', async () => {

@@ -38,34 +38,11 @@ async function driverRemoteOptions(
     );
   }
 
-  // Create a deep clone for driver initialization so we can strip unsupported props
-  const driverCapabilities = structuredClone(capabilities);
-
-  const stripUnsupportedProps = (cap: TauriCapabilities | undefined) => {
-    if (!cap || typeof cap !== 'object') {
-      return;
-    }
-    delete (cap as { hostname?: string }).hostname;
-    delete (cap as { port?: number }).port;
-    delete (cap as { browserName?: string }).browserName;
-  };
-
-  if (Array.isArray(driverCapabilities)) {
-    for (const cap of driverCapabilities) {
-      stripUnsupportedProps(cap);
-    }
-  } else if (driverCapabilities && typeof driverCapabilities === 'object') {
-    const maybeMultiRemote = driverCapabilities as Record<string, { capabilities?: TauriCapabilities }>;
-    const entries = Object.values(maybeMultiRemote);
-    const isMultiRemote = entries.every((entry) => entry && typeof entry === 'object' && 'capabilities' in entry);
-    if (isMultiRemote) {
-      for (const entry of entries) {
-        stripUnsupportedProps(entry?.capabilities);
-      }
-    } else {
-      stripUnsupportedProps(driverCapabilities as TauriCapabilities);
-    }
-  }
+  // A shallow copy: a deep clone throws on function-valued options such as devServer.
+  const driverCapabilities = { ...capabilities };
+  delete (driverCapabilities as { hostname?: string }).hostname;
+  delete (driverCapabilities as { port?: number }).port;
+  delete (driverCapabilities as { browserName?: string }).browserName;
 
   log.debug(`Connection info for remote(): hostname=${hostname}, port=${port}, browserName=wry (display only)`);
 
@@ -85,6 +62,16 @@ async function driverRemoteOptions(
     connectionRetryTimeout: startTimeout * 4,
     connectionRetryCount: 10,
   };
+}
+
+// WebdriverIO writes session defaults into the capabilities it is given; keep the caller's object intact.
+function browserSessionCapabilities(capabilities: TauriCapabilities): TauriCapabilities {
+  const copy: Record<string, unknown> = { ...capabilities };
+  const chromeOptions = copy['goog:chromeOptions'];
+  if (chromeOptions && typeof chromeOptions === 'object') {
+    copy['goog:chromeOptions'] = { ...chromeOptions };
+  }
+  return copy as TauriCapabilities;
 }
 
 export async function init(
@@ -109,8 +96,6 @@ export async function init(
     : { capabilities: [] };
   const launcher = new TauriLaunchService(globalOptions || {}, capabilities, testRunnerOpts);
 
-  const browserMode = { ...globalOptions, ...serviceOptions }.mode === 'browser';
-
   let browser: WebdriverIO.Browser | undefined;
   try {
     await launcher.onPrepare(testRunnerOpts, [capabilities]);
@@ -120,14 +105,11 @@ export async function init(
     log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, null, 2));
 
     // Browser mode has no Tauri driver: WebdriverIO starts and manages chromedriver itself.
-    const remoteOptions = browserMode
-      ? { capabilities }
+    const remoteOptions = launcher.isBrowserMode
+      ? { capabilities: browserSessionCapabilities(capabilities) }
       : await driverRemoteOptions(capabilities, serviceOptions?.startTimeout || 30000);
 
-    const service = new TauriWorkerService(
-      { ...globalOptions, ...capabilities['wdio:tauriServiceOptions'] },
-      capabilities,
-    );
+    const service = new TauriWorkerService(globalOptions ?? {}, capabilities);
 
     browser = await remote(remoteOptions);
 

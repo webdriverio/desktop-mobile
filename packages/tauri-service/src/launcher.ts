@@ -136,6 +136,10 @@ export default class TauriLaunchService {
     this.driverPool = new DriverPool(options, options.nativeDriverPath);
   }
 
+  get isBrowserMode(): boolean {
+    return this.browserMode;
+  }
+
   /**
    * Prepare the Tauri service
    */

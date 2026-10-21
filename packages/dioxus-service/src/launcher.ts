@@ -33,6 +33,7 @@ export default class DioxusLaunchService extends BaseLauncher {
   // Teardown for a service-managed dev server (browser mode). Called from onComplete AND on an
   // onPrepare failure — WDIO does not call onComplete after onPrepare throws. Idempotent.
   #stopDevServer?: () => Promise<void>;
+  #browserMode = false;
 
   constructor(
     private options: DioxusServiceGlobalOptions,
@@ -46,6 +47,10 @@ export default class DioxusLaunchService extends BaseLauncher {
     log.debug('DioxusLaunchService initialised');
     log.debug('Capabilities:', JSON.stringify(capabilities, null, 2));
     log.debug('Config:', JSON.stringify(config, null, 2));
+  }
+
+  get isBrowserMode(): boolean {
+    return this.#browserMode;
   }
 
   async onPrepare(
@@ -109,6 +114,7 @@ export default class DioxusLaunchService extends BaseLauncher {
             throw new SevereServiceError(reachable.error.message);
           }
         }
+        this.#browserMode = true;
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'dioxus:options'?: unknown })['dioxus:options'];

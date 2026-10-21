@@ -32,6 +32,7 @@ describe('standalone init() in browser mode', () => {
 
   beforeEach(() => {
     vi.clearAllMocks();
+    remoteMock.mockReset();
     // The managed dev server's readiness poll probes devServerUrl with fetch.
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
     closeDevServer = vi.fn().mockResolvedValue(undefined);
@@ -64,6 +65,19 @@ describe('standalone init() in browser mode', () => {
     await cleanup(browser);
   });
 
+  it('should open a Chrome session when mode comes from the global options', async () => {
+    remoteMock.mockResolvedValue(createSessionBrowser());
+
+    const browser = await init({} as TauriCapabilities, { mode: 'browser', devServer });
+
+    expect(remoteMock).toHaveBeenCalledOnce();
+    expect(remoteMock.mock.calls[0][0]).not.toHaveProperty('port');
+    expect(remoteMock.mock.calls[0][0].capabilities).toMatchObject({ browserName: 'chrome' });
+
+    await cleanup(browser);
+    expect(closeDevServer).toHaveBeenCalledOnce();
+  });
+
   it('should delete the session and stop the managed dev server on cleanup', async () => {
     const sessionBrowser = createSessionBrowser();
     remoteMock.mockResolvedValue(sessionBrowser);
@@ -78,7 +92,7 @@ describe('standalone init() in browser mode', () => {
 
   it('should stop the managed dev server when the browser session fails to start', async () => {
     const error = new Error('chromedriver failed to start');
-    remoteMock.mockRejectedValue(error);
+    remoteMock.mockRejectedValueOnce(error);
 
     await expect(init(browserModeCapabilities())).rejects.toBe(error);
     expect(closeDevServer).toHaveBeenCalledOnce();
