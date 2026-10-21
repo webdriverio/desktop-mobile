@@ -16,6 +16,7 @@ const interceptor = createIpcInterceptor('dioxus');
 export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
+  private browserMode: boolean;
   private isEmbedded: boolean;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
@@ -23,6 +24,8 @@ export default class DioxusWorkerService {
       'wdio:dioxusServiceOptions'
     ];
     this.devServerUrl = capOptions?.devServerUrl ?? _options.devServerUrl;
+    // The launcher writes mode: 'browser' onto the capability when it enters browser mode.
+    this.browserMode = (capOptions?.mode ?? _options.mode) === 'browser';
     this.isEmbedded = (capOptions?.driverProvider ?? _options.driverProvider ?? 'embedded') === 'embedded';
     log.debug('DioxusWorkerService initialised');
   }
@@ -34,15 +37,18 @@ export default class DioxusWorkerService {
   ): Promise<void> {
     this.browser = browser;
     log.info(
-      `before() start — mode=${this.devServerUrl ? 'browser' : 'native'} ` +
+      `before() start — mode=${this.browserMode ? 'browser' : 'native'} ` +
         `multiremote=${browser.isMultiremote} ` +
         `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
 
     let stage = 'init';
     try {
-      if (this.devServerUrl) {
+      if (this.browserMode) {
         stage = 'initBrowserMode';
+        if (!this.devServerUrl) {
+          throw new Error('devServerUrl is required for browser mode but was not set');
+        }
         await this.initBrowserMode(browser as WebdriverIO.Browser, this.devServerUrl);
         log.info('before() complete (browser mode)');
         return;
@@ -70,7 +76,7 @@ export default class DioxusWorkerService {
       log.info('before() complete');
     } catch (error) {
       log.error(
-        `before() failed at stage="${stage}" — mode=${this.devServerUrl ? 'browser' : 'native'} ` +
+        `before() failed at stage="${stage}" — mode=${this.browserMode ? 'browser' : 'native'} ` +
           `multiremote=${browser.isMultiremote}`,
         error,
       );

@@ -9,6 +9,7 @@ import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import DioxusLaunchService from './launcher.js';
 import DioxusWorkerService from './service.js';
+import { mergeOptions } from './serviceConfig.js';
 import type { DioxusCapabilities, DioxusDriverProvider, DioxusServiceGlobalOptions } from './types.js';
 
 const log = createLogger('dioxus-service', 'session');
@@ -22,7 +23,7 @@ function failStartup(launcher: DioxusLaunchService, error: unknown, context: str
   );
 }
 
-function driverRemoteOptions(capabilities: DioxusCapabilities): Parameters<typeof remote>[0] {
+function driverRemoteOptions(capabilities: DioxusCapabilities, startTimeout: number): Parameters<typeof remote>[0] {
   const hostname = (capabilities as { hostname?: string }).hostname ?? '127.0.0.1';
   const port = (capabilities as { port?: number }).port;
   if (!port) {
@@ -33,8 +34,6 @@ function driverRemoteOptions(capabilities: DioxusCapabilities): Parameters<typeo
   }
 
   log.debug(`Standalone connection: ${hostname}:${port}`);
-
-  const startTimeout = capabilities['wdio:dioxusServiceOptions']?.startTimeout ?? 60_000;
 
   // remote() rejects non-W3C keys such as port and hostname. A shallow copy, as a deep clone throws
   // on function-valued options such as devServer.
@@ -52,22 +51,37 @@ function driverRemoteOptions(capabilities: DioxusCapabilities): Parameters<typeo
   };
 }
 
-// WebdriverIO writes session defaults into the capabilities it is given; keep the caller's object intact.
+// The launcher writes into these objects during onPrepare; copying them keeps the caller's capabilities intact.
+function copyCapabilities(capabilities: DioxusCapabilities): DioxusCapabilities {
+  return {
+    ...capabilities,
+    ...(capabilities['wdio:dioxusServiceOptions'] && {
+      'wdio:dioxusServiceOptions': { ...capabilities['wdio:dioxusServiceOptions'] },
+    }),
+  };
+}
+
+// Drops connection keys WebdriverIO would reject, and copies wdio:chromedriverOptions, which it mutates in place.
 function browserSessionCapabilities(capabilities: DioxusCapabilities): DioxusCapabilities {
   const copy: Record<string, unknown> = { ...capabilities };
-  const chromeOptions = copy['goog:chromeOptions'];
-  if (chromeOptions && typeof chromeOptions === 'object') {
-    copy['goog:chromeOptions'] = { ...chromeOptions };
+  delete copy.hostname;
+  delete copy.port;
+  const chromedriverOptions = copy['wdio:chromedriverOptions'];
+  if (chromedriverOptions && typeof chromedriverOptions === 'object') {
+    copy['wdio:chromedriverOptions'] = { ...chromedriverOptions };
   }
   return copy as DioxusCapabilities;
 }
 
 export async function init(
-  capabilities: DioxusCapabilities,
+  callerCapabilities: DioxusCapabilities,
   globalOptions?: DioxusServiceGlobalOptions,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing Dioxus service in standalone mode…');
 
+  const capabilities = copyCapabilities(callerCapabilities);
+  const startTimeout =
+    mergeOptions(globalOptions ?? {}, capabilities['wdio:dioxusServiceOptions']).startTimeout ?? 60_000;
   const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
   const launcher = new DioxusLaunchService(globalOptions ?? {}, capabilities, testRunnerOpts);
 
@@ -78,7 +92,7 @@ export async function init(
     // Browser mode has no embedded driver: WebdriverIO starts and manages chromedriver itself.
     remoteOptions = launcher.isBrowserMode
       ? { capabilities: browserSessionCapabilities(capabilities) }
-      : driverRemoteOptions(capabilities);
+      : driverRemoteOptions(capabilities, startTimeout);
   } catch (error) {
     return failStartup(launcher, error, 'session-options cleanup');
   }

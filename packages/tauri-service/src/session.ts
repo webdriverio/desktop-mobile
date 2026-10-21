@@ -4,6 +4,7 @@ import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteS
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
+import { mergeServiceOptions } from './serviceConfig.js';
 import type { TauriCapabilities, TauriServiceGlobalOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'service');
@@ -64,24 +65,38 @@ async function driverRemoteOptions(
   };
 }
 
-// WebdriverIO writes session defaults into the capabilities it is given; keep the caller's object intact.
+// The launcher writes into these objects during onPrepare; copying them keeps the caller's capabilities intact.
+function copyCapabilities(capabilities: TauriCapabilities): TauriCapabilities {
+  return {
+    ...capabilities,
+    ...(capabilities['tauri:options'] && { 'tauri:options': { ...capabilities['tauri:options'] } }),
+    ...(capabilities['wdio:tauriServiceOptions'] && {
+      'wdio:tauriServiceOptions': { ...capabilities['wdio:tauriServiceOptions'] },
+    }),
+  };
+}
+
+// Drops connection keys WebdriverIO would reject, and copies wdio:chromedriverOptions, which it mutates in place.
 function browserSessionCapabilities(capabilities: TauriCapabilities): TauriCapabilities {
   const copy: Record<string, unknown> = { ...capabilities };
-  const chromeOptions = copy['goog:chromeOptions'];
-  if (chromeOptions && typeof chromeOptions === 'object') {
-    copy['goog:chromeOptions'] = { ...chromeOptions };
+  delete copy.hostname;
+  delete copy.port;
+  const chromedriverOptions = copy['wdio:chromedriverOptions'];
+  if (chromedriverOptions && typeof chromedriverOptions === 'object') {
+    copy['wdio:chromedriverOptions'] = { ...chromedriverOptions };
   }
   return copy as TauriCapabilities;
 }
 
 export async function init(
-  capabilities: TauriCapabilities,
+  callerCapabilities: TauriCapabilities,
   globalOptions?: TauriServiceGlobalOptions,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing Tauri service in standalone mode...');
 
-  const serviceOptions = capabilities['wdio:tauriServiceOptions'];
-  if (serviceOptions?.captureBackendLogs || serviceOptions?.captureFrontendLogs) {
+  const capabilities = copyCapabilities(callerCapabilities);
+  const serviceOptions = mergeServiceOptions(globalOptions ?? {}, capabilities['wdio:tauriServiceOptions']);
+  if (serviceOptions.captureBackendLogs || serviceOptions.captureFrontendLogs) {
     if (serviceOptions.logDir) {
       const writer = getLogWriter('tauri-service');
       writer.initialize(serviceOptions.logDir);
@@ -107,7 +122,7 @@ export async function init(
     // Browser mode has no Tauri driver: WebdriverIO starts and manages chromedriver itself.
     const remoteOptions = launcher.isBrowserMode
       ? { capabilities: browserSessionCapabilities(capabilities) }
-      : await driverRemoteOptions(capabilities, serviceOptions?.startTimeout || 30000);
+      : await driverRemoteOptions(capabilities, serviceOptions.startTimeout || 30000);
 
     const service = new TauriWorkerService(globalOptions ?? {}, capabilities);
 

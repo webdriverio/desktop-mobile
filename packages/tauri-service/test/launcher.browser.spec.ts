@@ -111,20 +111,54 @@ describe('TauriLaunchService — browser mode', () => {
       expect(caps[0]['tauri:options']).toBeUndefined();
     });
 
-    it('reports browser mode only once a browser-mode onPrepare succeeds', async () => {
+    it('should report browser mode only once a browser-mode onPrepare succeeds', async () => {
       const launcher = createLauncher();
+      const config = {} as Options.Testrunner;
       expect(launcher.isBrowserMode).toBe(false);
 
-      await expect(
-        launcher.onPrepare({} as any, [{ 'wdio:tauriServiceOptions': { mode: 'browser' } }] as any[]),
-      ).rejects.toThrow('devServerUrl is required');
-      expect(launcher.isBrowserMode).toBe(false);
-
-      await launcher.onPrepare(
-        {} as any,
-        [{ 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } }] as any[],
+      await expect(launcher.onPrepare(config, [{ 'wdio:tauriServiceOptions': { mode: 'browser' } }])).rejects.toThrow(
+        'devServerUrl is required',
       );
+      expect(launcher.isBrowserMode).toBe(false);
+
+      await launcher.onPrepare(config, [{ 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } }]);
       expect(launcher.isBrowserMode).toBe(true);
+    });
+
+    it('should not report browser mode when rewriting the capabilities fails', async () => {
+      const launcher = createLauncher();
+      const capability: TauriCapabilities = Object.freeze({
+        'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
+      });
+
+      await expect(launcher.onPrepare({} as Options.Testrunner, [capability])).rejects.toThrow();
+      expect(launcher.isBrowserMode).toBe(false);
+    });
+
+    it('should stop reporting browser mode after onComplete', async () => {
+      const launcher = createLauncher();
+      await launcher.onPrepare({} as Options.Testrunner, [
+        { 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+      ]);
+
+      await launcher.onComplete();
+
+      expect(launcher.isBrowserMode).toBe(false);
+    });
+
+    it('should honour a global browser mode that the capability leaves undefined', async () => {
+      const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+      const capabilities: TauriCapabilities[] = [
+        { 'wdio:tauriServiceOptions': { mode: undefined, devServerUrl: undefined } },
+      ];
+
+      await launcher.onPrepare({} as Options.Testrunner, capabilities);
+
+      expect(launcher.isBrowserMode).toBe(true);
+      expect(capabilities[0]).toMatchObject({
+        browserName: 'chrome',
+        'wdio:tauriServiceOptions': { devServerUrl: DEV_SERVER },
+      });
     });
 
     it('does not spawn tauri-driver in browser mode', async () => {

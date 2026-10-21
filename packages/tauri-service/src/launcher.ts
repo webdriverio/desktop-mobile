@@ -10,7 +10,6 @@ import {
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
-import type { LogLevel } from '@wdio/native-types';
 import { createLogger, errorMessage, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
@@ -31,6 +30,7 @@ import {
 } from './embeddedProvider.js';
 import { severeServiceError } from './errors.js';
 import { PortManager } from './portManager.js';
+import { mergeServiceOptions } from './serviceConfig.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
@@ -53,40 +53,25 @@ function generateDataDirectory(instanceId: string): string {
 let officialDeprecationWarned = false;
 
 /**
- * Normalise legacy `driverProvider: 'official'` to the canonical `'external'`.
- * Emits a one-time deprecation warning. `'official'` will be removed in v2.
+ * Emits a one-time deprecation warning for legacy `driverProvider: 'official'` (normalised to
+ * `'external'` by the shared merge). `'official'` will be removed in v2.
  */
-function normaliseDriverProvider(value: DriverProvider | undefined): DriverProvider | undefined {
-  if (value === 'official') {
-    if (!officialDeprecationWarned) {
-      log.warn(
-        "driverProvider: 'official' is deprecated; use 'external' instead. " +
-          "The 'official' value will be removed in @wdio/tauri-service v2.",
-      );
-      officialDeprecationWarned = true;
-    }
-    return 'external';
+function warnIfOfficialDriverProvider(value: DriverProvider | undefined): void {
+  if (value === 'official' && !officialDeprecationWarned) {
+    log.warn(
+      "driverProvider: 'official' is deprecated; use 'external' instead. " +
+        "The 'official' value will be removed in @wdio/tauri-service v2.",
+    );
+    officialDeprecationWarned = true;
   }
-  return value;
 }
 
-/**
- * Merge global options with capability-specific options
- */
 function mergeOptions(
   globalOptions: TauriServiceGlobalOptions,
   capabilityOptions?: TauriServiceOptions,
 ): TauriServiceOptions {
-  return {
-    ...globalOptions,
-    ...capabilityOptions,
-    driverProvider: normaliseDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider),
-    // Log capture options default to false if not specified
-    captureBackendLogs: capabilityOptions?.captureBackendLogs ?? globalOptions.captureBackendLogs ?? false,
-    captureFrontendLogs: capabilityOptions?.captureFrontendLogs ?? globalOptions.captureFrontendLogs ?? false,
-    backendLogLevel: (capabilityOptions?.backendLogLevel ?? globalOptions.backendLogLevel ?? 'info') as LogLevel,
-    frontendLogLevel: (capabilityOptions?.frontendLogLevel ?? globalOptions.frontendLogLevel ?? 'info') as LogLevel,
-  };
+  warnIfOfficialDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider);
+  return mergeServiceOptions(globalOptions, capabilityOptions);
 }
 
 /**
@@ -155,7 +140,7 @@ export default class TauriLaunchService {
     const isCrabNebula = mergedOptions.driverProvider === 'crabnebula';
     const isEmbedded = isEmbeddedProvider(mergedOptions);
 
-    if (isEmbedded && !mergedOptions.driverProvider) {
+    if (isEmbedded && !(firstCap?.['wdio:tauriServiceOptions']?.driverProvider ?? this.options.driverProvider)) {
       log.info(
         `No driverProvider configured — defaulting to embedded WebDriver provider (port ${getEmbeddedPort(mergedOptions)}). ` +
           `Set driverProvider: 'external' to use tauri-driver instead.`,
@@ -223,7 +208,6 @@ export default class TauriLaunchService {
             throw new SevereServiceError(reachable.error.message);
           }
         }
-        this.browserMode = true;
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'tauri:options'?: unknown })['tauri:options'];
@@ -235,6 +219,7 @@ export default class TauriLaunchService {
             devServerUrl,
           };
         }
+        this.browserMode = true;
       } catch (error) {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});
@@ -1106,6 +1091,7 @@ export default class TauriLaunchService {
 
       log.debug('Tauri service completed');
     } finally {
+      this.browserMode = false;
       // Ensure the stopped processes' shutdown output still reaches the log file.
       try {
         await closeLogWriter('tauri-service');

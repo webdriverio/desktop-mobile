@@ -38,7 +38,10 @@ describe('browser mode — initialisation', () => {
 
   beforeEach(async () => {
     mockStore.clear();
-    service = new DioxusWorkerService({}, { 'wdio:dioxusServiceOptions': { devServerUrl: DEV_SERVER } });
+    service = new DioxusWorkerService(
+      {},
+      { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+    );
     browser = createFakeBrowser();
     // initBrowserMode calls browser.url(devServerUrl) before patchBrowserUrl
     // replaces browser.url — capture the spy before the patch.
@@ -79,7 +82,10 @@ describe('browser mode — navigation lifecycle', () => {
 
   beforeEach(async () => {
     mockStore.clear();
-    service = new DioxusWorkerService({}, { 'wdio:dioxusServiceOptions': { devServerUrl: DEV_SERVER } });
+    service = new DioxusWorkerService(
+      {},
+      { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+    );
     browser = createFakeBrowser();
     await service.before({}, [], browser as unknown as WebdriverIO.Browser);
   });
@@ -136,7 +142,10 @@ describe('browser mode — mock lifecycle', () => {
 
   beforeEach(async () => {
     mockStore.clear();
-    service = new DioxusWorkerService({}, { 'wdio:dioxusServiceOptions': { devServerUrl: DEV_SERVER } });
+    service = new DioxusWorkerService(
+      {},
+      { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+    );
     browser = createFakeBrowser();
     await service.before({}, [], browser as unknown as WebdriverIO.Browser);
     browser.execute.mockClear();

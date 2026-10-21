@@ -77,6 +77,21 @@ describe('standalone init()', () => {
       await cleanup(browser);
     });
 
+    it("should leave the caller's capabilities untouched by the launcher's browser-mode rewrite", async () => {
+      remoteMock.mockResolvedValue(createSessionBrowser());
+      const capabilities = browserModeCapabilities();
+
+      const browser = await init(capabilities);
+
+      expect(remoteMock.mock.calls[0][0].capabilities).toMatchObject({
+        browserName: 'chrome',
+        'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
+      });
+      expect(capabilities).toEqual(browserModeCapabilities());
+
+      await cleanup(browser);
+    });
+
     it('should open a Chrome session when mode comes from the global options', async () => {
       remoteMock.mockResolvedValue(createSessionBrowser());
 

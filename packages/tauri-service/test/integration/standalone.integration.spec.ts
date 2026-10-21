@@ -65,6 +65,25 @@ describe('standalone init() in browser mode', () => {
     await cleanup(browser);
   });
 
+  it("should leave the caller's capabilities untouched by the launcher's browser-mode rewrite", async () => {
+    remoteMock.mockResolvedValue(createSessionBrowser());
+    const capabilities = {
+      'tauri:options': { application: '/app' },
+      'wdio:tauriServiceOptions': { mode: 'browser', devServer },
+    } as unknown as TauriCapabilities;
+
+    const browser = await init(capabilities);
+
+    expect(remoteMock.mock.calls[0][0].capabilities).toMatchObject({ browserName: 'chrome' });
+    expect(remoteMock.mock.calls[0][0].capabilities).not.toHaveProperty('tauri:options');
+    expect(capabilities).toEqual({
+      'tauri:options': { application: '/app' },
+      'wdio:tauriServiceOptions': { mode: 'browser', devServer },
+    });
+
+    await cleanup(browser);
+  });
+
   it('should open a Chrome session when mode comes from the global options', async () => {
     remoteMock.mockResolvedValue(createSessionBrowser());
 

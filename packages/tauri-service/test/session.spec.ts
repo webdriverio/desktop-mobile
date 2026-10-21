@@ -80,7 +80,7 @@ import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import TauriLaunchService from '../src/launcher.js';
 import TauriWorkerService from '../src/service.js';
 import { cleanup, createTauriCapabilities, init } from '../src/session.js';
-import type { TauriCapabilities } from '../src/types.js';
+import type { TauriCapabilities, TauriServiceGlobalOptions } from '../src/types.js';
 
 function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO.Browser {
   return {
@@ -426,7 +426,7 @@ describe('session', () => {
 
       const browser = await init(capabilities);
 
-      expect(mockBefore).toHaveBeenCalledWith(capabilities, [], browser);
+      expect(mockBefore).toHaveBeenCalledWith({ ...capabilities, port: 4444 }, [], browser);
     });
 
     it('should return the browser instance', async () => {
@@ -521,7 +521,7 @@ describe('session', () => {
 
       await init(capabilities);
 
-      expect(TauriWorkerService).toHaveBeenCalledWith({}, capabilities);
+      expect(TauriWorkerService).toHaveBeenCalledWith({}, { ...capabilities, port: 4444 });
     });
 
     it('should pass the global options to TauriWorkerService', async () => {
@@ -536,10 +536,10 @@ describe('session', () => {
 
       await init(capabilities, globalOptions);
 
-      expect(TauriWorkerService).toHaveBeenCalledWith(globalOptions, capabilities);
+      expect(TauriWorkerService).toHaveBeenCalledWith(globalOptions, { ...capabilities, port: 4444 });
     });
 
-    it('should let a global driverProvider reach the worker when createTauriCapabilities leaves it undefined', async () => {
+    it('should keep a global driverProvider that createTauriCapabilities leaves undefined', async () => {
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
@@ -569,7 +569,59 @@ describe('session', () => {
 
       expect(mockRemote).toHaveBeenCalledWith(expect.objectContaining({ port: 4444 }));
       expect(mockRemote.mock.calls[0][0].capabilities).not.toHaveProperty('port');
-      expect(capabilities).toHaveProperty('port', 4444);
+    });
+
+    it("should leave the caller's capabilities untouched by the launcher's native-mode writes", async () => {
+      mockOnPrepare.mockImplementation(
+        async (_config: unknown, [caps]: [TauriCapabilities & Record<string, unknown>]) => {
+          caps.port = 4444;
+          caps.hostname = '127.0.0.1';
+          if (caps['tauri:options']) {
+            caps['tauri:options'].application = '/resolved/app';
+          }
+        },
+      );
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': { appBinaryPath: '/app' },
+      } as unknown as TauriCapabilities;
+
+      await init(capabilities);
+
+      expect(capabilities).toEqual({
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': { appBinaryPath: '/app' },
+      });
+      expect(mockRemote.mock.calls[0][0]).toMatchObject({ hostname: '127.0.0.1', port: 4444 });
+    });
+
+    it('should honour startTimeout from the global options', async () => {
+      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
+        caps.port = 4444;
+      });
+
+      await init(
+        { 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities,
+        {
+          startTimeout: 15000,
+        } as TauriServiceGlobalOptions,
+      );
+
+      expect(mockRemote.mock.calls[0][0].connectionRetryTimeout).toBe(60000);
+    });
+
+    it('should honour the log options from the global options', async () => {
+      await expect(
+        init(
+          { 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities,
+          {
+            captureBackendLogs: true,
+            logDir: '/tmp/global-logs',
+          } as TauriServiceGlobalOptions,
+        ),
+      ).rejects.toMatchObject({ message: expect.stringContaining('Tauri driver port was not set') });
+
+      expect(mockLogWriterInitialize).toHaveBeenCalledWith('/tmp/global-logs');
     });
   });
 
@@ -594,49 +646,70 @@ describe('session', () => {
       } as unknown as TauriCapabilities;
     }
 
+    const chromeSessionCapabilities = {
+      browserName: 'chrome',
+      'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl },
+    };
+
     it('should open the session through WebdriverIO without a driver port', async () => {
-      const capabilities = browserModeCapabilities();
+      const browser = await init(browserModeCapabilities());
 
-      const browser = await init(capabilities);
-
-      expect(mockRemote).toHaveBeenCalledWith({ capabilities });
-      expect(capabilities).toMatchObject({ browserName: 'chrome' });
+      expect(mockRemote).toHaveBeenCalledWith({ capabilities: chromeSessionCapabilities });
       expect(mockHttpGet).not.toHaveBeenCalled();
-      expect(mockBefore).toHaveBeenCalledWith(capabilities, [], browser);
+      expect(mockBefore).toHaveBeenCalledWith(chromeSessionCapabilities, [], browser);
     });
 
     it('should open a browser-mode session when mode comes from the global options', async () => {
-      const capabilities = {} as TauriCapabilities;
+      await init({} as TauriCapabilities, { mode: 'browser', devServerUrl });
 
-      await init(capabilities, { mode: 'browser', devServerUrl });
-
-      expect(mockRemote).toHaveBeenCalledWith({ capabilities });
-      expect(TauriWorkerService).toHaveBeenCalledWith(expect.objectContaining({ mode: 'browser' }), capabilities);
+      expect(mockRemote).toHaveBeenCalledWith({ capabilities: { browserName: 'chrome' } });
+      expect(TauriWorkerService).toHaveBeenCalledWith(expect.objectContaining({ mode: 'browser' }), {
+        browserName: 'chrome',
+      });
     });
 
     it("should follow the launcher's browser-mode decision", async () => {
-      const capabilities = { 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities;
+      await init({ 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities);
+
+      expect(mockRemote).toHaveBeenCalledWith({ capabilities: { browserName: 'chrome' } });
+    });
+
+    it("should leave the caller's capabilities untouched by the launcher's browser-mode rewrite", async () => {
+      const capabilities = browserModeCapabilities();
 
       await init(capabilities);
 
-      expect(mockRemote).toHaveBeenCalledWith({ capabilities });
+      expect(capabilities).toEqual(browserModeCapabilities());
+    });
+
+    it('should strip a user-supplied port and hostname from the browser session capabilities', async () => {
+      await init({ ...browserModeCapabilities(), hostname: 'localhost', port: 9999 } as TauriCapabilities);
+
+      expect(mockRemote).toHaveBeenCalledWith({ capabilities: chromeSessionCapabilities });
     });
 
     it("should keep WebdriverIO's capability writes off the caller's object", async () => {
+      // Mirrors what WebdriverIO does to the capabilities it starts a Chrome session with.
       mockRemote.mockImplementationOnce(async ({ capabilities: sessionCapabilities }) => {
         sessionCapabilities.webSocketUrl = true;
-        sessionCapabilities['goog:chromeOptions'].binary = '/path/to/chrome';
+        sessionCapabilities.unhandledPromptBehavior = 'ignore';
+        const chromedriverOptions = sessionCapabilities['wdio:chromedriverOptions'];
+        chromedriverOptions.allowedOrigins = chromedriverOptions.allowedOrigins || ['*'];
+        chromedriverOptions.allowedIps = chromedriverOptions.allowedIps || ['0.0.0.0'];
+        sessionCapabilities['goog:chromeOptions'] = { binary: '/path/to/chrome' };
         return createMockBrowser();
       });
       const capabilities = {
         ...browserModeCapabilities(),
-        'goog:chromeOptions': { args: ['--headless'] },
-      } as unknown as TauriCapabilities & { 'goog:chromeOptions': unknown };
+        'wdio:chromedriverOptions': { binary: '/path/to/chromedriver' },
+      } as TauriCapabilities;
 
       await init(capabilities);
 
-      expect(capabilities).not.toHaveProperty('webSocketUrl');
-      expect(capabilities['goog:chromeOptions']).toEqual({ args: ['--headless'] });
+      expect(capabilities).toEqual({
+        ...browserModeCapabilities(),
+        'wdio:chromedriverOptions': { binary: '/path/to/chromedriver' },
+      });
     });
 
     it('should stop the launcher, which stops the managed dev server, on cleanup', async () => {

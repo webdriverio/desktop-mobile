@@ -49,19 +49,49 @@ describe('DioxusLaunchService — browser mode', () => {
     expect(caps[0]['dioxus:options']).toBeUndefined();
   });
 
-  it('reports browser mode only once a browser-mode onPrepare succeeds', async () => {
+  it('should report browser mode only once a browser-mode onPrepare succeeds', async () => {
     const launcher = createLauncher();
     expect(launcher.isBrowserMode).toBe(false);
 
     await expect(
-      launcher.onPrepare(baseConfig, [{ 'wdio:dioxusServiceOptions': { mode: 'browser' } }] as any[]),
+      launcher.onPrepare(baseConfig, [{ 'wdio:dioxusServiceOptions': { mode: 'browser' } }]),
     ).rejects.toThrow('devServerUrl is required');
     expect(launcher.isBrowserMode).toBe(false);
 
     await launcher.onPrepare(baseConfig, [
       { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
-    ] as any[]);
+    ]);
     expect(launcher.isBrowserMode).toBe(true);
+  });
+
+  it('should not report browser mode when rewriting the capabilities fails', async () => {
+    const launcher = createLauncher();
+    const capability: DioxusCapabilities = Object.freeze({
+      'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
+    });
+
+    await expect(launcher.onPrepare(baseConfig, [capability])).rejects.toThrow();
+    expect(launcher.isBrowserMode).toBe(false);
+  });
+
+  it('should stop reporting browser mode after onComplete', async () => {
+    const launcher = createLauncher();
+    await launcher.onPrepare(baseConfig, [
+      { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+    ]);
+
+    await launcher.onComplete();
+
+    expect(launcher.isBrowserMode).toBe(false);
+  });
+
+  it('should tell the worker about browser mode set only in the global options', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    const capabilities: DioxusCapabilities[] = [{}];
+
+    await launcher.onPrepare(baseConfig, capabilities);
+
+    expect(capabilities[0]['wdio:dioxusServiceOptions']).toMatchObject({ mode: 'browser', devServerUrl: DEV_SERVER });
   });
 
   it('does not start the embedded driver in browser mode', async () => {

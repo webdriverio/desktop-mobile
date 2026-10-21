@@ -12,6 +12,7 @@ import { clearAllMocks, isMockFunction, mock, resetAllMocks, restoreAllMocks } f
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
+import { mergeServiceOptions } from './serviceConfig.js';
 
 import type { TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 import {
@@ -59,11 +60,7 @@ export default class TauriWorkerService {
       (capabilities as { alwaysMatch?: { 'wdio:tauriServiceOptions'?: TauriServiceOptions } })?.alwaysMatch?.[
         'wdio:tauriServiceOptions'
       ];
-    // An undefined capability value must not mask a global option (the launcher merges with `??`).
-    const definedCapabilityOptions = Object.fromEntries(
-      Object.entries(capabilityOptions ?? {}).filter(([, value]) => value !== undefined),
-    ) as TauriServiceOptions;
-    const merged = { ...options, ...definedCapabilityOptions };
+    const merged = mergeServiceOptions(options, capabilityOptions);
     this.clearMocks = merged.clearMocks ?? false;
     this.clearMocksPrefix = merged.clearMocksPrefix;
     this.resetMocks = merged.resetMocks ?? false;

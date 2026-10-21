@@ -24,7 +24,8 @@ import {
   startEmbeddedDriver,
   stopEmbeddedDriver,
 } from './providers/embedded.js';
-import type { DioxusCapabilities, DioxusServiceGlobalOptions, DioxusServiceOptions } from './types.js';
+import { mergeOptions } from './serviceConfig.js';
+import type { DioxusCapabilities, DioxusServiceGlobalOptions } from './types.js';
 
 const log = createLogger('dioxus-service', 'launcher');
 
@@ -114,18 +115,19 @@ export default class DioxusLaunchService extends BaseLauncher {
             throw new SevereServiceError(reachable.error.message);
           }
         }
-        this.#browserMode = true;
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'dioxus:options'?: unknown })['dioxus:options'];
-          // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
-          // which reads devServerUrl from its capability options.
+          // Propagate browser mode and the resolved URL (a devServer function may have overridden it)
+          // to the worker, which reads both from its capability options.
           const capRecord = cap as Record<string, unknown>;
           capRecord['wdio:dioxusServiceOptions'] = {
             ...(capRecord['wdio:dioxusServiceOptions'] as Record<string, unknown> | undefined),
+            mode: 'browser',
             devServerUrl,
           };
         }
+        this.#browserMode = true;
       } catch (error) {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});
@@ -270,6 +272,7 @@ export default class DioxusLaunchService extends BaseLauncher {
       await this.stopAllEmbedded();
       await this.stopAllDrivers();
     } finally {
+      this.#browserMode = false;
       try {
         await closeLogWriter('dioxus-service');
       } catch (error) {
@@ -289,18 +292,4 @@ function normaliseCaps(
     return caps;
   }
   return Object.values(caps).map((v) => v.capabilities);
-}
-
-function mergeOptions(
-  globalOptions: DioxusServiceGlobalOptions,
-  capabilityOptions?: DioxusServiceOptions,
-): DioxusServiceOptions {
-  return {
-    ...globalOptions,
-    ...capabilityOptions,
-    captureBackendLogs: capabilityOptions?.captureBackendLogs ?? globalOptions.captureBackendLogs ?? false,
-    captureFrontendLogs: capabilityOptions?.captureFrontendLogs ?? globalOptions.captureFrontendLogs ?? false,
-    backendLogLevel: capabilityOptions?.backendLogLevel ?? globalOptions.backendLogLevel ?? 'info',
-    frontendLogLevel: capabilityOptions?.frontendLogLevel ?? globalOptions.frontendLogLevel ?? 'info',
-  };
 }
