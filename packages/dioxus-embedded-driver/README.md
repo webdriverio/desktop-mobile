@@ -61,7 +61,7 @@ The embedded driver works on all three platforms:
 
 ## Limitations
 
-Page and element screenshots fail with `unsupported operation`, so `takeScreenshot()`, `saveScreenshot()` and the visual service throw rather than get a blank image. Native screenshots are tracked in [#741](https://github.com/webdriverio/desktop-mobile/issues/741). On Windows and Linux, the external driver provider (`driverProvider: 'external'`) supports screenshots.
+Page screenshots are captured natively. Element screenshots fail with `unsupported operation`, so an element's `takeScreenshot()` and `saveScreenshot()`, and the visual service's element checks, throw rather than get a blank image. Native element screenshots are tracked in [#741](https://github.com/webdriverio/desktop-mobile/issues/741). On Windows and Linux, the external driver provider (`driverProvider: 'external'`) supports them.
 
 ## Configuration
 
