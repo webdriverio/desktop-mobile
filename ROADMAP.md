@@ -88,6 +88,7 @@ The table below quantifies the key factors used to prioritise and sequence plann
 | **Ionic / Capacitor** | Mobile | ~52k / ~15k | Appium WebView context switching | ✅ Proven | Reuses mobile scaffold; pure WebView — zero new complexity | Appium server, native WebView availability | Low |
 | **Neutralino** | Desktop | ~7.9k | System webview → CDP (devtools endpoint) | 🟡 Emerging | Medium — similar endpoint detection to Electron service | System webview (WebView2 / WebKitGTK) | Low |
 | **Dioxus Mobile** | Mobile | *(same repo)* | Cargo Mobile 2 — experimental | 🔴 Early-stage | Reuses mobile scaffold + Dioxus desktop learnings | Cargo Mobile 2 maturity, platform bridge stability | High |
+| **Tauri Mobile** | Mobile | *(same repo)* | Appium WebView context switching (Tauri's own e2e suite runs this way on Android) | ✅ Proven on Android | High — generic mobile service, plus the Tauri service's JS-side APIs in the webview | Appium server, Android/iOS system WebView | Low–Medium |
 | **React Native Desktop** | Desktop | *(same repo)* | Less mature than mobile counterpart | 🟡 Emerging | Leverages React Native mobile experience | React Native Desktop renderer maturity | Medium–High |
 
 ---
