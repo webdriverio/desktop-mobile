@@ -151,7 +151,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
       mockStore.deleteMock(`dioxus.${command}`);
     },
   };
-  registerLocalMockOps(mock, localOps);
+  registerLocalMockOps(mock, localOps, browserToUse);
 
   mock.mockClear = async () => {
     try {

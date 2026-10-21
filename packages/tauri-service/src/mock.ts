@@ -233,7 +233,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   wrapperMock.update = mock.update.bind(mock);
 
   wrapperMock.__isTauriMock = true;
-  registerLocalMockOps(wrapperMock, localOps);
+  registerLocalMockOps(wrapperMock, localOps, browserToUse);
 
   return wrapperMock;
 }
@@ -361,7 +361,7 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
       mockStore.deleteMock(`tauri.${command}`);
     },
   };
-  registerLocalMockOps(mock, localOps);
+  registerLocalMockOps(mock, localOps, browser);
 
   mock.mockClear = async () => {
     try {
