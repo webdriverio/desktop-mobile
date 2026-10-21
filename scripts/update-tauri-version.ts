@@ -12,6 +12,7 @@ interface Fixture {
   name: string;
   packageJson: string;
   cargoToml: string;
+  tauriConf: string;
 }
 
 const FIXTURES: Fixture[] = [
@@ -19,11 +20,13 @@ const FIXTURES: Fixture[] = [
     name: 'fixtures/e2e-apps/tauri',
     packageJson: join(__dirname, '..', 'fixtures', 'e2e-apps', 'tauri', 'package.json'),
     cargoToml: join(__dirname, '..', 'fixtures', 'e2e-apps', 'tauri', 'src-tauri', 'Cargo.toml'),
+    tauriConf: join(__dirname, '..', 'fixtures', 'e2e-apps', 'tauri', 'src-tauri', 'tauri.conf.json'),
   },
   {
     name: 'fixtures/package-tests/tauri-app',
     packageJson: join(__dirname, '..', 'fixtures', 'package-tests', 'tauri-app', 'package.json'),
     cargoToml: join(__dirname, '..', 'fixtures', 'package-tests', 'tauri-app', 'src-tauri', 'Cargo.toml'),
+    tauriConf: join(__dirname, '..', 'fixtures', 'package-tests', 'tauri-app', 'src-tauri', 'tauri.conf.json'),
   },
 ];
 
@@ -32,11 +35,15 @@ interface PackageJson {
   devDependencies?: Record<string, string>;
 }
 
+function isStableVersion(version: string): boolean {
+  return /^\d+\.\d+\.\d+$/.test(version);
+}
+
 function getAllNpmVersions(packageName: string): string[] {
   try {
     const output = execSync(`npm view ${packageName} versions --json`, { encoding: 'utf8' });
     const versions: string[] = JSON.parse(output);
-    return versions;
+    return versions.filter(isStableVersion);
   } catch {
     throw new Error(`Failed to fetch versions for npm package ${packageName}`);
   }
@@ -61,7 +68,9 @@ function getAllCargoVersions(packageName: string): string[] {
     const detail = info?.errors?.[0]?.detail ?? 'crates.io response had no "versions" array';
     throw new Error(`Failed to fetch versions for cargo package ${packageName}: ${detail}`);
   }
-  return info.versions.map((v: { num: string }) => v.num);
+  return info.versions
+    .filter((v: { num: string; yanked: boolean }) => !v.yanked && isStableVersion(v.num))
+    .map((v: { num: string }) => v.num);
 }
 
 function compareVersions(v1: string, v2: string): number {
@@ -156,6 +165,31 @@ function updateCargoToml(path: string, versions: Record<string, string>) {
   console.log('✅ Cargo.toml updated\n');
 }
 
+function getMajor(version: string): number {
+  return Number.parseInt(version.replace(/^[^\d]*/, ''), 10);
+}
+
+function getCurrentTauriMajor(cargoTomlPath: string): number | undefined {
+  const match = readFileSync(cargoTomlPath, 'utf8').match(/tauri\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"/);
+  return match ? getMajor(match[1]) : undefined;
+}
+
+function updateTauriConfSchema(path: string, major: number) {
+  console.log(`📝 Updating ${path}...`);
+
+  const content = readFileSync(path, 'utf8');
+  const updated = content.replace(/("\$schema"\s*:\s*"https:\/\/schema\.tauri\.app\/config\/)\d+(")/, `$1${major}$2`);
+
+  if (updated === content) {
+    console.log(`  ⚠️  No Tauri $schema URL found; set it to https://schema.tauri.app/config/${major} manually`);
+    return;
+  }
+
+  writeFileSync(path, updated);
+  console.log(`  ✓ Updated $schema to config/${major}`);
+  console.log('✅ tauri.conf.json updated\n');
+}
+
 function runCommand(command: string, cwd?: string) {
   console.log(`📝 Running: ${command}`);
   try {
@@ -230,10 +264,20 @@ function main() {
     'cargo:tauri-plugin-log': alignedLog,
   };
 
+  const newMajor = getMajor(alignedCore);
+  const majorUpgrades: { fixture: string; from: number }[] = [];
+
   for (const fixture of FIXTURES) {
     console.log(`\n📦 Processing ${fixture.name}...`);
+    const currentMajor = getCurrentTauriMajor(fixture.cargoToml);
+
     updatePackageJson(fixture.packageJson, versions);
     updateCargoToml(fixture.cargoToml, versions);
+
+    if (currentMajor !== undefined && currentMajor !== newMajor) {
+      updateTauriConfSchema(fixture.tauriConf, newMajor);
+      majorUpgrades.push({ fixture: fixture.name, from: currentMajor });
+    }
 
     const cargoLock = join(dirname(fixture.cargoToml), 'Cargo.lock');
     const pnpmLock = join(fixture.packageJson, 'pnpm-lock.yaml');
@@ -260,7 +304,15 @@ function main() {
   for (const fixture of FIXTURES) {
     console.log(`  - ${fixture.name}`);
   }
-  console.log('\n⚠️  Remember to update src-tauri.conf.json files if needed!');
+
+  if (majorUpgrades.length > 0) {
+    console.log(`\n⚠️  Tauri major version changed to ${newMajor}. The $schema URLs were updated, but other`);
+    console.log('   config keys, capabilities and Rust APIs may need migrating by hand. Follow the Tauri');
+    console.log(`   v${newMajor} migration guide for:`);
+    for (const { fixture, from } of majorUpgrades) {
+      console.log(`  - ${fixture}/src-tauri/tauri.conf.json (from v${from})`);
+    }
+  }
 }
 
 main();
