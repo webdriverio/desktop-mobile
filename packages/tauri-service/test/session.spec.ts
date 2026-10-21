@@ -80,7 +80,7 @@ import { DEFAULT_TEARDOWN_TIMEOUT_MS } from '@wdio/native-utils';
 import TauriLaunchService from '../src/launcher.js';
 import TauriWorkerService from '../src/service.js';
 import { cleanup, createTauriCapabilities, init } from '../src/session.js';
-import type { TauriCapabilities, TauriServiceGlobalOptions } from '../src/types.js';
+import type { TauriCapabilities } from '../src/types.js';
 
 function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO.Browser {
   return {
@@ -509,6 +509,8 @@ describe('session', () => {
       await expect(init(capabilities)).rejects.toThrow('Tauri driver port was not set');
 
       expect(mockLogWriterInitialize).not.toHaveBeenCalled();
+      expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining('logs will be written to'));
+      expect(mockLog.warn).not.toHaveBeenCalledWith(expect.stringContaining('logs will not be captured'));
     });
 
     it('should create TauriWorkerService with empty options when no global options are given', async () => {
@@ -600,25 +602,17 @@ describe('session', () => {
         caps.port = 4444;
       });
 
-      await init(
-        { 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities,
-        {
-          startTimeout: 15000,
-        } as TauriServiceGlobalOptions,
-      );
+      await init({ 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities, { startTimeout: 15000 });
 
       expect(mockRemote.mock.calls[0][0].connectionRetryTimeout).toBe(60000);
     });
 
     it('should honour the log options from the global options', async () => {
       await expect(
-        init(
-          { 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities,
-          {
-            captureBackendLogs: true,
-            logDir: '/tmp/global-logs',
-          } as TauriServiceGlobalOptions,
-        ),
+        init({ 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities, {
+          captureBackendLogs: true,
+          logDir: '/tmp/global-logs',
+        }),
       ).rejects.toMatchObject({ message: expect.stringContaining('Tauri driver port was not set') });
 
       expect(mockLogWriterInitialize).toHaveBeenCalledWith('/tmp/global-logs');

@@ -33,7 +33,7 @@ vi.mock('webdriverio', () => ({
 }));
 
 import { cleanup, init } from '../src/session.js';
-import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
+import type { DioxusCapabilities } from '../src/types.js';
 
 function makeBrowser(): WebdriverIO.Browser {
   return { sessionId: 'sess-1', deleteSession: deleteSessionMock } as unknown as WebdriverIO.Browser;
@@ -122,8 +122,11 @@ describe('session', () => {
       expect(remoteMock.mock.calls[0][0]).toMatchObject({ hostname: 'localhost', port: 4445 });
     });
 
-    it('should honour startTimeout from the global options', async () => {
-      await init(makeCaps(), { startTimeout: 15_000 } as DioxusServiceGlobalOptions);
+    it('should honour startTimeout from the global options, even when the capability leaves it undefined', async () => {
+      const caps = makeCaps();
+      caps['wdio:dioxusServiceOptions'] = { ...caps['wdio:dioxusServiceOptions'], startTimeout: undefined };
+
+      await init(caps, { startTimeout: 15_000 });
 
       expect(remoteMock.mock.calls[0][0].connectionRetryTimeout).toBe(60_000);
     });

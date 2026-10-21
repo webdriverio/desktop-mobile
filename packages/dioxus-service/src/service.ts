@@ -7,7 +7,7 @@ import { execute, markAsEmbedded } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
-import type { DioxusServiceOptions } from './types.js';
+import type { DioxusCapabilities, DioxusServiceOptions } from './types.js';
 import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
 
 const log = createLogger('dioxus-service', 'service');
@@ -23,9 +23,14 @@ export default class DioxusWorkerService {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
       'wdio:dioxusServiceOptions'
     ];
-    this.devServerUrl = capOptions?.devServerUrl ?? _options.devServerUrl;
-    // The launcher writes mode: 'browser' onto the capability when it enters browser mode.
-    this.browserMode = (capOptions?.mode ?? _options.mode) === 'browser';
+    // The launcher writes mode: 'browser' onto each capability; in multiremote that is each instance's capabilities.
+    const browserModeOptions =
+      capOptions ??
+      Object.values((_capabilities ?? {}) as Record<string, { capabilities?: DioxusCapabilities } | undefined>)
+        .map((entry) => entry?.capabilities?.['wdio:dioxusServiceOptions'])
+        .find((instanceOptions) => instanceOptions?.mode === 'browser');
+    this.devServerUrl = browserModeOptions?.devServerUrl ?? _options.devServerUrl;
+    this.browserMode = (browserModeOptions?.mode ?? _options.mode) === 'browser';
     this.isEmbedded = (capOptions?.driverProvider ?? _options.driverProvider ?? 'embedded') === 'embedded';
     log.debug('DioxusWorkerService initialised');
   }

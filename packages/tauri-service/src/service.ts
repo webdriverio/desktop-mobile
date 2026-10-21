@@ -14,7 +14,7 @@ import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
 import { mergeServiceOptions } from './serviceConfig.js';
 
-import type { TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
+import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
@@ -46,6 +46,8 @@ export default class TauriWorkerService {
   private restoreMocks: boolean;
   private restoreMocksPrefix?: string;
   private driverProvider?: 'external' | 'official' | 'crabnebula' | 'embedded';
+  // A multiremote worker sees each instance's options only inside that instance's capabilities.
+  private instanceDriverProviders = new Map<string, DriverProvider>();
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
@@ -68,6 +70,15 @@ export default class TauriWorkerService {
     this.restoreMocks = merged.restoreMocks ?? false;
     this.restoreMocksPrefix = merged.restoreMocksPrefix;
     this.driverProvider = merged.driverProvider;
+    for (const [instanceName, entry] of Object.entries(capabilities ?? {})) {
+      const instanceCapabilities = (entry as { capabilities?: TauriCapabilities } | undefined)?.capabilities;
+      if (instanceCapabilities && typeof instanceCapabilities === 'object') {
+        this.instanceDriverProviders.set(
+          instanceName,
+          mergeServiceOptions(options, instanceCapabilities['wdio:tauriServiceOptions']).driverProvider,
+        );
+      }
+    }
     this.windowLabel = merged.windowLabel || getDefaultWindowLabel();
     this.mode = merged.mode;
     this.devServerUrl = merged.devServerUrl;
@@ -112,9 +123,9 @@ export default class TauriWorkerService {
           stage = `init:${instanceName}`;
           log.info(`Initializing instance: ${instanceName}`);
           this.addTauriApi(mrInstance);
-          this.patchBrowserExecute(mrInstance);
+          this.patchBrowserExecute(mrInstance, this.driverProviderFor(instanceName));
           setCurrentWindowLabel(mrInstance, this.windowLabel);
-          setSessionProvider(mrInstance, this.driverProvider ?? 'embedded');
+          setSessionProvider(mrInstance, this.driverProviderFor(instanceName));
           stage = `waitUntilWindowAvailable:${instanceName}`;
           await waitUntilWindowAvailable(mrInstance);
           log.info(`Instance ${instanceName} window available`);
@@ -179,12 +190,15 @@ export default class TauriWorkerService {
       // In embedded mode the Tauri app process persists between WDIO runs, so
       // window.__wdio_mocks__ can carry stale state from a previous run into a
       // fresh session. Reset it here so every session starts clean.
-      if (this.driverProvider === 'embedded') {
+      if (browser.isMultiremote || this.driverProvider === 'embedded') {
         stage = 'clearStaleMocks';
         try {
           if (browser.isMultiremote) {
             const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
             for (const instanceName of mrBrowser.instances) {
+              if (this.driverProviderFor(instanceName) !== 'embedded') {
+                continue;
+              }
               const mrInstance = mrBrowser.getInstance(instanceName);
               await mrInstance.execute(function clearStaleMocks() {
                 // @ts-expect-error - window is available in browser context
@@ -604,11 +618,15 @@ export default class TauriWorkerService {
     }
   }
 
+  private driverProviderFor(instanceName: string): DriverProvider {
+    return this.instanceDriverProviders.get(instanceName) ?? this.driverProvider ?? 'embedded';
+  }
+
   /**
    * Patch browser.execute() to automatically inject console forwarding code
    * This ensures console logs from browser.execute() contexts are captured
    */
-  private patchBrowserExecute(browser: WebdriverIO.Browser): void {
+  private patchBrowserExecute(browser: WebdriverIO.Browser, driverProvider = this.driverProvider): void {
     interface PatchedBrowser extends WebdriverIO.Browser {
       [EXECUTE_PATCHED]?: boolean;
     }
@@ -620,7 +638,7 @@ export default class TauriWorkerService {
 
     const originalExecute = browser.execute.bind(browser);
     const originalExecuteAsync = (browser.executeAsync as typeof browser.execute).bind(browser);
-    const isEmbedded = this.driverProvider === 'embedded';
+    const isEmbedded = driverProvider === 'embedded';
 
     const patchedExecute = async function patchedExecute<ReturnValue, InnerArguments extends unknown[]>(
       script: string | ((...args: InnerArguments) => ReturnValue),

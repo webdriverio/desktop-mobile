@@ -157,7 +157,7 @@ describe('TauriLaunchService — browser mode', () => {
       expect(launcher.isBrowserMode).toBe(true);
       expect(capabilities[0]).toMatchObject({
         browserName: 'chrome',
-        'wdio:tauriServiceOptions': { devServerUrl: DEV_SERVER },
+        'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
       });
     });
 

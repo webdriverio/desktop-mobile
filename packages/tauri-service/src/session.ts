@@ -1,4 +1,5 @@
 import http from 'node:http';
+import { join } from 'node:path';
 import { getLogWriter } from '@wdio/native-core';
 import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteSession } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
@@ -102,7 +103,7 @@ export async function init(
       writer.initialize(serviceOptions.logDir);
       log.debug(`Log writer initialized at ${writer.getLogDir()}`);
     } else {
-      log.warn('Standalone logging enabled but logDir not specified - logs will not be captured');
+      log.info(`Standalone logging enabled without logDir - logs will be written to ${join(process.cwd(), 'logs')}`);
     }
   }
 

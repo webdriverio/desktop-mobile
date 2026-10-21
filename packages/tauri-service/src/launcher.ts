@@ -211,11 +211,12 @@ export default class TauriLaunchService {
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'tauri:options'?: unknown })['tauri:options'];
-          // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
-          // which reads devServerUrl from its capability options.
+          // Propagate browser mode and the resolved URL (a devServer function may have overridden it)
+          // to the worker, which reads both from its capability options.
           const capRecord = cap as Record<string, unknown>;
           capRecord['wdio:tauriServiceOptions'] = {
             ...(capRecord['wdio:tauriServiceOptions'] as Record<string, unknown> | undefined),
+            mode: 'browser',
             devServerUrl,
           };
         }
