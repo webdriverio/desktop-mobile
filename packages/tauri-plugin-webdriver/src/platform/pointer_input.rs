@@ -9,6 +9,8 @@ pub struct PointerInputState {
     /// Another button stays held across this press or release, so the pointer
     /// reports it as a `pointermove` instead of `pointerdown`/`pointerup`
     pub chorded: bool,
+    /// This primary release lands where its press did, so it also fires click
+    pub clicks: bool,
 }
 
 /// Script that dispatches one pointer action's events at (`x`, `y`) and returns
@@ -24,16 +26,14 @@ pub fn pointer_event_script(
         buttons,
         suppress_mouse_events,
         chorded,
+        clicks,
     } = input_state;
     let (pointer_event_name, mouse_event_name) = match event_type {
-        PointerEventType::Down if chorded => (Some("pointermove"), "mousedown"),
-        PointerEventType::Down => (Some("pointerdown"), "mousedown"),
-        PointerEventType::Up if chorded => (Some("pointermove"), "mouseup"),
-        PointerEventType::Up => (Some("pointerup"), "mouseup"),
-        PointerEventType::Move => (Some("pointermove"), "mousemove"),
-        // A dispatched mousedown/mouseup never makes the browser fire click, so
-        // the actions handler emits one after a same-spot press and release.
-        PointerEventType::Click => (None, "click"),
+        PointerEventType::Down if chorded => ("pointermove", "mousedown"),
+        PointerEventType::Down => ("pointerdown", "mousedown"),
+        PointerEventType::Up if chorded => ("pointermove", "mouseup"),
+        PointerEventType::Up => ("pointerup", "mouseup"),
+        PointerEventType::Move => ("pointermove", "mousemove"),
     };
 
     // Pointer Events: a `pointermove` that doesn't change a button reports -1.
@@ -43,65 +43,85 @@ pub fn pointer_event_script(
         i64::from(button)
     };
     let pressure = if buttons == 0 { "0" } else { "0.5" };
-    let pointer_dispatch = pointer_event_name.map_or_else(String::new, |name| {
-        let init = format!(
-            r"{{
-                pointerId: 1,
-                pointerType: 'mouse',
-                isPrimary: true,
-                bubbles: true,
-                cancelable: true,
-                composed: true,
-                clientX: {x},
-                clientY: {y},
-                button: {pointer_button},
-                buttons: {buttons},
-                pressure: {pressure},
-            }}"
-        );
-        // Only a canceled pointerdown starts suppression, never a chorded pointermove.
-        if name == "pointerdown" {
-            format!("pointerDownCanceled = !el.dispatchEvent(new PointerEvent('{name}', {init}));")
-        } else {
-            format!("el.dispatchEvent(new PointerEvent('{name}', {init}));")
-        }
-    });
-
-    let detail = u8::from(!matches!(event_type, PointerEventType::Move));
-    let mouse_event = format!(
-        r"new MouseEvent('{mouse_event_name}', {{
+    let pointer_init = format!(
+        r"{{
+            pointerId: 1,
+            pointerType: 'mouse',
+            isPrimary: true,
             bubbles: true,
             cancelable: true,
             composed: true,
-            view: window,
-            detail: {detail},
             clientX: {x},
             clientY: {y},
-            button: {button},
+            button: {pointer_button},
             buttons: {buttons},
-        }})"
+            pressure: {pressure},
+        }}"
     );
-    let mouse_dispatch = match event_type {
-        // Browsers send click, which suppression never drops, to the nearest common ancestor of
-        // the press and release targets.
-        PointerEventType::Click => format!(
-            r"var target = window.__wdioPointerDownTarget;
-            while (target && !target.contains(el)) {{
-                target = target.parentNode;
-            }}
-            if (target) {{
-                target.dispatchEvent({mouse_event});
-            }}"
-        ),
-        _ if suppress_mouse_events => String::new(),
-        _ => format!(
-            r"if (!pointerDownCanceled) {{
-                el.dispatchEvent({mouse_event});
-            }}"
-        ),
+    // Only a canceled pointerdown starts suppression, never a chorded pointermove.
+    let pointer_dispatch = if pointer_event_name == "pointerdown" {
+        format!("pointerDownCanceled = !el.dispatchEvent(new PointerEvent('pointerdown', {pointer_init}));")
+    } else {
+        format!("el.dispatchEvent(new PointerEvent('{pointer_event_name}', {pointer_init}));")
     };
-    let record_down_target = if matches!(event_type, PointerEventType::Down) && button == 0 {
-        "window.__wdioPointerDownTarget = el;"
+
+    let mouse_event = |name: &str| {
+        let detail = u8::from(name != "mousemove");
+        format!(
+            r"new MouseEvent('{name}', {{
+                bubbles: true,
+                cancelable: true,
+                composed: true,
+                view: window,
+                detail: {detail},
+                clientX: {x},
+                clientY: {y},
+                button: {button},
+                buttons: {buttons},
+            }})"
+        )
+    };
+    let mouse_dispatch = if suppress_mouse_events {
+        String::new()
+    } else {
+        format!(
+            r"if (!pointerDownCanceled) {{
+                el.dispatchEvent({});
+            }}",
+            mouse_event(mouse_event_name)
+        )
+    };
+
+    let is_primary_button = button == 0;
+    // The press's ancestor path lets click find the nearest ancestor of the press target
+    // that is still connected and contains the release target, as browsers do.
+    let press_path = if matches!(event_type, PointerEventType::Down) && is_primary_button {
+        r"var path = [];
+            for (var node = el; node; node = node.parentNode) {
+                path.push(node);
+            }
+            window.__wdioPointerDownPath = path;"
+            .to_string()
+    } else {
+        String::new()
+    };
+    // click is not a compatibility mouse event, so suppression never drops it.
+    let click_dispatch = if clicks {
+        format!(
+            r"var path = window.__wdioPointerDownPath || [];
+            for (var i = 0; i < path.length; i++) {{
+                if (path[i].isConnected && path[i].contains(el)) {{
+                    path[i].dispatchEvent({});
+                    break;
+                }}
+            }}",
+            mouse_event("click")
+        )
+    } else {
+        String::new()
+    };
+    let release_path = if matches!(event_type, PointerEventType::Up) && is_primary_button {
+        "delete window.__wdioPointerDownPath;"
     } else {
         ""
     };
@@ -112,10 +132,12 @@ pub fn pointer_event_script(
             if (!el) {{
                 el = document.body;
             }}
-            {record_down_target}
+            {press_path}
             var pointerDownCanceled = false;
             {pointer_dispatch}
             {mouse_dispatch}
+            {click_dispatch}
+            {release_path}
             return pointerDownCanceled;
         }})()"
     )
@@ -130,6 +152,7 @@ mod tests {
             buttons,
             suppress_mouse_events,
             chorded,
+            clicks: false,
         }
     }
 
@@ -157,7 +180,7 @@ mod tests {
         assert!(script.contains("button: 0,"));
         assert!(script.contains("buttons: 1,"));
         assert!(script.contains("return pointerDownCanceled;"));
-        assert!(script.contains("window.__wdioPointerDownTarget = el;"));
+        assert!(script.contains("window.__wdioPointerDownPath = path;"));
         assert!(script.contains("view: window,"));
         assert!(script.contains("detail: 1,"));
         assert_eq!(script.matches("composed: true,").count(), 2);
@@ -192,12 +215,14 @@ mod tests {
             assert!(script.contains("new PointerEvent("));
             assert!(!script.contains("new MouseEvent("));
         }
-        let release = pointer_event_script(PointerEventType::Up, 0, 0, 0, state(0, true, false));
-        assert!(release.contains("new PointerEvent('pointerup'"));
-        assert!(!release.contains("new MouseEvent("));
-
-        let click = pointer_event_script(PointerEventType::Click, 0, 0, 0, state(0, true, false));
-        assert!(click.contains("new MouseEvent('click'"));
+        let release = PointerInputState {
+            clicks: true,
+            ..state(0, true, false)
+        };
+        let script = pointer_event_script(PointerEventType::Up, 0, 0, 0, release);
+        assert!(script.contains("new PointerEvent('pointerup'"));
+        assert!(!script.contains("new MouseEvent('mouseup'"));
+        assert!(script.contains("new MouseEvent('click'"));
     }
 
     #[test]
@@ -223,16 +248,24 @@ mod tests {
         let last = pointer_event_script(PointerEventType::Up, 0, 0, 0, state(0, false, false));
         assert!(last.contains("new PointerEvent('pointerup'"));
         assert!(last.contains("new MouseEvent('mouseup'"));
+        assert!(!last.contains("new MouseEvent('click'"));
     }
 
     #[test]
-    fn click_dispatches_no_pointer_event() {
-        let script = pointer_event_script(PointerEventType::Click, 0, 0, 0, state(0, false, false));
+    fn a_clicking_release_clicks_the_nearest_connected_press_ancestor_after_mouseup() {
+        let release = PointerInputState {
+            clicks: true,
+            ..state(0, false, false)
+        };
+        let script = pointer_event_script(PointerEventType::Up, 0, 0, 0, release);
 
-        assert!(!script.contains("new PointerEvent("));
-        assert!(script.contains("var target = window.__wdioPointerDownTarget;"));
-        assert!(script.contains("while (target && !target.contains(el)) {"));
-        assert!(script.contains("target.dispatchEvent(new MouseEvent('click'"));
-        assert!(script.contains("detail: 1,"));
+        let mouseup = position(&script, "el.dispatchEvent(new MouseEvent('mouseup'");
+        let lookup = position(
+            &script,
+            "if (path[i].isConnected && path[i].contains(el)) {",
+        );
+        let click = position(&script, "path[i].dispatchEvent(new MouseEvent('click'");
+        assert!(mouseup < lookup && lookup < click);
+        assert_eq!(script.matches("detail: 1,").count(), 2);
     }
 }

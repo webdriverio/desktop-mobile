@@ -300,8 +300,6 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for AndroidExecutor<R> {
             PointerEventType::Down => "down",
             PointerEventType::Up => "up",
             PointerEventType::Move => "move",
-            // The native touch down+up already makes the WebView fire click.
-            PointerEventType::Click => return Ok(false),
         };
 
         let args = TouchArgs {

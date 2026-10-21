@@ -284,7 +284,6 @@ pub enum PointerEventType {
     Down,
     Up,
     Move,
-    Click,
 }
 
 /// Cookie data

@@ -162,11 +162,28 @@ struct PointerState {
 }
 
 /// POST `/session/{session_id}/actions` - Perform actions
-#[allow(clippy::too_many_lines)]
 pub async fn perform<R: Runtime + 'static>(
     State(state): State<Arc<AppState<R>>>,
     Path(session_id): Path<String>,
     Json(request): Json<ActionsRequest>,
+) -> WebDriverResult {
+    let result = perform_actions(&state, session_id.clone(), &request).await;
+    if result.is_err() {
+        // WDIO never calls releaseActions after a failed perform, and a button left held
+        // would turn every later press into a no-op.
+        let mut sessions = state.sessions.write().await;
+        if let Ok(session) = sessions.get_mut(&session_id) {
+            session.action_state.forget_pointer_input();
+        }
+    }
+    result
+}
+
+#[allow(clippy::too_many_lines)]
+async fn perform_actions<R: Runtime + 'static>(
+    state: &AppState<R>,
+    session_id: String,
+    request: &ActionsRequest,
 ) -> WebDriverResult {
     // Get session info and executor first
     let (current_window, timeouts, frame_context, pointer_position) = {
@@ -185,9 +202,6 @@ pub async fn perform<R: Runtime + 'static>(
         x: pointer_position.0,
         y: pointer_position.1,
     };
-    // Position of the last primary-button press, used to synthesize a `click`
-    // when the matching release lands on the same spot (a click, not a drag).
-    let mut primary_down_pos: Option<(i32, i32)> = None;
     let mut modifier_state = ModifierState::default();
 
     // Process actions tick-by-tick across sources (W3C): the action at index N from every source runs
@@ -269,9 +283,6 @@ pub async fn perform<R: Runtime + 'static>(
                                         session.action_state.cancel_pointer_down(id);
                                     }
                                 }
-                                if *button == 0 {
-                                    primary_down_pos = Some((pointer_state.x, pointer_state.y));
-                                }
                             }
                             PointerAction::PointerUp { button } => {
                                 let release = {
@@ -293,31 +304,9 @@ pub async fn perform<R: Runtime + 'static>(
                                         input_state,
                                     )
                                     .await?;
-                                {
-                                    let mut sessions = state.sessions.write().await;
-                                    if let Ok(session) = sessions.get_mut(&session_id) {
-                                        session.action_state.commit_pointer_release(id, *button);
-                                    }
-                                }
-                                // A primary press + release on the same spot is a
-                                // click; emit the click event the browser would
-                                // synthesize for real input so element handlers fire.
-                                // Only the primary button's release consumes/clears
-                                // the press state — a non-primary release in between
-                                // must not drop it.
-                                if *button == 0 {
-                                    if primary_down_pos == Some((pointer_state.x, pointer_state.y)) {
-                                        executor
-                                            .dispatch_pointer_event(
-                                                PointerEventType::Click,
-                                                pointer_state.x,
-                                                pointer_state.y,
-                                                *button,
-                                                input_state,
-                                            )
-                                            .await?;
-                                    }
-                                    primary_down_pos = None;
+                                let mut sessions = state.sessions.write().await;
+                                if let Ok(session) = sessions.get_mut(&session_id) {
+                                    session.action_state.commit_pointer_release(id, *button);
                                 }
                             }
                             PointerAction::PointerMove { x, y, origin, .. } => {
@@ -430,24 +419,34 @@ pub async fn release<R: Runtime + 'static>(
     let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
     let modifier_state = ModifierState::default();
 
+    // Every held key and button gets its release even if an earlier one fails; the
+    // state is already cleared, so nothing could retry it. The first error is reported.
+    let mut first_error = None;
+
     // Release all pressed keys (keyUp events)
     for key in &taken.pressed_keys {
-        executor
+        if let Err(error) = executor
             .dispatch_key_event(key, false, &modifier_state)
-            .await?;
+            .await
+        {
+            first_error.get_or_insert(error);
+        }
     }
 
     // Release all pressed pointer buttons where the pointer last was
     let (x, y) = taken.pointer_position;
     for (source_id, button) in taken.held_pointer_buttons() {
         if let Some(input_state) = taken.release_pointer_button(&source_id, button) {
-            executor
+            if let Err(error) = executor
                 .dispatch_pointer_event(PointerEventType::Up, x, y, button, input_state)
-                .await?;
+                .await
+            {
+                first_error.get_or_insert(error);
+            }
         }
     }
 
-    Ok(WebDriverResponse::null())
+    first_error.map_or_else(|| Ok(WebDriverResponse::null()), Err)
 }
 
 #[cfg(test)]

@@ -234,8 +234,6 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for IOSExecutor<R> {
             PointerEventType::Down => "down",
             PointerEventType::Up => "up",
             PointerEventType::Move => "move",
-            // The iOS plugin only dispatches synthetic pointer events, so Actions get no click here yet.
-            PointerEventType::Click => return Ok(false),
         };
 
         let args = TouchArgs {

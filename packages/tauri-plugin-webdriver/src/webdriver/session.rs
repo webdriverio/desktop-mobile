@@ -17,6 +17,8 @@ pub struct ActionState {
     /// Pointer sources whose `pointerdown` was canceled; their compatibility mouse
     /// events stay suppressed until they release every button.
     pub canceled_pointer_downs: HashSet<String>,
+    /// Where each source's primary button went down; releasing it there clicks.
+    pub click_anchors: HashMap<String, (i32, i32)>,
     /// Last pointer position in viewport coordinates. Persisted across
     /// `performActions` calls so an `origin: "pointer"` move resolves relative to
     /// where the pointer actually is, not (0, 0) at the start of every call.
@@ -39,6 +41,10 @@ impl ActionState {
         }
         let chorded = !held.is_empty();
         held.insert(button);
+        if button == 0 {
+            self.click_anchors
+                .insert(source_id.to_string(), self.pointer_position);
+        }
         Some(PointerInputState {
             chorded,
             ..self.pointer_input_state(source_id)
@@ -67,6 +73,8 @@ impl ActionState {
             buttons: dom_buttons_mask(remaining.iter().copied()),
             suppress_mouse_events: self.canceled_pointer_downs.contains(source_id),
             chorded: !remaining.is_empty(),
+            clicks: button == 0
+                && self.click_anchors.get(source_id) == Some(&self.pointer_position),
         })
     }
 
@@ -74,6 +82,9 @@ impl ActionState {
     pub fn commit_pointer_release(&mut self, source_id: &str, button: u32) {
         if let Some(buttons) = self.pressed_buttons.get_mut(source_id) {
             buttons.remove(&button);
+        }
+        if button == 0 {
+            self.click_anchors.remove(source_id);
         }
         let still_held = self
             .pressed_buttons
@@ -98,7 +109,14 @@ impl ActionState {
             buttons,
             suppress_mouse_events: self.canceled_pointer_downs.contains(source_id),
             chorded: false,
+            clicks: false,
         }
+    }
+
+    pub fn forget_pointer_input(&mut self) {
+        self.pressed_buttons.clear();
+        self.canceled_pointer_downs.clear();
+        self.click_anchors.clear();
     }
 
     /// Sorted by source, then button, so releasing them is deterministic.
@@ -254,6 +272,7 @@ mod tests {
             buttons,
             suppress_mouse_events,
             chorded: false,
+            clicks: false,
         }
     }
 
@@ -261,6 +280,13 @@ mod tests {
         PointerInputState {
             chorded: true,
             ..input(buttons, suppress_mouse_events)
+        }
+    }
+
+    fn clicking(state: PointerInputState) -> PointerInputState {
+        PointerInputState {
+            clicks: true,
+            ..state
         }
     }
 
@@ -284,7 +310,7 @@ mod tests {
 
         assert_eq!(
             state.release_pointer_button("mouse", 0),
-            Some(chord(6, false))
+            Some(clicking(chord(6, false)))
         );
         assert_eq!(
             state.release_pointer_button("mouse", 1),
@@ -326,7 +352,7 @@ mod tests {
         assert_eq!(state.pointer_input_state("mouse"), input(1, true));
         assert_eq!(
             state.release_pointer_button("mouse", 0),
-            Some(input(0, true))
+            Some(clicking(input(0, true)))
         );
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
         assert_eq!(
@@ -344,7 +370,7 @@ mod tests {
         assert_eq!(state.press_pointer_button("mouse", 2), Some(chord(3, true)));
         assert_eq!(
             state.release_pointer_button("mouse", 0),
-            Some(chord(2, true))
+            Some(clicking(chord(2, true)))
         );
         assert_eq!(state.pointer_input_state("mouse"), input(2, true));
         assert_eq!(
@@ -362,14 +388,14 @@ mod tests {
 
         assert_eq!(
             state.pointer_release_state("mouse", 0),
-            Some(input(0, true))
+            Some(clicking(input(0, true)))
         );
         assert_eq!(state.pointer_input_state("mouse"), input(1, true));
 
         // releaseActions can still release it.
         assert_eq!(
             state.release_pointer_button("mouse", 0),
-            Some(input(0, true))
+            Some(clicking(input(0, true)))
         );
         assert_eq!(state.pointer_input_state("mouse"), input(0, false));
     }
@@ -382,6 +408,38 @@ mod tests {
 
         assert_eq!(state.release_pointer_button("mouse", 2), None);
         assert_eq!(state.pointer_input_state("mouse"), input(1, true));
+    }
+
+    #[test]
+    fn a_primary_release_clicks_only_where_its_press_was() {
+        let mut state = ActionState::default();
+        state.press_pointer_button("mouse", 0);
+        state.pointer_position = (5, 5);
+        assert_eq!(
+            state.release_pointer_button("mouse", 0),
+            Some(input(0, false))
+        );
+
+        // The press and release may come from separate performActions calls.
+        state.press_pointer_button("mouse", 0);
+        assert_eq!(
+            state.release_pointer_button("mouse", 0),
+            Some(clicking(input(0, false)))
+        );
+    }
+
+    #[test]
+    fn forgetting_pointer_input_lets_the_next_press_dispatch() {
+        let mut state = ActionState::default();
+        state.press_pointer_button("mouse", 0);
+        state.cancel_pointer_down("mouse");
+
+        state.forget_pointer_input();
+
+        assert_eq!(
+            state.press_pointer_button("mouse", 0),
+            Some(input(1, false))
+        );
     }
 
     #[test]
