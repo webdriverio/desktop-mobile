@@ -33,7 +33,6 @@ Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and
 
 ## Code conventions the linters don't check
 
-- Log with `createLogger` from `@wdio/native-utils`, not `console`.
 - Operations that can fail return a `Result<T, E>`: check `.ok`, then read `.value` or `.error`. There's no `.success` or `.data`.
 - Prefer `undefined` to `null`.
 - Avoid `any`. Biome only warns about it.
