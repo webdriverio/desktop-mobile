@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-debug-plugin"
+description = "Enables the debug_plugin command without any pre-configured scope."
+commands.allow = ["debug_plugin"]
+
+[[permission]]
+identifier = "deny-debug-plugin"
+description = "Denies the debug_plugin command without any pre-configured scope."
+commands.deny = ["debug_plugin"]
