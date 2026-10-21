@@ -191,12 +191,10 @@ function updateTauriConfSchema(path: string, major: number) {
 }
 
 function updateCargoLock(fixtureDir: string) {
-  const cargoLock = join(fixtureDir, 'Cargo.lock');
-  console.log(`📝 Updating ${cargoLock}...`);
-  // `cargo metadata` makes only the lockfile changes the new Cargo.toml requirements need.
-  // `cargo update -p tauri ...` re-resolves more than that and flips shared deps (e.g.
-  // `windows-sys`) between versions on every run, which churns the committed lockfile.
-  execSync('cargo metadata --format-version 1', { cwd: fixtureDir, stdio: ['ignore', 'ignore', 'inherit'] });
+  console.log(`📝 Updating ${join(fixtureDir, 'Cargo.lock')}...`);
+  // Update every crate, not just Tauri's: `cargo update -p tauri ...` flips shared deps
+  // (e.g. `windows-sys`) between versions on every run, while a full update is stable.
+  runCommand('cargo update', fixtureDir);
   console.log('✅ Cargo.lock updated\n');
 }
 
