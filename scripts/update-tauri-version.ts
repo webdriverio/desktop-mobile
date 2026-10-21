@@ -35,21 +35,38 @@ interface PackageJson {
   devDependencies?: Record<string, string>;
 }
 
-function isStableVersion(version: string): boolean {
+export interface CrateVersion {
+  num: string;
+  yanked: boolean;
+}
+
+export interface Registry {
+  npmVersions(packageName: string): string[];
+  crateVersions(crateName: string): CrateVersion[];
+}
+
+export function isStableVersion(version: string): boolean {
   return /^\d+\.\d+\.\d+$/.test(version);
 }
 
-function getAllNpmVersions(packageName: string): string[] {
+export function stableNpmVersions(versions: string[]): string[] {
+  return versions.filter(isStableVersion);
+}
+
+export function stableCrateVersions(versions: CrateVersion[]): string[] {
+  return versions.filter((v) => !v.yanked && isStableVersion(v.num)).map((v) => v.num);
+}
+
+function fetchNpmVersions(packageName: string): string[] {
   try {
     const output = execSync(`npm view ${packageName} versions --json`, { encoding: 'utf8' });
-    const versions: string[] = JSON.parse(output);
-    return versions.filter(isStableVersion);
+    return JSON.parse(output);
   } catch {
     throw new Error(`Failed to fetch versions for npm package ${packageName}`);
   }
 }
 
-function getAllCargoVersions(packageName: string): string[] {
+function fetchCrateVersions(packageName: string): CrateVersion[] {
   // crates.io enforces a User-Agent policy (https://crates.io/data-access): a generic UA (curl's
   // default) gets a 403 with an `{ errors }` body, which previously slipped through as 0 versions.
   const userAgent = 'wdio-desktop-mobile update-tauri-version (https://github.com/webdriverio/desktop-mobile)';
@@ -68,10 +85,13 @@ function getAllCargoVersions(packageName: string): string[] {
     const detail = info?.errors?.[0]?.detail ?? 'crates.io response had no "versions" array';
     throw new Error(`Failed to fetch versions for cargo package ${packageName}: ${detail}`);
   }
-  return info.versions
-    .filter((v: { num: string; yanked: boolean }) => !v.yanked && isStableVersion(v.num))
-    .map((v: { num: string }) => v.num);
+  return info.versions;
 }
+
+const liveRegistry: Registry = {
+  npmVersions: fetchNpmVersions,
+  crateVersions: fetchCrateVersions,
+};
 
 function compareVersions(v1: string, v2: string): number {
   const parse = (v: string) => {
@@ -86,7 +106,7 @@ function compareVersions(v1: string, v2: string): number {
   return b.patch - a.patch;
 }
 
-function findAlignedVersion(npmVersions: string[], cargoVersions: string[]): string {
+export function findAlignedVersion(npmVersions: string[], cargoVersions: string[]): string {
   const npmSet = new Set(npmVersions);
   const cargoSet = new Set(cargoVersions);
 
@@ -101,12 +121,51 @@ function findAlignedVersion(npmVersions: string[], cargoVersions: string[]): str
   throw new Error(`No common version found between npm and cargo`);
 }
 
-function getLatestNpmVersion(packageName: string): string {
-  const versions = getAllNpmVersions(packageName);
-  return versions.sort(compareVersions)[0];
+export type TauriVersions = Record<
+  | 'npm:@tauri-apps/api'
+  | 'npm:@tauri-apps/cli'
+  | 'npm:@tauri-apps/plugin-fs'
+  | 'npm:@tauri-apps/plugin-log'
+  | 'cargo:tauri'
+  | 'cargo:tauri-build'
+  | 'cargo:tauri-plugin-fs'
+  | 'cargo:tauri-plugin-log',
+  string
+>;
+
+function versionsFor(core: string, build: string, fs: string, log: string, cli: string): TauriVersions {
+  return {
+    'npm:@tauri-apps/api': core,
+    'npm:@tauri-apps/cli': cli,
+    'npm:@tauri-apps/plugin-fs': fs,
+    'npm:@tauri-apps/plugin-log': log,
+    'cargo:tauri': core,
+    'cargo:tauri-build': build,
+    'cargo:tauri-plugin-fs': fs,
+    'cargo:tauri-plugin-log': log,
+  };
 }
 
-function updatePackageJson(path: string, versions: Record<string, string>) {
+/** Picks the newest stable versions published on both npm and crates.io, or pins every package to `specifiedVersion`. */
+export function resolveTauriVersions(registry: Registry, specifiedVersion?: string): TauriVersions {
+  if (specifiedVersion) {
+    return versionsFor(specifiedVersion, specifiedVersion, specifiedVersion, specifiedVersion, specifiedVersion);
+  }
+
+  const npm = (name: string) => stableNpmVersions(registry.npmVersions(name));
+  const crates = (name: string) => stableCrateVersions(registry.crateVersions(name));
+
+  const apiVersions = npm('@tauri-apps/api');
+  const core = findAlignedVersion(apiVersions, crates('tauri'));
+  const build = findAlignedVersion(apiVersions, crates('tauri-build'));
+  const fs = findAlignedVersion(npm('@tauri-apps/plugin-fs'), crates('tauri-plugin-fs'));
+  const log = findAlignedVersion(npm('@tauri-apps/plugin-log'), crates('tauri-plugin-log'));
+  const cli = npm('@tauri-apps/cli').sort(compareVersions)[0];
+
+  return versionsFor(core, build, fs, log, cli);
+}
+
+function updatePackageJson(path: string, versions: TauriVersions) {
   console.log(`📝 Updating ${path}...`);
 
   const packageJsonContent = readFileSync(path, 'utf8');
@@ -136,7 +195,7 @@ function updatePackageJson(path: string, versions: Record<string, string>) {
   console.log('✅ package.json updated\n');
 }
 
-function updateCargoToml(path: string, versions: Record<string, string>) {
+function updateCargoToml(path: string, versions: TauriVersions) {
   console.log(`📝 Updating ${path}...`);
 
   let cargoContent = readFileSync(path, 'utf8');
@@ -165,22 +224,27 @@ function updateCargoToml(path: string, versions: Record<string, string>) {
   console.log('✅ Cargo.toml updated\n');
 }
 
-function getMajor(version: string): number {
+export function getMajor(version: string): number {
   return Number.parseInt(version.replace(/^[^\d]*/, ''), 10);
 }
 
-function getCurrentTauriMajor(cargoTomlPath: string): number | undefined {
-  const match = readFileSync(cargoTomlPath, 'utf8').match(/tauri\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"/);
+export function parseTauriMajor(cargoToml: string): number | undefined {
+  const match = cargoToml.match(/^tauri\s*=\s*\{[^}]*version\s*=\s*"([^"]+)"/m);
   return match ? getMajor(match[1]) : undefined;
+}
+
+/** Returns the config with its Tauri `$schema` URL pointed at `major`, or `undefined` if it has none. */
+export function rewriteTauriConfSchema(content: string, major: number): string | undefined {
+  const pattern = /("\$schema"\s*:\s*"https:\/\/schema\.tauri\.app\/config\/)\d+(")/;
+  return pattern.test(content) ? content.replace(pattern, `$1${major}$2`) : undefined;
 }
 
 function updateTauriConfSchema(path: string, major: number) {
   console.log(`📝 Updating ${path}...`);
 
-  const content = readFileSync(path, 'utf8');
-  const updated = content.replace(/("\$schema"\s*:\s*"https:\/\/schema\.tauri\.app\/config\/)\d+(")/, `$1${major}$2`);
+  const updated = rewriteTauriConfSchema(readFileSync(path, 'utf8'), major);
 
-  if (updated === content) {
+  if (updated === undefined) {
     console.log(`  ⚠️  No Tauri $schema URL found; set it to https://schema.tauri.app/config/${major} manually`);
     return;
   }
@@ -218,66 +282,26 @@ function main() {
     console.log(`Using specified version: ${specifiedVersion}\n`);
   }
 
-  console.log('📦 Fetching all versions from npm and crates.io...\n');
+  if (!specifiedVersion) {
+    console.log('📦 Fetching stable versions from npm and crates.io...\n');
+  }
 
-  const npmVersions: Record<string, string[]> = {
-    '@tauri-apps/api': specifiedVersion ? [specifiedVersion] : getAllNpmVersions('@tauri-apps/api'),
-    '@tauri-apps/cli': specifiedVersion ? [specifiedVersion] : getAllNpmVersions('@tauri-apps/cli'),
-    '@tauri-apps/plugin-fs': specifiedVersion ? [specifiedVersion] : getAllNpmVersions('@tauri-apps/plugin-fs'),
-    '@tauri-apps/plugin-log': specifiedVersion ? [specifiedVersion] : getAllNpmVersions('@tauri-apps/plugin-log'),
-  };
-
-  const cargoVersions: Record<string, string[]> = {
-    tauri: specifiedVersion ? [specifiedVersion] : getAllCargoVersions('tauri'),
-    'tauri-build': specifiedVersion ? [specifiedVersion] : getAllCargoVersions('tauri-build'),
-    'tauri-plugin-fs': specifiedVersion ? [specifiedVersion] : getAllCargoVersions('tauri-plugin-fs'),
-    'tauri-plugin-log': specifiedVersion ? [specifiedVersion] : getAllCargoVersions('tauri-plugin-log'),
-  };
-
-  console.log(
-    `📋 Fetched ${npmVersions['@tauri-apps/api'].length} npm versions, ${cargoVersions.tauri.length} cargo versions\n`,
-  );
-
-  const alignedCore = specifiedVersion
-    ? specifiedVersion
-    : findAlignedVersion(npmVersions['@tauri-apps/api'], cargoVersions.tauri);
-  const alignedBuild = specifiedVersion
-    ? specifiedVersion
-    : findAlignedVersion(npmVersions['@tauri-apps/api'], cargoVersions['tauri-build']);
-  const alignedFs = specifiedVersion
-    ? specifiedVersion
-    : findAlignedVersion(npmVersions['@tauri-apps/plugin-fs'], cargoVersions['tauri-plugin-fs']);
-  const alignedLog = specifiedVersion
-    ? specifiedVersion
-    : findAlignedVersion(npmVersions['@tauri-apps/plugin-log'], cargoVersions['tauri-plugin-log']);
-
-  const npmCliVersion = specifiedVersion ? specifiedVersion : getLatestNpmVersion('@tauri-apps/cli');
+  const versions = resolveTauriVersions(liveRegistry, specifiedVersion);
 
   console.log('📋 Aligned versions (highest common version):');
-  console.log(`  Core (tauri):        ${alignedCore}`);
-  console.log(`  Build (tauri-build): ${alignedBuild}`);
-  console.log(`  Plugin (fs):         ${alignedFs}`);
-  console.log(`  Plugin (log):       ${alignedLog}`);
-  console.log(`  CLI (@tauri-apps/cli): ${npmCliVersion}`);
+  console.log(`  Core (tauri):        ${versions['cargo:tauri']}`);
+  console.log(`  Build (tauri-build): ${versions['cargo:tauri-build']}`);
+  console.log(`  Plugin (fs):         ${versions['cargo:tauri-plugin-fs']}`);
+  console.log(`  Plugin (log):       ${versions['cargo:tauri-plugin-log']}`);
+  console.log(`  CLI (@tauri-apps/cli): ${versions['npm:@tauri-apps/cli']}`);
   console.log('');
 
-  const versions: Record<string, string> = {
-    'npm:@tauri-apps/api': alignedCore,
-    'npm:@tauri-apps/cli': npmCliVersion,
-    'npm:@tauri-apps/plugin-fs': alignedFs,
-    'npm:@tauri-apps/plugin-log': alignedLog,
-    'cargo:tauri': alignedCore,
-    'cargo:tauri-build': alignedBuild,
-    'cargo:tauri-plugin-fs': alignedFs,
-    'cargo:tauri-plugin-log': alignedLog,
-  };
-
-  const newMajor = getMajor(alignedCore);
+  const newMajor = getMajor(versions['cargo:tauri']);
   const majorUpgrades: { fixture: string; from: number }[] = [];
 
   for (const fixture of FIXTURES) {
     console.log(`\n📦 Processing ${fixture.name}...`);
-    const currentMajor = getCurrentTauriMajor(fixture.cargoToml);
+    const currentMajor = parseTauriMajor(readFileSync(fixture.cargoToml, 'utf8'));
 
     updatePackageJson(fixture.packageJson, versions);
     updateCargoToml(fixture.cargoToml, versions);
@@ -312,4 +336,6 @@ function main() {
   }
 }
 
-main();
+if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+  main();
+}
