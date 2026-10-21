@@ -120,7 +120,7 @@ describe('TauriWorkerService', () => {
       expect(setSessionProvider).toHaveBeenCalledWith(mockBrowser, 'crabnebula');
     });
 
-    it('should resolve driverProvider per multiremote instance', async () => {
+    it("should use the launcher's first-instance driverProvider for every multiremote instance", async () => {
       const instanceA = createMockBrowser({ sessionId: 'session-a' });
       const instanceB = createMockBrowser({ sessionId: 'session-b' });
       const executeA = instanceA.execute as ReturnType<typeof vi.fn>;
@@ -140,9 +140,9 @@ describe('TauriWorkerService', () => {
       const clearedStaleMocks = (execute: ReturnType<typeof vi.fn>) =>
         execute.mock.calls.some(([script]) => typeof script === 'function' && script.name === 'clearStaleMocks');
       expect(setSessionProvider).toHaveBeenCalledWith(instanceA, 'external');
-      expect(setSessionProvider).toHaveBeenCalledWith(instanceB, 'embedded');
+      expect(setSessionProvider).toHaveBeenCalledWith(instanceB, 'external');
       expect(clearedStaleMocks(executeA)).toBe(false);
-      expect(clearedStaleMocks(executeB)).toBe(true);
+      expect(clearedStaleMocks(executeB)).toBe(false);
     });
 
     it('should treat an unset driverProvider as embedded in every provider check', async () => {

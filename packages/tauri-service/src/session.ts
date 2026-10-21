@@ -98,7 +98,9 @@ export async function init(
   const capabilities = copyCapabilities(callerCapabilities);
   const serviceOptions = mergeServiceOptions(globalOptions ?? {}, capabilities['wdio:tauriServiceOptions']);
   if (serviceOptions.captureBackendLogs || serviceOptions.captureFrontendLogs) {
-    if (serviceOptions.logDir) {
+    if (serviceOptions.mode === 'browser') {
+      log.warn('Log capture is unavailable in browser mode: there is no Tauri app process to capture logs from');
+    } else if (serviceOptions.logDir) {
       const writer = getLogWriter('tauri-service');
       writer.initialize(serviceOptions.logDir);
       log.debug(`Log writer initialized at ${writer.getLogDir()}`);

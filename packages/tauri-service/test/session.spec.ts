@@ -706,6 +706,13 @@ describe('session', () => {
       });
     });
 
+    it('should warn that log capture is unavailable instead of pointing at a log directory', async () => {
+      await init(browserModeCapabilities(), { captureBackendLogs: true });
+
+      expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('unavailable in browser mode'));
+      expect(mockLog.info).not.toHaveBeenCalledWith(expect.stringContaining('logs will be written to'));
+    });
+
     it('should stop the launcher, which stops the managed dev server, on cleanup', async () => {
       const browser = await init(browserModeCapabilities());
       expect(mockOnComplete).not.toHaveBeenCalled();

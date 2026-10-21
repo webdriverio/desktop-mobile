@@ -2,16 +2,8 @@
 // types in @wdio/native-types with implementation-specific fields needed by
 // the launcher / service.
 
-import type {
-  DioxusServiceGlobalOptions as BaseDioxusServiceGlobalOptions,
-  DioxusServiceOptions as BaseDioxusServiceOptions,
-} from '@wdio/native-types';
+import type { DioxusServiceOptions as BaseDioxusServiceOptions } from '@wdio/native-types';
 
-export type { DioxusCapabilities, DioxusDriverProvider } from '@wdio/native-types';
+export type { DioxusCapabilities, DioxusDriverProvider, DioxusServiceGlobalOptions } from '@wdio/native-types';
 
 export type DioxusServiceOptions = BaseDioxusServiceOptions;
-
-export interface DioxusServiceGlobalOptions extends BaseDioxusServiceGlobalOptions {
-  /** Overall app startup budget in ms (default 60000). A capability-level value takes precedence. */
-  startTimeout?: number;
-}

@@ -182,6 +182,12 @@ export default class DioxusWorkerService {
     );
 
     this.addDioxusApi(browser);
+    if (browser.isMultiremote) {
+      const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+      for (const instanceName of mrBrowser.instances) {
+        this.addDioxusApi(mrBrowser.getInstance(instanceName));
+      }
+    }
   }
 
   private async injectSpy(browser: WebdriverIO.Browser): Promise<void> {
