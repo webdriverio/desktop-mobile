@@ -233,6 +233,8 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for IOSExecutor<R> {
             PointerEventType::Down => "down",
             PointerEventType::Up => "up",
             PointerEventType::Move => "move",
+            // Click is left to the native touch dispatch, as on Android.
+            PointerEventType::Click => return Ok(()),
         };
 
         let args = TouchArgs {
