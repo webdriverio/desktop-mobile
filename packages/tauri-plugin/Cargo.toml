@@ -18,7 +18,7 @@ categories = [ "gui", "development-tools::testing" ]
 [dependencies]
 serde_json = "1.0"
 thiserror = "1.0"
-tauri-plugin = "2.0"
+tauri-plugin = "2.5.3"
 
 [dependencies.log]
 version = "0.4"
