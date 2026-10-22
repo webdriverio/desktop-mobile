@@ -19,9 +19,18 @@ on:
   schedule:
     - cron: '36 21 * * 0'
 
+# A new push to a PR cancels its previous analysis. On main a running analysis finishes, and a
+# newer push replaces one that's still queued.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   analyze:
     name: Analyze (${{ matrix.language }})
+    # Not on releasekit's standing PR (ci.standingPr.branch), which only bumps versions and changelogs.
+    # The repo check keeps a fork's branch of the same name scanned.
+    if: ${{ github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository }}
     # Runner size impacts CodeQL analysis time. To learn more, please see:
     #   - https://gh.io/recommended-hardware-resources-for-running-codeql
     #   - https://gh.io/supported-runners-and-hardware-resources
