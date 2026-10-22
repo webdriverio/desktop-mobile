@@ -9,6 +9,12 @@ export default defineConfig({
       provider: 'v8',
       include: ['guest-js/**/*.ts'],
       exclude: ['guest-js/**/__tests__/**', 'guest-js/**/*.spec.ts'],
+      thresholds: {
+        statements: 52,
+        branches: 64,
+        functions: 38,
+        lines: 54,
+      },
     },
   },
 });

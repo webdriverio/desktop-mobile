@@ -2,14 +2,10 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::webview::Cookie as TauriCookie;
-use tauri::{Runtime, WebviewWindow};
-
-#[cfg(desktop)]
-use tauri::Listener;
-#[cfg(desktop)]
-use tauri::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-
-use tauri::Manager;
+use tauri::{
+    Listener, LogicalPosition, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Runtime,
+    WebviewWindow,
+};
 
 use crate::platform::alert_state::{AlertStateManager, AlertType};
 use crate::platform::pointer_input::{pointer_event_script, PointerInputState};
@@ -35,7 +31,6 @@ pub struct WindowRect {
     pub height: u32,
 }
 
-#[cfg(desktop)]
 fn physical_window_rect_to_logical(
     position: PhysicalPosition<i32>,
     size: PhysicalSize<u32>,
@@ -52,7 +47,6 @@ fn physical_window_rect_to_logical(
     }
 }
 
-#[cfg(desktop)]
 fn physical_window_chrome_to_logical(
     outer: PhysicalSize<u32>,
     inner: PhysicalSize<u32>,
@@ -65,11 +59,9 @@ fn physical_window_chrome_to_logical(
     .to_logical(scale_factor)
 }
 
-#[cfg(desktop)]
 const WINDOW_CHANGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Physical-to-logical rounding can leave a requested logical value off by one pixel.
-#[cfg(desktop)]
 const LOGICAL_ROUNDING_TOLERANCE: u32 = 1;
 
 /// Apply a native window change and wait until `is_applied` confirms it.
@@ -80,7 +72,6 @@ const LOGICAL_ROUNDING_TOLERANCE: u32 = 1;
 ///
 /// Only the native call failing is an error; a change the window manager clamps or ignores
 /// just times out.
-#[cfg(desktop)]
 async fn apply_window_change<R, F, A>(
     window: &WebviewWindow<R>,
     event_name: &'static str,
@@ -115,7 +106,6 @@ where
 }
 
 /// Wait until `is_applied` holds, re-checking on each `notify`; returns `false` on timeout.
-#[cfg(desktop)]
 async fn wait_until_applied(
     notify: &tokio::sync::Notify,
     timeout: std::time::Duration,
@@ -130,7 +120,6 @@ async fn wait_until_applied(
     .is_ok()
 }
 
-#[cfg(desktop)]
 fn has_logical_position<R: Runtime>(window: &WebviewWindow<R>, x: i32, y: i32) -> bool {
     match (window.outer_position(), window.scale_factor()) {
         (Ok(position), Ok(scale_factor)) => {
@@ -142,7 +131,6 @@ fn has_logical_position<R: Runtime>(window: &WebviewWindow<R>, x: i32, y: i32) -
     }
 }
 
-#[cfg(desktop)]
 fn has_logical_inner_size<R: Runtime>(window: &WebviewWindow<R>, size: LogicalSize<u32>) -> bool {
     match (window.inner_size(), window.scale_factor()) {
         (Ok(inner_size), Ok(scale_factor)) => {
@@ -154,7 +142,7 @@ fn has_logical_inner_size<R: Runtime>(window: &WebviewWindow<R>, size: LogicalSi
     }
 }
 
-#[cfg(all(test, desktop))]
+#[cfg(test)]
 mod wait_until_applied_tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -199,7 +187,7 @@ mod wait_until_applied_tests {
     }
 }
 
-#[cfg(all(test, desktop))]
+#[cfg(test)]
 mod window_rect_tests {
     use super::*;
 
@@ -1675,7 +1663,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     // =========================================================================
 
     /// Get window rectangle (position and size)
-    #[cfg(desktop)]
     async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse> {
         let scale_factor = self.window().scale_factor().map_err(|error| {
             WebDriverErrorResponse::unknown_error(&format!(
@@ -1698,11 +1685,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         ))
     }
 
-    #[cfg(mobile)]
-    async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse>;
-
     /// Set window rectangle (position and size)
-    #[cfg(desktop)]
     async fn set_window_rect(
         &self,
         rect: WindowRect,
@@ -1799,7 +1782,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     }
 
     /// Maximize window
-    #[cfg(desktop)]
     async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
         apply_window_change(
             self.window(),
@@ -1813,14 +1795,12 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     }
 
     /// Minimize window
-    #[cfg(desktop)]
     async fn minimize_window(&self) -> Result<(), WebDriverErrorResponse> {
         let _ = self.window().minimize();
         Ok(())
     }
 
     /// Set window to fullscreen
-    #[cfg(desktop)]
     async fn fullscreen_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
         apply_window_change(
             self.window(),
@@ -1831,41 +1811,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         )
         .await?;
         self.get_window_rect().await
-    }
-
-    /// Set window rectangle (mobile unsupported)
-    #[cfg(mobile)]
-    async fn set_window_rect(
-        &self,
-        _rect: WindowRect,
-    ) -> Result<WindowRect, WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Setting window rect is not supported on mobile platforms",
-        ))
-    }
-
-    /// Maximize window (mobile unsupported)
-    #[cfg(mobile)]
-    async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Maximizing window is not supported on mobile platforms",
-        ))
-    }
-
-    /// Minimize window (mobile unsupported)
-    #[cfg(mobile)]
-    async fn minimize_window(&self) -> Result<(), WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Minimizing window is not supported on mobile platforms",
-        ))
-    }
-
-    /// Set window to fullscreen (mobile unsupported)
-    #[cfg(mobile)]
-    async fn fullscreen_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Fullscreen window is not supported on mobile platforms",
-        ))
     }
 
     // =========================================================================

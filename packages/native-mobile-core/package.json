@@ -33,7 +33,7 @@
     "dev": "pnpm run build:watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:unit": "vitest run --config vitest.config.ts",
+    "test:unit": "vitest run --config vitest.config.ts --coverage",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "biome check --linter-enabled=true --formatter-enabled=false src/",

@@ -37,15 +37,6 @@ vi.mock('../src/driverPool.js', () => ({
   },
 }));
 
-vi.mock('../src/portManager.js', () => ({
-  PortManager: class MockPortManager {
-    allocatePortPair = vi.fn().mockResolvedValue({ port: 4444, nativePort: 4445 });
-    allocatePorts = vi.fn().mockResolvedValue([{ port: 4444, nativePort: 4445 }]);
-    allocatePort = vi.fn().mockResolvedValue(4444);
-    clear = vi.fn();
-  },
-}));
-
 vi.mock('../src/pathResolver.js', () => ({
   getWebKitWebDriverPath: vi.fn().mockReturnValue('/usr/bin/WebKitWebDriver'),
 }));
@@ -73,6 +64,12 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
 vi.mock('@wdio/native-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-core')>()),
   startManagedDevServer: vi.fn(),
+  PortManager: class MockPortManager {
+    allocatePortPair = vi.fn().mockResolvedValue({ port: 4444, nativePort: 4445 });
+    allocatePorts = vi.fn().mockResolvedValue([{ port: 4444, nativePort: 4445 }]);
+    allocatePort = vi.fn().mockResolvedValue(4444);
+    clear = vi.fn();
+  },
   closeLogWriter: vi.fn().mockResolvedValue(undefined),
 }));
 
