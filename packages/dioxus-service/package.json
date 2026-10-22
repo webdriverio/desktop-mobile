@@ -65,7 +65,7 @@
   "devDependencies": {
     "@repo/test-utils": "workspace:*",
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.5",
     "@vitest/coverage-v8": "^5.0.5",
     "@wdio/bundler": "workspace:*",
     "shx": "^0.4.0",

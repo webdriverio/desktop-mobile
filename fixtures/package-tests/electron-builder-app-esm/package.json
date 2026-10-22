@@ -15,7 +15,7 @@
     "type-check": "tsc --noEmit"
   },
   "devDependencies": {
-    "@types/node": "^26.6.4",
+    "@types/node": "^26.6.5",
     "@wdio/cli": "^9.31.9",
     "@wdio/electron-service": "workspace:*",
     "@wdio/globals": "^9.31.3",

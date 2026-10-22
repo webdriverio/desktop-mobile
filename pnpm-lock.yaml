@@ -212,8 +212,8 @@ importers:
         specifier: 2.5.15
         version: 2.5.15
       '@inquirer/prompts':
-        specifier: ^8.7.3
-        version: 8.7.3(@types/node@26.6.4)
+        specifier: ^8.7.4
+        version: 8.7.4(@types/node@26.6.5)
       '@octokit/rest':
         specifier: ^22.0.1
         version: 22.0.1
@@ -221,17 +221,17 @@ importers:
         specifier: ^0.41.2
         version: 0.41.2(conventional-commits-parser@6.4.0)(ws@8.21.3(bufferutil@4.1.0)(utf-8-validate@6.0.6))
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@types/shelljs':
         specifier: ^0.10.0
         version: 0.10.0
       '@typescript-eslint/parser':
-        specifier: ^8.71.0
-        version: 8.71.0(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+        specifier: ^8.72.0
+        version: 8.72.0(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
       '@vitest/eslint-plugin':
         specifier: ^1.6.27
-        version: 1.6.27(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)(vitest@5.0.5)
+        version: 1.6.27(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)(vitest@5.0.5)
       chalk:
         specifier: ^6.0.1
         version: 6.0.1
@@ -239,11 +239,11 @@ importers:
         specifier: ^10.1.0
         version: 10.1.0
       eslint:
-        specifier: ^10.12.0
-        version: 10.12.0(jiti@2.7.0)(supports-color@8.1.1)
+        specifier: ^10.13.0
+        version: 10.13.0(jiti@2.7.0)(supports-color@8.1.1)
       eslint-plugin-wdio:
         specifier: ^9.31.3
-        version: 9.31.3(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(globals@17.13.0)
+        version: 9.31.3(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))(globals@17.13.0)
       globals:
         specifier: ^17.13.0
         version: 17.13.0
@@ -263,14 +263,14 @@ importers:
         specifier: ^0.4.0
         version: 0.4.0
       turbo:
-        specifier: 2.11.7
-        version: 2.11.7
+        specifier: 2.11.9
+        version: 2.11.9
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
@@ -282,7 +282,7 @@ importers:
         version: 9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/cli':
         specifier: catalog:default
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/dioxus-service':
         specifier: link:../packages/dioxus-service
         version: link:../packages/dioxus-service
@@ -342,8 +342,8 @@ importers:
         specifier: ^10.0.10
         version: 10.0.10
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/spy':
         specifier: ^5.0.5
         version: 5.0.5
@@ -355,16 +355,16 @@ importers:
         version: 9.31.2
       appium:
         specifier: ^3.8.0
-        version: 3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       appium-flutter-driver:
         specifier: ^4.1.0
-        version: 4.1.0(@appium/logger@2.0.12)(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 4.1.0(@appium/logger@2.0.12)(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       appium-uiautomator2-driver:
         specifier: ^8.7.0
-        version: 8.7.0(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        version: 8.7.0(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       appium-xcuitest-driver:
         specifier: ^12.19.1
-        version: 12.19.1(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        version: 12.19.1(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       cross-env:
         specifier: ^10.1.0
         version: 10.1.0
@@ -399,11 +399,11 @@ importers:
   fixtures/e2e-apps/electron-builder:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/cli':
         specifier: catalog:default
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/globals':
         specifier: catalog:default
         version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
@@ -421,7 +421,7 @@ importers:
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -435,11 +435,11 @@ importers:
         specifier: catalog:default
         version: 7.11.2(bluebird@3.7.2)(encoding@0.1.13)(esbuild@0.28.2)(lightningcss@1.33.0)(postcss@8.5.28)(supports-color@8.1.1)(uglify-js@3.19.3)
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/cli':
         specifier: catalog:default
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/globals':
         specifier: catalog:default
         version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
@@ -454,7 +454,7 @@ importers:
         version: 44.9.1(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -465,11 +465,11 @@ importers:
   fixtures/e2e-apps/electron-script:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/cli':
         specifier: catalog:default
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/globals':
         specifier: catalog:default
         version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
@@ -484,7 +484,7 @@ importers:
         version: 44.9.1(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -515,7 +515,7 @@ importers:
         version: 2.12.4
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/local-runner':
         specifier: ^9.31.9
         version: 9.31.9(@wdio/globals@9.31.3)(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
@@ -533,13 +533,13 @@ importers:
         version: 6.0.3
       vite:
         specifier: ^8.3.4
-        version: 8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+        version: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   fixtures/package-tests/dioxus-app:
     devDependencies:
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/dioxus-service':
         specifier: workspace:*
         version: link:../../../packages/dioxus-service
@@ -576,7 +576,7 @@ importers:
         version: 10.0.10
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/electrobun-service':
         specifier: workspace:*
         version: link:../../../packages/electrobun-service
@@ -602,11 +602,11 @@ importers:
   fixtures/package-tests/electron-builder-app-cjs:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
@@ -633,7 +633,7 @@ importers:
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -641,11 +641,11 @@ importers:
   fixtures/package-tests/electron-builder-app-esm:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
@@ -672,7 +672,7 @@ importers:
         version: 26.15.3(electron-builder-squirrel-windows@26.15.3)(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -695,11 +695,11 @@ importers:
         specifier: 7.11.2
         version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
@@ -729,7 +729,7 @@ importers:
         version: 44.9.1(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -752,11 +752,11 @@ importers:
         specifier: 7.11.2
         version: 7.11.2(bluebird@3.7.2)(supports-color@8.1.1)
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
@@ -786,7 +786,7 @@ importers:
         version: 44.9.1(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -794,14 +794,14 @@ importers:
   fixtures/package-tests/electron-script-app-cjs:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@types/semver':
         specifier: ^7.8.0
         version: 7.8.0
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
@@ -825,7 +825,7 @@ importers:
         version: 44.9.1(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       semver:
         specifier: ^7.8.5
         version: 7.8.5
@@ -836,14 +836,14 @@ importers:
   fixtures/package-tests/electron-script-app-esm:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@types/semver':
         specifier: ^7.8.0
         version: 7.8.0
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/electron-service':
         specifier: workspace:*
         version: link:../../../packages/electron-service
@@ -867,7 +867,7 @@ importers:
         version: 44.9.1(supports-color@8.1.1)
       electron-vite:
         specifier: 6.0.0
-        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       semver:
         specifier: ^7.8.5
         version: 7.8.5
@@ -881,14 +881,14 @@ importers:
         specifier: ^10.0.10
         version: 10.0.10
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/appium-service':
         specifier: ^9.32.0
         version: 9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/flutter-service':
         specifier: workspace:*
         version: link:../../../packages/flutter-service
@@ -909,10 +909,10 @@ importers:
         version: 9.31.2
       appium:
         specifier: ^3.8.0
-        version: 3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       appium-flutter-driver:
         specifier: ^4.1.0
-        version: 4.1.0(@appium/logger@2.0.12)(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 4.1.0(@appium/logger@2.0.12)(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -923,14 +923,14 @@ importers:
         specifier: ^10.0.10
         version: 10.0.10
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/appium-service':
         specifier: ^9.32.0
         version: 9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/globals':
         specifier: ^9.31.3
         version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
@@ -951,13 +951,13 @@ importers:
         version: 9.31.2
       appium:
         specifier: ^3.8.0
-        version: 3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       appium-uiautomator2-driver:
         specifier: ^8.7.0
-        version: 8.7.0(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        version: 8.7.0(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       appium-xcuitest-driver:
         specifier: ^12.19.1
-        version: 12.19.1(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        version: 12.19.1(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -979,7 +979,7 @@ importers:
         version: 2.12.4
       '@wdio/cli':
         specifier: ^9.31.9
-        version: 9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
+        version: 9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)
       '@wdio/local-runner':
         specifier: ^9.31.9
         version: 9.31.9(@wdio/globals@9.31.3)(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
@@ -1018,7 +1018,7 @@ importers:
         version: 4.64.12
       rollup-plugin-node-externals:
         specifier: ^9.0.1
-        version: 9.0.1(rollup@4.64.12)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 9.0.1(rollup@4.64.12)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       typescript:
         specifier: ^6.0.3
         version: 6.0.3
@@ -1027,8 +1027,8 @@ importers:
         specifier: ^4.1.12
         version: 4.1.13
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1043,13 +1043,13 @@ importers:
         version: 4.23.15
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/dioxus-bridge:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1057,8 +1057,8 @@ importers:
         specifier: ^0.28.2
         version: 0.28.2
       happy-dom:
-        specifier: ^20.14.5
-        version: 20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+        specifier: ^20.14.6
+        version: 20.14.6(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -1067,7 +1067,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.6(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/dioxus-service:
     dependencies:
@@ -1115,8 +1115,8 @@ importers:
         specifier: ^4.1.12
         version: 4.1.13
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1131,7 +1131,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/electrobun-service:
     dependencies:
@@ -1182,8 +1182,8 @@ importers:
         specifier: ^4.1.12
         version: 4.1.13
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1198,7 +1198,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/electron-service:
     dependencies:
@@ -1213,7 +1213,7 @@ importers:
         version: 20.3.0(supports-color@8.1.1)
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/logger':
         specifier: catalog:default
         version: 9.29.1
@@ -1279,8 +1279,8 @@ importers:
         specifier: ^1.5.0
         version: 1.5.0
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1322,7 +1322,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/flutter-service:
     dependencies:
@@ -1355,8 +1355,8 @@ importers:
         version: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@types/ws':
         specifier: ^8.18.2
         version: 8.18.2
@@ -1377,7 +1377,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-cdp-bridge:
     dependencies:
@@ -1395,8 +1395,8 @@ importers:
         specifier: workspace:*
         version: link:../test-utils
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@types/ws':
         specifier: ^8.18.2
         version: 8.18.2
@@ -1429,7 +1429,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-core:
     dependencies:
@@ -1456,8 +1456,8 @@ importers:
         specifier: ^4.1.12
         version: 4.1.13
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1472,7 +1472,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-mobile-core:
     dependencies:
@@ -1499,8 +1499,8 @@ importers:
         specifier: workspace:*
         version: link:../test-utils
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1515,13 +1515,13 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-spy:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1536,7 +1536,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/native-types:
     devDependencies:
@@ -1547,8 +1547,8 @@ importers:
         specifier: ^20.3.0
         version: 20.3.0(supports-color@8.1.1)
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
@@ -1608,8 +1608,8 @@ importers:
         specifier: ^4.1.12
         version: 4.1.13
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1630,7 +1630,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/react-native-service:
     dependencies:
@@ -1663,8 +1663,8 @@ importers:
         version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@vitest/coverage-v8':
         specifier: ^5.0.5
         version: 5.0.5(vitest@5.0.5)
@@ -1682,7 +1682,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/tauri-plugin:
     dependencies:
@@ -1716,7 +1716,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: 5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/tauri-service:
     dependencies:
@@ -1767,8 +1767,8 @@ importers:
         specifier: ^4.1.12
         version: 4.1.13
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
@@ -1786,13 +1786,13 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/test-utils:
     devDependencies:
       '@types/node':
-        specifier: ^26.6.4
-        version: 26.6.4
+        specifier: ^26.6.5
+        version: 26.6.5
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
@@ -1804,7 +1804,7 @@ importers:
         version: 6.0.3
       vitest:
         specifier: ^5.0.5
-        version: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+        version: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
 packages:
 
@@ -2907,8 +2907,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/checkbox@5.2.6':
-    resolution: {integrity: sha512-XkOardciF3tow2NUlY6/Qjk1QqYa+6WpmVLTpxXl97Uv4erczDEZ+xg1j6LqBf0ekcRSUiICQA4nQXHHkVKQ9w==}
+  '@inquirer/checkbox@5.2.7':
+    resolution: {integrity: sha512-/+QmGE/9bvE/EobaZDnzYe+T+QWoJrnmxwBQNtoi2OVSUR9d1znYsNyEoUrOZvFSxDYttrhzRIpXpaLkN+iIsg==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -2929,8 +2929,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/confirm@6.3.3':
-    resolution: {integrity: sha512-ImOBgpl/sJTFp8naeSkNu4S0Sf8F8pxv3/CUx+LoBAdQvCVqFz6rSB2A/oZYsJge3+yphbEDxEkfaRNYq1OU0A==}
+  '@inquirer/confirm@6.3.4':
+    resolution: {integrity: sha512-ZwnaZZDa1zxsyVrN32s447ydMnKcw7e8WWNT+R+Qsu0zAn8Rs6yi9d1B80Kob1Ul2cfUi7t8JD2t4/K7uEZpqA==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -2947,8 +2947,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/core@12.0.4':
-    resolution: {integrity: sha512-M5fB67y7jPObI45vhD82RskWwCSm0scOvenV/I6K8tIi2gfr9DXqQqJ+iw+Wi6SgapikdOiJibYzz1gW47fsDg==}
+  '@inquirer/core@12.0.5':
+    resolution: {integrity: sha512-c0ZSnO9oVk/IlEGoZK3u8b3IZQeu9I6jUkXJSQnQEVRXsjKvtAq3AGqFL2LgfJhlzMZne08pZHWRWasIcI3Rew==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -2973,8 +2973,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/editor@5.3.4':
-    resolution: {integrity: sha512-imzxQDfw26NpcJAubMj/dE5RjU9Mp80IcT+FzsD6YoxXmL8L1QYnAFdCNv7ccGWh//73+0YP+1kfhwnExdl2VQ==}
+  '@inquirer/editor@5.3.5':
+    resolution: {integrity: sha512-6lU3/pPx5z3lHWejFW061MV4qZooBQYv/+EeGhNOPiP/i+hrYsHfxxBnnDGsAfg8YdLUd69YckoeOjtr3QuAUg==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -2995,8 +2995,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/expand@5.1.6':
-    resolution: {integrity: sha512-JfiLKi7qGuHmcQO/DqR10UFEp054Y1FXZaszP5ZEfHhgHeuFoT5nNFQIXFhed/5/p07SbsV2tIJFwG/dg5+NmQ==}
+  '@inquirer/expand@5.1.7':
+    resolution: {integrity: sha512-eiJ31YFCaB6fLoJCqLIn8S6eqUyME6vwr8KcP5h8cxmA+bV9RRVPO+kywoxb7G63HduDXV6sN/SM7o2R+ahEcQ==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3043,8 +3043,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/input@5.1.7':
-    resolution: {integrity: sha512-Icrs9tuMBCxGI+lFYNO71VFOnqGO8IIrLIGqnTGh07X8jZ2la9QLAYxXcikHZQjjVhIZUtU2xyH89DVN/pPhVg==}
+  '@inquirer/input@5.1.8':
+    resolution: {integrity: sha512-psOSTgkL8y/OtgJJYbqJ0oISr2QBE0U1Ro/qQdA/EKjeJiwiUTQgQmq8o4ESNzVOWthIeh3YLD7BCUR9dKnR5g==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3065,8 +3065,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/number@4.2.4':
-    resolution: {integrity: sha512-C6g80U4U2+w2Vxa1CB0MN3a2WnQIfzLSUG0lduO3Au9GsirJsKATZkOwZPK+vZ1BlAlz+/Z5ParfQCS9E0svmg==}
+  '@inquirer/number@4.2.5':
+    resolution: {integrity: sha512-lEy7LWsdF5qHx5QjHZqabUqM9P7i5uTMCt8GRzqxmwXXKbapKJDA+ucVflVVPAyj4snD5DTAD4L+sct85XOlOQ==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3087,8 +3087,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/password@5.2.3':
-    resolution: {integrity: sha512-1Uo2qfI2K3wXbfunMpvwAzoZPIUf5iEETwDGqRVbswoorXGqYQJ/bfIJFeLj+pxjq+e2UFPNOmx+fsIl4Urigw==}
+  '@inquirer/password@5.2.4':
+    resolution: {integrity: sha512-T7ir3fflSSVCYEVqNyMBq+pIMsilQRtbZcD5gxn6Ewsin5TJWBxrGBdXveWtmeXVAeoInfhS+BhBUZaL4sFSDg==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3109,8 +3109,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/prompts@8.7.3':
-    resolution: {integrity: sha512-DHK20kO+H5k/XcJQpHQUpVQbMYHHhZchlGWhZVMUV4WIuRuBW5744hipOtriE1vMqPLgnIyXFMHWKkIbTepa4Q==}
+  '@inquirer/prompts@8.7.4':
+    resolution: {integrity: sha512-SAJt+QhY5rOJAIgZBw9TrHWfgrp6wsb9cqRCyqax+Hl6EiFfRXmD9EsIWkST8yq/dQ8H46Is2Sr/JG7Ls/LQ+Q==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3131,8 +3131,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/rawlist@5.3.6':
-    resolution: {integrity: sha512-2exExhQ5xTBqfN/rRlZkvM1Gm3b0eiLcWe2NqxWxe7qYmnU4M3j/n9TwzfPUb+Q7dAAz9TmBtDWWdF3jbp4ZLA==}
+  '@inquirer/rawlist@5.3.7':
+    resolution: {integrity: sha512-XveEe8v3BHj9ec00n+9i8FHjWhXjS6+jCTizYvXCqKUKtgkrq9xid8S5j3mYGW96qfxG3mwNoud3m3v8GDk9Pw==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3153,8 +3153,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/search@4.3.4':
-    resolution: {integrity: sha512-xsk0UeFP04jsbEeFMzghjUaH2aHXyt+WykSajQzq/8qyBNHsgGYHea/sFwv5T08kW7Sp+KDX8aF124zPUIs1Ww==}
+  '@inquirer/search@4.3.5':
+    resolution: {integrity: sha512-kIUecMugEN2YTvTmff+uYz0nAE0f9RFNDVZknfrh264vAQM9P8tnsXiUp7z8XbGuNIBEtFMJhvc9QquawpC46A==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3175,8 +3175,8 @@ packages:
       '@types/node':
         optional: true
 
-  '@inquirer/select@5.2.6':
-    resolution: {integrity: sha512-jFu7CFghlr0vpi/326a4wz6BGkJH9X3H/iIu+ahyV2Ja52ktqQE3fC9BYP47JKeSPQYGUv5xquE2Vp9PbepZ3g==}
+  '@inquirer/select@5.2.7':
+    resolution: {integrity: sha512-pRDWO4dTqSAvFQdO8yclKMtXNDm9K9HmvWB5UZmT3clw2OlOBNXveHzhyFmO/0d0yJMqlPcNITus1Jtpm6t8VQ==}
     engines: {node: '>=23.5.0 || ^22.13.0 || ^20.17.0'}
     peerDependencies:
       '@types/node': '>=18'
@@ -3873,33 +3873,33 @@ packages:
   '@tootallnate/quickjs-emscripten@0.23.0':
     resolution: {integrity: sha512-C5Mc6rdnsaJDjO3UpGW/CQTHtCKaYlScZTly4JIu97Jxo/odCiH0ITnDXSJPTOrEKk/ycSZ0AOgTmkDtkOsvIA==}
 
-  '@turbo/darwin-64@2.11.7':
-    resolution: {integrity: sha512-Z2LFOxwbiJueD1miByXJS/BrW21vv6YaQXZustty5jEX4vQYw6zyh101Sz1QO7WG0mqBzKagZ/DoAeeujI0/Sw==}
+  '@turbo/darwin-64@2.11.9':
+    resolution: {integrity: sha512-OkW+EESJjo248CThWe9DfuUqzGcRwHe1DXKWRw9DSZ0lMkocKbbwNMjWVCiO+WNBcARDM0ibu0c9SbuIe4mw6w==}
     cpu: [x64]
     os: [darwin]
 
-  '@turbo/darwin-arm64@2.11.7':
-    resolution: {integrity: sha512-Vhv8ybgIflosNDSSRD9fNXHlCFA60dsGyTqQmc7l28SEX5jOaweCCD4BBYNd8/p0WGkw3e7tZbfA9w6FsujGvw==}
+  '@turbo/darwin-arm64@2.11.9':
+    resolution: {integrity: sha512-NIbFEogMaIyOi2egLH7XtuW0DXmPOpydnanyB3rw/WXCPYl1OAFRPHPGixIaakGnfNLey8LMmKemgNtqtFKdcg==}
     cpu: [arm64]
     os: [darwin]
 
-  '@turbo/linux-64@2.11.7':
-    resolution: {integrity: sha512-rAqRp3blQKk1+ylMGlZHAW0eJjVNuuGUm4ZrC6RU1Im8tLryvaO4a2zLQ/FQi1TRlmKqKV9YXBki2YeytlLbXA==}
+  '@turbo/linux-64@2.11.9':
+    resolution: {integrity: sha512-RkD/Atqqek2WNnYJlmPogZpXjAW+cSsPXDn7E0mufSNN86ClXCSKme/BBYMeIvPoFZ4egPJLF+JpYkuuNkMYhg==}
     cpu: [x64]
     os: [android, linux]
 
-  '@turbo/linux-arm64@2.11.7':
-    resolution: {integrity: sha512-thVYGov7S+llXAxrl3kBb/efalav0xhrjl5NHCR6AfKx14JkbqaetvbVwyss4FvZ9rt+Pv3xsTb+8SIYix8DTg==}
+  '@turbo/linux-arm64@2.11.9':
+    resolution: {integrity: sha512-iW/0YGS9D9YlgD4ad2IEEolD9PuNJGdkEI650AELLln8YaGsloiH8QyTUnajjxPufMuY/eWRWxO+PMBYsGvVlA==}
     cpu: [arm64]
     os: [android, linux]
 
-  '@turbo/windows-64@2.11.7':
-    resolution: {integrity: sha512-ZIoKT7J7KutgYl4bGxmmgeUQjG+7E0nY8BF9dxUOiMH2vdTsM4JQ2uSwTYFkTR2Llbg6ghGjSmuZ8LQtkLEYjg==}
+  '@turbo/windows-64@2.11.9':
+    resolution: {integrity: sha512-rg/kuQmSm9m/z8W5HYHLMSnTbLDXBs/9liVZh9YnfkGYm0DlFj2SV9/0fQy/EpJTq81O36kMb7p8Fmt9f67ocA==}
     cpu: [x64]
     os: [win32]
 
-  '@turbo/windows-arm64@2.11.7':
-    resolution: {integrity: sha512-88Xv2f7SLGVJ68lRRx8o375dKmnZYNdDtvlKcPA0kZpcF93eAQd8l96BKQ0/AMHG0bMJA0Z5QqoqtetxzNsC+g==}
+  '@turbo/windows-arm64@2.11.9':
+    resolution: {integrity: sha512-PgjBpLPW/WDsKzeBmNuw2QHtPxT/PtcloN3rHFTqVyMsqkLlyHVJbSusuhYoYFdi08lZ9Stryw66UOuPg/yW0w==}
     cpu: [arm64]
     os: [win32]
 
@@ -3972,6 +3972,9 @@ packages:
   '@types/node@26.6.4':
     resolution: {integrity: sha512-ldVPDCzj7fsaGZrLB0NuHuTvJcsNasysBAqMolr/cgxrLd1xbqxIr3XJiPnHHJUCxj5sNF1vnRj9aWnrVh5Jcg==}
 
+  '@types/node@26.6.5':
+    resolution: {integrity: sha512-uMzsv9stDdofIZBx4UGh4Z9ZgXnGC9seRDscilBcTHAeOFk67MZg/k9bWVfO+bk4qZmG+l52hRnLwUiH2LnJTg==}
+
   '@types/normalize-package-data@2.4.4':
     resolution: {integrity: sha512-37i+OaWTh9qeK4LSHPsyRC7NahnGotNuZvjLSgcPzblpHB3rrCJxAOgI5gCdKm7coonsaX1Of0ILiTcnZjbfxA==}
 
@@ -4017,8 +4020,8 @@ packages:
   '@types/yauzl@2.10.3':
     resolution: {integrity: sha512-oJoftv0LSuaDZE3Le4DbKX+KS9G36NzOeSap90UIK0yMA/NhKJhqlSGtNDORNRaIbQfzjXDrQa0ytJ6mNRGz/Q==}
 
-  '@typescript-eslint/parser@8.71.0':
-    resolution: {integrity: sha512-CG4nPk1f2zc8yw4pALqHsFYH2hdo+h1T9daSp21+Hnxi9LOE3GT9hAfTKJCBXVNM2GmYs1eMEP615wPoeOgk3A==}
+  '@typescript-eslint/parser@8.72.0':
+    resolution: {integrity: sha512-0O+x3ynciD6zuXb1CKSu165haQV6ey53DKhHHUnujP7U+XlltJG+/keT0Xhd1HXCze+IHf7Tvt39ovyepX/LNw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       eslint: ^8.57.0 || ^9.0.0 || ^10.0.0
@@ -4030,8 +4033,8 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
 
-  '@typescript-eslint/project-service@8.71.0':
-    resolution: {integrity: sha512-aABjw5rjBacYONVPaPiWOCjJu0vEF4a25iQuodlmQYL1trtLZ0X/y+2Vzl3BKI1odM4LnwLE1oUDXYp1wzx1TQ==}
+  '@typescript-eslint/project-service@8.72.0':
+    resolution: {integrity: sha512-bzHngBbmIgzj6TsTjVUCntGx6FFLgE7mPjpO0PzHycOaZHXqS43XnrkFIHRS16LLr/xO6FHSXG3GJFo/F4bSBQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
@@ -4040,8 +4043,8 @@ packages:
     resolution: {integrity: sha512-ewfspqWvSxKSOaplqAUNbaSFO0eB6w1EtQ+esfYFRm3614Ty4uNtExkcbgd6nWsXphbqKyf9ZYdbZdv2xEoWEQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@typescript-eslint/scope-manager@8.71.0':
-    resolution: {integrity: sha512-gWF0BhUcnjZxSpLE8ngS/59n2SB0J3YqRxvX1+2aoRJk9hNtHSLOV+TcarFiOr5ipXm3yc1QrI4c9YZc8zyCxw==}
+  '@typescript-eslint/scope-manager@8.72.0':
+    resolution: {integrity: sha512-JewPyJOYcXBSAS7PIgufscHOwZqhTGyBRiQJhhuDln66tMchxvvt7nJ90JKKIoOelmdHA3kAQbm9cEUHc4JSEA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@typescript-eslint/tsconfig-utils@8.69.0':
@@ -4050,8 +4053,8 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
 
-  '@typescript-eslint/tsconfig-utils@8.71.0':
-    resolution: {integrity: sha512-Z1UlWHADEK2Mlb9NpWfDeSjqoZ5EyrOv4R3eQpbkzqn/EwaIdOpXXupEA1+0ZIOSJSZZDBHG0BrQyN8zUG6Pwg==}
+  '@typescript-eslint/tsconfig-utils@8.72.0':
+    resolution: {integrity: sha512-0vbxCf7xLVPSjcOdm6eQbgViH8EDJ8xnl1laLT9yoqSz2YmcSfSg5Vdl0JUvZf6rcuJ0ZivJIuMD4edTg8obaA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
@@ -4060,8 +4063,8 @@ packages:
     resolution: {integrity: sha512-K3VrubUPhlo9VDBS6QdI8YB5j7ClpqLRdefcz6PFrhnwicehBweqQ9Evhl4l+FYz0HdDmMqIiSX0aldGRYtDCA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@typescript-eslint/types@8.71.0':
-    resolution: {integrity: sha512-cJ4OoxPGWvFnBTnSZyaU+qJzGTqPTGJY+gDchj6cRyLRdmIdt4rcsE4twj+zPfrNiWuVi38wijHzShL++Z9atQ==}
+  '@typescript-eslint/types@8.72.0':
+    resolution: {integrity: sha512-Adfoy59kxNEjT5E5fnyrp7GpHYuWs8ONbdohu4ez6IU46qDq8LltG90tLmkucZB2uhYL8mqBjtXqGd8yhfjXqQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@typescript-eslint/typescript-estree@8.69.0':
@@ -4070,8 +4073,8 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
 
-  '@typescript-eslint/typescript-estree@8.71.0':
-    resolution: {integrity: sha512-PEEF4G5sLLWAS5BpPrUvms4ySZkiBQQZM4z+3ReI46axK5Vqr/vXBQatJQIZZOYdGyPUAKTtsrWzpqKuU+3DEw==}
+  '@typescript-eslint/typescript-estree@8.72.0':
+    resolution: {integrity: sha512-gwLfFgWcw15tN2KXDCJvxEOQjPn+P3j/n3eSqkZ5sX4VpW9Cosodr+tWwBZRvJT3TcKx6HnPRGZMCNAiP1Xhug==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
     peerDependencies:
       typescript: '>=4.8.4 <6.1.0'
@@ -4087,8 +4090,8 @@ packages:
     resolution: {integrity: sha512-+rmdgPA+EXkNgKYvHvFfhrs35utXbwaC5PGpDquSXcoXQDKUA5UjV0LmTucG/4JXkM31BTu4TilHtrN8IVBe8w==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@typescript-eslint/visitor-keys@8.71.0':
-    resolution: {integrity: sha512-8eQ9R218XORK+KLosnf4bu/QsUXvUyVwTbArg7/0NMB1Pu87OJKvj4nhFblkYE8gQV73mW1dx1ptlPCkwRGa7A==}
+  '@typescript-eslint/visitor-keys@8.72.0':
+    resolution: {integrity: sha512-E2mroviasaWecDzTGiGMtuEguuLVOeRggnrIn93CJuxYJzQBHbyymlT08aVQydbBal5538o+JkBKXh2sRuCyIA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@vitest/coverage-v8@5.0.5':
@@ -5553,8 +5556,8 @@ packages:
     resolution: {integrity: sha512-tD40eHxA35h0PEIZNeIjkHoDR4YjjJp34biM0mDvplBe//mB+IHCqHDGV7pxF+7MklTvighcCPPZC7ynWyjdTA==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
 
-  eslint@10.12.0:
-    resolution: {integrity: sha512-npHjrHb2o4ehH3mE+YuxABR+0gyb0aVWCIolgJDArwCiHEIsonBm3ZKjel5b0U5+a+MbEvIyRCGCzD3eKKK2NA==}
+  eslint@10.13.0:
+    resolution: {integrity: sha512-UohDjD4zSzEwhf58M3O7vc/ycc8O1I7dNlhtD0WxE8Px8EHNJKtUwzBqrzeGhisRuv2ag4sAYswszCJRgKXYUg==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
     hasBin: true
     peerDependencies:
@@ -6041,6 +6044,10 @@ packages:
 
   happy-dom@20.14.5:
     resolution: {integrity: sha512-x/RzkpWO40bTjIoT30iQtt64FLLmH/iRcUCN2X//bLx7H3ifkdfPXyqsro/OYtqzIAhiLMMA7mmiOR9C3NOKjQ==}
+    engines: {node: '>=20.0.0'}
+
+  happy-dom@20.14.6:
+    resolution: {integrity: sha512-5DDsf4QmEIlRL6NkCv/fxSjYHHkZceL/IaYQdJc2h3G7DRTEai++VTjbfL0LB9geW2VrA3+vrjF3Efx+OTtX0Q==}
     engines: {node: '>=20.0.0'}
 
   has-flag@4.0.0:
@@ -8272,8 +8279,8 @@ packages:
     engines: {node: '>=18.0.0'}
     hasBin: true
 
-  turbo@2.11.7:
-    resolution: {integrity: sha512-RhXHbqfvY6o3xt/zSHCwSNwLrZlXiqHzewi4eAj9PtZ1T1CqgMJ2yIDb7SKPTG9IikTm925mfzL6hldQVdyNWw==}
+  turbo@2.11.9:
+    resolution: {integrity: sha512-k2ev5dv9OgP2pJwaPuydkZdid+haX2U5TDGcPtpAz0gb0nbRR3eXY/cpfrlvHih52YRTxWIcRVKc0ri3C2Scrg==}
     hasBin: true
 
   type-check@0.4.0:
@@ -8821,9 +8828,9 @@ snapshots:
     optionalDependencies:
       zod: 4.5.4
 
-  '@appium/base-driver@10.8.1(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+  '@appium/base-driver@10.8.1(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@appium/types': 1.7.1(@appium/logger@2.0.12)
       async-lock: 1.4.1
       asyncbox: 6.4.3
@@ -8849,10 +8856,10 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  '@appium/base-plugin@3.3.5(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+  '@appium/base-plugin@3.3.5(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
-      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@appium/types': 1.7.1(@appium/logger@2.0.12)
     transitivePeerDependencies:
       - '@appium/logger'
@@ -8867,9 +8874,9 @@ snapshots:
     dependencies:
       css-selector-parser: 3.3.0
 
-  '@appium/docutils@3.0.1(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+  '@appium/docutils@3.0.1(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       consola: 3.4.2
       diff: 9.0.0
       lilconfig: 3.1.3
@@ -8904,7 +8911,7 @@ snapshots:
       env-paths: 4.0.0
     optional: true
 
-  '@appium/support@7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
+  '@appium/support@7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)':
     dependencies:
       '@appium/logger': 2.0.12
       '@appium/types': 1.7.1(@appium/logger@2.0.12)
@@ -8931,7 +8938,7 @@ snapshots:
       which: 6.0.1
       yauzl: 3.4.0
     optionalDependencies:
-      sharp: 0.35.4(@types/node@26.6.4)
+      sharp: 0.35.4(@types/node@26.6.5)
     transitivePeerDependencies:
       - '@types/node'
       - bare-abort-controller
@@ -9772,9 +9779,9 @@ snapshots:
   '@esbuild/win32-x64@0.28.2':
     optional: true
 
-  '@eslint-community/eslint-utils@4.10.1(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))':
+  '@eslint-community/eslint-utils@4.10.1(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))':
     dependencies:
-      eslint: 10.12.0(jiti@2.7.0)(supports-color@8.1.1)
+      eslint: 10.13.0(jiti@2.7.0)(supports-color@8.1.1)
       eslint-visitor-keys: 3.4.3
 
   '@eslint-community/regexpp@4.12.2': {}
@@ -10063,68 +10070,68 @@ snapshots:
       ansi-escapes: 4.3.2
       yoctocolors-cjs: 2.1.3
 
-  '@inquirer/checkbox@4.3.2(@types/node@26.6.4)':
+  '@inquirer/checkbox@4.3.2(@types/node@26.6.5)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/checkbox@5.2.6(@types/node@26.6.4)':
+  '@inquirer/checkbox@5.2.7(@types/node@26.6.5)':
     dependencies:
       '@inquirer/ansi': 2.0.9
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
       '@inquirer/figures': 2.0.9
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/confirm@4.0.1':
     dependencies:
       '@inquirer/core': 9.2.1
       '@inquirer/type': 2.0.0
 
-  '@inquirer/confirm@5.1.21(@types/node@26.6.4)':
+  '@inquirer/confirm@5.1.21(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/confirm@6.3.3(@types/node@26.6.4)':
+  '@inquirer/confirm@6.3.4(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/core@10.3.2(@types/node@26.6.4)':
+  '@inquirer/core@10.3.2(@types/node@26.6.5)':
     dependencies:
       '@inquirer/ansi': 1.0.2
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
       cli-width: 4.1.0
       mute-stream: 2.0.0
       signal-exit: 4.1.0
       wrap-ansi: 6.2.0
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/core@12.0.4(@types/node@26.6.4)':
+  '@inquirer/core@12.0.5(@types/node@26.6.5)':
     dependencies:
       '@inquirer/ansi': 2.0.9
       '@inquirer/figures': 2.0.9
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
       cli-width: 4.1.0
       fast-wrap-ansi: 0.2.2
       mute-stream: 3.0.0
       signal-exit: 4.1.0
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/core@9.2.1':
     dependencies:
@@ -10147,21 +10154,21 @@ snapshots:
       '@inquirer/type': 2.0.0
       external-editor: 3.1.0
 
-  '@inquirer/editor@4.2.23(@types/node@26.6.4)':
+  '@inquirer/editor@4.2.23(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
-      '@inquirer/external-editor': 1.0.3(@types/node@26.6.4)
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
+      '@inquirer/external-editor': 1.0.3(@types/node@26.6.5)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/editor@5.3.4(@types/node@26.6.4)':
+  '@inquirer/editor@5.3.5(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
-      '@inquirer/external-editor': 3.0.6(@types/node@26.6.4)
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
+      '@inquirer/external-editor': 3.0.6(@types/node@26.6.5)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/expand@3.0.1':
     dependencies:
@@ -10169,34 +10176,34 @@ snapshots:
       '@inquirer/type': 2.0.0
       yoctocolors-cjs: 2.1.3
 
-  '@inquirer/expand@4.0.23(@types/node@26.6.4)':
+  '@inquirer/expand@4.0.23(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/expand@5.1.6(@types/node@26.6.4)':
+  '@inquirer/expand@5.1.7(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/external-editor@1.0.3(@types/node@26.6.4)':
-    dependencies:
-      chardet: 2.2.0
-      iconv-lite: 0.7.3
-    optionalDependencies:
-      '@types/node': 26.6.4
-
-  '@inquirer/external-editor@3.0.6(@types/node@26.6.4)':
+  '@inquirer/external-editor@1.0.3(@types/node@26.6.5)':
     dependencies:
       chardet: 2.2.0
       iconv-lite: 0.7.3
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
+
+  '@inquirer/external-editor@3.0.6(@types/node@26.6.5)':
+    dependencies:
+      chardet: 2.2.0
+      iconv-lite: 0.7.3
+    optionalDependencies:
+      '@types/node': 26.6.5
 
   '@inquirer/figures@1.0.15': {}
 
@@ -10207,38 +10214,38 @@ snapshots:
       '@inquirer/core': 9.2.1
       '@inquirer/type': 2.0.0
 
-  '@inquirer/input@4.3.1(@types/node@26.6.4)':
+  '@inquirer/input@4.3.1(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/input@5.1.7(@types/node@26.6.4)':
+  '@inquirer/input@5.1.8(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/number@2.0.1':
     dependencies:
       '@inquirer/core': 9.2.1
       '@inquirer/type': 2.0.0
 
-  '@inquirer/number@3.0.23(@types/node@26.6.4)':
+  '@inquirer/number@3.0.23(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/number@4.2.4(@types/node@26.6.4)':
+  '@inquirer/number@4.2.5(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/password@3.0.1':
     dependencies:
@@ -10246,21 +10253,21 @@ snapshots:
       '@inquirer/type': 2.0.0
       ansi-escapes: 4.3.2
 
-  '@inquirer/password@4.0.23(@types/node@26.6.4)':
+  '@inquirer/password@4.0.23(@types/node@26.6.5)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/password@5.2.3(@types/node@26.6.4)':
+  '@inquirer/password@5.2.4(@types/node@26.6.5)':
     dependencies:
       '@inquirer/ansi': 2.0.9
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/prompts@6.0.1':
     dependencies:
@@ -10275,35 +10282,35 @@ snapshots:
       '@inquirer/search': 2.0.1
       '@inquirer/select': 3.0.1
 
-  '@inquirer/prompts@7.10.1(@types/node@26.6.4)':
+  '@inquirer/prompts@7.10.1(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/checkbox': 4.3.2(@types/node@26.6.4)
-      '@inquirer/confirm': 5.1.21(@types/node@26.6.4)
-      '@inquirer/editor': 4.2.23(@types/node@26.6.4)
-      '@inquirer/expand': 4.0.23(@types/node@26.6.4)
-      '@inquirer/input': 4.3.1(@types/node@26.6.4)
-      '@inquirer/number': 3.0.23(@types/node@26.6.4)
-      '@inquirer/password': 4.0.23(@types/node@26.6.4)
-      '@inquirer/rawlist': 4.1.11(@types/node@26.6.4)
-      '@inquirer/search': 3.2.2(@types/node@26.6.4)
-      '@inquirer/select': 4.4.2(@types/node@26.6.4)
+      '@inquirer/checkbox': 4.3.2(@types/node@26.6.5)
+      '@inquirer/confirm': 5.1.21(@types/node@26.6.5)
+      '@inquirer/editor': 4.2.23(@types/node@26.6.5)
+      '@inquirer/expand': 4.0.23(@types/node@26.6.5)
+      '@inquirer/input': 4.3.1(@types/node@26.6.5)
+      '@inquirer/number': 3.0.23(@types/node@26.6.5)
+      '@inquirer/password': 4.0.23(@types/node@26.6.5)
+      '@inquirer/rawlist': 4.1.11(@types/node@26.6.5)
+      '@inquirer/search': 3.2.2(@types/node@26.6.5)
+      '@inquirer/select': 4.4.2(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/prompts@8.7.3(@types/node@26.6.4)':
+  '@inquirer/prompts@8.7.4(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/checkbox': 5.2.6(@types/node@26.6.4)
-      '@inquirer/confirm': 6.3.3(@types/node@26.6.4)
-      '@inquirer/editor': 5.3.4(@types/node@26.6.4)
-      '@inquirer/expand': 5.1.6(@types/node@26.6.4)
-      '@inquirer/input': 5.1.7(@types/node@26.6.4)
-      '@inquirer/number': 4.2.4(@types/node@26.6.4)
-      '@inquirer/password': 5.2.3(@types/node@26.6.4)
-      '@inquirer/rawlist': 5.3.6(@types/node@26.6.4)
-      '@inquirer/search': 4.3.4(@types/node@26.6.4)
-      '@inquirer/select': 5.2.6(@types/node@26.6.4)
+      '@inquirer/checkbox': 5.2.7(@types/node@26.6.5)
+      '@inquirer/confirm': 6.3.4(@types/node@26.6.5)
+      '@inquirer/editor': 5.3.5(@types/node@26.6.5)
+      '@inquirer/expand': 5.1.7(@types/node@26.6.5)
+      '@inquirer/input': 5.1.8(@types/node@26.6.5)
+      '@inquirer/number': 4.2.5(@types/node@26.6.5)
+      '@inquirer/password': 5.2.4(@types/node@26.6.5)
+      '@inquirer/rawlist': 5.3.7(@types/node@26.6.5)
+      '@inquirer/search': 4.3.5(@types/node@26.6.5)
+      '@inquirer/select': 5.2.7(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/rawlist@3.0.1':
     dependencies:
@@ -10311,20 +10318,20 @@ snapshots:
       '@inquirer/type': 2.0.0
       yoctocolors-cjs: 2.1.3
 
-  '@inquirer/rawlist@4.1.11(@types/node@26.6.4)':
+  '@inquirer/rawlist@4.1.11(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/rawlist@5.3.6(@types/node@26.6.4)':
+  '@inquirer/rawlist@5.3.7(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/search@2.0.1':
     dependencies:
@@ -10333,22 +10340,22 @@ snapshots:
       '@inquirer/type': 2.0.0
       yoctocolors-cjs: 2.1.3
 
-  '@inquirer/search@3.2.2(@types/node@26.6.4)':
+  '@inquirer/search@3.2.2(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/search@4.3.4(@types/node@26.6.4)':
+  '@inquirer/search@4.3.5(@types/node@26.6.5)':
     dependencies:
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
       '@inquirer/figures': 2.0.9
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/select@3.0.1':
     dependencies:
@@ -10358,24 +10365,24 @@ snapshots:
       ansi-escapes: 4.3.2
       yoctocolors-cjs: 2.1.3
 
-  '@inquirer/select@4.4.2(@types/node@26.6.4)':
+  '@inquirer/select@4.4.2(@types/node@26.6.5)':
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
       '@inquirer/figures': 1.0.15
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
       yoctocolors-cjs: 2.1.3
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/select@5.2.6(@types/node@26.6.4)':
+  '@inquirer/select@5.2.7(@types/node@26.6.5)':
     dependencies:
       '@inquirer/ansi': 2.0.9
-      '@inquirer/core': 12.0.4(@types/node@26.6.4)
+      '@inquirer/core': 12.0.5(@types/node@26.6.5)
       '@inquirer/figures': 2.0.9
-      '@inquirer/type': 4.2.0(@types/node@26.6.4)
+      '@inquirer/type': 4.2.0(@types/node@26.6.5)
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@inquirer/type@1.5.5':
     dependencies:
@@ -10385,13 +10392,13 @@ snapshots:
     dependencies:
       mute-stream: 1.0.0
 
-  '@inquirer/type@3.0.10(@types/node@26.6.4)':
+  '@inquirer/type@3.0.10(@types/node@26.6.5)':
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
-  '@inquirer/type@4.2.0(@types/node@26.6.4)':
+  '@inquirer/type@4.2.0(@types/node@26.6.5)':
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@isaacs/cliui@8.0.2':
     dependencies:
@@ -10416,7 +10423,7 @@ snapshots:
 
   '@jest/pattern@30.4.0':
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       jest-regex-util: 30.4.0
 
   '@jest/schemas@30.4.1':
@@ -10429,7 +10436,7 @@ snapshots:
       '@jest/schemas': 30.4.1
       '@types/istanbul-lib-coverage': 2.0.6
       '@types/istanbul-reports': 3.0.4
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       '@types/yargs': 17.0.35
       chalk: 4.1.2
 
@@ -10996,22 +11003,22 @@ snapshots:
 
   '@tootallnate/quickjs-emscripten@0.23.0': {}
 
-  '@turbo/darwin-64@2.11.7':
+  '@turbo/darwin-64@2.11.9':
     optional: true
 
-  '@turbo/darwin-arm64@2.11.7':
+  '@turbo/darwin-arm64@2.11.9':
     optional: true
 
-  '@turbo/linux-64@2.11.7':
+  '@turbo/linux-64@2.11.9':
     optional: true
 
-  '@turbo/linux-arm64@2.11.7':
+  '@turbo/linux-arm64@2.11.9':
     optional: true
 
-  '@turbo/windows-64@2.11.7':
+  '@turbo/windows-64@2.11.9':
     optional: true
 
-  '@turbo/windows-arm64@2.11.7':
+  '@turbo/windows-arm64@2.11.9':
     optional: true
 
   '@types/bun@1.4.3':
@@ -11022,7 +11029,7 @@ snapshots:
     dependencies:
       '@types/http-cache-semantics': 4.2.0
       '@types/keyv': 3.1.4
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       '@types/responselike': 1.0.3
 
   '@types/chai@5.2.3':
@@ -11044,7 +11051,7 @@ snapshots:
 
   '@types/fs-extra@9.0.13':
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@types/http-cache-semantics@4.2.0': {}
 
@@ -11062,7 +11069,7 @@ snapshots:
 
   '@types/keyv@3.1.4':
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@types/minimatch@5.1.2': {}
 
@@ -11072,7 +11079,7 @@ snapshots:
 
   '@types/mute-stream@0.0.4':
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@types/node@20.19.43':
     dependencies:
@@ -11090,19 +11097,23 @@ snapshots:
     dependencies:
       undici-types: 8.9.0
 
+  '@types/node@26.6.5':
+    dependencies:
+      undici-types: 8.9.0
+
   '@types/normalize-package-data@2.4.4': {}
 
   '@types/resolve@1.20.2': {}
 
   '@types/responselike@1.0.3':
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   '@types/semver@7.8.0': {}
 
   '@types/shelljs@0.10.0':
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       fast-glob: 3.3.3
 
   '@types/sinonjs__fake-timers@8.1.5': {}
@@ -11132,14 +11143,14 @@ snapshots:
       '@types/node': 26.6.4
     optional: true
 
-  '@typescript-eslint/parser@8.71.0(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)':
+  '@typescript-eslint/parser@8.72.0(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/scope-manager': 8.71.0
-      '@typescript-eslint/types': 8.71.0
-      '@typescript-eslint/typescript-estree': 8.71.0(supports-color@8.1.1)(typescript@6.0.3)
-      '@typescript-eslint/visitor-keys': 8.71.0
+      '@typescript-eslint/scope-manager': 8.72.0
+      '@typescript-eslint/types': 8.72.0
+      '@typescript-eslint/typescript-estree': 8.72.0(supports-color@8.1.1)(typescript@6.0.3)
+      '@typescript-eslint/visitor-keys': 8.72.0
       debug: 4.4.3(supports-color@8.1.1)
-      eslint: 10.12.0(jiti@2.7.0)(supports-color@8.1.1)
+      eslint: 10.13.0(jiti@2.7.0)(supports-color@8.1.1)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -11153,10 +11164,10 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/project-service@8.71.0(supports-color@8.1.1)(typescript@6.0.3)':
+  '@typescript-eslint/project-service@8.72.0(supports-color@8.1.1)(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.71.0(typescript@6.0.3)
-      '@typescript-eslint/types': 8.71.0
+      '@typescript-eslint/tsconfig-utils': 8.72.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.72.0
       debug: 4.4.3(supports-color@8.1.1)
       typescript: 6.0.3
     transitivePeerDependencies:
@@ -11167,22 +11178,22 @@ snapshots:
       '@typescript-eslint/types': 8.69.0
       '@typescript-eslint/visitor-keys': 8.69.0
 
-  '@typescript-eslint/scope-manager@8.71.0':
+  '@typescript-eslint/scope-manager@8.72.0':
     dependencies:
-      '@typescript-eslint/types': 8.71.0
-      '@typescript-eslint/visitor-keys': 8.71.0
+      '@typescript-eslint/types': 8.72.0
+      '@typescript-eslint/visitor-keys': 8.72.0
 
   '@typescript-eslint/tsconfig-utils@8.69.0(typescript@6.0.3)':
     dependencies:
       typescript: 6.0.3
 
-  '@typescript-eslint/tsconfig-utils@8.71.0(typescript@6.0.3)':
+  '@typescript-eslint/tsconfig-utils@8.72.0(typescript@6.0.3)':
     dependencies:
       typescript: 6.0.3
 
   '@typescript-eslint/types@8.69.0': {}
 
-  '@typescript-eslint/types@8.71.0': {}
+  '@typescript-eslint/types@8.72.0': {}
 
   '@typescript-eslint/typescript-estree@8.69.0(supports-color@8.1.1)(typescript@6.0.3)':
     dependencies:
@@ -11199,12 +11210,12 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/typescript-estree@8.71.0(supports-color@8.1.1)(typescript@6.0.3)':
+  '@typescript-eslint/typescript-estree@8.72.0(supports-color@8.1.1)(typescript@6.0.3)':
     dependencies:
-      '@typescript-eslint/project-service': 8.71.0(supports-color@8.1.1)(typescript@6.0.3)
-      '@typescript-eslint/tsconfig-utils': 8.71.0(typescript@6.0.3)
-      '@typescript-eslint/types': 8.71.0
-      '@typescript-eslint/visitor-keys': 8.71.0
+      '@typescript-eslint/project-service': 8.72.0(supports-color@8.1.1)(typescript@6.0.3)
+      '@typescript-eslint/tsconfig-utils': 8.72.0(typescript@6.0.3)
+      '@typescript-eslint/types': 8.72.0
+      '@typescript-eslint/visitor-keys': 8.72.0
       debug: 4.4.3(supports-color@8.1.1)
       minimatch: 10.2.6
       semver: 7.8.5
@@ -11214,13 +11225,13 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  '@typescript-eslint/utils@8.69.0(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)':
+  '@typescript-eslint/utils@8.69.0(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)':
     dependencies:
-      '@eslint-community/eslint-utils': 4.10.1(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))
+      '@eslint-community/eslint-utils': 4.10.1(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))
       '@typescript-eslint/scope-manager': 8.69.0
       '@typescript-eslint/types': 8.69.0
       '@typescript-eslint/typescript-estree': 8.69.0(supports-color@8.1.1)(typescript@6.0.3)
-      eslint: 10.12.0(jiti@2.7.0)(supports-color@8.1.1)
+      eslint: 10.13.0(jiti@2.7.0)(supports-color@8.1.1)
       typescript: 6.0.3
     transitivePeerDependencies:
       - supports-color
@@ -11230,9 +11241,9 @@ snapshots:
       '@typescript-eslint/types': 8.69.0
       eslint-visitor-keys: 5.0.1
 
-  '@typescript-eslint/visitor-keys@8.71.0':
+  '@typescript-eslint/visitor-keys@8.72.0':
     dependencies:
-      '@typescript-eslint/types': 8.71.0
+      '@typescript-eslint/types': 8.72.0
       eslint-visitor-keys: 5.0.1
 
   '@vitest/coverage-v8@5.0.5(vitest@5.0.5)':
@@ -11245,16 +11256,16 @@ snapshots:
       obug: 3.0.0
       std-env: 4.3.0
       tinyrainbow: 3.2.0
-      vitest: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  '@vitest/eslint-plugin@1.6.27(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)(vitest@5.0.5)':
+  '@vitest/eslint-plugin@1.6.27(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)(vitest@5.0.5)':
     dependencies:
       '@typescript-eslint/scope-manager': 8.69.0
-      '@typescript-eslint/utils': 8.69.0(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
-      eslint: 10.12.0(jiti@2.7.0)(supports-color@8.1.1)
+      '@typescript-eslint/utils': 8.69.0(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))(supports-color@8.1.1)(typescript@6.0.3)
+      eslint: 10.13.0(jiti@2.7.0)(supports-color@8.1.1)
     optionalDependencies:
       typescript: 6.0.3
-      vitest: 5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      vitest: 5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
     transitivePeerDependencies:
       - supports-color
 
@@ -11264,14 +11275,14 @@ snapshots:
     dependencies:
       '@vitest/istanbul-lib-coverage': 1.0.2
 
-  '@vitest/mocker@5.0.5(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
+  '@vitest/mocker@5.0.5(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))':
     dependencies:
       '@jridgewell/trace-mapping': 0.3.31
       '@vitest/spy': 5.0.5
       estree-walker: 3.0.3
       magic-string: 1.4.3
     optionalDependencies:
-      vite: 8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   '@vitest/pretty-format@3.2.7':
     dependencies:
@@ -11327,7 +11338,7 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@wdio/cli@9.31.9(@types/node@26.6.4)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)':
+  '@wdio/cli@9.31.9(@types/node@26.6.5)(bufferutil@4.1.0)(expect-webdriverio@6.0.10)(supports-color@8.1.1)(utf-8-validate@6.0.6)':
     dependencies:
       '@vitest/snapshot': 3.2.7
       '@wdio/config': 9.31.9(supports-color@8.1.1)
@@ -11339,7 +11350,7 @@ snapshots:
       async-exit-hook: 2.0.1
       chalk: 5.6.2
       chokidar: 4.0.3
-      create-wdio: 9.31.6(@types/node@26.6.4)
+      create-wdio: 9.31.6(@types/node@26.6.5)
       dotenv: 17.4.2
       import-meta-resolve: 4.2.0
       lodash.flattendeep: 4.4.0
@@ -11408,7 +11419,7 @@ snapshots:
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
     dependencies:
-      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
@@ -11859,9 +11870,9 @@ snapshots:
     transitivePeerDependencies:
       - supports-color
 
-  appium-adb@16.1.0(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-adb@16.1.0(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
       asyncbox: 6.4.3
       ini: 6.0.0
@@ -11876,12 +11887,12 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  appium-android-driver@14.2.5(@appium/logger@2.0.12)(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6):
+  appium-android-driver@14.2.5(@appium/logger@2.0.12)(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6):
     dependencies:
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium: 3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
-      appium-adb: 16.1.0(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-chromedriver: 9.1.4(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium: 3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+      appium-adb: 16.1.0(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-chromedriver: 9.1.4(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       asyncbox: 6.4.3
       axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       dayjs: 1.11.23
@@ -11902,12 +11913,12 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  appium-chromedriver@9.1.4(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-chromedriver@9.1.4(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@xmldom/xmldom': 0.9.12
-      appium-adb: 16.1.0(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-adb: 16.1.0(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       asyncbox: 6.4.3
       axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       compare-versions: 6.1.1
@@ -11923,14 +11934,14 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  appium-flutter-driver@4.1.0(@appium/logger@2.0.12)(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6):
+  appium-flutter-driver@4.1.0(@appium/logger@2.0.12)(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6):
     dependencies:
-      appium: 3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
-      appium-android-driver: 14.2.5(@appium/logger@2.0.12)(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+      appium: 3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+      appium-android-driver: 14.2.5(@appium/logger@2.0.12)(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       appium-flutter-finder: 0.3.0
-      appium-ios-device: 3.1.23(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-uiautomator2-driver: 8.7.0(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
-      appium-xcuitest-driver: 11.17.7(@appium/logger@2.0.12)(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+      appium-ios-device: 3.1.23(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-uiautomator2-driver: 8.7.0(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      appium-xcuitest-driver: 11.17.7(@appium/logger@2.0.12)(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       asyncbox: 6.4.3
       bluebird: 3.7.2
       lodash: 4.18.1
@@ -11949,9 +11960,9 @@ snapshots:
 
   appium-flutter-finder@0.3.0: {}
 
-  appium-ios-device@3.1.23(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-ios-device@3.1.23(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       asyncbox: 6.4.3
       axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       bplist-creator: 0.3.0
@@ -11965,12 +11976,12 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  appium-ios-remotexpc@5.19.1(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-ios-remotexpc@5.19.1(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
       '@appium/strongbox': 2.0.0
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@xmldom/xmldom': 0.9.12
-      appium-ios-tuntap: 2.0.10(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-ios-tuntap: 2.0.10(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
       axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       commander: 14.0.3
@@ -11986,11 +11997,11 @@ snapshots:
       - supports-color
     optional: true
 
-  appium-ios-simulator@8.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-ios-simulator@8.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@xmldom/xmldom': 0.9.12
-      appium-xcode: 6.2.6(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-xcode: 6.2.6(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
       asyncbox: 6.4.3
       node-simctl: 8.2.9
@@ -12004,9 +12015,9 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  appium-ios-tuntap@2.0.10(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-ios-tuntap@2.0.10(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       node-addon-api: 8.9.2
       node-gyp-build: 4.8.4
     transitivePeerDependencies:
@@ -12018,17 +12029,17 @@ snapshots:
       - supports-color
     optional: true
 
-  appium-remote-debugger@15.10.9(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-remote-debugger@15.10.9(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-ios-device: 3.1.23(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-ios-device: 3.1.23(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
       asyncbox: 6.4.3
       glob: 13.0.6
       teen_process: 4.2.1
     optionalDependencies:
-      appium-ios-remotexpc: 5.19.1(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-ios-remotexpc: 5.19.1(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
     transitivePeerDependencies:
       - '@appium/logger'
       - '@types/node'
@@ -12038,20 +12049,20 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  appium-uiautomator2-driver@8.7.0(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
+  appium-uiautomator2-driver@8.7.0(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
     dependencies:
-      appium: 3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+      appium: 3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     optionalDependencies:
-      sharp: 0.35.4(@types/node@26.6.4)
+      sharp: 0.35.4(@types/node@26.6.5)
     transitivePeerDependencies:
       - '@types/node'
 
-  appium-webdriveragent@15.1.6(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-webdriveragent@15.1.6(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@appium/strongbox': 1.1.3
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-ios-simulator: 8.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-ios-simulator: 8.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
       asyncbox: 6.4.3
       axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -12065,9 +12076,9 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  appium-xcode@6.2.6(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
+  appium-xcode@6.2.6(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1):
     dependencies:
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       asyncbox: 6.4.3
       semver: 7.8.5
       teen_process: 4.2.1
@@ -12079,17 +12090,17 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  appium-xcuitest-driver@11.17.7(@appium/logger@2.0.12)(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6):
+  appium-xcuitest-driver@11.17.7(@appium/logger@2.0.12)(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6))(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6):
     dependencies:
       '@appium/css-locator-to-native': 1.0.7
       '@appium/strongbox': 1.1.3
       '@colors/colors': 1.6.1
-      appium: 3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
-      appium-ios-device: 3.1.23(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-ios-simulator: 8.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-remote-debugger: 15.10.9(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-webdriveragent: 15.1.6(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      appium-xcode: 6.2.6(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium: 3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+      appium-ios-device: 3.1.23(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-ios-simulator: 8.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-remote-debugger: 15.10.9(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-webdriveragent: 15.1.6(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-xcode: 6.2.6(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       async-lock: 1.4.1
       asyncbox: 6.4.3
       axios: 1.20.0(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
@@ -12105,7 +12116,7 @@ snapshots:
       winston: 3.19.0
       ws: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
     optionalDependencies:
-      appium-ios-remotexpc: 5.19.1(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      appium-ios-remotexpc: 5.19.1(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
     transitivePeerDependencies:
       - '@appium/logger'
       - '@types/node'
@@ -12117,22 +12128,22 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  appium-xcuitest-driver@12.19.1(@types/node@26.6.4)(appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
+  appium-xcuitest-driver@12.19.1(@types/node@26.6.5)(appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
     dependencies:
-      appium: 3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
+      appium: 3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     optionalDependencies:
-      sharp: 0.35.5(@types/node@26.6.4)
+      sharp: 0.35.5(@types/node@26.6.5)
     transitivePeerDependencies:
       - '@types/node'
 
-  appium@3.8.0(@types/node@26.6.4)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6):
+  appium@3.8.0(@types/node@26.6.5)(bufferutil@4.1.0)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)(utf-8-validate@6.0.6):
     dependencies:
-      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@appium/base-plugin': 3.3.5(@appium/logger@2.0.12)(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
-      '@appium/docutils': 3.0.1(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/base-driver': 10.8.1(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/base-plugin': 3.3.5(@appium/logger@2.0.12)(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/docutils': 3.0.1(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@appium/logger': 2.0.12
       '@appium/schema': 1.3.0
-      '@appium/support': 7.2.8(@types/node@26.6.4)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
+      '@appium/support': 7.2.8(@types/node@26.6.5)(debug@4.4.3(supports-color@8.1.1))(supports-color@8.1.1)
       '@appium/types': 1.7.1(@appium/logger@2.0.12)
       '@sidvind/better-ajv-errors': 5.0.0(ajv@8.20.0)
       ajv: 8.20.0
@@ -12749,7 +12760,7 @@ snapshots:
       crc-32: 1.2.2
       readable-stream: 4.7.0
 
-  create-wdio@9.31.6(@types/node@26.6.4):
+  create-wdio@9.31.6(@types/node@26.6.5):
     dependencies:
       chalk: 5.6.2
       commander: 14.0.3
@@ -12757,7 +12768,7 @@ snapshots:
       ejs: 3.1.10
       execa: 9.6.1
       import-meta-resolve: 4.2.0
-      inquirer: 12.11.1(@types/node@26.6.4)
+      inquirer: 12.11.1(@types/node@26.6.5)
       normalize-package-data: 7.0.1
       read-pkg-up: 10.1.0
       recursive-readdir: 2.2.3
@@ -13090,7 +13101,7 @@ snapshots:
 
   electron-to-chromium@1.5.461: {}
 
-  electron-vite@6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+  electron-vite@6.0.0(supports-color@8.1.1)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@babel/core': 7.29.7(supports-color@8.1.1)
       '@babel/plugin-transform-arrow-functions': 7.29.7(@babel/core@7.29.7(supports-color@8.1.1))
@@ -13098,7 +13109,7 @@ snapshots:
       magic-string: 1.4.2
       picocolors: 1.1.1
       rolldown: 1.2.12
-      vite: 8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
     transitivePeerDependencies:
       - supports-color
 
@@ -13256,9 +13267,9 @@ snapshots:
     optionalDependencies:
       source-map: 0.6.1
 
-  eslint-plugin-wdio@9.31.3(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))(globals@17.13.0):
+  eslint-plugin-wdio@9.31.3(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))(globals@17.13.0):
     dependencies:
-      eslint: 10.12.0(jiti@2.7.0)(supports-color@8.1.1)
+      eslint: 10.13.0(jiti@2.7.0)(supports-color@8.1.1)
       globals: 17.13.0
 
   eslint-scope@5.1.1:
@@ -13277,9 +13288,9 @@ snapshots:
 
   eslint-visitor-keys@5.0.1: {}
 
-  eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1):
+  eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1):
     dependencies:
-      '@eslint-community/eslint-utils': 4.10.1(eslint@10.12.0(jiti@2.7.0)(supports-color@8.1.1))
+      '@eslint-community/eslint-utils': 4.10.1(eslint@10.13.0(jiti@2.7.0)(supports-color@8.1.1))
       '@eslint-community/regexpp': 4.12.2
       '@eslint/config-array': 0.23.5(supports-color@8.1.1)
       '@eslint/config-helpers': 0.7.0
@@ -13933,6 +13944,20 @@ snapshots:
     transitivePeerDependencies:
       - bufferutil
       - utf-8-validate
+    optional: true
+
+  happy-dom@20.14.6(bufferutil@4.1.0)(utf-8-validate@6.0.6):
+    dependencies:
+      '@types/node': 26.6.4
+      '@types/whatwg-mimetype': 3.0.2
+      '@types/ws': 8.18.2
+      buffer-image-size: 0.6.4
+      entities: 7.0.1
+      whatwg-mimetype: 3.0.0
+      ws: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+    transitivePeerDependencies:
+      - bufferutil
+      - utf-8-validate
 
   has-flag@4.0.0: {}
 
@@ -14102,17 +14127,17 @@ snapshots:
 
   ini@6.0.0: {}
 
-  inquirer@12.11.1(@types/node@26.6.4):
+  inquirer@12.11.1(@types/node@26.6.5):
     dependencies:
       '@inquirer/ansi': 1.0.2
-      '@inquirer/core': 10.3.2(@types/node@26.6.4)
-      '@inquirer/prompts': 7.10.1(@types/node@26.6.4)
-      '@inquirer/type': 3.0.10(@types/node@26.6.4)
+      '@inquirer/core': 10.3.2(@types/node@26.6.5)
+      '@inquirer/prompts': 7.10.1(@types/node@26.6.5)
+      '@inquirer/type': 3.0.10(@types/node@26.6.5)
       mute-stream: 2.0.0
       run-async: 4.0.6
       rxjs: 7.8.2
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   interpret@1.4.0: {}
 
@@ -14245,7 +14270,7 @@ snapshots:
   jest-mock@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       jest-util: 30.4.1
 
   jest-regex-util@30.4.0: {}
@@ -14253,7 +14278,7 @@ snapshots:
   jest-util@30.4.1:
     dependencies:
       '@jest/types': 30.4.1
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       chalk: 4.1.2
       ci-info: 4.4.0
       graceful-fs: 4.2.11
@@ -14261,7 +14286,7 @@ snapshots:
 
   jest-worker@27.5.1:
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       merge-stream: 2.0.0
       supports-color: 8.1.1
 
@@ -15574,10 +15599,10 @@ snapshots:
       '@rolldown/binding-win32-arm64-msvc': 1.2.12
       '@rolldown/binding-win32-x64-msvc': 1.2.12
 
-  rollup-plugin-node-externals@9.0.1(rollup@4.64.12)(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+  rollup-plugin-node-externals@9.0.1(rollup@4.64.12)(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     optionalDependencies:
       rollup: 4.64.12
-      vite: 8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
 
   rollup@4.64.12:
     dependencies:
@@ -15741,7 +15766,7 @@ snapshots:
 
   setprototypeof@1.2.0: {}
 
-  sharp@0.35.4(@types/node@26.6.4):
+  sharp@0.35.4(@types/node@26.6.5):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
@@ -15772,10 +15797,10 @@ snapshots:
       '@img/sharp-win32-arm64': 0.35.4
       '@img/sharp-win32-ia32': 0.35.4
       '@img/sharp-win32-x64': 0.35.4
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
     optional: true
 
-  sharp@0.35.5(@types/node@26.6.4):
+  sharp@0.35.5(@types/node@26.6.5):
     dependencies:
       '@img/colour': 1.1.0
       detect-libc: 2.1.2
@@ -15806,7 +15831,7 @@ snapshots:
       '@img/sharp-win32-arm64': 0.35.5
       '@img/sharp-win32-ia32': 0.35.5
       '@img/sharp-win32-x64': 0.35.5
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
     optional: true
 
   shebang-command@1.2.0:
@@ -16276,14 +16301,14 @@ snapshots:
     optionalDependencies:
       fsevents: 2.3.3
 
-  turbo@2.11.7:
+  turbo@2.11.9:
     optionalDependencies:
-      '@turbo/darwin-64': 2.11.7
-      '@turbo/darwin-arm64': 2.11.7
-      '@turbo/linux-64': 2.11.7
-      '@turbo/linux-arm64': 2.11.7
-      '@turbo/windows-64': 2.11.7
-      '@turbo/windows-arm64': 2.11.7
+      '@turbo/darwin-64': 2.11.9
+      '@turbo/darwin-arm64': 2.11.9
+      '@turbo/linux-64': 2.11.9
+      '@turbo/linux-arm64': 2.11.9
+      '@turbo/windows-64': 2.11.9
+      '@turbo/windows-arm64': 2.11.9
 
   type-check@0.4.0:
     dependencies:
@@ -16401,7 +16426,7 @@ snapshots:
 
   vary@1.1.2: {}
 
-  vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
+  vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1):
     dependencies:
       lightningcss: 1.33.0
       picomatch: 4.0.7
@@ -16409,7 +16434,7 @@ snapshots:
       rolldown: 1.2.12
       tinyglobby: 0.2.17
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       esbuild: 0.28.2
       fsevents: 2.3.3
       jiti: 2.7.0
@@ -16417,10 +16442,10 @@ snapshots:
       tsx: 4.23.15
       yaml: 2.9.1
 
-  vitest@5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+  vitest@5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.5(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      '@vitest/mocker': 5.0.5(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -16431,20 +16456,20 @@ snapshots:
       tinybench: 6.2.2
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       '@vitest/coverage-v8': 5.0.5(vitest@5.0.5)
       happy-dom: 20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       jsdom: 30.1.2(@noble/hashes@2.2.0)
     transitivePeerDependencies:
       - msw
 
-  vitest@5.0.5(@types/node@26.6.4)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+  vitest@5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
     dependencies:
       '@types/chai': 5.2.3
-      '@vitest/mocker': 5.0.5(vite@8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      '@vitest/mocker': 5.0.5(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
       chai: 6.3.0
       es-module-lexer: 2.3.2
       expect-type: 1.4.0
@@ -16455,13 +16480,37 @@ snapshots:
       tinybench: 6.2.2
       tinyexec: 1.3.1
       tinyglobby: 0.2.17
-      vite: 8.3.4(@types/node@26.6.4)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
       why-is-node-running: 3.2.1
     optionalDependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
       '@vitest/coverage-v8': 5.0.5(vitest@5.0.5)
       happy-dom: 20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6)
       jsdom: 30.1.3(@noble/hashes@2.2.0)
+    transitivePeerDependencies:
+      - msw
+
+  vitest@5.0.5(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.6(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)):
+    dependencies:
+      '@types/chai': 5.2.3
+      '@vitest/mocker': 5.0.5(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      chai: 6.3.0
+      es-module-lexer: 2.3.2
+      expect-type: 1.4.0
+      magic-string: 1.4.3
+      obug: 3.0.0
+      picomatch: 4.0.7
+      std-env: 4.3.0
+      tinybench: 6.2.2
+      tinyexec: 1.3.1
+      tinyglobby: 0.2.17
+      vite: 8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      why-is-node-running: 3.2.1
+    optionalDependencies:
+      '@types/node': 26.6.5
+      '@vitest/coverage-v8': 5.0.5(vitest@5.0.5)
+      happy-dom: 20.14.6(bufferutil@4.1.0)(utf-8-validate@6.0.6)
+      jsdom: 30.1.2(@noble/hashes@2.2.0)
     transitivePeerDependencies:
       - msw
 
