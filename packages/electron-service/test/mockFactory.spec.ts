@@ -59,7 +59,7 @@ describe('restoreElectronFunctionality()', () => {
     expect(result).toBe('SUCCESS_FALLBACK');
   });
 
-  it('should reject when the in-app restore throws', async () => {
+  it('should return the in-app error rather than reject, so a mock of a missing API still restores', async () => {
     const electron = {
       get app(): never {
         throw new Error('app is gone');
@@ -67,9 +67,9 @@ describe('restoreElectronFunctionality()', () => {
     };
     mockExecute.mockImplementation((fn: (...args: unknown[]) => unknown, ...args: unknown[]) => fn(electron, ...args));
 
-    await expect(restoreElectronFunctionality('app', 'getName', globalThis.browser)).rejects.toMatchObject({
-      message: 'Failed to restore electron.app.getName: Error: app is gone',
-    });
+    await expect(restoreElectronFunctionality('app', 'getName', globalThis.browser)).resolves.toBe(
+      'ERROR: Error: app is gone',
+    );
   });
 
   it('should return NO_RESTORE_AVAILABLE when no restore path exists', async () => {

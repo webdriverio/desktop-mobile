@@ -70,9 +70,6 @@ export async function restoreElectronFunctionality(
     { internal: true },
   );
   log.debug(`[${apiName}.${funcName}] restoreElectronFunctionality result:`, result);
-  if (result?.startsWith('ERROR: ')) {
-    throw new Error(`Failed to restore electron.${apiName}.${funcName}: ${result.slice('ERROR: '.length)}`);
-  }
   return result;
 }
 
