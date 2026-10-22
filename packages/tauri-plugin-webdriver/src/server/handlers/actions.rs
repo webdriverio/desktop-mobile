@@ -6,7 +6,8 @@ use axum::Json;
 use serde::Deserialize;
 use tauri::Runtime;
 
-use crate::platform::{ModifierState, PointerEventType};
+use crate::platform::key_input::HeldModifiers;
+use crate::platform::PointerEventType;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 
@@ -202,7 +203,10 @@ async fn perform_actions<R: Runtime + 'static>(
         x: pointer_position.0,
         y: pointer_position.1,
     };
-    let mut modifier_state = ModifierState::default();
+    let mut held_modifiers = {
+        let sessions = state.sessions.read().await;
+        HeldModifiers::from_keys(&sessions.get(&session_id)?.action_state.pressed_keys)
+    };
 
     // Process actions tick-by-tick across sources (W3C): the action at index N from every source runs
     // before index N+1 from any source, so cross-source chains interleave correctly (e.g. Ctrl+click
@@ -229,9 +233,9 @@ async fn perform_actions<R: Runtime + 'static>(
                     if let Some(action) = actions.get(tick) {
                         match action {
                             KeyAction::KeyDown { value } => {
-                                modifier_state.update(value, true);
+                                held_modifiers.press(value);
                                 executor
-                                    .dispatch_key_event(value, true, &modifier_state)
+                                    .dispatch_key_event(value, true, &held_modifiers.state())
                                     .await?;
                                 // Track pressed key
                                 let mut sessions = state.sessions.write().await;
@@ -240,10 +244,10 @@ async fn perform_actions<R: Runtime + 'static>(
                                 }
                             }
                             KeyAction::KeyUp { value } => {
+                                held_modifiers.release(value);
                                 executor
-                                    .dispatch_key_event(value, false, &modifier_state)
+                                    .dispatch_key_event(value, false, &held_modifiers.state())
                                     .await?;
-                                modifier_state.update(value, false);
                                 // Remove from tracked keys
                                 let mut sessions = state.sessions.write().await;
                                 if let Ok(session) = sessions.get_mut(&session_id) {
@@ -413,16 +417,19 @@ pub async fn release<R: Runtime + 'static>(
     };
 
     let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
-    let modifier_state = ModifierState::default();
+    let mut pressed_keys: Vec<String> = taken.pressed_keys.drain().collect();
+    pressed_keys.sort();
+    let mut held_modifiers = HeldModifiers::from_keys(&pressed_keys);
 
     // Every held key and button gets its release even if an earlier one fails; the
     // state is already cleared, so nothing could retry it. The first error is reported.
     let mut first_error = None;
 
-    // Release all pressed keys (keyUp events)
-    for key in &taken.pressed_keys {
+    // Release all pressed keys (keyUp events), in a fixed order so each keyup's flags are stable
+    for key in &pressed_keys {
+        held_modifiers.release(key);
         if let Err(error) = executor
-            .dispatch_key_event(key, false, &modifier_state)
+            .dispatch_key_event(key, false, &held_modifiers.state())
             .await
         {
             first_error.get_or_insert(error);

@@ -28,6 +28,8 @@ env:
 jobs:
   preview:
     name: Release Preview
+    # releasekit skips its standing PR (ci.standingPr.branch) itself, but only after a full checkout.
+    if: ${{ github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
