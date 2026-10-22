@@ -7,6 +7,7 @@ import {
   getLogWriter,
   isLogWriterInitialized,
   nonChromeBrowserNameError,
+  PortManager,
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
@@ -29,7 +30,6 @@ import {
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
 import { severeServiceError } from './errors.js';
-import { PortManager } from './portManager.js';
 import { mergeServiceOptions } from './serviceConfig.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 

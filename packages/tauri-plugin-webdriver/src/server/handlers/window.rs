@@ -68,35 +68,23 @@ pub async fn close_window<R: Runtime>(
     State(state): State<Arc<AppState<R>>>,
     Path(session_id): Path<String>,
 ) -> WebDriverResult {
-    // Window closing is not supported on mobile platforms
-    #[cfg(mobile)]
-    {
-        let _ = (state, session_id);
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Closing windows is not supported on mobile platforms",
-        ))
-    }
+    let sessions = state.sessions.read().await;
+    let session = sessions.get(&session_id)?;
+    let current_window = session.current_window.clone();
+    drop(sessions);
 
-    #[cfg(desktop)]
-    {
-        let sessions = state.sessions.read().await;
-        let session = sessions.get(&session_id)?;
-        let current_window = session.current_window.clone();
-        drop(sessions);
+    // Close the current window
+    if let Some(window) = state.app.webview_windows().get(&current_window).cloned() {
+        window
+            .destroy()
+            .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
 
-        // Close the current window
-        if let Some(window) = state.app.webview_windows().get(&current_window).cloned() {
-            window
-                .destroy()
-                .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+        // Return remaining window handles
+        let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
 
-            // Return remaining window handles
-            let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
-
-            Ok(WebDriverResponse::success(handles))
-        } else {
-            Err(WebDriverErrorResponse::no_such_window())
-        }
+        Ok(WebDriverResponse::success(handles))
+    } else {
+        Err(WebDriverErrorResponse::no_such_window())
     }
 }
 

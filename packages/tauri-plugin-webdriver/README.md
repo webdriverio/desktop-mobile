@@ -31,6 +31,8 @@ It is **not needed** if you use the `'official'` or `'crabnebula'` driver provid
 | Windows | Full support | WebView2 native APIs |
 | Linux | Full support | WebKitGTK native APIs |
 
+Android and iOS are not supported. The plugin still builds for them, so an app that also targets mobile compiles, but on mobile it does nothing.
+
 ## Installation
 
 > **Warning**: This plugin exposes automation capabilities via HTTP. Never include it in production builds.
@@ -226,7 +228,7 @@ Port resolution order:
 
 `Get Window Rect` and `Set Window Rect` use CSS pixels, as required by the
 [W3C WebDriver Window Rect commands](https://www.w3.org/TR/webdriver2/#set-window-rect).
-On desktop platforms, the plugin converts Tauri's physical outer-window bounds
+The plugin converts Tauri's physical outer-window bounds
 using the window's current display scale factor. Position changes are completed
 before a requested size is applied, including moves between displays.
 
