@@ -24,7 +24,7 @@
     "build:js": "tsx scripts/build-guest-js.ts",
     "build:rust": "cargo build",
     "test": "vitest run",
-    "test:unit": "vitest run",
+    "test:unit": "vitest run --coverage",
     "typecheck": "tsc --noEmit"
   },
   "keywords": [

@@ -256,6 +256,9 @@ jobs:
             }
             return scenarios.map(s => `test:e2e:electron-${s}`).join(' ');
 
+      - name: 🖥️ Start Xvfb (Linux)
+        uses: ./.github/workflows/actions/start-xvfb
+
       # Run the E2E tests using Turbo with the generated test commands
       # Each test builds its own apps with correct environment context
       - name: 🧪 Execute E2E Tests

@@ -1,6 +1,5 @@
+import { triggerDeeplink } from '@wdio/native-mobile-core';
 import { describe, expect, it, vi } from 'vitest';
-
-import { triggerDeeplink } from '../src/commands/triggerDeeplink.js';
 
 function fakeBrowser(capabilities: Record<string, unknown>, executeImpl?: (cmd: string, arg: unknown) => unknown) {
   const execute = vi.fn(executeImpl ?? (async () => undefined));

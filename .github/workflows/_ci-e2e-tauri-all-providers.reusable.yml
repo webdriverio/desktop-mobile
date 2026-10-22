@@ -128,7 +128,11 @@ jobs:
         shell: bash
         run: |
           echo "Installing WebKit WebDriver for Linux..."
-          sudo apt-get install -y webkit2gtk-driver
+          # Ubuntu 26.04 renamed webkit2gtk-driver to webkitgtk-webdriver. Without this, apt falls
+          # back to jammy's 2.36 driver (added above), which doesn't match the system WebKitGTK.
+          webdriver_pkg=webkit2gtk-driver
+          if apt-cache show webkitgtk-webdriver >/dev/null 2>&1; then webdriver_pkg=webkitgtk-webdriver; fi
+          sudo apt-get install -y "$webdriver_pkg"
           which WebKitWebDriver || echo "WebKitWebDriver not found in PATH"
           WebKitWebDriver --version || echo "WebKitWebDriver version check failed"
 

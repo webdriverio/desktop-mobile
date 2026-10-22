@@ -1,6 +1,7 @@
 import type { ElectronMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
-import { createClassMock, createMock } from '../mock.js';
+import { createClassMock } from '../classMock.js';
+import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
 
 const log = createLogger('electron-service', 'mock');
