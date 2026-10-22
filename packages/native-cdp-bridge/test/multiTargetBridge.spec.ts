@@ -9,8 +9,6 @@ const h = vi.hoisted(() => ({
   sent: [] as string[],
   failEnable: false,
   closed: 0,
-  // webSocketDebuggerUrls whose Connection#close rejects.
-  failingCloses: new Set<string>(),
   connectGate: undefined as Promise<void> | undefined,
   listGate: undefined as Promise<void> | undefined,
   // Maps webSocketDebuggerUrl → the cdp:disconnect handler registered by the bridge,
@@ -20,13 +18,7 @@ const h = vi.hoisted(() => ({
   cdpMethodListeners: new Map<string, Map<string, Set<(...args: unknown[]) => void>>>(),
   // Maps webSocketDebuggerUrl → listeners removed via off().
   removedListeners: new Map<string, Array<{ event: string; listener: (...args: unknown[]) => void }>>(),
-  warn: vi.fn(),
 }));
-
-vi.mock('@wdio/native-utils', async (importOriginal) => {
-  const actual = await importOriginal<typeof import('@wdio/native-utils')>();
-  return { ...actual, createLogger: () => ({ debug: vi.fn(), info: vi.fn(), warn: h.warn, error: vi.fn() }) };
-});
 
 vi.mock('../src/devTool.js', () => ({
   DevTool: class {
@@ -84,9 +76,6 @@ vi.mock('../src/connection.js', async () => {
       };
       close = async () => {
         h.closed++;
-        if (h.failingCloses.has(this.webSocketDebuggerUrl)) {
-          throw new Error('close failed');
-        }
       };
     },
   };
@@ -126,8 +115,6 @@ beforeEach(() => {
   h.sent.length = 0;
   h.failEnable = false;
   h.closed = 0;
-  h.failingCloses.clear();
-  h.warn.mockClear();
   h.connectGate = undefined;
   h.listGate = undefined;
   h.disconnectHandlers.clear();
@@ -163,25 +150,6 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     await bridge.close();
 
     await expect(bridge.connect()).rejects.toThrow(/closed/);
-  });
-
-  it('should close every connection and reset its state when one close rejects', async () => {
-    const main = target('A', 'views://mainview/index.html');
-    h.targets = [main, target('B', 'views://secondview/index.html')];
-    const bridge = makeBridge();
-    await bridge.connect();
-    await bridge.switchTarget('window-1');
-    h.failingCloses.add(main.webSocketDebuggerUrl);
-
-    await expect(bridge.close()).resolves.toBeUndefined();
-
-    expect(h.closed).toBe(2);
-    expect(bridge.activeLabel).toBeUndefined();
-    expect(h.warn).toHaveBeenCalledTimes(1);
-    expect(h.warn).toHaveBeenCalledWith('Failed to close CDP connection [main]: close failed');
-    // The connections map was cleared, so a second close() has nothing left to close.
-    await bridge.close();
-    expect(h.closed).toBe(2);
   });
 
   it('should refuse switchTarget() after close() (no re-opened sockets)', async () => {
@@ -343,20 +311,6 @@ describe('MultiTargetCdpBridge multi-target routing', () => {
     const bridge = makeBridge({ connectionRetryCount: 0 });
 
     await expect(bridge.connect()).rejects.toThrow();
-  });
-
-  it('should log a pruned connection that fails to close on refresh', async () => {
-    const main = target('A', 'views://mainview/index.html');
-    h.targets = [main, target('B', 'views://secondview/index.html')];
-    const bridge = makeBridge();
-    await bridge.connect();
-    h.failingCloses.add(main.webSocketDebuggerUrl);
-
-    h.targets = [target('B', 'views://secondview/index.html')];
-    await expect(bridge.refresh()).resolves.toBeDefined();
-
-    expect(h.closed).toBe(1);
-    expect(h.warn).toHaveBeenCalledWith('Failed to close CDP connection [main]: close failed');
   });
 
   it('should auto-advance the active target when the active window is pruned on refresh', async () => {

@@ -1,5 +1,5 @@
 import EventEmitter from 'node:events';
-import { createLogger, errorMessage } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 
 import type { ProtocolMapping } from 'devtools-protocol/types/protocol-mapping.js';
 
@@ -128,14 +128,14 @@ export class MultiTargetCdpBridge extends EventEmitter {
     const live = new Set(this.#targets.map((target) => target.label));
     // Await the closes so in-flight requests on pruned connections are rejected before
     // refresh() returns — makes teardown deterministic rather than fire-and-forget.
-    const pruned: Array<[string, Connection]> = [];
+    const closePromises: Promise<void>[] = [];
     for (const [label, connection] of this.#connections) {
       if (!live.has(label)) {
-        pruned.push([label, connection]);
+        closePromises.push(connection.close());
         this.#connections.delete(label);
       }
     }
-    await this.#closeConnections(pruned);
+    await Promise.allSettled(closePromises);
     // Prune the listener registry for every target that's gone, keyed by URL against the
     // live target list -- NOT by #connections. A target that dropped *before* this refresh()
     // was already removed from #connections (its #cdpListeners entry is deliberately kept
@@ -271,19 +271,9 @@ export class MultiTargetCdpBridge extends EventEmitter {
 
   async close(): Promise<void> {
     this.#closed = true;
-    await this.#closeConnections([...this.#connections]);
+    await Promise.all([...this.#connections.values()].map((connection) => connection.close()));
     this.#connections.clear();
     this.#activeLabel = undefined;
-  }
-
-  /** Best-effort: every connection gets a close, and each failure is logged rather than thrown. */
-  async #closeConnections(connections: Array<[string, Connection]>): Promise<void> {
-    const results = await Promise.allSettled(connections.map(([, connection]) => connection.close()));
-    results.forEach((result, i) => {
-      if (result.status === 'rejected') {
-        log.warn(`Failed to close CDP connection [${connections[i][0]}]: ${errorMessage(result.reason)}`);
-      }
-    });
   }
 
   async #discover(): Promise<void> {
