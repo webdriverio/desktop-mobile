@@ -67,8 +67,9 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
+          # 24.04 knows the new name without shipping it, so check for an installable candidate
           webdriver_pkg=webkit2gtk-driver
-          if apt-cache show webkitgtk-webdriver >/dev/null 2>&1; then webdriver_pkg=webkitgtk-webdriver; fi
+          if apt-cache policy webkitgtk-webdriver | grep -q "Candidate: [^(]"; then webdriver_pkg=webkitgtk-webdriver; fi
           sudo apt-get install -y \
             xvfb \
             "$webdriver_pkg" \
