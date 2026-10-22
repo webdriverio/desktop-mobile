@@ -5,7 +5,6 @@ import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteS
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
-import { mergeServiceOptions } from './serviceConfig.js';
 import type { TauriCapabilities, TauriServiceGlobalOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'service');
@@ -96,7 +95,7 @@ export async function init(
   log.debug('Initializing Tauri service in standalone mode...');
 
   const capabilities = copyCapabilities(callerCapabilities);
-  const serviceOptions = mergeServiceOptions(globalOptions ?? {}, capabilities['wdio:tauriServiceOptions']);
+  const serviceOptions = capabilities['wdio:tauriServiceOptions'] ?? {};
   if (serviceOptions.captureBackendLogs || serviceOptions.captureFrontendLogs) {
     if (serviceOptions.mode === 'browser') {
       log.warn('Log capture is unavailable in browser mode: there is no Tauri app process to capture logs from');

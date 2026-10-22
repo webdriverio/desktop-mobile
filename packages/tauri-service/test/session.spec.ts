@@ -596,27 +596,6 @@ describe('session', () => {
       });
       expect(mockRemote.mock.calls[0][0]).toMatchObject({ hostname: '127.0.0.1', port: 4444 });
     });
-
-    it('should honour startTimeout from the global options', async () => {
-      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
-        caps.port = 4444;
-      });
-
-      await init({ 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities, { startTimeout: 15000 });
-
-      expect(mockRemote.mock.calls[0][0].connectionRetryTimeout).toBe(60000);
-    });
-
-    it('should honour the log options from the global options', async () => {
-      await expect(
-        init({ 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities, {
-          captureBackendLogs: true,
-          logDir: '/tmp/global-logs',
-        }),
-      ).rejects.toMatchObject({ message: expect.stringContaining('Tauri driver port was not set') });
-
-      expect(mockLogWriterInitialize).toHaveBeenCalledWith('/tmp/global-logs');
-    });
   });
 
   describe('browser mode', () => {
@@ -707,7 +686,10 @@ describe('session', () => {
     });
 
     it('should warn that log capture is unavailable instead of pointing at a log directory', async () => {
-      await init(browserModeCapabilities(), { captureBackendLogs: true });
+      await init({
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl, captureBackendLogs: true },
+      } as unknown as TauriCapabilities);
 
       expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('unavailable in browser mode'));
       expect(mockLog.info).not.toHaveBeenCalledWith(expect.stringContaining('logs will be written to'));

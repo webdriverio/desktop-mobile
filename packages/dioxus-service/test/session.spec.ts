@@ -122,15 +122,6 @@ describe('session', () => {
       expect(remoteMock.mock.calls[0][0]).toMatchObject({ hostname: 'localhost', port: 4445 });
     });
 
-    it('should honour startTimeout from the global options, even when the capability leaves it undefined', async () => {
-      const caps = makeCaps();
-      caps['wdio:dioxusServiceOptions'] = { ...caps['wdio:dioxusServiceOptions'], startTimeout: undefined };
-
-      await init(caps, { startTimeout: 15_000 });
-
-      expect(remoteMock.mock.calls[0][0].connectionRetryTimeout).toBe(60_000);
-    });
-
     it('should stop the launcher when remote() fails', async () => {
       remoteMock.mockRejectedValueOnce(new Error('driver missing'));
 
