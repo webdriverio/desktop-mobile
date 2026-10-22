@@ -120,12 +120,6 @@ pub fn pointer_event_script(
     } else {
         String::new()
     };
-    let release_path = if matches!(event_type, PointerEventType::Up) && is_primary_button {
-        "delete window.__wdioPointerDownPath;"
-    } else {
-        ""
-    };
-
     format!(
         r"(function() {{
             var el = document.elementFromPoint({x}, {y});
@@ -137,7 +131,6 @@ pub fn pointer_event_script(
             {pointer_dispatch}
             {mouse_dispatch}
             {click_dispatch}
-            {release_path}
             return pointerDownCanceled;
         }})()"
     )
