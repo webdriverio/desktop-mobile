@@ -97,7 +97,7 @@ xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
   pnpm wdio run wdio.visual.conf.ts
 ```
 
-Electron does not need a manual wrapper — WDIO manages the display via its `autoXvfb` feature.
+Electron does not need a manual wrapper — WDIO manages the display via its `autoXvfb` feature. The exception is Ubuntu 26.04 with WDIO v9, where `autoXvfb` workers fail with `write EINVAL` ([webdriverio#15685](https://github.com/webdriverio/webdriverio/issues/15685)). There, wrap the run in `xvfb-run --auto-servernum` instead.
 
 ## Tauri provider notes
 

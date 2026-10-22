@@ -1,18 +1,16 @@
 use tauri::{
     plugin::{Builder, TauriPlugin},
-    Manager, Runtime,
+    Runtime,
 };
-
-#[cfg(desktop)]
-mod desktop;
-#[cfg(mobile)]
-mod mobile;
 
 mod error;
 #[cfg(target_os = "macos")]
 mod eval_channel;
+#[cfg(desktop)]
 mod platform;
+#[cfg(desktop)]
 mod server;
+#[cfg(desktop)]
 mod webdriver;
 
 pub use error::{Error, Result};
@@ -41,16 +39,13 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 /// Initializes the plugin with a custom port.
 ///
 /// This ignores the `TAURI_WEBDRIVER_PORT` environment variable.
+#[cfg(desktop)]
 #[must_use]
 pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
-    Builder::new("wdio-webdriver")
-        .setup(move |app, api| {
-            #[cfg(mobile)]
-            let webdriver = mobile::init(app, api)?;
-            #[cfg(desktop)]
-            let webdriver = desktop::init(app, api);
-            app.manage(webdriver);
+    use tauri::Manager;
 
+    Builder::new("wdio-webdriver")
+        .setup(move |app, _api| {
             // Manage async script state for native message handlers (Windows only)
             #[cfg(target_os = "windows")]
             app.manage(platform::AsyncScriptState::default());
@@ -79,6 +74,20 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
         })
         .on_webview_ready(|webview| {
             platform::register_webview_handlers(&webview);
+        })
+        .build()
+}
+
+/// Initializes the plugin with a custom port.
+///
+/// On Android and iOS the plugin registers but does nothing: the embedded driver is desktop-only.
+#[cfg(mobile)]
+#[must_use]
+pub fn init_with_port<R: Runtime>(_port: u16) -> TauriPlugin<R> {
+    Builder::new("wdio-webdriver")
+        .setup(|_app, _api| {
+            tracing::warn!("tauri-plugin-wdio-webdriver is desktop-only; not started on mobile");
+            Ok(())
         })
         .build()
 }
