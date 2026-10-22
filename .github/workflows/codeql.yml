@@ -19,11 +19,9 @@ on:
   schedule:
     - cron: '36 21 * * 0'
 
-# A new push to a PR cancels its previous analysis. On main a running analysis finishes, and a
-# newer push replaces one that's still queued.
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+  cancel-in-progress: true
 
 jobs:
   analyze:
