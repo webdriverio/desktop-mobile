@@ -14,7 +14,7 @@
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { AbstractFn, DioxusMock } from '@wdio/native-types';
-import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 
 import { runInterceptorScript } from './commands/execute.js';
 import mockStore from './mockStore.js';
@@ -131,46 +131,34 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
-  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`
-  // so a dead app still drops the store entry.
-  const localOps: Required<LocalMockOps> = {
-    mockClear: () => outerMockClear(),
-    mockReset: () => {
-      const currentName = outerMock.getMockName();
-      // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
-      const asyncMockClear = mock.mockClear;
-      (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
-      try {
-        outerMockReset();
-      } finally {
-        mock.mockClear = asyncMockClear;
-      }
-      outerMock.mockName(currentName);
-    },
-    mockRestore: () => {
-      outerMockClear();
-      mockStore.deleteMock(`dioxus.${command}`);
-    },
-  };
-  registerLocalMockOps(mock, localOps, browserToUse);
-
   mock.mockClear = async () => {
     await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockClear'));
-    localOps.mockClear();
+    outerMockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
+    const currentName = outerMock.getMockName();
     await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
-    localOps.mockReset();
+    // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
+    const asyncMockClear = mock.mockClear;
+    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+    try {
+      outerMockReset();
+    } finally {
+      mock.mockClear = asyncMockClear;
+    }
+    outerMock.mockName(currentName);
     return mock;
   };
 
+  // `finally`: a dead app still drops the store entry.
   mock.mockRestore = async () => {
     try {
       await runInterceptorScript<void>(browserToUse, interceptor.buildUnregistrationScript(command));
     } finally {
-      localOps.mockRestore();
+      outerMockClear();
+      mockStore.deleteMock(`dioxus.${command}`);
     }
     return mock;
   };

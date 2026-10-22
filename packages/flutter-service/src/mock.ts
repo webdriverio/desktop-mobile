@@ -15,7 +15,7 @@
 
 import { fn as vitestFn } from '@wdio/native-spy';
 import type { FlutterMock, MockResult } from '@wdio/native-types';
-import { createLogger, registerLocalMockOps } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 
 import { SERVICE_NAME } from './constants.js';
 import type { FlutterMockStore } from './mockStore.js';
@@ -163,13 +163,6 @@ export async function createFlutterMock(
     return mock;
   };
 
-  const localRestore = () => {
-    outerClear();
-    store.deleteMock(target);
-  };
-  // Clear/reset have no local half: they stay success-only, as explained above.
-  registerLocalMockOps(mock, { mockRestore: localRestore });
-
   mock.mockRestore = async () => {
     try {
       await ext('ext.wdio.restoreMock');
@@ -177,7 +170,8 @@ export async function createFlutterMock(
       // Delete from the store in the finally (not after): if the VM call throws (socket drop),
       // leaving the entry behind would let a later browser.flutter.mock(target) re-use this
       // cleared mock while the Dart seam still intercepts — a fresh mock() is the correct recovery.
-      localRestore();
+      outerClear();
+      store.deleteMock(target);
     }
     return mock;
   };

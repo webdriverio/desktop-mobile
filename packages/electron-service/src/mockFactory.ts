@@ -1,6 +1,6 @@
 import type { Mock } from '@wdio/native-spy';
 import type { AbstractFn, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
-import { createLogger, type LocalMockOps } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'mock');
 
@@ -91,10 +91,7 @@ interface BuildMockMethodsOpts {
   browserToUse: WebdriverIO.Browser;
 }
 
-export async function buildMockMethods(
-  mock: ElectronFunctionMock,
-  opts: BuildMockMethodsOpts,
-): Promise<Required<LocalMockOps>> {
+export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMockMethodsOpts): Promise<void> {
   const {
     accessor,
     outerMock,
@@ -337,22 +334,6 @@ export async function buildMockMethods(
     return mock;
   };
 
-  // The test-process half, run once the app call succeeds.
-  const localOps: Required<LocalMockOps> = {
-    mockClear: () => outerMockClear(),
-    mockReset: () => {
-      const currentName = outerMock.getMockName();
-      // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
-      // doesn't fire the async CDP override unawaited, racing against the explicit await in mockReset.
-      const asyncMockClearFn = mock.mockClear;
-      (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
-      outerMockReset();
-      mock.mockClear = asyncMockClearFn;
-      outerMock.mockName(currentName);
-    },
-    mockRestore: () => outerMockClear(),
-  };
-
   mock.mockClear = async () => {
     await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
       (electron, accessor) => {
@@ -372,11 +353,12 @@ export async function buildMockMethods(
       accessor,
       { internal: true },
     );
-    localOps.mockClear();
+    outerMockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
+    const currentName = outerMock.getMockName();
     await browserToUse.electron.execute<void, [MockAccessor, ExecuteOpts]>(
       (electron, accessor) => {
         let innerMock: Mock | undefined;
@@ -395,7 +377,13 @@ export async function buildMockMethods(
       accessor,
       { internal: true },
     );
-    localOps.mockReset();
+    // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
+    // doesn't fire the async CDP override unawaited, racing against the explicit await below.
+    const asyncMockClearFn = mock.mockClear;
+    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+    outerMockReset();
+    mock.mockClear = asyncMockClearFn;
+    outerMock.mockName(currentName);
     await mock.mockClear();
     return mock;
   };
@@ -422,7 +410,7 @@ export async function buildMockMethods(
         { internal: true },
       );
     }
-    localOps.mockRestore();
+    outerMockClear();
     return mock;
   };
 
@@ -482,6 +470,4 @@ export async function buildMockMethods(
       { internal: true },
     )) as ReturnType<typeof callbackFn>;
   };
-
-  return localOps;
 }

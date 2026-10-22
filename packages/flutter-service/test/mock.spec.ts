@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import { clearAllMocks, restoreAllMocks } from '../src/commands/allMocks.js';
+import { restoreAllMocks } from '../src/commands/allMocks.js';
 import { createFlutterMock } from '../src/mock.js';
 import { FlutterMockStore } from '../src/mockStore.js';
 import type { VmServiceClient } from '../src/vmService.js';
@@ -24,37 +24,22 @@ function makeClient() {
   return { client, calls };
 }
 
-describe('bulk ops against an unreachable VM service', () => {
-  async function storeWithDeadClient() {
+describe('restoreAllMocks against a dead VM service', () => {
+  it('should attempt every mock, report each failure and still empty the store', async () => {
     const { client } = makeClient();
     const store = new FlutterMockStore();
-    const a = await createFlutterMock('Svc.a', () => Promise.resolve(client), store);
-    const b = await createFlutterMock('Svc.b', () => Promise.resolve(client), store);
-    const c = await createFlutterMock('Svc.c', () => Promise.resolve(client), store);
-    for (const mock of [a, b, c]) {
-      (mock as unknown as (...args: unknown[]) => unknown)('call');
+    for (const target of ['Svc.a', 'Svc.b', 'Svc.c']) {
+      await createFlutterMock(target, () => Promise.resolve(client), store);
     }
     const send = client.callServiceExtension as ReturnType<typeof vi.fn>;
     send.mockClear().mockRejectedValue(new Error('WebSocket is not connected'));
-    return { store, c, send };
-  }
 
-  it('should stop making VM calls on restoreAllMocks after two failures and still empty the store', async () => {
-    const { store, send } = await storeWithDeadClient();
+    await expect(restoreAllMocks(store)).rejects.toMatchObject({
+      errors: Array(3).fill(expect.objectContaining({ message: 'WebSocket is not connected' })),
+    });
 
-    await expect(restoreAllMocks(store)).rejects.toBeInstanceOf(AggregateError);
-
-    expect(send).toHaveBeenCalledTimes(2);
+    expect(send).toHaveBeenCalledTimes(3);
     expect(store.getMocks()).toEqual([]);
-  });
-
-  it('should leave the skipped mocks untouched on clearAllMocks, since a clear is success-only', async () => {
-    const { store, c, send } = await storeWithDeadClient();
-
-    await expect(clearAllMocks(store)).rejects.toBeInstanceOf(AggregateError);
-
-    expect(send).toHaveBeenCalledTimes(2);
-    expect(c.mock.calls).toEqual([['call']]);
   });
 });
 

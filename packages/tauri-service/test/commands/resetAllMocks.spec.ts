@@ -1,4 +1,3 @@
-import { registerLocalMockOps } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
 import { resetAllMocks } from '../../src/commands/mock.js';
@@ -128,29 +127,6 @@ describe('resetAllMocks Command', () => {
     expect(mockedGetPlatformInfo.mockReset).toHaveBeenCalled();
     expect(mockedReadClipboard.mockReset).toHaveBeenCalled();
     expect(mockedWriteClipboard.mockReset).toHaveBeenCalled();
-  });
-
-  it('should make one per-mock app call and then only clean up locally when the session is gone', async () => {
-    const localOps = [vi.fn(), vi.fn(), vi.fn()];
-    registerLocalMockOps(mockedGetPlatformInfo, { mockReset: localOps[0] }, globalThis.browser);
-    registerLocalMockOps(mockedReadClipboard, { mockReset: localOps[1] }, globalThis.browser);
-    registerLocalMockOps(mockedWriteClipboard, { mockReset: localOps[2] }, globalThis.browser);
-    (globalThis.browser as any).execute.mockRejectedValue(new Error('invalid session id'));
-    mockedGetPlatformInfo.mockReset.mockRejectedValue(new Error('invalid session id'));
-
-    await expect(resetAllMocks()).rejects.toMatchObject({
-      errors: [
-        expect.objectContaining({ message: 'invalid session id' }),
-        expect.objectContaining({ message: 'invalid session id' }),
-      ],
-    });
-
-    expect(mockedGetPlatformInfo.mockReset).toHaveBeenCalledOnce();
-    expect(mockedReadClipboard.mockReset).not.toHaveBeenCalled();
-    expect(mockedWriteClipboard.mockReset).not.toHaveBeenCalled();
-    for (const localOp of localOps) {
-      expect(localOp).toHaveBeenCalledOnce();
-    }
   });
 
   it('should throw when no browser context is available', async () => {

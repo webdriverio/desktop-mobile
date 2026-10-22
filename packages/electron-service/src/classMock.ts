@@ -1,6 +1,6 @@
 import { type Mock, fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, ElectronClassMock, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
-import { createLogger, type LocalMockOps, registerLocalMockOps, runBulkMockOp } from '@wdio/native-utils';
+import { createLogger, runBulkMockOp } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 import mockStore from './mockStore.js';
 
@@ -42,7 +42,7 @@ async function createPrototypeMock(
     { internal: true },
   );
 
-  const localOps = await buildMockMethods(mock, {
+  await buildMockMethods(mock, {
     accessor: { kind: 'prototype', className, methodName },
     outerMock,
     outerMockClear: outerMock.mockClear.bind(outerMock),
@@ -93,7 +93,6 @@ async function createPrototypeMock(
     return mock;
   };
 
-  registerLocalMockOps(mock, localOps, browserToUse);
   return mock;
 }
 
@@ -248,22 +247,6 @@ export async function createClassMock(
     return constructorMock;
   };
 
-  // The test-process half, run once the app call succeeds.
-  const constructorLocalOps: Required<LocalMockOps> = {
-    mockClear: () => constructorOuterMockClear(),
-    mockReset: () => {
-      // Temporarily restore the sync mockClear so constructorOuterMockReset's internal
-      // mockFn.mockClear() doesn't fire the async CDP override unawaited, racing against
-      // the explicit await in mockReset.
-      const asyncMockClearFn = constructorMock.mockClear;
-      (constructorMock as unknown as { mockClear: () => void }).mockClear = constructorOuterMockClear;
-      constructorOuterMockReset();
-      constructorMock.mockClear = asyncMockClearFn;
-    },
-    mockRestore: () => constructorOuterMockClear(),
-  };
-  registerLocalMockOps(constructorMock, constructorLocalOps, browserToUse);
-
   constructorMock.mockClear = async () => {
     await browserToUse.electron.execute<void, [string, ExecuteOpts]>(
       (electron, className) => {
@@ -273,7 +256,7 @@ export async function createClassMock(
       className,
       { internal: true },
     );
-    constructorLocalOps.mockClear();
+    constructorOuterMockClear();
     return constructorMock;
   };
 
@@ -286,7 +269,13 @@ export async function createClassMock(
       className,
       { internal: true },
     );
-    constructorLocalOps.mockReset();
+    // Temporarily restore the sync mockClear so constructorOuterMockReset's internal
+    // mockFn.mockClear() doesn't fire the async CDP override unawaited, racing against
+    // the explicit await below.
+    const asyncMockClearFn = constructorMock.mockClear;
+    (constructorMock as unknown as { mockClear: () => void }).mockClear = constructorOuterMockClear;
+    constructorOuterMockReset();
+    constructorMock.mockClear = asyncMockClearFn;
     await constructorMock.mockClear();
     return constructorMock;
   };
@@ -304,7 +293,7 @@ export async function createClassMock(
       className,
       { internal: true },
     );
-    constructorLocalOps.mockRestore();
+    constructorOuterMockClear();
     return constructorMock;
   };
 

@@ -33,8 +33,6 @@ All three go through `runBulkMockOp` from `@wdio/native-utils`, with the service
 - Every matching mock is attempted, then the failures are thrown together as one `AggregateError`. A failure is never swallowed.
 - `mockClear` and `mockReset` run their test-process half (outer mock history and implementation) only after the app call succeeds. Clearing the outer mock while the app still holds the calls would let the next `update()` read them back.
 - A `mockRestore` that drops the store entry (Tauri, Dioxus, Electrobun, Flutter) runs its half in `finally`, so a dead app still leaves the store clean. Electron's and React Native's restores keep the entry, so they are success-only like `mockReset`.
-- The mock registers that half with `registerLocalMockOps`, along with the connection its app calls use. A store shared across multiremote instances keys this by the mock's browser; a per-session store can omit it.
-- A connection counts as unreachable after two consecutive connection-level failures (`isBenignTeardownError`); a success resets the count. Timeouts don't count: a slow app is still live. Once it is unreachable, its mocks get only their local half, including the two whose calls failed. Mocks on other connections still get their app calls.
 
 ## Rules
 - Store key is the mock name (e.g. `electron.dialog.showOpenDialog` or `tauri.invoke`)
