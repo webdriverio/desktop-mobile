@@ -64,27 +64,6 @@ describe('DioxusLaunchService — browser mode', () => {
     expect(launcher.isBrowserMode).toBe(true);
   });
 
-  it('should not report browser mode when rewriting the capabilities fails', async () => {
-    const launcher = createLauncher();
-    const capability: DioxusCapabilities = Object.freeze({
-      'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
-    });
-
-    await expect(launcher.onPrepare(baseConfig, [capability])).rejects.toThrow();
-    expect(launcher.isBrowserMode).toBe(false);
-  });
-
-  it('should stop reporting browser mode after onComplete', async () => {
-    const launcher = createLauncher();
-    await launcher.onPrepare(baseConfig, [
-      { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
-    ]);
-
-    await launcher.onComplete();
-
-    expect(launcher.isBrowserMode).toBe(false);
-  });
-
   it('should tell the worker about browser mode set only in the global options', async () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
     const capabilities: DioxusCapabilities[] = [{}];

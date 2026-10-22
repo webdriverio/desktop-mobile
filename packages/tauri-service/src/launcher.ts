@@ -208,6 +208,7 @@ export default class TauriLaunchService {
             throw new SevereServiceError(reachable.error.message);
           }
         }
+        this.browserMode = true;
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'tauri:options'?: unknown })['tauri:options'];
@@ -220,7 +221,6 @@ export default class TauriLaunchService {
             devServerUrl,
           };
         }
-        this.browserMode = true;
       } catch (error) {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});
@@ -1092,7 +1092,6 @@ export default class TauriLaunchService {
 
       log.debug('Tauri service completed');
     } finally {
-      this.browserMode = false;
       // Ensure the stopped processes' shutdown output still reaches the log file.
       try {
         await closeLogWriter('tauri-service');

@@ -115,6 +115,7 @@ export default class DioxusLaunchService extends BaseLauncher {
             throw new SevereServiceError(reachable.error.message);
           }
         }
+        this.#browserMode = true;
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'dioxus:options'?: unknown })['dioxus:options'];
@@ -127,7 +128,6 @@ export default class DioxusLaunchService extends BaseLauncher {
             devServerUrl,
           };
         }
-        this.#browserMode = true;
       } catch (error) {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});
@@ -272,7 +272,6 @@ export default class DioxusLaunchService extends BaseLauncher {
       await this.stopAllEmbedded();
       await this.stopAllDrivers();
     } finally {
-      this.#browserMode = false;
       try {
         await closeLogWriter('dioxus-service');
       } catch (error) {
