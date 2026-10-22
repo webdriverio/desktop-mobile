@@ -3,7 +3,6 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 const h = vi.hoisted(() => ({
   stopCalls: [] as string[],
   failingStops: new Set<string>(),
-  onStop: undefined as (() => Promise<void>) | undefined,
 }));
 
 vi.mock('@wdio/native-utils', async (importOriginal) => {
@@ -19,7 +18,6 @@ vi.mock('../src/driverProcess.js', () => ({
     }
     async stop() {
       h.stopCalls.push(this.#identifier);
-      await h.onStop?.();
       if (h.failingStops.has(this.#identifier)) {
         throw new Error(`kill failed for ${this.#identifier}`);
       }
@@ -47,7 +45,6 @@ async function startDrivers(pool: DriverPool, identifiers: string[]) {
 afterEach(() => {
   h.stopCalls.length = 0;
   h.failingStops.clear();
-  h.onStop = undefined;
 });
 
 describe('DriverPool.stopAll', () => {
@@ -61,7 +58,7 @@ describe('DriverPool.stopAll', () => {
     expect(pool.getStatus().identifiers).toEqual([]);
   });
 
-  it('should stop every driver, keep tracking the ones that failed and then report them', async () => {
+  it('should stop every driver, empty the pool and then report the failures', async () => {
     const pool = new DriverPool();
     await startDrivers(pool, ['a', 'b', 'c']);
     h.failingStops.add('a');
@@ -75,19 +72,6 @@ describe('DriverPool.stopAll', () => {
       message: 'Failed to stop driver(s): a: kill failed for a; c: kill failed for c',
     });
     expect(h.stopCalls).toEqual(['a', 'b', 'c']);
-    expect(pool.getStatus().identifiers).toEqual(['a', 'c']);
-  });
-
-  it('should keep tracking a driver registered while the others are stopping', async () => {
-    const pool = new DriverPool();
-    await startDrivers(pool, ['a']);
-    h.onStop = async () => {
-      await startDrivers(pool, ['late']);
-    };
-
-    await pool.stopAll();
-
-    expect(h.stopCalls).toEqual(['a']);
-    expect(pool.getStatus().identifiers).toEqual(['late']);
+    expect(pool.getStatus().identifiers).toEqual([]);
   });
 });

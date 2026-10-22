@@ -113,15 +113,10 @@ export class DriverPool {
         return info.process.stop(info.driverName);
       }),
     );
-    // Drop only drivers that stopped; a failed one, or one registered meanwhile, stays tracked.
-    const failures: Array<{ identifier: string; reason: unknown }> = [];
-    entries.forEach(([identifier, info], i) => {
+    this.drivers.clear();
+    const failures = entries.flatMap(([identifier], i) => {
       const result = results[i];
-      if (result.status === 'rejected') {
-        failures.push({ identifier, reason: result.reason });
-      } else if (this.drivers.get(identifier) === info) {
-        this.drivers.delete(identifier);
-      }
+      return result.status === 'rejected' ? [{ identifier, reason: result.reason }] : [];
     });
     if (failures.length > 0) {
       const details = failures.map(({ identifier, reason }) => `${identifier}: ${errorMessage(reason)}`).join('; ');
