@@ -695,6 +695,19 @@ describe('session', () => {
       expect(mockLog.info).not.toHaveBeenCalledWith(expect.stringContaining('logs will be written to'));
     });
 
+    it('should warn that log capture is unavailable when browser mode comes from the global options', async () => {
+      await init(
+        {
+          'tauri:options': { application: '/app' },
+          'wdio:tauriServiceOptions': { captureBackendLogs: true },
+        } as unknown as TauriCapabilities,
+        { mode: 'browser', devServerUrl },
+      );
+
+      expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('unavailable in browser mode'));
+      expect(mockLog.info).not.toHaveBeenCalledWith(expect.stringContaining('logs will be written to'));
+    });
+
     it('should stop the launcher, which stops the managed dev server, on cleanup', async () => {
       const browser = await init(browserModeCapabilities());
       expect(mockOnComplete).not.toHaveBeenCalled();
