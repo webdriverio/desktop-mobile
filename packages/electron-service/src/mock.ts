@@ -8,7 +8,7 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 
 const log = createLogger('electron-service', 'mock');
@@ -147,7 +147,7 @@ export async function createMock(
     return mock;
   };
 
-  const localOps = await buildMockMethods(mock, {
+  await buildMockMethods(mock, {
     accessor: { kind: 'api', apiName, funcName },
     outerMock,
     outerMockClear: outerMock.mockClear.bind(outerMock),
@@ -179,7 +179,6 @@ export async function createMock(
   wrapperMock.__isElectronMock = true;
   wrapperMock.__accessor = mock.__accessor;
   wrapperMock.__applyCalls = mock.__applyCalls.bind(mock);
-  registerLocalMockOps(wrapperMock, localOps, browserToUse);
 
   return wrapperMock;
 }
@@ -322,16 +321,6 @@ export async function createElectronBrowserModeMock(
     }
     outerMock.mockName(currentName);
   };
-  const resetLocally = () => {
-    implState = null;
-    resetOuter();
-  };
-  const localOps: Required<LocalMockOps> = {
-    mockClear: () => outerMockClear(),
-    mockReset: resetLocally,
-    mockRestore: resetLocally,
-  };
-  registerLocalMockOps(mock, localOps, browser);
 
   // The methods below update the outer mock only once the page call succeeds (restore is an in-page reset here).
   // implState is cleared before the await, so an implementation set meanwhile survives for re-registration.

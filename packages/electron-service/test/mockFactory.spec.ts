@@ -90,7 +90,6 @@ describe('restoreElectronFunctionality()', () => {
 describe('buildMockMethods() when the app call fails', () => {
   let outerMock: Mock;
   let mock: ElectronFunctionMock;
-  let localOps: Awaited<ReturnType<typeof buildMockMethods>>;
 
   beforeEach(async () => {
     outerMock = vi.fn() as unknown as Mock;
@@ -102,7 +101,7 @@ describe('buildMockMethods() when the app call fails', () => {
     outerMock.mockImplementationOnce = vi.fn();
     mock = vi.fn() as unknown as ElectronFunctionMock;
 
-    localOps = await buildMockMethods(mock, {
+    await buildMockMethods(mock, {
       accessor: { kind: 'api', apiName: 'app', funcName: 'getName' },
       outerMock,
       outerMockClear: outerMock.mockClear.bind(outerMock),
@@ -124,16 +123,6 @@ describe('buildMockMethods() when the app call fails', () => {
       expect(mockExecute).toHaveBeenCalledOnce();
     },
   );
-
-  it('should return local halves that never call the app', () => {
-    localOps.mockClear();
-    localOps.mockReset();
-    localOps.mockRestore();
-
-    expect(mockExecute).not.toHaveBeenCalled();
-    expect(outerMock.mockClear).toHaveBeenCalledTimes(2);
-    expect(outerMock.mockReset).toHaveBeenCalledOnce();
-  });
 });
 
 describe('buildMockMethods() with prototype accessor', () => {

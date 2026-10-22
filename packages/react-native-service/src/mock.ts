@@ -15,7 +15,7 @@
 import type { CdpBridge } from '@wdio/native-cdp-bridge';
 import { fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, MockResult, ReactNativeMock } from '@wdio/native-types';
-import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 
 import { evaluateInRealm, jsonLiteral } from './commands/execute.js';
 import { SERVICE_NAME } from './constants.js';
@@ -249,38 +249,28 @@ export async function createMock(
     return mock;
   };
 
-  // The test-process half, run once the app call succeeds.
-  const localOps: Required<LocalMockOps> = {
-    mockClear: () => outerMockClear(),
-    mockReset: () => {
-      const currentName = outerMock.getMockName();
-      // Use outerMockClear, not outerMockReset: native mockReset calls this.mockClear()
-      // via dynamic property lookup, which after our overwrite would invoke the async CDP
-      // mockClear and leak an unhandled rejection. Native _mockImplementation is always
-      // undefined for our mocks (all impl paths route through CDP), so clearing call
-      // history is sufficient.
-      outerMockClear();
-      outerMock.mockName(currentName);
-    },
-    mockRestore: () => outerMockClear(), // same reason as mockReset above
-  };
-  registerLocalMockOps(mock, localOps);
-
   mock.mockClear = async () => {
     await evaluateInRealm<void>(bridge, buildClearScript(target), mockContext);
-    localOps.mockClear();
+    outerMockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
+    const currentName = outerMock.getMockName();
     await evaluateInRealm<void>(bridge, buildResetScript(target), mockContext);
-    localOps.mockReset();
+    // Use outerMockClear, not outerMockReset: native mockReset calls this.mockClear()
+    // via dynamic property lookup, which after our overwrite would invoke the async CDP
+    // mockClear and leak an unhandled rejection. Native _mockImplementation is always
+    // undefined for our mocks (all impl paths route through CDP), so clearing call
+    // history is sufficient.
+    outerMockClear();
+    outerMock.mockName(currentName);
     return mock;
   };
 
   mock.mockRestore = async () => {
     await evaluateInRealm<void>(bridge, buildRestoreScript(target), mockContext);
-    localOps.mockRestore();
+    outerMockClear(); // same reason as mockReset above
     store.deleteMock(target);
     return mock;
   };

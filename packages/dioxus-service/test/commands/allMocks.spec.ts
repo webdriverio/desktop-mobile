@@ -93,7 +93,7 @@ describe('all-mocks helpers', () => {
   });
 
   describe('restoreAllMocks against a dead app', () => {
-    it('should stop calling the app after two connection failures and still empty the store', async () => {
+    it('should attempt every mock, report each failure and still empty the store', async () => {
       const browser = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
       markAsEmbedded(browser);
       await createMock('a', browser);
@@ -102,32 +102,10 @@ describe('all-mocks helpers', () => {
       vi.mocked(browser.execute).mockClear().mockRejectedValue(new Error('WebSocket is not connected'));
 
       await expect(restoreAllMocks()).rejects.toMatchObject({
-        errors: [
-          expect.objectContaining({ message: 'WebSocket is not connected' }),
-          expect.objectContaining({ message: 'WebSocket is not connected' }),
-        ],
+        errors: Array(3).fill(expect.objectContaining({ message: 'WebSocket is not connected' })),
       });
 
-      expect(browser.execute).toHaveBeenCalledTimes(2);
-      expect(mockStore.getMocks()).toEqual([]);
-    });
-
-    it('should still restore the mocks of a healthy multiremote instance when another instance is dead', async () => {
-      const dead = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
-      const healthy = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
-      markAsEmbedded(dead);
-      markAsEmbedded(healthy);
-      await createMock('a', dead);
-      await createMock('b', healthy);
-      await createMock('c', dead);
-      await createMock('d', healthy);
-      vi.mocked(dead.execute).mockClear().mockRejectedValue(new Error('invalid session id'));
-      vi.mocked(healthy.execute).mockClear();
-
-      await expect(restoreAllMocks()).rejects.toBeInstanceOf(AggregateError);
-
-      expect(dead.execute).toHaveBeenCalledTimes(2);
-      expect(healthy.execute).toHaveBeenCalledTimes(2);
+      expect(browser.execute).toHaveBeenCalledTimes(3);
       expect(mockStore.getMocks()).toEqual([]);
     });
   });

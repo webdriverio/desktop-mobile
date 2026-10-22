@@ -21,7 +21,7 @@
 import type { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import { fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, ElectrobunMock, MockResult } from '@wdio/native-types';
-import { createLogger, type LocalMockOps, registerLocalMockOps } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 
 import { evaluateInActiveTarget, jsonLiteral } from './commands/execute.js';
 import { SERVICE_NAME } from './constants.js';
@@ -241,41 +241,29 @@ export async function createMock(
       mock.mockClear = asyncMockClear;
     }
   };
-  // The test-process half: clear/reset run it once the app call succeeds, restore in `finally`
-  // so a dead app still drops the store entry.
-  const localOps: Required<LocalMockOps> = {
-    mockClear: () => outerMockClear(),
-    mockReset: () => {
-      const currentName = outerMock.getMockName();
-      resetOuter();
-      outerMock.mockName(currentName);
-    },
-    mockRestore: () => {
-      // Match vitest semantics: restore fully resets the outer spy (history +
-      // implementation), not just clears its call history.
-      resetOuter();
-      store.deleteMock(target);
-    },
-  };
-  registerLocalMockOps(mock, localOps);
-
   mock.mockClear = async () => {
     await evaluateInActiveTarget<void>(bridge, buildClearScript(target), mockContext);
-    localOps.mockClear();
+    outerMockClear();
     return mock;
   };
 
   mock.mockReset = async () => {
+    const currentName = outerMock.getMockName();
     await evaluateInActiveTarget<void>(bridge, buildResetScript(target), mockContext);
-    localOps.mockReset();
+    resetOuter();
+    outerMock.mockName(currentName);
     return mock;
   };
 
+  // `finally`: a dead app still drops the store entry.
   mock.mockRestore = async () => {
     try {
       await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target), mockContext);
     } finally {
-      localOps.mockRestore();
+      // Match vitest semantics: restore fully resets the outer spy (history +
+      // implementation), not just clears its call history.
+      resetOuter();
+      store.deleteMock(target);
     }
     return mock;
   };

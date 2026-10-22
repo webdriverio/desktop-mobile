@@ -90,7 +90,6 @@ export async function resetAllMocks(this: TauriServiceContext | undefined, comma
   const mocks = mockStore.getMocks();
   const resetCount = await runBulkMockOp(mocks, 'mockReset', {
     matches: (name) => shouldProcessMock(name, commandPrefix),
-    bulkAppConnection: stdBrowser,
     // Reset mocks in the injection script (with prefix filtering if provided)
     bulkAppCall: () =>
       stdBrowser.execute<void, [string]>((prefix) => {
@@ -127,7 +126,6 @@ export async function restoreAllMocks(this: TauriServiceContext | undefined, com
   const mocks = mockStore.getMocks();
   const restoredCount = await runBulkMockOp(mocks, 'mockRestore', {
     matches: (name) => shouldProcessMock(name, commandPrefix),
-    bulkAppConnection: stdBrowser,
     // Restore mocks in the injection script (with prefix filtering if provided)
     bulkAppCall: () =>
       stdBrowser.execute<void, [string]>((prefix) => {
