@@ -267,6 +267,9 @@ jobs:
           # The de-elevated test tree still writes into the workspace the elevated runner created.
           icacls "$env:GITHUB_WORKSPACE" /grant "Everyone:(OI)(CI)F"
 
+      - name: 🖥️ Start Xvfb (Linux)
+        uses: ./.github/workflows/actions/start-xvfb
+
       - name: 🧪 Execute Package Tests
         id: package-tests
         shell: bash
