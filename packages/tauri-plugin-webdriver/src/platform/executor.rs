@@ -106,7 +106,7 @@ where
 }
 
 /// Wait until `is_applied` holds, re-checking on each `notify`; returns `false` on timeout.
-async fn wait_until_applied(
+pub(crate) async fn wait_until_applied(
     notify: &tokio::sync::Notify,
     timeout: std::time::Duration,
     is_applied: impl Fn() -> bool,

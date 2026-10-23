@@ -1,14 +1,20 @@
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::time::Duration;
 
 use axum::extract::{Path, State};
 use axum::Json;
 use serde::Deserialize;
 use serde_json::json;
-use tauri::{Manager, Runtime};
+use tauri::{Listener, Manager, Runtime};
+use tokio::sync::Notify;
 
-use crate::platform::WindowRect;
+use crate::platform::{wait_until_applied, WindowRect};
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
+
+/// How long Close Window waits for the window to be destroyed before taking the close as prevented.
+const CLOSE_WINDOW_TIMEOUT: Duration = Duration::from_secs(2);
 
 #[derive(Debug, Deserialize)]
 pub struct SwitchWindowRequest {
@@ -73,19 +79,49 @@ pub async fn close_window<R: Runtime>(
     let current_window = session.current_window.clone();
     drop(sessions);
 
-    // Close the current window
-    if let Some(window) = state.app.webview_windows().get(&current_window).cloned() {
-        window
-            .destroy()
-            .map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+    let Some(window) = state.app.webview_windows().get(&current_window).cloned() else {
+        return Err(WebDriverErrorResponse::no_such_window());
+    };
 
-        // Return remaining window handles
-        let handles: Vec<String> = state.app.webview_windows().keys().cloned().collect();
+    let destroyed = Arc::new(AtomicBool::new(false));
+    let notify = Arc::new(Notify::new());
+    let listener_id = window.listen("tauri://destroyed", {
+        let destroyed = Arc::clone(&destroyed);
+        let notify = Arc::clone(&notify);
+        move |_| {
+            destroyed.store(true, Ordering::SeqCst);
+            notify.notify_one();
+        }
+    });
 
-        Ok(WebDriverResponse::success(handles))
-    } else {
-        Err(WebDriverErrorResponse::no_such_window())
-    }
+    // Unlike destroy(), close() runs the app's CloseRequested handlers, which can prevent it.
+    let close_result = window.close();
+    let closed = close_result.is_ok()
+        && wait_until_applied(&notify, CLOSE_WINDOW_TIMEOUT, || {
+            destroyed.load(Ordering::SeqCst)
+        })
+        .await;
+    window.unlisten(listener_id);
+    close_result.map_err(|e| WebDriverErrorResponse::unknown_error(&e.to_string()))?;
+
+    let labels = state.app.webview_windows().into_keys();
+    Ok(WebDriverResponse::success(remaining_handles(
+        labels,
+        &current_window,
+        closed,
+    )))
+}
+
+/// A destroyed window can stay listed for a moment, so it's dropped from the handles here.
+fn remaining_handles(
+    labels: impl IntoIterator<Item = String>,
+    closing_label: &str,
+    closed: bool,
+) -> Vec<String> {
+    labels
+        .into_iter()
+        .filter(|label| !closed || label != closing_label)
+        .collect()
 }
 
 /// POST `/session/{session_id}/window` - Switch to window
@@ -247,4 +283,30 @@ pub async fn fullscreen<R: Runtime + 'static>(
         "width": rect.width,
         "height": rect.height
     })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn labels(names: &[&str]) -> Vec<String> {
+        names.iter().map(|name| (*name).to_string()).collect()
+    }
+
+    #[test]
+    fn a_closed_window_is_left_out_even_while_still_listed() {
+        let handles = remaining_handles(labels(&["main", "settings"]), "settings", true);
+        assert_eq!(handles, labels(&["main"]));
+    }
+
+    #[test]
+    fn a_prevented_close_keeps_the_window() {
+        let handles = remaining_handles(labels(&["main", "settings"]), "settings", false);
+        assert_eq!(handles, labels(&["main", "settings"]));
+    }
+
+    #[test]
+    fn closing_the_last_window_leaves_no_handles() {
+        assert!(remaining_handles(labels(&["main"]), "main", true).is_empty());
+    }
 }
