@@ -206,13 +206,13 @@ describe('DioxusLaunchService', () => {
 
     it('should copy the service-level windowLabel into each capability', async () => {
       const caps: DioxusCapabilities[] = [
-        { 'wdio:dioxusServiceOptions': { captureBackendLogs: true } } as DioxusCapabilities,
+        { 'wdio:dioxusServiceOptions': { startTimeout: 30_000 } } as DioxusCapabilities,
         {} as DioxusCapabilities,
       ];
 
       await makeLauncher({ windowLabel: 'window-1' }).onPrepare(baseConfig, caps);
 
-      expect(caps[0]['wdio:dioxusServiceOptions']).toEqual({ captureBackendLogs: true, windowLabel: 'window-1' });
+      expect(caps[0]['wdio:dioxusServiceOptions']).toEqual({ startTimeout: 30_000, windowLabel: 'window-1' });
       expect(caps[1]['wdio:dioxusServiceOptions']).toEqual({ windowLabel: 'window-1' });
     });
 
