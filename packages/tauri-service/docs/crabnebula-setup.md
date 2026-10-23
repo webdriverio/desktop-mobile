@@ -74,9 +74,11 @@ On Linux, you need WebKitWebDriver (same as the official driver):
 
 ```bash
 # Ubuntu 26.04+, Debian 13+
+sudo apt-get update
 sudo apt-get install -y webkitgtk-webdriver
 
 # Ubuntu 24.04 and older, Debian 12
+sudo apt-get update
 sudo apt-get install -y webkit2gtk-driver
 
 # Fedora
@@ -234,7 +236,7 @@ jobs:
       - name: Install WebKitWebDriver
         run: |
           sudo apt-get update
-          sudo apt-get install -y webkitgtk-webdriver || sudo apt-get install -y webkit2gtk-driver
+          sudo apt-get install -y webkitgtk-webdriver
       
       - name: Install dependencies
         run: npm install

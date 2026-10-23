@@ -586,7 +586,7 @@ jobs:
       - name: Install WebKitWebDriver
         run: |
           sudo apt-get update
-          sudo apt-get install -y webkitgtk-webdriver || sudo apt-get install -y webkit2gtk-driver
+          sudo apt-get install -y webkitgtk-webdriver
 
       - name: Install dependencies
         run: npm install

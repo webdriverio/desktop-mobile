@@ -40,5 +40,6 @@ export {
   runBounded,
   safeDeleteSession,
 } from './teardown.js';
+export { getWebKitWebDriverInstallCommand, WEBKIT_WEBDRIVER_INSTALL_HINT } from './webkitWebDriver.js';
 export { waitUntilWindowAvailable } from './window.js';
 export { createLogger };

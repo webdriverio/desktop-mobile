@@ -5,6 +5,7 @@
 // fundamentally can't work, e.g. the app wasn't built with the CEF renderer so
 // no CDP endpoint exists to attach to.
 
+import { WEBKIT_WEBDRIVER_INSTALL_HINT } from '@wdio/native-utils';
 import { SevereServiceError } from 'webdriverio';
 
 export { SevereServiceError };
@@ -48,10 +49,7 @@ export function nativeRendererUnsupportedPlatform(
 export function webKitWebDriverNotFound(): Error {
   return new SevereServiceError(
     '@wdio/electrobun-service could not find WebKitWebDriver, required to drive the Linux WebKitGTK ' +
-      'renderer over W3C WebDriver. Install it with `sudo apt-get install webkitgtk-webdriver` ' +
-      '(Ubuntu 26.04+, Debian 13+; `webkit2gtk-driver` on older releases), `sudo dnf install webkitgtk6.0` ' +
-      "(Fedora), `sudo pacman -S webkitgtk-6.0` (Arch) or your distribution's equivalent, or put " +
-      'WebKitWebDriver on PATH.',
+      `renderer over W3C WebDriver. ${WEBKIT_WEBDRIVER_INSTALL_HINT}`,
   );
 }
 

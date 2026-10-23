@@ -1,6 +1,6 @@
 import { execSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, WEBKIT_WEBDRIVER_INSTALL_HINT } from '@wdio/native-utils';
 
 const log = createLogger('tauri-service', 'utils');
 
@@ -41,9 +41,6 @@ export function getWebKitWebDriverPath(): string | undefined {
     }
   }
 
-  log.warn(
-    'WebKitWebDriver not found. Install it with: sudo apt-get install -y webkitgtk-webdriver ' +
-      "(Ubuntu 26.04+, Debian 13+; webkit2gtk-driver on older releases), or your distribution's equivalent",
-  );
+  log.warn(`WebKitWebDriver not found. ${WEBKIT_WEBDRIVER_INSTALL_HINT}`);
   return undefined;
 }

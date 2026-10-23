@@ -2,7 +2,7 @@ import { exec, execSync, spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { createLogger, Err, Ok, type Result } from '@wdio/native-utils';
+import { createLogger, Err, getWebKitWebDriverInstallCommand, Ok, type Result } from '@wdio/native-utils';
 import type { TauriServiceOptions } from './types.js';
 
 const execAsync = promisify(exec);
@@ -281,27 +281,6 @@ export async function detectPackageManager(): Promise<string> {
   return 'unknown';
 }
 
-/**
- * Get the command that installs WebKitWebDriver with the given package manager
- * @public Exported for testing
- */
-export function getWebKitDriverInstallCommand(packageManager: string): string {
-  // Where releases name the package differently, the newer release's name comes first.
-  const installCommands: Record<string, string> = {
-    apt: 'sudo apt-get install -y webkitgtk-webdriver || sudo apt-get install -y webkit2gtk-driver',
-    dnf: 'sudo dnf install -y webkitgtk6.0 || sudo dnf install -y webkit2gtk3',
-    yum: 'sudo yum install -y webkit2gtk3',
-    zypper: 'sudo zypper install -y webkitgtk4-minibrowser || sudo zypper install -y webkit2gtk4-minibrowser',
-    pacman: 'sudo pacman -S webkitgtk-6.0',
-    xbps: 'sudo xbps-install -y libwebkit2gtk41',
-  };
-
-  return (
-    installCommands[packageManager] ??
-    "Install your distribution's package that provides WebKitWebDriver, and make sure WebKitWebDriver is on PATH"
-  );
-}
-
 export interface WebKitWebDriverSuccess {
   path?: string;
 }
@@ -345,10 +324,8 @@ export async function ensureWebKitWebDriver(): Promise<Result<WebKitWebDriverSuc
   const packageManager = await detectPackageManager();
   log.debug(`Detected package manager: ${packageManager}`);
 
-  const installCommand = getWebKitDriverInstallCommand(packageManager);
-
   const error = new Error('WebKitWebDriver not found') as WebKitWebDriverError;
-  error.installInstructions = installCommand;
+  error.installInstructions = getWebKitWebDriverInstallCommand(packageManager);
   return Err(error);
 }
 
