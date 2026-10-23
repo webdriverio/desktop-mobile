@@ -8,8 +8,8 @@ interface PackageManagerInstall {
   packages: [DriverPackage, ...DriverPackage[]];
 }
 
-// Where releases name the package differently, the newer release's comes first. There's no apk entry
-// (Alpine names the binary WebKitWebDriver-4.1) and no yum entry (RHEL isn't supported).
+// Where releases name the package differently, the newer release's comes first. There's no apk or
+// yum entry, as Alpine and RHEL aren't supported.
 const INSTALLS: Record<string, PackageManagerInstall> = {
   apt: {
     command: 'sudo apt-get install -y',
