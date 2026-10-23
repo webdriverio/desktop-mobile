@@ -64,7 +64,7 @@ const WINDOW_CHANGE_TIMEOUT: std::time::Duration = std::time::Duration::from_sec
 /// Physical-to-logical rounding can leave a requested logical value off by one pixel.
 const LOGICAL_ROUNDING_TOLERANCE: u32 = 1;
 
-/// Apply a native window change and wait until `is_applied` confirms it.
+/// Apply a native window change and wait, up to `timeout`, until `is_applied` confirms it.
 ///
 /// `event_name` only triggers a re-check, as the event can predate this change or come from
 /// another window. `is_applied` should return `true` if it can't read the window state, rather
@@ -72,10 +72,11 @@ const LOGICAL_ROUNDING_TOLERANCE: u32 = 1;
 ///
 /// Only the native call failing is an error; a change the window manager clamps or ignores
 /// just times out.
-async fn apply_window_change<R, F, A>(
+pub(crate) async fn apply_window_change<R, F, A>(
     window: &WebviewWindow<R>,
     event_name: &'static str,
     operation: &'static str,
+    timeout: std::time::Duration,
     change: F,
     is_applied: A,
 ) -> Result<(), WebDriverErrorResponse>
@@ -97,7 +98,7 @@ where
         )));
     }
 
-    if !wait_until_applied(&notify, WINDOW_CHANGE_TIMEOUT, is_applied).await {
+    if !wait_until_applied(&notify, timeout, is_applied).await {
         tracing::debug!("Timed out waiting to {operation}");
     }
 
@@ -106,7 +107,7 @@ where
 }
 
 /// Wait until `is_applied` holds, re-checking on each `notify`; returns `false` on timeout.
-pub(crate) async fn wait_until_applied(
+async fn wait_until_applied(
     notify: &tokio::sync::Notify,
     timeout: std::time::Duration,
     is_applied: impl Fn() -> bool,
@@ -1443,6 +1444,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 self.window(),
                 "tauri://resize",
                 "exit window fullscreen state",
+                WINDOW_CHANGE_TIMEOUT,
                 || self.window().set_fullscreen(false),
                 || !self.window().is_fullscreen().unwrap_or(false),
             )
@@ -1458,6 +1460,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 self.window(),
                 "tauri://resize",
                 "restore maximized window",
+                WINDOW_CHANGE_TIMEOUT,
                 || self.window().unmaximize(),
                 || !self.window().is_maximized().unwrap_or(false),
             )
@@ -1493,6 +1496,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 self.window(),
                 "tauri://move",
                 "set window position",
+                WINDOW_CHANGE_TIMEOUT,
                 || {
                     self.window()
                         .set_position(LogicalPosition::new(rect.x, rect.y))
@@ -1513,6 +1517,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 self.window(),
                 "tauri://resize",
                 "set window size",
+                WINDOW_CHANGE_TIMEOUT,
                 || self.window().set_size(inner_size),
                 || has_logical_inner_size(self.window(), inner_size),
             )
@@ -1528,6 +1533,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
             self.window(),
             "tauri://resize",
             "maximize window",
+            WINDOW_CHANGE_TIMEOUT,
             || self.window().maximize(),
             || self.window().is_maximized().unwrap_or(true),
         )
@@ -1547,6 +1553,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
             self.window(),
             "tauri://resize",
             "enter window fullscreen state",
+            WINDOW_CHANGE_TIMEOUT,
             || self.window().set_fullscreen(true),
             || self.window().is_fullscreen().unwrap_or(true),
         )

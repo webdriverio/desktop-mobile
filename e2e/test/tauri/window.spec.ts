@@ -289,12 +289,15 @@ describe('Embedded WebDriver Close Window', () => {
   });
 
   after(async () => {
-    await browser.tauri.switchWindow('main');
+    if (process.env.DRIVER_PROVIDER === 'embedded') {
+      await browser.tauri.switchWindow('main');
+    }
   });
 
   it('should keep a window whose app prevents the close', async () => {
     await browser.switchToWindow('close-guard');
     expect(await browser.closeWindow()).toContain('close-guard');
+    expect(await browser.getWindowHandle()).toBe('close-guard');
 
     await browser.tauri.switchWindow('main');
     expect(await getCloseRequests()).toBe(1);
