@@ -39,7 +39,7 @@ jobs:
 
       - name: Release Preview
         id: preview
-        uses: goosewobbler/releasekit@v0.41.2
+        uses: goosewobbler/releasekit@v0.42.0
         with:
           node-version: '24'
           mode: preview

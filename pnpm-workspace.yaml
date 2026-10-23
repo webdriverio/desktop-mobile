@@ -92,3 +92,7 @@ minimumReleaseAgeExclude:
   - '@tauri-apps/cli-win32-ia32-msvc@2.12.4'
   - '@tauri-apps/cli-win32-x64-msvc@2.12.4'
   - '@tauri-apps/cli@2.12.4'
+  - '@releasekit/notes@0.42.0'
+  - '@releasekit/publish@0.42.0'
+  - '@releasekit/release@0.42.0'
+  - '@releasekit/version@0.42.0'
