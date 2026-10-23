@@ -13,6 +13,7 @@ const {
   mockRemote,
   mockHttpGet,
   mockLog,
+  launcherState,
 } = vi.hoisted(() => ({
   mockOnPrepare: vi.fn().mockResolvedValue(undefined),
   mockOnWorkerStart: vi.fn().mockResolvedValue(undefined),
@@ -25,6 +26,7 @@ const {
   mockRemote: vi.fn(),
   mockHttpGet: vi.fn(),
   mockLog: { debug: vi.fn(), info: vi.fn(), warn: vi.fn(), error: vi.fn() },
+  launcherState: { isBrowserMode: false },
 }));
 
 vi.mock('@wdio/native-core', () => ({
@@ -48,6 +50,9 @@ vi.mock('../src/launcher.js', () => ({
       onWorkerStart: mockOnWorkerStart,
       onWorkerEnd: mockOnWorkerEnd,
       onComplete: mockOnComplete,
+      get isBrowserMode() {
+        return launcherState.isBrowserMode;
+      },
     };
   }),
 }));
@@ -113,6 +118,7 @@ describe('session', () => {
     mockOnWorkerEnd.mockResolvedValue(undefined);
     mockOnComplete.mockResolvedValue(undefined);
     mockBefore.mockResolvedValue(undefined);
+    launcherState.isBrowserMode = false;
   });
 
   describe('createTauriCapabilities', () => {
@@ -420,7 +426,7 @@ describe('session', () => {
 
       const browser = await init(capabilities);
 
-      expect(mockBefore).toHaveBeenCalledWith(capabilities, [], browser);
+      expect(mockBefore).toHaveBeenCalledWith({ ...capabilities, port: 4444 }, [], browser);
     });
 
     it('should return the browser instance', async () => {
@@ -503,24 +509,11 @@ describe('session', () => {
       await expect(init(capabilities)).rejects.toThrow('Tauri driver port was not set');
 
       expect(mockLogWriterInitialize).not.toHaveBeenCalled();
+      expect(mockLog.info).toHaveBeenCalledWith(expect.stringContaining('logs will be written to'));
+      expect(mockLog.warn).not.toHaveBeenCalledWith(expect.stringContaining('logs will not be captured'));
     });
 
-    it('should create TauriWorkerService with service options from capabilities', async () => {
-      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
-        caps.port = 4444;
-      });
-      const serviceOpts = { appBinaryPath: '/app', logLevel: 'debug' as const };
-      const capabilities = {
-        'tauri:options': { application: '/app' },
-        'wdio:tauriServiceOptions': serviceOpts,
-      } as unknown as TauriCapabilities;
-
-      await init(capabilities);
-
-      expect(TauriWorkerService).toHaveBeenCalledWith(serviceOpts, capabilities);
-    });
-
-    it('should create TauriWorkerService with empty options when none in capabilities', async () => {
+    it('should create TauriWorkerService with empty options when no global options are given', async () => {
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.port = 4444;
       });
@@ -530,7 +523,205 @@ describe('session', () => {
 
       await init(capabilities);
 
-      expect(TauriWorkerService).toHaveBeenCalledWith({}, capabilities);
+      expect(TauriWorkerService).toHaveBeenCalledWith({}, { ...capabilities, port: 4444 });
+    });
+
+    it('should pass the global options to TauriWorkerService', async () => {
+      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
+        caps.port = 4444;
+      });
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': { windowLabel: 'settings' },
+      } as unknown as TauriCapabilities;
+      const globalOptions = { windowLabel: 'main', clearMocks: true };
+
+      await init(capabilities, globalOptions);
+
+      expect(TauriWorkerService).toHaveBeenCalledWith(globalOptions, { ...capabilities, port: 4444 });
+    });
+
+    it('should keep a global driverProvider that createTauriCapabilities leaves undefined', async () => {
+      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
+        caps.port = 4444;
+      });
+      const capabilities = createTauriCapabilities('/app');
+
+      await init(capabilities, { driverProvider: 'external' });
+
+      const [workerOptions, workerCapabilities] = vi.mocked(TauriWorkerService).mock.calls[0];
+      const { default: RealTauriWorkerService } =
+        await vi.importActual<typeof import('../src/service.js')>('../src/service.js');
+      const worker = new RealTauriWorkerService(workerOptions, workerCapabilities);
+      expect((worker as unknown as { driverProvider?: string }).driverProvider).toBe('external');
+    });
+
+    it('should open a native session when the capability options hold a devServer function', async () => {
+      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
+        caps.port = 4444;
+      });
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': {
+          devServer: async () => ({ url: 'http://localhost:1420', close: async () => {} }),
+        },
+      } as unknown as TauriCapabilities;
+
+      await init(capabilities);
+
+      expect(mockRemote).toHaveBeenCalledWith(expect.objectContaining({ port: 4444 }));
+      expect(mockRemote.mock.calls[0][0].capabilities).not.toHaveProperty('port');
+    });
+
+    it("should leave the caller's capabilities untouched by the launcher's native-mode writes", async () => {
+      mockOnPrepare.mockImplementation(
+        async (_config: unknown, [caps]: [TauriCapabilities & Record<string, unknown>]) => {
+          caps.port = 4444;
+          caps.hostname = '127.0.0.1';
+          if (caps['tauri:options']) {
+            caps['tauri:options'].application = '/resolved/app';
+          }
+        },
+      );
+      const capabilities = {
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': { appBinaryPath: '/app' },
+      } as unknown as TauriCapabilities;
+
+      await init(capabilities);
+
+      expect(capabilities).toEqual({
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': { appBinaryPath: '/app' },
+      });
+      expect(mockRemote.mock.calls[0][0]).toMatchObject({ hostname: '127.0.0.1', port: 4444 });
+    });
+  });
+
+  describe('browser mode', () => {
+    const devServerUrl = 'http://localhost:1420';
+
+    beforeEach(() => {
+      // Mirrors the launcher's browser-mode onPrepare: a Chrome capability and no driver port.
+      mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
+        caps.browserName = 'chrome';
+        delete caps['tauri:options'];
+        launcherState.isBrowserMode = true;
+      });
+      mockRemote.mockResolvedValue(createMockBrowser());
+    });
+
+    function browserModeCapabilities(): TauriCapabilities {
+      return {
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl },
+      } as unknown as TauriCapabilities;
+    }
+
+    const chromeSessionCapabilities = {
+      browserName: 'chrome',
+      'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl },
+    };
+
+    it('should open the session through WebdriverIO without a driver port', async () => {
+      const browser = await init(browserModeCapabilities());
+
+      expect(mockRemote).toHaveBeenCalledWith({ capabilities: chromeSessionCapabilities });
+      expect(mockHttpGet).not.toHaveBeenCalled();
+      expect(mockBefore).toHaveBeenCalledWith(chromeSessionCapabilities, [], browser);
+    });
+
+    it('should open a browser-mode session when mode comes from the global options', async () => {
+      await init({} as TauriCapabilities, { mode: 'browser', devServerUrl });
+
+      expect(mockRemote).toHaveBeenCalledWith({ capabilities: { browserName: 'chrome' } });
+      expect(TauriWorkerService).toHaveBeenCalledWith(expect.objectContaining({ mode: 'browser' }), {
+        browserName: 'chrome',
+      });
+    });
+
+    it("should follow the launcher's browser-mode decision", async () => {
+      await init({ 'tauri:options': { application: '/app' } } as unknown as TauriCapabilities);
+
+      expect(mockRemote).toHaveBeenCalledWith({ capabilities: { browserName: 'chrome' } });
+    });
+
+    it("should leave the caller's capabilities untouched by the launcher's browser-mode rewrite", async () => {
+      const capabilities = browserModeCapabilities();
+
+      await init(capabilities);
+
+      expect(capabilities).toEqual(browserModeCapabilities());
+    });
+
+    it('should strip a user-supplied port and hostname from the browser session capabilities', async () => {
+      await init({ ...browserModeCapabilities(), hostname: 'localhost', port: 9999 } as TauriCapabilities);
+
+      expect(mockRemote).toHaveBeenCalledWith({ capabilities: chromeSessionCapabilities });
+    });
+
+    it("should keep WebdriverIO's capability writes off the caller's object", async () => {
+      // Mirrors what WebdriverIO does to the capabilities it starts a Chrome session with.
+      mockRemote.mockImplementationOnce(async ({ capabilities: sessionCapabilities }) => {
+        sessionCapabilities.webSocketUrl = true;
+        sessionCapabilities.unhandledPromptBehavior = 'ignore';
+        const chromedriverOptions = sessionCapabilities['wdio:chromedriverOptions'];
+        chromedriverOptions.allowedOrigins = chromedriverOptions.allowedOrigins || ['*'];
+        chromedriverOptions.allowedIps = chromedriverOptions.allowedIps || ['0.0.0.0'];
+        sessionCapabilities['goog:chromeOptions'] = { binary: '/path/to/chrome' };
+        return createMockBrowser();
+      });
+      const capabilities = {
+        ...browserModeCapabilities(),
+        'wdio:chromedriverOptions': { binary: '/path/to/chromedriver' },
+      } as TauriCapabilities;
+
+      await init(capabilities);
+
+      expect(capabilities).toEqual({
+        ...browserModeCapabilities(),
+        'wdio:chromedriverOptions': { binary: '/path/to/chromedriver' },
+      });
+    });
+
+    it('should warn that log capture is unavailable instead of pointing at a log directory', async () => {
+      await init({
+        'tauri:options': { application: '/app' },
+        'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl, captureBackendLogs: true },
+      } as unknown as TauriCapabilities);
+
+      expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('unavailable in browser mode'));
+      expect(mockLog.info).not.toHaveBeenCalledWith(expect.stringContaining('logs will be written to'));
+    });
+
+    it('should warn that log capture is unavailable when browser mode comes from the global options', async () => {
+      await init(
+        {
+          'tauri:options': { application: '/app' },
+          'wdio:tauriServiceOptions': { captureBackendLogs: true },
+        } as unknown as TauriCapabilities,
+        { mode: 'browser', devServerUrl },
+      );
+
+      expect(mockLog.warn).toHaveBeenCalledWith(expect.stringContaining('unavailable in browser mode'));
+      expect(mockLog.info).not.toHaveBeenCalledWith(expect.stringContaining('logs will be written to'));
+    });
+
+    it('should stop the launcher, which stops the managed dev server, on cleanup', async () => {
+      const browser = await init(browserModeCapabilities());
+      expect(mockOnComplete).not.toHaveBeenCalled();
+
+      await cleanup(browser);
+
+      expect(mockOnComplete).toHaveBeenCalledOnce();
+    });
+
+    it('should stop the launcher when the browser session fails to start', async () => {
+      const error = new Error('chromedriver failed to start');
+      mockRemote.mockRejectedValueOnce(error);
+
+      await expect(init(browserModeCapabilities())).rejects.toBe(error);
+      expect(mockOnComplete).toHaveBeenCalledOnce();
     });
   });
 

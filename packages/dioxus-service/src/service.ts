@@ -7,7 +7,7 @@ import { execute, markAsEmbedded } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
-import type { DioxusServiceOptions } from './types.js';
+import type { DioxusCapabilities, DioxusServiceOptions } from './types.js';
 import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
 
 const log = createLogger('dioxus-service', 'service');
@@ -16,13 +16,21 @@ const interceptor = createIpcInterceptor('dioxus');
 export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
+  private browserMode: boolean;
   private isEmbedded: boolean;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
       'wdio:dioxusServiceOptions'
     ];
-    this.devServerUrl = capOptions?.devServerUrl ?? _options.devServerUrl;
+    // In multiremote, the launcher's mode: 'browser' is in each instance's capabilities, not the top level.
+    const browserModeOptions =
+      capOptions ??
+      Object.values(_capabilities as Record<string, { capabilities?: DioxusCapabilities } | undefined>)
+        .map((entry) => entry?.capabilities?.['wdio:dioxusServiceOptions'])
+        .find((instanceOptions) => instanceOptions?.mode === 'browser');
+    this.devServerUrl = browserModeOptions?.devServerUrl ?? _options.devServerUrl;
+    this.browserMode = (browserModeOptions?.mode ?? _options.mode) === 'browser';
     this.isEmbedded = (capOptions?.driverProvider ?? _options.driverProvider ?? 'embedded') === 'embedded';
     log.debug('DioxusWorkerService initialised');
   }
@@ -34,15 +42,18 @@ export default class DioxusWorkerService {
   ): Promise<void> {
     this.browser = browser;
     log.info(
-      `before() start — mode=${this.devServerUrl ? 'browser' : 'native'} ` +
+      `before() start — mode=${this.browserMode ? 'browser' : 'native'} ` +
         `multiremote=${browser.isMultiremote} ` +
         `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
 
     let stage = 'init';
     try {
-      if (this.devServerUrl) {
+      if (this.browserMode) {
         stage = 'initBrowserMode';
+        if (!this.devServerUrl) {
+          throw new Error('devServerUrl is required for browser mode but was not set');
+        }
         await this.initBrowserMode(browser as WebdriverIO.Browser, this.devServerUrl);
         log.info('before() complete (browser mode)');
         return;
@@ -70,7 +81,7 @@ export default class DioxusWorkerService {
       log.info('before() complete');
     } catch (error) {
       log.error(
-        `before() failed at stage="${stage}" — mode=${this.devServerUrl ? 'browser' : 'native'} ` +
+        `before() failed at stage="${stage}" — mode=${this.browserMode ? 'browser' : 'native'} ` +
           `multiremote=${browser.isMultiremote}`,
         error,
       );
@@ -171,6 +182,12 @@ export default class DioxusWorkerService {
     );
 
     this.addDioxusApi(browser);
+    if (browser.isMultiremote) {
+      const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+      for (const instanceName of mrBrowser.instances) {
+        this.addDioxusApi(mrBrowser.getInstance(instanceName));
+      }
+    }
   }
 
   private async injectSpy(browser: WebdriverIO.Browser): Promise<void> {

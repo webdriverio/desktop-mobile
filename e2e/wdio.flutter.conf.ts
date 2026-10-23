@@ -149,6 +149,8 @@ mkdirSync(logDir, { recursive: true });
 
 export const config = {
   runner: 'local',
+  // No display needed; WDIO's xvfb-run worker wrapper breaks on Ubuntu 26.04 (webdriverio/webdriverio#15685)
+  autoXvfb: false,
   specs,
   exclude,
   // One emulator/sim per CI job; multiremote is unimplemented (see #446) — unit tests cover only capability-shape parsing.

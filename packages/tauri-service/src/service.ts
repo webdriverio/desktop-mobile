@@ -12,6 +12,7 @@ import { clearAllMocks, isMockFunction, mock, resetAllMocks, restoreAllMocks } f
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
+import { mergeServiceOptions } from './serviceConfig.js';
 
 import type { TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 import {
@@ -59,17 +60,22 @@ export default class TauriWorkerService {
       (capabilities as { alwaysMatch?: { 'wdio:tauriServiceOptions'?: TauriServiceOptions } })?.alwaysMatch?.[
         'wdio:tauriServiceOptions'
       ];
-    const merged = { ...options, ...capabilityOptions };
+    const merged = mergeServiceOptions(options, capabilityOptions);
     this.clearMocks = merged.clearMocks ?? false;
     this.clearMocksPrefix = merged.clearMocksPrefix;
     this.resetMocks = merged.resetMocks ?? false;
     this.resetMocksPrefix = merged.resetMocksPrefix;
     this.restoreMocks = merged.restoreMocks ?? false;
     this.restoreMocksPrefix = merged.restoreMocksPrefix;
-    this.driverProvider = merged.driverProvider;
+    // A multiremote worker sees options only inside each instance's capabilities; like the launcher, use the first.
+    const firstInstance = Object.values(capabilities ?? {})[0] as { capabilities?: TauriCapabilities } | undefined;
+    const launcherOptions = capabilityOptions
+      ? merged
+      : mergeServiceOptions(options, firstInstance?.capabilities?.['wdio:tauriServiceOptions']);
+    this.driverProvider = launcherOptions.driverProvider;
     this.windowLabel = merged.windowLabel || getDefaultWindowLabel();
-    this.mode = merged.mode;
-    this.devServerUrl = merged.devServerUrl;
+    this.mode = launcherOptions.mode;
+    this.devServerUrl = launcherOptions.devServerUrl;
     log.debug('TauriWorkerService initialized');
   }
 

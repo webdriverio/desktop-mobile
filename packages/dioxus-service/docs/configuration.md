@@ -94,7 +94,7 @@ startTimeout: 60000  // 60 seconds
 
 ### `windowLabel` (string, optional)
 
-The window the session starts in. It only takes effect per capability, in `wdio:dioxusServiceOptions` (#722). Windows are labelled in the order they open: `main`, then `window-1`, `window-2` and so on. The session waits up to 10 seconds for the window to open.
+The window the session starts in. Set it here, or per capability in `wdio:dioxusServiceOptions` to override it. Windows are labelled in the order they open: `main`, then `window-1`, `window-2` and so on. The session waits up to 10 seconds for the window to open.
 
 **Example:**
 ```typescript

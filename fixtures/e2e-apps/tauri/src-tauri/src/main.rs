@@ -3,10 +3,12 @@
 // E2E tests use debug builds on Windows to preserve stdout/stderr for logging tests.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Mutex;
 use once_cell::sync::Lazy;
 
 static DEEP_LINKS: Lazy<Mutex<Vec<String>>> = Lazy::new(|| Mutex::new(Vec::new()));
+static CLOSE_GUARD_REQUESTS: AtomicU32 = AtomicU32::new(0);
 
 fn collect_deep_links_from_args() -> Vec<String> {
     let mut deep_links = Vec::new();
@@ -274,6 +276,38 @@ async fn switch_to_main(app: tauri::AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+// A hidden window that prevents its first close request, like an app confirming a close.
+#[tauri::command]
+async fn open_close_guard_window(app: tauri::AppHandle) -> Result<(), String> {
+    CLOSE_GUARD_REQUESTS.store(0, Ordering::SeqCst);
+    if app.get_webview_window("close-guard").is_some() {
+        return Ok(());
+    }
+    let window = tauri::WebviewWindowBuilder::new(
+        &app,
+        "close-guard",
+        tauri::WebviewUrl::App("splash.html".into())
+    )
+    .title("Close Guard")
+    .inner_size(300.0, 200.0)
+    .visible(false)
+    .build()
+    .map_err(|e| e.to_string())?;
+    window.on_window_event(|event| {
+        if let tauri::WindowEvent::CloseRequested { api, .. } = event {
+            if CLOSE_GUARD_REQUESTS.fetch_add(1, Ordering::SeqCst) == 0 {
+                api.prevent_close();
+            }
+        }
+    });
+    Ok(())
+}
+
+#[tauri::command]
+async fn get_close_guard_requests() -> u32 {
+    CLOSE_GUARD_REQUESTS.load(Ordering::SeqCst)
+}
+
 fn main() {
     let is_splash = std::env::var("ENABLE_SPLASH_WINDOW").is_ok();
 
@@ -399,6 +433,8 @@ fn main() {
             switch_to_main,
             get_deep_links,
             get_command_line_args,
+            open_close_guard_window,
+            get_close_guard_requests,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

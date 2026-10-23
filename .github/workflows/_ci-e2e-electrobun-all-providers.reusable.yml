@@ -58,7 +58,8 @@ jobs:
           node-version: ${{ inputs.node-version }}
 
       # Linux drives the native WebKitGTK renderer over W3C WebDriver:
-      #  - webkit2gtk-driver provides the WebKitWebDriver binary the service spawns;
+      #  - webkit2gtk-driver (webkitgtk-webdriver on Ubuntu 26.04) provides the WebKitWebDriver
+      #    binary the service spawns;
       #  - libwebkit2gtk-4.1-0 is the renderer runtime;
       #  - the rest are shared GTK/NSS/X runtime libs the app needs.
       - name: 🐧 Install WebKitGTK Runtime Dependencies (Linux)
@@ -66,9 +67,13 @@ jobs:
         shell: bash
         run: |
           sudo apt-get update
+          # 24.04 knows the new name without shipping it, so check for an installable candidate.
+          # Not grep -q: its early exit kills apt-cache with SIGPIPE, which pipefail turns into a miss.
+          webdriver_pkg=webkit2gtk-driver
+          if apt-cache policy webkitgtk-webdriver | grep "Candidate: [^(]" >/dev/null; then webdriver_pkg=webkitgtk-webdriver; fi
           sudo apt-get install -y \
             xvfb \
-            webkit2gtk-driver \
+            "$webdriver_pkg" \
             libwebkit2gtk-4.1-0 \
             libayatana-appindicator3-1 \
             libnss3 \
@@ -183,6 +188,9 @@ jobs:
             pkill -9 -f 'wdio-electrobun-bundle' || true
           fi
 
+      - name: 🖥️ Start Xvfb (Linux)
+        uses: ./.github/workflows/actions/start-xvfb
+
       # Step-level safety-net so a stuck run surfaces as steps.test.outcome == 'failure' for Check
       # Result. gsudo de-elevation restored WebView2's CDP port, so Windows E2E now runs in minutes
       # like macOS/Linux; 35m only trips on a genuine wedge, and with the Windows allow-fail gone a
@@ -196,8 +204,7 @@ jobs:
         env:
           TEST_TYPE: ${{ inputs.test-type }}
         run: |
-          # autoXvfb in wdio.electrobun.conf.ts manages Xvfb on Linux (CDP-attach,
-          # like Electron — no xvfb-run wrap needed).
+          # On Linux the display comes from the Start Xvfb step (no xvfb-run wrap needed).
           if ($env:RUNNER_OS -eq "Windows") {
             gsudo --integrity Medium pwsh -NoProfile -Command "pnpm run ${{ steps.gen-test.outputs.script }}"
           } else {

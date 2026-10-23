@@ -8,10 +8,10 @@ References: `packages/tauri-service/` + `packages/tauri-plugin/` (external drive
 
 ### External provider — driver crate (`wdio-<framework>-driver`)
 
-A WebDriver intermediary node, **forked from `tauri-driver`** (~200 LOC delta). It proxies WebDriver commands to the platform webview driver (`msedgedriver` on Windows / `webkit2gtk-driver` on Linux), which launches the app binary. Flow:
+A WebDriver intermediary node, **forked from `tauri-driver`** (~200 LOC delta). It proxies WebDriver commands to the platform webview driver (`msedgedriver` on Windows / `WebKitWebDriver` on Linux), which launches the app binary. Flow:
 
 ```
-WDIO → wdio-<framework>-driver (port X) → msedgedriver/webkit2gtk-driver (X+1) → app binary
+WDIO → wdio-<framework>-driver (port X) → msedgedriver/WebKitWebDriver (X+1) → app binary
 ```
 
 Fork delta (see `packages/dioxus-driver/`): rename crate + binary to `wdio-<framework>-driver`; capability namespace `tauri:options` → `<framework>:options`; env var `TAURI_WEBVIEW_AUTOMATION` → `<FRAMEWORK>_WEBVIEW_AUTOMATION`; drop the legacy `TAURI_AUTOMATION` form. Document the upstream-sync policy in the crate README. Cargo deps mirror `dioxus-driver/Cargo.toml` (hyper/hyper-util, pico-args, `win32job` on Windows, `signal-hook` on Unix). The service spawns/pools these via `@wdio/native-core`'s `DriverPool`/`DriverProcess`; `BaseLauncher.stopAllDrivers()` tears them down.

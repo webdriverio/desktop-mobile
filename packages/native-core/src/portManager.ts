@@ -1,10 +1,8 @@
 // Port allocation for driver subprocesses.
 //
-// Extracted unchanged from packages/tauri-service/src/portManager.ts (the
-// only modification is the `createLogger` argument). The "port pair"
-// abstraction (main driver port + native driver port) maps directly onto
-// both Tauri's (tauri-driver + msedgedriver/WebKitWebDriver) and Dioxus's
-// (wdio-dioxus-driver + msedgedriver) external-provider layout.
+// The "port pair" abstraction (main driver port + native driver port) maps
+// directly onto both Tauri's (tauri-driver + msedgedriver/WebKitWebDriver) and
+// Dioxus's (wdio-dioxus-driver + msedgedriver) external-provider layout.
 //
 // Services that use a single port (e.g., the embedded provider) call
 // `allocatePort` instead of `allocatePortPair`.

@@ -37,15 +37,6 @@ vi.mock('../src/driverPool.js', () => ({
   },
 }));
 
-vi.mock('../src/portManager.js', () => ({
-  PortManager: class MockPortManager {
-    allocatePortPair = vi.fn().mockResolvedValue({ port: 4444, nativePort: 4445 });
-    allocatePorts = vi.fn().mockResolvedValue([{ port: 4444, nativePort: 4445 }]);
-    allocatePort = vi.fn().mockResolvedValue(4444);
-    clear = vi.fn();
-  },
-}));
-
 vi.mock('../src/pathResolver.js', () => ({
   getWebKitWebDriverPath: vi.fn().mockReturnValue('/usr/bin/WebKitWebDriver'),
 }));
@@ -73,6 +64,12 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
 vi.mock('@wdio/native-core', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-core')>()),
   startManagedDevServer: vi.fn(),
+  PortManager: class MockPortManager {
+    allocatePortPair = vi.fn().mockResolvedValue({ port: 4444, nativePort: 4445 });
+    allocatePorts = vi.fn().mockResolvedValue([{ port: 4444, nativePort: 4445 }]);
+    allocatePort = vi.fn().mockResolvedValue(4444);
+    clear = vi.fn();
+  },
   closeLogWriter: vi.fn().mockResolvedValue(undefined),
 }));
 
@@ -109,6 +106,35 @@ describe('TauriLaunchService — browser mode', () => {
       await launcher.onPrepare({} as any, caps);
       expect(caps[0].browserName).toBe('chrome');
       expect(caps[0]['tauri:options']).toBeUndefined();
+    });
+
+    it('should report browser mode only once a browser-mode onPrepare succeeds', async () => {
+      const launcher = createLauncher();
+      const config = {} as Options.Testrunner;
+      expect(launcher.isBrowserMode).toBe(false);
+
+      await expect(launcher.onPrepare(config, [{ 'wdio:tauriServiceOptions': { mode: 'browser' } }])).rejects.toThrow(
+        'devServerUrl is required',
+      );
+      expect(launcher.isBrowserMode).toBe(false);
+
+      await launcher.onPrepare(config, [{ 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } }]);
+      expect(launcher.isBrowserMode).toBe(true);
+    });
+
+    it('should honour a global browser mode that the capability leaves undefined', async () => {
+      const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+      const capabilities: TauriCapabilities[] = [
+        { 'wdio:tauriServiceOptions': { mode: undefined, devServerUrl: undefined } },
+      ];
+
+      await launcher.onPrepare({} as Options.Testrunner, capabilities);
+
+      expect(launcher.isBrowserMode).toBe(true);
+      expect(capabilities[0]).toMatchObject({
+        browserName: 'chrome',
+        'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER },
+      });
     });
 
     it('does not spawn tauri-driver in browser mode', async () => {

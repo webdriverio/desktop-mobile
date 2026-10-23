@@ -10,13 +10,13 @@ Please be respectful and constructive in all interactions. We aim to create a we
 
 ### Prerequisites
 
-- Node.js 24 LTS (contributor toolchain — end-user Node range is defined per-package via `engines`)
-- pnpm 11.20.0
+- Node.js 24 LTS
+- pnpm 12
 - Git
 
 For Tauri and Dioxus contributions, you also need:
 
-- Rust (stable toolchain via `rustup`)
+- Rust
 
 ### Setup
 
@@ -32,11 +32,11 @@ For Tauri and Dioxus contributions, you also need:
    ```
 4. Build all packages:
    ```bash
-   pnpm turbo build
+   pnpm build
    ```
 5. Run tests to verify setup:
    ```bash
-   pnpm test
+   pnpm turbo run test --filter=./packages/*
    ```
 
 See [docs/setup.md](docs/setup.md) for detailed setup instructions.
@@ -67,7 +67,7 @@ Branch naming conventions:
 - Write code following our [coding standards](#coding-standards)
 - Add tests for new functionality
 - Update documentation as needed
-- Ensure tests pass: `pnpm test`
+- Ensure tests pass: `pnpm turbo run test --filter=./packages/*` (the root `pnpm test` also runs the E2E and package tests)
 - Ensure linting passes: `pnpm lint`
 
 ### 3. Commit Your Changes
@@ -193,8 +193,8 @@ describe('MyFeature', () => {
 ### Running Tests
 
 ```bash
-# Run all tests
-pnpm test
+# Run every package's tests
+pnpm turbo run test --filter=./packages/*
 
 # Run tests for specific package
 pnpm --filter @wdio/electron-service test
@@ -223,7 +223,7 @@ pnpm --filter @wdio/electron-service vitest
 ### Documentation Files
 
 - Update `docs/` when adding new features
-- Update CHANGELOG.md for notable changes
+- Don't edit CHANGELOG.md: ReleaseKit generates it from conventional commits
 
 ## Pull Request Process
 
@@ -233,7 +233,7 @@ Ensure your PR passes all checks:
 
 ```bash
 # Build all packages
-pnpm turbo build
+pnpm build
 
 # Run linting
 pnpm lint
@@ -241,8 +241,8 @@ pnpm lint
 # Run type checking
 pnpm typecheck
 
-# Run all tests
-pnpm test
+# Run every package's tests
+pnpm turbo run test --filter=./packages/*
 
 # Run tests with coverage
 pnpm test:coverage

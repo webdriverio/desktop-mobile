@@ -1,5 +1,6 @@
 import { existsSync } from 'node:fs';
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
+import { WEBKIT_WEBDRIVER_INSTALL_HINT } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getWebKitWebDriverPath } from '../src/pathResolver.js';
 
@@ -11,11 +12,14 @@ vi.mock('node:child_process', () => ({
   execSync: vi.fn(),
 }));
 
-vi.mock('@wdio/native-utils', () => ({
+const mockWarn = vi.hoisted(() => vi.fn());
+
+vi.mock('@wdio/native-utils', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-utils')>()),
   createLogger: () => ({
     debug: vi.fn(),
     info: vi.fn(),
-    warn: vi.fn(),
+    warn: mockWarn,
     error: vi.fn(),
   }),
 }));
@@ -72,5 +76,6 @@ describe('getWebKitWebDriverPath', () => {
     vi.mocked(existsSync).mockReturnValue(false);
 
     expect(getWebKitWebDriverPath()).toBeUndefined();
+    expect(mockWarn).toHaveBeenCalledWith(`WebKitWebDriver not found. ${WEBKIT_WEBDRIVER_INSTALL_HINT}`);
   });
 });

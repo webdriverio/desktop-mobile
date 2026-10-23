@@ -41,7 +41,7 @@
     "lint": "biome check --linter-enabled=true --formatter-enabled=false src/",
     "lint:fix": "biome check --write --linter-enabled=true --formatter-enabled=false src/",
     "test": "vitest run",
-    "test:unit": "vitest run --config vitest.config.ts",
+    "test:unit": "vitest run --config vitest.config.ts --coverage",
     "test:integration": "vitest run --config vitest.integration.config.ts",
     "test:integration:watch": "vitest --config vitest.integration.config.ts",
     "test:coverage": "vitest run --coverage",
@@ -65,12 +65,12 @@
   "devDependencies": {
     "@repo/test-utils": "workspace:*",
     "@types/debug": "^4.1.12",
-    "@types/node": "^26.6.4",
-    "@vitest/coverage-v8": "^5.0.3",
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.5",
     "@wdio/bundler": "workspace:*",
     "shx": "^0.4.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   },
   "peerDependencies": {
     "webdriverio": "^9.0.0"

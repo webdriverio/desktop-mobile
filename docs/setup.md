@@ -11,11 +11,7 @@ Before you begin, ensure you have the following installed:
   node --version  # Should be v24.x
   ```
 
-- **pnpm**: Version 10.27.0 or higher
-  ```bash
-  npm install -g pnpm
-  pnpm --version  # Should be 10.27.0+
-  ```
+- **pnpm**: Version 12 ([installation](https://pnpm.io/installation)); `package.json` pins the exact version
 
 - **Git**: For version control
   ```bash
@@ -46,18 +42,18 @@ This will:
 ### 3. Build All Packages
 
 ```bash
-pnpm turbo build
+pnpm build
 ```
 
-This builds all packages in the correct dependency order using Turborepo's intelligent caching.
+This builds every package in `packages/`, in dependency order, and Turborepo caches the results. It doesn't build the fixture apps; see [e2e-testing.md](./e2e-testing.md) for those.
 
 ### 4. Run Tests
 
 ```bash
-pnpm test
+pnpm turbo run test --filter=./packages/*
 ```
 
-This runs tests for all packages and ensures everything is working correctly.
+This runs every package's unit tests. Avoid the root `pnpm test`: it also runs the E2E and package tests, which need built apps.
 
 ## Development Workflow
 
@@ -65,7 +61,7 @@ This runs tests for all packages and ensures everything is working correctly.
 
 ```bash
 # Build all packages
-pnpm turbo build
+pnpm build
 
 # Build a specific package
 pnpm --filter @wdio/electron-service build
@@ -73,14 +69,14 @@ pnpm --filter @wdio/tauri-service build
 
 # Clean and rebuild
 pnpm clean
-pnpm turbo build
+pnpm build
 ```
 
 ### Running Tests
 
 ```bash
-# Run all tests
-pnpm test
+# Run every package's tests
+pnpm turbo run test --filter=./packages/*
 
 # Run tests with coverage
 pnpm test:coverage
@@ -111,47 +107,8 @@ pnpm typecheck
 ### Development Mode
 
 ```bash
-# Watch mode for all packages
-pnpm dev
-
-# Watch mode for specific package
-pnpm --filter wdio-electron-service dev
-```
-
-## Monorepo Structure
-
-```
-desktop-mobile/
-├── .github/
-│   └── workflows/          # CI/CD workflows
-├── packages/               # All packages
-│   ├── electron-service/       # Electron WDIO service
-│   ├── tauri-service/          # Tauri WDIO service
-│   ├── dioxus-service/         # Dioxus WDIO service
-│   ├── tauri-plugin/           # Tauri v2 plugin (Rust + JS)
-│   ├── dioxus-bridge/          # Dioxus bridge crate (Rust)
-│   ├── dioxus-embedded-driver/ # Dioxus embedded WebDriver server (Rust)
-│   ├── dioxus-driver/          # Dioxus external WebDriver proxy (Rust, Windows)
-│   ├── native-cdp-bridge/      # Shared Chrome DevTools Protocol bridge (single + multi-target)
-│   ├── native-utils/           # Cross-platform utilities
-│   ├── native-types/           # Shared TypeScript type definitions
-│   ├── native-spy/             # Spy utilities for mocking
-│   └── bundler/                # Build tooling
-├── fixtures/              # Test fixtures and example apps
-│   ├── e2e-apps/         # E2E test applications
-│   │   ├── electron-*/   # Electron E2E apps
-│   │   ├── tauri/        # Tauri E2E app
-│   │   └── dioxus/       # Dioxus E2E app
-│   └── package-tests/     # Package test fixtures
-│       └── tauri-app/     # Tauri package test app
-├── e2e/                  # E2E test scenarios
-├── docs/                 # Documentation
-├── scripts/              # Build and utility scripts
-├── package.json          # Root package.json
-├── pnpm-workspace.yaml   # Workspace configuration
-├── turbo.json           # Turborepo configuration
-├── tsconfig.base.json   # Base TypeScript config
-└── vitest.config.ts     # Vitest configuration
+# Rebuild a package when its source changes
+pnpm --filter @wdio/electron-service dev
 ```
 
 ## Working with Packages
@@ -219,10 +176,10 @@ pnpm catalog:minimum   # Switch all packages to lowest supported versions
 ### Updating Catalog Versions
 
 ```bash
-# Update all catalogs and dependencies interactively
+# Update all catalogs and dependencies interactively, then run update:tauri
 pnpm update:dependencies
 
-# Update the Tauri version across packages (npm + Cargo.toml)
+# Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
 pnpm update:tauri
 
 # Preview catalog changes without applying them
@@ -251,7 +208,7 @@ The local cache is stored in `.turbo/` and is automatically used.
 pnpm clean:cache
 
 # Force rebuild (bypass cache)
-pnpm turbo build --force
+pnpm build --force
 ```
 
 ## Common Tasks
@@ -272,17 +229,17 @@ pnpm clean:cache
 # Run the same checks as CI
 pnpm lint
 pnpm typecheck
-pnpm test
-pnpm turbo build
+pnpm turbo run test --filter=./packages/*
+pnpm build
 ```
 
 ### Update Dependencies
 
 ```bash
-# Update all catalogs and dependencies interactively
+# Update all catalogs and dependencies interactively, then run update:tauri
 pnpm update:dependencies
 
-# Update the Tauri version across packages (npm + Cargo.toml)
+# Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
 pnpm update:tauri
 ```
 
@@ -295,7 +252,7 @@ Try cleaning and reinstalling:
 ```bash
 pnpm clean
 pnpm install
-pnpm turbo build
+pnpm build
 ```
 
 ### TypeScript errors after adding dependencies
@@ -303,7 +260,7 @@ pnpm turbo build
 Rebuild the project:
 
 ```bash
-pnpm turbo build --force
+pnpm build --force
 ```
 
 ### Test failures
@@ -311,8 +268,8 @@ pnpm turbo build --force
 Make sure packages are built:
 
 ```bash
-pnpm turbo build
-pnpm test
+pnpm build
+pnpm turbo run test --filter=./packages/*
 ```
 
 ### Pre-commit hooks not running
@@ -428,12 +385,7 @@ See the [Dioxus App Setup](../packages/dioxus-service/docs/app-setup.md) and [Qu
 
 ## AI-Assisted Development
 
-This project uses Agent OS for AI-assisted development. The [AGENTS.md](../AGENTS.md) file contains context for AI tools like Claude Code, Cursor, and others.
-
-Available slash commands (Claude Code):
-- `/discover-standards` - Extract patterns from the codebase into documented standards
-- `/inject-standards` - Inject standards into context for consistent AI assistance
-- `/shape-spec` - Enhanced spec shaping with standards awareness
+[AGENTS.md](../AGENTS.md) holds the repo's guidance for coding agents. Claude Code, Codex, Cursor and others read it. Claude Code also loads the skills in `.claude/skills/`, such as `add-native-service`.
 
 ## Getting Help
 

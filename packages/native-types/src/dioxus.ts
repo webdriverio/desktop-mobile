@@ -129,7 +129,7 @@ export interface DioxusServiceOptions extends BaseServiceOptions, DriverProvider
   autoInstallDioxusDriver?: boolean;
   /** Auto-download msedgedriver on Windows. Reserved for the `'external'` provider; currently ignored. */
   autoDownloadEdgeDriver?: boolean;
-  /** Default window label for execute/mock calls. */
+  /** The window the embedded driver starts the session in. */
   windowLabel?: string;
   /** Backend log capture toggle. */
   captureBackendLogs?: boolean;

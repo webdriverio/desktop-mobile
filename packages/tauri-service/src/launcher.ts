@@ -7,10 +7,10 @@ import {
   getLogWriter,
   isLogWriterInitialized,
   nonChromeBrowserNameError,
+  PortManager,
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
-import type { LogLevel } from '@wdio/native-types';
 import { createLogger, errorMessage, formatDiagnosticResults, isErr } from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
@@ -30,7 +30,7 @@ import {
   stopEmbeddedDriver,
 } from './embeddedProvider.js';
 import { severeServiceError } from './errors.js';
-import { PortManager } from './portManager.js';
+import { mergeServiceOptions } from './serviceConfig.js';
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
@@ -48,45 +48,25 @@ function generateDataDirectory(instanceId: string): string {
   return dataDir;
 }
 
-// (per-instance env is set when spawning the tauri-driver process)
-
 let officialDeprecationWarned = false;
 
-/**
- * Normalise legacy `driverProvider: 'official'` to the canonical `'external'`.
- * Emits a one-time deprecation warning. `'official'` will be removed in v2.
- */
-function normaliseDriverProvider(value: DriverProvider | undefined): DriverProvider | undefined {
-  if (value === 'official') {
-    if (!officialDeprecationWarned) {
-      log.warn(
-        "driverProvider: 'official' is deprecated; use 'external' instead. " +
-          "The 'official' value will be removed in @wdio/tauri-service v2.",
-      );
-      officialDeprecationWarned = true;
-    }
-    return 'external';
+// mergeServiceOptions maps 'official' to 'external'; this only adds the one-time warning.
+function warnIfOfficialDriverProvider(value: DriverProvider | undefined): void {
+  if (value === 'official' && !officialDeprecationWarned) {
+    log.warn(
+      "driverProvider: 'official' is deprecated; use 'external' instead. " +
+        "The 'official' value will be removed in @wdio/tauri-service v2.",
+    );
+    officialDeprecationWarned = true;
   }
-  return value;
 }
 
-/**
- * Merge global options with capability-specific options
- */
 function mergeOptions(
   globalOptions: TauriServiceGlobalOptions,
   capabilityOptions?: TauriServiceOptions,
 ): TauriServiceOptions {
-  return {
-    ...globalOptions,
-    ...capabilityOptions,
-    driverProvider: normaliseDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider),
-    // Log capture options default to false if not specified
-    captureBackendLogs: capabilityOptions?.captureBackendLogs ?? globalOptions.captureBackendLogs ?? false,
-    captureFrontendLogs: capabilityOptions?.captureFrontendLogs ?? globalOptions.captureFrontendLogs ?? false,
-    backendLogLevel: (capabilityOptions?.backendLogLevel ?? globalOptions.backendLogLevel ?? 'info') as LogLevel,
-    frontendLogLevel: (capabilityOptions?.frontendLogLevel ?? globalOptions.frontendLogLevel ?? 'info') as LogLevel,
-  };
+  warnIfOfficialDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider);
+  return mergeServiceOptions(globalOptions, capabilityOptions);
 }
 
 /**
@@ -134,6 +114,10 @@ export default class TauriLaunchService {
     this.portManager = new PortManager(basePort, 4445);
     this.backendPortManager = new PortManager(options.crabnebulaBackendPort ?? 3000, 3001);
     this.driverPool = new DriverPool(options, options.nativeDriverPath);
+  }
+
+  get isBrowserMode(): boolean {
+    return this.browserMode;
   }
 
   /**
@@ -223,11 +207,11 @@ export default class TauriLaunchService {
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'tauri:options'?: unknown })['tauri:options'];
-          // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
-          // which reads devServerUrl from its capability options.
+          // The worker reads mode and devServerUrl from here; a devServer function may have changed the URL.
           const capRecord = cap as Record<string, unknown>;
           capRecord['wdio:tauriServiceOptions'] = {
             ...(capRecord['wdio:tauriServiceOptions'] as Record<string, unknown> | undefined),
+            mode: 'browser',
             devServerUrl,
           };
         }

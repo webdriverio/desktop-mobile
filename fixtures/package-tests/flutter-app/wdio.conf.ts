@@ -70,6 +70,8 @@ const capabilities: FlutterCapabilities[] = [
 
 export const config = {
   runner: 'local',
+  // No display needed; WDIO's xvfb-run worker wrapper breaks on Ubuntu 26.04 (webdriverio/webdriverio#15685)
+  autoXvfb: false,
   specs: ['./test/**/*.spec.ts'],
   exclude: [],
   maxInstances: 1,

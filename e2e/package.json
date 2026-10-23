@@ -82,21 +82,21 @@
   },
   "devDependencies": {
     "@crabnebula/tauri-driver": "^2.0.9",
-    "@crabnebula/test-runner-backend": "^0.3.0",
+    "@crabnebula/test-runner-backend": "^0.3.1",
     "@electron-forge/cli": "catalog:default",
     "@types/mocha": "^10.0.10",
-    "@types/node": "^26.6.4",
-    "@vitest/spy": "^5.0.3",
+    "@types/node": "^26.6.5",
+    "@vitest/spy": "^5.0.5",
     "@wdio/native-types": "workspace:*",
     "@wdio/types": "catalog:default",
     "appium": "^3.8.0",
-    "appium-flutter-driver": "^4.0.0",
+    "appium-flutter-driver": "^4.1.0",
     "appium-uiautomator2-driver": "^8.7.0",
-    "appium-xcuitest-driver": "^12.15.0",
+    "appium-xcuitest-driver": "^12.19.1",
     "cross-env": "^10.1.0",
     "p-limit": "^7.3.3",
     "typescript": "^6.0.3",
     "wait-on": "^9.5.1",
-    "zod": "^4.6.5"
+    "zod": "^4.6.7"
   }
 }

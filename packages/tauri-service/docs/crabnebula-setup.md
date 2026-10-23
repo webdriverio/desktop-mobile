@@ -11,14 +11,14 @@ This guide walks you through setting up CrabNebula's tauri-driver for cross-plat
 | Platform | Supported | Requirements |
 |----------|-----------|--------------|
 | **Windows** | ✅ Yes | `@crabnebula/tauri-driver` |
-| **Linux** | ✅ Yes | `@crabnebula/tauri-driver` + `webkit2gtk-driver` |
+| **Linux** | ✅ Yes | `@crabnebula/tauri-driver` + WebKitWebDriver |
 | **macOS** | ✅ Yes | `@crabnebula/tauri-driver` + `CN_API_KEY` |
 
 ### Key Points
 
 - **CN_API_KEY is only required for macOS** — Windows and Linux work without an API key
 - **tauri-plugin-automation is only needed for macOS** — not required on Windows or Linux
-- **webkit2gtk-driver is required for Linux** — same as the official driver
+- **WebKitWebDriver is required for Linux** — same as the official driver
 
 ## When to Use CrabNebula
 
@@ -39,7 +39,7 @@ For most users, the **embedded provider** (via `tauri-plugin-wdio-webdriver`) is
 
 ### Linux Only
 
-- **webkit2gtk-driver** installed (see [Linux Installation](#linux-installation))
+- **WebKitWebDriver** installed (see [Linux Installation](#linux-installation))
 
 ### macOS Only
 
@@ -73,15 +73,19 @@ pnpm add -D @crabnebula/test-runner-backend
 On Linux, you need WebKitWebDriver (same as the official driver):
 
 ```bash
-# Debian/Ubuntu
+# Ubuntu 26.04+, Debian 13+
+sudo apt-get update
+sudo apt-get install -y webkitgtk-webdriver
+
+# Ubuntu 24.04 and older, Debian 12
 sudo apt-get update
 sudo apt-get install -y webkit2gtk-driver
 
 # Fedora
-sudo dnf install -y webkit2gtk-driver
+sudo dnf install -y webkitgtk6.0
 
 # Arch Linux
-sudo pacman -S webkit2gtk-4.1
+sudo pacman -S webkitgtk-6.0
 ```
 
 Verify installation:
@@ -197,7 +201,7 @@ npm run wdio
 
 ### Linux
 
-- Requires `webkit2gtk-driver` (see installation above)
+- Requires WebKitWebDriver (see installation above)
 - For headless CI, use Xvfb:
   ```bash
   xvfb-run -a npm run wdio
@@ -230,7 +234,9 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       
       - name: Install WebKitWebDriver
-        run: sudo apt-get install -y webkit2gtk-driver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y webkitgtk-webdriver
       
       - name: Install dependencies
         run: npm install
@@ -335,14 +341,17 @@ Then ensure it's registered in your Rust code with the `#[cfg(debug_assertions)]
 
 **Solution**: Install WebKitWebDriver:
 ```bash
-# Debian/Ubuntu
+# Ubuntu 26.04+, Debian 13+
+sudo apt-get install -y webkitgtk-webdriver
+
+# Ubuntu 24.04 and older, Debian 12
 sudo apt-get install -y webkit2gtk-driver
 
 # Fedora
-sudo dnf install -y webkit2gtk-driver
+sudo dnf install -y webkitgtk6.0
 
 # Arch Linux
-sudo pacman -S webkit2gtk-4.1
+sudo pacman -S webkitgtk-6.0
 ```
 
 ### "test-runner-backend exited with code X" (macOS)

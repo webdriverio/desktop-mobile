@@ -33,6 +33,7 @@ export default class DioxusLaunchService extends BaseLauncher {
   // Teardown for a service-managed dev server (browser mode). Called from onComplete AND on an
   // onPrepare failure — WDIO does not call onComplete after onPrepare throws. Idempotent.
   #stopDevServer?: () => Promise<void>;
+  #browserMode = false;
 
   constructor(
     private options: DioxusServiceGlobalOptions,
@@ -46,6 +47,10 @@ export default class DioxusLaunchService extends BaseLauncher {
     log.debug('DioxusLaunchService initialised');
     log.debug('Capabilities:', JSON.stringify(capabilities, null, 2));
     log.debug('Config:', JSON.stringify(config, null, 2));
+  }
+
+  get isBrowserMode(): boolean {
+    return this.#browserMode;
   }
 
   async onPrepare(
@@ -109,14 +114,15 @@ export default class DioxusLaunchService extends BaseLauncher {
             throw new SevereServiceError(reachable.error.message);
           }
         }
+        this.#browserMode = true;
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'dioxus:options'?: unknown })['dioxus:options'];
-          // Propagate the resolved URL (a devServer function may have overridden it) to the worker,
-          // which reads devServerUrl from its capability options.
+          // The worker reads mode and devServerUrl from here; a devServer function may have changed the URL.
           const capRecord = cap as Record<string, unknown>;
           capRecord['wdio:dioxusServiceOptions'] = {
             ...(capRecord['wdio:dioxusServiceOptions'] as Record<string, unknown> | undefined),
+            mode: 'browser',
             devServerUrl,
           };
         }
@@ -193,6 +199,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         // standalone session.ts removes them from the cloned capabilities before remote().
         (cap as { port?: number; hostname?: string }).port = embeddedPort;
         (cap as { port?: number; hostname?: string }).hostname = hostname;
+        applyWindowLabel(cap, instanceOptions);
         log.info(`Embedded WebDriver connection set on capabilities[${i}]: ${hostname}:${embeddedPort}`);
       } catch (error) {
         await this.stopAllEmbedded();
@@ -235,6 +242,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         // reads them as connection parameters, not as W3C capability keys.
         (instanceConfig as { port?: number; hostname?: string }).port = embeddedPort;
         (instanceConfig as { port?: number; hostname?: string }).hostname = hostname;
+        applyWindowLabel(cap, instanceOptions);
         log.info(`Embedded WebDriver connection set for "${key}": ${hostname}:${embeddedPort}`);
       } catch (error) {
         await this.stopAllEmbedded();
@@ -285,16 +293,28 @@ function normaliseCaps(
   return Object.values(caps).map((v) => v.capabilities);
 }
 
+// The embedded driver reads windowLabel only from the capability.
+function applyWindowLabel(cap: DioxusCapabilities, instanceOptions: DioxusServiceOptions): void {
+  if (instanceOptions.windowLabel === undefined) {
+    return;
+  }
+  cap['wdio:dioxusServiceOptions'] = { ...cap['wdio:dioxusServiceOptions'], windowLabel: instanceOptions.windowLabel };
+}
+
+// Capability options win over global options unless they are undefined.
 function mergeOptions(
   globalOptions: DioxusServiceGlobalOptions,
   capabilityOptions?: DioxusServiceOptions,
 ): DioxusServiceOptions {
+  const definedCapabilityOptions = Object.fromEntries(
+    Object.entries(capabilityOptions ?? {}).filter(([, value]) => value !== undefined),
+  ) as DioxusServiceOptions;
+  const merged: DioxusServiceOptions = { ...globalOptions, ...definedCapabilityOptions };
   return {
-    ...globalOptions,
-    ...capabilityOptions,
-    captureBackendLogs: capabilityOptions?.captureBackendLogs ?? globalOptions.captureBackendLogs ?? false,
-    captureFrontendLogs: capabilityOptions?.captureFrontendLogs ?? globalOptions.captureFrontendLogs ?? false,
-    backendLogLevel: capabilityOptions?.backendLogLevel ?? globalOptions.backendLogLevel ?? 'info',
-    frontendLogLevel: capabilityOptions?.frontendLogLevel ?? globalOptions.frontendLogLevel ?? 'info',
+    ...merged,
+    captureBackendLogs: merged.captureBackendLogs ?? false,
+    captureFrontendLogs: merged.captureFrontendLogs ?? false,
+    backendLogLevel: merged.backendLogLevel ?? 'info',
+    frontendLogLevel: merged.frontendLogLevel ?? 'info',
   };
 }

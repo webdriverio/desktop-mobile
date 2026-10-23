@@ -360,7 +360,7 @@ describe('ElectrobunLaunchService', () => {
 
       const error = await launcher.onPrepare(baseConfig, [{}]).catch((e: Error) => e);
       expect(error).toBeInstanceOf(SevereServiceError);
-      expect((error as Error).message).toContain('webkit2gtk-driver');
+      expect((error as Error).message).toContain('webkitgtk-webdriver');
     });
 
     it('should fail fast with a SevereServiceError in native mode on an unsupported platform', async () => {

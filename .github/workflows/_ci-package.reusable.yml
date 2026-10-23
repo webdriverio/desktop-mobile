@@ -100,8 +100,13 @@ jobs:
         run: |
           echo "Installing WebKit WebDriver and GTK/X11 runtime dependencies for Linux..."
           sudo apt-get update
+          # Ubuntu 26.04 renamed webkit2gtk-driver to webkitgtk-webdriver. 24.04 knows the new name
+          # without shipping it, so check for an installable candidate. Not grep -q: its early exit
+          # kills apt-cache with SIGPIPE, which pipefail turns into a miss.
+          webdriver_pkg=webkit2gtk-driver
+          if apt-cache policy webkitgtk-webdriver | grep "Candidate: [^(]" >/dev/null; then webdriver_pkg=webkitgtk-webdriver; fi
           sudo apt-get install -y \
-            webkit2gtk-driver \
+            "$webdriver_pkg" \
             libwebkit2gtk-4.1-0 \
             libgtk-3-0 \
             libasound2t64 \
@@ -266,6 +271,9 @@ jobs:
           & $gsudo --version
           # The de-elevated test tree still writes into the workspace the elevated runner created.
           icacls "$env:GITHUB_WORKSPACE" /grant "Everyone:(OI)(CI)F"
+
+      - name: 🖥️ Start Xvfb (Linux)
+        uses: ./.github/workflows/actions/start-xvfb
 
       - name: 🧪 Execute Package Tests
         id: package-tests
