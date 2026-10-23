@@ -48,14 +48,9 @@ function generateDataDirectory(instanceId: string): string {
   return dataDir;
 }
 
-// (per-instance env is set when spawning the tauri-driver process)
-
 let officialDeprecationWarned = false;
 
-/**
- * Emits a one-time deprecation warning for legacy `driverProvider: 'official'` (normalised to
- * `'external'` by the shared merge). `'official'` will be removed in v2.
- */
+// mergeServiceOptions maps 'official' to 'external'; this only adds the one-time warning.
 function warnIfOfficialDriverProvider(value: DriverProvider | undefined): void {
   if (value === 'official' && !officialDeprecationWarned) {
     log.warn(
@@ -212,8 +207,7 @@ export default class TauriLaunchService {
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'tauri:options'?: unknown })['tauri:options'];
-          // Propagate browser mode and the resolved URL (a devServer function may have overridden it)
-          // to the worker, which reads both from its capability options.
+          // The worker reads mode and devServerUrl from here; a devServer function may have changed the URL.
           const capRecord = cap as Record<string, unknown>;
           capRecord['wdio:tauriServiceOptions'] = {
             ...(capRecord['wdio:tauriServiceOptions'] as Record<string, unknown> | undefined),

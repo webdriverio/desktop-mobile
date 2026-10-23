@@ -602,8 +602,7 @@ describe('session', () => {
     const devServerUrl = 'http://localhost:1420';
 
     beforeEach(() => {
-      // Mirrors the launcher's browser-mode onPrepare: the capability becomes a Chrome one and no
-      // driver is started, so no port is set.
+      // Mirrors the launcher's browser-mode onPrepare: a Chrome capability and no driver port.
       mockOnPrepare.mockImplementation(async (_config: unknown, [caps]: [Record<string, unknown>]) => {
         caps.browserName = 'chrome';
         delete caps['tauri:options'];

@@ -34,8 +34,7 @@ function driverRemoteOptions(capabilities: DioxusCapabilities, startTimeout: num
 
   log.debug(`Standalone connection: ${hostname}:${port}`);
 
-  // remote() rejects non-W3C keys such as port and hostname. A shallow copy, as a deep clone throws
-  // on function-valued options such as devServer.
+  // remote() rejects non-W3C keys such as port and hostname; a deep clone would throw on a devServer function.
   const driverCapabilities = { ...capabilities };
   delete (driverCapabilities as { port?: number }).port;
   delete (driverCapabilities as { hostname?: string }).hostname;

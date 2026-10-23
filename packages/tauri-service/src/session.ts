@@ -40,7 +40,7 @@ async function driverRemoteOptions(
     );
   }
 
-  // A shallow copy: a deep clone throws on function-valued options such as devServer.
+  // remote() rejects non-W3C keys such as port and hostname; a deep clone would throw on a devServer function.
   const driverCapabilities = { ...capabilities };
   delete (driverCapabilities as { hostname?: string }).hostname;
   delete (driverCapabilities as { port?: number }).port;
@@ -56,7 +56,6 @@ async function driverRemoteOptions(
   log.debug(`Starting remote session with startTimeout=${startTimeout}ms`);
 
   return {
-    // connection info must be at top level, not in capabilities
     hostname,
     port,
     capabilities: driverCapabilities,
@@ -98,7 +97,6 @@ export async function init(
   const capabilities = copyCapabilities(callerCapabilities);
   const serviceOptions = capabilities['wdio:tauriServiceOptions'] ?? {};
   if (serviceOptions.captureBackendLogs || serviceOptions.captureFrontendLogs) {
-    // Match the launcher, which also takes the mode from the global options.
     if (mergeServiceOptions(globalOptions, serviceOptions).mode === 'browser') {
       log.warn('Log capture is unavailable in browser mode: there is no Tauri app process to capture logs from');
     } else if (serviceOptions.logDir) {

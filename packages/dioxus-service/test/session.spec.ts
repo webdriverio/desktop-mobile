@@ -194,7 +194,6 @@ describe('session', () => {
       });
     });
 
-    // The launcher's browser-mode onPrepare starts no embedded driver, so no port is set.
     function makeBrowserModeCaps(): DioxusCapabilities {
       return {
         browserName: 'chrome',

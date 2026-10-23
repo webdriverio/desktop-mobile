@@ -118,8 +118,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         for (const cap of capsList) {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'dioxus:options'?: unknown })['dioxus:options'];
-          // Propagate browser mode and the resolved URL (a devServer function may have overridden it)
-          // to the worker, which reads both from its capability options.
+          // The worker reads mode and devServerUrl from here; a devServer function may have changed the URL.
           const capRecord = cap as Record<string, unknown>;
           capRecord['wdio:dioxusServiceOptions'] = {
             ...(capRecord['wdio:dioxusServiceOptions'] as Record<string, unknown> | undefined),

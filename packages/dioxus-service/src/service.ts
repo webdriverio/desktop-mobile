@@ -23,7 +23,7 @@ export default class DioxusWorkerService {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
       'wdio:dioxusServiceOptions'
     ];
-    // The launcher writes mode: 'browser' onto each capability; in multiremote that is each instance's capabilities.
+    // In multiremote, the launcher's mode: 'browser' is in each instance's capabilities, not the top level.
     const browserModeOptions =
       capOptions ??
       Object.values(_capabilities as Record<string, { capabilities?: DioxusCapabilities } | undefined>)
