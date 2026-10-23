@@ -62,6 +62,7 @@ import {
   clearWindowState,
   ensureActiveWindowFocus,
   setCurrentWindowLabel,
+  setSessionProvider,
   suppressActiveWindowFocus,
   withInternalWindowSwitch,
 } from '../src/window.js';
@@ -92,6 +93,57 @@ describe('TauriWorkerService', () => {
 
   afterEach(() => {
     vi.clearAllMocks();
+  });
+
+  describe('option merging', () => {
+    it('should keep a global option when the capability sets it to undefined', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService(
+        { driverProvider: 'external' },
+        { 'wdio:tauriServiceOptions': { driverProvider: undefined } },
+      );
+
+      await service.before({} as never, [], mockBrowser);
+
+      expect(setSessionProvider).toHaveBeenCalledWith(mockBrowser, 'external');
+    });
+
+    it('should let a defined capability option override the global one', async () => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService(
+        { driverProvider: 'external' },
+        { 'wdio:tauriServiceOptions': { driverProvider: 'crabnebula' } },
+      );
+
+      await service.before({} as never, [], mockBrowser);
+
+      expect(setSessionProvider).toHaveBeenCalledWith(mockBrowser, 'crabnebula');
+    });
+
+    it("should use the launcher's first-instance driverProvider for every multiremote instance", async () => {
+      const instanceA = createMockBrowser({ sessionId: 'session-a' });
+      const instanceB = createMockBrowser({ sessionId: 'session-b' });
+      const executeA = instanceA.execute as ReturnType<typeof vi.fn>;
+      const executeB = instanceB.execute as ReturnType<typeof vi.fn>;
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      });
+      const service = new TauriWorkerService({}, {
+        browserA: { capabilities: { 'wdio:tauriServiceOptions': { driverProvider: 'external' } } },
+        browserB: { capabilities: {} },
+      } as unknown as TauriCapabilities);
+
+      await service.before({} as never, [], mrBrowser);
+
+      const clearedStaleMocks = (execute: ReturnType<typeof vi.fn>) =>
+        execute.mock.calls.some(([script]) => typeof script === 'function' && script.name === 'clearStaleMocks');
+      expect(setSessionProvider).toHaveBeenCalledWith(instanceA, 'external');
+      expect(setSessionProvider).toHaveBeenCalledWith(instanceB, 'external');
+      expect(clearedStaleMocks(executeA)).toBe(false);
+      expect(clearedStaleMocks(executeB)).toBe(false);
+    });
   });
 
   describe('console wrapping', () => {

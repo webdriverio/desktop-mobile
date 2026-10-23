@@ -274,3 +274,41 @@ describe('Embedded WebDriver WindowRect CSS pixel semantics', () => {
     }
   });
 });
+
+describe('Embedded WebDriver Close Window', () => {
+  const getCloseRequests = async () =>
+    Number(await browser.tauri.execute(({ core }) => core.invoke('get_close_guard_requests')));
+
+  before(async function () {
+    if (process.env.DRIVER_PROVIDER !== 'embedded') {
+      this.skip();
+    }
+
+    await browser.tauri.switchWindow('main');
+    await browser.tauri.execute(({ core }) => core.invoke('open_close_guard_window'));
+  });
+
+  after(async () => {
+    if (process.env.DRIVER_PROVIDER === 'embedded') {
+      await browser.tauri.switchWindow('main');
+    }
+  });
+
+  it('should keep a window whose app prevents the close', async () => {
+    await browser.switchToWindow('close-guard');
+    expect(await browser.closeWindow()).toContain('close-guard');
+    expect(await browser.getWindowHandle()).toBe('close-guard');
+
+    await browser.tauri.switchWindow('main');
+    expect(await getCloseRequests()).toBe(1);
+  });
+
+  it('should close the window once the app lets it', async () => {
+    await browser.switchToWindow('close-guard');
+    expect(await browser.closeWindow()).not.toContain('close-guard');
+
+    await browser.tauri.switchWindow('main');
+    expect(await getCloseRequests()).toBe(2);
+    expect(await browser.getWindowHandles()).not.toContain('close-guard');
+  });
+});

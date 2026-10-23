@@ -33,7 +33,7 @@
     "dev": "pnpm run build:watch",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "test": "vitest run",
-    "test:unit": "vitest run --config vitest.config.ts",
+    "test:unit": "vitest run --config vitest.config.ts --coverage",
     "test:coverage": "vitest run --coverage",
     "test:watch": "vitest",
     "lint": "biome check --linter-enabled=true --formatter-enabled=false src/",
@@ -49,12 +49,12 @@
   },
   "devDependencies": {
     "@repo/test-utils": "workspace:*",
-    "@types/node": "^26.6.4",
-    "@vitest/coverage-v8": "^5.0.3",
+    "@types/node": "^26.6.5",
+    "@vitest/coverage-v8": "^5.0.5",
     "@wdio/bundler": "workspace:*",
     "shx": "^0.4.0",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.5"
   },
   "files": [
     "dist",

@@ -2,16 +2,13 @@ use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tauri::webview::Cookie as TauriCookie;
-use tauri::{Runtime, WebviewWindow};
-
-#[cfg(desktop)]
-use tauri::Listener;
-#[cfg(desktop)]
-use tauri::{LogicalPosition, LogicalSize, PhysicalPosition, PhysicalSize};
-
-use tauri::Manager;
+use tauri::{
+    Listener, LogicalPosition, LogicalSize, Manager, PhysicalPosition, PhysicalSize, Runtime,
+    WebviewWindow,
+};
 
 use crate::platform::alert_state::{AlertStateManager, AlertType};
+use crate::platform::pointer_input::{pointer_event_script, PointerInputState};
 use crate::server::response::WebDriverErrorResponse;
 
 /// Element bounding rectangle
@@ -34,7 +31,6 @@ pub struct WindowRect {
     pub height: u32,
 }
 
-#[cfg(desktop)]
 fn physical_window_rect_to_logical(
     position: PhysicalPosition<i32>,
     size: PhysicalSize<u32>,
@@ -51,7 +47,6 @@ fn physical_window_rect_to_logical(
     }
 }
 
-#[cfg(desktop)]
 fn physical_window_chrome_to_logical(
     outer: PhysicalSize<u32>,
     inner: PhysicalSize<u32>,
@@ -64,14 +59,12 @@ fn physical_window_chrome_to_logical(
     .to_logical(scale_factor)
 }
 
-#[cfg(desktop)]
 const WINDOW_CHANGE_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(1);
 
 /// Physical-to-logical rounding can leave a requested logical value off by one pixel.
-#[cfg(desktop)]
 const LOGICAL_ROUNDING_TOLERANCE: u32 = 1;
 
-/// Apply a native window change and wait until `is_applied` confirms it.
+/// Apply a native window change and wait, up to `timeout`, until `is_applied` confirms it.
 ///
 /// `event_name` only triggers a re-check, as the event can predate this change or come from
 /// another window. `is_applied` should return `true` if it can't read the window state, rather
@@ -79,11 +72,11 @@ const LOGICAL_ROUNDING_TOLERANCE: u32 = 1;
 ///
 /// Only the native call failing is an error; a change the window manager clamps or ignores
 /// just times out.
-#[cfg(desktop)]
-async fn apply_window_change<R, F, A>(
+pub(crate) async fn apply_window_change<R, F, A>(
     window: &WebviewWindow<R>,
     event_name: &'static str,
     operation: &'static str,
+    timeout: std::time::Duration,
     change: F,
     is_applied: A,
 ) -> Result<(), WebDriverErrorResponse>
@@ -105,7 +98,7 @@ where
         )));
     }
 
-    if !wait_until_applied(&notify, WINDOW_CHANGE_TIMEOUT, is_applied).await {
+    if !wait_until_applied(&notify, timeout, is_applied).await {
         tracing::debug!("Timed out waiting to {operation}");
     }
 
@@ -114,7 +107,6 @@ where
 }
 
 /// Wait until `is_applied` holds, re-checking on each `notify`; returns `false` on timeout.
-#[cfg(desktop)]
 async fn wait_until_applied(
     notify: &tokio::sync::Notify,
     timeout: std::time::Duration,
@@ -129,7 +121,6 @@ async fn wait_until_applied(
     .is_ok()
 }
 
-#[cfg(desktop)]
 fn has_logical_position<R: Runtime>(window: &WebviewWindow<R>, x: i32, y: i32) -> bool {
     match (window.outer_position(), window.scale_factor()) {
         (Ok(position), Ok(scale_factor)) => {
@@ -141,7 +132,6 @@ fn has_logical_position<R: Runtime>(window: &WebviewWindow<R>, x: i32, y: i32) -
     }
 }
 
-#[cfg(desktop)]
 fn has_logical_inner_size<R: Runtime>(window: &WebviewWindow<R>, size: LogicalSize<u32>) -> bool {
     match (window.inner_size(), window.scale_factor()) {
         (Ok(inner_size), Ok(scale_factor)) => {
@@ -153,7 +143,7 @@ fn has_logical_inner_size<R: Runtime>(window: &WebviewWindow<R>, size: LogicalSi
     }
 }
 
-#[cfg(all(test, desktop))]
+#[cfg(test)]
 mod wait_until_applied_tests {
     use super::*;
     use std::sync::atomic::{AtomicBool, Ordering};
@@ -198,7 +188,7 @@ mod wait_until_applied_tests {
     }
 }
 
-#[cfg(all(test, desktop))]
+#[cfg(test)]
 mod window_rect_tests {
     use super::*;
 
@@ -283,7 +273,6 @@ pub enum PointerEventType {
     Down,
     Up,
     Move,
-    Click,
 }
 
 /// Cookie data
@@ -332,27 +321,14 @@ pub struct PrintOptions {
     pub page_ranges: Option<Vec<String>>,
 }
 
-/// Tracks the state of modifier keys during action sequences
-#[derive(Debug, Clone, Copy, Default)]
+/// The modifier flags a key event carries; `key_input::HeldModifiers` derives them from the held keys
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 #[allow(clippy::struct_excessive_bools)]
 pub struct ModifierState {
     pub ctrl: bool,
     pub shift: bool,
     pub alt: bool,
     pub meta: bool,
-}
-
-impl ModifierState {
-    /// Update modifier state when a key is pressed or released
-    pub fn update(&mut self, key: &str, is_down: bool) {
-        match key {
-            "\u{E009}" => self.ctrl = is_down,  // Control
-            "\u{E008}" => self.shift = is_down, // Shift
-            "\u{E00A}" => self.alt = is_down,   // Alt
-            "\u{E03D}" => self.meta = is_down,  // Meta
-            _ => {}
-        }
-    }
 }
 
 /// Platform-agnostic trait for `WebView` operations.
@@ -774,11 +750,21 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
     /// Click on element
     async fn click_element(&self, js_var: &str) -> Result<(), WebDriverErrorResponse> {
+        let active_element = crate::platform::key_input::deep_active_element_js("activeEl");
+        let text_field = crate::platform::key_input::is_text_field_js("el");
         let script = format!(
             r"(function() {{
                 var el = window.{js_var};
                 if (!el || !el.isConnected) {{
                     throw new Error('stale element reference');
+                }}
+                {active_element}
+                // A caret set before focus stops WebKit selecting a fresh field's text (or putting a
+                // textarea's caret first), while a select-on-focus handler still picks its own selection.
+                if (activeEl !== el && {text_field}) {{
+                    try {{
+                        el.setSelectionRange(el.value.length, el.value.length);
+                    }} catch (e) {{}}
                 }}
                 el.scrollIntoView({{ block: 'center', inline: 'center' }});
                 el.click();
@@ -802,6 +788,9 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 if (!el || !el.isConnected) {{
                     throw new Error('stale element reference');
                 }}
+                if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && (el.disabled || el.readOnly)) {{
+                    return 'not editable';
+                }}
                 el.focus();
                 if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {{
                     var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
@@ -823,7 +812,11 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 return true;
             }})()"
         );
-        self.evaluate_js(&script).await?;
+        if extract_value(&self.evaluate_js(&script).await?)?.as_str() == Some("not editable") {
+            return Err(WebDriverErrorResponse::invalid_element_state(
+                "element is disabled or read-only, so it cannot be cleared",
+            ));
+        }
         Ok(())
     }
 
@@ -833,44 +826,57 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         js_var: &str,
         text: &str,
     ) -> Result<(), WebDriverErrorResponse> {
-        let escaped = text
-            .replace('\\', "\\\\")
-            .replace('`', "\\`")
-            .replace('$', "\\$");
-        let script = format!(
-            r"(function() {{
-                var el = window.{js_var};
-                if (!el || !el.isConnected) {{
-                    throw new Error('stale element reference');
-                }}
-                el.focus();
+        use crate::platform::key_input::{self, SendKeysStep};
 
-                if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {{
-                    var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                        el.tagName === 'INPUT' ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype,
-                        'value'
-                    ).set;
-
-                    var newValue = el.value + `{escaped}`;
-                    nativeInputValueSetter.call(el, newValue);
-
-                    var inputEvent = new InputEvent('input', {{
-                        bubbles: true,
-                        cancelable: true,
-                        inputType: 'insertText',
-                        data: `{escaped}`
-                    }});
-                    el.dispatchEvent(inputEvent);
-
-                    var changeEvent = new Event('change', {{ bubbles: true }});
-                    el.dispatchEvent(changeEvent);
-                }} else if (el.isContentEditable) {{
-                    document.execCommand('insertText', false, `{escaped}`);
-                }}
-                return true;
-            }})()"
+        let steps = key_input::plan_send_keys(text);
+        let start_script = key_input::build_send_keys_start_script(
+            js_var,
+            &key_input::typed_text(&steps),
+            key_input::plain_text(&steps),
         );
-        self.evaluate_js(&script).await?;
+        let start = extract_value(&self.evaluate_js(&start_script).await?)?;
+        match start.get("status").and_then(Value::as_str) {
+            Some("done" | "set") => return Ok(()),
+            Some("focused") => {}
+            Some("stale") => return Err(WebDriverErrorResponse::stale_element_reference()),
+            Some("immutable") => {
+                return Err(WebDriverErrorResponse::element_not_interactable(
+                    "form control is read-only or disabled, so its value cannot be set",
+                ))
+            }
+            Some("invalid") => {
+                return Err(WebDriverErrorResponse::invalid_argument(
+                    "text is not a valid value for this form control",
+                ))
+            }
+            Some("file") => {
+                return Err(WebDriverErrorResponse::invalid_argument(
+                    "sending keys to a file input (file upload) is not supported",
+                ))
+            }
+            _ => {
+                return Err(WebDriverErrorResponse::element_not_interactable(
+                    "element did not take keyboard focus, so keys cannot be sent to it",
+                ))
+            }
+        }
+        for step in &steps {
+            match step {
+                SendKeysStep::Text(run) => {
+                    self.evaluate_js(&key_input::build_insert_run_script(run))
+                        .await?;
+                }
+                SendKeysStep::Key {
+                    value,
+                    is_down,
+                    modifiers,
+                } => self.dispatch_key_event(value, *is_down, modifiers).await?,
+            }
+        }
+        if let Some(initial_value) = start.get("value").and_then(Value::as_str) {
+            let change_script = key_input::build_send_keys_change_script(js_var, initial_value);
+            self.evaluate_js(&change_script).await?;
+        }
         Ok(())
     }
 
@@ -1307,190 +1313,29 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         is_down: bool,
         modifiers: &ModifierState,
     ) -> Result<(), WebDriverErrorResponse> {
-        let (js_key, js_code, key_code) = match key {
-            "\u{E007}" => ("Enter", "Enter", 13),
-            "\u{E003}" => ("Backspace", "Backspace", 8),
-            "\u{E004}" => ("Tab", "Tab", 9),
-            "\u{E006}" => ("Enter", "NumpadEnter", 13),
-            "\u{E00C}" => ("Escape", "Escape", 27),
-            "\u{E00D}" => (" ", "Space", 32),
-            "\u{E012}" => ("ArrowLeft", "ArrowLeft", 37),
-            "\u{E013}" => ("ArrowUp", "ArrowUp", 38),
-            "\u{E014}" => ("ArrowRight", "ArrowRight", 39),
-            "\u{E015}" => ("ArrowDown", "ArrowDown", 40),
-            "\u{E017}" => ("Delete", "Delete", 46),
-            "\u{E031}" => ("F1", "F1", 112),
-            "\u{E032}" => ("F2", "F2", 113),
-            "\u{E033}" => ("F3", "F3", 114),
-            "\u{E034}" => ("F4", "F4", 115),
-            "\u{E035}" => ("F5", "F5", 116),
-            "\u{E036}" => ("F6", "F6", 117),
-            "\u{E037}" => ("F7", "F7", 118),
-            "\u{E038}" => ("F8", "F8", 119),
-            "\u{E039}" => ("F9", "F9", 120),
-            "\u{E03A}" => ("F10", "F10", 121),
-            "\u{E03B}" => ("F11", "F11", 122),
-            "\u{E03C}" => ("F12", "F12", 123),
-            "\u{E008}" => ("Shift", "ShiftLeft", 16),
-            "\u{E009}" => ("Control", "ControlLeft", 17),
-            "\u{E00A}" => ("Alt", "AltLeft", 18),
-            "\u{E03D}" => ("Meta", "MetaLeft", 91),
-            _ => {
-                let ch = key.chars().next().unwrap_or(' ');
-                let upper = ch.to_ascii_uppercase();
-                let code = if ch.is_ascii_alphabetic() {
-                    format!("Key{upper}")
-                } else if ch.is_ascii_digit() {
-                    format!("Digit{ch}")
-                } else {
-                    key.to_string()
-                };
-                return self
-                    .dispatch_regular_key(key, &code, is_down, modifiers)
-                    .await;
+        match crate::platform::key_input::map_special_key(key) {
+            Some((js_key, js_code, key_code))
+                if crate::platform::key_input::is_printable_key(js_key) =>
+            {
+                let script = crate::platform::key_input::build_printable_key_script(
+                    js_key, js_code, key_code, is_down, modifiers,
+                );
+                self.evaluate_js(&script).await?;
+                Ok(())
             }
-        };
-
-        let event_type = if is_down { "keydown" } else { "keyup" };
-
-        // For special keys that modify input (Backspace, Delete), handle value changes
-        let script = if is_down && (js_key == "Backspace" || js_key == "Delete") {
-            format!(
-                r"(function() {{
-                    var activeEl = document.activeElement || document.body;
-
-                    // Dispatch keydown event
-                    var keydownEvent = new KeyboardEvent('keydown', {{
-                        key: '{js_key}',
-                        code: '{js_code}',
-                        keyCode: {key_code},
-                        which: {key_code},
-                        bubbles: true,
-                        cancelable: true
-                    }});
-                    activeEl.dispatchEvent(keydownEvent);
-
-                    // If active element is an input or textarea, handle deletion
-                    if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {{
-                        var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                            activeEl.tagName === 'INPUT'
-                                ? window.HTMLInputElement.prototype
-                                : window.HTMLTextAreaElement.prototype,
-                            'value'
-                        ).set;
-
-                        var currentValue = activeEl.value;
-                        var selStart = activeEl.selectionStart;
-                        var selEnd = activeEl.selectionEnd;
-                        var newValue;
-                        var inputType;
-
-                        // Check if there's a selection
-                        if (selStart !== selEnd) {{
-                            // Delete selection
-                            newValue = currentValue.slice(0, selStart) + currentValue.slice(selEnd);
-                            inputType = 'deleteContentBackward';
-                            // Set cursor position after deletion
-                            nativeInputValueSetter.call(activeEl, newValue);
-                            activeEl.setSelectionRange(selStart, selStart);
-                        }} else if ('{js_key}' === 'Backspace' && selStart > 0) {{
-                            newValue = currentValue.slice(0, selStart - 1) + currentValue.slice(selStart);
-                            inputType = 'deleteContentBackward';
-                            nativeInputValueSetter.call(activeEl, newValue);
-                            activeEl.setSelectionRange(selStart - 1, selStart - 1);
-                        }} else if ('{js_key}' === 'Delete' && selStart < currentValue.length) {{
-                            newValue = currentValue.slice(0, selStart) + currentValue.slice(selStart + 1);
-                            inputType = 'deleteContentForward';
-                            nativeInputValueSetter.call(activeEl, newValue);
-                            activeEl.setSelectionRange(selStart, selStart);
-                        }} else {{
-                            return true; // Nothing to delete
-                        }}
-
-                        // Dispatch input event
-                        var inputEvent = new InputEvent('input', {{
-                            bubbles: true,
-                            cancelable: true,
-                            inputType: inputType
-                        }});
-                        activeEl.dispatchEvent(inputEvent);
-                    }}
-
-                    return true;
-                }})()"
-            )
-        } else if is_down
-            && (js_key == "ArrowDown"
-                || js_key == "ArrowUp"
-                || js_key == "ArrowLeft"
-                || js_key == "ArrowRight")
-        {
-            // Handle arrow keys on radio buttons for navigation
-            let go_forward = js_key == "ArrowDown" || js_key == "ArrowRight";
-            format!(
-                r#"(function() {{
-                    var activeEl = document.activeElement || document.body;
-
-                    // Dispatch keydown event first
-                    var keydownEvent = new KeyboardEvent('keydown', {{
-                        key: '{js_key}',
-                        code: '{js_code}',
-                        keyCode: {key_code},
-                        which: {key_code},
-                        bubbles: true,
-                        cancelable: true
-                    }});
-                    activeEl.dispatchEvent(keydownEvent);
-
-                    // If active element is a radio button, handle navigation
-                    if (activeEl.tagName === 'INPUT' && activeEl.type === 'radio' && activeEl.name) {{
-                        var name = activeEl.name;
-                        var radios = Array.from(document.querySelectorAll("input[type='radio'][name='" + name + "']"));
-                        var currentIndex = radios.indexOf(activeEl);
-
-                        if (currentIndex !== -1 && radios.length > 1) {{
-                            var nextIndex;
-                            if ({go_forward}) {{
-                                // ArrowDown/ArrowRight - go to next
-                                nextIndex = (currentIndex + 1) % radios.length;
-                            }} else {{
-                                // ArrowUp/ArrowLeft - go to previous
-                                nextIndex = (currentIndex - 1 + radios.length) % radios.length;
-                            }}
-
-                            var nextRadio = radios[nextIndex];
-                            nextRadio.checked = true;
-                            nextRadio.focus();
-
-                            // Dispatch change event
-                            var changeEvent = new Event('change', {{ bubbles: true }});
-                            nextRadio.dispatchEvent(changeEvent);
-                        }}
-                    }}
-
-                    return true;
-                }})()"#
-            )
-        } else {
-            format!(
-                r"(function() {{
-                    var event = new KeyboardEvent('{event_type}', {{
-                        key: '{js_key}',
-                        code: '{js_code}',
-                        keyCode: {key_code},
-                        which: {key_code},
-                        bubbles: true,
-                        cancelable: true
-                    }});
-                    var activeEl = document.activeElement || document.body;
-                    activeEl.dispatchEvent(event);
-                    return true;
-                }})()"
-            )
-        };
-
-        self.evaluate_js(&script).await?;
-        Ok(())
+            Some((js_key, js_code, key_code)) => {
+                let script = crate::platform::key_input::build_special_key_script(
+                    js_key, js_code, key_code, is_down, modifiers,
+                );
+                self.evaluate_js(&script).await?;
+                Ok(())
+            }
+            None => {
+                let code = crate::platform::key_input::regular_key_code_for(key);
+                self.dispatch_regular_key(key, &code, is_down, modifiers)
+                    .await
+            }
+        }
     }
 
     /// Dispatch a regular (non-special) key event with modifier state
@@ -1501,170 +1346,25 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         is_down: bool,
         modifiers: &ModifierState,
     ) -> Result<(), WebDriverErrorResponse> {
-        let ch = key.chars().next().unwrap_or(' ');
-        let key_code = ch as u32;
-        let event_type = if is_down { "keydown" } else { "keyup" };
-
-        let escaped_key = key.replace('\\', "\\\\").replace('\'', "\\'");
-        let escaped_code = code.replace('\\', "\\\\").replace('\'', "\\'");
-
-        let ctrl_key = modifiers.ctrl;
-        let meta_key = modifiers.meta;
-        let shift_key = modifiers.shift;
-        let alt_key = modifiers.alt;
-
-        // Check for Ctrl+A or Meta+A (select all)
-        let is_select_all = is_down && (ch == 'a' || ch == 'A') && (ctrl_key || meta_key);
-
-        let script = if is_select_all {
-            // Handle Ctrl+A / Meta+A: select all text
-            format!(
-                r"(function() {{
-                    var activeEl = document.activeElement || document.body;
-
-                    // Dispatch keydown event with modifiers
-                    var keydownEvent = new KeyboardEvent('keydown', {{
-                        key: '{escaped_key}',
-                        code: '{escaped_code}',
-                        keyCode: {key_code},
-                        which: {key_code},
-                        ctrlKey: {ctrl_key},
-                        metaKey: {meta_key},
-                        shiftKey: {shift_key},
-                        altKey: {alt_key},
-                        bubbles: true,
-                        cancelable: true
-                    }});
-                    activeEl.dispatchEvent(keydownEvent);
-
-                    // Select all text in input/textarea
-                    if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {{
-                        activeEl.select();
-                    }} else {{
-                        document.execCommand('selectAll', false, null);
-                    }}
-
-                    return true;
-                }})()"
-            )
-        } else if is_down {
-            // For keydown events on printable characters, update input value
-            format!(
-                r"(function() {{
-                    var activeEl = document.activeElement || document.body;
-
-                    // Dispatch keydown event with modifiers
-                    var keydownEvent = new KeyboardEvent('keydown', {{
-                        key: '{escaped_key}',
-                        code: '{escaped_code}',
-                        keyCode: {key_code},
-                        which: {key_code},
-                        ctrlKey: {ctrl_key},
-                        metaKey: {meta_key},
-                        shiftKey: {shift_key},
-                        altKey: {alt_key},
-                        bubbles: true,
-                        cancelable: true
-                    }});
-                    activeEl.dispatchEvent(keydownEvent);
-
-                    // If active element is an input or textarea, update value and dispatch input event
-                    // Only do this for non-modifier key combos
-                    if (!{ctrl_key} && !{meta_key} && !{alt_key}) {{
-                        if (activeEl.tagName === 'INPUT' || activeEl.tagName === 'TEXTAREA') {{
-                            var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                                activeEl.tagName === 'INPUT'
-                                    ? window.HTMLInputElement.prototype
-                                    : window.HTMLTextAreaElement.prototype,
-                                'value'
-                            ).set;
-
-                            var newValue = activeEl.value + '{escaped_key}';
-                            nativeInputValueSetter.call(activeEl, newValue);
-
-                            // Dispatch input event
-                            var inputEvent = new InputEvent('input', {{
-                                bubbles: true,
-                                cancelable: true,
-                                inputType: 'insertText',
-                                data: '{escaped_key}'
-                            }});
-                            activeEl.dispatchEvent(inputEvent);
-                        }}
-                    }}
-
-                    return true;
-                }})()"
-            )
-        } else {
-            format!(
-                r"(function() {{
-                    var activeEl = document.activeElement || document.body;
-                    var event = new KeyboardEvent('{event_type}', {{
-                        key: '{escaped_key}',
-                        code: '{escaped_code}',
-                        keyCode: {key_code},
-                        which: {key_code},
-                        ctrlKey: {ctrl_key},
-                        metaKey: {meta_key},
-                        shiftKey: {shift_key},
-                        altKey: {alt_key},
-                        bubbles: true,
-                        cancelable: true
-                    }});
-                    activeEl.dispatchEvent(event);
-                    return true;
-                }})()"
-            )
-        };
-
+        let script =
+            crate::platform::key_input::build_regular_key_script(key, code, is_down, modifiers);
         self.evaluate_js(&script).await?;
         Ok(())
     }
 
-    /// Dispatch a pointer/mouse event
+    /// Dispatch a pointer/mouse event. Returns whether its `pointerdown` was
+    /// canceled (a listener called `preventDefault()`).
     async fn dispatch_pointer_event(
         &self,
         event_type: PointerEventType,
         x: i32,
         y: i32,
         button: u32,
-    ) -> Result<(), WebDriverErrorResponse> {
-        let event_name = match event_type {
-            PointerEventType::Down => "mousedown",
-            PointerEventType::Up => "mouseup",
-            PointerEventType::Move => "mousemove",
-            // Manually dispatched mousedown/mouseup do NOT make the browser
-            // synthesize a click, so element click handlers never fire. The
-            // actions handler emits this explicitly after a same-spot down+up.
-            PointerEventType::Click => "click",
-        };
-
-        let buttons = if matches!(event_type, PointerEventType::Down) {
-            1 << button
-        } else {
-            0
-        };
-        let script = format!(
-            r"(function() {{
-                var el = document.elementFromPoint({x}, {y});
-                if (!el) el = document.body;
-
-                var event = new MouseEvent('{event_name}', {{
-                    bubbles: true,
-                    cancelable: true,
-                    clientX: {x},
-                    clientY: {y},
-                    button: {button},
-                    buttons: {buttons}
-                }});
-                el.dispatchEvent(event);
-                return true;
-            }})()"
-        );
-
-        self.evaluate_js(&script).await?;
-        Ok(())
+        input_state: PointerInputState,
+    ) -> Result<bool, WebDriverErrorResponse> {
+        let script = pointer_event_script(event_type, x, y, button, input_state);
+        let result = self.evaluate_js(&script).await?;
+        extract_bool_value(&result)
     }
 
     /// Dispatch a scroll/wheel event
@@ -1705,7 +1405,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     // =========================================================================
 
     /// Get window rectangle (position and size)
-    #[cfg(desktop)]
     async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse> {
         let scale_factor = self.window().scale_factor().map_err(|error| {
             WebDriverErrorResponse::unknown_error(&format!(
@@ -1728,11 +1427,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         ))
     }
 
-    #[cfg(mobile)]
-    async fn get_window_rect(&self) -> Result<WindowRect, WebDriverErrorResponse>;
-
     /// Set window rectangle (position and size)
-    #[cfg(desktop)]
     async fn set_window_rect(
         &self,
         rect: WindowRect,
@@ -1749,6 +1444,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 self.window(),
                 "tauri://resize",
                 "exit window fullscreen state",
+                WINDOW_CHANGE_TIMEOUT,
                 || self.window().set_fullscreen(false),
                 || !self.window().is_fullscreen().unwrap_or(false),
             )
@@ -1764,6 +1460,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 self.window(),
                 "tauri://resize",
                 "restore maximized window",
+                WINDOW_CHANGE_TIMEOUT,
                 || self.window().unmaximize(),
                 || !self.window().is_maximized().unwrap_or(false),
             )
@@ -1799,6 +1496,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 self.window(),
                 "tauri://move",
                 "set window position",
+                WINDOW_CHANGE_TIMEOUT,
                 || {
                     self.window()
                         .set_position(LogicalPosition::new(rect.x, rect.y))
@@ -1819,6 +1517,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
                 self.window(),
                 "tauri://resize",
                 "set window size",
+                WINDOW_CHANGE_TIMEOUT,
                 || self.window().set_size(inner_size),
                 || has_logical_inner_size(self.window(), inner_size),
             )
@@ -1829,12 +1528,12 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     }
 
     /// Maximize window
-    #[cfg(desktop)]
     async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
         apply_window_change(
             self.window(),
             "tauri://resize",
             "maximize window",
+            WINDOW_CHANGE_TIMEOUT,
             || self.window().maximize(),
             || self.window().is_maximized().unwrap_or(true),
         )
@@ -1843,59 +1542,23 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     }
 
     /// Minimize window
-    #[cfg(desktop)]
     async fn minimize_window(&self) -> Result<(), WebDriverErrorResponse> {
         let _ = self.window().minimize();
         Ok(())
     }
 
     /// Set window to fullscreen
-    #[cfg(desktop)]
     async fn fullscreen_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
         apply_window_change(
             self.window(),
             "tauri://resize",
             "enter window fullscreen state",
+            WINDOW_CHANGE_TIMEOUT,
             || self.window().set_fullscreen(true),
             || self.window().is_fullscreen().unwrap_or(true),
         )
         .await?;
         self.get_window_rect().await
-    }
-
-    /// Set window rectangle (mobile unsupported)
-    #[cfg(mobile)]
-    async fn set_window_rect(
-        &self,
-        _rect: WindowRect,
-    ) -> Result<WindowRect, WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Setting window rect is not supported on mobile platforms",
-        ))
-    }
-
-    /// Maximize window (mobile unsupported)
-    #[cfg(mobile)]
-    async fn maximize_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Maximizing window is not supported on mobile platforms",
-        ))
-    }
-
-    /// Minimize window (mobile unsupported)
-    #[cfg(mobile)]
-    async fn minimize_window(&self) -> Result<(), WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Minimizing window is not supported on mobile platforms",
-        ))
-    }
-
-    /// Set window to fullscreen (mobile unsupported)
-    #[cfg(mobile)]
-    async fn fullscreen_window(&self) -> Result<WindowRect, WebDriverErrorResponse> {
-        Err(WebDriverErrorResponse::unsupported_operation(
-            "Fullscreen window is not supported on mobile platforms",
-        ))
     }
 
     // =========================================================================

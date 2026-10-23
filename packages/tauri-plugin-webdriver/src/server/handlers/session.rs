@@ -95,17 +95,6 @@ fn parse_user_agent(user_agent: &str) -> (String, String) {
         return ("msedge".to_string(), version.to_string());
     }
 
-    // Android WebView: "... (Linux; Android 14; ...) AppleWebKit/... Chrome/120.0.0.0 ..."
-    // Must check before Linux since Android UA contains "Linux"
-    if user_agent.contains("Android") {
-        let version = user_agent
-            .split("Chrome/")
-            .nth(1)
-            .and_then(|s| s.split_whitespace().next())
-            .unwrap_or("unknown");
-        return ("chrome".to_string(), version.to_string());
-    }
-
     // Linux WebKitGTK: "... (X11; Linux ...) AppleWebKit/... Version/2.44..."
     if user_agent.contains("Linux") || user_agent.contains("X11") {
         let version = user_agent
@@ -114,20 +103,6 @@ fn parse_user_agent(user_agent: &str) -> (String, String) {
             .and_then(|s| s.split_whitespace().next())
             .unwrap_or("unknown");
         return ("WebKitGTK".to_string(), version.to_string());
-    }
-
-    // iOS WKWebView: "... (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 ..."
-    // Also handles iPad and iPod
-    if (user_agent.contains("iPhone") || user_agent.contains("iPad") || user_agent.contains("iPod"))
-        && user_agent.contains("AppleWebKit/")
-    {
-        let version = user_agent
-            .split("AppleWebKit/")
-            .nth(1)
-            .and_then(|s| s.split_whitespace().next())
-            .and_then(|s| s.split('(').next()) // Remove trailing (KHTML if present
-            .unwrap_or("unknown");
-        return ("webkit".to_string(), version.to_string());
     }
 
     // macOS WebKit/WKWebView: "... (Macintosh; ...) AppleWebKit/605.1.15 ..."
@@ -176,12 +151,6 @@ pub async fn create<R: Runtime + 'static>(
     // Create session with initial window
     let session = sessions.create(initial_window);
 
-    // Mobile platforms don't support window rect manipulation
-    #[cfg(mobile)]
-    let set_window_rect = false;
-    #[cfg(desktop)]
-    let set_window_rect = true;
-
     let response = SessionResponse {
         session_id: session.id.clone(),
         capabilities: json!({
@@ -190,7 +159,7 @@ pub async fn create<R: Runtime + 'static>(
             "platformName": std::env::consts::OS,
             "acceptInsecureCerts": false,
             "pageLoadStrategy": "normal",
-            "setWindowRect": set_window_rect,
+            "setWindowRect": true,
             "timeouts": {
                 "implicit": session.timeouts.implicit_ms,
                 "pageLoad": session.timeouts.page_load_ms,

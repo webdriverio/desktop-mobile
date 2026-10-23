@@ -176,10 +176,10 @@ pnpm catalog:minimum   # Switch all packages to lowest supported versions
 ### Updating Catalog Versions
 
 ```bash
-# Update all catalogs and dependencies interactively
+# Update all catalogs and dependencies interactively, then run update:tauri
 pnpm update:dependencies
 
-# Update the Tauri version across packages (npm + Cargo.toml)
+# Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
 pnpm update:tauri
 
 # Preview catalog changes without applying them
@@ -236,10 +236,10 @@ pnpm build
 ### Update Dependencies
 
 ```bash
-# Update all catalogs and dependencies interactively
+# Update all catalogs and dependencies interactively, then run update:tauri
 pnpm update:dependencies
 
-# Update the Tauri version across packages (npm + Cargo.toml)
+# Sync the Tauri fixtures to the latest stable Tauri (npm + Cargo.toml) and run cargo update
 pnpm update:tauri
 ```
 

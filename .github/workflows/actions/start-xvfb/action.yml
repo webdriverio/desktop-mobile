@@ -1,0 +1,28 @@
+name: 'Start Xvfb'
+description: >-
+  Starts one Xvfb display for the job on Linux and exports DISPLAY, so WDIO v9 forks workers
+  instead of wrapping each one in xvfb-run, which closes their IPC fd on Ubuntu 26.04
+  (webdriverio/webdriverio#15685). Remove at the WDIO v10 upgrade (#297).
+
+runs:
+  using: composite
+  steps:
+    - name: 🖥️ Start Xvfb (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        if ! command -v Xvfb >/dev/null; then
+          sudo apt-get update -qq && sudo apt-get install -y -qq xvfb
+        fi
+        # Same screen and flags as xvfb-run's defaults, which WDIO used per worker
+        nohup Xvfb :99 -screen 0 1280x1024x24 -nolisten tcp > "$RUNNER_TEMP/xvfb.log" 2>&1 &
+        for _ in $(seq 1 50); do
+          [ -S /tmp/.X11-unix/X99 ] && break
+          sleep 0.2
+        done
+        if [ ! -S /tmp/.X11-unix/X99 ]; then
+          cat "$RUNNER_TEMP/xvfb.log"
+          echo "::error title=Xvfb did not start::no socket for display :99 after 10s"
+          exit 1
+        fi
+        echo "DISPLAY=:99" >> "$GITHUB_ENV"

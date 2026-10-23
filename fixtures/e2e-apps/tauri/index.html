@@ -91,6 +91,16 @@
         <button type="button" id="reset-button">Reset</button>
       </div>
 
+      <div class="keys-section">
+        <div id="key-target" tabindex="-1">Key target</div>
+        <input type="text" id="keys-input" autocomplete="off" />
+        <div id="keys-editor" contenteditable="true"></div>
+        <input type="text" id="keys-blocking-input" data-block-keys autocomplete="off" />
+        <div id="keys-blocking-editor" contenteditable="true" data-block-keys></div>
+        <textarea id="keys-textarea"></textarea>
+        <div id="keys-scratch"></div>
+      </div>
+
       <div class="info-section">
         <p>This is a basic Tauri application for WebDriverIO testing.</p>
         <div class="status" id="status">Ready for testing</div>
@@ -212,6 +222,38 @@
         updateStatus('Tauri API available - Ready for testing');
       } else {
         updateStatus('Tauri API not available - Running in browser mode');
+      }
+
+      // __keyTargetEvents records keydowns on #key-target so a spec can assert which key arrived.
+      window.__keyTargetEvents = [];
+      document.getElementById('key-target').addEventListener('keydown', (ev) => {
+        window.__keyTargetEvents.push({
+          key: ev.key,
+          code: ev.code,
+          keyCode: ev.keyCode,
+          shiftKey: ev.shiftKey,
+          ctrlKey: ev.ctrlKey,
+          altKey: ev.altKey,
+          metaKey: ev.metaKey,
+        });
+      });
+
+      // [data-block-keys] elements cancel Space, x and Backspace on keydown, as an editor that handles
+      // those keys itself does, so a spec can check that a canceled key changes nothing.
+      for (const blocking of document.querySelectorAll('[data-block-keys]')) {
+        blocking.addEventListener('keydown', (ev) => {
+          if (ev.key === ' ' || ev.key === 'x' || ev.key === 'Backspace') {
+            ev.preventDefault();
+          }
+        });
+      }
+
+      // __keysInputEvents records input/change on #keys-input so a spec can check which events fired.
+      window.__keysInputEvents = [];
+      for (const type of ['input', 'change']) {
+        document.getElementById('keys-input').addEventListener(type, (ev) => {
+          window.__keysInputEvents.push({ type: ev.type, value: ev.target.value });
+        });
       }
 
       // Deep link listener for E2E testing

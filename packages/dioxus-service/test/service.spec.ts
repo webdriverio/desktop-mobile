@@ -292,6 +292,27 @@ describe('DioxusWorkerService', () => {
       expect(urlSpy).toHaveBeenCalledWith('http://localhost:4000');
     });
 
+    it('should run native setup when devServerUrl is set but browser mode is not', async () => {
+      const browser = makeBrowserModeBrowser();
+      const urlSpy = browser.url;
+
+      const service = new DioxusWorkerService({} as unknown, {
+        'wdio:dioxusServiceOptions': { devServerUrl: 'http://localhost:4000' },
+      });
+      await service.before({}, [], browser);
+
+      expect(urlSpy).not.toHaveBeenCalled();
+      expect(browser.url).toBe(urlSpy);
+    });
+
+    it('should fail clearly in browser mode without a devServerUrl', async () => {
+      const service = new DioxusWorkerService({ mode: 'browser' } as unknown, {});
+
+      await expect(service.before({}, [], makeBrowserModeBrowser())).rejects.toMatchObject({
+        message: 'devServerUrl is required for browser mode but was not set',
+      });
+    });
+
     it('should override browser.url to re-inject spy after navigation', async () => {
       const browser = makeBrowserModeBrowser();
 

@@ -56,7 +56,6 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
             }
             drop(initialized);
 
-            #[cfg(desktop)]
             let wdio = desktop::init(app_handle, _api)?;
 
             app_handle.manage(wdio);

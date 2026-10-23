@@ -67,7 +67,7 @@ fixtures/e2e-apps/
 3. **Platform-specific requirements:**
    - **Windows**: No special requirements
    - **macOS**: May need to allow app execution in Security settings
-   - **Linux**: May need to install `webkit2gtk-driver` for Tauri; requires a display server (or Xvfb) for Dioxus
+   - **Linux**: May need WebKitWebDriver for Tauri; requires a display server (or Xvfb) for Dioxus
 
 ### Running Tests
 
@@ -338,7 +338,7 @@ strategy:
 |----------|-------|
 | Windows | Requires `.cmd` for scripts, Edge driver for WebView2 |
 | macOS | Universal builds tested separately, may need security overrides |
-| Linux | Requires `webkit2gtk-driver` for Tauri; Xvfb for Dioxus |
+| Linux | Requires WebKitWebDriver for Tauri; Xvfb for Dioxus |
 
 ## Adding New E2E Tests
 

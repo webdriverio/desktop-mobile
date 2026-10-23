@@ -3,12 +3,12 @@ import { exec, execSync, spawn } from 'node:child_process';
 import { EventEmitter } from 'node:events';
 import { existsSync } from 'node:fs';
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
+import { WEBKIT_WEBDRIVER_INSTALL_HINT } from '@wdio/native-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   ensureTauriDriver,
   ensureWebKitWebDriver,
   findTauriDriver,
-  getWebKitDriverInstallCommand,
   installTauriDriver,
   isCargoAvailable,
 } from '../src/driverManager.js';
@@ -38,48 +38,6 @@ vi.mock('node:util', () => ({
 }));
 
 describe('WebKitWebDriver Management', () => {
-  describe('getWebKitDriverInstallCommand', () => {
-    it('should return correct install command for apt (Debian/Ubuntu)', () => {
-      const command = getWebKitDriverInstallCommand('apt');
-      expect(command).toBe('sudo apt-get install -y webkit2gtk-driver');
-    });
-
-    it('should return correct install command for dnf (Fedora)', () => {
-      const command = getWebKitDriverInstallCommand('dnf');
-      expect(command).toBe('sudo dnf install -y webkit2gtk-driver');
-    });
-
-    it('should return correct install command for yum (CentOS/RHEL)', () => {
-      const command = getWebKitDriverInstallCommand('yum');
-      expect(command).toBe('sudo yum install -y webkit2gtk-driver');
-    });
-
-    it('should return correct install command for zypper (SUSE)', () => {
-      const command = getWebKitDriverInstallCommand('zypper');
-      expect(command).toBe('sudo zypper install -y webkit2gtk-driver');
-    });
-
-    it('should return correct install command for pacman (Arch)', () => {
-      const command = getWebKitDriverInstallCommand('pacman');
-      expect(command).toBe('sudo pacman -S webkit2gtk-driver');
-    });
-
-    it('should return correct install command for apk (Alpine)', () => {
-      const command = getWebKitDriverInstallCommand('apk');
-      expect(command).toBe('sudo apk add webkit2gtk-driver');
-    });
-
-    it('should return correct install command for xbps (Void)', () => {
-      const command = getWebKitDriverInstallCommand('xbps');
-      expect(command).toBe('sudo xbps-install -y webkit2gtk-driver');
-    });
-
-    it('should default to apt for unknown package managers', () => {
-      const command = getWebKitDriverInstallCommand('unknown');
-      expect(command).toBe('sudo apt-get install -y webkit2gtk-driver');
-    });
-  });
-
   describe('ensureWebKitWebDriver', () => {
     beforeEach(() => {
       vi.resetModules();
@@ -124,6 +82,27 @@ describe('WebKitWebDriver Management', () => {
 
       assert(!result.ok);
       expect(result.error.message).toContain('WebKitWebDriver not found');
+      expect(result.error.installInstructions).toBe(WEBKIT_WEBDRIVER_INSTALL_HINT);
+
+      restorePlatform();
+    });
+
+    it("should give the detected package manager's install command when not found on Linux", async () => {
+      mockPlatform('linux');
+
+      vi.mocked(execSync).mockImplementation(() => {
+        throw new Error('not found');
+      });
+      type ExecCallback = (error: Error | null, stdout: string, stderr: string) => void;
+      vi.mocked(exec).mockImplementation(((cmd: string, callback: ExecCallback) => {
+        callback(cmd === 'which dnf' ? null : new Error('not found'), '', '');
+      }) as unknown as typeof exec);
+      vi.mocked(existsSync).mockReturnValue(false);
+
+      const result = await ensureWebKitWebDriver();
+
+      assert(!result.ok);
+      expect(result.error.installInstructions).toBe('sudo dnf install -y webkitgtk6.0');
 
       restorePlatform();
     });

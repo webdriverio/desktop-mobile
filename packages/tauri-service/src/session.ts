@@ -1,9 +1,11 @@
 import http from 'node:http';
+import { join } from 'node:path';
 import { getLogWriter } from '@wdio/native-core';
 import { boundedOnComplete, createLogger, errorMessage, failStartup, safeDeleteSession } from '@wdio/native-utils';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
+import { mergeServiceOptions } from './serviceConfig.js';
 import type { TauriCapabilities, TauriServiceGlobalOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'service');
@@ -25,20 +27,84 @@ async function checkDriverHealth(hostname: string, port: number): Promise<boolea
   });
 }
 
-export async function init(
+async function driverRemoteOptions(
   capabilities: TauriCapabilities,
+  startTimeout: number,
+): Promise<Parameters<typeof remote>[0]> {
+  const hostname = (capabilities as { hostname?: string }).hostname || 'localhost';
+  const port = (capabilities as { port?: number }).port;
+  if (!port) {
+    throw new Error(
+      'Tauri driver port was not set on capabilities by onPrepare. ' +
+        'This usually means the launcher failed to allocate a port.',
+    );
+  }
+
+  // remote() rejects non-W3C keys such as port and hostname; a deep clone would throw on a devServer function.
+  const driverCapabilities = { ...capabilities };
+  delete (driverCapabilities as { hostname?: string }).hostname;
+  delete (driverCapabilities as { port?: number }).port;
+  delete (driverCapabilities as { browserName?: string }).browserName;
+
+  log.debug(`Connection info for remote(): hostname=${hostname}, port=${port}, browserName=wry (display only)`);
+
+  const driverHealthy = await checkDriverHealth(hostname, port);
+  if (!driverHealthy) {
+    log.warn('tauri-driver health check failed before session creation');
+  }
+
+  log.debug(`Starting remote session with startTimeout=${startTimeout}ms`);
+
+  return {
+    hostname,
+    port,
+    capabilities: driverCapabilities,
+    // native desktop apps can be slow to start
+    connectionRetryTimeout: startTimeout * 4,
+    connectionRetryCount: 10,
+  };
+}
+
+// The launcher writes into these objects during onPrepare; copying them keeps the caller's capabilities intact.
+function copyCapabilities(capabilities: TauriCapabilities): TauriCapabilities {
+  return {
+    ...capabilities,
+    ...(capabilities['tauri:options'] && { 'tauri:options': { ...capabilities['tauri:options'] } }),
+    ...(capabilities['wdio:tauriServiceOptions'] && {
+      'wdio:tauriServiceOptions': { ...capabilities['wdio:tauriServiceOptions'] },
+    }),
+  };
+}
+
+// Drops connection keys WebdriverIO would reject, and copies wdio:chromedriverOptions, which it mutates in place.
+function browserSessionCapabilities(capabilities: TauriCapabilities): TauriCapabilities {
+  const copy: Record<string, unknown> = { ...capabilities };
+  delete copy.hostname;
+  delete copy.port;
+  const chromedriverOptions = copy['wdio:chromedriverOptions'];
+  if (chromedriverOptions && typeof chromedriverOptions === 'object') {
+    copy['wdio:chromedriverOptions'] = { ...chromedriverOptions };
+  }
+  return copy as TauriCapabilities;
+}
+
+export async function init(
+  callerCapabilities: TauriCapabilities,
   globalOptions?: TauriServiceGlobalOptions,
 ): Promise<WebdriverIO.Browser> {
   log.debug('Initializing Tauri service in standalone mode...');
 
-  const serviceOptions = capabilities['wdio:tauriServiceOptions'];
-  if (serviceOptions?.captureBackendLogs || serviceOptions?.captureFrontendLogs) {
-    if (serviceOptions.logDir) {
+  const capabilities = copyCapabilities(callerCapabilities);
+  const serviceOptions = capabilities['wdio:tauriServiceOptions'] ?? {};
+  if (serviceOptions.captureBackendLogs || serviceOptions.captureFrontendLogs) {
+    if (mergeServiceOptions(globalOptions, serviceOptions).mode === 'browser') {
+      log.warn('Log capture is unavailable in browser mode: there is no Tauri app process to capture logs from');
+    } else if (serviceOptions.logDir) {
       const writer = getLogWriter('tauri-service');
       writer.initialize(serviceOptions.logDir);
       log.debug(`Log writer initialized at ${writer.getLogDir()}`);
     } else {
-      log.warn('Standalone logging enabled but logDir not specified - logs will not be captured');
+      log.info(`Standalone logging enabled without logDir - logs will be written to ${join(process.cwd(), 'logs')}`);
     }
   }
 
@@ -55,66 +121,14 @@ export async function init(
 
     log.debug('Tauri service capabilities after onPrepare:', JSON.stringify(capabilities, null, 2));
 
-    const hostname = (capabilities as { hostname?: string }).hostname || 'localhost';
-    const port = (capabilities as { port?: number }).port;
-    if (!port) {
-      throw new Error(
-        'Tauri driver port was not set on capabilities by onPrepare. ' +
-          'This usually means the launcher failed to allocate a port.',
-      );
-    }
+    // Browser mode has no Tauri driver: WebdriverIO starts and manages chromedriver itself.
+    const remoteOptions = launcher.isBrowserMode
+      ? { capabilities: browserSessionCapabilities(capabilities) }
+      : await driverRemoteOptions(capabilities, serviceOptions.startTimeout || 30000);
 
-    // Create a deep clone for driver initialization so we can strip unsupported props
-    const driverCapabilities = structuredClone(capabilities);
+    const service = new TauriWorkerService(globalOptions ?? {}, capabilities);
 
-    const stripUnsupportedProps = (cap: TauriCapabilities | undefined) => {
-      if (!cap || typeof cap !== 'object') {
-        return;
-      }
-      delete (cap as { hostname?: string }).hostname;
-      delete (cap as { port?: number }).port;
-      delete (cap as { browserName?: string }).browserName;
-    };
-
-    if (Array.isArray(driverCapabilities)) {
-      for (const cap of driverCapabilities) {
-        stripUnsupportedProps(cap);
-      }
-    } else if (driverCapabilities && typeof driverCapabilities === 'object') {
-      const maybeMultiRemote = driverCapabilities as Record<string, { capabilities?: TauriCapabilities }>;
-      const entries = Object.values(maybeMultiRemote);
-      const isMultiRemote = entries.every((entry) => entry && typeof entry === 'object' && 'capabilities' in entry);
-      if (isMultiRemote) {
-        for (const entry of entries) {
-          stripUnsupportedProps(entry?.capabilities);
-        }
-      } else {
-        stripUnsupportedProps(driverCapabilities as TauriCapabilities);
-      }
-    }
-
-    log.debug(`Connection info for remote(): hostname=${hostname}, port=${port}, browserName=wry (display only)`);
-
-    const driverHealthy = await checkDriverHealth(hostname, port);
-    if (!driverHealthy) {
-      log.warn('tauri-driver health check failed before session creation');
-    }
-
-    const service = new TauriWorkerService(capabilities['wdio:tauriServiceOptions'] || {}, capabilities);
-
-    const startTimeout = serviceOptions?.startTimeout || 30000;
-
-    log.debug(`Starting remote session with startTimeout=${startTimeout}ms`);
-
-    browser = await remote({
-      // connection info must be at top level, not in capabilities
-      hostname,
-      port,
-      capabilities: driverCapabilities,
-      // native desktop apps can be slow to start
-      connectionRetryTimeout: startTimeout * 4,
-      connectionRetryCount: 10,
-    });
+    browser = await remote(remoteOptions);
 
     log.debug('Remote session created successfully, initializing service...');
 

@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createFakeBrowser } from './helpers.js';
+import { createFakeBrowser, createFakeMultiremoteBrowser } from './helpers.js';
 
 // Native-mode setup modules — none should be touched when mode is 'browser'.
 vi.mock('../../src/embeddedProvider.js', () => ({
@@ -35,7 +35,8 @@ vi.mock('../../src/driverPool.js', () => ({
   },
 }));
 
-vi.mock('../../src/portManager.js', () => ({
+vi.mock('@wdio/native-core', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@wdio/native-core')>()),
   PortManager: class MockPortManager {
     allocatePortPair = vi.fn().mockResolvedValue({ port: 4444, nativePort: 4445 });
     allocatePorts = vi.fn().mockResolvedValue([{ port: 4444, nativePort: 4445 }]);
@@ -160,6 +161,23 @@ describe('launcher → worker handshake (browser mode)', () => {
     expect(browser.overrides.has('url')).toBe(true);
     expect(ensureTauriDriver).not.toHaveBeenCalled();
     expect(ensureMsEdgeDriver).not.toHaveBeenCalled();
+  });
+
+  it('should enter browser mode in a multiremote worker', async () => {
+    const launcher = createLauncher();
+    const caps = {
+      browserA: { capabilities: { 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } } },
+      browserB: { capabilities: {} },
+    };
+    await launcher.onPrepare({} as never, caps as never);
+
+    const worker = new TauriWorkerService({} as never, caps as never);
+    const { root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB']);
+    const urlSpy = root.url;
+    await worker.before({} as never, [], root as unknown as WebdriverIO.Browser);
+
+    expect(urlSpy).toHaveBeenCalledWith(DEV_SERVER);
+    expect(instances.get('browserB')?.tauri).toBeDefined();
   });
 
   it('should accept devServerUrl via service-level global options', async () => {

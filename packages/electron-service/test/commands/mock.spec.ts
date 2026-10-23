@@ -1,10 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 
-import { createClassMock, createMock } from '../../src/mock.js';
+import { createClassMock } from '../../src/classMock.js';
+import { createMock } from '../../src/mock.js';
 import mockStore from '../../src/mockStore.js';
 
 vi.mock('../../src/mock.js', () => ({
   createMock: vi.fn(),
+}));
+vi.mock('../../src/classMock.js', () => ({
   createClassMock: vi.fn(),
 }));
 vi.mock('../../src/mockStore.js', () => ({

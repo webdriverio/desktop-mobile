@@ -82,10 +82,13 @@ jobs:
         run: |
           echo "::notice::Build artifact: ID=${{ inputs.build_id }}, Size=${{ inputs.artifact_size }} bytes"
 
-      # The wdio configs force browserName=chrome and set autoXvfb, so WDIO drives the real
-      # Chrome preinstalled on ubuntu-latest under a Xvfb display it starts itself. Each step
-      # runs even if an earlier one failed (!cancelled) so one red tier never masks the others;
-      # any failure still fails the job. The browser-mode E2E confs self-host their dev servers
+      - name: 🖥️ Start Xvfb (Linux)
+        uses: ./.github/workflows/actions/start-xvfb
+
+      # The wdio configs force browserName=chrome, so WDIO drives the real Chrome preinstalled
+      # on ubuntu-latest under the display started above. Each step runs even if an earlier one
+      # failed (!cancelled) so one red tier never masks the others; any failure still fails the
+      # job. The browser-mode E2E confs self-host their dev servers
       # (electron-browser :5174, tauri-browser :1421, dioxus-browser :8088); test-package.ts
       # self-hosts the package fixtures' dev server (:5173).
       - name: 🧪 Electron browser-mode E2E

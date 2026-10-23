@@ -16,6 +16,8 @@ permissions:
 jobs:
   validate-pr-title:
     name: Validate PR Title
+    # releasekit writes its standing PR's (ci.standingPr.branch) title.
+    if: ${{ github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository }}
     runs-on: ubuntu-latest
     steps:
       - name: 🔍 Check PR Title

@@ -12,7 +12,7 @@ Guidance for coding agents working in this repo: the commands to run, the checks
 
 ## Before you push
 
-Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and `test` for every package when you push. If you skip the hooks, run those checks yourself for what you changed. New logic needs unit tests; the coverage target is 80%.
+Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and `test` for every package when you push. If you skip the hooks, run those checks yourself for what you changed. New logic needs unit tests.
 
 ## Gotchas
 
@@ -32,11 +32,9 @@ Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and
 
 ## Code conventions the linters don't check
 
-- Log with `createLogger` from `@wdio/native-utils`, not `console`.
 - Operations that can fail return a `Result<T, E>`: check `.ok`, then read `.value` or `.error`. There's no `.success` or `.data`.
 - Prefer `undefined` to `null`.
 - Avoid `any`. Biome only warns about it.
-- No barrel files (an `index.ts` that only re-exports), except a package's root `index.ts`.
 
 ### Comments
 

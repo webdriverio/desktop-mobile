@@ -21,7 +21,7 @@ It is **not needed** if you use the `'official'` or `'crabnebula'` driver provid
 - **Full W3C WebDriver compliance** — 47 endpoints implementing the W3C WebDriver specification
 - **Native platform integration** — Uses native WebView APIs (WKWebView, WebView2, WebKitGTK)
 - **Zero configuration** — Add the plugin, and `@wdio/tauri-service` handles the rest
-- **No external drivers** — No need to install `tauri-driver`, `msedgedriver`, or `webkit2gtk-driver`
+- **No external drivers** — No need to install `tauri-driver`, `msedgedriver`, or `WebKitWebDriver`
 
 ### Supported Platforms
 
@@ -30,6 +30,8 @@ It is **not needed** if you use the `'official'` or `'crabnebula'` driver provid
 | macOS | Full support | WKWebView native APIs |
 | Windows | Full support | WebView2 native APIs |
 | Linux | Full support | WebKitGTK native APIs |
+
+Android and iOS are not supported. The plugin still builds for them, so an app that also targets mobile compiles, but on mobile it does nothing.
 
 ## Installation
 
@@ -226,7 +228,7 @@ Port resolution order:
 
 `Get Window Rect` and `Set Window Rect` use CSS pixels, as required by the
 [W3C WebDriver Window Rect commands](https://www.w3.org/TR/webdriver2/#set-window-rect).
-On desktop platforms, the plugin converts Tauri's physical outer-window bounds
+The plugin converts Tauri's physical outer-window bounds
 using the window's current display scale factor. Position changes are completed
 before a requested size is applied, including moves between displays.
 

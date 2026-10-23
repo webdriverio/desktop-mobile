@@ -9,10 +9,10 @@
     "start": "electrobun run"
   },
   "dependencies": {
-    "electrobun": "2.0.2"
+    "electrobun": "2.0.4"
   },
   "devDependencies": {
-    "@types/bun": "1.4.2",
+    "@types/bun": "1.4.3",
     "typescript": "6.0.3"
   }
 }
