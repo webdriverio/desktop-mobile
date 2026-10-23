@@ -21,7 +21,7 @@ It is **not needed** if you use the `'official'` or `'crabnebula'` driver provid
 - **Full W3C WebDriver compliance** — 47 endpoints implementing the W3C WebDriver specification
 - **Native platform integration** — Uses native WebView APIs (WKWebView, WebView2, WebKitGTK)
 - **Zero configuration** — Add the plugin, and `@wdio/tauri-service` handles the rest
-- **No external drivers** — No need to install `tauri-driver`, `msedgedriver`, or `webkit2gtk-driver`
+- **No external drivers** — No need to install `tauri-driver`, `msedgedriver`, or `WebKitWebDriver`
 
 ### Supported Platforms
 

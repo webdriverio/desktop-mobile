@@ -42,7 +42,8 @@ export function getWebKitWebDriverPath(): string | undefined {
   }
 
   log.warn(
-    'WebKitWebDriver not found. Please install it with: sudo apt-get install webkit2gtk-driver (or equivalent for your Linux distribution)',
+    'WebKitWebDriver not found. Install it with: sudo apt-get install -y webkitgtk-webdriver ' +
+      "(Ubuntu 26.04+, Debian 13+; webkit2gtk-driver on older releases), or your distribution's equivalent",
   );
   return undefined;
 }

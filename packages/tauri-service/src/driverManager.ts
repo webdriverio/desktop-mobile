@@ -282,21 +282,24 @@ export async function detectPackageManager(): Promise<string> {
 }
 
 /**
- * Get install command for webkit2gtk-driver based on package manager
+ * Get the command that installs WebKitWebDriver with the given package manager
  * @public Exported for testing
  */
 export function getWebKitDriverInstallCommand(packageManager: string): string {
+  // Where releases name the package differently, the newer release's name comes first.
   const installCommands: Record<string, string> = {
-    apt: 'sudo apt-get install -y webkit2gtk-driver',
-    dnf: 'sudo dnf install -y webkit2gtk-driver',
-    yum: 'sudo yum install -y webkit2gtk-driver',
-    zypper: 'sudo zypper install -y webkit2gtk-driver',
-    pacman: 'sudo pacman -S webkit2gtk-driver',
-    apk: 'sudo apk add webkit2gtk-driver',
-    xbps: 'sudo xbps-install -y webkit2gtk-driver',
+    apt: 'sudo apt-get install -y webkitgtk-webdriver || sudo apt-get install -y webkit2gtk-driver',
+    dnf: 'sudo dnf install -y webkitgtk6.0 || sudo dnf install -y webkit2gtk3',
+    yum: 'sudo yum install -y webkit2gtk3',
+    zypper: 'sudo zypper install -y webkitgtk4-minibrowser || sudo zypper install -y webkit2gtk4-minibrowser',
+    pacman: 'sudo pacman -S webkitgtk-6.0',
+    xbps: 'sudo xbps-install -y libwebkit2gtk41',
   };
 
-  return installCommands[packageManager] || installCommands.apt; // Default to apt-get
+  return (
+    installCommands[packageManager] ??
+    "Install your distribution's package that provides WebKitWebDriver, and make sure WebKitWebDriver is on PATH"
+  );
 }
 
 export interface WebKitWebDriverSuccess {

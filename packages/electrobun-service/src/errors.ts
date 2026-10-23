@@ -44,13 +44,14 @@ export function nativeRendererUnsupportedPlatform(
   );
 }
 
-/** Thrown when `WebKitWebDriver` (the `webkit2gtk-driver` package) is missing — required for the Linux W3C transport. */
+/** Thrown when `WebKitWebDriver` is missing — required for the Linux W3C transport. */
 export function webKitWebDriverNotFound(): Error {
   return new SevereServiceError(
     '@wdio/electrobun-service could not find WebKitWebDriver, required to drive the Linux WebKitGTK ' +
-      'renderer over W3C WebDriver. Install it with `sudo apt-get install webkit2gtk-driver` ' +
-      '(Debian/Ubuntu; `dnf install webkit2gtk-driver`, `pacman -S webkit2gtk-driver`, or your ' +
-      "distribution's equivalent), or put WebKitWebDriver on PATH.",
+      'renderer over W3C WebDriver. Install it with `sudo apt-get install webkitgtk-webdriver` ' +
+      '(Ubuntu 26.04+, Debian 13+; `webkit2gtk-driver` on older releases), `sudo dnf install webkitgtk6.0` ' +
+      "(Fedora), `sudo pacman -S webkitgtk-6.0` (Arch) or your distribution's equivalent, or put " +
+      'WebKitWebDriver on PATH.',
   );
 }
 

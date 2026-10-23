@@ -39,44 +39,43 @@ vi.mock('node:util', () => ({
 
 describe('WebKitWebDriver Management', () => {
   describe('getWebKitDriverInstallCommand', () => {
-    it('should return correct install command for apt (Debian/Ubuntu)', () => {
+    it('should try the new and then the old package name for apt (Ubuntu 26.04+ / older releases)', () => {
       const command = getWebKitDriverInstallCommand('apt');
-      expect(command).toBe('sudo apt-get install -y webkit2gtk-driver');
+      expect(command).toBe('sudo apt-get install -y webkitgtk-webdriver || sudo apt-get install -y webkit2gtk-driver');
     });
 
-    it('should return correct install command for dnf (Fedora)', () => {
+    it('should try the Fedora and then the RHEL package name for dnf', () => {
       const command = getWebKitDriverInstallCommand('dnf');
-      expect(command).toBe('sudo dnf install -y webkit2gtk-driver');
+      expect(command).toBe('sudo dnf install -y webkitgtk6.0 || sudo dnf install -y webkit2gtk3');
     });
 
-    it('should return correct install command for yum (CentOS/RHEL)', () => {
+    it('should return correct install command for yum (RHEL)', () => {
       const command = getWebKitDriverInstallCommand('yum');
-      expect(command).toBe('sudo yum install -y webkit2gtk-driver');
+      expect(command).toBe('sudo yum install -y webkit2gtk3');
     });
 
-    it('should return correct install command for zypper (SUSE)', () => {
+    it('should try the Tumbleweed and then the Leap package name for zypper (openSUSE)', () => {
       const command = getWebKitDriverInstallCommand('zypper');
-      expect(command).toBe('sudo zypper install -y webkit2gtk-driver');
+      expect(command).toBe(
+        'sudo zypper install -y webkitgtk4-minibrowser || sudo zypper install -y webkit2gtk4-minibrowser',
+      );
     });
 
     it('should return correct install command for pacman (Arch)', () => {
       const command = getWebKitDriverInstallCommand('pacman');
-      expect(command).toBe('sudo pacman -S webkit2gtk-driver');
-    });
-
-    it('should return correct install command for apk (Alpine)', () => {
-      const command = getWebKitDriverInstallCommand('apk');
-      expect(command).toBe('sudo apk add webkit2gtk-driver');
+      expect(command).toBe('sudo pacman -S webkitgtk-6.0');
     });
 
     it('should return correct install command for xbps (Void)', () => {
       const command = getWebKitDriverInstallCommand('xbps');
-      expect(command).toBe('sudo xbps-install -y webkit2gtk-driver');
+      expect(command).toBe('sudo xbps-install -y libwebkit2gtk41');
     });
 
-    it('should default to apt for unknown package managers', () => {
-      const command = getWebKitDriverInstallCommand('unknown');
-      expect(command).toBe('sudo apt-get install -y webkit2gtk-driver');
+    it.each(['apk', 'unknown'])('should give a generic hint for %s, which has no verified package', (manager) => {
+      const command = getWebKitDriverInstallCommand(manager);
+      expect(command).toBe(
+        "Install your distribution's package that provides WebKitWebDriver, and make sure WebKitWebDriver is on PATH",
+      );
     });
   });
 

@@ -59,11 +59,14 @@ describe('nativeRendererUnsupportedPlatform', () => {
 });
 
 describe('webKitWebDriverNotFound', () => {
-  it('should be a SevereServiceError naming the install package', () => {
+  it('should be a SevereServiceError naming the install package for each release', () => {
     const err = webKitWebDriverNotFound();
     expect(err).toBeInstanceOf(SevereServiceError);
     expect(err.message).toContain('WebKitWebDriver');
+    expect(err.message).toContain('webkitgtk-webdriver');
     expect(err.message).toContain('webkit2gtk-driver');
+    expect(err.message).toContain('webkitgtk6.0');
+    expect(err.message).toContain('webkitgtk-6.0');
   });
 });
 

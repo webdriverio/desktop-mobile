@@ -89,7 +89,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 | Platform | Supported | Driver Providers | Notes |
 |----------|-----------|------------------|-------|
 | **Windows** | ✅ Yes | `embedded`, `external`, `crabnebula` | `external` auto-manages the Edge WebDriver |
-| **Linux** | ✅ Yes | `embedded`, `external`, `crabnebula` | `external` requires `webkit2gtk-driver` |
+| **Linux** | ✅ Yes | `embedded`, `external`, `crabnebula` | `external` requires WebKitWebDriver |
 | **macOS** | ✅ Yes | `embedded`, `crabnebula` | Native via embedded, or CrabNebula |
 
 See [Platform Support](./docs/platform-support.md) for detailed information including distribution support and troubleshooting.
