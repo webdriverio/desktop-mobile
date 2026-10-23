@@ -199,6 +199,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         // standalone session.ts removes them from the cloned capabilities before remote().
         (cap as { port?: number; hostname?: string }).port = embeddedPort;
         (cap as { port?: number; hostname?: string }).hostname = hostname;
+        applyWindowLabel(cap, instanceOptions);
         log.info(`Embedded WebDriver connection set on capabilities[${i}]: ${hostname}:${embeddedPort}`);
       } catch (error) {
         await this.stopAllEmbedded();
@@ -241,6 +242,7 @@ export default class DioxusLaunchService extends BaseLauncher {
         // reads them as connection parameters, not as W3C capability keys.
         (instanceConfig as { port?: number; hostname?: string }).port = embeddedPort;
         (instanceConfig as { port?: number; hostname?: string }).hostname = hostname;
+        applyWindowLabel(cap, instanceOptions);
         log.info(`Embedded WebDriver connection set for "${key}": ${hostname}:${embeddedPort}`);
       } catch (error) {
         await this.stopAllEmbedded();
@@ -289,6 +291,14 @@ function normaliseCaps(
     return caps;
   }
   return Object.values(caps).map((v) => v.capabilities);
+}
+
+// The embedded driver reads windowLabel only from the capability.
+function applyWindowLabel(cap: DioxusCapabilities, instanceOptions: DioxusServiceOptions): void {
+  if (instanceOptions.windowLabel === undefined) {
+    return;
+  }
+  cap['wdio:dioxusServiceOptions'] = { ...cap['wdio:dioxusServiceOptions'], windowLabel: instanceOptions.windowLabel };
 }
 
 // Capability options win over global options unless they are undefined.

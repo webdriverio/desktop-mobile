@@ -126,6 +126,21 @@ describe('standalone init()', () => {
     });
   });
 
+  describe('with the embedded driver', () => {
+    it("should send a global windowLabel to the driver without changing the caller's capabilities", async () => {
+      remoteMock.mockResolvedValue(createSessionBrowser());
+      const capabilities = { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities;
+
+      const browser = await init(capabilities, { windowLabel: 'window-1' });
+      await cleanup(browser);
+
+      expect(remoteMock.mock.calls[0][0].capabilities).toMatchObject({
+        'wdio:dioxusServiceOptions': { windowLabel: 'window-1' },
+      });
+      expect(capabilities).not.toHaveProperty('wdio:dioxusServiceOptions');
+    });
+  });
+
   describe("with driverProvider: 'external'", () => {
     it('should reject with the unsupported-provider error before starting a driver or dev server', async () => {
       const capabilities = {
