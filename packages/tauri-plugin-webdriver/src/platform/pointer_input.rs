@@ -4,7 +4,7 @@ use super::PointerEventType;
 pub struct PointerInputState {
     /// DOM `buttons` bitmask of the buttons held once the event applies
     pub buttons: u32,
-    /// A canceled `pointerdown` suppresses compatibility mouse events until release
+    /// Set while a canceled `pointerdown` suppresses compatibility mouse events
     pub suppress_mouse_events: bool,
     /// Another button stays held across this press or release, so the pointer
     /// reports it as a `pointermove` instead of `pointerdown`/`pointerup`

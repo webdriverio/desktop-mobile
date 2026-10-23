@@ -124,10 +124,7 @@ const CHORDED_SEQUENCE = [
   'click',
 ];
 
-/**
- * The embedded driver synthesizes input in JS, so it has to dispatch the PointerEvents a browser
- * fires for real mouse input; components that dismiss on an outside `pointerdown` rely on them.
- */
+// The embedded driver synthesizes input in JS, so it must fire the PointerEvents real mouse input does.
 describe('Embedded WebDriver pointer events', () => {
   before(function () {
     if (process.env.DRIVER_PROVIDER !== 'embedded') {

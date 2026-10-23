@@ -170,8 +170,8 @@ pub async fn perform<R: Runtime + 'static>(
 ) -> WebDriverResult {
     let result = perform_actions(&state, session_id.clone(), &request).await;
     if result.is_err() {
-        // WDIO never calls releaseActions after a failed perform, and a button left held
-        // would turn every later press into a no-op.
+        // WDIO skips releaseActions after a failed perform, and a button left held
+        // makes later presses of it no-ops.
         let mut sessions = state.sessions.write().await;
         if let Ok(session) = sessions.get_mut(&session_id) {
             session.action_state.forget_pointer_input();
@@ -346,8 +346,8 @@ async fn perform_actions<R: Runtime + 'static>(
                                 };
                                 pointer_state.x = target_x;
                                 pointer_state.y = target_y;
-                                // Persisted per move so releaseActions after a failed chain
-                                // and a later origin: "pointer" move both start from here.
+                                // Saved per move: press and release compare against it to detect
+                                // a click, and a later origin: "pointer" move starts from it.
                                 let input_state = {
                                     let mut sessions = state.sessions.write().await;
                                     let action_state =
@@ -421,8 +421,7 @@ pub async fn release<R: Runtime + 'static>(
     pressed_keys.sort();
     let mut held_modifiers = HeldModifiers::from_keys(&pressed_keys);
 
-    // Every held key and button gets its release even if an earlier one fails; the
-    // state is already cleared, so nothing could retry it. The first error is reported.
+    // Release everything even if one fails; the state is cleared, so nothing could retry it.
     let mut first_error = None;
 
     // Release all pressed keys (keyUp events), in a fixed order so each keyup's flags are stable

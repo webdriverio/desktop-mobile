@@ -19,9 +19,7 @@ pub struct ActionState {
     pub canceled_pointer_downs: HashSet<String>,
     /// Where each source's primary button went down; releasing it there clicks.
     pub click_anchors: HashMap<String, (i32, i32)>,
-    /// Last pointer position in viewport coordinates. Persisted across
-    /// `performActions` calls so an `origin: "pointer"` move resolves relative to
-    /// where the pointer actually is, not (0, 0) at the start of every call.
+    /// Last pointer position in viewport coordinates; persists across `performActions` calls.
     pub pointer_position: (i32, i32),
 }
 
@@ -51,8 +49,7 @@ impl ActionState {
         })
     }
 
-    /// `None` when the button isn't held, which W3C makes a no-op. Suppression ends
-    /// with the release that leaves the source holding no buttons.
+    /// `None` when the button isn't held, which W3C makes a no-op.
     pub fn release_pointer_button(
         &mut self,
         source_id: &str,
@@ -124,8 +121,7 @@ fn dom_buttons_mask<'a>(buttons: impl Iterator<Item = &'a u32>) -> u32 {
     buttons.fold(0, |mask, &button| mask | dom_buttons_bit(button))
 }
 
-/// The DOM `buttons` bitmask swaps the middle and secondary buttons relative to
-/// `button`: button 1 (middle) is 4 and button 2 (right) is 2.
+/// The DOM `buttons` bitmask swaps the middle and secondary buttons relative to `button`.
 fn dom_buttons_bit(button: u32) -> u32 {
     match button {
         1 => 4,
@@ -385,7 +381,6 @@ mod tests {
             Some(input(0, false))
         );
 
-        // The press and release may come from separate performActions calls.
         state.press_pointer_button("mouse", 0);
         assert_eq!(
             state.release_pointer_button("mouse", 0),
