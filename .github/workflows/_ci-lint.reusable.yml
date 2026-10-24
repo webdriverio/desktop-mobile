@@ -67,8 +67,8 @@ jobs:
         run: pnpm run typecheck:scripts
         shell: bash
 
-      # Each committed Cargo.lock must still match its manifests and the path crates they use, which
-      # release commits bump. This needs the crates.io index, not the crates.
+      # No other job builds with --locked, so this checks each committed Cargo.lock still matches
+      # its manifests and the path crates they use. It fetches the crates.io index, not the crates.
       - name: 🔍 Check Cargo Lockfiles
         shell: bash
         run: |
