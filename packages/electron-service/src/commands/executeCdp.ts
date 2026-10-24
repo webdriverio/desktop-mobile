@@ -1,5 +1,5 @@
 import * as babelParser from '@babel/parser';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, isMultiremote } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'service');
 
@@ -30,7 +30,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[]>(
     throw new Error('WDIO browser is not yet initialised');
   }
 
-  if (browser.isMultiremote) {
+  if (isMultiremote(browser)) {
     const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
     return await Promise.all(
       mrBrowser.instances.map(async (instance) => {

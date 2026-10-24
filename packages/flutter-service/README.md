@@ -331,7 +331,7 @@ Each worker claims a device round-robin (and its own `adb forward` tunnel). Omit
 single-device run.
 
 > **Multiremote** — one session driving several devices at once (a capabilities object plus
-> `multiremotebrowser.getInstance(...)`) — is **not yet supported**: the `devices` pool gives each
+> `multiRemoteBrowser.getInstance(...)`) — is **not yet supported**: the `devices` pool gives each
 > *worker* one device, not each *instance*. Tracked in
 > [webdriverio/desktop-mobile#446](https://github.com/webdriverio/desktop-mobile/issues/446).
 

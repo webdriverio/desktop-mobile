@@ -5,6 +5,7 @@ import {
   errorMessage,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
+  isMultiremote,
   safeDeleteSession,
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
@@ -90,8 +91,8 @@ export default class TauriWorkerService {
   ): Promise<void> {
     log.info(
       `before() start — mode=${this.mode ?? 'binary'} provider=${this.driverProvider ?? 'embedded'} ` +
-        `multiremote=${browser.isMultiremote} ` +
-        `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+        `multiremote=${isMultiremote(browser)} ` +
+        `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
     this.browser = browser;
 
@@ -104,7 +105,7 @@ export default class TauriWorkerService {
         return;
       }
 
-      if (browser.isMultiremote) {
+      if (isMultiremote(browser)) {
         const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
         log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
 
@@ -188,7 +189,7 @@ export default class TauriWorkerService {
       if (this.driverProvider === 'embedded') {
         stage = 'clearStaleMocks';
         try {
-          if (browser.isMultiremote) {
+          if (isMultiremote(browser)) {
             const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
             for (const instanceName of mrBrowser.instances) {
               const mrInstance = mrBrowser.getInstance(instanceName);
@@ -216,7 +217,7 @@ export default class TauriWorkerService {
     } catch (error) {
       log.error(
         `before() failed at stage="${stage}" — mode=${this.mode ?? 'binary'} ` +
-          `provider=${this.driverProvider ?? 'embedded'} multiremote=${browser.isMultiremote}`,
+          `provider=${this.driverProvider ?? 'embedded'} multiremote=${isMultiremote(browser)}`,
         error,
       );
       throw error;
@@ -250,7 +251,7 @@ export default class TauriWorkerService {
   }
 
   async beforeCommand(commandName: string, _args: unknown[]): Promise<void> {
-    if (!this.browser || this.browser.isMultiremote) {
+    if (!this.browser || isMultiremote(this.browser)) {
       return;
     }
 
@@ -270,7 +271,7 @@ export default class TauriWorkerService {
   }
 
   async afterCommand(commandName: string, _args: unknown[], _result: unknown, error?: Error): Promise<void> {
-    if (commandName !== 'switchToWindow' || !this.browser || this.browser.isMultiremote) {
+    if (commandName !== 'switchToWindow' || !this.browser || isMultiremote(this.browser)) {
       return;
     }
 
@@ -306,7 +307,7 @@ export default class TauriWorkerService {
     }
 
     // Only standalone cleanup() gets here with a live session; under the runner the delete is a no-op.
-    if (!this.browser.isMultiremote) {
+    if (!isMultiremote(this.browser)) {
       const stdBrowser = this.browser as WebdriverIO.Browser;
       clearWindowState(stdBrowser.sessionId);
       await safeDeleteSession(stdBrowser, 'afterSession', log);
@@ -350,7 +351,7 @@ export default class TauriWorkerService {
     // every relevant session, which decides whether the post-load execute() below is the
     // primary injection path or merely belt-and-suspenders.
     let preloadActive: boolean;
-    if ((browser as unknown as { isMultiremote?: boolean }).isMultiremote) {
+    if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       const registered: boolean[] = [];
       for (const instanceName of mrBrowser.instances) {
@@ -375,7 +376,7 @@ export default class TauriWorkerService {
       log.warn('Post-load IPC re-inject failed; preload already covered injection on this session:', error);
     }
     (browser as unknown as Record<string, boolean>).__wdioBrowserMode__ = true;
-    if ((browser as unknown as { isMultiremote?: boolean }).isMultiremote) {
+    if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
         const instance = mrBrowser.getInstance(instanceName);
@@ -440,26 +441,22 @@ export default class TauriWorkerService {
    * fired on (`this`).
    */
   private patchBrowserUrl(browser: WebdriverIO.Browser, injectionScript: string): void {
-    browser.overwriteCommand(
-      'url',
-      async function (
-        this: WebdriverIO.Browser,
-        originalUrl: (href?: string) => Promise<string | undefined>,
-        href?: string,
-      ): Promise<string | undefined> {
-        const result = await Reflect.apply(originalUrl, this, [href]);
-        if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioBrowserMode__ && !this.isBidi) {
-          try {
-            await this.execute(injectionScript);
-          } catch (error) {
-            log.warn('Failed to re-inject IPC script after navigation:', error);
-            throw error;
-          }
+    browser.overwriteCommand('url', async function (
+      this: WebdriverIO.Browser,
+      originalUrl: (href?: string) => Promise<string | undefined>,
+      href?: string,
+    ): Promise<string | undefined> {
+      const result = await Reflect.apply(originalUrl, this, [href]);
+      if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioBrowserMode__ && !this.isBidi) {
+        try {
+          await this.execute(injectionScript);
+        } catch (error) {
+          log.warn('Failed to re-inject IPC script after navigation:', error);
+          throw error;
         }
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1],
-      false,
-    );
+      }
+      return result;
+    } as Parameters<typeof browser.overwriteCommand>[1]);
   }
 
   /**

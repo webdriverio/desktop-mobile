@@ -6,6 +6,7 @@ import type {
   LogCaptureConfig,
   MockLifecycleConfig,
   MockOverride,
+  RequestedMultiremoteCapabilities,
   Result,
   ServiceMockContext,
 } from './shared.js';
@@ -381,7 +382,7 @@ export interface ReactNativeServiceCapabilities {
 
 type ReactNativeServiceRequestedStandaloneCapabilities = Capabilities.RequestedStandaloneCapabilities &
   ReactNativeServiceCapabilities;
-type ReactNativeServiceRequestedMultiremoteCapabilities = Capabilities.RequestedMultiremoteCapabilities &
+type ReactNativeServiceRequestedMultiremoteCapabilities = RequestedMultiremoteCapabilities &
   ReactNativeServiceCapabilities;
 
 export type ReactNativeServiceCapabilitiesType =

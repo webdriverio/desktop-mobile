@@ -1,6 +1,14 @@
 import type { Mock } from '@wdio/native-spy';
 import type { Capabilities, Options } from '@wdio/types';
-import type { AbstractFn, BrowserBase, LogCaptureConfig, MockLifecycleConfig, MockOverride, Result } from './shared.js';
+import type {
+  AbstractFn,
+  BrowserBase,
+  LogCaptureConfig,
+  MockLifecycleConfig,
+  MockOverride,
+  RequestedMultiremoteCapabilities,
+  Result,
+} from './shared.js';
 
 // ============================================================================
 // Flutter-Specific Types
@@ -246,8 +254,7 @@ export interface FlutterServiceCapabilities {
 
 type FlutterServiceRequestedStandaloneCapabilities = Capabilities.RequestedStandaloneCapabilities &
   FlutterServiceCapabilities;
-type FlutterServiceRequestedMultiremoteCapabilities = Capabilities.RequestedMultiremoteCapabilities &
-  FlutterServiceCapabilities;
+type FlutterServiceRequestedMultiremoteCapabilities = RequestedMultiremoteCapabilities & FlutterServiceCapabilities;
 
 export type FlutterServiceCapabilitiesType =
   | FlutterServiceRequestedStandaloneCapabilities[]

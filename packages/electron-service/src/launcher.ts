@@ -5,6 +5,7 @@ import type {
   ElectronServiceCapabilities,
   ElectronServiceGlobalOptions,
   PathGenerationError,
+  RequestedMultiremoteCapabilities,
 } from '@wdio/native-types';
 import {
   createLogger,
@@ -135,7 +136,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
   async onPrepare(_config: Options.Testrunner, capabilities: ElectronServiceCapabilities) {
     const capsList = Array.isArray(capabilities)
       ? capabilities
-      : Object.values(capabilities as Capabilities.RequestedMultiremoteCapabilities).map(
+      : Object.values(capabilities as RequestedMultiremoteCapabilities).map(
           (multiremoteOption) => (multiremoteOption as Capabilities.WithRequestedCapabilities).capabilities,
         );
 

@@ -9,6 +9,7 @@ import type {
   LogLevel,
   MockOverride,
   MockResult,
+  RequestedMultiremoteCapabilities,
   Result,
   ServiceMockContext,
 } from './shared.js';
@@ -399,8 +400,7 @@ export interface TauriServiceCapabilities {
 
 type TauriServiceRequestedStandaloneCapabilities = Capabilities.RequestedStandaloneCapabilities &
   TauriServiceCapabilities;
-type TauriServiceRequestedMultiremoteCapabilities = Capabilities.RequestedMultiremoteCapabilities &
-  TauriServiceCapabilities;
+type TauriServiceRequestedMultiremoteCapabilities = RequestedMultiremoteCapabilities & TauriServiceCapabilities;
 
 export type TauriServiceCapabilitiesType =
   | TauriServiceRequestedStandaloneCapabilities[]

@@ -373,10 +373,18 @@ describe('TauriWorkerService', () => {
 
       await service.before({} as any, [], mockBrowser);
 
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('click', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('doubleClick', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('setValue', expect.any(Function), true);
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('clearValue', expect.any(Function), true);
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('click', expect.any(Function), {
+        attachToElement: true,
+      });
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('doubleClick', expect.any(Function), {
+        attachToElement: true,
+      });
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('setValue', expect.any(Function), {
+        attachToElement: true,
+      });
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('clearValue', expect.any(Function), {
+        attachToElement: true,
+      });
     });
 
     it('should run the original command then sync mocks in the override body', async () => {
@@ -741,7 +749,7 @@ describe('TauriWorkerService', () => {
 
       // Browser mode navigates to the dev server; the native path never would.
       expect(mockUrl).toHaveBeenCalledWith('http://localhost:5173');
-      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('url', expect.any(Function), false);
+      expect(mockBrowser.overwriteCommand).toHaveBeenCalledWith('url', expect.any(Function));
     });
 
     it('should pass the target through in browser mode', async () => {

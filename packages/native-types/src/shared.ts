@@ -1,4 +1,5 @@
 import type { MockResult } from '@wdio/native-spy';
+import type { Capabilities } from '@wdio/types';
 import type { ChainablePromiseArray, ChainablePromiseElement } from 'webdriverio';
 
 // ============================================================================
@@ -27,15 +28,12 @@ type ElementBase = SelectorsBase & {
   parent: ElementBase | BaseWithExecute;
 };
 
-type BrowserBase = SelectorsBase & {
-  addCommand<T extends boolean>(
-    queryName: string,
-    commandFn: (this: T extends true ? ElementBase : BrowserBase, ...args: unknown[]) => void,
-    isElementCommand?: T,
-  ): unknown;
-};
+type BrowserBase = SelectorsBase;
 
-export type { BaseWithExecute, BrowserBase, ElementBase, SelectorsBase };
+/** Named multiremote instances. v10 renamed WebdriverIO's type, so this derives it from a name both majors share. */
+type RequestedMultiremoteCapabilities = Exclude<Capabilities.TestrunnerCapabilities, unknown[]>;
+
+export type { BaseWithExecute, BrowserBase, ElementBase, RequestedMultiremoteCapabilities, SelectorsBase };
 
 // ============================================================================
 // Shared Mock Infrastructure

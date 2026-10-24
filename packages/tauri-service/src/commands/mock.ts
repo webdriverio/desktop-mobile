@@ -1,5 +1,5 @@
 import type { TauriMock } from '@wdio/native-types';
-import { createLogger, runBulkMockOp } from '@wdio/native-utils';
+import { createLogger, isMultiremote, runBulkMockOp } from '@wdio/native-utils';
 import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
 
@@ -44,7 +44,7 @@ export async function mock(this: TauriServiceContext, command: string): Promise<
     if (
       this &&
       this.browser &&
-      !this.browser.isMultiremote &&
+      !isMultiremote(this.browser) &&
       this.browser.tauri &&
       typeof this.browser.tauri.execute === 'function'
     ) {
@@ -55,9 +55,9 @@ export async function mock(this: TauriServiceContext, command: string): Promise<
       typeof (globalThis.browser as WebdriverIO.Browser).tauri.execute === 'function'
     ) {
       browserContext = globalThis.browser as WebdriverIO.Browser;
-    } else if (globalThis.browser && !(globalThis.browser as unknown as WebdriverIO.MultiRemoteBrowser).isMultiremote) {
+    } else if (globalThis.browser && !isMultiremote(globalThis.browser)) {
       browserContext = globalThis.browser as WebdriverIO.Browser;
-    } else if (this?.browser && !this.browser.isMultiremote) {
+    } else if (this?.browser && !isMultiremote(this.browser)) {
       browserContext = this.browser as WebdriverIO.Browser;
     }
 
@@ -82,7 +82,7 @@ export async function clearAllMocks(this: TauriServiceContext, commandPrefix?: s
 export async function resetAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
   const browserContext = this?.browser || globalThis.browser;
 
-  if (!browserContext || browserContext.isMultiremote) {
+  if (!browserContext || isMultiremote(browserContext)) {
     throw new Error('resetAllMocks requires a valid browser context');
   }
 
@@ -118,7 +118,7 @@ export async function resetAllMocks(this: TauriServiceContext | undefined, comma
 export async function restoreAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
   const browserContext = this?.browser || globalThis.browser;
 
-  if (!browserContext || browserContext.isMultiremote) {
+  if (!browserContext || isMultiremote(browserContext)) {
     throw new Error('restoreAllMocks requires a valid browser context');
   }
 

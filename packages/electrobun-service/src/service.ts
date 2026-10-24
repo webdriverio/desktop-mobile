@@ -3,7 +3,7 @@ import { dirname } from 'node:path';
 
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
-import { createLogger, errorMessage, runBounded } from '@wdio/native-utils';
+import { createLogger, errorMessage, isMultiremote, runBounded } from '@wdio/native-utils';
 
 import { classifyTarget } from './cefClassifier.js';
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
@@ -58,8 +58,8 @@ export default class ElectrobunWorkerService {
   ): Promise<void> {
     log.info(
       `before() — mode=${this.options.mode === 'browser' ? 'browser' : 'native'} ` +
-        `multiremote=${browser.isMultiremote} ` +
-        `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+        `multiremote=${isMultiremote(browser)} ` +
+        `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
 
     // Browser mode: the frontend runs in a plain Chrome session against a dev
@@ -72,7 +72,7 @@ export default class ElectrobunWorkerService {
       return;
     }
 
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
         const instance = mrBrowser.getInstance(instanceName);

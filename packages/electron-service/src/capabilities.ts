@@ -1,4 +1,4 @@
-import type { ElectronServiceOptions } from '@wdio/native-types';
+import type { ElectronServiceOptions, RequestedMultiremoteCapabilities } from '@wdio/native-types';
 import type { Capabilities } from '@wdio/types';
 import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 
@@ -79,7 +79,7 @@ function getCapabilities(caps: Capabilities.RequestedStandaloneCapabilities, fil
    * }
    * ```
    */
-  return Object.values(caps as Capabilities.WithRequestedMultiremoteCapabilities['capabilities'])
+  return Object.values(caps as RequestedMultiremoteCapabilities)
     .map(
       (options) =>
         (options.capabilities as Capabilities.W3CCapabilities)?.alwaysMatch ||

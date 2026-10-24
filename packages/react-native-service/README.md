@@ -338,7 +338,7 @@ Each worker claims a device round-robin. Omit `devices` for a single-device run 
 Appium picks whatever is connected.
 
 > **Multiremote** — one session driving several devices at once (a capabilities object plus
-> `multiremotebrowser.getInstance(...)`) — is **not yet supported**: the `devices` pool gives each
+> `multiRemoteBrowser.getInstance(...)`) — is **not yet supported**: the `devices` pool gives each
 > *worker* one device, not each *instance*. Tracked in
 > [webdriverio/desktop-mobile#446](https://github.com/webdriverio/desktop-mobile/issues/446).
 

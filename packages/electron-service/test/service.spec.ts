@@ -252,13 +252,13 @@ describe('Electron Worker Service', () => {
 
       const oc = vi.mocked((browser as any).overwriteCommand);
       const calls = oc.mock.calls;
-      const overridden = calls.map((c: unknown[]) => ({ name: c[0], isElement: c[2] }));
+      const overridden = calls.map((c: unknown[]) => ({ name: c[0], options: c[2] }));
       expect(overridden).toEqual(
         expect.arrayContaining([
-          expect.objectContaining({ name: 'click', isElement: true }),
-          expect.objectContaining({ name: 'doubleClick', isElement: true }),
-          expect.objectContaining({ name: 'setValue', isElement: true }),
-          expect.objectContaining({ name: 'clearValue', isElement: true }),
+          expect.objectContaining({ name: 'click', options: { attachToElement: true } }),
+          expect.objectContaining({ name: 'doubleClick', options: { attachToElement: true } }),
+          expect.objectContaining({ name: 'setValue', options: { attachToElement: true } }),
+          expect.objectContaining({ name: 'clearValue', options: { attachToElement: true } }),
         ]),
       );
     });
@@ -1337,13 +1337,13 @@ describe('Electron Worker Service', () => {
         await instance.before({}, [], browserModeBrowser);
 
         const oc = vi.mocked((browserModeBrowser as any).overwriteCommand);
-        const overridden = oc.mock.calls.map((c: unknown[]) => ({ name: c[0], isElement: c[2] }));
+        const overridden = oc.mock.calls.map((c: unknown[]) => ({ name: c[0], options: c[2] }));
         expect(overridden).toEqual(
           expect.arrayContaining([
-            expect.objectContaining({ name: 'click', isElement: true }),
-            expect.objectContaining({ name: 'doubleClick', isElement: true }),
-            expect.objectContaining({ name: 'setValue', isElement: true }),
-            expect.objectContaining({ name: 'clearValue', isElement: true }),
+            expect.objectContaining({ name: 'click', options: { attachToElement: true } }),
+            expect.objectContaining({ name: 'doubleClick', options: { attachToElement: true } }),
+            expect.objectContaining({ name: 'setValue', options: { attachToElement: true } }),
+            expect.objectContaining({ name: 'clearValue', options: { attachToElement: true } }),
           ]),
         );
       });

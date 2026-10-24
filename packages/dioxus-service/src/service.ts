@@ -1,6 +1,6 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, safeDeleteSession } from '@wdio/native-utils';
+import { createLogger, isMultiremote, safeDeleteSession } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
@@ -43,8 +43,8 @@ export default class DioxusWorkerService {
     this.browser = browser;
     log.info(
       `before() start — mode=${this.browserMode ? 'browser' : 'native'} ` +
-        `multiremote=${browser.isMultiremote} ` +
-        `instances=${browser.isMultiremote ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+        `multiremote=${isMultiremote(browser)} ` +
+        `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
 
     let stage = 'init';
@@ -59,7 +59,7 @@ export default class DioxusWorkerService {
         return;
       }
 
-      if (browser.isMultiremote) {
+      if (isMultiremote(browser)) {
         const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
         log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
         stage = 'addDioxusApi:root';
@@ -82,7 +82,7 @@ export default class DioxusWorkerService {
     } catch (error) {
       log.error(
         `before() failed at stage="${stage}" — mode=${this.browserMode ? 'browser' : 'native'} ` +
-          `multiremote=${browser.isMultiremote}`,
+          `multiremote=${isMultiremote(browser)}`,
         error,
       );
       throw error;
@@ -105,7 +105,7 @@ export default class DioxusWorkerService {
 
     try {
       // Only standalone cleanup() gets here with a live session; under the runner the delete is a no-op.
-      if (!this.browser.isMultiremote) {
+      if (!isMultiremote(this.browser)) {
         await safeDeleteSession(this.browser as WebdriverIO.Browser, 'afterSession', log);
       } else {
         const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
@@ -163,26 +163,22 @@ export default class DioxusWorkerService {
     // browser.url, which is a read-only command property on webdriverio (>=9.27) — direct
     // assignment throws "Cannot assign to read only property 'url'".
     const injectSpy = this.injectSpy.bind(this);
-    browser.overwriteCommand(
-      'url',
-      async function (
-        this: WebdriverIO.Browser,
-        originalUrl: (u?: string) => Promise<unknown>,
-        url?: string,
-      ): Promise<unknown> {
-        const result = await Reflect.apply(originalUrl, this, [url]);
-        if (url !== undefined) {
-          await injectSpy(this).catch((err) => {
-            log.warn('Failed to re-inject spy after navigation:', err);
-          });
-        }
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1],
-      false,
-    );
+    browser.overwriteCommand('url', async function (
+      this: WebdriverIO.Browser,
+      originalUrl: (u?: string) => Promise<unknown>,
+      url?: string,
+    ): Promise<unknown> {
+      const result = await Reflect.apply(originalUrl, this, [url]);
+      if (url !== undefined) {
+        await injectSpy(this).catch((err) => {
+          log.warn('Failed to re-inject spy after navigation:', err);
+        });
+      }
+      return result;
+    } as Parameters<typeof browser.overwriteCommand>[1]);
 
     this.addDioxusApi(browser);
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
         this.addDioxusApi(mrBrowser.getInstance(instanceName));

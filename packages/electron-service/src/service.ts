@@ -11,7 +11,13 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import { createLogger, errorMessage, installMockSyncOverride, waitUntilWindowAvailable } from '@wdio/native-utils';
+import {
+  createLogger,
+  errorMessage,
+  installMockSyncOverride,
+  isMultiremote,
+  waitUntilWindowAvailable,
+} from '@wdio/native-utils';
 import type { Capabilities, Services } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
@@ -375,8 +381,8 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   ): Promise<void> {
     log.info(
       `before() start — mode=${this.globalOptions.mode ?? 'binary'} ` +
-        `multiremote=${instance.isMultiremote} ` +
-        `instances=${instance.isMultiremote ? (instance as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
+        `multiremote=${isMultiremote(instance)} ` +
+        `instances=${isMultiremote(instance) ? (instance as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
     this.browser = instance as WebdriverIO.Browser;
 
@@ -391,7 +397,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
 
       stage = 'initCdpBridge:root';
       log.info('Initialising CDP bridge...');
-      const cdpBridge = this.browser.isMultiremote ? undefined : await initCdpBridge(this.cdpOptions, capabilities);
+      const cdpBridge = isMultiremote(this.browser) ? undefined : await initCdpBridge(this.cdpOptions, capabilities);
 
       // Initialize log capture if enabled
       // Note: Renderer logs work via Puppeteer and don't require CDP bridge
@@ -506,7 +512,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     } catch (error) {
       log.error(
         `before() failed at stage="${stage}" — mode=${this.globalOptions.mode ?? 'binary'} ` +
-          `multiremote=${instance.isMultiremote}`,
+          `multiremote=${isMultiremote(instance)}`,
         error,
       );
       throw error;
@@ -568,11 +574,11 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * be missed by mocks. If your app does this, use a Vite plugin to import the
    * injection script as a top-level module in your dev build.
    */
-  private async initBrowserMode(browser: WebdriverIO.Browser): Promise<void> {
+  private async initBrowserMode(browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser): Promise<void> {
     log.debug('Initialising Electron browser mode');
     const injectionScript = browserInterceptor.buildBrowserIpcInjectionScript();
 
-    if ((browser as unknown as { isMultiremote?: boolean }).isMultiremote) {
+    if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       (browser as unknown as Record<string, boolean>).__wdioElectronBrowserMode__ = true;
 
@@ -635,27 +641,26 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * sessions not in Electron browser mode, and re-injection runs on the session
    * the navigation fired on (`this`).
    */
-  private patchBrowserUrl(browser: WebdriverIO.Browser, injectionScript: string): void {
-    browser.overwriteCommand(
-      'url',
-      async function (
-        this: WebdriverIO.Browser,
-        originalUrl: (href?: string) => Promise<string | undefined>,
-        href?: string,
-      ): Promise<string | undefined> {
-        const result = await Reflect.apply(originalUrl, this, [href]);
-        if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioElectronBrowserMode__) {
-          try {
-            await this.execute(injectionScript);
-          } catch (error) {
-            log.warn('Failed to re-inject IPC script after navigation:', error);
-            throw error;
-          }
+  private patchBrowserUrl(
+    browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
+    injectionScript: string,
+  ): void {
+    browser.overwriteCommand('url', async function (
+      this: WebdriverIO.Browser,
+      originalUrl: (href?: string) => Promise<string | undefined>,
+      href?: string,
+    ): Promise<string | undefined> {
+      const result = await Reflect.apply(originalUrl, this, [href]);
+      if (href !== undefined && (this as unknown as Record<string, boolean>).__wdioElectronBrowserMode__) {
+        try {
+          await this.execute(injectionScript);
+        } catch (error) {
+          log.warn('Failed to re-inject IPC script after navigation:', error);
+          throw error;
         }
-        return result;
-      } as Parameters<typeof browser.overwriteCommand>[1],
-      false,
-    );
+      }
+      return result;
+    } as Parameters<typeof browser.overwriteCommand>[1]);
   }
 
   /**
@@ -663,8 +668,10 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * execute(), mockAll(), and triggerDeeplink() throw — they require the Electron
    * main process which does not exist in browser mode.
    */
-  private getElectronBrowserModeAPI(browser: WebdriverIO.Browser): BrowserExtension['electron'] {
-    const isRootMultiremote = (browser as unknown as { isMultiremote?: boolean }).isMultiremote === true;
+  private getElectronBrowserModeAPI(
+    browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
+  ): BrowserExtension['electron'] {
+    const isRootMultiremote = isMultiremote(browser);
     return {
       mock: async (channel: string, funcName?: string): Promise<ElectronFunctionMock> => {
         if (isRootMultiremote) {
@@ -854,12 +861,6 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       log.warn('Failed to initialize log capture:', error);
     }
   }
-}
-
-function isMultiremote(
-  browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
-): browser is WebdriverIO.MultiRemoteBrowser {
-  return browser.isMultiremote;
 }
 
 async function initCdpBridge(

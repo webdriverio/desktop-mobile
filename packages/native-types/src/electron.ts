@@ -16,6 +16,7 @@ import type {
   BrowserBase,
   LogLevel,
   MockOverride,
+  RequestedMultiremoteCapabilities,
   ServiceMockContext,
 } from './shared.js';
 
@@ -524,7 +525,7 @@ type ElectronServiceCustomCapability = {
 
 type ElectronServiceRequestedStandaloneCapabilities = Capabilities.RequestedStandaloneCapabilities &
   ElectronServiceCustomCapability;
-type ElectronServiceRequestedMultiremoteCapabilities = Capabilities.RequestedMultiremoteCapabilities &
+type ElectronServiceRequestedMultiremoteCapabilities = RequestedMultiremoteCapabilities &
   ElectronServiceCustomCapability;
 
 export type ElectronServiceCapabilities =

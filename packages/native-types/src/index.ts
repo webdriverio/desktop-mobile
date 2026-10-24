@@ -119,6 +119,7 @@ export type {
   MockLifecycleConfig,
   MockOverride,
   MockResult,
+  RequestedMultiremoteCapabilities,
   Result,
   SelectorsBase,
   ServiceMockContext,
