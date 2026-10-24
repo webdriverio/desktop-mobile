@@ -161,13 +161,8 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
                     let handler: ICoreWebView2ExecuteScriptCompletedHandler =
                         ExecuteScriptHandler::new(tx.clone()).into();
 
-                    if let Err(e) =
-                        webview2.ExecuteScript(PCWSTR(script_hstring.as_ptr()), &handler)
-                    {
-                        tracing::error!(
-                            "ExecuteScript call failed for script '{}...': {e:?}",
-                            script_preview
-                        );
+                    if let Err(e) = webview2.ExecuteScript(PCWSTR(script_hstring.as_ptr()), &handler) {
+                        tracing::error!("ExecuteScript call failed for script '{}...': {e:?}", script_preview);
                         if let Ok(mut guard) = tx.lock() {
                             if let Some(tx) = guard.take() {
                                 let _ = tx.send(Err(format!("ExecuteScript failed: {e:?}")));
@@ -204,7 +199,7 @@ impl<R: Runtime + 'static> WindowsExecutor<R> {
             Ok(Err(_)) => {
                 tracing::error!("Channel closed unexpectedly during script execution");
                 Err(WebDriverErrorResponse::unknown_error("Channel closed"))
-            }
+            },
             Err(_) => Err(WebDriverErrorResponse::script_timeout()),
         }
     }

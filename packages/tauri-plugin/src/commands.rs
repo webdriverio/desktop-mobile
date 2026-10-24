@@ -1,7 +1,7 @@
+use tauri::{command, Manager, Runtime, WebviewWindow, Listener};
 use serde_json::Value as JsonValue;
-use tauri::{command, Listener, Manager, Runtime, WebviewWindow};
-use tokio::sync::oneshot;
 use uuid::Uuid;
+use tokio::sync::oneshot;
 
 use crate::models::ExecuteRequest;
 use crate::Result;
@@ -10,10 +10,10 @@ use crate::Result;
 /// Mirrors Electron's window tracking - discover active window without app-specific knowledge
 #[derive(serde::Serialize, Debug, Clone)]
 pub struct WindowState {
-    pub label: String,
-    pub title: String,
-    pub is_visible: bool,
-    pub is_focused: bool,
+  pub label: String,
+  pub title: String,
+  pub is_visible: bool,
+  pub is_focused: bool,
 }
 
 /// Debug command to verify plugin is working
@@ -92,170 +92,165 @@ pub(crate) async fn execute<R: Runtime>(
 
     // Check if => appears outside of string literals (to avoid false positives like "foo"=>"bar")
     // All characters of interest ('\'', '"', '`', '\\', '=', '>') are ASCII (< 0x80)
-    // and cannot be continuation bytes in multi-byte UTF-8 sequences, so byte-level
-    // scanning is correct and avoids the char_indices/chars().nth() index mismatch.
-    fn contains_arrow_outside_quotes(s: &str) -> bool {
-        let bytes = s.as_bytes();
-        let mut in_single_quote = false;
-        let mut in_double_quote = false;
-        let mut in_backtick = false;
-        let mut backslash_count: usize = 0;
-        let mut i = 0;
-        while i < bytes.len() {
-            let b = bytes[i];
-            if b == b'\\' {
-                backslash_count += 1;
-                i += 1;
-                continue;
-            }
-            let escaped = backslash_count % 2 == 1;
-            backslash_count = 0;
-            if !escaped {
-                match b {
-                    b'\'' if !in_double_quote && !in_backtick => in_single_quote = !in_single_quote,
-                    b'"' if !in_single_quote && !in_backtick => in_double_quote = !in_double_quote,
-                    b'`' if !in_single_quote && !in_double_quote => in_backtick = !in_backtick,
-                    b'=' if !in_single_quote
-                        && !in_double_quote
-                        && !in_backtick
-                        && i + 1 < bytes.len()
-                        && bytes[i + 1] == b'>' =>
-                    {
-                        return true;
-                    }
-                    _ => {}
+        // and cannot be continuation bytes in multi-byte UTF-8 sequences, so byte-level
+        // scanning is correct and avoids the char_indices/chars().nth() index mismatch.
+        fn contains_arrow_outside_quotes(s: &str) -> bool {
+            let bytes = s.as_bytes();
+            let mut in_single_quote = false;
+            let mut in_double_quote = false;
+            let mut in_backtick = false;
+            let mut backslash_count: usize = 0;
+            let mut i = 0;
+            while i < bytes.len() {
+                let b = bytes[i];
+                if b == b'\\' {
+                    backslash_count += 1;
+                    i += 1;
+                    continue;
                 }
-            }
-            i += 1;
-        }
-        false
-    }
-
-    // Like contains_arrow_outside_quotes but also tracks bracket depth.
-    // Returns true only if => appears at depth 0 (outside all parens/brackets).
-    // Prevents false positives on (arr.find(x => x)) where => is nested inside
-    // the outer parentheses.
-    fn has_arrow_outside_parens(s: &str) -> bool {
-        let bytes = s.as_bytes();
-        let mut in_single_quote = false;
-        let mut in_double_quote = false;
-        let mut in_backtick = false;
-        let mut depth: i32 = 0;
-        let mut backslash_count: usize = 0;
-        let mut i = 0;
-        while i < bytes.len() {
-            let b = bytes[i];
-            if b == b'\\' {
-                backslash_count += 1;
-                i += 1;
-                continue;
-            }
-            let escaped = backslash_count % 2 == 1;
-            backslash_count = 0;
-            if !escaped {
-                match b {
-                    b'\'' if !in_double_quote && !in_backtick => in_single_quote = !in_single_quote,
-                    b'"' if !in_single_quote && !in_backtick => in_double_quote = !in_double_quote,
-                    b'`' if !in_single_quote && !in_double_quote => in_backtick = !in_backtick,
-                    _ if !in_single_quote && !in_double_quote && !in_backtick => match b {
-                        b'(' | b'[' => depth += 1,
-                        b')' | b']' => depth -= 1,
-                        b'=' if depth == 0 && i + 1 < bytes.len() && bytes[i + 1] == b'>' => {
+                let escaped = backslash_count % 2 == 1;
+                backslash_count = 0;
+                if !escaped {
+                    match b {
+                        b'\'' if !in_double_quote && !in_backtick => in_single_quote = !in_single_quote,
+                        b'"' if !in_single_quote && !in_backtick => in_double_quote = !in_double_quote,
+                        b'`' if !in_single_quote && !in_double_quote => in_backtick = !in_backtick,
+                        b'='
+                            if !in_single_quote
+                                && !in_double_quote
+                                && !in_backtick
+                                && i + 1 < bytes.len()
+                                && bytes[i + 1] == b'>' =>
+                        {
                             return true;
                         }
                         _ => {}
-                    },
-                    _ => {}
-                }
-            }
-            i += 1;
-        }
-        false
-    }
-
-    // Returns true if s contains ';' outside string literals at bracket depth 0.
-    // Uses a stack-based tracker for template literals so that nested template
-    // expressions like `${`inner; value`}` do not produce false positives.
-    fn has_semicolon_outside_quotes(s: &str) -> bool {
-        struct TmplFrame {
-            in_str: bool,
-            expr_depth: i32,
-        }
-        let bytes = s.as_bytes();
-        let mut depth: i32 = 0;
-        let mut in_single_quote = false;
-        let mut in_double_quote = false;
-        let mut tmpl: Vec<TmplFrame> = Vec::new();
-        let mut i = 0;
-        while i < bytes.len() {
-            let b = bytes[i];
-            let top_in_str = tmpl.last().is_some_and(|f| f.in_str);
-
-            // Escape: skip next byte when inside a string or template string chars.
-            if b == b'\\' && (in_single_quote || in_double_quote || top_in_str) {
-                i += 2;
-                continue;
-            }
-
-            // Inside template string chars: only backtick and ${ are significant.
-            if top_in_str {
-                if b == b'`' {
-                    tmpl.pop();
-                } else if b == b'$' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
-                    i += 1; // consume the {
-                    depth += 1;
-                    if let Some(frame) = tmpl.last_mut() {
-                        frame.in_str = false;
-                        frame.expr_depth = depth;
                     }
                 }
                 i += 1;
-                continue;
             }
+            false
+        }
 
-            if b == b'\'' && !in_double_quote {
-                in_single_quote = !in_single_quote;
+        // Like contains_arrow_outside_quotes but also tracks bracket depth.
+        // Returns true only if => appears at depth 0 (outside all parens/brackets).
+        // Prevents false positives on (arr.find(x => x)) where => is nested inside
+        // the outer parentheses.
+        fn has_arrow_outside_parens(s: &str) -> bool {
+            let bytes = s.as_bytes();
+            let mut in_single_quote = false;
+            let mut in_double_quote = false;
+            let mut in_backtick = false;
+            let mut depth: i32 = 0;
+            let mut backslash_count: usize = 0;
+            let mut i = 0;
+            while i < bytes.len() {
+                let b = bytes[i];
+                if b == b'\\' {
+                    backslash_count += 1;
+                    i += 1;
+                    continue;
+                }
+                let escaped = backslash_count % 2 == 1;
+                backslash_count = 0;
+                if !escaped {
+                    match b {
+                        b'\'' if !in_double_quote && !in_backtick => in_single_quote = !in_single_quote,
+                        b'"' if !in_single_quote && !in_backtick => in_double_quote = !in_double_quote,
+                        b'`' if !in_single_quote && !in_double_quote => in_backtick = !in_backtick,
+                        _ if !in_single_quote && !in_double_quote && !in_backtick => match b {
+                            b'(' | b'[' => depth += 1,
+                            b')' | b']' => depth -= 1,
+                            b'=' if depth == 0 && i + 1 < bytes.len() && bytes[i + 1] == b'>' => {
+                                return true;
+                            }
+                            _ => {}
+                        },
+                        _ => {}
+                    }
+                }
                 i += 1;
-                continue;
             }
-            if b == b'"' && !in_single_quote {
-                in_double_quote = !in_double_quote;
-                i += 1;
-                continue;
-            }
-            if in_single_quote || in_double_quote {
-                i += 1;
-                continue;
-            }
+            false
+        }
 
-            // Start a new template literal.
-            if b == b'`' {
-                tmpl.push(TmplFrame {
-                    in_str: true,
-                    expr_depth: 0,
-                });
-                i += 1;
-                continue;
-            }
+        // Returns true if s contains ';' outside string literals at bracket depth 0.
+        // Uses a stack-based tracker for template literals so that nested template
+        // expressions like `${`inner; value`}` do not produce false positives.
+        fn has_semicolon_outside_quotes(s: &str) -> bool {
+            struct TmplFrame { in_str: bool, expr_depth: i32 }
+            let bytes = s.as_bytes();
+            let mut depth: i32 = 0;
+            let mut in_single_quote = false;
+            let mut in_double_quote = false;
+            let mut tmpl: Vec<TmplFrame> = Vec::new();
+            let mut i = 0;
+            while i < bytes.len() {
+                let b = bytes[i];
+                let top_in_str = tmpl.last().is_some_and(|f| f.in_str);
 
-            match b {
-                b'(' | b'[' | b'{' => depth += 1,
-                b')' | b']' | b'}' => {
-                    depth -= 1;
-                    // Check if this } closes a template expression.
-                    if let Some(frame) = tmpl.last_mut() {
-                        if !frame.in_str && depth == frame.expr_depth - 1 {
-                            frame.in_str = true;
+                // Escape: skip next byte when inside a string or template string chars.
+                if b == b'\\' && (in_single_quote || in_double_quote || top_in_str) {
+                    i += 2;
+                    continue;
+                }
+
+                // Inside template string chars: only backtick and ${ are significant.
+                if top_in_str {
+                    if b == b'`' {
+                        tmpl.pop();
+                    } else if b == b'$' && i + 1 < bytes.len() && bytes[i + 1] == b'{' {
+                        i += 1; // consume the {
+                        depth += 1;
+                        if let Some(frame) = tmpl.last_mut() {
+                            frame.in_str = false;
+                            frame.expr_depth = depth;
                         }
                     }
+                    i += 1;
+                    continue;
                 }
-                b';' if depth == 0 => return true,
-                _ => {}
+
+                if b == b'\'' && !in_double_quote {
+                    in_single_quote = !in_single_quote;
+                    i += 1;
+                    continue;
+                }
+                if b == b'"' && !in_single_quote {
+                    in_double_quote = !in_double_quote;
+                    i += 1;
+                    continue;
+                }
+                if in_single_quote || in_double_quote {
+                    i += 1;
+                    continue;
+                }
+
+                // Start a new template literal.
+                if b == b'`' {
+                    tmpl.push(TmplFrame { in_str: true, expr_depth: 0 });
+                    i += 1;
+                    continue;
+                }
+
+                match b {
+                    b'(' | b'[' | b'{' => depth += 1,
+                    b')' | b']' | b'}' => {
+                        depth -= 1;
+                        // Check if this } closes a template expression.
+                        if let Some(frame) = tmpl.last_mut() {
+                            if !frame.in_str && depth == frame.expr_depth - 1 {
+                                frame.in_str = true;
+                            }
+                        }
+                    }
+                    b';' if depth == 0 => return true,
+                    _ => {}
+                }
+                i += 1;
             }
-            i += 1;
+            false
         }
-        false
-    }
 
     // Check for arrow functions at START of script:
     // - "(args) => ..." (parenthesized params)
@@ -264,16 +259,13 @@ pub(crate) async fn execute<R: Runtime>(
     let starts_with_paren_arrow = trimmed.starts_with('(') && has_arrow_outside_parens(trimmed);
     let single_param_arrow = trimmed.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_')
         && contains_arrow_outside_quotes(trimmed)
-        && trimmed
-            .find("=>")
-            .map(|pos| {
-                let before = trimmed[..pos].trim();
-                // Single param: no spaces and no parens before =>
-                // Parens before => mean the arrow is inside a nested expression, not a top-level arrow
-                // e.g. "x => x + 1" is a param arrow; "obj.fn(x => x)" is not
-                !before.is_empty() && !before.contains(' ') && !before.contains('(')
-            })
-            .unwrap_or(false);
+        && trimmed.find("=>").map(|pos| {
+            let before = trimmed[..pos].trim();
+            // Single param: no spaces and no parens before =>
+            // Parens before => mean the arrow is inside a nested expression, not a top-level arrow
+            // e.g. "x => x + 1" is a param arrow; "obj.fn(x => x)" is not
+            !before.is_empty() && !before.contains(' ') && !before.contains('(')
+        }).unwrap_or(false);
     // Only detect function-like patterns: function, async, arrow functions, or pre-packaged
     // async IIFEs emitted by guest-js (both branches produce "(async ...)" patterns).
     // Don't use starts_with('(') alone as it catches any parenthesized expression like (document.title).
@@ -298,28 +290,26 @@ pub(crate) async fn execute<R: Runtime>(
         // Statement/expression-style script - wrap in block-body IIFE
         let t = request.script.trim_start();
         let has_statement = t.starts_with("const ")
-            || t.starts_with("let ")
-            || t.starts_with("var ")
-            || t.starts_with("if ")
-            || t.starts_with("if(")
-            || t.starts_with("for ")
-            || t.starts_with("for(")
-            || t.starts_with("while ")
-            || t.starts_with("while(")
-            || t.starts_with("switch ")
-            || t.starts_with("switch(")
-            || t.starts_with("throw ")
-            || t.starts_with("throw(")
-            || t.starts_with("try ")
-            || t.starts_with("try{")
-            || t.starts_with("do ")
-            || t.starts_with("do{")
-            || has_semicolon_outside_quotes(t);
+        || t.starts_with("let ")
+        || t.starts_with("var ")
+        || t.starts_with("if ")
+        || t.starts_with("if(")
+        || t.starts_with("for ")
+        || t.starts_with("for(")
+        || t.starts_with("while ")
+        || t.starts_with("while(")
+        || t.starts_with("switch ")
+        || t.starts_with("switch(")
+        || t.starts_with("throw ")
+        || t.starts_with("throw(")
+        || t.starts_with("try ")
+        || t.starts_with("try{")
+        || t.starts_with("do ")
+        || t.starts_with("do{")
+        || has_semicolon_outside_quotes(t);
         let has_return = {
             if let Some(rest) = t.strip_prefix("return") {
-                rest.is_empty()
-                    || !rest
-                        .starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '$')
+                rest.is_empty() || !rest.starts_with(|c: char| c.is_ascii_alphanumeric() || c == '_' || c == '$')
             } else {
                 false
             }
@@ -340,10 +330,7 @@ pub(crate) async fn execute<R: Runtime>(
     log::trace!("Generated event_id for result: {}", event_id);
 
     // Helper function to handle events
-    fn handle_event(
-        event: tauri::Event,
-        tx: Arc<Mutex<Option<oneshot::Sender<crate::Result<JsonValue>>>>>,
-    ) {
+    fn handle_event(event: tauri::Event, tx: Arc<Mutex<Option<oneshot::Sender<crate::Result<JsonValue>>>>>) {
         log::trace!("Received result event payload: {}", event.payload());
 
         // Take the sender from the Option (only the first call will succeed)
@@ -358,10 +345,7 @@ pub(crate) async fn execute<R: Runtime>(
         if let Ok(payload) = serde_json::from_str::<serde_json::Value>(event.payload()) {
             if let Some(success) = payload.get("success").and_then(|s| s.as_bool()) {
                 if success {
-                    let is_undefined = payload
-                        .get("__wdio_undefined__")
-                        .and_then(|v| v.as_bool())
-                        .unwrap_or(false);
+                    let is_undefined = payload.get("__wdio_undefined__").and_then(|v| v.as_bool()).unwrap_or(false);
                     let value: JsonValue = if is_undefined {
                         serde_json::json!({"__wdio_undefined__": true})
                     } else {
@@ -369,8 +353,7 @@ pub(crate) async fn execute<R: Runtime>(
                     };
                     let _ = tx.send(Ok(value));
                 } else {
-                    let error_msg = payload
-                        .get("error")
+                    let error_msg = payload.get("error")
                         .and_then(|e| e.as_str())
                         .unwrap_or("Unknown error")
                         .to_string();
@@ -452,10 +435,7 @@ pub(crate) async fn execute<R: Runtime>(
     if let Err(e) = target_window.eval(&script_with_result) {
         log::error!("Failed to eval script: {}", e);
         app.unlisten(listener_id);
-        return Err(crate::Error::ExecuteError(format!(
-            "Failed to eval script: {}",
-            e
-        )));
+        return Err(crate::Error::ExecuteError(format!("Failed to eval script: {}", e)));
     }
 
     log::trace!("Waiting for execute result (30s timeout)");
@@ -480,11 +460,7 @@ pub(crate) async fn execute<R: Runtime>(
         }
         Ok(Err(_)) => {
             // Channel closed without sending (shouldn't happen)
-            log::error!(
-                "Channel closed unexpectedly. Event ID: {}. Window: {}",
-                event_id,
-                window_label
-            );
+            log::error!("Channel closed unexpectedly. Event ID: {}. Window: {}", event_id, window_label);
             app.unlisten(listener_id);
             Err(crate::Error::ExecuteError(format!(
                 "Channel closed unexpectedly. Event ID: {}. Window: {}",
@@ -492,11 +468,8 @@ pub(crate) async fn execute<R: Runtime>(
             )))
         }
         Err(_) => {
-            log::error!(
-                "Timeout waiting for execute result after 30s. Event ID: {}. Window: {}",
-                event_id,
-                window_label
-            );
+            log::error!("Timeout waiting for execute result after 30s. Event ID: {}. Window: {}",
+                event_id, window_label);
             app.unlisten(listener_id);
             Err(crate::Error::ExecuteError(format!(
                 "Script execution timed out after 30s. Event ID: {}. Window: {}",
@@ -509,40 +482,37 @@ pub(crate) async fn execute<R: Runtime>(
 /// Get the label of the window that invoked this command
 #[command]
 pub(crate) async fn get_active_window_label<R: Runtime>(
-    window: WebviewWindow<R>,
+  window: WebviewWindow<R>,
 ) -> Result<String> {
-    Ok(window.label().to_string())
+  Ok(window.label().to_string())
 }
 
 /// List all window labels in the application
 #[command]
-pub(crate) async fn list_windows<R: Runtime>(app: tauri::AppHandle<R>) -> Result<Vec<String>> {
-    Ok(app.webview_windows().keys().cloned().collect())
+pub(crate) async fn list_windows<R: Runtime>(
+  app: tauri::AppHandle<R>,
+) -> Result<Vec<String>> {
+  Ok(app.webview_windows().keys().cloned().collect())
 }
 
 /// Get detailed state of all windows (for generic window management like Electron)
 #[command]
 pub(crate) async fn get_window_states<R: Runtime>(
-    app: tauri::AppHandle<R>,
+  app: tauri::AppHandle<R>,
 ) -> Result<Vec<WindowState>> {
-    let mut states = Vec::new();
+  let mut states = Vec::new();
 
-    for (label, window) in app.webview_windows() {
-        let state = WindowState {
-            label: label.clone(),
-            title: window.title().unwrap_or_default(),
-            is_visible: window.is_visible().unwrap_or(false),
-            is_focused: window.is_focused().unwrap_or(false),
-        };
-        log::debug!(
-            "[get_window_states] {}: title='{}', visible={}, focused={}",
-            label,
-            state.title,
-            state.is_visible,
-            state.is_focused
-        );
-        states.push(state);
-    }
+  for (label, window) in app.webview_windows() {
+    let state = WindowState {
+      label: label.clone(),
+      title: window.title().unwrap_or_default(),
+      is_visible: window.is_visible().unwrap_or(false),
+      is_focused: window.is_focused().unwrap_or(false),
+    };
+    log::debug!("[get_window_states] {}: title='{}', visible={}, focused={}",
+      label, state.title, state.is_visible, state.is_focused);
+    states.push(state);
+  }
 
-    Ok(states)
+  Ok(states)
 }

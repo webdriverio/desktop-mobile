@@ -18,10 +18,10 @@ use crate::server::response::WebDriverErrorResponse;
 use crate::webdriver::Timeouts;
 
 /// Convert a JavaScriptCore value to JSON with multiple fallback strategies.
-///
-/// WebKitGTK's `to_json()` can fail for certain types (functions, undefined,
+/// 
+/// WebKitGTK's `to_json()` can fail for certain types (functions, undefined, 
 /// circular refs, etc.). This function provides robust serialization:
-///
+/// 
 /// 1. Try `to_json(0)` first (handles most primitives and objects)
 /// 2. Try type-specific conversions for special cases
 /// 3. Fall back to string representation or null

@@ -5,6 +5,9 @@
 # consistent with pnpm-lock.yaml; only build output is ignored)
 packages/*/target/
 
+# Tarballs from `pnpm pack`, which the package tests leave in each package
+*.tgz
+
 # Logs
 logs
 logs-*

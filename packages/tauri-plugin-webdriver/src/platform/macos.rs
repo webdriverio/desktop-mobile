@@ -442,8 +442,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
         })
         .await;
 
-        let result =
-            settled.unwrap_or_else(|_elapsed| Err(WebDriverErrorResponse::script_timeout()));
+        let result = settled.unwrap_or_else(|_elapsed| Err(WebDriverErrorResponse::script_timeout()));
         if result.is_err() {
             registry.cancel(&id);
         }
@@ -657,7 +656,11 @@ unsafe fn image_to_png_base64(image: &NSImage) -> Result<String, String> {
 /// keys, so surface those when present. Without this, a script failure on the embedded
 /// executor is undiagnosable from the WDIO side (all we get back is the opaque string).
 unsafe fn describe_ns_error(error: &NSError) -> String {
-    let mut out = format!("{} (code {})", error.localizedDescription(), error.code());
+    let mut out = format!(
+        "{} (code {})",
+        error.localizedDescription(),
+        error.code()
+    );
 
     let user_info = error.userInfo();
     let get = |key: &str| -> Option<String> {
@@ -944,10 +947,9 @@ define_class!(
             message: &WKScriptMessage,
         ) {
             let json = unsafe { ns_object_to_json(&message.body()) };
-            let (Some(id), Some(result)) = (
-                json.get("id").and_then(Value::as_str),
-                json.get("result").cloned(),
-            ) else {
+            let (Some(id), Some(result)) =
+                (json.get("id").and_then(Value::as_str), json.get("result").cloned())
+            else {
                 tracing::warn!("wdioEvalResult message missing id/result");
                 return;
             };

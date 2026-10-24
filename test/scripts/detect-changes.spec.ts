@@ -51,6 +51,7 @@ describe('classifyFile', () => {
     ['packages/tauri-plugin-webdriver/Cargo.toml', 'tauri'],
     ['packages/dioxus-bridge/src/lib.rs', 'dioxus'],
     ['packages/dioxus-embedded-driver/src/lib.rs', 'dioxus'],
+    ['packages/dioxus-wdio/src/lib.rs', 'dioxus'],
     ['packages/native-utils/src/teardown.ts', 'shared'],
     ['packages/native-core/src/index.ts', 'shared'],
     ['packages/native-mobile-core/src/launcher.ts', 'shared'],
@@ -290,6 +291,22 @@ describe('classifyChanges decisions', () => {
     const d = decide(['README.md'], true);
     expect(Object.values(d.runs).every(Boolean)).toBe(true);
     expect(d.lintOnly).toBe(false);
+  });
+
+  it('should run lint-only for a release commit, whatever it touched', () => {
+    const files = [
+      'CHANGELOG.md',
+      'packages/native-utils/package.json',
+      'packages/tauri-service/package.json',
+      'packages/tauri-plugin-webdriver/Cargo.toml',
+      'fixtures/e2e-apps/tauri/Cargo.lock',
+    ];
+    expect(decide(files).lintOnly).toBe(false);
+
+    const d = classifyChanges(files, SERVICES, { releaseCommit: true, dependents: DEPENDENTS });
+    expect(Object.values(d.runs).some(Boolean)).toBe(false);
+    expect(d.sharedChanges).toBe(false);
+    expect(d.lintOnly).toBe(true);
   });
 
   it('should run lint-only when no files changed', () => {

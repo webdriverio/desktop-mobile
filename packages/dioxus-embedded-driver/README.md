@@ -2,6 +2,8 @@
 
 In-process WebDriver server for [Dioxus](https://dioxuslabs.com/) desktop applications. Installing it also installs [`wdio-dioxus-bridge`](../dioxus-bridge/).
 
+> Apps should add [`wdio-dioxus`](../dioxus-wdio/) instead, which installs this server. Calling this crate's `install()` directly still works.
+
 ## What Is It?
 
 `wdio-dioxus-embedded-driver` is a Rust crate that implements a W3C WebDriver HTTP server that runs **inside your Dioxus application process**. `wdio_dioxus_embedded_driver::install(config)` installs the bridge and starts this server, which listens for WebDriver connections from `@wdio/dioxus-service`.

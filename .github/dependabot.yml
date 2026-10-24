@@ -64,6 +64,7 @@ updates:
       - '/packages/dioxus-bridge'
       - '/packages/dioxus-driver'
       - '/packages/dioxus-embedded-driver'
+      - '/packages/dioxus-wdio'
       - '/packages/tauri-plugin'
       - '/packages/tauri-plugin-webdriver'
       - '/fixtures/e2e-apps/dioxus'

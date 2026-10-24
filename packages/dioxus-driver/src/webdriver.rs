@@ -2,11 +2,10 @@
 //
 // Diff vs. upstream:
 //   - `TAURI_AUTOMATION` (legacy 1.x) env var dropped.
-//   - `TAURI_WEBVIEW_AUTOMATION` → `DIOXUS_WEBVIEW_AUTOMATION`. The env var is
-//     consumed by `wdio-dioxus-bridge`'s automation.rs inside the Dioxus app
-//     binary (see packages/dioxus-bridge/src/automation.rs); on Windows it's
-//     a no-op at the Wry level, but we set it anyway for forward compat with
-//     the bridge crate.
+//   - `TAURI_WEBVIEW_AUTOMATION` → `DIOXUS_WEBVIEW_AUTOMATION`, without which
+//     `wdio-dioxus` in the app installs nothing.
+//   - Adds `WDIO_DIOXUS_PROVIDER=external`, to ensure the app doesn't also start its
+//     embedded WebDriver server, which by default listens on 4444, as this driver does.
 
 use crate::cli::Args;
 use std::{
@@ -54,6 +53,7 @@ pub fn native(args: &Args) -> Command {
 
   let mut cmd = Command::new(native_binary);
   cmd.env("DIOXUS_WEBVIEW_AUTOMATION", "true");
+  cmd.env("WDIO_DIOXUS_PROVIDER", "external");
   cmd.arg(format!("--port={}", args.native_port));
   cmd.arg(format!("--host={}", args.native_host));
 

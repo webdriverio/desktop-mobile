@@ -62,8 +62,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version (the bridge tracks the latest release)
-wdio-dioxus-embedded-driver = "1"
+dioxus = { version = "0.7", features = ["desktop"] } # your Dioxus version (wdio-dioxus tracks the latest release)
+wdio-dioxus = "1"
 ```
 
 Edit `src/main.rs`:
@@ -76,7 +76,7 @@ fn main() {
 
     #[cfg(debug_assertions)]
     {
-        config = wdio_dioxus_embedded_driver::install(config);
+        config = wdio_dioxus::install(config);
     }
 
     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
@@ -90,13 +90,11 @@ fn App() -> Element {
 }
 ```
 
-## The Embedded Driver
+## The `wdio-dioxus` Crate
 
-The `wdio-dioxus-embedded-driver` crate is **required** for testing. It runs the WebDriver server that the service connects to, and installs `wdio-dioxus-bridge`, which enables `browser.dioxus.execute()`, mocking, and log capture.
+The `wdio-dioxus` crate is **required** for testing. When the service launches the app, `install()` starts the WebDriver server that the service connects to, and installs the bridge, which enables `browser.dioxus.execute()`, mocking, and log capture. When the app runs any other way, `install()` does nothing.
 
-Calling `wdio_dioxus_bridge::install(config)` on its own is not enough: it doesn't start the WebDriver server, so the service can't connect.
-
-The `#[cfg(debug_assertions)]` guard ensures the driver and bridge are compiled out of release builds. See [App Setup](./app-setup.md) for the full rationale and setup options.
+The `#[cfg(debug_assertions)]` guard ensures `wdio-dioxus` is compiled out of release builds. See [App Setup](./app-setup.md) for the full rationale and setup options.
 
 ## Building the Dioxus App
 
@@ -226,14 +224,14 @@ npx wdio run wdio.conf.ts --logLevel debug
 
 ### "Embedded WebDriver server did not become ready" or "Bridge not available"
 
-The embedded driver is not wired into your app. Make sure:
+`wdio-dioxus` is not wired into your app. Make sure:
 
 1. Add to `[dependencies]` in `Cargo.toml`:
    ```toml
-   wdio-dioxus-embedded-driver = "1"
+   wdio-dioxus = "1"
    ```
 
-2. Call `wdio_dioxus_embedded_driver::install(config)` in `main.rs` inside a `#[cfg(debug_assertions)]` block. `wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server.
+2. Call `wdio_dioxus::install(config)` in `main.rs` inside a `#[cfg(debug_assertions)]` block. If your app sets its own `with_on_window` callback, call `wdio_dioxus::on_window` from it (see [App Setup](./app-setup.md#apps-with-their-own-window-callback)).
 
 3. Build in debug mode (`dx build --desktop`, not `dx build --desktop --release`).
 

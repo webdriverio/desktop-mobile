@@ -1,6 +1,6 @@
 # wdio-dioxus-bridge
 
-Internal crate used by [`wdio-dioxus-embedded-driver`](../dioxus-embedded-driver/) to connect a Dioxus desktop app to [`@wdio/dioxus-service`](../dioxus-service/). Apps don't add it themselves; see the [App Setup guide](../dioxus-service/docs/app-setup.md).
+Internal crate used by [`wdio-dioxus`](../dioxus-wdio/) and [`wdio-dioxus-embedded-driver`](../dioxus-embedded-driver/) to connect a Dioxus desktop app to [`@wdio/dioxus-service`](../dioxus-service/). Apps don't add it themselves; see the [App Setup guide](../dioxus-service/docs/app-setup.md).
 
 ## What It Does
 

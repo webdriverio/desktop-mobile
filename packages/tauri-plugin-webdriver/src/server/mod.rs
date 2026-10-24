@@ -75,8 +75,7 @@ pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
                 Err(e) => {
                     tracing::error!(
                         "Failed to bind WebDriver server to {} — port may already be in use: {}",
-                        addr,
-                        e
+                        addr, e
                     );
                     return;
                 }
