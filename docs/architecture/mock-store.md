@@ -29,10 +29,12 @@ These iterate the store and operate on each mock:
 - `resetAllMocks()` — calls `mockReset()` on each mock
 - `restoreAllMocks()` — calls `mockRestore()` on each mock
 
-All three go through `runBulkMockOp` from `@wdio/native-utils`, with the service's own name matcher:
-- Every matching mock is attempted, then the failures are thrown together as one `AggregateError`. A failure is never swallowed.
-- `mockClear` and `mockReset` run their test-process half (outer mock history and implementation) only after the app call succeeds. Clearing the outer mock while the app still holds the calls would let the next `update()` read them back.
-- A `mockRestore` that drops the store entry (Tauri, Dioxus, Electrobun, Flutter) runs its half in `finally`, so a dead app still leaves the store clean. Electron's and React Native's restores keep the entry, so they are success-only like `mockReset`.
+All three use `runBulkMockOp` from `@wdio/native-utils`, and each service passes its own name matcher. It tries every matching mock, and if any fail, throws one `AggregateError` that lists them all.
+
+## Keeping the outer mock in step with the app
+Each mock method makes an app call, then updates the outer mock:
+- `mockClear` and `mockReset` update the outer mock only after the app call succeeds. If they cleared it first and the app call failed, the app would still hold the calls, and the next `update()` would copy them back.
+- `mockRestore` drops the store entry even when the app call fails, so a later `mock()` creates a fresh mock instead of reusing this one. React Native drops it only on success: a failed uninstall leaves the Hermes spy installed, and the entry keeps it synced. Electron keeps the entry.
 
 ## Rules
 - Store key is the mock name (e.g. `electron.dialog.showOpenDialog` or `tauri.invoke`)

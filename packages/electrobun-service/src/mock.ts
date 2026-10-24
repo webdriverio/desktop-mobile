@@ -232,7 +232,8 @@ export async function createMock(
   };
 
   const resetOuter = () => {
-    // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
+    // outerMockReset() calls mock.mockClear(), which is now the async app call. Swap the local clear
+    // back in while it runs, so the reset never calls the app without awaiting it.
     const asyncMockClear = mock.mockClear;
     (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
     try {
@@ -255,11 +256,11 @@ export async function createMock(
     return mock;
   };
 
-  // `finally`: a dead app still drops the store entry.
   mock.mockRestore = async () => {
     try {
       await evaluateInActiveTarget<void>(bridge, buildRestoreScript(target), mockContext);
     } finally {
+      // Also on failure: a later mock() then creates a fresh mock instead of reusing this one.
       // Match vitest semantics: restore fully resets the outer spy (history +
       // implementation), not just clears its call history.
       resetOuter();

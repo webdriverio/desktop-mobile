@@ -173,11 +173,11 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
-  // `finally`: a dead app still drops the store entry.
   mock.mockRestore = async () => {
     try {
       await tauriExecute<void>(browserToUse, interceptor.buildUnregistrationScript(command));
     } finally {
+      // Also on failure: a later mock() then creates a fresh mock instead of reusing this one.
       outerMockClear();
       mockStore.deleteMock(`tauri.${command}`);
     }
@@ -348,11 +348,11 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     return mock;
   };
 
-  // `finally`: a dead app still drops the store entry.
   mock.mockRestore = async () => {
     try {
       await runInterceptorScript<void>(browser, interceptor.buildUnregistrationScript(command));
     } finally {
+      // Also on failure: a later mock() then creates a fresh mock instead of reusing this one.
       outerMockClear();
       mockStore.deleteMock(`tauri.${command}`);
     }

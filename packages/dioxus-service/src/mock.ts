@@ -140,7 +140,8 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
     await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
-    // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
+    // outerMockReset() calls mock.mockClear(), which is now the async app call. Swap the local clear
+    // back in while it runs, so the reset never calls the app without awaiting it.
     const asyncMockClear = mock.mockClear;
     (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
     try {
@@ -152,11 +153,11 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
-  // `finally`: a dead app still drops the store entry.
   mock.mockRestore = async () => {
     try {
       await runInterceptorScript<void>(browserToUse, interceptor.buildUnregistrationScript(command));
     } finally {
+      // Also on failure: a later mock() then creates a fresh mock instead of reusing this one.
       outerMockClear();
       mockStore.deleteMock(`dioxus.${command}`);
     }

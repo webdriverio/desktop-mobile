@@ -258,11 +258,8 @@ export async function createMock(
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
     await evaluateInRealm<void>(bridge, buildResetScript(target), mockContext);
-    // Use outerMockClear, not outerMockReset: native mockReset calls this.mockClear()
-    // via dynamic property lookup, which after our overwrite would invoke the async CDP
-    // mockClear and leak an unhandled rejection. Native _mockImplementation is always
-    // undefined for our mocks (all impl paths route through CDP), so clearing call
-    // history is sufficient.
+    // Clear, not reset: outerMockReset() would call our async mockClear. The outer mock never
+    // holds an implementation (those live in the app), so clearing its history is enough.
     outerMockClear();
     outerMock.mockName(currentName);
     return mock;
@@ -271,6 +268,7 @@ export async function createMock(
   mock.mockRestore = async () => {
     await evaluateInRealm<void>(bridge, buildRestoreScript(target), mockContext);
     outerMockClear(); // same reason as mockReset above
+    // Success only: a failed uninstall leaves the Hermes spy installed, so the entry stays to keep it synced.
     store.deleteMock(target);
     return mock;
   };

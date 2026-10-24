@@ -311,7 +311,8 @@ export async function createElectronBrowserModeMock(
 
   const resetOuter = () => {
     const currentName = outerMock.getMockName();
-    // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
+    // outerMockReset() calls mock.mockClear(), which is now the async app call. Swap the local clear
+    // back in while it runs, so the reset never calls the app without awaiting it.
     const asyncMockClear = mock.mockClear;
     (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
     try {
@@ -322,8 +323,6 @@ export async function createElectronBrowserModeMock(
     outerMock.mockName(currentName);
   };
 
-  // The methods below update the outer mock only once the page call succeeds (restore is an in-page reset here).
-  // implState is cleared before the await, so an implementation set meanwhile survives for re-registration.
   mock.mockClear = async () => {
     await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockClear'));
     outerMockClear();
@@ -331,6 +330,7 @@ export async function createElectronBrowserModeMock(
   };
 
   mock.mockReset = async () => {
+    // Cleared before the page call, not after: an implementation set while it runs must survive re-registration.
     implState = null;
     await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
     resetOuter();
