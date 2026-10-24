@@ -50,8 +50,8 @@ jobs:
           project-dir: .
         env:
           GITHUB_TOKEN: ${{ github.token }}
-          # The preview skips release notes, so the model only has to pass config validation. It can't
-          # come from vars.OLLAMA_MODEL: repository variables aren't passed to pull requests from forks.
+          # releasekit validates the whole config, so the model can't be empty, but the preview
+          # skips release notes, so any value works. vars.OLLAMA_MODEL would be empty on fork PRs.
           OLLAMA_MODEL: unused
 
       # Only the body is staged. The consumer resolves the target PR from the
