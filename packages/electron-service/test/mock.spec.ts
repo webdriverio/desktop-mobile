@@ -422,6 +422,23 @@ describe('createElectronBrowserModeMock()', () => {
     expect(mockBrowser.execute).toHaveBeenCalledTimes(1);
   });
 
+  it.each(['mockClear', 'mockReset', 'mockRestore'] as const)(
+    'should keep the outer calls when %s fails in the page',
+    async (op) => {
+      const mock = await createElectronBrowserModeMock('get-user', mockBrowser as unknown as WebdriverIO.Browser);
+      mockBrowser.execute.mockResolvedValueOnce(makeCallData([['alice']], [{ type: 'return', value: 1 }], [1]));
+      await mock.update();
+      mockBrowser.execute.mockRejectedValueOnce(new Error('page closed'));
+
+      await expect(mock[op]()).rejects.toMatchObject({ message: 'page closed' });
+
+      expect(mock.mock.calls).toStrictEqual([['alice']]);
+      expect(mock.getMockName()).toBe('electron.get-user');
+      // Registration, update and the failed op: nothing else may call the page.
+      expect(mockBrowser.execute).toHaveBeenCalledTimes(3);
+    },
+  );
+
   describe('update()', () => {
     it('should populate mock.calls from browser-side call data', async () => {
       const mock = await createElectronBrowserModeMock('get-user', mockBrowser as unknown as WebdriverIO.Browser);

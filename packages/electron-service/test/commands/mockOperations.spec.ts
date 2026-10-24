@@ -51,4 +51,33 @@ describe.each([
     expect(mockedGetName[mockMethod]).toHaveBeenCalled();
     expect(mockedShowOpenDialog[mockMethod]).not.toHaveBeenCalled();
   });
+
+  it('should match the apiName as a literal prefix', async () => {
+    await fn('dialog.show');
+    await fn('a.p');
+    expect(mockedShowOpenDialog[mockMethod]).toHaveBeenCalledOnce();
+    expect(mockedGetName[mockMethod]).not.toHaveBeenCalled();
+  });
+
+  it('should match a browser-mode channel by prefix and name it without its instance suffix', async () => {
+    const browserModeMock = { getMockName: () => 'electron.get-user', [mockMethod]: vi.fn() };
+    (browserModeMock[mockMethod] as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('page closed'));
+    (mockStore.getMocks as Mock).mockReturnValue([['electron.get-user\x000', browserModeMock]]);
+
+    await expect(fn('get-')).rejects.toMatchObject({
+      message: `${mockMethod} failed: electron.get-user: page closed`,
+    });
+
+    expect(browserModeMock[mockMethod]).toHaveBeenCalledOnce();
+  });
+
+  it('should attempt every mock and then report the one that failed', async () => {
+    (mockedGetName[mockMethod] as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('inner mock gone'));
+
+    await expect(fn()).rejects.toMatchObject({
+      message: `${mockMethod} failed: electron.app.getName: inner mock gone`,
+    });
+
+    expect(mockedShowOpenDialog[mockMethod]).toHaveBeenCalled();
+  });
 });

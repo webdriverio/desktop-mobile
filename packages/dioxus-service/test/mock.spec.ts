@@ -114,6 +114,29 @@ describe('createMock', () => {
     expect(mockStore.getMocks()).toHaveLength(0);
   });
 
+  it('should still remove the mock from the store when the restore call fails', async () => {
+    const browser = makeBrowser();
+    const m = await createMock('greet', browser);
+    vi.mocked(browser.execute).mockRejectedValueOnce(new Error('invalid session id'));
+
+    await expect(m.mockRestore()).rejects.toMatchObject({ message: 'invalid session id' });
+
+    expect(mockStore.getMocks()).toHaveLength(0);
+  });
+
+  it('should keep the outer calls and the name when the reset call fails', async () => {
+    const browser = makeBrowser();
+    const m = await createMock('greet', browser);
+    (m as unknown as (...a: unknown[]) => unknown)('arg');
+    vi.mocked(browser.execute).mockClear().mockRejectedValueOnce(new Error('invalid session id'));
+
+    await expect(m.mockReset()).rejects.toMatchObject({ message: 'invalid session id' });
+
+    expect(m.mock.calls).toHaveLength(1);
+    expect(m.getMockName()).toBe('dioxus.greet');
+    expect(browser.execute).toHaveBeenCalledOnce();
+  });
+
   it('should append new inner-mock calls to the outer state on update()', async () => {
     const browser = makeBrowser();
     // Registration call (returns undefined). Then read-call data returns

@@ -1054,7 +1054,7 @@ export default class TauriLaunchService {
         this.testRunnerBackend = undefined;
       }
 
-      const embeddedCleanupErrors: unknown[] = [];
+      const driverCleanupErrors: unknown[] = [];
       if (this.isEmbeddedMode) {
         log.info(`Stopping ${this.embeddedProcesses.size} embedded driver process(es)...`);
         for (const [key, process] of this.embeddedProcesses) {
@@ -1064,23 +1064,29 @@ export default class TauriLaunchService {
             log.debug(`Stopped embedded driver: ${key}`);
           } catch (error) {
             log.warn(`Failed to stop embedded driver ${key}: ${errorMessage(error)}`);
-            embeddedCleanupErrors.push(error);
+            driverCleanupErrors.push(error);
           }
         }
       }
 
-      await this.driverPool.stopAll();
-      this.instanceOptions.clear();
-      this.embeddedConfigs.clear();
-      this.portManager.clear();
-      this.backendPortManager.clear();
-
-      if (embeddedCleanupErrors.length === 1) {
-        throw embeddedCleanupErrors[0];
+      try {
+        await this.driverPool.stopAll();
+      } catch (error) {
+        log.warn(`Failed to stop driver processes: ${errorMessage(error)}`);
+        driverCleanupErrors.push(error);
+      } finally {
+        this.instanceOptions.clear();
+        this.embeddedConfigs.clear();
+        this.portManager.clear();
+        this.backendPortManager.clear();
       }
-      if (embeddedCleanupErrors.length > 1) {
-        throw new AggregateError(embeddedCleanupErrors, 'Failed to stop embedded driver processes', {
-          cause: embeddedCleanupErrors[0],
+
+      if (driverCleanupErrors.length === 1) {
+        throw driverCleanupErrors[0];
+      }
+      if (driverCleanupErrors.length > 1) {
+        throw new AggregateError(driverCleanupErrors, 'Failed to stop driver processes', {
+          cause: driverCleanupErrors[0],
         });
       }
 

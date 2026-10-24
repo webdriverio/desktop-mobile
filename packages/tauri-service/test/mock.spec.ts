@@ -207,6 +207,57 @@ describe('createMock', () => {
     });
   });
 
+  describe('when the app call fails', () => {
+    async function mockWithOneCall() {
+      const syncPayload = { calls: [['arg']], results: [{ type: 'return', value: 1 }], invocationCallOrder: [0] };
+      mockExecute.mockResolvedValueOnce(undefined).mockResolvedValueOnce(syncPayload);
+      const mock = await createMock('my_cmd', makeBrowser());
+      await mock.update();
+      expect(mock.mock.calls).toHaveLength(1);
+      mockExecute.mockRejectedValueOnce(new Error('invalid session id'));
+      return mock;
+    }
+
+    it('should keep the outer calls on mockClear, so they stay in step with the app', async () => {
+      const mock = await mockWithOneCall();
+
+      await expect(mock.mockClear()).rejects.toMatchObject({ message: 'invalid session id' });
+
+      expect(mock.mock.calls).toHaveLength(1);
+    });
+
+    it('should keep the outer calls, its name and its async mockClear on mockReset', async () => {
+      const mock = await mockWithOneCall();
+
+      await expect(mock.mockReset()).rejects.toMatchObject({ message: 'invalid session id' });
+
+      expect(mock.mock.calls).toHaveLength(1);
+      expect(mock.getMockName()).toBe('tauri.my_cmd');
+      mockExecute.mockClear();
+      await mock.mockClear();
+      expect(mockExecute).toHaveBeenCalledOnce();
+    });
+
+    it('should still clear the outer calls and drop the store entry on mockRestore', async () => {
+      const mock = await mockWithOneCall();
+
+      await expect(mock.mockRestore()).rejects.toMatchObject({ message: 'invalid session id' });
+
+      expect(mock.mock.calls).toHaveLength(0);
+      expect(mockStore.deleteMock).toHaveBeenCalledWith('tauri.my_cmd');
+    });
+
+    it('should still drop the store entry on mockRestore in browser mode', async () => {
+      const execute = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('page closed'));
+      const browser = { isMultiremote: false, __wdioBrowserMode__: true, execute } as unknown as WebdriverIO.Browser;
+      const mock = await createMock('my_cmd', browser);
+
+      await expect(mock.mockRestore()).rejects.toMatchObject({ message: 'page closed' });
+
+      expect(mockStore.deleteMock).toHaveBeenCalledWith('tauri.my_cmd');
+    });
+  });
+
   describe('wrapperMock', () => {
     it('should return the outer mock state', async () => {
       const browser = makeBrowser();

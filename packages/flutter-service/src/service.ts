@@ -6,7 +6,7 @@ import {
   triggerDeeplink,
 } from '@wdio/native-mobile-core';
 import type { FlutterServiceAPI } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage } from '@wdio/native-utils';
 
 import {
   clearAllMocks,
@@ -215,10 +215,8 @@ export default class FlutterWorkerService {
   async beforeTest(): Promise<void> {
     const store = this.store;
     const wantsLifecycle = this.options.clearMocks || this.options.resetMocks || this.options.restoreMocks;
-    // Run the lifecycle even if the socket dropped mid-test: the bulk ops resolve the client
-    // lazily (reconnect-on-demand) and are best-effort per entry, so stale Dart mock state from
-    // the previous test still gets cleared once the app is reachable again. No mocks → no-op
-    // (and no reconnect attempt).
+    // Run the lifecycle even if the socket dropped mid-test: each op resolves the client lazily
+    // (reconnect-on-demand). No mocks → no-op (and no reconnect attempt).
     if (!store || !wantsLifecycle || store.getMocks().length === 0) {
       return;
     }
@@ -234,14 +232,28 @@ export default class FlutterWorkerService {
       (resetMocks && prefixCovers(resetMocksPrefix, clearMocksPrefix)) ||
       (restoreMocks && prefixCovers(restoreMocksPrefix, clearMocksPrefix));
     const resetRedundant = restoreMocks && prefixCovers(restoreMocksPrefix, resetMocksPrefix);
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    const attempt = async (op: () => Promise<void>) => {
+      try {
+        await op();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
     if (clearMocks && !clearRedundant) {
-      await clearAllMocks(store, clearMocksPrefix);
+      await attempt(() => clearAllMocks(store, clearMocksPrefix));
     }
     if (resetMocks && !resetRedundant) {
-      await resetAllMocks(store, resetMocksPrefix);
+      await attempt(() => resetAllMocks(store, resetMocksPrefix));
     }
     if (restoreMocks) {
-      await restoreAllMocks(store, restoreMocksPrefix);
+      await attempt(() => restoreAllMocks(store, restoreMocksPrefix));
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
     }
   }
 

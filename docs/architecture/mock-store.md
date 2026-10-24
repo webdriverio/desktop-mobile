@@ -29,6 +29,11 @@ These iterate the store and operate on each mock:
 - `resetAllMocks()` — calls `mockReset()` on each mock
 - `restoreAllMocks()` — calls `mockRestore()` on each mock
 
+All three go through `runBulkMockOp` from `@wdio/native-utils`, with the service's own name matcher:
+- Every matching mock is attempted, then the failures are thrown together as one `AggregateError`. A failure is never swallowed.
+- `mockClear` and `mockReset` run their test-process half (outer mock history and implementation) only after the app call succeeds. Clearing the outer mock while the app still holds the calls would let the next `update()` read them back.
+- A `mockRestore` that drops the store entry (Tauri, Dioxus, Electrobun, Flutter) runs its half in `finally`, so a dead app still leaves the store clean. Electron's and React Native's restores keep the entry, so they are success-only like `mockReset`.
+
 ## Rules
 - Store key is the mock name (e.g. `electron.dialog.showOpenDialog` or `tauri.invoke`)
 - Always `clear()` in session cleanup to prevent leaks across retries

@@ -1,13 +1,9 @@
 // Mock-lifecycle helpers — clear/reset/restore across every mock created against one
 // session's store, plus the isMockFunction structural check. Filterable by targetPrefix.
 
-import type { FlutterMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
 
-import { SERVICE_NAME } from '../constants.js';
 import type { FlutterMockStore } from '../mockStore.js';
-
-const log = createLogger(SERVICE_NAME, 'service');
 
 function matchesPrefix(target: string, prefix?: string): boolean {
   if (!prefix) {
@@ -32,33 +28,20 @@ export function prefixCovers(broaderPrefix: string | undefined, narrowerPrefix: 
   return matchesPrefix(narrowerBase, broaderPrefix);
 }
 
-async function forEachMock(
-  store: FlutterMockStore,
-  prefix: string | undefined,
-  fn: (mock: FlutterMock) => Promise<unknown>,
-): Promise<void> {
-  for (const [target, mock] of store.getMocks()) {
-    if (matchesPrefix(target, prefix)) {
-      // Best-effort per entry: a single VM-Service failure must not abort the bulk op.
-      try {
-        await fn(mock);
-      } catch (error) {
-        log.warn(`bulk mock op failed for '${target}', continuing: ${(error as Error).message}`);
-      }
-    }
-  }
+async function forEachMock(store: FlutterMockStore, prefix: string | undefined, op: MockLifecycleOp): Promise<void> {
+  await runBulkMockOp(store.getMocks(), op, { matches: (target) => matchesPrefix(target, prefix) });
 }
 
 export async function clearAllMocks(store: FlutterMockStore, prefix?: string): Promise<void> {
-  await forEachMock(store, prefix, (mock) => mock.mockClear());
+  await forEachMock(store, prefix, 'mockClear');
 }
 
 export async function resetAllMocks(store: FlutterMockStore, prefix?: string): Promise<void> {
-  await forEachMock(store, prefix, (mock) => mock.mockReset());
+  await forEachMock(store, prefix, 'mockReset');
 }
 
 export async function restoreAllMocks(store: FlutterMockStore, prefix?: string): Promise<void> {
-  await forEachMock(store, prefix, (mock) => mock.mockRestore());
+  await forEachMock(store, prefix, 'mockRestore');
 }
 
 export function isMockFunction(candidate: unknown, store: FlutterMockStore): boolean {

@@ -2,7 +2,7 @@
 // service has created. Each is filterable by `prefix` so multi-suite
 // runs can isolate to e.g. all `dioxus.fs.*` mocks.
 
-import type { DioxusMock } from '@wdio/native-types';
+import { type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
 
 import mockStore from '../mockStore.js';
 
@@ -16,24 +16,20 @@ function matchesPrefix(name: string, prefix?: string): boolean {
   return name.startsWith(prefix) || stripped.startsWith(prefix);
 }
 
-async function forEachMock(prefix: string | undefined, fn: (m: DioxusMock) => Promise<unknown>): Promise<void> {
-  for (const [name, m] of mockStore.getMocks()) {
-    if (matchesPrefix(name, prefix)) {
-      await fn(m);
-    }
-  }
+async function forEachMock(prefix: string | undefined, op: MockLifecycleOp): Promise<void> {
+  await runBulkMockOp(mockStore.getMocks(), op, { matches: (name) => matchesPrefix(name, prefix) });
 }
 
 export async function clearAllMocks(prefix?: string): Promise<void> {
-  await forEachMock(prefix, (m) => m.mockClear());
+  await forEachMock(prefix, 'mockClear');
 }
 
 export async function resetAllMocks(prefix?: string): Promise<void> {
-  await forEachMock(prefix, (m) => m.mockReset());
+  await forEachMock(prefix, 'mockReset');
 }
 
 export async function restoreAllMocks(prefix?: string): Promise<void> {
-  await forEachMock(prefix, (m) => m.mockRestore());
+  await forEachMock(prefix, 'mockRestore');
 }
 
 /**

@@ -1,6 +1,6 @@
 import { type Mock, fn as vitestFn } from '@wdio/native-spy';
 import type { AbstractFn, ElectronClassMock, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, runBulkMockOp } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 import mockStore from './mockStore.js';
 
@@ -301,10 +301,14 @@ export async function createClassMock(
   mockStore.setMock(constructorMock);
 
   stubInstance.mockRestore = async () => {
-    for (const methodName of methodNames) {
-      await (stubInstance[methodName] as ElectronFunctionMock).mockRestore();
-    }
-    await constructorMock.mockRestore();
+    const mocks = [
+      ...methodNames.map((methodName) => stubInstance[methodName] as ElectronFunctionMock),
+      constructorMock,
+    ];
+    await runBulkMockOp(
+      mocks.map((mock) => [mock.getMockName(), mock] as const),
+      'mockRestore',
+    );
   };
 
   (stubInstance as ElectronClassMock).getMockName = () => `electron.${className}`;

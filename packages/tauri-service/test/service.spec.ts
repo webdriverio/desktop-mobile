@@ -934,6 +934,21 @@ describe('TauriWorkerService', () => {
       expect(restoreAllMocks).toHaveBeenCalled();
     });
 
+    it('should still reset and restore when clearing fails, then report every failure', async () => {
+      const service = new TauriWorkerService(
+        { clearMocks: true, resetMocks: true, restoreMocks: true },
+        { 'wdio:tauriServiceOptions': {} },
+      );
+      (service as any).browser = createMockBrowser();
+      vi.mocked(clearAllMocks).mockRejectedValueOnce(new Error('clear failed'));
+      vi.mocked(restoreAllMocks).mockRejectedValueOnce(new Error('restore failed'));
+
+      await expect(service.beforeTest({}, {})).rejects.toMatchObject({ message: 'clear failed; restore failed' });
+
+      expect(resetAllMocks).toHaveBeenCalled();
+      expect(restoreAllMocks).toHaveBeenCalled();
+    });
+
     it('should pass clearMocksPrefix to clearAllMocks', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService(

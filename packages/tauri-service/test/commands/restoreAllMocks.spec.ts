@@ -103,6 +103,29 @@ describe('restoreAllMocks Command', () => {
     expect(mockedWriteClipboard.mockRestore).not.toHaveBeenCalled();
   });
 
+  it('should attempt every mock and then report the one whose mockRestore failed', async () => {
+    mockedGetPlatformInfo.mockRestore.mockRejectedValue(new Error('inner mock gone'));
+
+    await expect(restoreAllMocks()).rejects.toMatchObject({
+      message: 'mockRestore failed: tauri.get_platform_info: inner mock gone',
+    });
+
+    expect(mockedReadClipboard.mockRestore).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
+  });
+
+  it('should still run every mockRestore and report the failure when the in-app bulk call fails', async () => {
+    (globalThis.browser as any).execute.mockRejectedValue(new Error('script error'));
+
+    await expect(restoreAllMocks()).rejects.toMatchObject({
+      message: 'mockRestore failed: all mocks (in-app): script error',
+    });
+
+    expect(mockedGetPlatformInfo.mockRestore).toHaveBeenCalled();
+    expect(mockedReadClipboard.mockRestore).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
+  });
+
   it('should throw when no browser context is available', async () => {
     delete (globalThis as any).browser;
     await expect(restoreAllMocks.call({})).rejects.toThrow('restoreAllMocks requires a valid browser context');

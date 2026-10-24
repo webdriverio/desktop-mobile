@@ -309,6 +309,21 @@ export async function createElectronBrowserModeMock(
     return mock;
   };
 
+  const resetOuter = () => {
+    const currentName = outerMock.getMockName();
+    // outerMockReset calls mockClear by property: swap in the sync clear so it can't reach the app.
+    const asyncMockClear = mock.mockClear;
+    (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
+    try {
+      outerMockReset();
+    } finally {
+      mock.mockClear = asyncMockClear;
+    }
+    outerMock.mockName(currentName);
+  };
+
+  // The methods below update the outer mock only once the page call succeeds (restore is an in-page reset here).
+  // implState is cleared before the await, so an implementation set meanwhile survives for re-registration.
   mock.mockClear = async () => {
     await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockClear'));
     outerMockClear();
@@ -317,11 +332,8 @@ export async function createElectronBrowserModeMock(
 
   mock.mockReset = async () => {
     implState = null;
-    const currentName = outerMock.getMockName();
     await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
-    outerMockClear();
-    outerMockReset();
-    outerMock.mockName(currentName);
+    resetOuter();
     return mock;
   };
 
@@ -331,11 +343,8 @@ export async function createElectronBrowserModeMock(
     // is always synthetic. Deregistering the channel would make future ipcRenderer.invoke
     // calls throw "unmocked channel", breaking restoreMocks: true across tests.
     // Behave like mockReset: clear history and implementation but keep the channel alive.
-    const currentName = outerMock.getMockName();
     await runInterceptorScript<void>(browser, browserInterceptor.buildInnerInvocationScript(channel, 'mockReset'));
-    outerMockClear();
-    outerMockReset();
-    outerMock.mockName(currentName);
+    resetOuter();
     return mock;
   };
 

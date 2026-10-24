@@ -64,6 +64,17 @@ describe('clearAllMocks Command', () => {
     expect(mockedWriteClipboard.mockClear).not.toHaveBeenCalled();
   });
 
+  it('should attempt every mock and then report the one whose mockClear failed', async () => {
+    mockedGetPlatformInfo.mockClear.mockRejectedValue(new Error('inner mock gone'));
+
+    await expect(clearAllMocks()).rejects.toMatchObject({
+      message: 'mockClear failed: tauri.get_platform_info: inner mock gone',
+    });
+
+    expect(mockedReadClipboard.mockClear).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockClear).toHaveBeenCalled();
+  });
+
   it('should escape regex metacharacters in prefix so dot is literal', async () => {
     const mockedDotCommand = {
       getMockName: () => 'tauri.get_platform.info',

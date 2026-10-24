@@ -9,7 +9,7 @@
 // driver path + native driver path first, then pass them via
 // `DriverStartConfig`. The pool itself stays a thin lifecycle manager.
 
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, errorMessage } from '@wdio/native-utils';
 
 import { DriverProcess } from './driverProcess.js';
 
@@ -100,21 +100,31 @@ export class DriverPool {
   }
 
   async stopAll(): Promise<void> {
-    const count = this.drivers.size;
-    if (count === 0) {
+    const entries = Array.from(this.drivers.entries());
+    if (entries.length === 0) {
       return;
     }
 
-    log.info(`Stopping ${count} driver(s)...`);
+    log.info(`Stopping ${entries.length} driver(s)...`);
 
-    const stopPromises: Promise<void>[] = [];
-    for (const [identifier, info] of this.drivers.entries()) {
-      log.debug(`Stopping driver [${identifier}]...`);
-      stopPromises.push(info.process.stop(info.driverName));
-    }
-
-    await Promise.all(stopPromises);
+    const results = await Promise.allSettled(
+      entries.map(([identifier, info]) => {
+        log.debug(`Stopping driver [${identifier}]...`);
+        return info.process.stop(info.driverName);
+      }),
+    );
     this.drivers.clear();
+    const failures = entries.flatMap(([identifier], i) => {
+      const result = results[i];
+      return result.status === 'rejected' ? [{ identifier, reason: result.reason }] : [];
+    });
+    if (failures.length > 0) {
+      const details = failures.map(({ identifier, reason }) => `${identifier}: ${errorMessage(reason)}`).join('; ');
+      throw new AggregateError(
+        failures.map(({ reason }) => reason),
+        `Failed to stop driver(s): ${details}`,
+      );
+    }
 
     log.debug('All drivers stopped');
   }

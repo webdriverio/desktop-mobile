@@ -337,4 +337,25 @@ describe('embedded launcher lifecycle', () => {
     await launcher.onComplete(0, { capabilities: [] }, []);
     expect(stopEmbeddedDriver).toHaveBeenCalledOnce();
   });
+
+  it('should still clear its state and report every failure when stopping the driver pool fails', async () => {
+    const caps = { 'tauri:options': { application: APP_BINARY } };
+    const launcher = new TauriLaunchService({}, caps, { capabilities: [] });
+    await launcher.onPrepare({ capabilities: [] }, { only: { capabilities: structuredClone(caps) } });
+    const embeddedError = new Error('embedded did not exit');
+    const poolError = new AggregateError([new Error('kill failed')], 'Failed to stop driver(s)');
+    vi.mocked(stopEmbeddedDriver).mockRejectedValueOnce(embeddedError);
+    const internals = launcher as unknown as {
+      driverPool: { stopAll: ReturnType<typeof vi.fn> };
+      portManager: { clear: ReturnType<typeof vi.fn> };
+      instanceOptions: Map<string, unknown>;
+    };
+    internals.driverPool.stopAll.mockRejectedValueOnce(poolError);
+
+    await expect(launcher.onComplete(0, { capabilities: [] }, [])).rejects.toMatchObject({
+      errors: [embeddedError, poolError],
+    });
+    expect(internals.portManager.clear).toHaveBeenCalled();
+    expect(internals.instanceOptions.size).toBe(0);
+  });
 });

@@ -106,6 +106,29 @@ describe('resetAllMocks Command', () => {
     expect(mockedWriteClipboard.mockReset).not.toHaveBeenCalled();
   });
 
+  it('should attempt every mock and then report the one whose mockReset failed', async () => {
+    mockedGetPlatformInfo.mockReset.mockRejectedValue(new Error('inner mock gone'));
+
+    await expect(resetAllMocks()).rejects.toMatchObject({
+      message: 'mockReset failed: tauri.get_platform_info: inner mock gone',
+    });
+
+    expect(mockedReadClipboard.mockReset).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockReset).toHaveBeenCalled();
+  });
+
+  it('should still run every mockReset and report the failure when the in-app bulk call fails', async () => {
+    (globalThis.browser as any).execute.mockRejectedValue(new Error('script error'));
+
+    await expect(resetAllMocks()).rejects.toMatchObject({
+      message: 'mockReset failed: all mocks (in-app): script error',
+    });
+
+    expect(mockedGetPlatformInfo.mockReset).toHaveBeenCalled();
+    expect(mockedReadClipboard.mockReset).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockReset).toHaveBeenCalled();
+  });
+
   it('should throw when no browser context is available', async () => {
     delete (globalThis as any).browser;
     await expect(resetAllMocks.call({})).rejects.toThrow('resetAllMocks requires a valid browser context');

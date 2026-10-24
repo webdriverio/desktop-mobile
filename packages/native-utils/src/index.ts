@@ -14,6 +14,7 @@ export {
   type LinuxLibrary,
 } from './diagnostics.js';
 export type { LogArea } from './log.js';
+export { type BulkMockOpOptions, type MockLifecycleOp, runBulkMockOp } from './mockLifecycle.js';
 export { type NormalizedReadResult, readPackageUp, readPackageUpSync } from './package.js';
 export {
   Err,
