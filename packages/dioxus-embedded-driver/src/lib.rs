@@ -6,7 +6,8 @@
 //! *inside* the Dioxus app process. Commands are routed to the webview
 //! through `wdio-dioxus-bridge`'s existing IPC channel — the guest-js bundle
 //! runs a polling loop that picks up eval requests, executes them, and posts
-//! results back. No native webview handle is needed.
+//! results back. Commands JavaScript can't do, like screenshots, call the
+//! native webview on the main thread through `wdio_dioxus_bridge::webview`.
 //!
 //! # Usage
 //!
@@ -25,6 +26,7 @@
 //! everyday debug runs don't start the server. `@wdio/dioxus-service` sets it,
 //! along with the port in `WDIO_EMBEDDED_PORT` (default 4444).
 
+mod native;
 pub mod server;
 pub mod webdriver;
 

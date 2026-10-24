@@ -5017,6 +5017,7 @@ dependencies = [
 name = "wdio-dioxus-bridge"
 version = "1.0.0-next.3"
 dependencies = [
+ "dioxus-core",
  "dioxus-desktop",
  "serde",
  "serde_json",
@@ -5029,7 +5030,14 @@ name = "wdio-dioxus-embedded-driver"
 version = "1.0.0"
 dependencies = [
  "axum",
+ "base64",
+ "block2",
+ "cairo-rs",
  "dioxus-desktop",
+ "objc2",
+ "objc2-app-kit",
+ "objc2-foundation",
+ "objc2-web-kit",
  "serde",
  "serde_json",
  "thiserror 2.0.18",
@@ -5037,6 +5045,9 @@ dependencies = [
  "tracing",
  "uuid",
  "wdio-dioxus-bridge",
+ "webkit2gtk",
+ "webview2-com",
+ "windows",
 ]
 
 [[package]]

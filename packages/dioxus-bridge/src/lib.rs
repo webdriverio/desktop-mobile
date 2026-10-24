@@ -7,7 +7,8 @@
 //! [`install`] registers each window from a [`Config::with_on_window`]
 //! callback. Dioxus keeps only one, so a later `with_on_window` call replaces
 //! the bridge's; an app that needs its own callback must call
-//! [`window_state::register_window`] from it.
+//! [`window_state::register_window`] from it, and, under the embedded driver,
+//! [`webview::attach`] with the returned label and the callback's `VirtualDom`.
 //!
 //! [`@wdio/dioxus-service`]: https://www.npmjs.com/package/@wdio/dioxus-service
 //! [`wdio-dioxus-embedded-driver`]: https://docs.rs/wdio-dioxus-embedded-driver
@@ -17,6 +18,7 @@ pub mod deeplink;
 pub mod embedded;
 pub mod invoke;
 pub mod log_bridge;
+pub mod webview;
 pub mod window_state;
 
 use dioxus_desktop::Config;
@@ -98,8 +100,11 @@ fn install_with_registry_and_config(
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
     .with_custom_head(head)
-    .with_on_window(|window, _dom| {
+    .with_on_window(move |window, dom| {
       let label = window_state::register_window(&window);
+      if embedded_port.is_some() {
+        webview::attach(&label, dom);
+      }
       tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
     })
 }
