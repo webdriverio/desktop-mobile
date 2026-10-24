@@ -85,7 +85,7 @@
     "releaseNotes": {
       "llm": {
         "provider": "ollama",
-        "model": "minimax-m2.7:cloud",
+        "model": "{env:OLLAMA_MODEL}",
         "baseURL": "https://ollama.com/api",
         "tasks": {
           "enhance": true,
