@@ -9,7 +9,8 @@ fn main() {
             tracing_subscriber::EnvFilter::from_default_env()
                 .add_directive(tracing::Level::INFO.into())
                 .add_directive("wdio_dioxus_bridge=debug".parse().unwrap())
-                .add_directive("wdio_dioxus_embedded_driver=debug".parse().unwrap()),
+                .add_directive("wdio_dioxus_embedded_driver=debug".parse().unwrap())
+                .add_directive("wdio_dioxus=debug".parse().unwrap()),
         )
         .init();
 
@@ -21,12 +22,12 @@ fn main() {
         // throttling so the embedded driver's polling loop survives spec
         // boundaries on headless CI hosts. Requires patched dioxus-desktop
         // (see Cargo.toml `[patch.crates-io]`) until upstream PR lands.
-        if wdio_dioxus_embedded_driver::automation::is_requested() {
+        if wdio_dioxus::automation::is_requested() {
             config = config.with_background_throttling(
                 dioxus::desktop::wry::BackgroundThrottlingPolicy::Disabled,
             );
         }
-        config = wdio_dioxus_embedded_driver::install_with_commands(config, |registry| {
+        config = wdio_dioxus::install_with_commands(config, |registry| {
             registry.register("get_platform_info", |_args| {
                 Ok(json!({
                     "os": std::env::consts::OS,
