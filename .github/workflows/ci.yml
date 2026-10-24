@@ -1240,7 +1240,7 @@ jobs:
       contents: read
       statuses: write
     needs:
-      # A failure here skips every job that depends on it, and skipped reads as passing below.
+      # If one of these fails, its dependents are skipped, not failed, so it has to be gated itself.
       - detect-changes
       - build
       - lint
