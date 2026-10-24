@@ -64,6 +64,12 @@ Always run with `dry_run: true` first to verify:
 | `CRATES_IO_TOKEN` | Tauri releases | Publishing Rust crates |
 | `OLLAMA_API_KEY` | Optional | LLM-enhanced release notes |
 
+## Required Variables
+
+| Variable | Required | Purpose |
+|----------|----------|---------|
+| `OLLAMA_MODEL` | Every releasekit run | The release notes model, e.g. `minimax-m3.1-flash:cloud`. Change it in the repository settings to switch models. |
+
 ## Architecture
 
 ```
@@ -88,6 +94,8 @@ The `--branch` flag is passed to releasekit to ensure pushes go to the correct b
 ### LLM Enhancement
 
 Release notes can be enhanced with LLM (Ollama). If `OLLAMA_API_KEY` is not set or authentication fails (401/403), the workflow falls back to raw changelog entries gracefully.
+
+The model comes from the `OLLAMA_MODEL` repository variable: `releasekit.config.json` reads it as `{env:OLLAMA_MODEL}`. releasekit validates the whole config on every run, so each step that runs it passes the variable, and a local run needs it exported. The release preview sets a placeholder instead, since it skips release notes and pull requests from forks don't get repository variables.
 
 ## Other Workflows
 

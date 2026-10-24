@@ -50,6 +50,9 @@ jobs:
           project-dir: .
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # The preview skips release notes, so the model only has to pass config validation. It can't
+          # come from vars.OLLAMA_MODEL: repository variables aren't passed to pull requests from forks.
+          OLLAMA_MODEL: unused
 
       # Only the body is staged. The consumer resolves the target PR from the
       # triggering run's head SHA — carrying a PR number here would let a fork

@@ -113,6 +113,7 @@ jobs:
           skip-checkout: 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
 
   release-auto:
     name: Release (Immediate)
