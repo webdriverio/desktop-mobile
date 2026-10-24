@@ -35,12 +35,10 @@ struct LogFrontendArgs {
 /// marked line to stdout. Returns the same registry for chainability.
 pub fn register(registry: &CommandRegistry) -> &CommandRegistry {
   registry.register("log_frontend", |args: Value| {
-    let parsed: LogFrontendArgs = serde_json::from_value(args).map_err(|e| format!("invalid log_frontend args: {e}"))?;
-    let level = if parsed.level.is_empty() {
-      "INFO".to_string()
-    } else {
-      parsed.level.to_uppercase()
-    };
+    let parsed: LogFrontendArgs =
+      serde_json::from_value(args).map_err(|e| format!("invalid log_frontend args: {e}"))?;
+    let level =
+      if parsed.level.is_empty() { "INFO".to_string() } else { parsed.level.to_uppercase() };
     println!("{FRONTEND_MARKER}[{level}] {}", parsed.message);
     Ok(json!(null))
   });
@@ -54,14 +52,12 @@ mod tests {
   use dioxus_desktop::wry::http::Request;
 
   fn req(body: &str) -> Request<Vec<u8>> {
-    Request::builder()
-      .method("POST")
-      .uri("wdio://invoke")
-      .body(body.as_bytes().to_vec())
-      .unwrap()
+    Request::builder().method("POST").uri("wdio://invoke").body(body.as_bytes().to_vec()).unwrap()
   }
 
-  fn response_body(response: &dioxus_desktop::wry::http::Response<std::borrow::Cow<'static, [u8]>>) -> Value {
+  fn response_body(
+    response: &dioxus_desktop::wry::http::Response<std::borrow::Cow<'static, [u8]>>,
+  ) -> Value {
     serde_json::from_slice(response.body()).unwrap()
   }
 

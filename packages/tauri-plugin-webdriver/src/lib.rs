@@ -1,6 +1,6 @@
 use tauri::{
-    plugin::{Builder, TauriPlugin},
-    Runtime,
+  plugin::{Builder, TauriPlugin},
+  Runtime,
 };
 
 mod error;
@@ -28,12 +28,10 @@ pub const PORT_ENV_VAR: &str = "TAURI_WEBDRIVER_PORT";
 /// 2. Default port (4445)
 #[must_use]
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
-    let port = std::env::var(PORT_ENV_VAR)
-        .ok()
-        .and_then(|s| s.parse::<u16>().ok())
-        .unwrap_or(DEFAULT_PORT);
+  let port =
+    std::env::var(PORT_ENV_VAR).ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT);
 
-    init_with_port(port)
+  init_with_port(port)
 }
 
 /// Initializes the plugin with a custom port.
@@ -42,40 +40,40 @@ pub fn init<R: Runtime>() -> TauriPlugin<R> {
 #[cfg(desktop)]
 #[must_use]
 pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
-    use tauri::Manager;
+  use tauri::Manager;
 
-    Builder::new("wdio-webdriver")
-        .setup(move |app, _api| {
-            // Manage async script state for native message handlers (Windows only)
-            #[cfg(target_os = "windows")]
-            app.manage(platform::AsyncScriptState::default());
-            // Serialize concurrent ExecuteScript calls per webview (Windows only)
-            #[cfg(target_os = "windows")]
-            app.manage(platform::ScriptExecutionLocks::default());
+  Builder::new("wdio-webdriver")
+    .setup(move |app, _api| {
+      // Manage async script state for native message handlers (Windows only)
+      #[cfg(target_os = "windows")]
+      app.manage(platform::AsyncScriptState::default());
+      // Serialize concurrent ExecuteScript calls per webview (Windows only)
+      #[cfg(target_os = "windows")]
+      app.manage(platform::ScriptExecutionLocks::default());
 
-            // Manage per-window alert state
-            app.manage(platform::AlertStateManager::default());
+      // Manage per-window alert state
+      app.manage(platform::AlertStateManager::default());
 
-            // Arc so the (non-generic) objc2 message handler can hold its own clone; see eval_channel.
-            #[cfg(target_os = "macos")]
-            app.manage(std::sync::Arc::new(eval_channel::EvalResultRegistry::default()));
+      // Arc so the (non-generic) objc2 message handler can hold its own clone; see eval_channel.
+      #[cfg(target_os = "macos")]
+      app.manage(std::sync::Arc::new(eval_channel::EvalResultRegistry::default()));
 
-            // Start the macOS headless run-loop pump early (before any webview loads); Once-guarded,
-            // so the on_webview_ready registration remains a fallback. See #540.
-            #[cfg(target_os = "macos")]
-            platform::start_runloop_pump_early(app.app_handle());
+      // Start the macOS headless run-loop pump early (before any webview loads); Once-guarded,
+      // so the on_webview_ready registration remains a fallback. See #540.
+      #[cfg(target_os = "macos")]
+      platform::start_runloop_pump_early(app.app_handle());
 
-            // Start the WebDriver HTTP server
-            let app_handle = app.app_handle().clone();
-            server::start(app_handle, port);
-            tracing::info!("WDIO WebDriver plugin initialized on port {port}");
+      // Start the WebDriver HTTP server
+      let app_handle = app.app_handle().clone();
+      server::start(app_handle, port);
+      tracing::info!("WDIO WebDriver plugin initialized on port {port}");
 
-            Ok(())
-        })
-        .on_webview_ready(|webview| {
-            platform::register_webview_handlers(&webview);
-        })
-        .build()
+      Ok(())
+    })
+    .on_webview_ready(|webview| {
+      platform::register_webview_handlers(&webview);
+    })
+    .build()
 }
 
 /// Initializes the plugin with a custom port.
@@ -84,10 +82,10 @@ pub fn init_with_port<R: Runtime>(port: u16) -> TauriPlugin<R> {
 #[cfg(mobile)]
 #[must_use]
 pub fn init_with_port<R: Runtime>(_port: u16) -> TauriPlugin<R> {
-    Builder::new("wdio-webdriver")
-        .setup(|_app, _api| {
-            tracing::warn!("tauri-plugin-wdio-webdriver is desktop-only; not started on mobile");
-            Ok(())
-        })
-        .build()
+  Builder::new("wdio-webdriver")
+    .setup(|_app, _api| {
+      tracing::warn!("tauri-plugin-wdio-webdriver is desktop-only; not started on mobile");
+      Ok(())
+    })
+    .build()
 }

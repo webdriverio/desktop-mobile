@@ -74,14 +74,14 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
   register: F,
 ) -> Config {
   if !automation::is_requested() {
-    tracing::debug!("not running under @wdio/dioxus-service; wdio-dioxus-embedded-driver not started");
+    tracing::debug!(
+      "not running under @wdio/dioxus-service; wdio-dioxus-embedded-driver not started"
+    );
     return config;
   }
 
-  let port = std::env::var(PORT_ENV_VAR)
-    .ok()
-    .and_then(|s| s.parse::<u16>().ok())
-    .unwrap_or(DEFAULT_PORT);
+  let port =
+    std::env::var(PORT_ENV_VAR).ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT);
 
   // Use a port-scoped temp directory so concurrent instances (multiremote)
   // each get their own WebView2/WebKit user data folder and don't conflict.

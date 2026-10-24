@@ -11,23 +11,36 @@ use uuid::Uuid;
 use crate::server::response::{WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 
-async fn eval(script: String, timeout_ms: u64) -> Result<Value, crate::server::response::WebDriverErrorResponse> {
+async fn eval(
+  script: String,
+  timeout_ms: u64,
+) -> Result<Value, crate::server::response::WebDriverErrorResponse> {
   let (tx, rx) = oneshot::channel();
   let id = Uuid::new_v4().to_string();
   wdio_dioxus_bridge::embedded::push(id, script, vec![], tx);
   match tokio::time::timeout(Duration::from_millis(timeout_ms), rx).await {
     Ok(Ok(Ok(v))) => Ok(v),
-    Ok(Ok(Err(e))) => Err(crate::server::response::WebDriverErrorResponse::javascript_error(&e, None)),
-    Ok(Err(_)) => Err(crate::server::response::WebDriverErrorResponse::unknown_error("eval channel closed")),
+    Ok(Ok(Err(e))) => {
+      Err(crate::server::response::WebDriverErrorResponse::javascript_error(&e, None))
+    }
+    Ok(Err(_)) => {
+      Err(crate::server::response::WebDriverErrorResponse::unknown_error("eval channel closed"))
+    }
     Err(_) => Err(crate::server::response::WebDriverErrorResponse::script_timeout()),
   }
 }
 
-async fn page_load_timeout(state: &Arc<AppState>, session_id: &str) -> Result<u64, crate::server::response::WebDriverErrorResponse> {
+async fn page_load_timeout(
+  state: &Arc<AppState>,
+  session_id: &str,
+) -> Result<u64, crate::server::response::WebDriverErrorResponse> {
   Ok(state.sessions.read().await.get(session_id)?.timeouts.page_load_ms)
 }
 
-async fn script_timeout(state: &Arc<AppState>, session_id: &str) -> Result<u64, crate::server::response::WebDriverErrorResponse> {
+async fn script_timeout(
+  state: &Arc<AppState>,
+  session_id: &str,
+) -> Result<u64, crate::server::response::WebDriverErrorResponse> {
   Ok(state.sessions.read().await.get(session_id)?.timeouts.script_ms)
 }
 

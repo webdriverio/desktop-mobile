@@ -79,10 +79,7 @@ pub fn poll_next() -> Option<(String, String, Vec<Value>)> {
   let mut queue = ch.queue.lock().expect("embedded queue poisoned");
   let req = queue.pop_front()?;
   // Move the sender to the pending map so resolve() can find it later.
-  ch.pending
-    .lock()
-    .expect("embedded pending poisoned")
-    .insert(req.id.clone(), req.result_tx);
+  ch.pending.lock().expect("embedded pending poisoned").insert(req.id.clone(), req.result_tx);
   Some((req.id, req.script, req.args))
 }
 

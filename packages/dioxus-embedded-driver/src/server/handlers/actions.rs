@@ -77,11 +77,14 @@ impl ActionSequence {
         _ => None,
       },
       ActionSequence::Pointer { actions, .. } => match actions.get(tick) {
-        Some(PointerAction::PointerMove { duration, .. }) | Some(PointerAction::Pause { duration }) => *duration,
+        Some(PointerAction::PointerMove { duration, .. })
+        | Some(PointerAction::Pause { duration }) => *duration,
         _ => None,
       },
       ActionSequence::Wheel { actions, .. } => match actions.get(tick) {
-        Some(WheelAction::Scroll { duration, .. }) | Some(WheelAction::Pause { duration }) => *duration,
+        Some(WheelAction::Scroll { duration, .. }) | Some(WheelAction::Pause { duration }) => {
+          *duration
+        }
         _ => None,
       },
       ActionSequence::None { actions, .. } => match actions.get(tick) {
@@ -201,9 +204,9 @@ async fn eval_point(script: String, timeout_ms: u64) -> Result<(i32, i32), WebDr
   if value.is_null() {
     return Err(WebDriverErrorResponse::stale_element_reference());
   }
-  let arr = value
-    .as_array()
-    .ok_or_else(|| WebDriverErrorResponse::unknown_error("expected [x, y] from element-center eval"))?;
+  let arr = value.as_array().ok_or_else(|| {
+    WebDriverErrorResponse::unknown_error("expected [x, y] from element-center eval")
+  })?;
   let x = arr.first().and_then(Value::as_f64);
   let y = arr.get(1).and_then(Value::as_f64);
   match (x, y) {
@@ -224,7 +227,14 @@ fn element_center_js(var: &str) -> String {
 /// pointer-button index that changed; `buttons` is the cumulative held-button bitmask at the moment
 /// the event fires (per the DOM spec these differ — e.g. a left-button `mouseup` reports
 /// `button: 0` but `buttons: 0`, and `click`/`contextmenu`/un-pressed `mousemove` report `buttons: 0`).
-fn pointer_event_js(event_type: &str, x: i32, y: i32, button: u32, buttons: u32, mods: Modifiers) -> String {
+fn pointer_event_js(
+  event_type: &str,
+  x: i32,
+  y: i32,
+  button: u32,
+  buttons: u32,
+  mods: Modifiers,
+) -> String {
   let modifiers = mods.js();
   format!(
     "(function(){{ var t=document.elementFromPoint({x},{y})||document.body; if(!t) return; var e=new MouseEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,view:window,clientX:{x},clientY:{y},button:{button},buttons:{buttons},{modifiers}}}); t.dispatchEvent(e); }})(); null",
@@ -260,7 +270,10 @@ impl Modifiers {
   }
 
   fn js(self) -> String {
-    format!("ctrlKey:{},shiftKey:{},altKey:{},metaKey:{}", self.ctrl, self.shift, self.alt, self.meta)
+    format!(
+      "ctrlKey:{},shiftKey:{},altKey:{},metaKey:{}",
+      self.ctrl, self.shift, self.alt, self.meta
+    )
   }
 }
 
@@ -402,7 +415,12 @@ pub async fn perform(
   let (timeout_ms, start_pos, initial_mask, initial_mods) = {
     let sessions = state.sessions.read().await;
     let session = sessions.get(&session_id)?;
-    let mask = session.action_state.pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
+    let mask = session
+      .action_state
+      .pressed_buttons
+      .values()
+      .flatten()
+      .fold(0u32, |m, b| m | button_to_mask(*b));
     let mods = Modifiers::from_keys(&session.action_state.pressed_keys);
     (session.timeouts.script_ms, session.action_state.pointer_position, mask, mods)
   };
@@ -429,7 +447,8 @@ pub async fn perform(
   for tick in 0..tick_count {
     // W3C §17.4.3: a tick lasts the *maximum* pause/move/scroll duration across its sources (not the
     // sum), slept once after the tick's actions are dispatched.
-    let tick_duration_ms = request.actions.iter().filter_map(|seq| seq.duration_at(tick)).max().unwrap_or(0);
+    let tick_duration_ms =
+      request.actions.iter().filter_map(|seq| seq.duration_at(tick)).max().unwrap_or(0);
     for action_seq in &request.actions {
       match action_seq {
         ActionSequence::Key { _id: _, actions } => {
@@ -466,20 +485,39 @@ pub async fn perform(
               PointerAction::PointerDown { button } => {
                 held_mask |= button_to_mask(*button);
                 eval(
-                  pointer_event_js("mousedown", pointer_state.x, pointer_state.y, *button, held_mask, modifiers),
+                  pointer_event_js(
+                    "mousedown",
+                    pointer_state.x,
+                    pointer_state.y,
+                    *button,
+                    held_mask,
+                    modifiers,
+                  ),
                   timeout_ms,
                 )
                 .await?;
                 down_pos.insert(*button, (pointer_state.x, pointer_state.y));
                 let mut sessions = state.sessions.write().await;
                 if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.pressed_buttons.entry(id.clone()).or_default().insert(*button);
+                  session
+                    .action_state
+                    .pressed_buttons
+                    .entry(id.clone())
+                    .or_default()
+                    .insert(*button);
                 }
               }
               PointerAction::PointerUp { button } => {
                 held_mask &= !button_to_mask(*button);
                 eval(
-                  pointer_event_js("mouseup", pointer_state.x, pointer_state.y, *button, held_mask, modifiers),
+                  pointer_event_js(
+                    "mouseup",
+                    pointer_state.x,
+                    pointer_state.y,
+                    *button,
+                    held_mask,
+                    modifiers,
+                  ),
                   timeout_ms,
                 )
                 .await?;
@@ -490,13 +528,21 @@ pub async fn perform(
                 let pos = (pointer_state.x, pointer_state.y);
                 if down_pos.remove(button) == Some(pos) {
                   for event_type in activation_events(*button) {
-                    eval(pointer_event_js(event_type, pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
+                    eval(
+                      pointer_event_js(event_type, pos.0, pos.1, *button, 0, modifiers),
+                      timeout_ms,
+                    )
+                    .await?;
                   }
                   // A second primary click on the same spot completes a double-click — emit `dblclick`
                   // (what element.doubleClick()'s two press/release pairs should produce).
                   if *button == 0 {
                     if last_click_pos == Some(pos) {
-                      eval(pointer_event_js("dblclick", pos.0, pos.1, *button, 0, modifiers), timeout_ms).await?;
+                      eval(
+                        pointer_event_js("dblclick", pos.0, pos.1, *button, 0, modifiers),
+                        timeout_ms,
+                      )
+                      .await?;
                       last_click_pos = None;
                     } else {
                       last_click_pos = Some(pos);
@@ -512,14 +558,22 @@ pub async fn perform(
               }
               PointerAction::PointerMove { x, y, origin, .. } => {
                 let (target_x, target_y) =
-                  resolve_origin(&state, &session_id, origin, *x, *y, &pointer_state, timeout_ms).await?;
+                  resolve_origin(&state, &session_id, origin, *x, *y, &pointer_state, timeout_ms)
+                    .await?;
                 pointer_state.x = target_x;
                 pointer_state.y = target_y;
                 // A move between clicks breaks a double-click chain. element.doubleClick() never moves
                 // between its two press/release pairs, so this can't suppress a legitimate dblclick.
                 last_click_pos = None;
                 eval(
-                  pointer_event_js("mousemove", pointer_state.x, pointer_state.y, 0, held_mask, modifiers),
+                  pointer_event_js(
+                    "mousemove",
+                    pointer_state.x,
+                    pointer_state.y,
+                    0,
+                    held_mask,
+                    modifiers,
+                  ),
                   timeout_ms,
                 )
                 .await?;
@@ -651,7 +705,18 @@ pub async fn release(
   buttons_to_release.sort_unstable();
   for button in buttons_to_release {
     held_mask &= !button_to_mask(button);
-    eval(pointer_event_js("mouseup", pointer_pos.0, pointer_pos.1, button, held_mask, Modifiers::default()), timeout_ms).await?;
+    eval(
+      pointer_event_js(
+        "mouseup",
+        pointer_pos.0,
+        pointer_pos.1,
+        button,
+        held_mask,
+        Modifiers::default(),
+      ),
+      timeout_ms,
+    )
+    .await?;
   }
 
   Ok(WebDriverResponse::null())
@@ -924,7 +989,8 @@ mod tests {
         {"type":"wheel","id":"w","actions":[{"type":"scroll","x":0,"y":0,"deltaX":0,"deltaY":0,"duration":80}]}
       ]}"#,
     );
-    let tick_ms = |tick: usize| req.actions.iter().filter_map(|s| s.duration_at(tick)).max().unwrap_or(0);
+    let tick_ms =
+      |tick: usize| req.actions.iter().filter_map(|s| s.duration_at(tick)).max().unwrap_or(0);
     // tick 0: max(100, 200, 80) = 200 — not the sum (380).
     assert_eq!(tick_ms(0), 200);
     // tick 1: max(50, 30) = 50 — the wheel source is exhausted and contributes nothing.

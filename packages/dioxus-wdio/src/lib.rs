@@ -49,7 +49,8 @@ pub fn install(config: Config) -> Config {
 /// ```
 #[must_use]
 pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, register: F) -> Config {
-  let external_provider = std::env::var(PROVIDER_ENV_VAR).is_ok_and(|provider| provider == "external");
+  let external_provider =
+    std::env::var(PROVIDER_ENV_VAR).is_ok_and(|provider| provider == "external");
   match mode(automation::is_requested(), external_provider) {
     Mode::Off => config,
     Mode::Embedded => install_embedded(config, register),

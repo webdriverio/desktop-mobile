@@ -72,10 +72,9 @@ impl CommandRegistry {
         Ok(value) => InvokeResponseBody::Ok { ok: true, value },
         Err(error) => InvokeResponseBody::Err { ok: false, error },
       },
-      None => InvokeResponseBody::Err {
-        ok: false,
-        error: format!("unknown wdio:// command: {command}"),
-      },
+      None => {
+        InvokeResponseBody::Err { ok: false, error: format!("unknown wdio:// command: {command}") }
+      }
     }
   }
 }
@@ -96,10 +95,7 @@ pub enum InvokeResponseBody {
 
 impl InvokeResponseBody {
   fn malformed(reason: impl Into<String>) -> Self {
-    Self::Err {
-      ok: false,
-      error: reason.into(),
-    }
+    Self::Err { ok: false, error: reason.into() }
   }
 }
 
@@ -131,9 +127,8 @@ pub fn handle_invoke_request(
     Err(err) => InvokeResponseBody::malformed(format!("invalid JSON request: {err}")),
   };
 
-  let bytes = serde_json::to_vec(&body).unwrap_or_else(|_| {
-    br#"{"ok":false,"error":"failed to serialise response"}"#.to_vec()
-  });
+  let bytes = serde_json::to_vec(&body)
+    .unwrap_or_else(|_| br#"{"ok":false,"error":"failed to serialise response"}"#.to_vec());
 
   let mut response = Response::new(Cow::Owned(bytes));
   *response.status_mut() = StatusCode::OK;
@@ -147,11 +142,7 @@ mod tests {
   use super::*;
 
   fn req(body: &str) -> Request<Vec<u8>> {
-    Request::builder()
-      .method("POST")
-      .uri("wdio://invoke")
-      .body(body.as_bytes().to_vec())
-      .unwrap()
+    Request::builder().method("POST").uri("wdio://invoke").body(body.as_bytes().to_vec()).unwrap()
   }
 
   fn parse_body(response: &Response<Cow<'static, [u8]>>) -> Value {
@@ -189,7 +180,8 @@ mod tests {
   fn should_forward_args_to_registered_handlers() {
     let registry = CommandRegistry::new();
     registry.register("echo", Ok);
-    let response = handle_invoke_request(&registry, &req(r#"{"command":"echo","args":{"hello":"world"}}"#));
+    let response =
+      handle_invoke_request(&registry, &req(r#"{"command":"echo","args":{"hello":"world"}}"#));
     let body = parse_body(&response);
     assert_eq!(body["ok"], true);
     assert_eq!(body["value"]["hello"], "world");
@@ -243,11 +235,8 @@ mod tests {
   #[test]
   fn should_respond_to_options_preflight_with_cors_headers() {
     let registry = CommandRegistry::new();
-    let options_req = Request::builder()
-      .method("OPTIONS")
-      .uri("wdio://invoke")
-      .body(vec![])
-      .unwrap();
+    let options_req =
+      Request::builder().method("OPTIONS").uri("wdio://invoke").body(vec![]).unwrap();
     let response = handle_invoke_request(&registry, &options_req);
     assert_eq!(response.status(), StatusCode::OK);
     assert_eq!(
