@@ -70,9 +70,8 @@ impl ActionSequence {
                 _ => None,
             },
             ActionSequence::Wheel { actions, .. } => match actions.get(tick) {
-                Some(WheelAction::Scroll { duration, .. }) | Some(WheelAction::Pause { duration }) => {
-                    *duration
-                }
+                Some(WheelAction::Scroll { duration, .. })
+                | Some(WheelAction::Pause { duration }) => *duration,
                 _ => None,
             },
             ActionSequence::None { actions, .. } => match actions.get(tick) {
@@ -336,7 +335,9 @@ async fn perform_actions<R: Runtime + 'static>(
                                             session
                                                 .elements
                                                 .get(element_id)
-                                                .ok_or_else(WebDriverErrorResponse::no_such_element)?
+                                                .ok_or_else(
+                                                    WebDriverErrorResponse::no_such_element,
+                                                )?
                                                 .js_ref
                                                 .clone()
                                         };
@@ -372,7 +373,13 @@ async fn perform_actions<R: Runtime + 'static>(
                 ActionSequence::Wheel { _id: _, actions } => {
                     if let Some(action) = actions.get(tick) {
                         match action {
-                            WheelAction::Scroll { x, y, delta_x, delta_y, .. } => {
+                            WheelAction::Scroll {
+                                x,
+                                y,
+                                delta_x,
+                                delta_y,
+                                ..
+                            } => {
                                 executor
                                     .dispatch_scroll_event(*x, *y, *delta_x, *delta_y)
                                     .await?;
@@ -467,7 +474,11 @@ mod tests {
                 {"type":"none","id":"n","actions":[{"type":"pause","duration":0}]}
             ]}"#,
         );
-        let counts: Vec<usize> = req.actions.iter().map(ActionSequence::action_count).collect();
+        let counts: Vec<usize> = req
+            .actions
+            .iter()
+            .map(ActionSequence::action_count)
+            .collect();
         assert_eq!(counts, vec![2, 1]);
     }
 
@@ -516,8 +527,13 @@ mod tests {
                 {"type":"wheel","id":"w","actions":[{"type":"scroll","x":0,"y":0,"deltaX":0,"deltaY":0,"duration":80}]}
             ]}"#,
         );
-        let tick_ms =
-            |tick: usize| req.actions.iter().filter_map(|s| s.duration_at(tick)).max().unwrap_or(0);
+        let tick_ms = |tick: usize| {
+            req.actions
+                .iter()
+                .filter_map(|s| s.duration_at(tick))
+                .max()
+                .unwrap_or(0)
+        };
         // tick 0: max(100, 200, 80) = 200 — not the sum (380).
         assert_eq!(tick_ms(0), 200);
         // tick 1: max(50, 30) = 50 — the wheel source is exhausted and contributes nothing.

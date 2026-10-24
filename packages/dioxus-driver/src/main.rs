@@ -44,9 +44,7 @@ fn main() {
 
   // start the native webdriver on the port specified in args
   let mut driver = webdriver::native(&args);
-  let driver = driver
-    .spawn()
-    .expect("error while running native webdriver");
+  let driver = driver.spawn().expect("error while running native webdriver");
 
   // start our webdriver intermediary node
   if let Err(e) = server::run(args, driver) {

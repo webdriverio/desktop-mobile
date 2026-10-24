@@ -1,10 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{PhysicalPosition, PhysicalSize, Window};
-use serde::{Serialize, Deserialize};
+use clipboard::{ClipboardContext, ClipboardProvider};
+use serde::{Deserialize, Serialize};
 use sysinfo::System;
-use clipboard::{ClipboardProvider, ClipboardContext};
+use tauri::{PhysicalPosition, PhysicalSize, Window};
 
 #[derive(Debug, Serialize, Deserialize)]
 struct WindowBounds {
@@ -70,8 +70,12 @@ async fn get_window_bounds(window: Window) -> Result<WindowBounds, String> {
 
 #[tauri::command]
 async fn set_window_bounds(window: Window, bounds: WindowBounds) -> Result<(), String> {
-    window.set_position(PhysicalPosition::new(bounds.x, bounds.y)).map_err(|e| e.to_string())?;
-    window.set_size(PhysicalSize::new(bounds.width, bounds.height)).map_err(|e| e.to_string())?;
+    window
+        .set_position(PhysicalPosition::new(bounds.x, bounds.y))
+        .map_err(|e| e.to_string())?;
+    window
+        .set_size(PhysicalSize::new(bounds.width, bounds.height))
+        .map_err(|e| e.to_string())?;
     Ok(())
 }
 
@@ -112,8 +116,13 @@ async fn read_file(path: String, _options: Option<FileOperationOptions>) -> Resu
 }
 
 #[tauri::command]
-async fn write_file(path: String, contents: String, _options: Option<FileOperationOptions>) -> Result<(), String> {
-    std::fs::write(&path, contents).map_err(|e| format!("Failed to write file '{}': {}", path, e))?;
+async fn write_file(
+    path: String,
+    contents: String,
+    _options: Option<FileOperationOptions>,
+) -> Result<(), String> {
+    std::fs::write(&path, contents)
+        .map_err(|e| format!("Failed to write file '{}': {}", path, e))?;
     Ok(())
 }
 
@@ -132,7 +141,6 @@ async fn get_current_dir() -> Result<String, String> {
 
 // Test functions removed - skipping parameter tests for now
 
-
 #[tauri::command]
 async fn get_platform_info() -> Result<PlatformInfo, String> {
     let mut sys = System::new_all();
@@ -143,7 +151,7 @@ async fn get_platform_info() -> Result<PlatformInfo, String> {
 
     // Simplified disk info - just return placeholder values for now
     let total_disk = 1000000000u64; // 1GB placeholder
-    let free_disk = 500000000u64;   // 500MB placeholder
+    let free_disk = 500000000u64; // 500MB placeholder
 
     Ok(PlatformInfo {
         os: System::name().unwrap_or_else(|| "Unknown".to_string()),
@@ -189,7 +197,8 @@ fn main() {
         builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
     }
 
-    builder.invoke_handler(tauri::generate_handler![
+    builder
+        .invoke_handler(tauri::generate_handler![
             get_window_bounds,
             set_window_bounds,
             minimize_window,

@@ -62,44 +62,45 @@ pub async fn eval<R: Runtime + 'static>(
     };
 
     match executor.execute_direct_eval(&req.script).await {
-        Ok(result) => {
-            match result.get("ok").and_then(|v| v.as_bool()) {
-                Some(true) => {
-                    let undef = result.get("undef").and_then(|v| v.as_bool()).unwrap_or(false);
-                    (
-                        StatusCode::OK,
-                        Json(DirectEvalResponse {
-                            value: result.get("value").cloned(),
-                            error: None,
-                            undef: if undef { Some(true) } else { None },
-                        }),
-                    )
-                }
-                Some(false) => {
-                    let error = result
-                        .get("error")
-                        .and_then(|v| v.as_str())
-                        .unwrap_or("Script execution failed")
-                        .to_string();
-                    (
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                        Json(DirectEvalResponse {
-                            value: None,
-                            error: Some(error),
-                            undef: None,
-                        }),
-                    )
-                }
-                None => (
+        Ok(result) => match result.get("ok").and_then(|v| v.as_bool()) {
+            Some(true) => {
+                let undef = result
+                    .get("undef")
+                    .and_then(|v| v.as_bool())
+                    .unwrap_or(false);
+                (
+                    StatusCode::OK,
+                    Json(DirectEvalResponse {
+                        value: result.get("value").cloned(),
+                        error: None,
+                        undef: if undef { Some(true) } else { None },
+                    }),
+                )
+            }
+            Some(false) => {
+                let error = result
+                    .get("error")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("Script execution failed")
+                    .to_string();
+                (
                     StatusCode::INTERNAL_SERVER_ERROR,
                     Json(DirectEvalResponse {
                         value: None,
-                        error: Some("Script result missing required 'ok' field".to_string()),
+                        error: Some(error),
                         undef: None,
                     }),
-                ),
+                )
             }
-        }
+            None => (
+                StatusCode::INTERNAL_SERVER_ERROR,
+                Json(DirectEvalResponse {
+                    value: None,
+                    error: Some("Script result missing required 'ok' field".to_string()),
+                    undef: None,
+                }),
+            ),
+        },
         Err(err) => (
             StatusCode::INTERNAL_SERVER_ERROR,
             Json(DirectEvalResponse {

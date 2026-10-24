@@ -26,7 +26,6 @@ const COMMANDS: &[&str] = &[
     "list_windows",
 ];
 
-
 fn main() {
     tauri_plugin::Builder::new(COMMANDS).build();
 }

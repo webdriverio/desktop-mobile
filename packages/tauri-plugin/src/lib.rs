@@ -6,8 +6,8 @@ use tauri::{
 
 pub use models::*;
 
-mod desktop;
 mod commands;
+mod desktop;
 mod error;
 mod models;
 

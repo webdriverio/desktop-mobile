@@ -22,4 +22,3 @@ unsafe impl<R: Runtime> Sync for Wdio<R> {}
 impl<R: Runtime> Wdio<R> {
     // Add desktop-specific methods here
 }
-

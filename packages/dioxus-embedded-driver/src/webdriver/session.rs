@@ -17,11 +17,7 @@ pub struct Timeouts {
 
 impl Default for Timeouts {
   fn default() -> Self {
-    Self {
-      implicit_ms: 0,
-      page_load_ms: 300_000,
-      script_ms: 30_000,
-    }
+    Self { implicit_ms: 0, page_load_ms: 300_000, script_ms: 30_000 }
   }
 }
 

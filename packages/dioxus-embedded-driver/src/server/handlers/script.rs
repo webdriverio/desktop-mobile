@@ -22,11 +22,7 @@ pub struct ExecuteScriptRequest {
 
 /// Dispatch a script to the webview via the bridge's embedded channel and
 /// await the result. Returns a WebDriver error on script failure or timeout.
-async fn run_script(
-  script: &str,
-  args: &[Value],
-  timeout_ms: u64,
-) -> WebDriverResult {
+async fn run_script(script: &str, args: &[Value], timeout_ms: u64) -> WebDriverResult {
   let (tx, rx) = oneshot::channel();
   let id = Uuid::new_v4().to_string();
 

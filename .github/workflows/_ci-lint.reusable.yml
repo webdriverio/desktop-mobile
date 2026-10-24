@@ -56,6 +56,21 @@ jobs:
         run: pnpm run format:check
         shell: bash
 
+      # Run Rust Formatting checks
+      - name: 🔍 Check Rust Formatting
+        shell: bash
+        run: |
+          set -euo pipefail
+          rustup component add rustfmt
+          status=0
+          while IFS= read -r manifest; do
+            if ! cargo fmt --check --manifest-path "$manifest"; then
+              echo "::error file=$manifest::Run \`cargo fmt --manifest-path $manifest\` to fix the formatting"
+              status=1
+            fi
+          done < <(git ls-files '*Cargo.toml')
+          exit "$status"
+
       # Unit tests + typecheck for repo tooling (scripts/), notably the CI change
       # classifier that gates every other job — run here because lint is the one
       # job with no `if:` gate.

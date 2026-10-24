@@ -58,10 +58,7 @@ impl DioxusOptions {
   #[cfg(target_os = "windows")]
   fn into_native_object(self) -> Map<String, Value> {
     let mut ms_edge_options = Map::new();
-    ms_edge_options.insert(
-      "binary".into(),
-      json!(self.application.with_extension("exe")),
-    );
+    ms_edge_options.insert("binary".into(), json!(self.application.with_extension("exe")));
     ms_edge_options.insert("args".into(), self.args.into());
 
     if let Some(webview_options) = self.webview_options {
@@ -106,10 +103,7 @@ async fn handle(
       Request::from_parts(parts, Full::new(body.into()))
     };
 
-  client
-    .request(forward_to_native_driver(new_req, args)?)
-    .err_into()
-    .await
+  client.request(forward_to_native_driver(new_req, args)?).err_into().await
 }
 
 /// Transform the request to a request for the native webdriver server.
@@ -124,18 +118,9 @@ fn forward_to_native_driver(
   .to_str()?
   .parse()?;
 
-  let path = req
-    .uri()
-    .path_and_query()
-    .expect("hyper request has uri")
-    .clone();
+  let path = req.uri().path_and_query().expect("hyper request has uri").clone();
 
-  let uri = format!(
-    "http://{}:{}{}",
-    host.host(),
-    args.native_port,
-    path.as_str()
-  );
+  let uri = format!("http://{}:{}{}", host.host(), args.native_port, path.as_str());
 
   let (mut parts, body) = req.into_parts();
   parts.uri = uri.parse()?;
@@ -188,9 +173,7 @@ pub async fn run(args: Args, mut _driver: Child) -> Result<(), Error> {
       while let Some(signal) = signals.next().await {
         match signal {
           SIGTERM | SIGINT | SIGQUIT => {
-            _driver
-              .kill()
-              .expect("unable to kill native webdriver server");
+            _driver.kill().expect("unable to kill native webdriver server");
             std::process::exit(0);
           }
           _ => unreachable!(),

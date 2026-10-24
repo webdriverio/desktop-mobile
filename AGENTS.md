@@ -8,7 +8,7 @@ Guidance for coding agents working in this repo: the commands to run, the checks
 - **All packages:** `pnpm turbo run typecheck test --filter=./packages/*` is what the pre-push hook runs, and `pnpm build` builds every package. Turborepo caches both; add `--force` to rerun a cached pass. Don't run the root `pnpm test`: it also runs the E2E matrix and every package-test app.
 - **Lint:** `pnpm lint` runs Biome and ESLint over the whole repo. It doesn't run through Turborepo, so don't pass it `--force`. A package's own `lint` script is Biome only and misses rules such as `vitest/valid-expect`. To check just what you changed, run `pnpm exec biome check <files>` and `pnpm exec eslint <files>`, as the commit hook does.
 - **E2E** (`e2e/`, the `pnpm e2e*` scripts) needs the fixture app in `fixtures/e2e-apps/` built first, and it's slow. CI runs it for the services a PR touches; locally, run the tests of the packages you changed. See [docs/e2e-testing.md](./docs/e2e-testing.md).
-- **Rust crates** (packages with a `Cargo.toml`): from the crate's directory, `cargo test` and `cargo clippy --all-targets -- -D warnings`. CI fails on clippy warnings.
+- **Rust crates** (packages with a `Cargo.toml`): from the crate's directory, `cargo fmt`, `cargo test` and `cargo clippy --all-targets -- -D warnings`. CI fails on unformatted code and clippy warnings.
 
 ## Before you push
 
@@ -16,7 +16,6 @@ Husky runs Biome and ESLint on staged files when you commit, and `typecheck` and
 
 ## Gotchas
 
-- Neither the Dioxus nor the Tauri crates are rustfmt-clean yet, so `cargo fmt` rewrites code you didn't touch. Don't run it over a whole crate; format only the code you change.
 - Every crate and Rust fixture commits its `Cargo.lock`. Commit it with any dependency change, and give a new crate one.
 - The package tests install `fixtures/package-tests/*` in isolation, where `catalog:` doesn't resolve, so those fixtures use explicit versions, never `catalog:`.
 - The package-test fixtures pin `@electron-forge/*` and `electron-builder` to exact versions. Bump those in their own PR.
