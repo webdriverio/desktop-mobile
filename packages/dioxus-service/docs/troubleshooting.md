@@ -6,34 +6,34 @@ Solutions for common issues when testing Dioxus applications with WebdriverIO.
 
 ### "Embedded WebDriver server did not become ready", "Bridge not available", or execute always returns undefined
 
-The embedded driver is not wired into your app. It runs the WebDriver server the service connects to and installs the `wdio-dioxus-bridge` crate.
+`wdio-dioxus` is not wired into your app, or the app's window never registered with it. Its `install()` starts the WebDriver server the service connects to and installs the bridge.
 
-**Check 1: Embedded driver crate in dependencies**
+**Check 1: `wdio-dioxus` in dependencies**
 
 ```toml
 # Cargo.toml
 [dependencies]
-wdio-dioxus-embedded-driver = "1"
+wdio-dioxus = "1"
 ```
 
-**Check 2: Embedded driver installed in `main.rs`**
+**Check 2: `install()` called in `main.rs`**
 
 ```rust
 fn main() {
     let mut config = dioxus::desktop::Config::new();
     #[cfg(debug_assertions)]
     {
-        config = wdio_dioxus_embedded_driver::install(config);
+        config = wdio_dioxus::install(config);
     }
     dioxus::LaunchBuilder::desktop().with_cfg(config).launch(App);
 }
 ```
 
-`wdio_dioxus_bridge::install(config)` on its own doesn't start the WebDriver server, so the service times out waiting for it.
+If your app sets its own `with_on_window` callback after `install()`, call `wdio_dioxus::on_window` from it, or the window never registers and the service times out. See [App Setup](./app-setup.md#apps-with-their-own-window-callback).
 
 **Check 3: Debug build used for testing**
 
-The driver and bridge are only compiled in debug builds. Ensure you are using `dx build --desktop` (not `dx build --desktop --release`) and the binary path in your config points to the `debug` output, not the `release` one.
+`wdio-dioxus` is only compiled in debug builds. Ensure you are using `dx build --desktop` (not `dx build --desktop --release`) and the binary path in your config points to the `debug` output, not the `release` one.
 
 **Check 4: Port is free**
 
@@ -52,13 +52,13 @@ See [App Setup](./app-setup.md) for the complete installation guide.
 
 The app was built with `cargo build`. Files loaded with `asset!()` are only bundled by `dx`; in a plain `cargo build` binary their paths point at files that don't exist, so they fail to load. Build with `dx build --desktop` and point `appBinaryPath` or `dioxus:options.application` at the `dx` output (see [App Setup](./app-setup.md#step-3-build-in-debug-mode) for the path on each platform).
 
-### Compilation errors from `wdio-dioxus-bridge`
+### Compilation errors from `wdio-dioxus`
 
-`wdio-dioxus-bridge` tracks the latest Dioxus release; the exact version it supports is its own `dioxus-desktop` dependency — see the bridge's [dependencies on crates.io](https://crates.io/crates/wdio-dioxus-bridge).
+`wdio-dioxus` tracks the latest Dioxus release; the exact version it supports is its own `dioxus-desktop` dependency — see its [dependencies on crates.io](https://crates.io/crates/wdio-dioxus).
 
 1. Update your Rust toolchain: `rustup update`
 2. Clear the Cargo cache: `cargo clean && dx build --desktop`
-3. Pin your `dioxus` to the same minor as the bridge's `dioxus-desktop` dependency (link above)
+3. Pin your `dioxus` to the same minor as `wdio-dioxus`'s `dioxus-desktop` dependency (link above)
 
 ---
 
@@ -257,12 +257,12 @@ Dioxus doesn't yet let apps turn this off. [DioxusLabs/dioxus#5587](https://gith
 ```rust
 #[cfg(debug_assertions)]
 {
-    if wdio_dioxus_embedded_driver::automation::is_requested() {
+    if wdio_dioxus::automation::is_requested() {
         config = config.with_background_throttling(
             dioxus::desktop::wry::BackgroundThrottlingPolicy::Disabled,
         );
     }
-    config = wdio_dioxus_embedded_driver::install(config);
+    config = wdio_dioxus::install(config);
 }
 ```
 

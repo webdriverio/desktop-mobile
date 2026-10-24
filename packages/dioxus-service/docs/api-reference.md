@@ -8,7 +8,7 @@ The following methods are available on the `browser.dioxus` object when connecte
 
 ### `browser.dioxus.execute(script, ...args)`
 
-Execute JavaScript code in the Dioxus webview context with access to Dioxus IPC APIs. Requires `wdio-dioxus-bridge` to be installed and configured in your app.
+Execute JavaScript code in the Dioxus webview context with access to Dioxus IPC APIs. Requires `wdio_dioxus::install(config)` in your app. See [App Setup](./app-setup.md).
 
 **Parameters:**
 - `script` (Function | string) - JavaScript code to execute. If a function, receives a `DioxusAPIs` object (`dx`) as the first parameter
@@ -52,7 +52,7 @@ const result = await browser.dioxus.execute(
 const href = await browser.dioxus.execute('window.location.href');
 ```
 
-**Note:** Requires the bridge, which `wdio_dioxus_embedded_driver::install(config)` installs in the app. See [App Setup](./app-setup.md).
+**Note:** Requires the bridge, which `wdio_dioxus::install(config)` installs in the app. See [App Setup](./app-setup.md).
 
 ---
 
@@ -486,7 +486,7 @@ if (result.ok) {
 
 ## Notes
 
-- All `browser.dioxus.*` methods require the bridge, which `wdio_dioxus_embedded_driver::install(config)` installs in the Dioxus app. See [App Setup](./app-setup.md).
+- All `browser.dioxus.*` methods require the bridge, which `wdio_dioxus::install(config)` installs in the Dioxus app. See [App Setup](./app-setup.md).
 - Mocking requires the bridge for invoke interception to work.
 - `triggerDeeplink` requires your app to register a custom URL scheme.
 - `emitEvent` is deferred to v1.1.

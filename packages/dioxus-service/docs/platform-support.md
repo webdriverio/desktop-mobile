@@ -12,11 +12,11 @@ Platform-specific requirements and setup for Dioxus testing.
 
 ## How the Service Drives Your App
 
-The WebDriver server runs inside your app, so there's no driver to install on any platform. It comes from `wdio-dioxus-embedded-driver`, wired into the app via `wdio_dioxus_embedded_driver::install(config)`, which also installs the bridge.
+The WebDriver server runs inside your app, so there's no driver to install on any platform. It comes from `wdio-dioxus`, whose `install(config)` also installs the bridge.
 
 **Requirements:**
-- `wdio-dioxus-embedded-driver = "1"` in `Cargo.toml`
-- `wdio_dioxus_embedded_driver::install(config)` in `main.rs` inside `#[cfg(debug_assertions)]` (`wdio_dioxus_bridge::install(config)` alone doesn't start the WebDriver server)
+- `wdio-dioxus = "1"` in `Cargo.toml`
+- `wdio_dioxus::install(config)` in `main.rs` inside `#[cfg(debug_assertions)]`
 - Debug build of the app (`dx build --desktop`; see [App Setup](./app-setup.md#step-3-build-in-debug-mode) for why not `cargo build`)
 
 ### Limitations
