@@ -34,7 +34,7 @@ All three use `runBulkMockOp` from `@wdio/native-utils`, and each service passes
 ## Keeping the outer mock in step with the app
 Each mock method makes an app call, then updates the outer mock:
 - `mockClear` and `mockReset` update the outer mock only after the app call succeeds. If they cleared it first and the app call failed, the app would still hold the calls, and the next `update()` would copy them back.
-- `mockRestore` drops the store entry even when the app call fails, so a later `mock()` creates a fresh mock instead of reusing this one. React Native drops it only on success: a failed uninstall leaves the Hermes spy installed, and the entry keeps it synced. Electron keeps the entry.
+- `mockRestore` removes the mock from the store on every service except Electron, even when the app call fails, so the next `mock()` starts fresh. React Native removes it only after the app call succeeds, because a failed uninstall leaves the Hermes spy installed.
 
 ## Rules
 - Store key is the mock name (e.g. `electron.dialog.showOpenDialog` or `tauri.invoke`)

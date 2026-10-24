@@ -311,8 +311,8 @@ export async function createElectronBrowserModeMock(
 
   const resetOuter = () => {
     const currentName = outerMock.getMockName();
-    // outerMockReset() calls mock.mockClear(), which is now the async app call. Swap the local clear
-    // back in while it runs, so the reset never calls the app without awaiting it.
+    // native-spy's reset calls mock.mockClear(), which this file replaced with a call into the app.
+    // Put the local clear back while it runs, so only the outer mock is reset.
     const asyncMockClear = mock.mockClear;
     (mock as unknown as { mockClear: () => void }).mockClear = outerMockClear;
     try {

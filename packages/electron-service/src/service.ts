@@ -682,7 +682,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         const storeKey = browserModeStoreKey(browser, channel);
         let existing: ElectronFunctionMock | undefined;
         try {
-          existing = mockStore.getMock(storeKey) as ElectronFunctionMock;
+          existing = mockStore.getMock(storeKey);
         } catch (e) {
           if (!(e instanceof Error && e.message.startsWith('No mock registered for'))) {
             throw e;

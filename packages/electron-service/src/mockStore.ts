@@ -1,24 +1,24 @@
-import type { ElectronMock } from '@wdio/native-types';
+import type { ElectronFunctionMock } from '@wdio/native-types';
 
 export class ElectronServiceMockStore {
-  #mockFns: Map<string, ElectronMock>;
+  #mockFns: Map<string, ElectronFunctionMock>;
 
   constructor() {
-    this.#mockFns = new Map<string, ElectronMock>();
+    this.#mockFns = new Map<string, ElectronFunctionMock>();
   }
 
-  setMock(mock: ElectronMock): ElectronMock {
+  setMock(mock: ElectronFunctionMock): ElectronFunctionMock {
     const mockName = mock.getMockName();
     this.#mockFns.set(mockName, mock);
     return mock;
   }
 
-  setMockWithKey(key: string, mock: ElectronMock): ElectronMock {
+  setMockWithKey(key: string, mock: ElectronFunctionMock): ElectronFunctionMock {
     this.#mockFns.set(key, mock);
     return mock;
   }
 
-  getMock(mockId: string): ElectronMock {
+  getMock(mockId: string): ElectronFunctionMock {
     const mock = this.#mockFns.get(mockId);
     if (!mock) {
       throw new Error(`No mock registered for "${mockId}"`);
@@ -35,7 +35,7 @@ export class ElectronServiceMockStore {
     return this.#mockFns.delete(mockId);
   }
 
-  deleteMockByRef(mock: ElectronMock): boolean {
+  deleteMockByRef(mock: ElectronFunctionMock): boolean {
     for (const [key, m] of this.#mockFns) {
       if (m === mock) {
         return this.#mockFns.delete(key);
