@@ -314,8 +314,8 @@ importers:
         specifier: link:../packages/tauri-service
         version: link:../packages/tauri-service
       '@wdio/visual-service':
-        specifier: ^10.1.0
-        version: 10.1.0(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        specifier: ^10.2.1
+        version: 10.2.1(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/xvfb':
         specifier: catalog:default
         version: 9.32.0
@@ -1213,7 +1213,7 @@ importers:
         version: 20.3.0(supports-color@8.1.1)
       '@wdio/globals':
         specifier: catalog:default
-        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))
+        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/logger':
         specifier: catalog:default
         version: 9.29.1
@@ -4217,8 +4217,8 @@ packages:
       expect-webdriverio: ^6.0.9
       webdriverio: ^9.28.0
 
-  '@wdio/image-comparison-core@2.1.0':
-    resolution: {integrity: sha512-o9w80bkMmgbUuPKoJYbuf2sKh/xyrfVyITftmVJuIaqIPehwriwGF7ZU7sS9JiXAdoqM17Wdy7MdpO3mOgsjZA==}
+  '@wdio/image-comparison-core@2.1.2':
+    resolution: {integrity: sha512-FHVufgBcN2Zey87zG3r27M0zEHL2snh/wXuOrXp4AyZV/d1VukEJp3hu6pydiBZlNfK80k7qXJ7BKvuyYJIedQ==}
 
   '@wdio/local-runner@9.31.9':
     resolution: {integrity: sha512-9/+c/naNdBTBNZJyBb8lkmLmspKqH6oATV5ikG34nTUzItIX8wjLmhhn/uQMmOC6WvKHlRDBFGHHVgvD+fomAA==}
@@ -4274,8 +4274,8 @@ packages:
     resolution: {integrity: sha512-LsU+PxRQVXJKISaj9v1NZQTmp4m9uugCh55qjN0cKvdqi3bI17V+3orMXNvDYufBgzzZ1eoGxYejJpdIKx98jA==}
     engines: {node: '>=18.20.0'}
 
-  '@wdio/visual-service@10.1.0':
-    resolution: {integrity: sha512-GsWItEpETBRy5Ymuh8HOEX1pMDME2hxSgUBW4UlSHCmKTSOcUEfQosjAx3XVMucpR5SosPIiOB1/4teEi4qLhw==}
+  '@wdio/visual-service@10.2.1':
+    resolution: {integrity: sha512-fNZLKRPxo9Vr84M3nSBkpv1f+KBjDJjjcNk53Qhe4BDx+naTBqyJdaDzV9vrYPCg/YGV/MJQ769WR4Ey05nYjw==}
 
   '@wdio/xvfb@9.31.2':
     resolution: {integrity: sha512-48MqdcrvdC/Jn2YPhW6hjGLzcQqOEt1Q6KELR/TWz3vIJoZwzTngGAdT06voUnZS+PUEcd/vKSo4a6zxQ/mm7g==}
@@ -5666,14 +5666,6 @@ packages:
   expect-type@1.4.0:
     resolution: {integrity: sha512-KfYbmpRm0VbLjEvVa9yGwCi9GI34xvi7A/HXYWQO65CSD2u3MczUJSuwXKFIxlGsgBQizV9q5J9NHj4VG0n+pA==}
     engines: {node: '>=12.0.0'}
-
-  expect-webdriverio@5.7.0:
-    resolution: {integrity: sha512-jLOTrJoPBC3Wtd83ryHMbRcEajMGtAnn6OWtSnoJoDLt16nHvxVdjcI4Bc0n+1KAOr8DvQtlJ55f0M48kJtEpw==}
-    engines: {node: '>=20'}
-    peerDependencies:
-      '@wdio/globals': ^9.0.0
-      '@wdio/logger': ^9.0.0
-      webdriverio: ^9.0.0
 
   expect-webdriverio@6.0.10:
     resolution: {integrity: sha512-VBaMl4U6orgn3uzM7n65Gd48legqi37GoP0mklR+3f7vs/cC1s4hQVmGoiqz9aBcISVF37dAynP3aoi0R0CDow==}
@@ -11449,11 +11441,6 @@ snapshots:
       '@wdio/types': 9.31.2
       chalk: 5.6.2
 
-  '@wdio/globals@9.31.3(expect-webdriverio@5.7.0)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
-    dependencies:
-      expect-webdriverio: 5.7.0(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
-      webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
-
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))':
     dependencies:
       expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))
@@ -11461,7 +11448,7 @@ snapshots:
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
     dependencies:
-      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
@@ -11469,10 +11456,10 @@ snapshots:
       expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       webdriverio: 9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
-  '@wdio/image-comparison-core@2.1.0':
+  '@wdio/image-comparison-core@2.1.2':
     dependencies:
       '@wdio/logger': 9.29.1
-      '@wdio/types': 9.31.2
+      '@wdio/types': 9.32.0
       fast-png: 8.0.0
       pixelmatch: 7.2.0
 
@@ -11666,14 +11653,14 @@ snapshots:
       - react-native-b4a
       - supports-color
 
-  '@wdio/visual-service@10.1.0(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
+  '@wdio/visual-service@10.2.1(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
     dependencies:
-      '@wdio/globals': 9.31.3(expect-webdriverio@5.7.0)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
-      '@wdio/image-comparison-core': 2.1.0
+      '@wdio/globals': 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      '@wdio/image-comparison-core': 2.1.2
       '@wdio/logger': 9.29.1
-      '@wdio/types': 9.31.2
-      expect-webdriverio: 5.7.0(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      '@wdio/types': 9.32.0
     transitivePeerDependencies:
+      - expect-webdriverio
       - webdriverio
 
   '@wdio/xvfb@9.31.2':
@@ -12439,7 +12426,7 @@ snapshots:
 
   buffer-image-size@0.6.4:
     dependencies:
-      '@types/node': 26.6.4
+      '@types/node': 26.6.5
 
   buffer@5.7.1:
     dependencies:
@@ -13441,16 +13428,6 @@ snapshots:
   exit-hook@4.0.0: {}
 
   expect-type@1.4.0: {}
-
-  expect-webdriverio@5.7.0(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6)):
-    dependencies:
-      '@vitest/snapshot': 4.1.11
-      '@wdio/globals': 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
-      '@wdio/logger': 9.29.1
-      deep-eql: 5.0.2
-      expect: 30.4.1
-      jest-matcher-utils: 30.4.1
-      webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   expect-webdriverio@6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)):
     dependencies:
