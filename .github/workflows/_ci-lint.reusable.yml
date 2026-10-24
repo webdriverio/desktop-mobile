@@ -56,9 +56,7 @@ jobs:
         run: pnpm run format:check
         shell: bash
 
-      # Checks every tracked Cargo.toml, so a new crate is covered without a
-      # list to update. rustfmt needs no build or network, and it ignores
-      # `#[cfg]`, so this one Linux run covers every platform module.
+      # Run Rust Formatting checks
       - name: 🔍 Check Rust Formatting
         shell: bash
         run: |
