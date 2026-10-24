@@ -1313,6 +1313,16 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         is_down: bool,
         modifiers: &ModifierState,
     ) -> Result<(), WebDriverErrorResponse> {
+        self.dispatch_key_event_js(key, is_down, modifiers).await
+    }
+
+    /// Dispatch a keyboard event as a synthetic (untrusted) JS `KeyboardEvent`.
+    async fn dispatch_key_event_js(
+        &self,
+        key: &str,
+        is_down: bool,
+        modifiers: &ModifierState,
+    ) -> Result<(), WebDriverErrorResponse> {
         match crate::platform::key_input::map_special_key(key) {
             Some((js_key, js_code, key_code))
                 if crate::platform::key_input::is_printable_key(js_key) =>

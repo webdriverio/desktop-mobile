@@ -739,6 +739,112 @@ pub fn build_send_keys_change_script(js_var: &str, initial_value: &str) -> Strin
     )
 }
 
+/// `Input.dispatchKeyEvent` parameters. Windows sends keys through WebView2's DevTools protocol
+/// because those arrive trusted, so Blink's trusted-input gates (a `<dialog>`'s Escape) accept them.
+#[cfg(any(target_os = "windows", test))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct CdpKeyEvent {
+    pub event_type: &'static str,
+    pub key: String,
+    pub code: String,
+    /// Also sent as `nativeVirtualKeyCode`.
+    pub windows_virtual_key_code: u32,
+    /// CDP modifier bitmask (Alt=1, Ctrl=2, Meta=4, Shift=8).
+    pub modifiers: u32,
+    /// The character the key types; the renderer inserts one only when this is set.
+    pub text: Option<String>,
+}
+
+#[cfg(any(target_os = "windows", test))]
+impl CdpKeyEvent {
+    /// Serialize to the JSON parameters object for `Input.dispatchKeyEvent`.
+    pub fn to_params_json(&self) -> String {
+        let mut params = serde_json::json!({
+            "type": self.event_type,
+            "key": self.key,
+            "code": self.code,
+            "windowsVirtualKeyCode": self.windows_virtual_key_code,
+            "nativeVirtualKeyCode": self.windows_virtual_key_code,
+            "modifiers": self.modifiers,
+        });
+        if let Some(text) = &self.text {
+            params["text"] = serde_json::Value::String(text.clone());
+            params["unmodifiedText"] = serde_json::Value::String(text.clone());
+        }
+        params.to_string()
+    }
+}
+
+/// CDP modifier bitmask for the current modifier state.
+#[cfg(any(target_os = "windows", test))]
+pub fn cdp_modifiers(modifiers: &ModifierState) -> u32 {
+    let mut bits = 0;
+    if modifiers.alt {
+        bits |= 1;
+    }
+    if modifiers.ctrl {
+        bits |= 2;
+    }
+    if modifiers.meta {
+        bits |= 4;
+    }
+    if modifiers.shift {
+        bits |= 8;
+    }
+    bits
+}
+
+/// Virtual key code for a printable character; non-alphanumerics carry 0 and rely on `text`.
+#[cfg(any(target_os = "windows", test))]
+fn printable_virtual_key_code(ch: char) -> u32 {
+    if ch.is_ascii_alphabetic() {
+        ch.to_ascii_uppercase() as u32
+    } else if ch.is_ascii_digit() {
+        ch as u32
+    } else {
+        0
+    }
+}
+
+/// Resolve a WebDriver key value and modifier state into `Input.dispatchKeyEvent` parameters.
+#[cfg(any(target_os = "windows", test))]
+pub fn to_cdp_key_event(key: &str, is_down: bool, modifiers: &ModifierState) -> CdpKeyEvent {
+    // A typed line break is the Enter key, as msedgedriver sends it.
+    let key = match key {
+        "\n" | "\r" => "\u{E007}",
+        _ => key,
+    };
+    let event_type = if is_down { "keyDown" } else { "keyUp" };
+    // Under a Ctrl, Alt or Meta chord a key is a shortcut, not typing; Shift still types.
+    let types_text = is_down && !modifiers.ctrl && !modifiers.alt && !modifiers.meta;
+
+    if let Some((js_key, js_code, key_code)) = map_special_key(key) {
+        let text = match js_key {
+            "Enter" if is_down => Some("\r".to_string()),
+            _ if types_text && is_printable_key(js_key) => Some(js_key.to_string()),
+            _ => None,
+        };
+        CdpKeyEvent {
+            event_type,
+            key: js_key.to_string(),
+            code: js_code.to_string(),
+            windows_virtual_key_code: key_code,
+            modifiers: cdp_modifiers(modifiers),
+            text,
+        }
+    } else {
+        let ch = key.chars().next().unwrap_or(' ');
+        CdpKeyEvent {
+            event_type,
+            key: key.to_string(),
+            code: regular_key_code_for(key),
+            windows_virtual_key_code: printable_virtual_key_code(ch),
+            modifiers: cdp_modifiers(modifiers),
+            text: types_text.then(|| key.to_string()),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1487,5 +1593,112 @@ mod tests {
         let steps = plan_send_keys(&format!("20{BACKSPACE}26-10{SHIFT}-21"));
         assert_eq!(typed_text(&steps), "2026-10-21");
         assert_eq!(typed_text(&plan_send_keys(NULL_KEY)), "");
+    }
+
+    #[test]
+    fn cdp_modifiers_bitmask() {
+        assert_eq!(cdp_modifiers(&mods(false, false, false, false)), 0);
+        assert_eq!(cdp_modifiers(&mods(true, false, false, false)), 2);
+        assert_eq!(cdp_modifiers(&mods(false, true, false, false)), 8);
+        assert_eq!(cdp_modifiers(&mods(true, true, false, false)), 10);
+        assert_eq!(cdp_modifiers(&mods(true, true, true, true)), 15);
+    }
+
+    #[test]
+    fn cdp_escape_is_a_keydown_without_text() {
+        let ev = to_cdp_key_event(ESCAPE, true, &mods(false, false, false, false));
+        assert_eq!(ev.event_type, "keyDown");
+        assert_eq!(ev.key, "Escape");
+        assert_eq!(ev.code, "Escape");
+        assert_eq!(ev.windows_virtual_key_code, 27);
+        assert_eq!(ev.text, None);
+
+        let up = to_cdp_key_event(ESCAPE, false, &mods(false, false, false, false));
+        assert_eq!(up.event_type, "keyUp");
+        assert_eq!(up.text, None);
+    }
+
+    #[test]
+    fn cdp_printable_char_carries_text_and_virtual_key() {
+        let ev = to_cdp_key_event("a", true, &mods(false, false, false, false));
+        assert_eq!(ev.key, "a");
+        assert_eq!(ev.code, "KeyA");
+        assert_eq!(ev.windows_virtual_key_code, 65);
+        assert_eq!(ev.text.as_deref(), Some("a"));
+
+        let digit = to_cdp_key_event("5", true, &mods(false, false, false, false));
+        assert_eq!(digit.code, "Digit5");
+        assert_eq!(digit.windows_virtual_key_code, 53);
+        assert_eq!(digit.text.as_deref(), Some("5"));
+    }
+
+    #[test]
+    fn cdp_chord_types_no_text_but_shift_does() {
+        let ctrl_a = to_cdp_key_event("a", true, &mods(true, false, false, false));
+        assert_eq!(ctrl_a.text, None);
+        assert_eq!(ctrl_a.modifiers, 2);
+
+        let shift_a = to_cdp_key_event("A", true, &mods(false, true, false, false));
+        assert_eq!(shift_a.text.as_deref(), Some("A"));
+        assert_eq!(shift_a.modifiers, 8);
+    }
+
+    #[test]
+    fn cdp_enter_space_and_numpad_keys_carry_their_text() {
+        let no_mods = mods(false, false, false, false);
+        assert_eq!(
+            to_cdp_key_event(ENTER, true, &no_mods).text.as_deref(),
+            Some("\r")
+        );
+
+        let space = to_cdp_key_event("\u{E00D}", true, &no_mods);
+        assert_eq!(space.key, " ");
+        assert_eq!(space.code, "Space");
+        assert_eq!(space.text.as_deref(), Some(" "));
+
+        let numpad_seven = to_cdp_key_event("\u{E021}", true, &no_mods);
+        assert_eq!(numpad_seven.code, "Numpad7");
+        assert_eq!(numpad_seven.windows_virtual_key_code, 103);
+        assert_eq!(numpad_seven.text.as_deref(), Some("7"));
+        assert_eq!(to_cdp_key_event("\u{E021}", false, &no_mods).text, None);
+    }
+
+    #[test]
+    fn cdp_line_break_is_the_enter_key() {
+        for line_break in ["\n", "\r"] {
+            let ev = to_cdp_key_event(line_break, true, &mods(false, false, false, false));
+            assert_eq!(ev.key, "Enter");
+            assert_eq!(ev.code, "Enter");
+            assert_eq!(ev.windows_virtual_key_code, 13);
+            assert_eq!(ev.text.as_deref(), Some("\r"));
+        }
+    }
+
+    #[test]
+    fn cdp_modifier_key_maps() {
+        let ev = to_cdp_key_event(CONTROL, true, &mods(false, false, false, false));
+        assert_eq!(ev.key, "Control");
+        assert_eq!(ev.code, "ControlLeft");
+        assert_eq!(ev.windows_virtual_key_code, 17);
+        assert_eq!(ev.text, None);
+    }
+
+    #[test]
+    fn cdp_params_json_shape() {
+        let ev = to_cdp_key_event("a", true, &mods(false, false, false, false));
+        let v: serde_json::Value = serde_json::from_str(&ev.to_params_json()).expect("valid json");
+        assert_eq!(v["type"], "keyDown");
+        assert_eq!(v["key"], "a");
+        assert_eq!(v["code"], "KeyA");
+        assert_eq!(v["windowsVirtualKeyCode"], 65);
+        assert_eq!(v["nativeVirtualKeyCode"], 65);
+        assert_eq!(v["modifiers"], 0);
+        assert_eq!(v["text"], "a");
+        assert_eq!(v["unmodifiedText"], "a");
+
+        let esc = to_cdp_key_event(ESCAPE, true, &mods(false, false, false, false));
+        let v: serde_json::Value = serde_json::from_str(&esc.to_params_json()).expect("valid json");
+        assert!(v.get("text").is_none());
+        assert!(v.get("unmodifiedText").is_none());
     }
 }
