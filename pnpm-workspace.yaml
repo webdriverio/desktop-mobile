@@ -58,15 +58,15 @@ catalogs:
     electron-builder: 26.15.3
     webdriverio: 9.31.9
   minimum:
-    '@wdio/cli': v8
-    '@wdio/globals': v8
-    '@wdio/local-runner': v8
-    '@wdio/logger': v8
-    '@wdio/mocha-framework': v8
-    '@wdio/spec-reporter': v8
-    '@wdio/types': v8
+    '@wdio/cli': ^9.0.0
+    '@wdio/globals': ^9.0.0
+    '@wdio/local-runner': ^9.0.0
+    '@wdio/logger': ^9.0.0
+    '@wdio/mocha-framework': ^9.0.0
+    '@wdio/spec-reporter': ^9.0.0
+    '@wdio/types': ^9.0.0
     electron: 28.3.3
-    webdriverio: v8
+    webdriverio: ^9.0.0
   next:
     '@wdio/cli': latest
     '@wdio/globals': latest

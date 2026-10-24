@@ -1,5 +1,6 @@
 import { expect } from '@wdio/globals';
 import { browser, withExecuteOptions } from '@wdio/tauri-service';
+import { isMultiremote } from '../../lib/wdioCompat.js';
 
 interface NativeWindowMetrics {
   x: number;
@@ -160,7 +161,7 @@ describe('application window tests', () => {
       return;
     }
 
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const multi = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       const browserA = multi.getInstance('browserA');
       const browserB = multi.getInstance('browserB');
@@ -182,7 +183,7 @@ describe('application window tests', () => {
       return;
     }
 
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const multi = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       const browserA = multi.getInstance('browserA');
       const browserB = multi.getInstance('browserB');

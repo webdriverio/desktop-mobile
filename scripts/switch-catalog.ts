@@ -2,7 +2,9 @@
 
 /**
  * Script to switch catalog dependencies for all packages in the workspace
- * Usage: node scripts/switch-catalog.ts [default|next|minimum]
+ * Usage: node scripts/switch-catalog.ts [default|next|minimum] [--wdio-only]
+ *
+ * --wdio-only switches only `webdriverio` and `@wdio/*`, leaving Electron and the build tools on `default`.
  */
 
 import { execSync } from 'node:child_process';
@@ -113,11 +115,17 @@ for (const entry of WORKSPACE_PACKAGES) {
 }
 
 // Convert Sets to arrays and sort for consistent ordering
-const CATALOG_DEPENDENCIES_ARRAY = Array.from(CATALOG_DEPENDENCIES).sort();
+const args = process.argv.slice(2);
+const wdioOnly = args.includes('--wdio-only');
+const isWdioPackage = (dep: string) => dep === 'webdriverio' || dep.startsWith('@wdio/');
+
+const CATALOG_DEPENDENCIES_ARRAY = Array.from(CATALOG_DEPENDENCIES)
+  .filter((dep) => !wdioOnly || isWdioPackage(dep))
+  .sort();
 const WORKSPACE_PACKAGES_ARRAY = Array.from(EXPANDED_PACKAGES).sort();
 
 // Handle CLI arguments
-const catalogName = process.argv[2]?.toLowerCase() as CatalogName | undefined;
+const catalogName = args.find((arg) => !arg.startsWith('--'))?.toLowerCase() as CatalogName | undefined;
 
 if (!catalogName || !VALID_CATALOGS.includes(catalogName)) {
   console.error(`Error: Please specify a valid catalog: ${VALID_CATALOGS.join(', ')}`);
@@ -137,7 +145,7 @@ function resolveCatalogRef(dep: string, target: CatalogName): string {
 }
 
 try {
-  console.log(`Switching all packages to '${catalogName}' catalog...\n`);
+  console.log(`Switching ${wdioOnly ? 'WebdriverIO packages' : 'all packages'} to the '${catalogName}' catalog...\n`);
 
   // Process each package's package.json
   for (const packagePath of WORKSPACE_PACKAGES_ARRAY) {
@@ -197,7 +205,7 @@ try {
     }
 
     // Handle switching from next catalog to other catalogs
-    if (catalogName !== 'next') {
+    if (catalogName !== 'next' && !wdioOnly) {
       // Check devDependencies
       if (packageJson.devDependencies?.['electron-nightly']) {
         // When switching from next to any other catalog, remove electron-nightly and add electron
@@ -232,7 +240,7 @@ try {
 
   console.log('\nRunning pnpm install to apply the changes...');
   try {
-    execSync('pnpm install', { stdio: 'inherit' });
+    execSync('pnpm install --no-frozen-lockfile', { stdio: 'inherit' });
     console.log('\n✓ Successfully switched catalog and installed dependencies');
   } catch (error) {
     console.error('\nError running pnpm install:', error);

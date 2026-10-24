@@ -6,6 +6,7 @@ import type { NormalizedPackageJson, WdioElectronConfig } from '@wdio/native-typ
 
 import { createEnvironmentContext } from './config/envSchema.js';
 import { fileExists, safeJsonParse } from './lib/utils.js';
+import { attachToElement } from './lib/wdioCompat.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -277,7 +278,7 @@ export const config: WdioElectronConfig = {
         (globalThis as unknown as Record<string, unknown>).__userClickOverrideRan = true;
         return origClick(...args);
       } as Parameters<typeof browser.overwriteCommand>[1],
-      true,
+      attachToElement,
     );
   },
   mochaOpts: {
