@@ -136,7 +136,7 @@ describe('startEmbeddedDriver', () => {
 
     await expect(promise).rejects.toThrow(/did not become ready on port 4444/);
     await expect(promise).rejects.toThrow(/nothing answered, so the server never started/);
-    await expect(promise).rejects.toThrow(/wdio_dioxus_bridge::install\(config\) on its own doesn't start the server/);
+    await expect(promise).rejects.toThrow(/calls wdio_dioxus::install\(config\) inside #\[cfg\(debug_assertions\)\]/);
   });
 
   it('explains that the window never registered when the server answers but is not ready', async () => {
@@ -154,6 +154,7 @@ describe('startEmbeddedDriver', () => {
 
     await expect(promise).rejects.toThrow(/did not become ready on port 4444/);
     await expect(promise).rejects.toThrow(/window never registered with the bridge/);
+    await expect(promise).rejects.toThrow(/call wdio_dioxus::on_window from it/);
   });
 
   it('resolves with proc when server becomes ready', async () => {

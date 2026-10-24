@@ -1,6 +1,9 @@
 //! `wdio-dioxus-embedded-driver` — in-process WebDriver HTTP server for
 //! Dioxus desktop apps.
 //!
+//! Apps should add `wdio-dioxus` instead, which installs this server. Calling
+//! [`install`] directly still works.
+//!
 //! Instead of requiring an external WebDriver binary (like msedgedriver or
 //! WebKitWebDriver), this crate starts an Axum-based WebDriver HTTP server
 //! *inside* the Dioxus app process. Commands are routed to the webview

@@ -57,15 +57,15 @@ async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<voi
   if (serverAnswered) {
     throw new Error(
       `${notReady}: it answered, but the app's window never registered with the bridge. ` +
+        `If the app sets its own with_on_window callback, call wdio_dioxus::on_window from it. ` +
         `If another process is using port ${port}, set embeddedPort in wdio:dioxusServiceOptions ` +
         `or the ${EMBEDDED_PORT_ENV_VAR} env var.`,
     );
   }
   throw new Error(
     `${notReady}: nothing answered, so the server never started. Check that main.rs calls ` +
-      `wdio_dioxus_embedded_driver::install(config) inside #[cfg(debug_assertions)], and that the app ` +
-      `is a debug build from dx build --desktop. wdio_dioxus_bridge::install(config) on its own ` +
-      `doesn't start the server.`,
+      `wdio_dioxus::install(config) inside #[cfg(debug_assertions)], and that the app is a debug ` +
+      `build from dx build --desktop.`,
   );
 }
 
