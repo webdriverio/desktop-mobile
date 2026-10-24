@@ -40,14 +40,19 @@ pub async fn screenshot(label: &str, timeout: Duration) -> Result<String, WebDri
   match tokio::time::timeout(timeout, rx).await {
     Ok(Ok(Ok(png_base64))) => Ok(png_base64),
     Ok(Ok(Err(message))) => Err(WebDriverErrorResponse::unknown_error(&message)),
-    Ok(Err(_)) => Err(WebDriverErrorResponse::unknown_error("the webview dropped the screenshot request")),
+    Ok(Err(_)) => {
+      Err(WebDriverErrorResponse::unknown_error("the webview dropped the screenshot request"))
+    }
     Err(_) => Err(WebDriverErrorResponse::script_timeout()),
   }
 }
 
 /// Fails where native capture isn't wired yet, rather than return a blank image.
 #[cfg(not(any(target_os = "linux", target_os = "macos", target_os = "windows")))]
-pub async fn screenshot(_label: &str, _timeout: Duration) -> Result<String, WebDriverErrorResponse> {
+pub async fn screenshot(
+  _label: &str,
+  _timeout: Duration,
+) -> Result<String, WebDriverErrorResponse> {
   Err(WebDriverErrorResponse::unsupported_operation(
     "screenshots are not supported by the Dioxus embedded driver on this platform",
   ))

@@ -31,17 +31,16 @@ fn senders() -> &'static Senders {
 /// Dioxus has provided it.
 pub fn attach(label: &str, dom: &mut VirtualDom) {
   let (tx, mut rx) = mpsc::unbounded_channel::<WebviewTask>();
-  senders()
-    .lock()
-    .expect("webview task registry poisoned")
-    .insert(label.to_string(), tx);
+  senders().lock().expect("webview task registry poisoned").insert(label.to_string(), tx);
 
   dom.in_runtime(|| {
     dioxus_core::spawn_forever(async move {
       while let Some(task) = rx.recv().await {
         match dioxus_core::try_consume_context::<DesktopContext>() {
           Some(desktop) => task(&desktop),
-          None => tracing::warn!("wdio-dioxus-bridge: webview task ran before the desktop context existed"),
+          None => tracing::warn!(
+            "wdio-dioxus-bridge: webview task ran before the desktop context existed"
+          ),
         }
       }
     });

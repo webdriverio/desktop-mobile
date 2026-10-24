@@ -41,7 +41,9 @@ pub(super) fn take_screenshot(desktop: &DesktopService, reply: Reply<String>) {
 
   // SAFETY: on the UI thread that owns the webview; the stream and handler
   // are reference-counted COM objects WebView2 retains until it completes.
-  let started = unsafe { webview.CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, &stream, &handler) };
+  let started = unsafe {
+    webview.CapturePreview(COREWEBVIEW2_CAPTURE_PREVIEW_IMAGE_FORMAT_PNG, &stream, &handler)
+  };
   if let Err(e) = started {
     if let Some(reply) = reply.take() {
       let _ = reply.send(Err(format!("CapturePreview failed: {e}")));

@@ -45,10 +45,12 @@ pub(super) fn take_screenshot(desktop: &DesktopService, reply: Reply<String>) {
 
 fn image_to_png_base64(image: &NSImage) -> Result<String, String> {
   let tiff = image.TIFFRepresentation().ok_or("snapshot has no TIFF representation")?;
-  let bitmap = NSBitmapImageRep::imageRepWithData(&tiff).ok_or("snapshot TIFF couldn't be decoded")?;
+  let bitmap =
+    NSBitmapImageRep::imageRepWithData(&tiff).ok_or("snapshot TIFF couldn't be decoded")?;
   let properties = NSDictionary::<NSString>::new();
   // SAFETY: an empty properties dictionary is valid for every file type.
-  let png = unsafe { bitmap.representationUsingType_properties(NSBitmapImageFileType::PNG, &properties) }
-    .ok_or("snapshot couldn't be encoded as PNG")?;
+  let png =
+    unsafe { bitmap.representationUsingType_properties(NSBitmapImageFileType::PNG, &properties) }
+      .ok_or("snapshot couldn't be encoded as PNG")?;
   Ok(BASE64_STANDARD.encode(png.to_vec()))
 }

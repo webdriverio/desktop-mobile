@@ -20,10 +20,9 @@ pub(super) fn take_screenshot(desktop: &DesktopService, reply: Reply<String>) {
 }
 
 fn surface_to_png_base64(surface: Surface) -> Result<String, String> {
-  let image = ImageSurface::try_from(surface).map_err(|_| "snapshot isn't an image surface".to_string())?;
+  let image =
+    ImageSurface::try_from(surface).map_err(|_| "snapshot isn't an image surface".to_string())?;
   let mut png = Vec::new();
-  image
-    .write_to_png(&mut png)
-    .map_err(|e| format!("couldn't encode the snapshot as PNG: {e}"))?;
+  image.write_to_png(&mut png).map_err(|e| format!("couldn't encode the snapshot as PNG: {e}"))?;
   Ok(BASE64_STANDARD.encode(png))
 }
