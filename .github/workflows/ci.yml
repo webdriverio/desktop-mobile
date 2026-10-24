@@ -1240,9 +1240,13 @@ jobs:
       contents: read
       statuses: write
     needs:
+      # A failure here skips every job that depends on it, and skipped reads as passing below.
+      - detect-changes
+      - build
       - lint
       - unit-matrix
       - browser-mode
+      - setup-automation-smoke
       - e2e-matrix
       - e2e-electron-window
       - e2e-tauri-linux
