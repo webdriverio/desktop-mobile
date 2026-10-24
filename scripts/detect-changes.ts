@@ -52,7 +52,7 @@ interface Classification {
   perFile: Array<{ file: string; verdict: Verdict }>;
 }
 
-// Core CI orchestration + release workflows: changes affect every service pipeline.
+// Core CI orchestration: changes affect every service pipeline.
 const CORE_INFRA_WORKFLOWS = new Set([
   'ci.yml',
   '_ci-detect-changes.reusable.yml',
@@ -60,18 +60,21 @@ const CORE_INFRA_WORKFLOWS = new Set([
   '_ci-lint.reusable.yml',
   '_ci-unit.reusable.yml',
   '_ci-package.reusable.yml',
-  'release.yml',
-  '_release.reusable.yml',
 ]);
 
-// Meta-workflows that never require service tests.
+// Meta-workflows that never require service tests. The release workflows are here because CI never runs them.
 const META_WORKFLOWS = new Set([
   'codeql.yml',
   'crate-drift.yml',
   'pr-title.yml',
   'auto-label-issues.yml',
   'expense.yml',
+  'release.yml',
+  '_release.reusable.yml',
+  'standing-pr.yml',
+  '_standing-pr-update.reusable.yml',
   'release-preview.yml',
+  'release-preview-comment.yml',
 ]);
 
 // Workspace / dependency / build / test configuration at the repo root.

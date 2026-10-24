@@ -79,7 +79,6 @@ describe('classifyFile', () => {
     // workflows
     ['.github/workflows/ci.yml', 'all'],
     ['.github/workflows/_ci-detect-changes.reusable.yml', 'all'],
-    ['.github/workflows/_release.reusable.yml', 'all'],
     ['.github/workflows/actions/setup-workspace/action.yml', 'all'],
     ['.github/workflows/_ci-e2e-electron.reusable.yml', 'electron'],
     ['.github/workflows/_ci-package-docker-tauri.reusable.yml', 'tauri'],
@@ -91,7 +90,12 @@ describe('classifyFile', () => {
     ['.github/workflows/_ci-build-react-native-ios-app.reusable.yml', 'react-native'],
     ['.github/workflows/codeql.yml', 'none'],
     ['.github/workflows/crate-drift.yml', 'none'],
+    ['.github/workflows/release.yml', 'none'],
+    ['.github/workflows/_release.reusable.yml', 'none'],
+    ['.github/workflows/standing-pr.yml', 'none'],
+    ['.github/workflows/_standing-pr-update.reusable.yml', 'none'],
     ['.github/workflows/release-preview.yml', 'none'],
+    ['.github/workflows/release-preview-comment.yml', 'none'],
     ['.github/workflows/some-future-workflow.yml', 'unknown'],
     ['.github/codeql/artifact-poisoning-analysis.json', 'none'],
     // scripts
