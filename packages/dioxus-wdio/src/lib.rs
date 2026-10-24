@@ -68,8 +68,10 @@ pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, regist
 /// });
 /// ```
 pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
+  // Unused for now; it's in the signature so native webview calls can use it without an API change.
+  let _ = dom;
   if automation::is_requested() {
-    wdio_dioxus_bridge::on_window(window, dom);
+    wdio_dioxus_bridge::window_state::register_window(window);
   }
 }
 
