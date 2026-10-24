@@ -589,19 +589,20 @@ async function testExample(
 
     // Build overrides and packages to install based on service type. Precedence
     // (lowest → highest): workspace, fixture source, local @wdio/* file overrides.
-    const overrides: Record<string, string> = {
-      ...workspaceOverrides,
-      ...preservedOverrides,
-      '@wdio/native-utils': `file:${packages.utilsPath}`,
-      '@wdio/native-spy': `file:${packages.spyPath}`,
-      '@wdio/native-core': `file:${packages.corePath}`,
+    const overrides: Record<string, string> = { ...workspaceOverrides, ...preservedOverrides };
+    // The packed tarballs under test: each is pinned by an override and becomes a direct dependency below.
+    const localPackages = new Set<string>();
+    const useLocal = (name: string, tarball: string) => {
+      overrides[name] = `file:${tarball}`;
+      localPackages.add(name);
     };
-    const packagesToInstall: string[] = [packages.utilsPath, packages.spyPath, packages.corePath];
+    useLocal('@wdio/native-utils', packages.utilsPath);
+    useLocal('@wdio/native-spy', packages.spyPath);
+    useLocal('@wdio/native-core', packages.corePath);
 
-    // Swap in a locally patched @wdio/utils when one has been packed to the repo root by
-    // scripts/update-packages.ts. Matched by pattern, not by pinned version: that script
-    // names the tarball after whatever version it packed, so a pinned name silently stops
-    // matching the moment upstream bumps — leaving a green run that tested nothing.
+    // Swap in a locally patched @wdio/utils when one has been packed to the repo root (`npm pack` in a
+    // webdriverio checkout). Matched by pattern, not by pinned version: the tarball is named after whatever
+    // version was packed, so a pinned name silently stops matching — leaving a green run that tested nothing.
     const wdioUtilsTarballs = readdirSync(rootDir).filter((entry) => /^wdio-utils-.+\.tgz$/.test(entry));
     if (wdioUtilsTarballs.length > 1) {
       throw new Error(
@@ -611,8 +612,7 @@ async function testExample(
     }
     if (wdioUtilsTarballs.length === 1) {
       const wdioUtilsTarball = join(rootDir, wdioUtilsTarballs[0]);
-      overrides['@wdio/utils'] = `file:${wdioUtilsTarball}`;
-      packagesToInstall.push(wdioUtilsTarball);
+      useLocal('@wdio/utils', wdioUtilsTarball);
       log(`  Adding @wdio/utils override: ${wdioUtilsTarball}`);
     }
 
@@ -620,32 +620,28 @@ async function testExample(
       if (!packages.electronServicePath || !packages.typesPath || !packages.cdpBridgePath) {
         throw new Error('Electron service packages not available');
       }
-      overrides['@wdio/electron-service'] = `file:${packages.electronServicePath}`;
-      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
-      overrides['@wdio/native-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
-      packagesToInstall.push(packages.typesPath, packages.cdpBridgePath, packages.electronServicePath);
+      useLocal('@wdio/native-types', packages.typesPath);
+      useLocal('@wdio/native-cdp-bridge', packages.cdpBridgePath);
+      useLocal('@wdio/electron-service', packages.electronServicePath);
     } else if (service === 'tauri') {
       if (!packages.tauriServicePath || !packages.typesPath) {
         throw new Error('Tauri service packages not available');
       }
-      overrides['@wdio/tauri-service'] = `file:${packages.tauriServicePath}`;
-      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
-      packagesToInstall.push(packages.typesPath, packages.tauriServicePath);
+      useLocal('@wdio/native-types', packages.typesPath);
+      useLocal('@wdio/tauri-service', packages.tauriServicePath);
     } else if (service === 'dioxus') {
       if (!packages.dioxusServicePath || !packages.typesPath) {
         throw new Error('Dioxus service packages not available');
       }
-      overrides['@wdio/dioxus-service'] = `file:${packages.dioxusServicePath}`;
-      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
-      packagesToInstall.push(packages.typesPath, packages.dioxusServicePath);
+      useLocal('@wdio/native-types', packages.typesPath);
+      useLocal('@wdio/dioxus-service', packages.dioxusServicePath);
     } else if (service === 'electrobun') {
       if (!packages.electrobunServicePath || !packages.typesPath || !packages.cdpBridgePath) {
         throw new Error('Electrobun service packages not available');
       }
-      overrides['@wdio/electrobun-service'] = `file:${packages.electrobunServicePath}`;
-      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
-      overrides['@wdio/native-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
-      packagesToInstall.push(packages.typesPath, packages.cdpBridgePath, packages.electrobunServicePath);
+      useLocal('@wdio/native-types', packages.typesPath);
+      useLocal('@wdio/native-cdp-bridge', packages.cdpBridgePath);
+      useLocal('@wdio/electrobun-service', packages.electrobunServicePath);
     } else if (service === 'react-native') {
       if (
         !packages.reactNativeServicePath ||
@@ -655,24 +651,17 @@ async function testExample(
       ) {
         throw new Error('React Native service packages not available');
       }
-      overrides['@wdio/react-native-service'] = `file:${packages.reactNativeServicePath}`;
-      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
-      overrides['@wdio/native-cdp-bridge'] = `file:${packages.cdpBridgePath}`;
-      overrides['@wdio/native-mobile-core'] = `file:${packages.mobileCorePath}`;
-      packagesToInstall.push(
-        packages.typesPath,
-        packages.cdpBridgePath,
-        packages.mobileCorePath,
-        packages.reactNativeServicePath,
-      );
+      useLocal('@wdio/native-types', packages.typesPath);
+      useLocal('@wdio/native-cdp-bridge', packages.cdpBridgePath);
+      useLocal('@wdio/native-mobile-core', packages.mobileCorePath);
+      useLocal('@wdio/react-native-service', packages.reactNativeServicePath);
     } else if (service === 'flutter') {
       if (!packages.flutterServicePath || !packages.typesPath || !packages.mobileCorePath) {
         throw new Error('Flutter service packages not available');
       }
-      overrides['@wdio/flutter-service'] = `file:${packages.flutterServicePath}`;
-      overrides['@wdio/native-types'] = `file:${packages.typesPath}`;
-      overrides['@wdio/native-mobile-core'] = `file:${packages.mobileCorePath}`;
-      packagesToInstall.push(packages.typesPath, packages.mobileCorePath, packages.flutterServicePath);
+      useLocal('@wdio/native-types', packages.typesPath);
+      useLocal('@wdio/native-mobile-core', packages.mobileCorePath);
+      useLocal('@wdio/flutter-service', packages.flutterServicePath);
     }
 
     // The sandbox is its own workspace root, so pnpm resolves `workspace:` specs
@@ -695,6 +684,13 @@ async function testExample(
         log(`  Resolving workspace dependency: ${name} -> ${resolved}`);
       }
     }
+    // Depend on each local tarball here rather than `pnpm add`-ing its path, so no path goes through a shell.
+    for (const name of localPackages) {
+      const field =
+        ['dependencies', 'devDependencies', 'optionalDependencies'].find((f) => packageJson[f]?.[name]) ??
+        'dependencies';
+      packageJson[field] = { ...packageJson[field], [name]: overrides[name] };
+    }
     writeFileSync(packageJsonPath, JSON.stringify(packageJson, null, 2));
 
     // pnpm reads settings only from pnpm-workspace.yaml; a `pnpm` field in package.json
@@ -715,13 +711,7 @@ async function testExample(
       }),
     );
 
-    // Install all dependencies with pnpm
     execCommand('pnpm install', packageDir, `Installing dependencies for ${packageName}`);
-
-    // Install local packages. -w because the sandbox is a single-project workspace,
-    // so its root *is* the intended target.
-    const addCommand = `pnpm add -w ${packagesToInstall.join(' ')}`;
-    execCommand(addCommand, packageDir, `Installing local packages for ${packageName}`);
 
     // Ensure logs directory exists for WebdriverIO output
     mkdirSync(logsDir, { recursive: true });
