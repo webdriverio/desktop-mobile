@@ -415,10 +415,10 @@ GitHub release notes are published per **user-installed** package — not per in
 |-----------|-----------------------------|-------------------------|
 | Electron  | `@wdio/electron-service` | `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-core` |
 | Tauri     | `@wdio/tauri-service`, `tauri-plugin`, `tauri-plugin-webdriver` | — |
-| Dioxus    | `@wdio/dioxus-service` | `wdio-dioxus`, `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver` |
+| Dioxus    | `@wdio/dioxus-service`, `wdio-dioxus` | `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver` |
 | Electrobun | `@wdio/electrobun-service` | `@wdio/native-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types` |
 
-Tauri publishes three sets of release notes because `tauri-plugin` and `tauri-plugin-webdriver` are installed and configured directly by users in their Tauri app (Cargo dependency, capability/permission setup), so their breaking changes need their own changelog entries. Electron's internal packages have no equivalent direct-install surface. Dioxus apps add one crate, `wdio-dioxus`, but it's tied to the service: it's released alongside `@wdio/dioxus-service`, and its changes go in the service's release notes.
+Tauri's plugins and Dioxus's `wdio-dioxus` get their own release notes because apps install them directly: the plugins as Cargo dependencies with capability and permission setup, `wdio-dioxus` as a Cargo dependency. Their breaking changes need their own changelog entries. The packages these pull in, such as the Dioxus bridge and embedded driver, are skipped, as Electron's internal packages are.
 
 ## Getting Help
 

@@ -117,7 +117,7 @@ All npm packages use the `@wdio/` scope:
 
 Rust crates use the `wdio-` prefix (kebab-case, matching Cargo conventions):
 
-- `wdio-dioxus` — the crate apps add; installs the bridge and, for the embedded provider, the embedded driver
+- `wdio-dioxus` — app-side crate; installs the bridge and, for the embedded provider, the embedded driver
 - `wdio-dioxus-bridge` — bridge crate (not "plugin" — Dioxus has no plugin-trait system)
 - `wdio-dioxus-embedded-driver` — in-process WebDriver server
 - `wdio-dioxus-driver` — external WebDriver proxy (Windows `'external'` provider)

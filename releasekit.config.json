@@ -174,8 +174,7 @@
         "@wdio/native-core",
         "wdio-dioxus-bridge",
         "wdio-dioxus-embedded-driver",
-        "wdio-dioxus-driver",
-        "wdio-dioxus"
+        "wdio-dioxus-driver"
       ]
     }
   }

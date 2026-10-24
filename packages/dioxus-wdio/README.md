@@ -22,7 +22,7 @@ fn main() {
 }
 ```
 
-Call `install()` last in your `Config` chain. Dioxus keeps one `with_on_window` callback and one custom head, and a later call replaces the ones `install()` sets.
+Call `install()` last in your `Config` chain: a later `with_on_window` or `with_custom_head` call replaces the ones `install()` sets.
 
 See the [App Setup guide](https://github.com/webdriverio/desktop-mobile/blob/main/packages/dioxus-service/docs/app-setup.md) for building and verifying the app.
 

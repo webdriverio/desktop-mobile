@@ -1,5 +1,5 @@
-//! Internal crate used by [`wdio-dioxus-embedded-driver`] to connect a Dioxus
-//! desktop app to [`@wdio/dioxus-service`]. It provides the `wdio://` IPC
+//! Internal crate used by [`wdio-dioxus`] and [`wdio-dioxus-embedded-driver`]
+//! to connect a Dioxus desktop app to [`@wdio/dioxus-service`]. It provides the `wdio://` IPC
 //! channel ([`invoke`]), log forwarding ([`log_bridge`]), the window registry
 //! behind `listWindows` / `switchWindow` ([`window_state`]), automation
 //! detection ([`automation`]) and a deeplink helper ([`deeplink`]).
@@ -10,6 +10,7 @@
 //! [`window_state::register_window`] from it.
 //!
 //! [`@wdio/dioxus-service`]: https://www.npmjs.com/package/@wdio/dioxus-service
+//! [`wdio-dioxus`]: https://docs.rs/wdio-dioxus
 //! [`wdio-dioxus-embedded-driver`]: https://docs.rs/wdio-dioxus-embedded-driver
 
 pub mod automation;

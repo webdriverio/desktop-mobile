@@ -779,8 +779,7 @@ async function testExample(
       }
     }
 
-    // For Dioxus apps, copy wdio-dioxus and the crates it depends on by path, keeping
-    // their sibling layout so their own `../dioxus-*` path deps still resolve.
+    // Copy the crates with their sibling layout, so their own `../dioxus-*` path deps still resolve.
     if (service === 'dioxus') {
       const cargoTomlPath = join(packageDir, 'src-dioxus', 'Cargo.toml');
 

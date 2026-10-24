@@ -24,22 +24,20 @@ use dioxus_desktop::Config;
 
 pub use wdio_dioxus_bridge::{automation, deeplink, window_state, CommandRegistry};
 
-/// Set to `external` by `wdio-dioxus-driver`, which drives the app from
-/// outside, so the app needs the bridge but not its own WebDriver server.
+// Set to `external` by `wdio-dioxus-driver`.
 const PROVIDER_ENV_VAR: &str = "WDIO_DIOXUS_PROVIDER";
 
 /// Installs WDIO support into a Dioxus [`Config`]. Does nothing unless
 /// `@wdio/dioxus-service` launched the app.
 ///
-/// Call it last in your `Config` chain: Dioxus keeps one `with_on_window`
-/// callback and one custom head, and a later call replaces the bridge's.
+/// Call it last in your `Config` chain: a later `with_on_window` or
+/// `with_custom_head` call replaces the bridge's.
 #[must_use]
 pub fn install(config: Config) -> Config {
   install_with_commands(config, |_| {})
 }
 
-/// Like [`install`], but registers the app's own commands first. Tests call
-/// them with `browser.dioxus.execute(({ invoke }) => invoke('name'))`.
+/// Like [`install`], but also registers app commands that tests can call.
 ///
 /// ```ignore
 /// config = wdio_dioxus::install_with_commands(config, |registry| {
