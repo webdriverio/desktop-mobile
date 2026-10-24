@@ -80,14 +80,14 @@
     "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json"
   },
   "devDependencies": {
-    "@biomejs/biome": "2.5.15",
+    "@biomejs/biome": "2.6.2",
     "@inquirer/prompts": "^8.7.4",
     "@octokit/rest": "^22.0.1",
     "@releasekit/release": "^0.42.1",
     "@types/node": "^26.6.5",
     "@types/shelljs": "^0.10.0",
     "@typescript-eslint/parser": "^8.72.0",
-    "@vitest/eslint-plugin": "^1.6.27",
+    "@vitest/eslint-plugin": "^1.6.28",
     "chalk": "^6.0.1",
     "cross-env": "^10.1.0",
     "eslint": "^10.13.0",
@@ -98,7 +98,7 @@
     "ora": "^9.4.1",
     "shelljs": "^0.10.0",
     "shx": "^0.4.0",
-    "turbo": "2.11.9",
+    "turbo": "2.11.10",
     "typescript": "^6.0.3",
     "vitest": "^5.0.5",
     "yaml": "^2.9.1"

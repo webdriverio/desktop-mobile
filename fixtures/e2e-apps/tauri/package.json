@@ -27,6 +27,6 @@
     "@wdio/spec-reporter": "^9.31.2",
     "@wdio/tauri-service": "workspace:*",
     "typescript": "^6.0.3",
-    "vite": "^8.3.4"
+    "vite": "^8.3.5"
   }
 }
