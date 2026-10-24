@@ -20,6 +20,7 @@ default = [ "embedded" ]
 embedded = [ "dep:wdio-dioxus-embedded-driver" ]
 
 [dependencies]
+dioxus-core = "0.7"
 dioxus-desktop = "0.7"
 
 [dependencies.wdio-dioxus-bridge]

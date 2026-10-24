@@ -4653,6 +4653,7 @@ dependencies = [
 name = "wdio-dioxus"
 version = "1.1.0-next.0"
 dependencies = [
+ "dioxus-core",
  "dioxus-desktop",
  "wdio-dioxus-bridge",
  "wdio-dioxus-embedded-driver",
@@ -4662,6 +4663,7 @@ dependencies = [
 name = "wdio-dioxus-bridge"
 version = "1.0.0-next.3"
 dependencies = [
+ "dioxus-core",
  "dioxus-desktop",
  "serde",
  "serde_json",

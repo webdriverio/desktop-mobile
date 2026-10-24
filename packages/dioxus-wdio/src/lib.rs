@@ -20,9 +20,12 @@
 //! [`wdio-dioxus-bridge`]: https://docs.rs/wdio-dioxus-bridge
 //! [`wdio-dioxus-embedded-driver`]: https://docs.rs/wdio-dioxus-embedded-driver
 
-use dioxus_desktop::Config;
+use std::sync::Arc;
 
-pub use wdio_dioxus_bridge::{automation, deeplink, window_state, CommandRegistry};
+use dioxus_core::VirtualDom;
+use dioxus_desktop::{tao::window::Window, Config};
+
+pub use wdio_dioxus_bridge::{automation, deeplink, CommandRegistry};
 
 // Set to `external` by `wdio-dioxus-driver`.
 const PROVIDER_ENV_VAR: &str = "WDIO_DIOXUS_PROVIDER";
@@ -51,6 +54,22 @@ pub fn install_with_commands<F: FnOnce(&CommandRegistry)>(config: Config, regist
     Mode::Off => config,
     Mode::Embedded => install_embedded(config, register),
     Mode::BridgeOnly => install_bridge(config, register),
+  }
+}
+
+/// Registers a window with WDIO, for apps that set their own `with_on_window`
+/// callback. Set it after [`install`], which it replaces, and call this from it:
+///
+/// ```ignore
+/// config = config.with_on_window(|window, dom| {
+///     // the app's own window setup
+///     #[cfg(debug_assertions)]
+///     wdio_dioxus::on_window(&window, dom);
+/// });
+/// ```
+pub fn on_window(window: &Arc<Window>, dom: &mut VirtualDom) {
+  if automation::is_requested() {
+    wdio_dioxus_bridge::on_window(window, dom);
   }
 }
 

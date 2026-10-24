@@ -1,13 +1,14 @@
 //! Internal crate used by [`wdio-dioxus`] and [`wdio-dioxus-embedded-driver`]
-//! to connect a Dioxus desktop app to [`@wdio/dioxus-service`]. It provides the `wdio://` IPC
-//! channel ([`invoke`]), log forwarding ([`log_bridge`]), the window registry
-//! behind `listWindows` / `switchWindow` ([`window_state`]), automation
-//! detection ([`automation`]) and a deeplink helper ([`deeplink`]).
+//! to connect a Dioxus desktop app to [`@wdio/dioxus-service`]. It provides
+//! the `wdio://` IPC channel ([`invoke`]), log forwarding ([`log_bridge`]),
+//! the window registry behind `listWindows` / `switchWindow`
+//! ([`window_state`]), automation detection ([`automation`]) and a deeplink
+//! helper ([`deeplink`]).
 //!
 //! [`install`] registers each window from a [`Config::with_on_window`]
 //! callback. Dioxus keeps only one, so a later `with_on_window` call replaces
-//! the bridge's; an app that needs its own callback must call
-//! [`window_state::register_window`] from it.
+//! the bridge's; an app that needs its own callback must call [`on_window`]
+//! from it.
 //!
 //! [`@wdio/dioxus-service`]: https://www.npmjs.com/package/@wdio/dioxus-service
 //! [`wdio-dioxus`]: https://docs.rs/wdio-dioxus
@@ -20,7 +21,10 @@ pub mod invoke;
 pub mod log_bridge;
 pub mod window_state;
 
-use dioxus_desktop::Config;
+use std::sync::Arc;
+
+use dioxus_core::VirtualDom;
+use dioxus_desktop::{tao::window::Window, Config};
 use serde_json::{json, Value};
 
 pub use invoke::CommandRegistry;
@@ -41,6 +45,13 @@ const GUEST_JS_BUNDLE: &str = include_str!(concat!(env!("OUT_DIR"), "/guest_js_b
 /// exists before app code runs.
 pub fn install(config: Config) -> Config {
   install_with_registry(config, CommandRegistry::new())
+}
+
+/// Registers a window with the bridge. [`install`]'s `with_on_window` callback
+/// calls it; an app that replaces that callback calls it from its own.
+pub fn on_window(window: &Arc<Window>, _dom: &mut VirtualDom) {
+  let label = window_state::register_window(window);
+  tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
 }
 
 /// Variant of [`install`] that accepts a pre-populated [`CommandRegistry`].
@@ -111,10 +122,7 @@ fn install_with_registry_and_config(
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
     .with_custom_head(head)
-    .with_on_window(|window, _dom| {
-      let label = window_state::register_window(&window);
-      tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
-    })
+    .with_on_window(|window, dom| on_window(&window, dom))
 }
 
 fn register_window_commands(registry: &CommandRegistry) {
