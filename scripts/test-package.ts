@@ -600,9 +600,7 @@ async function testExample(
     useLocal('@wdio/native-spy', packages.spyPath);
     useLocal('@wdio/native-core', packages.corePath);
 
-    // Swap in a locally patched @wdio/utils when one has been packed to the repo root (`npm pack` in a
-    // webdriverio checkout). Matched by pattern, not by pinned version: the tarball is named after whatever
-    // version was packed, so a pinned name silently stops matching — leaving a green run that tested nothing.
+    // To test a patched @wdio/utils, `npm pack` it from a webdriverio checkout into the repo root.
     const wdioUtilsTarballs = readdirSync(rootDir).filter((entry) => /^wdio-utils-.+\.tgz$/.test(entry));
     if (wdioUtilsTarballs.length > 1) {
       throw new Error(
