@@ -51,7 +51,6 @@
   },
   "dependencies": {
     "@wdio/globals": "catalog:default",
-    "@wdio/logger": "catalog:default",
     "@wdio/native-core": "workspace:*",
     "@wdio/native-spy": "workspace:*",
     "@wdio/native-types": "workspace:*",
