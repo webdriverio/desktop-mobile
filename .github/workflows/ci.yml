@@ -43,9 +43,10 @@ jobs:
     #     Actions → CI → Run workflow on the PR's branch. Both arrive as a workflow_dispatch with
     #     no pull_request context, which bypasses this gate.
     #   - The releasekit standing PR (`release/*`): it only carries version bumps + changelogs on
-    #     top of main, already CI'd on each feeder PR and re-CI'd on push to main at merge, so
-    #     rebuilding the whole cross-platform matrix here is pure waste. `[skip ci]` can't be used
-    #     (a squash-merge would inherit it and suppress the publish workflow).
+    #     top of main, already CI'd on each feeder PR, so rebuilding the whole cross-platform matrix
+    #     here is pure waste. Its merge commit on main runs lint only (see _ci-detect-changes).
+    #     `[skip ci]` can't be used (a squash-merge would inherit it and suppress the publish
+    #     workflow).
     if: github.event.pull_request.user.login != 'dependabot[bot]' && !startsWith(github.head_ref, 'release/')
     uses: ./.github/workflows/_ci-detect-changes.reusable.yml
     with:

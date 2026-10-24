@@ -292,6 +292,22 @@ describe('classifyChanges decisions', () => {
     expect(d.lintOnly).toBe(false);
   });
 
+  it('should run lint-only for a release commit, whatever it touched', () => {
+    const files = [
+      'CHANGELOG.md',
+      'packages/native-utils/package.json',
+      'packages/tauri-service/package.json',
+      'packages/tauri-plugin-webdriver/Cargo.toml',
+      'fixtures/e2e-apps/tauri/Cargo.lock',
+    ];
+    expect(decide(files).lintOnly).toBe(false);
+
+    const d = classifyChanges(files, SERVICES, { releaseCommit: true, dependents: DEPENDENTS });
+    expect(Object.values(d.runs).some(Boolean)).toBe(false);
+    expect(d.sharedChanges).toBe(false);
+    expect(d.lintOnly).toBe(true);
+  });
+
   it('should run lint-only when no files changed', () => {
     const d = decide([]);
     expect(d.lintOnly).toBe(true);
