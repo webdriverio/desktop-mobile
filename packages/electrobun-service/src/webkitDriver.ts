@@ -22,8 +22,8 @@ export interface WebKitDriverProcess {
   cleanupDirs?: string[];
 }
 
-// The `webkit2gtk-driver` package installs `/usr/bin/WebKitWebDriver`; the versioned libdir
-// paths cover distros that don't symlink it.
+// Distro packages install `/usr/bin/WebKitWebDriver`; the versioned libdir paths cover distros
+// that don't symlink it.
 const COMMON_DRIVER_PATHS = [
   '/usr/bin/WebKitWebDriver',
   '/usr/local/bin/WebKitWebDriver',

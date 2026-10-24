@@ -43,9 +43,10 @@ jobs:
     #     Actions → CI → Run workflow on the PR's branch. Both arrive as a workflow_dispatch with
     #     no pull_request context, which bypasses this gate.
     #   - The releasekit standing PR (`release/*`): it only carries version bumps + changelogs on
-    #     top of main, already CI'd on each feeder PR and re-CI'd on push to main at merge, so
-    #     rebuilding the whole cross-platform matrix here is pure waste. `[skip ci]` can't be used
-    #     (a squash-merge would inherit it and suppress the publish workflow).
+    #     top of main, already CI'd on each feeder PR, so rebuilding the whole cross-platform matrix
+    #     here is pure waste. Its merge commit on main runs lint only (see _ci-detect-changes).
+    #     `[skip ci]` can't be used (a squash-merge would inherit it and suppress the publish
+    #     workflow).
     if: github.event.pull_request.user.login != 'dependabot[bot]' && !startsWith(github.head_ref, 'release/')
     uses: ./.github/workflows/_ci-detect-changes.reusable.yml
     with:
@@ -137,6 +138,9 @@ jobs:
         packages/tauri-plugin-webdriver
       test-crates: |
         packages/tauri-plugin-webdriver
+      generated-permissions-crates: |
+        packages/tauri-plugin
+        packages/tauri-plugin-webdriver
 
   clippy-tauri-crates-windows:
     name: Clippy Tauri Crates [Windows]
@@ -176,6 +180,7 @@ jobs:
         packages/dioxus-bridge
         packages/dioxus-driver
         packages/dioxus-embedded-driver
+        packages/dioxus-wdio
 
   # Build Tauri E2E app binaries - only if Tauri tests will run
   build-tauri-e2e-app-linux:
@@ -1237,9 +1242,13 @@ jobs:
       contents: read
       statuses: write
     needs:
+      # If one of these fails, its dependents are skipped, not failed, so it has to be gated itself.
+      - detect-changes
+      - build
       - lint
       - unit-matrix
       - browser-mode
+      - setup-automation-smoke
       - e2e-matrix
       - e2e-electron-window
       - e2e-tauri-linux

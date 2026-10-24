@@ -13,20 +13,20 @@
     "test": "wdio run ./wdio.conf.ts"
   },
   "dependencies": {
-    "@tauri-apps/api": "2.12.1",
-    "@tauri-apps/plugin-deep-link": "2.6.1",
-    "@tauri-apps/plugin-fs": "2.6.0",
-    "@tauri-apps/plugin-log": "2.10.0",
+    "@tauri-apps/api": "2.12.4",
+    "@tauri-apps/plugin-deep-link": "2.6.2",
+    "@tauri-apps/plugin-fs": "2.7.1",
+    "@tauri-apps/plugin-log": "2.10.1",
     "@wdio/tauri-plugin": "workspace:*"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "2.12.1",
+    "@tauri-apps/cli": "2.12.4",
     "@wdio/cli": "^9.31.9",
     "@wdio/local-runner": "^9.31.9",
     "@wdio/mocha-framework": "^9.31.9",
     "@wdio/spec-reporter": "^9.31.2",
     "@wdio/tauri-service": "workspace:*",
     "typescript": "^6.0.3",
-    "vite": "^8.3.2"
+    "vite": "^8.3.4"
   }
 }

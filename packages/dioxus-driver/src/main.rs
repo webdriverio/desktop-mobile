@@ -12,9 +12,8 @@
 //! the scenes. It requires two separate ports since two distinct
 //! [WebDriver Remote Ends](https://www.w3.org/TR/webdriver/#dfn-remote-ends) run.
 //!
-//! v1 supports Windows only (matching the spike findings in
-//! `spike/FINDINGS.md` — Linux requires an upstream Dioxus PR exposing Wry's
-//! automation toggle).
+//! v1 supports Windows only. Linux requires an upstream Dioxus change exposing
+//! Wry's automation toggle (webdriverio/desktop-mobile#713).
 
 #[cfg(any(target_os = "linux", windows))]
 mod cli;
@@ -45,9 +44,7 @@ fn main() {
 
   // start the native webdriver on the port specified in args
   let mut driver = webdriver::native(&args);
-  let driver = driver
-    .spawn()
-    .expect("error while running native webdriver");
+  let driver = driver.spawn().expect("error while running native webdriver");
 
   // start our webdriver intermediary node
   if let Err(e) = server::run(args, driver) {

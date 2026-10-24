@@ -124,6 +124,37 @@ describe('startEmbeddedDriver', () => {
     setTimeout(() => fakeChild.emit('error', new Error('ENOENT')), 20);
 
     await expect(promise).rejects.toThrow(/Failed to spawn Dioxus app/);
+    await expect(promise).rejects.toThrow(/dx build --desktop/);
+  });
+
+  it('explains that the server never started when nothing answers', async () => {
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
+
+    const promise = startEmbeddedDriver('/app/dioxus-app', 4444, {
+      startTimeout: 200,
+    } as DioxusServiceOptions);
+
+    await expect(promise).rejects.toThrow(/did not become ready on port 4444/);
+    await expect(promise).rejects.toThrow(/nothing answered, so the server never started/);
+    await expect(promise).rejects.toThrow(/calls wdio_dioxus::install\(config\) inside #\[cfg\(debug_assertions\)\]/);
+  });
+
+  it('explains that the window never registered when the server answers but is not ready', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        json: vi.fn().mockResolvedValue({ value: { ready: false } }),
+      }),
+    );
+
+    const promise = startEmbeddedDriver('/app/dioxus-app', 4444, {
+      startTimeout: 200,
+    } as DioxusServiceOptions);
+
+    await expect(promise).rejects.toThrow(/did not become ready on port 4444/);
+    await expect(promise).rejects.toThrow(/window never registered with the bridge/);
+    await expect(promise).rejects.toThrow(/call wdio_dioxus::on_window from it/);
   });
 
   it('resolves with proc when server becomes ready', async () => {

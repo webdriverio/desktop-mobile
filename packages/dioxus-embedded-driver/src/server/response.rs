@@ -1,5 +1,3 @@
-// Copied verbatim from packages/tauri-plugin-webdriver/src/server/response.rs
-// (no Tauri deps in this file).
 use axum::{
   http::StatusCode,
   response::{IntoResponse, Response},
@@ -25,11 +23,7 @@ impl WebDriverResponse {
 
 impl IntoResponse for WebDriverResponse {
   fn into_response(self) -> Response {
-    (
-      StatusCode::OK,
-      [("Content-Type", "application/json; charset=utf-8")],
-      Json(self),
-    )
+    (StatusCode::OK, [("Content-Type", "application/json; charset=utf-8")], Json(self))
       .into_response()
   }
 }
@@ -44,12 +38,7 @@ pub struct WebDriverErrorResponse {
 
 impl WebDriverErrorResponse {
   pub fn new(status: StatusCode, error: &str, message: &str, stacktrace: Option<String>) -> Self {
-    Self {
-      status,
-      error: error.to_string(),
-      message: message.to_string(),
-      stacktrace,
-    }
+    Self { status, error: error.to_string(), message: message.to_string(), stacktrace }
   }
 
   pub fn invalid_session_id(id: &str) -> Self {
@@ -69,7 +58,12 @@ impl WebDriverErrorResponse {
   }
 
   pub fn script_timeout() -> Self {
-    Self::new(StatusCode::INTERNAL_SERVER_ERROR, "script timeout", "Script execution timed out", None)
+    Self::new(
+      StatusCode::INTERNAL_SERVER_ERROR,
+      "script timeout",
+      "Script execution timed out",
+      None,
+    )
   }
 
   pub fn unknown_error(message: &str) -> Self {
@@ -85,7 +79,12 @@ impl WebDriverErrorResponse {
   }
 
   pub fn stale_element_reference() -> Self {
-    Self::new(StatusCode::NOT_FOUND, "stale element reference", "Element is no longer attached to the DOM", None)
+    Self::new(
+      StatusCode::NOT_FOUND,
+      "stale element reference",
+      "Element is no longer attached to the DOM",
+      None,
+    )
   }
 
   pub fn no_such_cookie(name: &str) -> Self {
@@ -102,12 +101,7 @@ impl IntoResponse for WebDriverErrorResponse {
         "stacktrace": self.stacktrace.unwrap_or_default()
       }
     });
-    (
-      self.status,
-      [("Content-Type", "application/json; charset=utf-8")],
-      Json(body),
-    )
-      .into_response()
+    (self.status, [("Content-Type", "application/json; charset=utf-8")], Json(body)).into_response()
   }
 }
 

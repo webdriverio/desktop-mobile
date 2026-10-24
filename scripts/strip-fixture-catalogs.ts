@@ -127,6 +127,6 @@ function main(): void {
   execFileSync('pnpm', ['install', '--lockfile-only'], { stdio: 'inherit' });
 }
 
-if (process.argv[1] && import.meta.url === `file://${process.argv[1]}`) {
+if (import.meta.main) {
   main();
 }

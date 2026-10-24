@@ -41,7 +41,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Update standing release PR
-        uses: goosewobbler/releasekit@v0.41.2
+        uses: goosewobbler/releasekit@v0.42.1
         with:
           mode: standing-pr-update
           node-version: '24'
@@ -52,3 +52,4 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ github.token }}
           OLLAMA_API_KEY: ${{ secrets.ollama_api_key }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}

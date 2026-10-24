@@ -91,4 +91,9 @@ jobs:
         env:
           CHANGED_FILES: ${{ steps.changes.outputs.any_files }}
           FORCE_ALL: ${{ inputs.force_all }}
+          # releasekit's release commit, which the standing PR's squash merge authors as a bot.
+          RELEASE_COMMIT: >-
+            ${{ github.event_name == 'push'
+            && endsWith(github.event.head_commit.author.name, '[bot]')
+            && startsWith(github.event.head_commit.message, 'chore: release ') }}
         run: node scripts/detect-changes.ts

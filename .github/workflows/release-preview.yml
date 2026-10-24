@@ -28,6 +28,8 @@ env:
 jobs:
   preview:
     name: Release Preview
+    # releasekit skips its standing PR (ci.standingPr.branch) itself, but only after a full checkout.
+    if: ${{ github.head_ref != 'release/next' || github.event.pull_request.head.repo.full_name != github.repository }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -37,7 +39,7 @@ jobs:
 
       - name: Release Preview
         id: preview
-        uses: goosewobbler/releasekit@v0.41.2
+        uses: goosewobbler/releasekit@v0.42.1
         with:
           node-version: '24'
           mode: preview
@@ -48,6 +50,9 @@ jobs:
           project-dir: .
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          # releasekit validates the whole config, so the model can't be empty, but the preview
+          # skips release notes, so any value works. vars.OLLAMA_MODEL would be empty on fork PRs.
+          OLLAMA_MODEL: unused
 
       # Only the body is staged. The consumer resolves the target PR from the
       # triggering run's head SHA — carrying a PR number here would let a fork

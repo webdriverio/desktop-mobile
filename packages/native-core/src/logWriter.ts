@@ -77,6 +77,7 @@ export class LogWriter {
    */
   write(message: string, prefixedMessage?: string): void {
     if (!this.logStream) {
+      // biome-ignore lint/suspicious/noConsole: stdout fallback before the log file is open
       console.log(message);
       return;
     }

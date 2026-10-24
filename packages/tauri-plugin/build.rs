@@ -18,18 +18,14 @@
 // https://v2.tauri.app/develop/plugins/develop/#permissions
 
 const COMMANDS: &[&str] = &[
-    "execute",
-    "log_frontend",
-    "debug_plugin",
-    "get_active_window_label",
-    "get_window_states",
-    "list_windows",
+  "execute",
+  "log_frontend",
+  "debug_plugin",
+  "get_active_window_label",
+  "get_window_states",
+  "list_windows",
 ];
 
-
 fn main() {
-    tauri_plugin::Builder::new(COMMANDS)
-        .android_path("android")
-        .ios_path("ios")
-        .build();
+  tauri_plugin::Builder::new(COMMANDS).build();
 }

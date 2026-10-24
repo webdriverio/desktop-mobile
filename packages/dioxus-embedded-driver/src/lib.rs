@@ -1,6 +1,9 @@
 //! `wdio-dioxus-embedded-driver` — in-process WebDriver HTTP server for
 //! Dioxus desktop apps.
 //!
+//! Apps should add `wdio-dioxus` instead, which installs this server. Calling
+//! [`install`] directly still works.
+//!
 //! Instead of requiring an external WebDriver binary (like msedgedriver or
 //! WebKitWebDriver), this crate starts an Axum-based WebDriver HTTP server
 //! *inside* the Dioxus app process. Commands are routed to the webview
@@ -21,9 +24,9 @@
 //! }
 //! ```
 //!
-//! The server port is read from `WDIO_EMBEDDED_PORT` (default 4444). The
-//! service's `providers/embedded.ts` sets this env var on the spawned app
-//! process.
+//! [`install`] does nothing unless `DIOXUS_WEBVIEW_AUTOMATION=true`, so
+//! everyday debug runs don't start the server. `@wdio/dioxus-service` sets it,
+//! along with the port in `WDIO_EMBEDDED_PORT` (default 4444).
 
 pub mod server;
 pub mod webdriver;
@@ -47,29 +50,16 @@ pub const PORT_ENV_VAR: &str = "WDIO_EMBEDDED_PORT";
 /// injection), wiring the polling loop that makes script execution work.
 /// Call this **last** in your `Config` builder chain so the bridge's
 /// `with_on_window` hook isn't shadowed by subsequent calls.
+///
+/// Returns `config` unchanged unless the app is running under
+/// `@wdio/dioxus-service` (see [`automation::is_requested`]).
 #[must_use]
 pub fn install(config: Config) -> Config {
-  let port = std::env::var(PORT_ENV_VAR)
-    .ok()
-    .and_then(|s| s.parse::<u16>().ok())
-    .unwrap_or(DEFAULT_PORT);
-
-  // Use a port-scoped temp directory so concurrent instances (multiremote)
-  // each get their own WebView2/WebKit user data folder and don't conflict.
-  let data_dir = std::env::temp_dir().join(format!("wdio-dioxus-{port}"));
-  let config = config.with_data_directory(data_dir);
-
-  // Install bridge + register embedded commands + inject port into guest-js.
-  let config = wdio_dioxus_bridge::install_with_embedded_port(config, port);
-
-  // Start the embedded WebDriver HTTP server on a background tokio runtime.
-  server::start(port);
-  tracing::info!(port, "wdio-dioxus-embedded-driver started");
-
-  config
+  install_with_commands(config, |_| {})
 }
 
-/// Like [`install`] but calls `register` with a fresh [`CommandRegistry`]
+/// Like [`install`] but calls `register` with a fresh
+/// [`CommandRegistry`](wdio_dioxus_bridge::CommandRegistry)
 /// so the app can add custom commands before the bridge is wired up.
 ///
 /// # Example
@@ -83,10 +73,15 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
   config: Config,
   register: F,
 ) -> Config {
-  let port = std::env::var(PORT_ENV_VAR)
-    .ok()
-    .and_then(|s| s.parse::<u16>().ok())
-    .unwrap_or(DEFAULT_PORT);
+  if !automation::is_requested() {
+    tracing::debug!(
+      "not running under @wdio/dioxus-service; wdio-dioxus-embedded-driver not started"
+    );
+    return config;
+  }
+
+  let port =
+    std::env::var(PORT_ENV_VAR).ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT);
 
   // Use a port-scoped temp directory so concurrent instances (multiremote)
   // each get their own WebView2/WebKit user data folder and don't conflict.
@@ -97,6 +92,6 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
   register(&registry);
   let config = wdio_dioxus_bridge::install_with_embedded_port_and_registry(config, registry, port);
   server::start(port);
-  tracing::info!(port, "wdio-dioxus-embedded-driver started (with custom commands)");
+  tracing::info!(port, "wdio-dioxus-embedded-driver started");
   config
 }

@@ -27,8 +27,7 @@ impl AppState {
 
   /// Block until at least one window is available (or timeout elapses).
   pub async fn wait_for_window(&self, timeout_ms: u64) -> Option<String> {
-    let deadline = tokio::time::Instant::now()
-      + std::time::Duration::from_millis(timeout_ms);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
     loop {
       let labels = self.list_windows();
       if let Some(label) = labels.into_iter().next() {
@@ -43,8 +42,7 @@ impl AppState {
 
   /// Block until a window with the given label is registered (or timeout elapses).
   pub async fn wait_for_label(&self, label: &str, timeout_ms: u64) -> bool {
-    let deadline = tokio::time::Instant::now()
-      + std::time::Duration::from_millis(timeout_ms);
+    let deadline = tokio::time::Instant::now() + std::time::Duration::from_millis(timeout_ms);
     loop {
       if self.list_windows().contains(&label.to_string()) {
         return true;

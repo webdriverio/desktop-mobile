@@ -1,3 +1,4 @@
+import { WEBKIT_WEBDRIVER_INSTALL_HINT } from '@wdio/native-utils';
 import { describe, expect, it } from 'vitest';
 import { SevereServiceError } from 'webdriverio';
 
@@ -59,11 +60,11 @@ describe('nativeRendererUnsupportedPlatform', () => {
 });
 
 describe('webKitWebDriverNotFound', () => {
-  it('should be a SevereServiceError naming the install package', () => {
+  it('should be a SevereServiceError carrying the shared install hint', () => {
     const err = webKitWebDriverNotFound();
     expect(err).toBeInstanceOf(SevereServiceError);
-    expect(err.message).toContain('WebKitWebDriver');
-    expect(err.message).toContain('webkit2gtk-driver');
+    expect(err.message).toContain('could not find WebKitWebDriver');
+    expect(err.message).toContain(WEBKIT_WEBDRIVER_INSTALL_HINT);
   });
 });
 

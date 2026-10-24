@@ -2,7 +2,7 @@ import { exec, execSync, spawn } from 'node:child_process';
 import { chmodSync, existsSync, mkdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { promisify } from 'node:util';
-import { createLogger, Err, Ok, type Result } from '@wdio/native-utils';
+import { createLogger, Err, getWebKitWebDriverInstallCommand, Ok, type Result } from '@wdio/native-utils';
 import type { TauriServiceOptions } from './types.js';
 
 const execAsync = promisify(exec);
@@ -281,24 +281,6 @@ export async function detectPackageManager(): Promise<string> {
   return 'unknown';
 }
 
-/**
- * Get install command for webkit2gtk-driver based on package manager
- * @public Exported for testing
- */
-export function getWebKitDriverInstallCommand(packageManager: string): string {
-  const installCommands: Record<string, string> = {
-    apt: 'sudo apt-get install -y webkit2gtk-driver',
-    dnf: 'sudo dnf install -y webkit2gtk-driver',
-    yum: 'sudo yum install -y webkit2gtk-driver',
-    zypper: 'sudo zypper install -y webkit2gtk-driver',
-    pacman: 'sudo pacman -S webkit2gtk-driver',
-    apk: 'sudo apk add webkit2gtk-driver',
-    xbps: 'sudo xbps-install -y webkit2gtk-driver',
-  };
-
-  return installCommands[packageManager] || installCommands.apt; // Default to apt-get
-}
-
 export interface WebKitWebDriverSuccess {
   path?: string;
 }
@@ -342,10 +324,8 @@ export async function ensureWebKitWebDriver(): Promise<Result<WebKitWebDriverSuc
   const packageManager = await detectPackageManager();
   log.debug(`Detected package manager: ${packageManager}`);
 
-  const installCommand = getWebKitDriverInstallCommand(packageManager);
-
   const error = new Error('WebKitWebDriver not found') as WebKitWebDriverError;
-  error.installInstructions = installCommand;
+  error.installInstructions = getWebKitWebDriverInstallCommand(packageManager);
   return Err(error);
 }
 

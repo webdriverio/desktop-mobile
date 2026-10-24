@@ -60,7 +60,7 @@ describe('DioxusLaunchService', () => {
       await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).resolves.toBeUndefined();
     });
 
-    it('should not throw on Windows + provider=external', async () => {
+    it('should throw SevereServiceError on Windows + provider=external', async () => {
       mockPlatform('win32');
       const launcher = new DioxusLaunchService(
         { driverProvider: 'external' } as DioxusServiceGlobalOptions,
@@ -68,7 +68,9 @@ describe('DioxusLaunchService', () => {
         baseConfig,
       );
 
-      await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).resolves.toBeUndefined();
+      await expect(launcher.onPrepare(baseConfig, [{} as DioxusCapabilities])).rejects.toThrow(
+        /'external' is not supported on Windows/,
+      );
     });
 
     it('should not throw on macOS + provider=embedded', async () => {
@@ -186,6 +188,62 @@ describe('DioxusLaunchService', () => {
       ];
 
       await expect(launcher.onPrepare(baseConfig, caps)).rejects.toThrow(/'external' is not supported on Linux/);
+    });
+  });
+
+  describe('windowLabel', () => {
+    beforeEach(() => {
+      mockPlatform('linux');
+    });
+
+    function makeLauncher(options: DioxusServiceGlobalOptions) {
+      return new DioxusLaunchService(
+        { appBinaryPath: '/app/dioxus-app', ...options },
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+    }
+
+    it('should copy the service-level windowLabel into each capability', async () => {
+      const caps: DioxusCapabilities[] = [
+        { 'wdio:dioxusServiceOptions': { startTimeout: 30_000 } } as DioxusCapabilities,
+        {} as DioxusCapabilities,
+      ];
+
+      await makeLauncher({ windowLabel: 'window-1' }).onPrepare(baseConfig, caps);
+
+      expect(caps[0]['wdio:dioxusServiceOptions']).toEqual({ startTimeout: 30_000, windowLabel: 'window-1' });
+      expect(caps[1]['wdio:dioxusServiceOptions']).toEqual({ windowLabel: 'window-1' });
+    });
+
+    it("should keep a capability's own windowLabel over the service-level one", async () => {
+      const caps: DioxusCapabilities[] = [
+        { 'wdio:dioxusServiceOptions': { windowLabel: 'settings' } } as DioxusCapabilities,
+      ];
+
+      await makeLauncher({ windowLabel: 'window-1' }).onPrepare(baseConfig, caps);
+
+      expect(caps[0]['wdio:dioxusServiceOptions']).toEqual({ windowLabel: 'settings' });
+    });
+
+    it("should copy the service-level windowLabel into each multiremote instance's capabilities", async () => {
+      const caps = {
+        appA: { capabilities: {} as DioxusCapabilities },
+        appB: { capabilities: { 'wdio:dioxusServiceOptions': { windowLabel: 'settings' } } as DioxusCapabilities },
+      };
+
+      await makeLauncher({ windowLabel: 'window-1' }).onPrepare(baseConfig, caps);
+
+      expect(caps.appA.capabilities['wdio:dioxusServiceOptions']).toEqual({ windowLabel: 'window-1' });
+      expect(caps.appB.capabilities['wdio:dioxusServiceOptions']).toEqual({ windowLabel: 'settings' });
+    });
+
+    it('should leave the capability options unset when no windowLabel is configured', async () => {
+      const caps: DioxusCapabilities[] = [{} as DioxusCapabilities];
+
+      await makeLauncher({}).onPrepare(baseConfig, caps);
+
+      expect(caps[0]['wdio:dioxusServiceOptions']).toBeUndefined();
     });
   });
 

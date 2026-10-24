@@ -50,24 +50,27 @@ WebKitWebDriver is not installed on your Linux system.
 Install for your distribution:
 
 ```bash
-# Debian/Ubuntu
+# Ubuntu 26.04+, Debian 13+
+sudo apt-get install -y webkitgtk-webdriver
+
+# Ubuntu 24.04 and older, Debian 12
 sudo apt-get install -y webkit2gtk-driver
 
 # Fedora 40+
-sudo dnf install -y webkit2gtk-driver
+sudo dnf install -y webkitgtk6.0
 
 # Arch Linux
-sudo pacman -S webkit2gtk-4.1
+sudo pacman -S webkitgtk-6.0
 
 # Void Linux
-sudo xbps-install -y webkit2gtk-devel
+sudo xbps-install -y libwebkit2gtk41
 ```
 
 **Unsupported Distributions**
 
 - **Alpine Linux**: Cannot build Tauri apps (musl incompatibility). Use Ubuntu, Debian, Fedora, or Arch instead.
 - **CentOS/RHEL**: Stream 9 has glib too old (requires 2.70+), Stream 10 removed WebKitGTK. Use **Fedora 40+** instead.
-- **openSUSE/SUSE**: No official WebKitWebDriver package. Building from source is complex and not recommended.
+- **openSUSE**: Untested. WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6).
 
 ### "MSEdgeDriver not found" (Windows only)
 
@@ -545,7 +548,7 @@ export const config = {
 **Common Causes:**
 
 1. **Missing WebDriver on CI**
-   - Install webkit2gtk-driver on Linux CI
+   - Install WebKitWebDriver on Linux CI
    - Download MSEdgeDriver on Windows CI
 
 2. **Display Server Missing on Linux CI**
@@ -580,8 +583,10 @@ jobs:
           node-version: '18'
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install webkit2gtk-driver
-        run: sudo apt-get install -y webkit2gtk-driver
+      - name: Install WebKitWebDriver
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y webkitgtk-webdriver
 
       - name: Install dependencies
         run: npm install

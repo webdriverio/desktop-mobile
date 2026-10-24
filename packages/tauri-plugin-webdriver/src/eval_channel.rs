@@ -15,31 +15,31 @@ use tokio::sync::oneshot;
 /// https://github.com/webdriverio/desktop-mobile/issues/540
 #[derive(Default)]
 pub struct EvalResultRegistry {
-    pending: Mutex<HashMap<String, oneshot::Sender<Value>>>,
+  pending: Mutex<HashMap<String, oneshot::Sender<Value>>>,
 }
 
 impl EvalResultRegistry {
-    pub fn register(&self, id: String) -> oneshot::Receiver<Value> {
-        let (tx, rx) = oneshot::channel();
-        if let Ok(mut pending) = self.pending.lock() {
-            pending.insert(id, tx);
-        }
-        rx
+  pub fn register(&self, id: String) -> oneshot::Receiver<Value> {
+    let (tx, rx) = oneshot::channel();
+    if let Ok(mut pending) = self.pending.lock() {
+      pending.insert(id, tx);
     }
+    rx
+  }
 
-    /// No-op if `id` is unknown or already completed, so a duplicate or late report is harmless.
-    pub fn complete(&self, id: &str, result: Value) {
-        if let Ok(mut pending) = self.pending.lock() {
-            if let Some(tx) = pending.remove(id) {
-                let _ = tx.send(result);
-            }
-        }
+  /// No-op if `id` is unknown or already completed, so a duplicate or late report is harmless.
+  pub fn complete(&self, id: &str, result: Value) {
+    if let Ok(mut pending) = self.pending.lock() {
+      if let Some(tx) = pending.remove(id) {
+        let _ = tx.send(result);
+      }
     }
+  }
 
-    /// Drop a pending registration (e.g. on timeout) so its sender doesn't leak.
-    pub fn cancel(&self, id: &str) {
-        if let Ok(mut pending) = self.pending.lock() {
-            pending.remove(id);
-        }
+  /// Drop a pending registration (e.g. on timeout) so its sender doesn't leak.
+  pub fn cancel(&self, id: &str) {
+    if let Ok(mut pending) = self.pending.lock() {
+      pending.remove(id);
     }
+  }
 }

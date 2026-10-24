@@ -242,10 +242,11 @@ async function runTest(
         console.log(`  Running standalone test: ${specFile}`);
 
         // Use execWdio but with tsx instead of wdio command
-        // On Linux, wrap with xvfb-run to provide virtual display
+        // Electron needs a display on Linux. Reuse one if set (CI's start-xvfb holds :99);
+        // otherwise xvfb-run starts one on a free display number.
         const command =
-          process.platform === 'linux' && variant.framework === 'electron'
-            ? `xvfb-run tsx ${specPath}`
+          process.platform === 'linux' && variant.framework === 'electron' && !process.env.DISPLAY
+            ? `xvfb-run --auto-servernum tsx ${specPath}`
             : `tsx ${specPath}`;
         lastResult = await execWdio(command, testEnv, {
           cwd: process.cwd(),

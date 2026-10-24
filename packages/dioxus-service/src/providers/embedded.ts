@@ -30,12 +30,14 @@ function sleep(ms: number): Promise<void> {
 async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<void> {
   const statusUrl = `http://127.0.0.1:${port}/status`;
   const deadline = Date.now() + timeoutMs;
+  let serverAnswered = false;
 
   log.info(`Polling embedded WebDriver status at ${statusUrl}…`);
 
   while (Date.now() < deadline) {
     try {
       const response = await fetch(statusUrl, { signal: AbortSignal.timeout(STATUS_TIMEOUT_MS) });
+      serverAnswered = true;
       if (response.ok) {
         const data = (await response.json()) as { value?: { ready?: boolean } };
         if (data?.value?.ready === true) {
@@ -51,12 +53,19 @@ async function pollWebDriverStatus(port: number, timeoutMs: number): Promise<voi
     await sleep(POLL_INTERVAL_MS);
   }
 
+  const notReady = `Embedded WebDriver server did not become ready on port ${port} within ${timeoutMs}ms`;
+  if (serverAnswered) {
+    throw new Error(
+      `${notReady}: it answered, but the app's window never registered with the bridge. ` +
+        `If the app sets its own with_on_window callback, call wdio_dioxus::on_window from it. ` +
+        `If another process is using port ${port}, set embeddedPort in wdio:dioxusServiceOptions ` +
+        `or the ${EMBEDDED_PORT_ENV_VAR} env var.`,
+    );
+  }
   throw new Error(
-    `Embedded WebDriver server did not become ready on port ${port} within ${timeoutMs}ms. ` +
-      `Ensure wdio_dioxus_embedded_driver::install(config) is called in your app's main.rs ` +
-      `(inside a #[cfg(debug_assertions)] block) and the app was built in debug mode. ` +
-      `To use a different port, set embeddedPort in wdio:dioxusServiceOptions or ` +
-      `the ${EMBEDDED_PORT_ENV_VAR} env var.`,
+    `${notReady}: nothing answered, so the server never started. Check that main.rs calls ` +
+      `wdio_dioxus::install(config) inside #[cfg(debug_assertions)], and that the app is a debug ` +
+      `build from dx build --desktop.`,
   );
 }
 
@@ -109,12 +118,9 @@ export async function startEmbeddedDriver(
     ...process.env,
     ...options.env,
     [EMBEDDED_PORT_ENV_VAR]: String(port),
-    // Bridge reads this to opt into automation-only behaviour. Currently:
-    // disables WKWebView background throttling on macOS so the WebContent
-    // process running the polling loop doesn't get suspended on a
-    // headless CI runner. The external driver path sets the same env var
-    // in dioxus-driver's webdriver.rs; the embedded path has no external
-    // driver subprocess so we set it here.
+    // Tells the app it was launched for testing. Apps check it with
+    // `automation::is_requested()`, e.g. to turn off WKWebView background
+    // throttling so the bridge's polling loop keeps running on headless macOS CI.
     DIOXUS_WEBVIEW_AUTOMATION: 'true',
   };
 
@@ -179,7 +185,7 @@ export async function startEmbeddedDriver(
         new Error(
           `Failed to spawn Dioxus app "${appBinaryPath}": ${err.message}. ` +
             `Ensure the binary exists and is executable. ` +
-            `Build with \`cargo build\` (not --release) for embedded-driver support.`,
+            `Build it with \`dx build --desktop\`, which puts the debug binary under \`target/dx/<app>/debug/\`.`,
         ),
       );
     };

@@ -31,17 +31,20 @@ Get up and running with WebdriverIO and Tauri E2E testing in minutes.
 
 - **WebKitGTK Development Libraries** - Install WebKitWebDriver
   ```bash
-  # Debian/Ubuntu
+  # Ubuntu 26.04+, Debian 13+
+  sudo apt-get install -y webkitgtk-webdriver
+
+  # Ubuntu 24.04 and older, Debian 12
   sudo apt-get install -y webkit2gtk-driver
 
   # Fedora 40+
-  sudo dnf install -y webkit2gtk-driver
+  sudo dnf install -y webkitgtk6.0
 
   # Arch Linux
-  sudo pacman -S webkit2gtk-4.1
+  sudo pacman -S webkitgtk-6.0
 
   # Void Linux
-  sudo xbps-install -y webkit2gtk-devel
+  sudo xbps-install -y libwebkit2gtk41
   ```
 
 See [Platform Support](./platform-support.md) for detailed distribution support information.

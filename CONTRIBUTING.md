@@ -10,13 +10,13 @@ Please be respectful and constructive in all interactions. We aim to create a we
 
 ### Prerequisites
 
-- Node.js 24 LTS (contributor toolchain — end-user Node range is defined per-package via `engines`)
-- pnpm 11.20.0
+- Node.js 24 LTS
+- pnpm 12
 - Git
 
 For Tauri and Dioxus contributions, you also need:
 
-- Rust (stable toolchain via `rustup`)
+- Rust
 
 ### Setup
 
@@ -32,11 +32,11 @@ For Tauri and Dioxus contributions, you also need:
    ```
 4. Build all packages:
    ```bash
-   pnpm turbo build
+   pnpm build
    ```
 5. Run tests to verify setup:
    ```bash
-   pnpm test
+   pnpm turbo run test --filter=./packages/*
    ```
 
 See [docs/setup.md](docs/setup.md) for detailed setup instructions.
@@ -67,7 +67,7 @@ Branch naming conventions:
 - Write code following our [coding standards](#coding-standards)
 - Add tests for new functionality
 - Update documentation as needed
-- Ensure tests pass: `pnpm test`
+- Ensure tests pass: `pnpm turbo run test --filter=./packages/*` (the root `pnpm test` also runs the E2E and package tests)
 - Ensure linting passes: `pnpm lint`
 
 ### 3. Commit Your Changes
@@ -193,8 +193,8 @@ describe('MyFeature', () => {
 ### Running Tests
 
 ```bash
-# Run all tests
-pnpm test
+# Run every package's tests
+pnpm turbo run test --filter=./packages/*
 
 # Run tests for specific package
 pnpm --filter @wdio/electron-service test
@@ -223,7 +223,7 @@ pnpm --filter @wdio/electron-service vitest
 ### Documentation Files
 
 - Update `docs/` when adding new features
-- Update CHANGELOG.md for notable changes
+- Don't edit CHANGELOG.md: ReleaseKit generates it from conventional commits
 
 ## Pull Request Process
 
@@ -233,7 +233,7 @@ Ensure your PR passes all checks:
 
 ```bash
 # Build all packages
-pnpm turbo build
+pnpm build
 
 # Run linting
 pnpm lint
@@ -241,8 +241,8 @@ pnpm lint
 # Run type checking
 pnpm typecheck
 
-# Run all tests
-pnpm test
+# Run every package's tests
+pnpm turbo run test --filter=./packages/*
 
 # Run tests with coverage
 pnpm test:coverage
@@ -310,9 +310,9 @@ When contributing to the Tauri service:
 
 ### Dioxus Service
 
-When contributing to the Dioxus service or its Rust crates (`wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver`):
+When contributing to the Dioxus service or its Rust crates (`wdio-dioxus`, `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver`):
 
-- Maintain backward compatibility with the `install(config)` bridge API
+- Maintain backward compatibility with `wdio_dioxus::install(config)`, the API apps call
 - Test on Windows, macOS, and Linux (for the `'embedded'` provider)
 - Always build the Dioxus fixture app in **debug mode** — the bridge is compiled behind `#[cfg(debug_assertions)]` and will not be present in release builds
 - Build the fixture app before running E2E tests:
@@ -337,8 +337,7 @@ When contributing to the Dioxus service or its Rust crates (`wdio-dioxus-bridge`
   pnpm wdio run wdio.dioxus-embedded.conf.ts
   ```
 - The `'external'` provider is Windows-only in v1. Linux support is deferred to v1.1. Do not attempt to test the `'external'` provider on Linux or macOS.
-- When changing the bridge crate, also update `packages/dioxus-bridge/docs/release-notes/` as appropriate
-- See [bridge setup docs](packages/dioxus-service/docs/plugin-setup.md) for how the bridge integrates with a Dioxus application
+- See [App Setup](packages/dioxus-service/docs/app-setup.md) for how the embedded driver and bridge integrate with a Dioxus application
 
 ### Shared Utilities
 
@@ -412,14 +411,14 @@ See ReleaseKit's [versioning docs](https://github.com/goosewobbler/releasekit/bl
 
 GitHub release notes are published per **user-installed** package — not per internal dependency. Packages that users only consume transitively are versioned and tagged but skipped from release notes (configured via `publish.githubRelease.skipPackages` in `releasekit.config.json`).
 
-| Framework | Packages with release notes | Skipped (internal only) |
+| Framework | Packages with release notes | Skipped |
 |-----------|-----------------------------|-------------------------|
 | Electron  | `@wdio/electron-service` | `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types`, `@wdio/native-core` |
 | Tauri     | `@wdio/tauri-service`, `tauri-plugin`, `tauri-plugin-webdriver` | — |
-| Dioxus    | `@wdio/dioxus-service` | `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver` |
+| Dioxus    | `@wdio/dioxus-service`, `wdio-dioxus` | `wdio-dioxus-bridge`, `wdio-dioxus-embedded-driver`, `wdio-dioxus-driver` |
 | Electrobun | `@wdio/electrobun-service` | `@wdio/native-cdp-bridge`, `@wdio/native-utils`, `@wdio/native-spy`, `@wdio/native-types` |
 
-Tauri publishes three sets of release notes because `tauri-plugin` and `tauri-plugin-webdriver` are installed and configured directly by users in their Tauri app (Cargo dependency, capability/permission setup), so their breaking changes need their own changelog entries. Electron's and Dioxus's internal packages have no equivalent direct-install surface — users only wire in the bridge crate once and changes are transparent thereafter.
+Tauri's plugins and Dioxus's `wdio-dioxus` get their own release notes because apps install them directly: the plugins as Cargo dependencies with capability and permission setup, `wdio-dioxus` as a Cargo dependency. Their breaking changes need their own changelog entries. The packages these pull in, such as the Dioxus bridge and embedded driver, are skipped, as Electron's internal packages are.
 
 ## Getting Help
 

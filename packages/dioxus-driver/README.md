@@ -22,20 +22,18 @@ WebDriver intermediary node for [Dioxus](https://dioxuslabs.com/) desktop applic
 | Platform | Status |
 |---|---|
 | Windows | ✅ Supported in v1 |
-| Linux | 🚫 Blocked in v1 — requires an upstream Dioxus PR exposing Wry's automation toggle (see [spike/FINDINGS.md](../../spike/FINDINGS.md)). v1.1 once that lands. |
+| Linux | 🚫 Blocked until Dioxus exposes Wry's automation toggle ([#713](https://github.com/webdriverio/desktop-mobile/issues/713)) |
 | macOS | ❌ Not supported (inherits upstream `tauri-driver`'s limitation) |
-
-`@wdio/dioxus-service` users on Linux and macOS should use `driverProvider: 'embedded'` instead — see [`@wdio/dioxus-service`](../dioxus-service/) docs.
 
 ## Install
 
 ```sh
-cargo install wdio-dioxus-driver
+cargo install wdio-dioxus-driver --locked
 ```
 
 ## Use
 
-`@wdio/dioxus-service` invokes `wdio-dioxus-driver` automatically when `driverProvider: 'external'` is set. Running it standalone:
+`@wdio/dioxus-service` doesn't start it yet, so run it yourself and point WebdriverIO's `hostname` and `port` at it:
 
 ```sh
 wdio-dioxus-driver --port 4444 --native-port 4445
@@ -47,6 +45,4 @@ We track upstream `tauri-driver` minor versions. Sync calendar: quarterly. Sync 
 
 1. `git fetch tauri-upstream && git diff tauri-upstream/dev:crates/tauri-driver our:packages/dioxus-driver`
 2. Apply non-rename changes verbatim where possible.
-3. Re-test on Windows in CI.
-
-When `tauri-driver` adds Linux Wry-automation support upstream, drop the v1 Linux block here and add a follow-up issue tracking removal of the bridge crate's `automation.rs` env-var path.
+3. Re-test on Windows.

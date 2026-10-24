@@ -97,7 +97,7 @@ xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" \
   pnpm wdio run wdio.visual.conf.ts
 ```
 
-Electron does not need a manual wrapper — WDIO manages the display via its `autoXvfb` feature.
+Electron does not need a manual wrapper — WDIO manages the display via its `autoXvfb` feature. The exception is Ubuntu 26.04 with WDIO v9, where `autoXvfb` workers fail with `write EINVAL` ([webdriverio#15685](https://github.com/webdriverio/webdriverio/issues/15685)). There, wrap the run in `xvfb-run --auto-servernum` instead.
 
 ## Tauri provider notes
 
@@ -128,9 +128,7 @@ Workarounds:
 
 ## Dioxus notes
 
-Use the `embedded` provider for VRT on all platforms. The `external` provider is Windows-only in v1 and not recommended for visual testing — use `embedded` instead.
-
-Per-provider baselines are not needed for Dioxus in v1 since only `embedded` is used; the default per-OS + per-arch layout is enough.
+Visual testing doesn't work with Dioxus yet: the embedded driver's screenshots are a blank 1×1 image (#721).
 
 ## Asserting native UI behaviour without pixels
 

@@ -15,82 +15,76 @@ use crate::webdriver::{SessionManager, Timeouts};
 
 /// Shared state for the `WebDriver` server
 pub struct AppState<R: Runtime> {
-    pub app: AppHandle<R>,
-    pub sessions: RwLock<SessionManager>,
+  pub app: AppHandle<R>,
+  pub sessions: RwLock<SessionManager>,
 }
 
 impl<R: Runtime + 'static> AppState<R> {
-    pub fn new(app: AppHandle<R>) -> Self {
-        Self {
-            app,
-            sessions: RwLock::new(SessionManager::new()),
-        }
-    }
+  pub fn new(app: AppHandle<R>) -> Self {
+    Self { app, sessions: RwLock::new(SessionManager::new()) }
+  }
 
-    /// Get a platform executor for a specific window by label
-    pub fn get_executor_for_window(
-        &self,
-        window_label: &str,
-        timeouts: Timeouts,
-        frame_context: Vec<FrameId>,
-    ) -> Result<Arc<dyn PlatformExecutor<R>>, WebDriverErrorResponse> {
-        self.app
-            .webview_windows()
-            .get(window_label)
-            .cloned()
-            .map(|window| create_executor(window, timeouts, frame_context))
-            .ok_or_else(WebDriverErrorResponse::no_such_window)
-    }
+  /// Get a platform executor for a specific window by label
+  pub fn get_executor_for_window(
+    &self,
+    window_label: &str,
+    timeouts: Timeouts,
+    frame_context: Vec<FrameId>,
+  ) -> Result<Arc<dyn PlatformExecutor<R>>, WebDriverErrorResponse> {
+    self
+      .app
+      .webview_windows()
+      .get(window_label)
+      .cloned()
+      .map(|window| create_executor(window, timeouts, frame_context))
+      .ok_or_else(WebDriverErrorResponse::no_such_window)
+  }
 
-    /// Whether a window with this label is still registered
-    pub fn has_window_label(&self, window_label: &str) -> bool {
-        self.app.webview_windows().contains_key(window_label)
-    }
+  /// Whether a window with this label is still registered
+  pub fn has_window_label(&self, window_label: &str) -> bool {
+    self.app.webview_windows().contains_key(window_label)
+  }
 
-    /// Get all window labels
-    pub fn get_window_labels(&self) -> Vec<String> {
-        self.app.webview_windows().keys().cloned().collect()
-    }
+  /// Get all window labels
+  pub fn get_window_labels(&self) -> Vec<String> {
+    self.app.webview_windows().keys().cloned().collect()
+  }
 }
 
 /// Start the `WebDriver` HTTP server on the specified port
 pub fn start<R: Runtime + 'static>(app: AppHandle<R>, port: u16) {
-    std::thread::spawn(move || {
-        let rt = match TokioRuntime::new() {
-            Ok(rt) => rt,
-            Err(e) => {
-                tracing::error!("Failed to create Tokio runtime for WebDriver server: {}", e);
-                return;
-            }
-        };
+  std::thread::spawn(move || {
+    let rt = match TokioRuntime::new() {
+      Ok(rt) => rt,
+      Err(e) => {
+        tracing::error!("Failed to create Tokio runtime for WebDriver server: {}", e);
+        return;
+      }
+    };
 
-        rt.block_on(async {
-            let state = Arc::new(AppState::new(app));
-            let router = router::create_router(state);
+    rt.block_on(async {
+      let state = Arc::new(AppState::new(app));
+      let router = router::create_router(state);
 
-            // On Android, bind to all interfaces for WiFi accessibility
-            // On other platforms, bind to localhost only for security
-            #[cfg(target_os = "android")]
-            let addr = SocketAddr::from(([0, 0, 0, 0], port));
-            #[cfg(not(target_os = "android"))]
-            let addr = SocketAddr::from(([127, 0, 0, 1], port));
+      let addr = SocketAddr::from(([127, 0, 0, 1], port));
 
-            let listener = match tokio::net::TcpListener::bind(addr).await {
-                Ok(l) => l,
-                Err(e) => {
-                    tracing::error!(
-                        "Failed to bind WebDriver server to {} — port may already be in use: {}",
-                        addr, e
-                    );
-                    return;
-                }
-            };
+      let listener = match tokio::net::TcpListener::bind(addr).await {
+        Ok(l) => l,
+        Err(e) => {
+          tracing::error!(
+            "Failed to bind WebDriver server to {} — port may already be in use: {}",
+            addr,
+            e
+          );
+          return;
+        }
+      };
 
-            tracing::info!("WebDriver server listening on http://{}", addr);
+      tracing::info!("WebDriver server listening on http://{}", addr);
 
-            if let Err(e) = axum::serve(listener, router).await {
-                tracing::error!("WebDriver server error: {}", e);
-            }
-        });
+      if let Err(e) = axum::serve(listener, router).await {
+        tracing::error!("WebDriver server error: {}", e);
+      }
     });
+  });
 }

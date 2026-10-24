@@ -55,9 +55,12 @@ pub async fn add(
   let name = req.cookie["name"].as_str().unwrap_or("").to_string();
   let value = req.cookie["value"].as_str().unwrap_or("").to_string();
   eval(
-    format!("document.cookie = encodeURIComponent({name:?}) + '=' + encodeURIComponent({value:?}); null"),
+    format!(
+      "document.cookie = encodeURIComponent({name:?}) + '=' + encodeURIComponent({value:?}); null"
+    ),
     t,
-  ).await?;
+  )
+  .await?;
   Ok(WebDriverResponse::null())
 }
 

@@ -109,13 +109,15 @@ pub async fn delete(
   };
 
   if !vars.is_empty() {
-    let cleanup = vars
-      .iter()
-      .map(|v| format!("delete window[{v:?}]"))
-      .collect::<Vec<_>>()
-      .join("; ");
+    let cleanup =
+      vars.iter().map(|v| format!("delete window[{v:?}]")).collect::<Vec<_>>().join("; ");
     let (tx, rx) = oneshot::channel();
-    wdio_dioxus_bridge::embedded::push(Uuid::new_v4().to_string(), format!("{cleanup}; null"), vec![], tx);
+    wdio_dioxus_bridge::embedded::push(
+      Uuid::new_v4().to_string(),
+      format!("{cleanup}; null"),
+      vec![],
+      tx,
+    );
     let _ = tokio::time::timeout(Duration::from_millis(script_timeout), rx).await;
   }
 

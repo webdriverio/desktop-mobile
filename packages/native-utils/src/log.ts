@@ -47,6 +47,7 @@ export function createLogger(serviceName: string, area?: LogArea): Logger {
       try {
         (areaLogger.debug as unknown as (...a: unknown[]) => void)(...args);
       } catch {
+        // biome-ignore lint/suspicious/noConsole: the logger itself failed, so console is the only output left
         console.log('🔍 DEBUG: Error in debug logger', args);
       }
 

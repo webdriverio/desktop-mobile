@@ -59,9 +59,10 @@ The Linux path drives the native WebKitGTK renderer over **W3C WebDriver** via
 headless machines. Install both the WebKitGTK driver and Xvfb:
 
 ```sh
-sudo apt-get install webkit2gtk-driver xvfb            # Debian/Ubuntu
-# dnf install webkit2gtk-driver xorg-x11-server-Xvfb   # Fedora
-# pacman -S webkit2gtk-driver xorg-server-xvfb         # Arch
+sudo apt-get install webkitgtk-webdriver xvfb     # Ubuntu 26.04+, Debian 13+
+# apt-get install webkit2gtk-driver xvfb          # Ubuntu 24.04 and older, Debian 12
+# dnf install webkitgtk6.0 xorg-x11-server-Xvfb   # Fedora
+# pacman -S webkitgtk-6.0 xorg-server-xvfb        # Arch
 ```
 
 Native Linux support requires **electrobun ≥ 2.0.1**, which exposes WebKitGTK automation upstream

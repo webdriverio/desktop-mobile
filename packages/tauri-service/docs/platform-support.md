@@ -7,7 +7,7 @@ Complete guide to platform-specific requirements, limitations, and WebDriver set
 | Platform | Supported | WebDriver | Driver Provider | Setup |
 |----------|-----------|-----------|----------------|-------|
 | **Windows** | ✅ Yes | Microsoft Edge WebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` auto-manages the Edge WebDriver |
-| **Linux** | ✅ Yes | WebKitWebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` needs `webkit2gtk-driver` |
+| **Linux** | ✅ Yes | WebKitWebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` needs WebKitWebDriver |
 | **macOS** | ✅ Yes | Built-in | `'embedded'`, `'crabnebula'` | No external driver needed |
 
 > `'embedded'` is the default on every platform when `driverProvider` is unset. `driverProvider: 'official'` is a deprecated alias for `'external'`. See [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md).
@@ -122,39 +122,42 @@ Linux uses **WebKitWebDriver** (WebKitGTK) which communicates with the Tauri app
 
 ```bash
 sudo apt-get update
+# Ubuntu 26.04+, Debian 13+
+sudo apt-get install -y webkitgtk-webdriver
+# Ubuntu 24.04 and older, Debian 12
 sudo apt-get install -y webkit2gtk-driver
 
 # Verify installation
-which webkit2gtk-driver
+which WebKitWebDriver
 ```
 
 **Fedora 40+ (✅ Supported)**
 
 ```bash
-sudo dnf install -y webkit2gtk-driver
+sudo dnf install -y webkitgtk6.0
 
 # Verify installation
-which webkit2gtk-driver
+which WebKitWebDriver
 ```
 
 **Arch Linux (✅ Supported)**
 
-WebKitWebDriver is provided by webkit2gtk:
+WebKitWebDriver is provided by webkitgtk-6.0:
 
 ```bash
-sudo pacman -S webkit2gtk-4.1
+sudo pacman -S webkitgtk-6.0
 
 # Verify installation
-which webkit2gtk-driver
+which WebKitWebDriver
 ```
 
 **Void Linux (✅ Supported)**
 
 ```bash
-sudo xbps-install -y webkit2gtk-devel
+sudo xbps-install -y libwebkit2gtk41
 
 # Verify installation
-which webkit2gtk-driver
+which WebKitWebDriver
 ```
 
 **Alpine Linux (❌ Not Supported)**
@@ -168,23 +171,23 @@ Alpine uses musl C library which is incompatible with Tauri app building. Alpine
 
 **Recommendation:** Use **Fedora 40+** for RHEL-based distributions.
 
-**openSUSE / SUSE (❌ Not Supported)**
+**openSUSE (⚠️ Untested)**
 
-No official WebKitWebDriver package. Building from source is complex and not recommended.
+WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6).
 
 **Other Distributions**
 
-Check if webkit2gtk is available:
+Find the package that ships WebKitWebDriver:
 
 ```bash
 # Debian-based
-apt search webkit2gtk-driver
+apt-cache search webkit webdriver
 
 # RedHat-based
-dnf search webkit2gtk-driver
+dnf provides '*/WebKitWebDriver'
 
-# Pacman-based
-pacman -Ss webkit2gtk
+# Pacman-based (sync the file database first with sudo pacman -Fy)
+pacman -F WebKitWebDriver
 ```
 
 #### Headless Testing
@@ -226,11 +229,11 @@ npm run test:e2e
 
 #### Troubleshooting Linux Issues
 
-**"webkit2gtk-driver not found"**
+**"WebKitWebDriver not found"**
 
 1. Verify installation:
    ```bash
-   which webkit2gtk-driver
+   which WebKitWebDriver
    ```
 
 2. If not found, install for your distribution (see above)
@@ -264,12 +267,12 @@ Your system doesn't have a display server. Solutions:
 
 CentOS Stream / RHEL issue. Use **Fedora 40+** instead.
 
-**"Permission denied" when installing webkit2gtk**
+**"Permission denied" when installing WebKitWebDriver**
 
 Use `sudo` for package installation:
 
 ```bash
-sudo apt-get install webkit2gtk-driver
+sudo apt-get install webkitgtk-webdriver
 ```
 
 ### Driver Providers on Linux
@@ -279,7 +282,7 @@ sudo apt-get install webkit2gtk-driver
 | Provider | Notes |
 |----------|-------|
 | `'embedded'` | Default — requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
-| `'external'` | Uses `tauri-driver` + WebKitWebDriver; requires `webkit2gtk-driver` (see above) |
+| `'external'` | Uses `tauri-driver` + WebKitWebDriver (see above) |
 | `'crabnebula'` | Requires a paid CrabNebula API key; cross-platform alternative |
 
 Use `'embedded'` for a consistent setup across Windows, Linux, and macOS without managing external drivers, `'external'` to drive `tauri-driver` directly, or `'crabnebula'` if you already have a CrabNebula subscription.
@@ -297,7 +300,7 @@ Use `'embedded'` for a consistent setup across Windows, Linux, and macOS without
 
 ### Requirements
 
-- **WebKitGTK development libraries** (webkit2gtk-driver) — only needed for the `'external'` provider
+- **WebKitWebDriver** — only needed for the `'external'` and `'crabnebula'` providers
 - **Xvfb** (optional, for headless testing)
 - **Rust toolchain** (for building Tauri apps)
 - **Node.js 18+**
@@ -376,7 +379,7 @@ See [Plugin Setup](./plugin-setup.md) for detailed setup instructions.
 | Platform | Supported | Requirements |
 |----------|-----------|--------------|
 | **Windows** | ✅ Yes | `@crabnebula/tauri-driver` |
-| **Linux** | ✅ Yes | `@crabnebula/tauri-driver` + `webkit2gtk-driver` |
+| **Linux** | ✅ Yes | `@crabnebula/tauri-driver` + WebKitWebDriver |
 | **macOS** | ✅ Yes | `@crabnebula/tauri-driver` + `CN_API_KEY` |
 
 > **Note:** `CN_API_KEY` is only required for macOS. Windows and Linux work without an API key.
@@ -393,7 +396,7 @@ See [Plugin Setup](./plugin-setup.md) for detailed setup instructions.
 2. **@crabnebula/test-runner-backend** npm package (macOS only, for local testing)
 3. **CN_API_KEY** environment variable (macOS only)
 4. **tauri-plugin-automation** in your Tauri app (macOS only)
-5. **webkit2gtk-driver** (Linux only — see Linux section for installation)
+5. **WebKitWebDriver** (Linux only — see Linux section for installation)
 
 #### Setup
 

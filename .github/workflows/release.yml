@@ -102,7 +102,7 @@ jobs:
 
       - name: Run ReleaseKit Gate
         id: gate
-        uses: goosewobbler/releasekit@v0.41.2
+        uses: goosewobbler/releasekit@v0.42.1
         with:
           mode: gate
           node-version: '24'
@@ -113,6 +113,7 @@ jobs:
           skip-checkout: 'true'
         env:
           GITHUB_TOKEN: ${{ github.token }}
+          OLLAMA_MODEL: ${{ vars.OLLAMA_MODEL }}
 
   release-auto:
     name: Release (Immediate)

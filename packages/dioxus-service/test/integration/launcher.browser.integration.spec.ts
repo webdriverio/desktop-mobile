@@ -137,6 +137,32 @@ describe('launcher → worker handshake (browser mode)', () => {
     expect(startEmbeddedDriver).not.toHaveBeenCalled();
   });
 
+  it('should enter browser mode in a multiremote worker', async () => {
+    const launcher = createLauncher();
+    const caps = {
+      browserA: { capabilities: { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } } },
+      browserB: { capabilities: {} },
+    };
+    await launcher.onPrepare(baseConfig, caps as never);
+
+    const worker = new DioxusWorkerService({}, caps as never);
+    const instances = new Map([
+      ['browserA', createFakeBrowser()],
+      ['browserB', createFakeBrowser()],
+    ]);
+    const browser = Object.assign(createFakeBrowser(), {
+      isMultiremote: true,
+      instances: [...instances.keys()],
+      getInstance: (name: string) => instances.get(name),
+    });
+    const urlSpy = browser.url;
+    await worker.before({}, [], browser as unknown as WebdriverIO.Browser);
+
+    expect(urlSpy).toHaveBeenCalledWith(DEV_SERVER);
+    expect(instances.get('browserA')?.dioxus).toHaveProperty('execute');
+    expect(instances.get('browserB')?.dioxus).toHaveProperty('execute');
+  });
+
   it('should accept devServerUrl via service-level global options', async () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
     const caps: Array<Record<string, unknown>> = [{}];
