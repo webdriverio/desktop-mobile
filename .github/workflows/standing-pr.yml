@@ -14,9 +14,9 @@ on:
   push:
     branches: [main]
   pull_request:
-    # A maintainer unticking a package in the standing PR's selection list (`edited`) or changing its
-    # release labels (`labeled`, `unlabeled`) applies straight away. Otherwise it waits for the next push
-    # to main, and merging in between ships the stale selection. Merges are still detected from the push.
+    # Maintainer changes to the standing PR's selection (`edited`) or release labels (`labeled`,
+    # `unlabeled`) apply straight away, so a merge before the next push to main can't ship a stale
+    # selection. There's no `closed` trigger because merging pushes to main, and that push starts the publish.
     types: [edited, labeled, unlabeled]
     branches: [main]
   workflow_dispatch: {}

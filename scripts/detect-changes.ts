@@ -62,7 +62,7 @@ const CORE_INFRA_WORKFLOWS = new Set([
   '_ci-package.reusable.yml',
 ]);
 
-// Meta-workflows that never require service tests. The release workflows are here because CI never runs them.
+// Workflows the service tests can't exercise, so a change to one needs only the lint job (which runs actionlint).
 const META_WORKFLOWS = new Set([
   'codeql.yml',
   'crate-drift.yml',
