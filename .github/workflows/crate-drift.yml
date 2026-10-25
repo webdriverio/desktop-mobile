@@ -1,7 +1,7 @@
 name: Crate Drift
 
 # Builds each published crate against freshly resolved dependencies, as consuming apps do, and the
-# Tauri plugin crates against their tauri floor too, and tracks failures in an issue.
+# Tauri plugin crates against their tauri floor. Failures are tracked in an issue.
 
 on:
   schedule:
@@ -265,11 +265,11 @@ jobs:
               gh issue create --repo "$REPO" --title "$title" --label 'area:dependencies' --body "$(cat <<EOF
           The nightly [Crate Drift run]($RUN_URL) failed, so a crate we publish:
 
-          - no longer builds against freshly resolved dependencies (Fresh deps),
-          - generates permission files that differ from the committed ones (Fresh deps), or
-          - no longer builds against the tauri release it declares as its floor (Tauri floor).
+          - no longer builds against freshly resolved dependencies (\`fresh-deps\`),
+          - generates permission files that differ from the committed ones (\`fresh-deps\`), or
+          - no longer builds against the tauri release it declares as its floor (\`floor-deps\`).
 
-          CI on the committed lockfiles may still pass. The Fresh deps step summary lists the releases picked up.
+          CI on the committed lockfiles may still pass. The \`fresh-deps\` step summaries list the releases picked up.
 
           This issue closes itself once a nightly run passes again.
           EOF
