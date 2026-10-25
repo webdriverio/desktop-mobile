@@ -707,6 +707,7 @@ export default class TauriWorkerService {
   }
 }
 
+// W3C WebDriver's web element identifier: https://www.w3.org/TR/webdriver2/#elements
 const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
 
 /** Sends WebdriverIO elements as W3C element references, as `browser.execute` does for its arguments. */

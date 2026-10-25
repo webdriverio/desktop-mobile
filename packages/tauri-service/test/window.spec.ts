@@ -224,7 +224,6 @@ describe('window management', () => {
         setSessionProvider(mockBrowser, 'external');
         await switchWindowByLabel(mockBrowser, 'main');
 
-        // Should call executeAsyncScript only once (found on first handle)
         expect(mockBrowser.executeAsyncScript).toHaveBeenCalledTimes(1);
         expect(mockBrowser.switchToWindow).toHaveBeenLastCalledWith('uuid-1');
       });
