@@ -35,11 +35,7 @@ If your app sets its own `with_on_window` callback after `install()`, call `wdio
 
 `wdio-dioxus` is only compiled in debug builds. Ensure you are using `dx build --desktop` (not `dx build --desktop --release`) and the binary path in your config points to the `debug` output, not the `release` one.
 
-**Check 4: Port is free**
-
-The embedded driver listens on port `4444` by default. If another process already holds that port, the service can't reach your app. Stop the other process, or set `embeddedPort` in the service options.
-
-**Check 5: Rebuild application**
+**Check 4: Rebuild application**
 
 ```bash
 cargo clean
@@ -140,26 +136,6 @@ it('should wait for app', async () => {
   const element = await browser.$('button');
   expect(element).toBeDefined();
 });
-```
-
-### "Port already in use"
-
-**Solution 1: Change Embedded Port**
-
-```typescript
-services: [['@wdio/dioxus-service', {
-  embeddedPort: 4446,  // Instead of default 4445
-}]]
-```
-
-**Solution 2: Kill Process Using Port**
-
-```bash
-# Linux/macOS
-lsof -ti:4445 | xargs kill -9
-
-# Windows (PowerShell)
-Get-Process -Id (Get-NetTCPConnection -LocalPort 4445).OwningProcess | Stop-Process -Force
 ```
 
 ---

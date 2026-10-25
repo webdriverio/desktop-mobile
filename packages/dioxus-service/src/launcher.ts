@@ -178,8 +178,8 @@ export default class DioxusLaunchService extends BaseLauncher {
       try {
         const cap = capsList[i];
         const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
-        const capPort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
-        const embeddedPort = capPort != null ? capPort : getEmbeddedPort(instanceOptions) + i;
+        const instancePort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
+        const embeddedPort = await this.portManager.allocatePort(instancePort ?? getEmbeddedPort(instanceOptions) + i);
         const appBinaryPath = cap['dioxus:options']?.application ?? instanceOptions.appBinaryPath;
 
         if (!appBinaryPath) {
@@ -222,8 +222,8 @@ export default class DioxusLaunchService extends BaseLauncher {
       try {
         const cap = instanceConfig.capabilities;
         const instanceOptions = mergeOptions(this.options, cap['wdio:dioxusServiceOptions']);
-        const capPort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
-        const embeddedPort = capPort != null ? capPort : getEmbeddedPort(instanceOptions) + i;
+        const instancePort = cap['wdio:dioxusServiceOptions']?.embeddedPort;
+        const embeddedPort = await this.portManager.allocatePort(instancePort ?? getEmbeddedPort(instanceOptions) + i);
         const appBinaryPath = cap['dioxus:options']?.application ?? instanceOptions.appBinaryPath;
 
         if (!appBinaryPath) {

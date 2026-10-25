@@ -53,9 +53,12 @@ appArgs: ['--window-size=1920,1080']
 
 ### `embeddedPort` (number, optional)
 
-Port for the embedded WebDriver server.
+Preferred port for the embedded WebDriver server.
 
-Each worker instance gets a unique port (basePort + workerIndex).
+- The service spawns your app on this port if it's free. Each further app it spawns (multiremote instances, or more than one capability) prefers the next port up.
+- A port that's already in use is skipped for a free one, and the service connects to whichever port it chose.
+- Set it in an instance's `wdio:dioxusServiceOptions` to give that instance its own preferred port.
+- Can also be set via the `WDIO_EMBEDDED_PORT` environment variable.
 
 **Example:**
 ```typescript

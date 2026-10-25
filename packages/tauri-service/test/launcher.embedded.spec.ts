@@ -387,3 +387,55 @@ describe('driverProvider validation', () => {
     });
   });
 });
+
+describe('embedded port allocation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    vi.mocked(startEmbeddedDriver).mockResolvedValue(stubDriverInfo);
+  });
+
+  function stubAllocatedPorts(launcher: TauriLaunchService, ...ports: number[]) {
+    const { allocatePort } = (launcher as unknown as { portManager: { allocatePort: ReturnType<typeof vi.fn> } })
+      .portManager;
+    for (const port of ports) {
+      allocatePort.mockResolvedValueOnce(port);
+    }
+    return allocatePort;
+  }
+
+  it('should prefer sequential ports for multiple capabilities and use the free ones allocated', async () => {
+    const caps = [
+      { 'tauri:options': { application: APP_BINARY } },
+      { 'tauri:options': { application: APP_BINARY } },
+    ] as Array<{ port?: number }>;
+    const launcher = new TauriLaunchService({}, caps[0], { capabilities: [] });
+    const allocatePort = stubAllocatedPorts(launcher, 4445, 51234);
+
+    await launcher.onPrepare({ capabilities: [] }, caps as never);
+
+    expect(allocatePort.mock.calls).toEqual([[4445], [4446]]);
+    expect(vi.mocked(startEmbeddedDriver).mock.calls.map((call) => call[1])).toEqual([4445, 51234]);
+    expect(caps.map((cap) => cap.port)).toEqual([4445, 51234]);
+  });
+
+  it("should prefer a multiremote instance's own embeddedPort and connect each instance to its allocated port", async () => {
+    const caps = {
+      appA: {
+        capabilities: {
+          'tauri:options': { application: APP_BINARY },
+          'wdio:tauriServiceOptions': { embeddedPort: 5000 },
+        },
+      },
+      appB: { capabilities: { 'tauri:options': { application: APP_BINARY } } },
+    };
+    const launcher = new TauriLaunchService({}, caps.appA.capabilities, { capabilities: [] });
+    const allocatePort = stubAllocatedPorts(launcher, 5000, 51234);
+
+    await launcher.onPrepare({ capabilities: [] }, caps);
+
+    expect(allocatePort.mock.calls).toEqual([[5000], [4446]]);
+    expect(vi.mocked(startEmbeddedDriver).mock.calls.map((call) => call[1])).toEqual([5000, 51234]);
+    expect((caps.appA as { port?: number }).port).toBe(5000);
+    expect((caps.appB as { port?: number }).port).toBe(51234);
+  });
+});

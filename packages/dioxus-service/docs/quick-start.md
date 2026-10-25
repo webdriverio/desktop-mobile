@@ -235,8 +235,6 @@ npx wdio run wdio.conf.ts --logLevel debug
 
 3. Build in debug mode (`dx build --desktop`, not `dx build --desktop --release`).
 
-4. Nothing else is listening on the embedded port (`4444` by default). Set `embeddedPort` in the service options to use a different one.
-
 ### Styles or images are missing during tests
 
 The app was built with `cargo build`, which doesn't bundle the files loaded with `asset!()`. Build with `dx build --desktop` and point `dioxus:options.application` at the `dx` output (see [Building the Dioxus App](#building-the-dioxus-app)).

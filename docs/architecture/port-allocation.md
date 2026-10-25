@@ -32,3 +32,4 @@ class PortManager {
 - Release ports in `onComplete` via `portManager.clear()`
 - For services needing port pairs (e.g. main + native driver), allocate both atomically via `allocatePortPair()`
 - Prefer `get-port` over hardcoded ports — never assume a port is available
+- Treat a configured port as a preference: pass it as `preferred`, have each further instance prefer the next port up, and connect to the port that comes back
