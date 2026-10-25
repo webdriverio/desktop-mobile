@@ -25,11 +25,6 @@ describe('mergeServiceOptions', () => {
     expect(mergeServiceOptions({}, undefined).driverProvider).toBeUndefined();
   });
 
-  it("should normalise driverProvider: 'official' to 'external'", () => {
-    expect(mergeServiceOptions({ driverProvider: 'official' }, undefined).driverProvider).toBe('external');
-    expect(mergeServiceOptions({}, { driverProvider: 'official' }).driverProvider).toBe('external');
-  });
-
   it('should default the log capture options', () => {
     expect(mergeServiceOptions()).toMatchObject({
       captureBackendLogs: false,

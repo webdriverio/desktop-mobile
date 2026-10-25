@@ -14,7 +14,7 @@ This plugin is required when using the `'embedded'` driver provider with `@wdio/
 - **macOS** — auto-detected, no configuration needed
 - **Windows/Linux** — set `driverProvider: 'embedded'` or `TAURI_WEBDRIVER_PORT` env var
 
-It is **not needed** if you use the `'official'` or `'crabnebula'` driver providers.
+It is **not needed** if you use the `'external'` or `'crabnebula'` driver providers.
 
 ## Features
 

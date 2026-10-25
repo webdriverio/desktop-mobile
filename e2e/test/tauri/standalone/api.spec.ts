@@ -26,7 +26,7 @@ const appBinaryPath = resolveTauriFixtureBinary(appDir);
 console.log(`🔍 Using Tauri binary: ${appBinaryPath}`);
 
 // Create session options
-const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded';
+const driverProvider = process.env.DRIVER_PROVIDER as 'external' | 'crabnebula' | 'embedded';
 const sessionOptions = createTauriCapabilities(appBinaryPath, {
   appArgs: ['foo', 'bar=baz'],
   driverProvider,

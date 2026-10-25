@@ -11,7 +11,6 @@ export function mergeServiceOptions(
   const merged: TauriServiceOptions = { ...globalOptions, ...definedCapabilityOptions };
   return {
     ...merged,
-    driverProvider: merged.driverProvider === 'official' ? 'external' : merged.driverProvider,
     captureBackendLogs: merged.captureBackendLogs ?? false,
     captureFrontendLogs: merged.captureFrontendLogs ?? false,
     backendLogLevel: merged.backendLogLevel ?? 'info',

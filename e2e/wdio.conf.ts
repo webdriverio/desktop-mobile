@@ -4,7 +4,7 @@ import { createEnvironmentContext } from './config/envSchema.js';
  * Main WDIO configuration that delegates to framework-specific configs
  * Based on the FRAMEWORK environment variable, this will load either:
  * - wdio.electron.conf.ts for Electron tests
- * - wdio.tauri.conf.ts for Tauri tests (official/crabnebula provider)
+ * - wdio.tauri.conf.ts for Tauri tests (external/crabnebula provider)
  * - wdio.tauri-embedded.conf.ts for Tauri tests (embedded provider)
  */
 

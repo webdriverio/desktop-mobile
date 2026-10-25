@@ -382,8 +382,6 @@ Select which driver provider to use for WebDriver communication.
 
 **Default:** `'embedded'` on every platform when `driverProvider` is unset. The embedded provider requires `tauri-plugin-wdio-webdriver` in your app — if the plugin is missing, the embedded server never comes up and the session times out, so add the plugin or select another provider explicitly.
 
-> `driverProvider: 'official'` is a deprecated alias for `'external'`. It still works but logs a warning and will be removed in v2. See [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md) for the naming.
-
 **Example:**
 ```typescript
 // Default — the embedded WebDriver server (requires tauri-plugin-wdio-webdriver)

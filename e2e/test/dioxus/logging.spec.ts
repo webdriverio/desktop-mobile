@@ -8,7 +8,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 // Only 'embedded' gets a log-dir prefix; 'external' and unset both map to the
-// prefix-less directory that wdio.dioxus.conf.ts writes via getLogDirName(..., 'official').
+// prefix-less directory that wdio.dioxus.conf.ts writes via getLogDirName(..., 'external').
 const logProvider = process.env.DRIVER_PROVIDER === 'embedded' ? ('embedded' as const) : undefined;
 
 function getLogDir() {

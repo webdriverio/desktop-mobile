@@ -71,8 +71,8 @@ describe('isEmbeddedProvider', () => {
       expect(isEmbeddedProvider({ driverProvider: 'embedded' })).toBe(true);
     });
 
-    it('should return false for "official"', () => {
-      expect(isEmbeddedProvider({ driverProvider: 'official' })).toBe(false);
+    it('should return false for "external"', () => {
+      expect(isEmbeddedProvider({ driverProvider: 'external' })).toBe(false);
     });
 
     it('should return false for "crabnebula"', () => {

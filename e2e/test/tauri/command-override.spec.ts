@@ -15,7 +15,7 @@ import '@wdio/native-types';
  * doesn't persist across every tauri provider. This exercises the real
  * WebdriverIO override storage the shared installMockSyncOverride helper reaches
  * into, which the unit tests only mock. Verified green on every provider,
- * including the external-WebKitWebDriver ones (official Linux + macOS embedded)
+ * including the external-WebKitWebDriver ones (external Linux + macOS embedded)
  * that #443 had flagged.
  */
 describe('Tauri user command override composition', () => {

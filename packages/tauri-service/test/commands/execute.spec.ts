@@ -1,16 +1,6 @@
-import assert from 'node:assert';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import {
-  execute,
-  executeTauriCommand,
-  executeTauriCommands,
-  executeTauriCommandsParallel,
-  executeTauriCommandWithTimeout,
-  getTauriAppInfo,
-  getTauriVersion,
-  isTauriApiAvailable,
-} from '../../src/commands/execute.js';
+import { execute } from '../../src/commands/execute.js';
 import { clearWindowState, setSessionProvider } from '../../src/window.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => {
@@ -292,7 +282,7 @@ describe('execute — embedded provider (direct eval)', () => {
   });
 });
 
-describe('execute — IPC provider (official/crabnebula)', () => {
+describe('execute — IPC provider (external/crabnebula)', () => {
   let browser: WebdriverIO.Browser;
 
   beforeEach(() => {
@@ -300,8 +290,8 @@ describe('execute — IPC provider (official/crabnebula)', () => {
     vi.useRealTimers();
     clearWindowState();
     browser = createMockBrowser();
-    // Set provider to official so the IPC path is taken
-    setSessionProvider(browser, 'official');
+    // Set provider to external so the IPC path is taken
+    setSessionProvider(browser, 'external');
   });
 
   describe('parameter validation', () => {
@@ -323,7 +313,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       vi.useFakeTimers();
       const mockExecute = vi.fn().mockResolvedValue(false);
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       const promise = execute(browser, '() => 1').catch((e: Error) => e);
@@ -349,7 +339,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
         return Promise.resolve(JSON.stringify({ __wdio_value__: 'result' }));
       });
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       const promise = execute<string, []>(browser, '() => "result"');
@@ -372,7 +362,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
         return Promise.resolve(JSON.stringify({ __wdio_value__: 'result' }));
       });
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       await execute<string, []>(browser, '() => "result"');
@@ -386,8 +376,8 @@ describe('execute — IPC provider (official/crabnebula)', () => {
     it('should not share cache between different browser objects', async () => {
       const browser1 = createMockBrowser();
       const browser2 = createMockBrowser();
-      setSessionProvider(browser1, 'official');
-      setSessionProvider(browser2, 'official');
+      setSessionProvider(browser1, 'external');
+      setSessionProvider(browser2, 'external');
       const calls1: number[] = [];
       const calls2: number[] = [];
 
@@ -421,7 +411,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_value__: 42 }));
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       const fn = (_tauri: unknown, a: number, b: number) => a + b;
@@ -438,7 +428,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_value__: 'hello' }));
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       await execute<string, []>(browser, 'return "hello"');
@@ -454,7 +444,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_value__: { foo: 'bar' } }));
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       const result = await execute<{ foo: string }, []>(browser, '() => ({ foo: "bar" })');
@@ -466,7 +456,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_value__: null }));
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       const result = await execute<null, []>(browser, '() => null');
@@ -478,7 +468,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockResolvedValueOnce(42);
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       const result = await execute<number, []>(browser, '() => 42');
@@ -490,7 +480,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_undefined__: true }));
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       const result = await execute<undefined, []>(browser, '() => undefined');
@@ -502,7 +492,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockResolvedValueOnce('not-valid-json');
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       await expect(() => execute<string, []>(browser, '() => "fail"')).rejects.toThrow(
@@ -517,7 +507,7 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockResolvedValueOnce(JSON.stringify({ __wdio_error__: 'something went wrong' }));
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       await expect(() => execute<string, []>(browser, '() => "fail"')).rejects.toThrow(/something went wrong/);
@@ -528,424 +518,10 @@ describe('execute — IPC provider (official/crabnebula)', () => {
       mockExecute.mockResolvedValueOnce(true);
       mockExecute.mockRejectedValueOnce(new Error('WebDriver session expired'));
       browser = createMockBrowser();
-      setSessionProvider(browser, 'official');
+      setSessionProvider(browser, 'external');
       (browser.execute as ReturnType<typeof vi.fn>).mockImplementation(mockExecute);
 
       await expect(() => execute<string, []>(browser, '() => "fail"')).rejects.toThrow('WebDriver session expired');
     });
-  });
-});
-
-describe('executeTauriCommand', () => {
-  let browser: WebdriverIO.Browser;
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-    clearWindowState();
-    browser = createMockBrowser();
-    // executeTauriCommand calls execute() which uses embedded path by default
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ value: 'command-result' }),
-      }),
-    );
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('should return ok result on success', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ value: 'command-result' }),
-      }),
-    );
-
-    const result = await executeTauriCommand<string>(browser, 'my_command', 'arg1', 'arg2');
-    expect(result).toEqual({ ok: true, value: 'command-result' });
-  });
-
-  it('should return error result on failure', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ error: 'command failed' }),
-      }),
-    );
-
-    const result = await executeTauriCommand<string>(browser, 'my_command');
-    assert(!result.ok);
-    expect(result.error).toContain('command failed');
-  });
-
-  it('should return error result when fetch rejects', async () => {
-    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new Error('ECONNREFUSED')));
-
-    const result = await executeTauriCommand(browser, 'my_command');
-    assert(!result.ok);
-    expect(result.error).toContain('ECONNREFUSED');
-  });
-});
-
-describe('executeTauriCommandWithTimeout', () => {
-  let browser: WebdriverIO.Browser;
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.useRealTimers();
-    vi.unstubAllGlobals();
-    clearWindowState();
-    browser = createMockBrowser();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('should return result when command completes before timeout', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ value: 'fast-result' }),
-      }),
-    );
-
-    const result = await executeTauriCommandWithTimeout<string>(browser, 'fast_command', 5000);
-    expect(result).toEqual({ ok: true, value: 'fast-result' });
-  });
-
-  it('should return error result when command times out', async () => {
-    vi.useFakeTimers();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() => new Promise(() => {})),
-    );
-
-    const promise = executeTauriCommandWithTimeout<string>(browser, 'slow_command', 100);
-
-    await vi.advanceTimersByTimeAsync(100);
-
-    const result = await promise;
-    assert(!result.ok);
-    expect(result.error).toContain('timeout after 100ms');
-
-    vi.useRealTimers();
-  });
-
-  it('should use default timeout of 30000ms', async () => {
-    vi.useFakeTimers();
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() => new Promise(() => {})),
-    );
-
-    const promise = executeTauriCommandWithTimeout<string>(browser, 'slow_command');
-
-    await vi.advanceTimersByTimeAsync(30000);
-
-    const result = await promise;
-    assert(!result.ok);
-    expect(result.error).toContain('timeout after 30000ms');
-
-    vi.useRealTimers();
-  });
-});
-
-describe('executeTauriCommands', () => {
-  let browser: WebdriverIO.Browser;
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-    clearWindowState();
-    browser = createMockBrowser();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('should execute commands sequentially and return all results', async () => {
-    let callCount = 0;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() => {
-        callCount++;
-        const value = callCount === 1 ? 'result1' : 'result2';
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: vi.fn().mockResolvedValue({ value }),
-        });
-      }),
-    );
-
-    const results = await executeTauriCommands<string>(browser, [
-      { command: 'cmd1', args: [] },
-      { command: 'cmd2', args: [] },
-    ]);
-
-    expect(results).toHaveLength(2);
-    expect(results[0]).toEqual({ ok: true, value: 'result1' });
-    expect(results[1]).toEqual({ ok: true, value: 'result2' });
-  });
-
-  it('should stop at first failure', async () => {
-    let callCount = 0;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() => {
-        callCount++;
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: vi.fn().mockResolvedValue(callCount === 1 ? { error: 'cmd1 failed' } : { value: 'ok' }),
-        });
-      }),
-    );
-
-    const results = await executeTauriCommands<string>(browser, [
-      { command: 'cmd1', args: [] },
-      { command: 'cmd2', args: [] },
-      { command: 'cmd3', args: [] },
-    ]);
-
-    expect(results).toHaveLength(1);
-    expect(results[0].ok).toBe(false);
-  });
-
-  it('should use timeout variant when timeout is specified', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ value: 'timed-result' }),
-      }),
-    );
-
-    const results = await executeTauriCommands<string>(browser, [{ command: 'cmd1', args: ['a'], timeout: 5000 }]);
-
-    expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ ok: true, value: 'timed-result' });
-  });
-
-  it('should handle empty commands array', async () => {
-    const results = await executeTauriCommands(browser, []);
-    expect(results).toEqual([]);
-  });
-});
-
-describe('executeTauriCommandsParallel', () => {
-  let browser: WebdriverIO.Browser;
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-    clearWindowState();
-    browser = createMockBrowser();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('should execute all commands in parallel', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ value: 'parallel-result' }),
-      }),
-    );
-
-    const results = await executeTauriCommandsParallel<string>(browser, [
-      { command: 'cmd1', args: [] },
-      { command: 'cmd2', args: [] },
-      { command: 'cmd3', args: [] },
-    ]);
-
-    expect(results).toHaveLength(3);
-    for (const result of results) {
-      expect(result.ok).toBe(true);
-    }
-  });
-
-  it('should return all results including failures', async () => {
-    let callCount = 0;
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockImplementation(() => {
-        callCount++;
-        return Promise.resolve({
-          ok: true,
-          status: 200,
-          json: vi.fn().mockResolvedValue(callCount === 1 ? { value: 'ok' } : { error: 'cmd2 failed' }),
-        });
-      }),
-    );
-
-    const results = await executeTauriCommandsParallel<string>(browser, [
-      { command: 'cmd1', args: [] },
-      { command: 'cmd2', args: [] },
-    ]);
-
-    expect(results).toHaveLength(2);
-    expect(results[0]).toEqual({ ok: true, value: 'ok' });
-    expect(results[1].ok).toBe(false);
-  });
-
-  it('should use timeout variant when timeout is specified', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ value: 'timed-result' }),
-      }),
-    );
-
-    const results = await executeTauriCommandsParallel<string>(browser, [{ command: 'cmd1', args: [], timeout: 5000 }]);
-
-    expect(results).toHaveLength(1);
-    expect(results[0]).toEqual({ ok: true, value: 'timed-result' });
-  });
-
-  it('should handle empty commands array', async () => {
-    const results = await executeTauriCommandsParallel(browser, []);
-    expect(results).toEqual([]);
-  });
-});
-
-describe('isTauriApiAvailable', () => {
-  let browser: WebdriverIO.Browser;
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    clearWindowState();
-    browser = createMockBrowser();
-  });
-
-  it('should return true when __TAURI__ is available', async () => {
-    (browser.execute as ReturnType<typeof vi.fn>).mockResolvedValue(true);
-
-    const result = await isTauriApiAvailable(browser);
-    expect(result).toBe(true);
-  });
-
-  it('should return false when __TAURI__ is not available', async () => {
-    (browser.execute as ReturnType<typeof vi.fn>).mockResolvedValue(false);
-
-    const result = await isTauriApiAvailable(browser);
-    expect(result).toBe(false);
-  });
-
-  it('should return false when browser.execute throws', async () => {
-    (browser.execute as ReturnType<typeof vi.fn>).mockRejectedValue(new Error('session not found'));
-
-    const result = await isTauriApiAvailable(browser);
-    expect(result).toBe(false);
-  });
-});
-
-describe('getTauriVersion', () => {
-  let browser: WebdriverIO.Browser;
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-    clearWindowState();
-    browser = createMockBrowser();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('should return version string on success', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ value: '2.1.0' }),
-      }),
-    );
-
-    const result = await getTauriVersion(browser);
-    expect(result).toEqual({ ok: true, value: '2.1.0' });
-  });
-
-  it('should return error result on failure', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ error: 'version not found' }),
-      }),
-    );
-
-    const result = await getTauriVersion(browser);
-    assert(!result.ok);
-    expect(result.error).toContain('version not found');
-  });
-});
-
-describe('getTauriAppInfo', () => {
-  let browser: WebdriverIO.Browser;
-
-  beforeEach(() => {
-    vi.restoreAllMocks();
-    vi.unstubAllGlobals();
-    clearWindowState();
-    browser = createMockBrowser();
-  });
-
-  afterEach(() => {
-    vi.unstubAllGlobals();
-  });
-
-  it('should return app info on success', async () => {
-    const appInfo = { name: 'my-app', version: '1.0.0' };
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ value: appInfo }),
-      }),
-    );
-
-    const result = await getTauriAppInfo(browser);
-    expect(result).toEqual({ ok: true, value: appInfo });
-  });
-
-  it('should return error result on failure', async () => {
-    vi.stubGlobal(
-      'fetch',
-      vi.fn().mockResolvedValue({
-        ok: true,
-        status: 200,
-        json: vi.fn().mockResolvedValue({ error: 'app info unavailable' }),
-      }),
-    );
-
-    const result = await getTauriAppInfo(browser);
-    assert(!result.ok);
-    expect(result.error).toContain('app info unavailable');
   });
 });

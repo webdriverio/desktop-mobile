@@ -359,3 +359,31 @@ describe('embedded launcher lifecycle', () => {
     expect(internals.instanceOptions.size).toBe(0);
   });
 });
+
+describe('driverProvider validation', () => {
+  const caps = { 'tauri:options': { application: APP_BINARY } };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('should reject an unknown provider set in the service options', async () => {
+    const { SevereServiceError } = await import('webdriverio');
+    const launcher = new TauriLaunchService({ driverProvider: 'webkit' } as any, caps, { capabilities: [] });
+    const result = launcher.onPrepare({ capabilities: [] }, [caps]);
+    await expect(result).rejects.toBeInstanceOf(SevereServiceError);
+    await expect(result).rejects.toMatchObject({
+      message: `driverProvider must be 'embedded', 'external' or 'crabnebula', not "webkit".`,
+    });
+    expect(startEmbeddedDriver).not.toHaveBeenCalled();
+  });
+
+  it('should reject an unknown provider set in the capability options', async () => {
+    const launcher = new TauriLaunchService({}, caps, { capabilities: [] });
+    const capability = { ...caps, 'wdio:tauriServiceOptions': { driverProvider: 'tauri-driver' } } as any;
+    await expect(launcher.onPrepare({ capabilities: [] }, [capability])).rejects.toMatchObject({
+      name: 'SevereServiceError',
+      message: `driverProvider must be 'embedded', 'external' or 'crabnebula', not "tauri-driver".`,
+    });
+  });
+});

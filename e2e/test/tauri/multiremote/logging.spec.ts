@@ -8,7 +8,7 @@ import { assertLogContains, findLogEntries, getLogDirName, readWdioLogs, waitFor
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
 // Driver provider selects the per-provider log directory (getLogDirName).
-const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded' | undefined;
+const driverProvider = process.env.DRIVER_PROVIDER as 'external' | 'crabnebula' | 'embedded' | undefined;
 
 function getMultiremoteLogDir() {
   const logDirName = getLogDirName('multiremote', 'tauri', driverProvider);

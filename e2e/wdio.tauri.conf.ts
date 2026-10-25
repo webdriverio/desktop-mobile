@@ -29,10 +29,10 @@ async function getTauriConfigContext(): Promise<TauriConfigContext> {
   // Parse and validate environment first (needed to check driverProvider)
   const envContext = createEnvironmentContext();
 
-  // Skip macOS Tauri tests only for official tauri-driver
+  // Skip macOS Tauri tests only for the external tauri-driver
   // CrabNebula and embedded providers support macOS
-  if (process.platform === 'darwin' && envContext.driverProvider === 'official') {
-    console.log('⚠️ Skipping Tauri tests on macOS with official driver due to WKWebView WebDriver limitations');
+  if (process.platform === 'darwin' && envContext.driverProvider === 'external') {
+    console.log('⚠️ Skipping Tauri tests on macOS with tauri-driver due to WKWebView WebDriver limitations');
     console.log('💡 Use driverProvider: "crabnebula" or "embedded" for macOS support');
     process.exit(78); // Exit code 78 indicates skipped tests
   }
@@ -276,7 +276,7 @@ export const config = {
     [
       '@wdio/tauri-service',
       {
-        driverProvider: envContext.driverProvider || 'official',
+        driverProvider: envContext.driverProvider || 'external',
         autoInstallTauriDriver: envContext.driverProvider !== 'crabnebula',
       },
     ],

@@ -129,7 +129,7 @@ describe('Multiremote Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 }, // Multiremote doesn't need maxInstances > 1
       );
@@ -164,7 +164,7 @@ describe('Multiremote Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -204,7 +204,7 @@ describe('Multiremote Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -234,7 +234,7 @@ describe('Multiremote Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -272,7 +272,7 @@ describe('Multiremote Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -309,7 +309,7 @@ describe('Multiremote Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -343,7 +343,7 @@ describe('Multiremote Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -382,14 +382,14 @@ describe('Multiremote Mode - Integration', () => {
       await expect((launcher as any).onPrepare({}, capabilities)).rejects.toThrow();
     });
 
-    it('should use official provider when explicitly set', async () => {
+    it('should use external provider when explicitly set', async () => {
       vi.mocked(ensureTauriDriver).mockResolvedValue({
         ok: true,
         value: { path: mockSuccessPath, method: 'found' },
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -650,7 +650,7 @@ describe('Multiremote Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );

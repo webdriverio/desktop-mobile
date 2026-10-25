@@ -5,15 +5,8 @@ import type {
 
 export type { TauriExecuteOptions, TauriResult } from '@wdio/native-types';
 
-/**
- * WebDriver provider for Tauri testing.
- *
- * `'external'` is the canonical name (preferred going forward). `'official'`
- * is accepted as a deprecated alias for one release cycle so existing
- * configs keep working; pass `'official'` and the launcher emits a
- * deprecation warning then treats it as `'external'`. Removed in v2.
- */
-export type DriverProvider = 'external' | 'official' | 'crabnebula' | 'embedded';
+/** WebDriver provider for Tauri testing. */
+export type DriverProvider = 'external' | 'crabnebula' | 'embedded';
 
 /**
  * Extended Tauri service options with implementation-specific fields
@@ -98,15 +91,6 @@ export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions
 export interface TauriCapabilities
   extends Omit<import('@wdio/native-types').TauriCapabilities, 'wdio:tauriServiceOptions'> {
   'wdio:tauriServiceOptions'?: TauriServiceOptions;
-}
-
-/**
- * Tauri command execution context
- */
-export interface TauriCommandContext {
-  command: string;
-  args: unknown[];
-  timeout?: number;
 }
 
 /**

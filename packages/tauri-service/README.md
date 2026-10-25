@@ -98,8 +98,6 @@ See [Platform Support](./docs/platform-support.md) for detailed information incl
 > - **`embedded`** (default, all platforms) — WebDriver runs inside your app; no external driver needed
 > - **`external`** — a separate `tauri-driver` process; Windows/Linux only
 > - **`crabnebula`** — CrabNebula's cross-platform driver; requires a subscription (CN_API_KEY for macOS)
->
-> `driverProvider: 'official'` is a deprecated alias for `'external'` and will be removed in v2.
 
 ## Example Projects
 

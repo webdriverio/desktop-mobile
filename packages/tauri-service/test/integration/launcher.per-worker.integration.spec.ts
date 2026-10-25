@@ -122,7 +122,7 @@ describe('Per-Worker Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { tauriDriverPort: basePort, driverProvider: 'official' },
+        { tauriDriverPort: basePort, driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 2 },
       );
@@ -159,7 +159,7 @@ describe('Per-Worker Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { tauriDriverPort: basePort, driverProvider: 'official' },
+        { tauriDriverPort: basePort, driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 2 },
       );
@@ -200,7 +200,7 @@ describe('Per-Worker Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { tauriDriverPort: basePort, driverProvider: 'official' },
+        { tauriDriverPort: basePort, driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -233,7 +233,7 @@ describe('Per-Worker Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { tauriDriverPort: basePort, driverProvider: 'official' },
+        { tauriDriverPort: basePort, driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 2 },
       );
@@ -269,7 +269,7 @@ describe('Per-Worker Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { tauriDriverPort: basePort, driverProvider: 'official' },
+        { tauriDriverPort: basePort, driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -296,7 +296,7 @@ describe('Per-Worker Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { tauriDriverPort: basePort, driverProvider: 'official' },
+        { tauriDriverPort: basePort, driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 2 },
       );
@@ -328,7 +328,7 @@ describe('Per-Worker Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { tauriDriverPort: basePort, driverProvider: 'official' },
+        { tauriDriverPort: basePort, driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );

@@ -48,24 +48,22 @@ function generateDataDirectory(instanceId: string): string {
   return dataDir;
 }
 
-let officialDeprecationWarned = false;
+const DRIVER_PROVIDERS: readonly DriverProvider[] = ['embedded', 'external', 'crabnebula'];
 
-// mergeServiceOptions maps 'official' to 'external'; this only adds the one-time warning.
-function warnIfOfficialDriverProvider(value: DriverProvider | undefined): void {
-  if (value === 'official' && !officialDeprecationWarned) {
-    log.warn(
-      "driverProvider: 'official' is deprecated; use 'external' instead. " +
-        "The 'official' value will be removed in @wdio/tauri-service v2.",
-    );
-    officialDeprecationWarned = true;
+function assertDriverProvider(value: unknown): void {
+  if (value === undefined || DRIVER_PROVIDERS.includes(value as DriverProvider)) {
+    return;
   }
+  throw new SevereServiceError(
+    `driverProvider must be 'embedded', 'external' or 'crabnebula', not ${JSON.stringify(value)}.`,
+  );
 }
 
 function mergeOptions(
   globalOptions: TauriServiceGlobalOptions,
   capabilityOptions?: TauriServiceOptions,
 ): TauriServiceOptions {
-  warnIfOfficialDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider);
+  assertDriverProvider(capabilityOptions?.driverProvider ?? globalOptions.driverProvider);
   return mergeServiceOptions(globalOptions, capabilityOptions);
 }
 
@@ -302,7 +300,7 @@ export default class TauriLaunchService {
     }
 
     // For embedded provider: skip tauri-driver installation
-    // For official/crabnebula: ensure tauri-driver is installed
+    // For external/crabnebula: ensure tauri-driver is installed
     if (!isEmbedded) {
       // Ensure tauri-driver is installed before any workers start.
       // This prevents a race condition where parallel workers all try to
@@ -416,7 +414,7 @@ export default class TauriLaunchService {
       } else if (isCrabNebula) {
         // CrabNebula provider: spawn tauri-driver per multiremote instance
         // On macOS: also spawn test-runner-backend per instance (tauri-driver proxies via REMOTE_WEBDRIVER_URL)
-        // On other platforms: tauri-driver works directly without the backend (same as official provider)
+        // On other platforms: tauri-driver works directly without the backend (same as the external provider)
         setCrabnebulaModeInfo(true);
 
         const hostname = '127.0.0.1';

@@ -189,10 +189,10 @@ describe('window management', () => {
       });
     });
 
-    describe('official provider', () => {
+    describe('external provider', () => {
       it('should iterate handles and resolve label via IPC', async () => {
         const mockBrowser = {
-          sessionId: 'official-session',
+          sessionId: 'external-session',
           tauri: {
             execute: vi.fn().mockResolvedValueOnce(['main', 'splash']),
           },
@@ -202,7 +202,7 @@ describe('window management', () => {
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 
-        setSessionProvider(mockBrowser, 'official');
+        setSessionProvider(mockBrowser, 'external');
         await switchWindowByLabel(mockBrowser, 'splash');
 
         expect(mockBrowser.getWindowHandles).toHaveBeenCalled();
@@ -211,7 +211,7 @@ describe('window management', () => {
 
       it('should stop iterating handles once the target label is found', async () => {
         const mockBrowser = {
-          sessionId: 'official-stop-session',
+          sessionId: 'external-stop-session',
           tauri: {
             execute: vi.fn().mockResolvedValueOnce(['main', 'splash']),
           },
@@ -221,7 +221,7 @@ describe('window management', () => {
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 
-        setSessionProvider(mockBrowser, 'official');
+        setSessionProvider(mockBrowser, 'external');
         await switchWindowByLabel(mockBrowser, 'main');
 
         // Should call executeAsync only once (found on first handle)
@@ -231,7 +231,7 @@ describe('window management', () => {
 
       it('should skip stale handles and continue', async () => {
         const mockBrowser = {
-          sessionId: 'official-stale-session',
+          sessionId: 'external-stale-session',
           tauri: {
             execute: vi.fn().mockResolvedValueOnce(['main', 'splash']),
           },
@@ -241,7 +241,7 @@ describe('window management', () => {
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 
-        setSessionProvider(mockBrowser, 'official');
+        setSessionProvider(mockBrowser, 'external');
         await switchWindowByLabel(mockBrowser, 'splash');
 
         expect(mockBrowser.switchToWindow).toHaveBeenLastCalledWith('uuid-splash');
@@ -249,7 +249,7 @@ describe('window management', () => {
 
       it('should throw with discovered labels when no handle matches', async () => {
         const mockBrowser = {
-          sessionId: 'official-nomatch-session',
+          sessionId: 'external-nomatch-session',
           tauri: {
             execute: vi.fn().mockResolvedValueOnce(['main', 'ghost']),
           },
@@ -259,13 +259,13 @@ describe('window management', () => {
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 
-        setSessionProvider(mockBrowser, 'official');
+        setSessionProvider(mockBrowser, 'external');
         await expect(switchWindowByLabel(mockBrowser, 'ghost')).rejects.toThrow('ghost');
       });
     });
 
     describe('crabnebula provider', () => {
-      it('should use handle iteration (same path as official)', async () => {
+      it('should use handle iteration (same path as external)', async () => {
         const mockBrowser = {
           sessionId: 'cn-session',
           tauri: {

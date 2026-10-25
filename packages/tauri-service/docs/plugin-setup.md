@@ -183,18 +183,7 @@ After starting your test session, the plugin will log initialization messages:
 [WDIO Plugin] Successfully initialized
 ```
 
-### Method 2: Test Plugin Availability
-
-In a test, check if the plugin is available:
-
-```typescript
-it('should have plugin available', async () => {
-  const available = await browser.tauri.isTauriApiAvailable?.();
-  expect(available).toBe(true);
-});
-```
-
-### Method 3: Try Execute API
+### Method 2: Try Execute API
 
 The execute API will work if the plugin is properly installed:
 

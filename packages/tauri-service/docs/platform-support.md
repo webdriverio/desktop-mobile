@@ -10,7 +10,7 @@ Complete guide to platform-specific requirements, limitations, and WebDriver set
 | **Linux** | ✅ Yes | WebKitWebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` needs WebKitWebDriver |
 | **macOS** | ✅ Yes | Built-in | `'embedded'`, `'crabnebula'` | No external driver needed |
 
-> `'embedded'` is the default on every platform when `driverProvider` is unset. `driverProvider: 'official'` is a deprecated alias for `'external'`. See [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md).
+> `'embedded'` is the default on every platform when `driverProvider` is unset. See [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md).
 
 ## Windows
 

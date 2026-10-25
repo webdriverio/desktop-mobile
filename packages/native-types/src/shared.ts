@@ -108,13 +108,11 @@ export interface DriverProviderConfig {
    * Driver provider to use for WebDriver communication
    * - 'external': Use an external driver process (cargo-installed tauri-driver,
    *   electron-chromedriver, or wdio-dioxus-driver)
-   * - 'official': Deprecated synonym for 'external'. Accepted with a warning
-   *   for one release cycle, removed in v2.
    * - 'crabnebula': Use @crabnebula/tauri-driver from npm (Tauri only, enables macOS support)
    * - 'embedded': Use embedded WebDriver server via plugin (no external driver needed)
    * @default 'external'
    */
-  driverProvider?: 'external' | 'official' | 'crabnebula' | 'embedded';
+  driverProvider?: 'external' | 'crabnebula' | 'embedded';
   /**
    * Port for embedded WebDriver server (when driverProvider is 'embedded')
    * Can be overridden via environment variable (TAURI_WEBDRIVER_PORT or WDIO_EMBEDDED_PORT)

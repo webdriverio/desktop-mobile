@@ -653,9 +653,9 @@ jobs:
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
-  # Tauri E2E tests - all providers (official, embedded, CrabNebula) run sequentially per runner
+  # Tauri E2E tests - all providers (external, embedded, CrabNebula) run sequentially per runner
   # This consolidation reduces runner count from 56 to 20 for Tauri E2E tests
-  # Official provider is automatically skipped on macOS (WKWebView limitations)
+  # External provider is automatically skipped on macOS (WKWebView limitations)
   e2e-tauri-linux:
     name: E2E - Tauri [Linux] - ${{ matrix.test-type }}
     needs: [detect-changes, build, build-tauri-e2e-app-linux]

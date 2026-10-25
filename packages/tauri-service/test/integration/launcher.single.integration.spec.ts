@@ -104,7 +104,7 @@ describe('Single Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -124,7 +124,7 @@ describe('Single Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -140,7 +140,7 @@ describe('Single Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -158,7 +158,7 @@ describe('Single Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
@@ -187,7 +187,7 @@ describe('Single Mode - Integration', () => {
       });
 
       launcher = new TauriLaunchService(
-        { driverProvider: 'official' },
+        { driverProvider: 'external' },
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );

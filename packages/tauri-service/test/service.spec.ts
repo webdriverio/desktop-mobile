@@ -178,7 +178,7 @@ describe('TauriWorkerService', () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
       const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsync: mockExecuteAsync });
-      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       mockBrowser.execute('return document.title');
@@ -196,7 +196,7 @@ describe('TauriWorkerService', () => {
     it('should prepend return for expression-style string scripts on non-embedded providers', () => {
       const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ executeAsync: mockExecuteAsync });
-      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       mockBrowser.execute('1 + 2 + 3');
@@ -208,7 +208,7 @@ describe('TauriWorkerService', () => {
     it('should not prepend return for statement-style string scripts on non-embedded providers', () => {
       const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ executeAsync: mockExecuteAsync });
-      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       mockBrowser.execute('const x = 1; return x');
@@ -224,7 +224,7 @@ describe('TauriWorkerService', () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
       const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsync: mockExecuteAsync });
-      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       const testFn = (a: number, b: number) => a + b;
@@ -240,7 +240,7 @@ describe('TauriWorkerService', () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
       const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsync: mockExecuteAsync });
-      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
 

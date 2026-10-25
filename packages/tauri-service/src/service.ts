@@ -47,7 +47,7 @@ export default class TauriWorkerService {
   private resetMocksPrefix?: string;
   private restoreMocks: boolean;
   private restoreMocksPrefix?: string;
-  private driverProvider?: 'external' | 'official' | 'crabnebula' | 'embedded';
+  private driverProvider?: 'external' | 'crabnebula' | 'embedded';
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;

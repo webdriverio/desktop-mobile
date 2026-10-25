@@ -297,7 +297,7 @@ src/
 - Worker hooks: `before` (attach JS-realm bridge + install `browser.<framework>.*`), `beforeTest` (mock lifecycle), **`afterTest` (drain native device logs)**, `after`/`afterSession` (close bridge). See [plumbing-mobile.md](plumbing-mobile.md).
 
 **Types in `@wdio/native-types/src/<framework>.ts`** (mirror `tauri.ts`, or `react-native.ts` for mobile):
-`<Framework>APIs`, `<Framework>ExecuteOptions`, `<Framework>Mock<T,R>` + `<Framework>MockInstance`, `<Framework>ServiceAPI`, `<Framework>ServiceOptions` + `<Framework>ServiceGlobalOptions`, `<Framework>Capabilities`, `<Framework>BrowserExtension`. WebDriver path also: `<Framework>DriverProvider` (`'external' | 'embedded'` — never `'official'`, a deprecated Tauri alias). Then wire `@wdio/native-types/src/index.ts`: re-export the types, extend `BrowserExtension`, and `declare global { namespace WebdriverIO }` for `Browser`, `Capabilities['wdio:<framework>ServiceOptions']`, and `ServiceOption`.
+`<Framework>APIs`, `<Framework>ExecuteOptions`, `<Framework>Mock<T,R>` + `<Framework>MockInstance`, `<Framework>ServiceAPI`, `<Framework>ServiceOptions` + `<Framework>ServiceGlobalOptions`, `<Framework>Capabilities`, `<Framework>BrowserExtension`. WebDriver path also: `<Framework>DriverProvider` (`'external' | 'embedded'`). Then wire `@wdio/native-types/src/index.ts`: re-export the types, extend `BrowserExtension`, and `declare global { namespace WebdriverIO }` for `Browser`, `Capabilities['wdio:<framework>ServiceOptions']`, and `ServiceOption`.
 
 > `<Framework>Capabilities` must be a **plain interface** — do NOT extend `Capabilities.RequestedStandaloneCapabilities` (Rollup's TS plugin can't extend dynamic-member interfaces). Intersect with it at service-level aliases instead (see `TauriServiceRequestedStandaloneCapabilities`).
 
@@ -407,7 +407,7 @@ Don't introduce a new per-framework gradient or container style — pick `.conta
 
 For a **new** service, pair the embedded port var with the toggle prefix: `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` (as Dioxus does). Tauri's `TAURI_WEBDRIVER_PORT` predates this convention — don't copy it.
 
-**`wdio-` prefix on Rust crates** leaves the unprefixed name (e.g. `dioxus-driver`) free for the framework's own project. The embedded server takes the **plugin** form when the framework has a plugin system (Tauri ships `tauri-plugin-wdio-webdriver` alongside the execute/mock plugin `tauri-plugin-wdio`) and the standalone `wdio-<framework>-embedded-driver` crate form otherwise (Dioxus, wired in via the bridge). **Providers** are `'external'` / `'embedded'` — `'official'` is a deprecated Tauri-only alias.
+**`wdio-` prefix on Rust crates** leaves the unprefixed name (e.g. `dioxus-driver`) free for the framework's own project. The embedded server takes the **plugin** form when the framework has a plugin system (Tauri ships `tauri-plugin-wdio-webdriver` alongside the execute/mock plugin `tauri-plugin-wdio`) and the standalone `wdio-<framework>-embedded-driver` crate form otherwise (Dioxus, wired in via the bridge). **Providers** are `'external'` / `'embedded'`.
 
 **Mobile naming has no Wry analogues:** no automation-toggle env var, no `<framework>:options` capability, no `<FRAMEWORK>_WEBVIEW_AUTOMATION_PORT` — the launch surface is the `appium:*` namespace. For a **multi-word** framework, the options key + browser surface camel-case the name: `react-native` → `wdio:reactNativeServiceOptions` / `browser.reactNative` (the package and `scope:` label stay hyphenated: `@wdio/react-native-service`, `scope:react-native`).
 

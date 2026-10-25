@@ -195,9 +195,9 @@ describe('session', () => {
       expect(caps['wdio:tauriServiceOptions']?.startTimeout).toBe(60000);
     });
 
-    it('should set driverProvider to official', () => {
-      const caps = createTauriCapabilities('/app', { driverProvider: 'official' });
-      expect(caps['wdio:tauriServiceOptions']?.driverProvider).toBe('official');
+    it('should set driverProvider to external', () => {
+      const caps = createTauriCapabilities('/app', { driverProvider: 'external' });
+      expect(caps['wdio:tauriServiceOptions']?.driverProvider).toBe('external');
     });
 
     it('should set driverProvider to crabnebula', () => {

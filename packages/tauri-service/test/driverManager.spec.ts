@@ -299,7 +299,7 @@ describe('ensureTauriDriver', () => {
     });
   });
 
-  describe('official provider', () => {
+  describe('external provider', () => {
     it('should return Ok with custom tauriDriverPath when it exists', async () => {
       vi.mocked(existsSync).mockReturnValue(true);
 

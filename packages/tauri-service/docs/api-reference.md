@@ -562,7 +562,7 @@ interface TauriServiceOptions {
   captureFrontendLogs?: boolean;
   backendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
   frontendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
-  driverProvider?: 'embedded' | 'external' | 'crabnebula'; // 'official' is a deprecated alias for 'external'
+  driverProvider?: 'embedded' | 'external' | 'crabnebula';
   embeddedPort?: number;
   statusPollTimeout?: number;
   crabnebulaDriverPath?: string;
@@ -598,16 +598,6 @@ if (result.ok) {
   console.log(result.value);  // Success case
 } else {
   console.error(result.error); // Error case
-}
-```
-
-### `TauriCommandContext`
-
-```typescript
-interface TauriCommandContext {
-  command: string;
-  args: unknown[];
-  timeout?: number;
 }
 ```
 

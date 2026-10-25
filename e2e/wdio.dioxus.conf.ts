@@ -154,7 +154,7 @@ if (testType === 'multiremote') {
   ];
 }
 
-const logDirName = getLogDirName(testType, 'dioxus', 'official');
+const logDirName = getLogDirName(testType, 'dioxus', 'external');
 const logDir = join(__dirname, 'logs', logDirName);
 
 export const config = {

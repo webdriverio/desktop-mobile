@@ -7,7 +7,7 @@ import { getLogDirName, readWdioLogs } from '../../lib/utils.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
-const driverProvider = process.env.DRIVER_PROVIDER as 'official' | 'crabnebula' | 'embedded' | undefined;
+const driverProvider = process.env.DRIVER_PROVIDER as 'external' | 'crabnebula' | 'embedded' | undefined;
 
 function getLogDir() {
   const logDirName = getLogDirName('standard', 'tauri', driverProvider);
