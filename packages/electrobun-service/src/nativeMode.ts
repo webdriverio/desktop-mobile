@@ -152,14 +152,12 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
     ...options.env,
   };
 
-  // Linux CI runners are headless and CEF is a GUI process that needs an X display
-  // ("Failed to open X11 display" otherwise → no browser → no /json). WDIO's autoXvfb
-  // covers the worker process, not this launcher-spawned app, so run the app under
-  // `xvfb-run -a` (a throwaway X server) on Linux. macOS/Windows runners have a real
-  // display, so spawn the binary directly there. Unreachable in 0.x (the launcher's
-  // macOS guard throws first); kept for the Linux re-fold
-  // (https://github.com/webdriverio/desktop-mobile/issues/320).
-  const useXvfb = process.platform === 'linux';
+  // CEF is a GUI process that needs an X display ("Failed to open X11 display" otherwise → no
+  // browser → no /json), so on Linux it reuses an X display already set (WebdriverIO v10's Xvfb,
+  // or the user's) and otherwise runs under `xvfb-run -a` (a throwaway X server). Weston offers
+  // no X display. Unreachable in 0.x (the launcher's macOS guard throws first); kept for the
+  // Linux re-fold (https://github.com/webdriverio/desktop-mobile/issues/320).
+  const useXvfb = process.platform === 'linux' && !env.DISPLAY;
   const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
   const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;
 

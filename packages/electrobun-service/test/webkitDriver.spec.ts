@@ -1,10 +1,10 @@
-import { execSync } from 'node:child_process';
+import { execSync, spawn } from 'node:child_process';
 import { existsSync, rmSync } from 'node:fs';
-
-import { beforeEach, describe, expect, it, vi } from 'vitest';
-
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   getWebKitWebDriverPath,
+  spawnWebKitWebDriver,
   stopWebKitWebDriver,
   type WebKitDriverProcess,
   waitForWebKitWebDriverReady,
@@ -15,6 +15,7 @@ vi.mock('node:child_process', () => ({ execSync: vi.fn(), spawn: vi.fn() }));
 vi.mock('node:fs', () => ({ existsSync: vi.fn(), rmSync: vi.fn() }));
 
 const mockedExecSync = vi.mocked(execSync);
+const mockedSpawn = vi.mocked(spawn);
 const mockedExistsSync = vi.mocked(existsSync);
 const mockedRmSync = vi.mocked(rmSync);
 
@@ -70,6 +71,51 @@ describe('waitForWebKitWebDriverReady', () => {
   it('should throw when /status never becomes ready within the timeout', async () => {
     const fetchImpl = vi.fn().mockRejectedValue(new Error('ECONNREFUSED')) as unknown as typeof fetch;
     await expect(waitForWebKitWebDriverReady('127.0.0.1', 4444, 10, fetchImpl)).rejects.toThrow(/did not become ready/);
+  });
+});
+
+describe('spawnWebKitWebDriver', () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    const stream = { on: vi.fn() };
+    mockedSpawn.mockReturnValue({ stdout: stream, stderr: stream, on: vi.fn(), once: vi.fn() } as never);
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: true, json: async () => ({ value: { ready: true } }) }));
+    mockPlatform('linux');
+    vi.stubEnv('DISPLAY', '');
+    vi.stubEnv('WAYLAND_DISPLAY', '');
+  });
+
+  afterEach(() => {
+    restorePlatform();
+    vi.unstubAllGlobals();
+    vi.unstubAllEnvs();
+  });
+
+  const spawned = () => mockedSpawn.mock.calls[0] as unknown as [string, string[], { detached: boolean }];
+
+  it('should run under xvfb-run on Linux when no display is set', async () => {
+    const handle = await spawnWebKitWebDriver({ driverPath: '/usr/bin/WebKitWebDriver', port: 4444 });
+
+    const [command, args, opts] = spawned();
+    expect(command).toBe('xvfb-run');
+    expect(args).toEqual(['-a', '/usr/bin/WebKitWebDriver', '--host=127.0.0.1', '--port=4444']);
+    expect(opts.detached).toBe(true);
+    expect(handle.detached).toBe(true);
+  });
+
+  it.each([
+    ['DISPLAY', ':99'],
+    ['WAYLAND_DISPLAY', 'wayland-1'],
+  ])('should use the display WebdriverIO already started (%s)', async (name, value) => {
+    vi.stubEnv(name, value);
+
+    const handle = await spawnWebKitWebDriver({ driverPath: '/usr/bin/WebKitWebDriver', port: 4444 });
+
+    const [command, args, opts] = spawned();
+    expect(command).toBe('/usr/bin/WebKitWebDriver');
+    expect(args).toEqual(['--host=127.0.0.1', '--port=4444']);
+    expect(opts.detached).toBe(true);
+    expect(handle.detached).toBe(true);
   });
 });
 

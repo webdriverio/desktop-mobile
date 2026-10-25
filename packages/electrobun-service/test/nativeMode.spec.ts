@@ -86,11 +86,14 @@ describe('nativeMode', () => {
     mkdtempSyncMock.mockImplementation((prefix: string) => (prefix.includes('bundle') ? CLONE_PARENT : USER_HOME));
     createLogCaptureMock.mockReturnValue({ close: vi.fn() });
     mockPlatform('darwin');
+    vi.stubEnv('DISPLAY', '');
+    vi.stubEnv('WAYLAND_DISPLAY', '');
   });
 
   afterEach(() => {
     restorePlatform();
     vi.useRealTimers();
+    vi.unstubAllEnvs();
   });
 
   describePosixPaths('cloneAppBundle', () => {
@@ -218,6 +221,17 @@ describe('nativeMode', () => {
       const [command, args] = spawnMock.mock.calls[0] as [string, string[]];
       expect(command).toBe('xvfb-run');
       expect(args).toEqual(['-a', '/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/MacOS/Demo', '--flag']);
+    });
+
+    it('should reuse an X display already set on Linux instead of starting one', () => {
+      mockPlatform('linux');
+      vi.stubEnv('DISPLAY', ':99');
+
+      spawnElectrobunApp({ app: APP, appArgs: ['--flag'], port: 9333, options: {} as ElectrobunServiceOptions });
+
+      const [command, args] = spawnMock.mock.calls[0] as [string, string[]];
+      expect(command).toBe('/tmp/wdio-electrobun-bundle-xyz/Demo.app/Contents/MacOS/Demo');
+      expect(args).toEqual(['--flag']);
     });
 
     it('should take the cpSync fallback when the APFS clone fails', () => {
