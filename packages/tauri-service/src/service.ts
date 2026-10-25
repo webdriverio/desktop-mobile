@@ -655,7 +655,7 @@ export default class TauriWorkerService {
         );
       }
 
-      // Non-embedded (tauri-driver/official): use executeAsyncScript for both functions and strings.
+      // Non-embedded (external / tauri-driver): use executeAsyncScript for both functions and strings.
       // WebKit (macOS/iOS Tauri) doesn't auto-await Promises from sync execute.
       if (typeof script === 'function') {
         // Function scripts: use executeAsyncScript with .then() callbacks to handle async results
