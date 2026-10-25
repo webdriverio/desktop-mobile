@@ -1,6 +1,6 @@
 import { expect } from '@wdio/globals';
+import { isMultiremote } from '@wdio/native-utils';
 import { browser, withExecuteOptions } from '@wdio/tauri-service';
-import { isMultiremote } from '../../lib/wdioCompat.js';
 
 interface NativeWindowMetrics {
   x: number;

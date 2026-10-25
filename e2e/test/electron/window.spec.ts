@@ -1,6 +1,6 @@
 import { browser } from '@wdio/electron-service';
 import { expect } from '@wdio/globals';
-import { isMultiremote } from '../../lib/wdioCompat.js';
+import { isMultiremote } from '@wdio/native-utils';
 
 describe('application window tests', () => {
   it('should launch the application splash screen window', async () => {
