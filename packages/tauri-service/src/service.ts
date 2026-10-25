@@ -16,7 +16,7 @@ import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
 import { mergeServiceOptions } from './serviceConfig.js';
 
-import type { TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
+import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 import {
   clearWindowState,
   ensureActiveWindowFocus,
@@ -47,7 +47,7 @@ export default class TauriWorkerService {
   private resetMocksPrefix?: string;
   private restoreMocks: boolean;
   private restoreMocksPrefix?: string;
-  private driverProvider?: 'external' | 'crabnebula' | 'embedded';
+  private driverProvider: DriverProvider;
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
@@ -74,7 +74,7 @@ export default class TauriWorkerService {
     const launcherOptions = capabilityOptions
       ? merged
       : mergeServiceOptions(options, firstInstance?.capabilities?.['wdio:tauriServiceOptions']);
-    this.driverProvider = launcherOptions.driverProvider;
+    this.driverProvider = launcherOptions.driverProvider ?? 'embedded';
     this.windowLabel = merged.windowLabel || getDefaultWindowLabel();
     this.mode = launcherOptions.mode;
     this.devServerUrl = launcherOptions.devServerUrl;
@@ -90,7 +90,7 @@ export default class TauriWorkerService {
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
     log.info(
-      `before() start — mode=${this.mode ?? 'binary'} provider=${this.driverProvider ?? 'embedded'} ` +
+      `before() start — mode=${this.mode ?? 'binary'} provider=${this.driverProvider} ` +
         `multiremote=${isMultiremote(browser)} ` +
         `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
@@ -121,7 +121,7 @@ export default class TauriWorkerService {
           this.addTauriApi(mrInstance);
           this.patchBrowserExecute(mrInstance);
           setCurrentWindowLabel(mrInstance, this.windowLabel);
-          setSessionProvider(mrInstance, this.driverProvider ?? 'embedded');
+          setSessionProvider(mrInstance, this.driverProvider);
           stage = `waitUntilWindowAvailable:${instanceName}`;
           await waitUntilWindowAvailable(mrInstance);
           log.info(`Instance ${instanceName} window available`);
@@ -153,7 +153,7 @@ export default class TauriWorkerService {
         this.addTauriApi(browser as WebdriverIO.Browser);
         this.patchBrowserExecute(browser as WebdriverIO.Browser);
         setCurrentWindowLabel(browser as WebdriverIO.Browser, this.windowLabel);
-        setSessionProvider(browser as WebdriverIO.Browser, this.driverProvider ?? 'embedded');
+        setSessionProvider(browser as WebdriverIO.Browser, this.driverProvider);
         stage = 'waitUntilWindowAvailable:single';
         await waitUntilWindowAvailable(browser as WebdriverIO.Browser);
         log.info('Standard browser window available');
@@ -217,7 +217,7 @@ export default class TauriWorkerService {
     } catch (error) {
       log.error(
         `before() failed at stage="${stage}" — mode=${this.mode ?? 'binary'} ` +
-          `provider=${this.driverProvider ?? 'embedded'} multiremote=${isMultiremote(browser)}`,
+          `provider=${this.driverProvider} multiremote=${isMultiremote(browser)}`,
         error,
       );
       throw error;
