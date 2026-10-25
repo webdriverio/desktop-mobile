@@ -87,7 +87,8 @@ export function installMockSyncOverride(
     return existing ? existing.apply(this, [serviceCommand, ...args]) : serviceCommand(...args);
   } as Parameters<typeof browser.overwriteCommand>[1];
 
-  // v10 takes options and throws on a boolean. v9's types only take the boolean, but its runtime accepts any truthy value.
+  // The third argument is `true` in v9 and `{ attachToElement: true }` in v10, which throws on a boolean.
+  // v9 only checks that it's truthy, so the object works on both; the cast gets it past v9's boolean type.
   const overwriteCommand = browser.overwriteCommand as unknown as (
     name: string,
     fn: typeof override,

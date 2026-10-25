@@ -30,7 +30,11 @@ type ElementBase = SelectorsBase & {
 
 type BrowserBase = SelectorsBase;
 
-/** Named multiremote instances. v10 renamed WebdriverIO's type, so this derives it from a name both majors share. */
+/**
+ * WebdriverIO's multiremote capabilities: one object of named instances. v10 renamed the type, from
+ * `RequestedMultiremoteCapabilities` to `RequestedMultiRemoteCapabilities`, so it's taken from
+ * `TestrunnerCapabilities`, which both majors have: it's the one member of that union that isn't an array.
+ */
 type RequestedMultiremoteCapabilities = Exclude<Capabilities.TestrunnerCapabilities, unknown[]>;
 
 export type { BaseWithExecute, BrowserBase, ElementBase, RequestedMultiremoteCapabilities, SelectorsBase };
