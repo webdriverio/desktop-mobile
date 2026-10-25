@@ -386,12 +386,11 @@ describe('Mock API', () => {
 });
 
 describe('createElectronBrowserModeMock()', () => {
-  let mockBrowser: { execute: Mock; executeAsync: Mock };
+  let mockBrowser: { execute: Mock };
 
   beforeEach(() => {
     mockBrowser = {
       execute: vi.fn().mockResolvedValue(undefined),
-      executeAsync: vi.fn().mockResolvedValue(undefined),
     };
   });
 
@@ -651,10 +650,9 @@ describe('createElectronBrowserModeMock()', () => {
     it('should call mock.update() after the browser callback so call data is synced to the outer mock', async () => {
       const mock = await createElectronBrowserModeMock('my-channel', mockBrowser as unknown as WebdriverIO.Browser);
 
-      mockBrowser.executeAsync.mockResolvedValueOnce('callback-result');
-      mockBrowser.execute.mockResolvedValueOnce(
-        makeCallData([['arg']], [{ type: 'return', value: 'callback-result' }], [1]),
-      );
+      mockBrowser.execute
+        .mockResolvedValueOnce('callback-result')
+        .mockResolvedValueOnce(makeCallData([['arg']], [{ type: 'return', value: 'callback-result' }], [1]));
 
       await mock.withImplementation(
         () => 'impl',
@@ -667,7 +665,7 @@ describe('createElectronBrowserModeMock()', () => {
     it('throws when the browser-side callback fails', async () => {
       const mock = await createElectronBrowserModeMock('err-channel', mockBrowser as unknown as WebdriverIO.Browser);
 
-      mockBrowser.executeAsync.mockResolvedValueOnce({ __wdioAsyncErr__: 'boom' });
+      mockBrowser.execute.mockResolvedValueOnce({ __wdioAsyncErr__: 'boom' });
 
       await expect(
         mock.withImplementation(

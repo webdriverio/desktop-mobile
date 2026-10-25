@@ -360,12 +360,14 @@ export async function createElectronBrowserModeMock(
       implFn as (...a: unknown[]) => unknown,
       callbackFn as (...a: unknown[]) => unknown,
     );
-    const result = await browser.executeAsync((s: string, done: (v: unknown) => void) => {
+    const result = await browser.execute(async (s: string) => {
       // eslint-disable-next-line no-new-func
       const fn = new Function(`return (${s})`)() as () => Promise<unknown>;
-      Promise.resolve(fn()).then(done, (err: unknown) => {
-        done({ __wdioAsyncErr__: err instanceof Error ? err.message : String(err) });
-      });
+      try {
+        return await fn();
+      } catch (err) {
+        return { __wdioAsyncErr__: err instanceof Error ? err.message : String(err) };
+      }
     }, script);
     if (result && typeof result === 'object' && '__wdioAsyncErr__' in result) {
       throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);

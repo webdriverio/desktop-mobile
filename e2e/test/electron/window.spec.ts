@@ -1,5 +1,6 @@
 import { browser } from '@wdio/electron-service';
 import { expect } from '@wdio/globals';
+import { isMultiremote } from '@wdio/native-utils';
 
 describe('application window tests', () => {
   it('should launch the application splash screen window', async () => {
@@ -14,7 +15,7 @@ describe('application window tests', () => {
     }
 
     // Splash is enabled, verify we're on splash screen
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const multi = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       const browserA = multi.getInstance('browserA');
       const browserB = multi.getInstance('browserB');
@@ -38,7 +39,7 @@ describe('application window tests', () => {
     }
 
     // Splash is enabled, click the switch button
-    if (browser.isMultiremote) {
+    if (isMultiremote(browser)) {
       const multi = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       const browserA = multi.getInstance('browserA');
       const browserB = multi.getInstance('browserB');

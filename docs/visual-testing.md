@@ -106,16 +106,16 @@ Tauri's three driver providers behave differently for VRT:
 | Provider | Captures | Native chrome included? | Notes |
 |---|---|---|---|
 | `embedded` | Webview only | ❌ | Default, recommended for most users. Works on macOS, Linux, Windows. |
-| `official` | Webview only | ❌ | Works on Windows. **Known issue on Linux** (see below). No macOS support. |
+| `external` | Webview only | ❌ | Works on Windows. **Known issue on Linux** (see below). No macOS support. |
 | `crabnebula` | OS window (incl. title bar) | ✅ | Captures via OS-level Screen Recording. **macOS CI is excluded** — see below. |
 
 **Per-provider baselines are required.** Switching from `embedded` to `crabnebula` mid-suite would mismatch every baseline by ~30% because CrabNebula's screenshot includes the OS title bar and embedded's does not. Use the `<provider>` segment in your output path.
 
-### Known issue: `official` provider on Linux
+### Known issue: `external` provider on Linux
 
-`tauri-driver` + WebKitGTK + `@wdio/tauri-service`'s `patchedExecute` interact badly with the visual service's `before()` hook. The hook calls `browser.execute('return window.devicePixelRatio')` which gets wrapped into an `executeAsync` HTTP call that never returns, timing out after ~2 minutes. The visual service then fails to register its commands and every assertion errors with `browser.checkScreen is not a function`.
+`tauri-driver` + WebKitGTK + `@wdio/tauri-service`'s `patchedExecute` interact badly with the visual service's `before()` hook. The hook calls `browser.execute('return window.devicePixelRatio')`, which `patchedExecute` sends as a WebDriver `executeAsyncScript` call that never returns, timing out after ~2 minutes. The visual service then fails to register its commands and every assertion errors with `browser.checkScreen is not a function`.
 
-Workaround: use the `embedded` provider on Linux for visual testing. The `official` provider works fine for non-visual specs there.
+Workaround: use the `embedded` provider on Linux for visual testing. The `external` provider works fine for non-visual specs there.
 
 ### Known issue: `crabnebula` on hosted macOS CI
 

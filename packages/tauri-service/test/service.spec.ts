@@ -70,7 +70,7 @@ import {
 function createMockBrowser(overrides: Record<string, unknown> = {}): WebdriverIO.Browser {
   return {
     execute: vi.fn().mockResolvedValue(undefined),
-    executeAsync: vi.fn().mockResolvedValue(undefined),
+    executeAsyncScript: vi.fn().mockResolvedValue(undefined),
     url: vi.fn().mockResolvedValue(undefined),
     isMultiremote: false,
     sessionId: 'test-session-123',
@@ -176,16 +176,16 @@ describe('TauriWorkerService', () => {
 
     it('should wrap string scripts in IIFE with done callback for non-embedded providers', () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
-      const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
-      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsync: mockExecuteAsync });
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsyncScript: mockExecuteAsyncScript });
       const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       mockBrowser.execute('return document.title');
 
-      // String scripts should use executeAsync with explicit done callback for WebKit compatibility
-      expect(mockExecuteAsync).toHaveBeenCalled();
-      const callArgs = mockExecuteAsync.mock.calls[0];
+      // String scripts should use executeAsyncScript with explicit done callback for WebKit compatibility
+      expect(mockExecuteAsyncScript).toHaveBeenCalled();
+      const callArgs = mockExecuteAsyncScript.mock.calls[0];
       // The script should contain .then( to handle async results and __wdio_error__ for error handling
       expect(callArgs[0]).toContain('.then(');
       expect(callArgs[0]).toContain('__wdio_error__');
@@ -194,52 +194,82 @@ describe('TauriWorkerService', () => {
     });
 
     it('should prepend return for expression-style string scripts on non-embedded providers', () => {
-      const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
-      const mockBrowser = createMockBrowser({ executeAsync: mockExecuteAsync });
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
       const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       mockBrowser.execute('1 + 2 + 3');
 
-      expect(mockExecuteAsync).toHaveBeenCalled();
-      expect(mockExecuteAsync.mock.calls[0][0]).toContain('return 1 + 2 + 3;');
+      expect(mockExecuteAsyncScript).toHaveBeenCalled();
+      expect(mockExecuteAsyncScript.mock.calls[0][0]).toContain('return 1 + 2 + 3;');
     });
 
     it('should not prepend return for statement-style string scripts on non-embedded providers', () => {
-      const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
-      const mockBrowser = createMockBrowser({ executeAsync: mockExecuteAsync });
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
       const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       mockBrowser.execute('const x = 1; return x');
 
-      expect(mockExecuteAsync).toHaveBeenCalled();
-      const wrappedScript = mockExecuteAsync.mock.calls[0][0] as string;
+      expect(mockExecuteAsyncScript).toHaveBeenCalled();
+      const wrappedScript = mockExecuteAsyncScript.mock.calls[0][0] as string;
       // The body should NOT have an extra "return" prepended
       expect(wrappedScript).toContain('const x = 1; return x');
       expect(wrappedScript).not.toMatch(/return const/);
     });
 
-    it('should pass function scripts as-is for non-embedded providers using executeAsync', () => {
+    it('should pass function scripts as-is for non-embedded providers using executeAsyncScript', () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
-      const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
-      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsync: mockExecuteAsync });
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsyncScript: mockExecuteAsyncScript });
       const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       const testFn = (a: number, b: number) => a + b;
       mockBrowser.execute(testFn as any, 1, 2);
 
-      // Functions should use executeAsync for WebKit compatibility
-      expect(mockExecuteAsync).toHaveBeenCalledWith(expect.stringContaining('(a, b) => a + b'), 1, 2);
+      // Functions should use executeAsyncScript for WebKit compatibility
+      expect(mockExecuteAsyncScript).toHaveBeenCalledWith(expect.stringContaining('(a, b) => a + b'), [1, 2]);
       // execute should NOT be called
       expect(mockExecute).not.toHaveBeenCalled();
     });
 
-    it('should route executeWithinTauri through executeAsync on non-embedded providers', () => {
+    it('should send element arguments as element references on non-embedded providers', async () => {
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
+
+      (service as any).patchBrowserExecute(mockBrowser);
+      const element = { selector: '#button', elementId: 'el-1', click: vi.fn() };
+      await mockBrowser.execute(((el: unknown, label: string) => [el, label]) as any, element, 'label');
+
+      expect(mockExecuteAsyncScript).toHaveBeenCalledWith(expect.any(String), [
+        { 'element-6066-11e4-a52e-4f735466cecf': 'el-1' },
+        'label',
+      ]);
+    });
+
+    it('should reject an element argument that was not found on non-embedded providers', async () => {
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
+
+      (service as any).patchBrowserExecute(mockBrowser);
+
+      await expect(
+        mockBrowser.execute((() => undefined) as any, { selector: '#missing', elementId: undefined }),
+      ).rejects.toMatchObject({
+        message: `The element with selector "#missing" you are trying to pass into the execute method wasn't found`,
+      });
+      expect(mockExecuteAsyncScript).not.toHaveBeenCalled();
+    });
+
+    it('should route executeWithinTauri through executeAsyncScript on non-embedded providers', () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
-      const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
-      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsync: mockExecuteAsync });
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsyncScript: mockExecuteAsyncScript });
       const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
@@ -252,9 +282,9 @@ describe('TauriWorkerService', () => {
       ) {};
       mockBrowser.execute(executeWithinTauri as any, 'fn string', {}, '[]');
 
-      // Must use executeAsync — the async function returns a Promise that the sync
+      // Must use executeAsyncScript — the async function returns a Promise that the sync
       // WebDriver endpoint on WebKit (WKWebView/macOS) cannot await.
-      expect(mockExecuteAsync).toHaveBeenCalled();
+      expect(mockExecuteAsyncScript).toHaveBeenCalled();
       expect(mockExecute).not.toHaveBeenCalled();
     });
 
@@ -348,32 +378,32 @@ describe('TauriWorkerService', () => {
 
     it('should wait for plugin initialization on standard browser', async () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
-      const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
-      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsync: mockExecuteAsync });
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsyncScript: mockExecuteAsyncScript });
       const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       await service.before({} as any, [], mockBrowser);
 
-      // For non-embedded providers, executeAsync is used (WebKit compatibility)
-      expect(mockExecuteAsync).toHaveBeenCalled();
+      // For non-embedded providers, executeAsyncScript is used (WebKit compatibility)
+      expect(mockExecuteAsyncScript).toHaveBeenCalled();
     });
 
     it('should skip plugin initialization wait for crabnebula driver provider', async () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
-      const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
-      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsync: mockExecuteAsync });
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ execute: mockExecute, executeAsyncScript: mockExecuteAsyncScript });
       const service = new TauriWorkerService({ driverProvider: 'crabnebula' }, { 'wdio:tauriServiceOptions': {} });
 
       await service.before({} as any, [], mockBrowser);
 
       // CrabNebula skips the plugin initialization wait entirely
       expect(mockExecute).not.toHaveBeenCalled();
-      expect(mockExecuteAsync).not.toHaveBeenCalled();
+      expect(mockExecuteAsyncScript).not.toHaveBeenCalled();
     });
 
     it('should handle plugin initialization error gracefully', async () => {
-      const mockExecuteAsync = vi.fn().mockResolvedValue(undefined);
-      const mockBrowser = createMockBrowser({ executeAsync: mockExecuteAsync });
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
 
       await expect(service.before({} as any, [], mockBrowser)).resolves.not.toThrow();

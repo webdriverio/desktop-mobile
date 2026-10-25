@@ -198,7 +198,7 @@ describe('window management', () => {
           },
           getWindowHandles: vi.fn().mockResolvedValue(['uuid-aaa', 'uuid-bbb']),
           switchToWindow: vi.fn().mockResolvedValue(undefined),
-          executeAsync: vi.fn().mockResolvedValueOnce('main').mockResolvedValueOnce('splash'),
+          executeAsyncScript: vi.fn().mockResolvedValueOnce('main').mockResolvedValueOnce('splash'),
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 
@@ -217,15 +217,14 @@ describe('window management', () => {
           },
           getWindowHandles: vi.fn().mockResolvedValue(['uuid-1', 'uuid-2', 'uuid-3']),
           switchToWindow: vi.fn().mockResolvedValue(undefined),
-          executeAsync: vi.fn().mockResolvedValueOnce('main'),
+          executeAsyncScript: vi.fn().mockResolvedValueOnce('main'),
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 
         setSessionProvider(mockBrowser, 'external');
         await switchWindowByLabel(mockBrowser, 'main');
 
-        // Should call executeAsync only once (found on first handle)
-        expect(mockBrowser.executeAsync).toHaveBeenCalledTimes(1);
+        expect(mockBrowser.executeAsyncScript).toHaveBeenCalledTimes(1);
         expect(mockBrowser.switchToWindow).toHaveBeenLastCalledWith('uuid-1');
       });
 
@@ -237,7 +236,7 @@ describe('window management', () => {
           },
           getWindowHandles: vi.fn().mockResolvedValue(['stale-uuid', 'uuid-splash']),
           switchToWindow: vi.fn().mockRejectedValueOnce(new Error('no such window')).mockResolvedValue(undefined),
-          executeAsync: vi.fn().mockResolvedValueOnce('splash'),
+          executeAsyncScript: vi.fn().mockResolvedValueOnce('splash'),
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 
@@ -255,7 +254,7 @@ describe('window management', () => {
           },
           getWindowHandles: vi.fn().mockResolvedValue(['uuid-1']),
           switchToWindow: vi.fn().mockResolvedValue(undefined),
-          executeAsync: vi.fn().mockResolvedValueOnce('main'),
+          executeAsyncScript: vi.fn().mockResolvedValueOnce('main'),
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 
@@ -273,7 +272,7 @@ describe('window management', () => {
           },
           getWindowHandles: vi.fn().mockResolvedValue(['cn-uuid-main', 'cn-uuid-splash']),
           switchToWindow: vi.fn().mockResolvedValue(undefined),
-          executeAsync: vi.fn().mockResolvedValueOnce('main').mockResolvedValueOnce('splash'),
+          executeAsyncScript: vi.fn().mockResolvedValueOnce('main').mockResolvedValueOnce('splash'),
           getWindowHandle: vi.fn().mockReturnValue('original-handle'),
         } as unknown as WebdriverIO.Browser;
 

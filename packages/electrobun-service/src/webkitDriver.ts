@@ -9,6 +9,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { createLogger } from '@wdio/native-utils';
 
 import { SERVICE_NAME } from './constants.js';
+import { needsOwnDisplay, x11Env } from './display.js';
 
 const log = createLogger(SERVICE_NAME, 'driver');
 
@@ -16,7 +17,7 @@ export interface WebKitDriverProcess {
   process: ChildProcess;
   host: string;
   port: number;
-  /** Spawned detached (its own process group) so teardown can kill the whole xvfb-run tree. */
+  /** Spawned detached (its own process group) so teardown can kill the driver, its app and any xvfb-run. */
   detached: boolean;
   /** Per-instance bundle-clone dirs to remove on teardown. */
   cleanupDirs?: string[];
@@ -98,25 +99,26 @@ export async function spawnWebKitWebDriver(opts: {
   const host = opts.host ?? '127.0.0.1';
   const driverArgs = webKitWebDriverArgs(host, opts.port);
 
-  // WebKitWebDriver launches a GTK app needing an X display, but WDIO's autoXvfb covers the worker
-  // process, not this launcher-spawned driver, so run it under `xvfb-run -a`.
-  const useXvfb = process.platform === 'linux';
+  // WebKitWebDriver launches the GTK app, which needs an X display.
+  const isLinux = process.platform === 'linux';
+  const useXvfb = needsOwnDisplay(process.env);
   const command = useXvfb ? 'xvfb-run' : opts.driverPath;
   const spawnArgs = useXvfb ? ['-a', opts.driverPath, ...driverArgs] : driverArgs;
 
   log.debug(`Spawning WebKitWebDriver: ${command} ${spawnArgs.join(' ')}`);
-  // Detach on Linux so xvfb-run becomes its own process-group leader: `xvfb-run` does NOT forward
-  // signals to WebKitWebDriver (its child) or the app (WebKitWebDriver's child), so killing just
-  // the xvfb-run pid orphans them; across retries the orphaned apps & X servers pile up and
-  // starve the runner.
-  const child = spawn(command, spawnArgs, { stdio: ['ignore', 'pipe', 'pipe'], detached: useXvfb });
+  // `xvfb-run` doesn't pass signals on to WebKitWebDriver or the app, so teardown kills the process group.
+  const child = spawn(command, spawnArgs, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: isLinux,
+    env: isLinux ? x11Env(process.env) : process.env,
+  });
   child.stdout?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver] ${chunk.toString().trimEnd()}`));
   child.stderr?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver:err] ${chunk.toString().trimEnd()}`));
   child.on('exit', (code) => log.debug(`WebKitWebDriver exited with code ${code}`));
   // Without this handler an 'error' event (e.g. spawn ENOENT) crashes the launcher as an uncaught exception.
   child.on('error', (error) => log.warn(`WebKitWebDriver process error: ${(error as Error).message}`));
 
-  const handle: WebKitDriverProcess = { process: child, host, port: opts.port, detached: useXvfb };
+  const handle: WebKitDriverProcess = { process: child, host, port: opts.port, detached: isLinux };
   // If the spawn errors, reject immediately instead of waiting out the full readiness timeout.
   const spawnFailed = new Promise<never>((_, reject) => {
     child.once('error', (error: Error) =>
