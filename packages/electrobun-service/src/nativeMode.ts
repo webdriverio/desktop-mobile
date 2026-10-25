@@ -153,9 +153,8 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
     ...options.env,
   };
 
-  // CEF is a GUI process that needs an X display ("Failed to open X11 display" otherwise → no
-  // browser → no /json). Unreachable in 0.x (the launcher's macOS guard throws first); kept for the
-  // Linux re-fold (https://github.com/webdriverio/desktop-mobile/issues/320).
+  // CEF needs an X display. The launcher rejects CEF builds on Linux for now, so this only runs once
+  // they're supported (https://github.com/webdriverio/desktop-mobile/issues/320).
   const useXvfb = needsOwnDisplay(env);
   const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
   const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;

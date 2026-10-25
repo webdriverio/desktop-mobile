@@ -1,6 +1,6 @@
-// Electrobun's WebKitGTK app needs X11: under a headless Weston, which WebdriverIO v10 can start, it never comes up.
+// Electrobun's WebKitGTK app needs X11: it never comes up under a headless Weston, which WebdriverIO's display server can start.
 
-/** Whether a process the launcher spawns needs its own X display (`xvfb-run`): on Linux, unless one is set. */
+/** True on Linux when no X display is set, so the process must run under `xvfb-run`. */
 export function needsOwnDisplay(env: NodeJS.ProcessEnv): boolean {
   return process.platform === 'linux' && !env.DISPLAY;
 }

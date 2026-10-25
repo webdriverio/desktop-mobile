@@ -106,10 +106,7 @@ export async function spawnWebKitWebDriver(opts: {
   const spawnArgs = useXvfb ? ['-a', opts.driverPath, ...driverArgs] : driverArgs;
 
   log.debug(`Spawning WebKitWebDriver: ${command} ${spawnArgs.join(' ')}`);
-  // Detach on Linux so the spawned process leads its own process group and teardown can signal the whole
-  // tree. `xvfb-run` does NOT forward signals to WebKitWebDriver (its child) or the app (WebKitWebDriver's
-  // child), so killing just the xvfb-run pid orphans them; across retries the orphaned apps & X servers pile
-  // up and starve the runner.
+  // `xvfb-run` doesn't pass signals on to WebKitWebDriver or the app, so teardown kills the process group.
   const child = spawn(command, spawnArgs, {
     stdio: ['ignore', 'pipe', 'pipe'],
     detached: isLinux,
