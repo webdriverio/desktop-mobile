@@ -3,7 +3,6 @@ import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-
 import {
   createLogger,
   errorMessage,
-  executeAsync,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
   isMultiremote,
@@ -656,10 +655,10 @@ export default class TauriWorkerService {
         );
       }
 
-      // Non-embedded (tauri-driver/official): use executeAsync for both functions and strings.
+      // Non-embedded (tauri-driver/official): use Execute Async Script for both functions and strings.
       // WebKit (macOS/iOS Tauri) doesn't auto-await Promises from sync execute.
       if (typeof script === 'function') {
-        // Function scripts: use executeAsync with .then() callbacks to handle async results
+        // Function scripts: use Execute Async Script with .then() callbacks to handle async results
         // Wrap in Promise.resolve to handle both sync and async function return values
         const wrappedScript = `
             ${CONSOLE_WRAPPER_SCRIPT}
@@ -668,13 +667,13 @@ export default class TauriWorkerService {
                 (e) => arguments[arguments.length-1]({ __wdio_error__: e instanceof Error ? e.message : String(e) })
             );
         `;
-        const asyncResult = await executeAsync(browser, wrappedScript, ...args);
+        const asyncResult = await browser.executeAsyncScript(wrappedScript, toElementReferences(args));
         if (asyncResult && typeof asyncResult === 'object' && '__wdio_error__' in asyncResult) {
           throw new Error((asyncResult as { __wdio_error__: string }).__wdio_error__);
         }
         return asyncResult as ReturnValue;
       } else {
-        // For strings: use executeAsync with explicit done callback
+        // For strings: use Execute Async Script with an explicit done callback
         // WebKit (macOS/iOS Tauri) doesn't auto-await returned Promises - must call callback explicitly
         const trimmed = scriptString.trim();
         const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(
@@ -689,7 +688,7 @@ export default class TauriWorkerService {
                 (e) => arguments[arguments.length-1]({ __wdio_error__: e instanceof Error ? e.message : String(e) })
             );
         `;
-        const asyncResult = await executeAsync(browser, wrappedScript, ...args);
+        const asyncResult = await browser.executeAsyncScript(wrappedScript, toElementReferences(args));
         if (asyncResult && typeof asyncResult === 'object' && '__wdio_error__' in asyncResult) {
           throw new Error((asyncResult as { __wdio_error__: string }).__wdio_error__);
         }
@@ -706,6 +705,23 @@ export default class TauriWorkerService {
     patchedBrowser[EXECUTE_PATCHED] = true;
     log.debug('browser.execute() patched with console forwarding');
   }
+}
+
+const ELEMENT_KEY = 'element-6066-11e4-a52e-4f735466cecf';
+
+/** Sends WebdriverIO elements as W3C element references, as `browser.execute` does for its arguments. */
+function toElementReferences(args: unknown[]): Parameters<WebdriverIO.Browser['executeAsyncScript']>[1] {
+  return args.map((arg) => {
+    if (typeof arg !== 'object' || arg === null || !('selector' in arg) || !('elementId' in arg)) {
+      return arg;
+    }
+    if (!arg.elementId) {
+      throw new Error(
+        `The element with selector "${String(arg.selector)}" you are trying to pass into the execute method wasn't found`,
+      );
+    }
+    return { [ELEMENT_KEY]: arg.elementId };
+  }) as Parameters<WebdriverIO.Browser['executeAsyncScript']>[1];
 }
 
 function sleep(ms: number): Promise<void> {

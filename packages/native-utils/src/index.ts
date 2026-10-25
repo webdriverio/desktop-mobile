@@ -13,7 +13,6 @@ export {
   formatDiagnosticResults,
   type LinuxLibrary,
 } from './diagnostics.js';
-export { executeAsync } from './executeAsync.js';
 export type { LogArea } from './log.js';
 export { type BulkMockOpOptions, type MockLifecycleOp, runBulkMockOp } from './mockLifecycle.js';
 export { isMultiremote } from './multiremote.js';

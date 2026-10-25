@@ -8,7 +8,7 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import { createLogger, executeAsync } from '@wdio/native-utils';
+import { createLogger } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 
 const log = createLogger('electron-service', 'mock');
@@ -360,17 +360,15 @@ export async function createElectronBrowserModeMock(
       implFn as (...a: unknown[]) => unknown,
       callbackFn as (...a: unknown[]) => unknown,
     );
-    const result = await executeAsync(
-      browser,
-      (s: string, done: (v: unknown) => void) => {
-        // eslint-disable-next-line no-new-func
-        const fn = new Function(`return (${s})`)() as () => Promise<unknown>;
-        Promise.resolve(fn()).then(done, (err: unknown) => {
-          done({ __wdioAsyncErr__: err instanceof Error ? err.message : String(err) });
-        });
-      },
-      script,
-    );
+    const result = await browser.execute(async (s: string) => {
+      // eslint-disable-next-line no-new-func
+      const fn = new Function(`return (${s})`)() as () => Promise<unknown>;
+      try {
+        return await fn();
+      } catch (err) {
+        return { __wdioAsyncErr__: err instanceof Error ? err.message : String(err) };
+      }
+    }, script);
     if (result && typeof result === 'object' && '__wdioAsyncErr__' in result) {
       throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
     }

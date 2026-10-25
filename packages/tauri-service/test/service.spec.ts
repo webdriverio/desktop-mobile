@@ -236,6 +236,36 @@ describe('TauriWorkerService', () => {
       expect(mockExecute).not.toHaveBeenCalled();
     });
 
+    it('should send element arguments as element references on non-embedded providers', async () => {
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
+      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+
+      (service as any).patchBrowserExecute(mockBrowser);
+      const element = { selector: '#button', elementId: 'el-1', click: vi.fn() };
+      await mockBrowser.execute(((el: unknown, label: string) => [el, label]) as any, element, 'label');
+
+      expect(mockExecuteAsyncScript).toHaveBeenCalledWith(expect.any(String), [
+        { 'element-6066-11e4-a52e-4f735466cecf': 'el-1' },
+        'label',
+      ]);
+    });
+
+    it('should reject an element argument that was not found on non-embedded providers', async () => {
+      const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
+      const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
+      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+
+      (service as any).patchBrowserExecute(mockBrowser);
+
+      await expect(
+        mockBrowser.execute((() => undefined) as any, { selector: '#missing', elementId: undefined }),
+      ).rejects.toMatchObject({
+        message: `The element with selector "#missing" you are trying to pass into the execute method wasn't found`,
+      });
+      expect(mockExecuteAsyncScript).not.toHaveBeenCalled();
+    });
+
     it('should route executeWithinTauri through executeAsyncScript on non-embedded providers', () => {
       const mockExecute = vi.fn().mockResolvedValue(undefined);
       const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
