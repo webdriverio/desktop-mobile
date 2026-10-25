@@ -50,18 +50,6 @@ export interface ElectronServiceAPI {
   mock: {
     (className: string): Promise<ElectronClassMock>;
     (apiName: string, funcName: string): Promise<ElectronFunctionMock>;
-    /**
-     * @deprecated Pass `returnValue` via the chained setter instead:
-     * `(await browser.electron.mock('api', 'fn')).mockReturnValue(value)`.
-     * The inline `returnValue` argument is a legacy convenience specific to
-     * Electron's two-part mock identity; all other services use the chained
-     * setter as the single convergent pattern.
-     *
-     * Note: TypeScript's TS-6385 deprecation diagnostic does not fire for `@deprecated`
-     * placed on individual call signatures within an object-type overload set (verified
-     * against TS 5.9). The JSDoc text surfaces in hover tooltips but no squiggle is emitted.
-     */
-    (apiName: string, funcName: string, returnValue: unknown): Promise<ElectronFunctionMock>;
   };
   /**
    * Mock all functions from an Electron API.
@@ -100,12 +88,7 @@ export interface ElectronServiceAPI {
   restoreAllMocks: (apiName?: string) => Promise<void>;
   /**
    * Checks that a given parameter is an Electron mock function. If you are using TypeScript, it will also narrow down its type.
-   *
-   * @deprecated Passing a string to `isMockFunction` is not supported for the Electron service.
-   * The Electron mock system uses duck-type checking (`__isElectronMock`) rather than a
-   * name-keyed store; this overload always returns `false`. Use the object-form overload instead.
    */
-  isMockFunction(target: string): false;
   isMockFunction(fn: unknown): fn is ElectronMockInstance;
   /**
    * Trigger a deeplink to the Electron application for testing protocol handlers.
