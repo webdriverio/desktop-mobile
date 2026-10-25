@@ -239,7 +239,7 @@ describe('TauriWorkerService', () => {
     it('should send element arguments as element references on non-embedded providers', async () => {
       const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
-      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
       const element = { selector: '#button', elementId: 'el-1', click: vi.fn() };
@@ -254,7 +254,7 @@ describe('TauriWorkerService', () => {
     it('should reject an element argument that was not found on non-embedded providers', async () => {
       const mockExecuteAsyncScript = vi.fn().mockResolvedValue(undefined);
       const mockBrowser = createMockBrowser({ executeAsyncScript: mockExecuteAsyncScript });
-      const service = new TauriWorkerService({ driverProvider: 'official' }, { 'wdio:tauriServiceOptions': {} });
+      const service = new TauriWorkerService({ driverProvider: 'external' }, { 'wdio:tauriServiceOptions': {} });
 
       (service as any).patchBrowserExecute(mockBrowser);
 
