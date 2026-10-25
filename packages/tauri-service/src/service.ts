@@ -655,10 +655,10 @@ export default class TauriWorkerService {
         );
       }
 
-      // Non-embedded (tauri-driver/official): use Execute Async Script for both functions and strings.
+      // Non-embedded (tauri-driver/official): use executeAsyncScript for both functions and strings.
       // WebKit (macOS/iOS Tauri) doesn't auto-await Promises from sync execute.
       if (typeof script === 'function') {
-        // Function scripts: use Execute Async Script with .then() callbacks to handle async results
+        // Function scripts: use executeAsyncScript with .then() callbacks to handle async results
         // Wrap in Promise.resolve to handle both sync and async function return values
         const wrappedScript = `
             ${CONSOLE_WRAPPER_SCRIPT}
@@ -673,7 +673,7 @@ export default class TauriWorkerService {
         }
         return asyncResult as ReturnValue;
       } else {
-        // For strings: use Execute Async Script with an explicit done callback
+        // For strings: use executeAsyncScript with an explicit done callback
         // WebKit (macOS/iOS Tauri) doesn't auto-await returned Promises - must call callback explicitly
         const trimmed = scriptString.trim();
         const hasStatementKeyword = /^(const|let|var|if|for|while|switch|throw|try|do|return)(?=[^\w$]|$)/.test(
