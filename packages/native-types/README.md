@@ -245,7 +245,7 @@ expect(mock()).toBe('typed result'); // TypeScript knows return type
 ## Compatibility
 
 - **TypeScript**: 5.0+
-- **Node.js**: 18.12.0+
+- **Node.js**: 22.19.0+
 - **WebdriverIO**: 8.0+
 - **Electron**: 22.0+
 - **Tauri**: 1.0+

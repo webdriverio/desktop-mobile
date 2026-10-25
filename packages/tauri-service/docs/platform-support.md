@@ -108,7 +108,7 @@ Use `'embedded'` for a consistent setup across Windows, Linux, and macOS without
 
 - **Visual C++ Build Tools** or Visual Studio
 - **Rust toolchain** (for building Tauri apps)
-- **Node.js 18+**
+- **Node.js 22.19+**
 
 ## Linux
 
@@ -303,7 +303,7 @@ Use `'embedded'` for a consistent setup across Windows, Linux, and macOS without
 - **WebKitWebDriver** — only needed for the `'external'` and `'crabnebula'` providers
 - **Xvfb** (optional, for headless testing)
 - **Rust toolchain** (for building Tauri apps)
-- **Node.js 18+**
+- **Node.js 22.19+**
 
 ## macOS
 

@@ -6,7 +6,7 @@ Get up and running with WebdriverIO and Tauri E2E testing in minutes.
 
 ### Required Software
 
-1. **Node.js 18+** - Download from [nodejs.org](https://nodejs.org)
+1. **Node.js 22.19+** - Download from [nodejs.org](https://nodejs.org)
 
 2. **Rust Toolchain** - Required for building Tauri apps and tauri-driver
    ```bash

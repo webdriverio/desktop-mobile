@@ -34,7 +34,7 @@ For most users, the **embedded provider** (via `tauri-plugin-wdio-webdriver`) is
 
 ### All Platforms
 
-1. **Node.js 18+** and **Rust toolchain** installed
+1. **Node.js 22.19+** and **Rust toolchain** installed
 2. A **Tauri v2 application**
 
 ### Linux Only

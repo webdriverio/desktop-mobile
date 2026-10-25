@@ -46,7 +46,7 @@ services: [['@wdio/dioxus-service', {
 
 - **Visual C++ Build Tools** or Visual Studio
 - **Rust toolchain**
-- **Node.js 18+**
+- **Node.js 22.19+**
 
 ## Linux
 

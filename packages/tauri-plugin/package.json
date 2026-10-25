@@ -35,7 +35,7 @@
   "author": "WebDriverIO Community",
   "license": "MIT",
   "engines": {
-    "node": ">=18.20.0"
+    "node": ">=22.19.0"
   },
   "dependencies": {
     "@tauri-apps/api": "2.12.1",
