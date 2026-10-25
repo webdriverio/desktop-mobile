@@ -77,11 +77,11 @@
     "compare-versions": "^6.1.1",
     "debug": "^4.4.3",
     "deepmerge-ts": "^8.0.2",
-    "electron-to-chromium": "^1.5.461",
+    "electron-to-chromium": "^1.5.463",
     "fast-copy": "^4.2.0",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
-    "puppeteer-core": "^25.15.0",
+    "puppeteer-core": "^25.16.0",
     "recast": "^0.24.0",
     "yaml": "^2.9.1"
   },

@@ -54,7 +54,7 @@ catalogs:
     '@wdio/spec-reporter': 9.31.2
     '@wdio/types': 9.31.2
     '@wdio/xvfb': 9.32.0
-    electron: 44.9.1
+    electron: 44.9.3
     electron-builder: 26.15.3
     webdriverio: 9.31.9
   minimum:
@@ -77,7 +77,7 @@ catalogs:
     '@wdio/types': latest
     '@wdio/xvfb': latest
     electron-builder: next
-    electron-nightly: 46.0.0-nightly.20261020
+    electron-nightly: 46.0.0-nightly.20261021
     webdriverio: latest
 minimumReleaseAgeExclude:
   - '@tauri-apps/cli-darwin-arm64@2.12.4'
