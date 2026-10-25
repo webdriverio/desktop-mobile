@@ -1,11 +1,10 @@
 import { spawn } from 'node:child_process';
+import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import {
   executeDeeplinkCommand,
   getPlatformCommand,
-  setCrabnebulaModeInfo,
-  setEmbeddedModeInfo,
   triggerDeeplink,
   validateDeeplinkUrl,
 } from '../../src/commands/triggerDeeplink.js';
@@ -90,47 +89,6 @@ describe('triggerDeeplink Command', () => {
     });
   });
 
-  describe('setCrabnebulaModeInfo', () => {
-    afterEach(() => {
-      delete process.env.__WDIO_TAURI_CRABNEBULA__;
-    });
-
-    it('should set env variable when isCrabnebula is true', () => {
-      setCrabnebulaModeInfo(true);
-      expect(process.env.__WDIO_TAURI_CRABNEBULA__).toBe('true');
-    });
-
-    it('should not set env variable when isCrabnebula is false', () => {
-      setCrabnebulaModeInfo(false);
-      expect(process.env.__WDIO_TAURI_CRABNEBULA__).toBeUndefined();
-    });
-  });
-
-  describe('setEmbeddedModeInfo', () => {
-    afterEach(() => {
-      delete process.env.__WDIO_TAURI_EMBEDDED__;
-      delete process.env.__WDIO_TAURI_APP_BINARY__;
-    });
-
-    it('should set env variables when isEmbedded is true with appBinaryPath', () => {
-      setEmbeddedModeInfo(true, '/path/to/app');
-      expect(process.env.__WDIO_TAURI_EMBEDDED__).toBe('true');
-      expect(process.env.__WDIO_TAURI_APP_BINARY__).toBe('/path/to/app');
-    });
-
-    it('should set only embedded flag when appBinaryPath is not provided', () => {
-      setEmbeddedModeInfo(true);
-      expect(process.env.__WDIO_TAURI_EMBEDDED__).toBe('true');
-      expect(process.env.__WDIO_TAURI_APP_BINARY__).toBeUndefined();
-    });
-
-    it('should not set env variables when isEmbedded is false', () => {
-      setEmbeddedModeInfo(false);
-      expect(process.env.__WDIO_TAURI_EMBEDDED__).toBeUndefined();
-      expect(process.env.__WDIO_TAURI_APP_BINARY__).toBeUndefined();
-    });
-  });
-
   describe('executeDeeplinkCommand', () => {
     let mockChildProcess: {
       pid: number;
@@ -197,81 +155,44 @@ describe('triggerDeeplink Command', () => {
   });
 
   describe('triggerDeeplink', () => {
+    const createBrowser = (execute = vi.fn().mockResolvedValue(undefined)) =>
+      ({ execute }) as unknown as WebdriverIO.Browser;
+
+    beforeEach(() => {
+      vi.clearAllMocks();
+      (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue({ pid: 99999, unref: vi.fn(), on: vi.fn() });
+    });
+
     afterEach(() => {
-      delete process.env.__WDIO_TAURI_EMBEDDED__;
-      delete process.env.__WDIO_TAURI_APP_BINARY__;
-      delete process.env.__WDIO_TAURI_CRABNEBULA__;
-      vi.restoreAllMocks();
+      restorePlatform();
     });
 
-    it('should use browser.execute in embedded mode', async () => {
-      process.env.__WDIO_TAURI_EMBEDDED__ = 'true';
+    it.each([
+      ['embedded', 'linux'],
+      ['embedded', 'win32'],
+      ['embedded', 'darwin'],
+      ['crabnebula', 'darwin'],
+    ] as const)('should inject the deeplink via browser.execute for %s on %s', async (provider, platform) => {
+      mockPlatform(platform);
+      const browser = createBrowser();
+      await triggerDeeplink.call({ browser, provider }, 'myapp://test');
 
-      const mockBrowser = {
-        execute: vi.fn().mockResolvedValue(undefined),
-      } as unknown as WebdriverIO.Browser;
-
-      const context = { browser: mockBrowser };
-      await triggerDeeplink.call(context, 'myapp://test');
-
-      expect(mockBrowser.execute).toHaveBeenCalledWith(expect.stringContaining('window.receivedDeeplinks'));
+      expect(browser.execute).toHaveBeenCalledWith(expect.stringContaining('window.receivedDeeplinks'));
+      expect(spawn).not.toHaveBeenCalled();
     });
 
-    it('should use browser.execute in CrabNebula mode', async () => {
-      process.env.__WDIO_TAURI_CRABNEBULA__ = 'true';
+    it.each([
+      ['external', 'linux'],
+      ['external', 'win32'],
+      ['external', 'darwin'],
+      ['crabnebula', 'linux'],
+      ['crabnebula', 'win32'],
+    ] as const)('should open the deeplink with the platform command for %s on %s', async (provider, platform) => {
+      mockPlatform(platform);
+      const browser = createBrowser();
+      await triggerDeeplink.call({ browser, provider }, 'myapp://standard');
 
-      const mockBrowser = {
-        execute: vi.fn().mockResolvedValue(undefined),
-      } as unknown as WebdriverIO.Browser;
-
-      const context = { browser: mockBrowser };
-      await triggerDeeplink.call(context, 'myapp://deep');
-
-      expect(mockBrowser.execute).toHaveBeenCalledWith(expect.stringContaining('window.receivedDeeplinks'));
-    });
-
-    it('should throw when browser context is missing in embedded mode', async () => {
-      process.env.__WDIO_TAURI_EMBEDDED__ = 'true';
-
-      const context = {};
-      await expect(triggerDeeplink.call(context, 'myapp://test')).rejects.toThrow(
-        'embedded deeplink injection requires browser context',
-      );
-    });
-
-    it('should throw when browser context is missing in CrabNebula mode', async () => {
-      process.env.__WDIO_TAURI_CRABNEBULA__ = 'true';
-
-      const context = {};
-      await expect(triggerDeeplink.call(context, 'myapp://test')).rejects.toThrow(
-        'crabnebula deeplink injection requires browser context',
-      );
-    });
-
-    it('should throw when browser.execute fails in embedded mode', async () => {
-      process.env.__WDIO_TAURI_EMBEDDED__ = 'true';
-
-      const mockBrowser = {
-        execute: vi.fn().mockRejectedValue(new Error('session expired')),
-      } as unknown as WebdriverIO.Browser;
-
-      const context = { browser: mockBrowser };
-      await expect(triggerDeeplink.call(context, 'myapp://test')).rejects.toThrow(
-        'Failed to inject deeplink: session expired',
-      );
-    });
-
-    it('should use platform commands via executeDeeplinkCommand in standard mode', async () => {
-      const mockChildProcess = {
-        pid: 99999,
-        unref: vi.fn(),
-        on: vi.fn(),
-      };
-      (spawn as unknown as ReturnType<typeof vi.fn>).mockReturnValue(mockChildProcess);
-
-      const context = {};
-      await triggerDeeplink.call(context, 'myapp://standard');
-
+      expect(browser.execute).not.toHaveBeenCalled();
       expect(spawn).toHaveBeenCalledWith(
         expect.any(String),
         expect.arrayContaining(['myapp://standard']),
@@ -279,24 +200,37 @@ describe('triggerDeeplink Command', () => {
       );
     });
 
+    it('should throw when browser context is missing in embedded mode', async () => {
+      await expect(triggerDeeplink.call({ provider: 'embedded' }, 'myapp://test')).rejects.toThrow(
+        'embedded deeplink injection requires browser context',
+      );
+    });
+
+    it('should throw when browser context is missing for CrabNebula on macOS', async () => {
+      mockPlatform('darwin');
+      await expect(triggerDeeplink.call({ provider: 'crabnebula' }, 'myapp://test')).rejects.toThrow(
+        'crabnebula deeplink injection requires browser context',
+      );
+    });
+
+    it('should throw when browser.execute fails in embedded mode', async () => {
+      const browser = createBrowser(vi.fn().mockRejectedValue(new Error('session expired')));
+      await expect(triggerDeeplink.call({ browser, provider: 'embedded' }, 'myapp://test')).rejects.toThrow(
+        'Failed to inject deeplink: session expired',
+      );
+    });
+
     it('should validate the URL before triggering', async () => {
-      const context = {};
-      await expect(triggerDeeplink.call(context, 'https://invalid.com')).rejects.toThrow(
+      await expect(triggerDeeplink.call({ provider: 'external' }, 'https://invalid.com')).rejects.toThrow(
         'Invalid deeplink protocol: https',
       );
     });
 
     it('should build char codes from the URL for injection script', async () => {
-      process.env.__WDIO_TAURI_EMBEDDED__ = 'true';
+      const browser = createBrowser();
+      await triggerDeeplink.call({ browser, provider: 'embedded' }, 'myapp://x');
 
-      const mockBrowser = {
-        execute: vi.fn().mockResolvedValue(undefined),
-      } as unknown as WebdriverIO.Browser;
-
-      const context = { browser: mockBrowser };
-      await triggerDeeplink.call(context, 'myapp://x');
-
-      const script = (mockBrowser.execute as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+      const script = vi.mocked(browser.execute).mock.calls[0][0] as string;
       const expectedCharCodes = Array.from('myapp://x')
         .map((c) => c.charCodeAt(0))
         .join(',');

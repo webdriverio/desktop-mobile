@@ -15,7 +15,6 @@ import { createLogger, errorMessage, formatDiagnosticResults, isErr } from '@wdi
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { resolveAppBinaryPath } from './appBinaryResolver.js';
-import { setCrabnebulaModeInfo, setEmbeddedModeInfo } from './commands/triggerDeeplink.js';
 import { startTestRunnerBackend, stopTestRunnerBackend, waitTestRunnerBackendReady } from './crabnebulaBackend.js';
 import { diagnoseTauriEnvironment } from './diagnostics.js';
 import { ensureTauriDriver, findTestRunnerBackend } from './driverManager.js';
@@ -140,10 +139,8 @@ export default class TauriLaunchService {
       );
     }
 
-    // For CrabNebula on macOS, validate prerequisites and set mode info
     if (process.platform === 'darwin' && isCrabNebula) {
       await this.validateCrabNebulaPrerequisites(mergedOptions);
-      setCrabnebulaModeInfo(true);
     }
 
     // Handle both standard array and multiremote object capabilities
@@ -312,8 +309,6 @@ export default class TauriLaunchService {
       log.info(`tauri-driver ready: ${driverResult.value.path} (${driverResult.value.method})`);
     } else {
       log.info('Using embedded WebDriver provider (tauri-plugin-wdio-webdriver) - no external driver needed');
-      // Store embedded mode info globally for triggerDeeplink
-      setEmbeddedModeInfo(true, undefined);
     }
 
     // Initialize file log writer if log capture is enabled
@@ -370,8 +365,6 @@ export default class TauriLaunchService {
       if (isEmbedded) {
         // Embedded provider: spawn each app with unique embedded ports
         this.isEmbeddedMode = true;
-        // Store embedded mode info globally for triggerDeeplink
-        setEmbeddedModeInfo(true, undefined);
         log.info(`Starting ${capEntries.length} embedded WebDriver instance(s) for multiremote`);
 
         const hostname = '127.0.0.1';
@@ -394,9 +387,6 @@ export default class TauriLaunchService {
 
           log.debug(`Starting embedded WebDriver for ${key} on port ${embeddedPort}`);
 
-          // Store embedded mode info and app binary path globally for triggerDeeplink
-          setEmbeddedModeInfo(true, appBinaryPath);
-
           // Spawn the app with embedded WebDriver
           try {
             const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, instanceId);
@@ -415,7 +405,6 @@ export default class TauriLaunchService {
         // CrabNebula provider: spawn tauri-driver per multiremote instance
         // On macOS: also spawn test-runner-backend per instance (tauri-driver proxies via REMOTE_WEBDRIVER_URL)
         // On other platforms: tauri-driver works directly without the backend (same as the external provider)
-        setCrabnebulaModeInfo(true);
 
         const hostname = '127.0.0.1';
         const isMacOS = process.platform === 'darwin';
@@ -560,8 +549,6 @@ export default class TauriLaunchService {
     } else if (isEmbedded) {
       // Embedded provider: spawn app directly with embedded WebDriver server
       this.isEmbeddedMode = true;
-      // Store embedded mode info globally for triggerDeeplink
-      setEmbeddedModeInfo(true, undefined);
       log.info('Embedded provider mode - spawning Tauri app with embedded WebDriver server');
 
       const hostname = '127.0.0.1';
@@ -578,9 +565,6 @@ export default class TauriLaunchService {
         }
 
         log.debug(`Starting embedded WebDriver for instance ${i} on port ${embeddedPort}`);
-
-        // Store embedded mode info and app binary path globally for triggerDeeplink
-        setEmbeddedModeInfo(true, appBinaryPath);
 
         // Spawn the app with embedded WebDriver
         try {

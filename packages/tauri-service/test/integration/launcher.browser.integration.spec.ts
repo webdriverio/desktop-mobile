@@ -59,8 +59,6 @@ vi.mock('../../src/edgeDriverManager.js', () => ({
 }));
 
 vi.mock('../../src/commands/triggerDeeplink.js', () => ({
-  setEmbeddedModeInfo: vi.fn(),
-  setCrabnebulaModeInfo: vi.fn(),
   triggerDeeplink: vi.fn(),
 }));
 

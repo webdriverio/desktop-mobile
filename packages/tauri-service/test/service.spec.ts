@@ -37,6 +37,10 @@ vi.mock('../src/commands/execute.js', () => ({
   execute: vi.fn().mockResolvedValue(undefined),
 }));
 
+vi.mock('../src/commands/triggerDeeplink.js', () => ({
+  triggerDeeplink: vi.fn().mockResolvedValue(undefined),
+}));
+
 vi.mock('../src/window.js', async (importOriginal) => {
   const actual = await importOriginal<typeof import('../src/window.js')>();
   return {
@@ -55,6 +59,7 @@ vi.mock('../src/window.js', async (importOriginal) => {
 import { waitUntilWindowAvailable } from '@wdio/native-utils';
 import { execute as executeCommand } from '../src/commands/execute.js';
 import { clearAllMocks, resetAllMocks, restoreAllMocks } from '../src/commands/mock.js';
+import { triggerDeeplink } from '../src/commands/triggerDeeplink.js';
 import mockStore from '../src/mockStore.js';
 import TauriWorkerService from '../src/service.js';
 import type { TauriCapabilities } from '../src/types.js';
@@ -844,6 +849,44 @@ describe('TauriWorkerService', () => {
       await (mockBrowser as any).tauri.emitEvent('foo');
 
       expect(mockStore.getMocks).toHaveBeenCalled();
+    });
+  });
+
+  describe('tauri.triggerDeeplink()', () => {
+    it.each([
+      [undefined, 'embedded'],
+      ['external', 'external'],
+      ['crabnebula', 'crabnebula'],
+    ] as const)('should pass driverProvider %s to triggerDeeplink as %s', async (driverProvider, expected) => {
+      const mockBrowser = createMockBrowser();
+      const service = new TauriWorkerService({ driverProvider }, { 'wdio:tauriServiceOptions': {} });
+      await service.before({} as never, [], mockBrowser);
+
+      await (mockBrowser as any).tauri.triggerDeeplink('myapp://test');
+
+      const [context] = vi.mocked(triggerDeeplink).mock.contexts;
+      expect(context.browser).toBe(mockBrowser);
+      expect(context.provider).toBe(expected);
+      expect(triggerDeeplink).toHaveBeenCalledWith('myapp://test');
+    });
+
+    it("should pass the worker's provider for the multiremote root", async () => {
+      const instance = createMockBrowser({ sessionId: 'session-a' });
+      const mrBrowser = createMockBrowser({
+        isMultiremote: true,
+        instances: ['browserA'],
+        getInstance: () => instance,
+      });
+      const service = new TauriWorkerService({}, {
+        browserA: { capabilities: { 'wdio:tauriServiceOptions': { driverProvider: 'external' } } },
+      } as unknown as TauriCapabilities);
+      await service.before({} as never, [], mrBrowser);
+
+      await (mrBrowser as any).tauri.triggerDeeplink('myapp://root');
+
+      const [context] = vi.mocked(triggerDeeplink).mock.contexts;
+      expect(context.browser).toBe(mrBrowser);
+      expect(context.provider).toBe('external');
     });
   });
 

@@ -519,7 +519,7 @@ export default class TauriWorkerService {
         if (browserMode) {
           throw new Error('browser.tauri.triggerDeeplink() is not supported in browser mode.');
         }
-        return triggerDeeplink.call({ browser }, url);
+        return triggerDeeplink.call({ browser, provider: this.driverProvider ?? 'embedded' }, url);
       },
 
       switchWindow: async (label: string): Promise<void> => {
