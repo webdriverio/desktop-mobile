@@ -172,12 +172,12 @@ describe('triggerDeeplink Command', () => {
       ['embedded', 'win32'],
       ['embedded', 'darwin'],
       ['crabnebula', 'darwin'],
-    ] as const)('should inject the deeplink via browser.execute for %s on %s', async (provider, platform) => {
+    ] as const)('should emit the deep-link event in the app for %s on %s', async (provider, platform) => {
       mockPlatform(platform);
       const browser = createBrowser();
       await triggerDeeplink.call({ browser, provider }, 'myapp://test');
 
-      expect(browser.execute).toHaveBeenCalledWith(expect.stringContaining('window.receivedDeeplinks'));
+      expect(browser.execute).toHaveBeenCalledWith(expect.any(Function), 'deep-link://new-url', 'myapp://test');
       expect(spawn).not.toHaveBeenCalled();
     });
 
@@ -226,15 +226,49 @@ describe('triggerDeeplink Command', () => {
       );
     });
 
-    it('should build char codes from the URL for injection script', async () => {
+    it("should emit the URL through Tauri's event plugin, as the deep-link plugin does", async () => {
       const browser = createBrowser();
       await triggerDeeplink.call({ browser, provider: 'embedded' }, 'myapp://x');
 
-      const script = vi.mocked(browser.execute).mock.calls[0][0] as string;
-      const expectedCharCodes = Array.from('myapp://x')
-        .map((c) => c.charCodeAt(0))
-        .join(',');
-      expect(script).toContain(expectedCharCodes);
+      const [emitInApp, event, url] = vi.mocked(browser.execute).mock.calls[0] as unknown as [
+        (event: string, url: string) => unknown,
+        string,
+        string,
+      ];
+      const invoke = vi.fn().mockResolvedValue(undefined);
+      vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
+      try {
+        await emitInApp(event, url);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+      expect(invoke).toHaveBeenCalledWith('plugin:event|emit', {
+        event: 'deep-link://new-url',
+        payload: ['myapp://x'],
+      });
+    });
+
+    it('should normalize the URL as the deep-link plugin does', async () => {
+      const browser = createBrowser();
+      await triggerDeeplink.call({ browser, provider: 'embedded' }, 'MyApp://Open?name=John Doe');
+
+      expect(browser.execute).toHaveBeenCalledWith(
+        expect.any(Function),
+        'deep-link://new-url',
+        'myapp://Open?name=John%20Doe',
+      );
+    });
+
+    it('should say when the window has no Tauri IPC', async () => {
+      const browser = createBrowser();
+      await triggerDeeplink.call({ browser, provider: 'embedded' }, 'myapp://x');
+
+      const [emitInApp, event, url] = vi.mocked(browser.execute).mock.calls[0] as unknown as [
+        (event: string, url: string) => unknown,
+        string,
+        string,
+      ];
+      expect(() => emitInApp(event, url)).toThrow('Tauri IPC (__TAURI_INTERNALS__) is not available in this window');
     });
   });
 });

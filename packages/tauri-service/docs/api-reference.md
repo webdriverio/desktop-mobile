@@ -186,7 +186,7 @@ await browser.tauri.restoreAllMocks();
 
 ### `browser.tauri.triggerDeeplink(url)`
 
-Trigger a deeplink to the Tauri application for testing protocol handlers. Uses platform-specific commands (`open` on macOS, `xdg-open` on Linux, `cmd /c start` on Windows).
+Trigger a deeplink to the Tauri application for testing protocol handlers. With the `embedded` provider, and CrabNebula on macOS, it emits the deep-link plugin's `deep-link://new-url` event inside the app, which needs `core:event:allow-emit` in the app's capabilities (`core:default` includes it). Otherwise it opens the URL through the OS (`rundll32` on Windows, `gio open` on Linux). Either way, the app's `onOpenUrl` / `on_open_url` handlers receive it. On Windows and Linux, the OS route needs the single-instance plugin; see [How the Deeplink Reaches Your App](./deeplink-testing.md#how-the-deeplink-reaches-your-app).
 
 **Parameters:**
 - `url` (string) - The deeplink URL to trigger (e.g., `'myapp://open?file=test.txt'`)
