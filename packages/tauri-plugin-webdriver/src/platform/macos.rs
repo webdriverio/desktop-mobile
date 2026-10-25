@@ -243,8 +243,7 @@ impl<R: Runtime + 'static> PlatformExecutor<R> for MacOSExecutor<R> {
   // Async Script Execution
   // =========================================================================
 
-  /// Runs through `execute_script`, which awaits the script's promise and polls for the result,
-  /// instead of holding a `callAsyncJavaScript` completion that WebKit can reclaim (#540).
+  /// Runs through `execute_script`, which awaits the script's promise and polls for the result.
   async fn execute_async_script(
     &self,
     script: &str,
