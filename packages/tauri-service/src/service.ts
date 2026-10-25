@@ -3,6 +3,7 @@ import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-
 import {
   createLogger,
   errorMessage,
+  executeAsync,
   hasSemicolonOutsideQuotes,
   installMockSyncOverride,
   isMultiremote,
@@ -636,7 +637,6 @@ export default class TauriWorkerService {
     }
 
     const originalExecute = browser.execute.bind(browser);
-    const originalExecuteAsync = (browser.executeAsync as typeof browser.execute).bind(browser);
     const isEmbedded = this.driverProvider === 'embedded';
 
     const patchedExecute = async function patchedExecute<ReturnValue, InnerArguments extends unknown[]>(
@@ -668,10 +668,7 @@ export default class TauriWorkerService {
                 (e) => arguments[arguments.length-1]({ __wdio_error__: e instanceof Error ? e.message : String(e) })
             );
         `;
-        const asyncResult = await (originalExecuteAsync as (script: string, ...a: unknown[]) => Promise<unknown>)(
-          wrappedScript,
-          ...args,
-        );
+        const asyncResult = await executeAsync(browser, wrappedScript, ...args);
         if (asyncResult && typeof asyncResult === 'object' && '__wdio_error__' in asyncResult) {
           throw new Error((asyncResult as { __wdio_error__: string }).__wdio_error__);
         }
@@ -692,10 +689,7 @@ export default class TauriWorkerService {
                 (e) => arguments[arguments.length-1]({ __wdio_error__: e instanceof Error ? e.message : String(e) })
             );
         `;
-        const asyncResult = await (originalExecuteAsync as (script: string, ...a: unknown[]) => Promise<unknown>)(
-          wrappedScript,
-          ...args,
-        );
+        const asyncResult = await executeAsync(browser, wrappedScript, ...args);
         if (asyncResult && typeof asyncResult === 'object' && '__wdio_error__' in asyncResult) {
           throw new Error((asyncResult as { __wdio_error__: string }).__wdio_error__);
         }

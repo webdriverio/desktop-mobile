@@ -21,7 +21,6 @@ type SelectorsBase = {
 type BaseWithExecute = {
   execute<T>(script: string | ((...args: unknown[]) => T), ...args: unknown[]): Promise<T>;
   execute<T>(script: string | ((...args: unknown[]) => T), ...args: unknown[]): T;
-  executeAsync(script: string | ((...args: unknown[]) => void), ...args: unknown[]): unknown;
 };
 
 type ElementBase = SelectorsBase & {

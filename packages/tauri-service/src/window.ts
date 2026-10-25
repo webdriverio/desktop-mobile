@@ -1,5 +1,5 @@
 import { AsyncLocalStorage } from 'node:async_hooks';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, executeAsync } from '@wdio/native-utils';
 import { clearPluginAvailabilityCache } from './pluginCache.js';
 import type { DriverProvider } from './types.js';
 
@@ -70,7 +70,8 @@ async function resolveLabelToHandle(browser: WebdriverIO.Browser, targetLabel: s
   for (const handle of handles) {
     try {
       await browser.switchToWindow(handle);
-      const handleLabel = await browser.executeAsync<string | null, []>(
+      const handleLabel = await executeAsync<string | null>(
+        browser,
         `var done = arguments[arguments.length - 1];
          try {
            window.__TAURI__.core.invoke('plugin:wdio|get_active_window_label')

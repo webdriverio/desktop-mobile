@@ -113,7 +113,7 @@ Tauri's three driver providers behave differently for VRT:
 
 ### Known issue: `official` provider on Linux
 
-`tauri-driver` + WebKitGTK + `@wdio/tauri-service`'s `patchedExecute` interact badly with the visual service's `before()` hook. The hook calls `browser.execute('return window.devicePixelRatio')` which gets wrapped into an `executeAsync` HTTP call that never returns, timing out after ~2 minutes. The visual service then fails to register its commands and every assertion errors with `browser.checkScreen is not a function`.
+`tauri-driver` + WebKitGTK + `@wdio/tauri-service`'s `patchedExecute` interact badly with the visual service's `before()` hook. The hook calls `browser.execute('return window.devicePixelRatio')`, which `patchedExecute` sends as a WebDriver Execute Async Script call that never returns, timing out after ~2 minutes. The visual service then fails to register its commands and every assertion errors with `browser.checkScreen is not a function`.
 
 Workaround: use the `embedded` provider on Linux for visual testing. The `official` provider works fine for non-visual specs there.
 
