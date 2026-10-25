@@ -9,7 +9,7 @@ import { existsSync, rmSync } from 'node:fs';
 import { createLogger } from '@wdio/native-utils';
 
 import { SERVICE_NAME } from './constants.js';
-import { needsOwnDisplay } from './display.js';
+import { needsOwnDisplay, x11Env } from './display.js';
 
 const log = createLogger(SERVICE_NAME, 'driver');
 
@@ -99,9 +99,9 @@ export async function spawnWebKitWebDriver(opts: {
   const host = opts.host ?? '127.0.0.1';
   const driverArgs = webKitWebDriverArgs(host, opts.port);
 
-  // WebKitWebDriver launches a GTK app, which needs a display.
+  // WebKitWebDriver launches the GTK app, which needs an X display.
+  const isLinux = process.platform === 'linux';
   const useXvfb = needsOwnDisplay(process.env);
-  const detached = process.platform === 'linux';
   const command = useXvfb ? 'xvfb-run' : opts.driverPath;
   const spawnArgs = useXvfb ? ['-a', opts.driverPath, ...driverArgs] : driverArgs;
 
@@ -110,14 +110,18 @@ export async function spawnWebKitWebDriver(opts: {
   // tree. `xvfb-run` does NOT forward signals to WebKitWebDriver (its child) or the app (WebKitWebDriver's
   // child), so killing just the xvfb-run pid orphans them; across retries the orphaned apps & X servers pile
   // up and starve the runner.
-  const child = spawn(command, spawnArgs, { stdio: ['ignore', 'pipe', 'pipe'], detached });
+  const child = spawn(command, spawnArgs, {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: isLinux,
+    env: isLinux ? x11Env(process.env) : process.env,
+  });
   child.stdout?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver] ${chunk.toString().trimEnd()}`));
   child.stderr?.on('data', (chunk: Buffer) => log.debug(`[WebKitWebDriver:err] ${chunk.toString().trimEnd()}`));
   child.on('exit', (code) => log.debug(`WebKitWebDriver exited with code ${code}`));
   // Without this handler an 'error' event (e.g. spawn ENOENT) crashes the launcher as an uncaught exception.
   child.on('error', (error) => log.warn(`WebKitWebDriver process error: ${(error as Error).message}`));
 
-  const handle: WebKitDriverProcess = { process: child, host, port: opts.port, detached };
+  const handle: WebKitDriverProcess = { process: child, host, port: opts.port, detached: isLinux };
   // If the spawn errors, reject immediately instead of waiting out the full readiness timeout.
   const spawnFailed = new Promise<never>((_, reject) => {
     child.once('error', (error: Error) =>

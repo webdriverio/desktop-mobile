@@ -55,10 +55,10 @@ unsupported configuration — the launcher fails fast with a clear error.
 ### Linux (WebKitGTK) requirements
 
 The Linux path drives the native WebKitGTK renderer over **W3C WebDriver** via
-**`WebKitWebDriver`**, which launches the app. The driver uses the display that's already set. On a
-headless machine, that's the display server WebdriverIO v10 starts (Weston or Xvfb; set
-`displayServer: 'xvfb'` if your app needs X11). With no display set, as on WebdriverIO v9, the service
-runs the driver under `xvfb-run`. Install both the WebKitGTK driver and Xvfb:
+**`WebKitWebDriver`**, which launches the app. The app runs on X11, because it doesn't start under a
+headless Weston. The service reuses an X display that's already set, such as the Xvfb WebdriverIO v10
+starts or your desktop's. Otherwise it runs the driver under `xvfb-run`, including when only a Wayland
+display is set (WebdriverIO v10's Weston, or a Wayland desktop). Install both the WebKitGTK driver and Xvfb:
 
 ```sh
 sudo apt-get install webkitgtk-webdriver xvfb     # Ubuntu 26.04+, Debian 13+

@@ -26,6 +26,7 @@ import { createLogCapture } from '@wdio/native-core';
 import { createLogger } from '@wdio/native-utils';
 
 import { SERVICE_NAME } from './constants.js';
+import { needsOwnDisplay, x11Env } from './display.js';
 import { type ResolvedElectrobunApp, writeRemoteDebuggingPort } from './electrobunConfig.js';
 import { SevereServiceError } from './errors.js';
 import { resolveTransport } from './transport.js';
@@ -153,18 +154,16 @@ export function spawnElectrobunApp(params: SpawnElectrobunAppParams): Electrobun
   };
 
   // CEF is a GUI process that needs an X display ("Failed to open X11 display" otherwise → no
-  // browser → no /json), so on Linux it reuses an X display already set (WebdriverIO v10's Xvfb,
-  // or the user's) and otherwise runs under `xvfb-run -a` (a throwaway X server). Weston offers
-  // no X display. Unreachable in 0.x (the launcher's macOS guard throws first); kept for the
+  // browser → no /json). Unreachable in 0.x (the launcher's macOS guard throws first); kept for the
   // Linux re-fold (https://github.com/webdriverio/desktop-mobile/issues/320).
-  const useXvfb = process.platform === 'linux' && !env.DISPLAY;
+  const useXvfb = needsOwnDisplay(env);
   const command = useXvfb ? 'xvfb-run' : clonedBinaryPath;
   const spawnArgs = useXvfb ? ['-a', clonedBinaryPath, ...appArgs] : appArgs;
 
   return startAppProcess({
     command,
     spawnArgs,
-    env,
+    env: process.platform === 'linux' ? x11Env(env) : env,
     port,
     options,
     instanceId,

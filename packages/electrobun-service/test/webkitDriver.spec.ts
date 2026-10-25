@@ -91,30 +91,37 @@ describe('spawnWebKitWebDriver', () => {
     vi.unstubAllEnvs();
   });
 
-  const spawned = () => mockedSpawn.mock.calls[0] as unknown as [string, string[], { detached: boolean }];
+  const spawned = () =>
+    mockedSpawn.mock.calls[0] as unknown as [string, string[], { detached: boolean; env: NodeJS.ProcessEnv }];
 
-  it('should run under xvfb-run on Linux when no display is set', async () => {
+  it.each([
+    ['no display is set', {}],
+    ['only a Wayland display is set', { WAYLAND_DISPLAY: 'wayland-0' }],
+  ])('should run under xvfb-run on X11 when %s', async (_case, displayEnv: Record<string, string>) => {
+    for (const [name, value] of Object.entries(displayEnv)) vi.stubEnv(name, value);
+
     const handle = await spawnWebKitWebDriver({ driverPath: '/usr/bin/WebKitWebDriver', port: 4444 });
 
     const [command, args, opts] = spawned();
     expect(command).toBe('xvfb-run');
     expect(args).toEqual(['-a', '/usr/bin/WebKitWebDriver', '--host=127.0.0.1', '--port=4444']);
+    expect(opts.env).toMatchObject({ GDK_BACKEND: 'x11', XDG_SESSION_TYPE: 'x11' });
+    expect(opts.env.WAYLAND_DISPLAY).toBeUndefined();
     expect(opts.detached).toBe(true);
     expect(handle.detached).toBe(true);
   });
 
-  it.each([
-    ['DISPLAY', ':99'],
-    ['WAYLAND_DISPLAY', 'wayland-1'],
-  ])('should use the display WebdriverIO already started (%s)', async (name, value) => {
-    vi.stubEnv(name, value);
+  it('should reuse an X display already set, still on X11', async () => {
+    vi.stubEnv('DISPLAY', ':99');
+    vi.stubEnv('WAYLAND_DISPLAY', 'wayland-0');
 
     const handle = await spawnWebKitWebDriver({ driverPath: '/usr/bin/WebKitWebDriver', port: 4444 });
 
     const [command, args, opts] = spawned();
     expect(command).toBe('/usr/bin/WebKitWebDriver');
     expect(args).toEqual(['--host=127.0.0.1', '--port=4444']);
-    expect(opts.detached).toBe(true);
+    expect(opts.env).toMatchObject({ DISPLAY: ':99', GDK_BACKEND: 'x11', XDG_SESSION_TYPE: 'x11' });
+    expect(opts.env.WAYLAND_DISPLAY).toBeUndefined();
     expect(handle.detached).toBe(true);
   });
 });
