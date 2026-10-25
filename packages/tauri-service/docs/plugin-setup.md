@@ -155,6 +155,8 @@ Import the frontend plugin in your main frontend entry file (usually `index.html
 import '@wdio/tauri-plugin';
 ```
 
+`@wdio/tauri-plugin` uses your app's `@tauri-apps/api` (2.10 or later) rather than bringing its own copy.
+
 This import must happen **before** your tests run. The plugin auto-initializes on import and sets up:
 - `window.wdioTauri` API
 - Console forwarding
@@ -289,7 +291,7 @@ If you get Rust compilation errors:
    ```
 
 3. **Check Tauri version compatibility**
-   - tauri-plugin-wdio requires **Tauri v2.0+**
+   - tauri-plugin-wdio requires **Tauri v2.10+**
    - If you're on Tauri v1, this plugin won't work
 
 4. **Check dependency versions**
@@ -423,7 +425,7 @@ This plugin embeds a W3C WebDriver HTTP server directly in your Tauri applicatio
 
 ### Requirements
 
-- Tauri v2.0+
+- Tauri v2.10+
 - The `embedded` provider in use (the default; or set `driverProvider: 'embedded'` explicitly)
 
 ### Installation

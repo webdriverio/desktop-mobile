@@ -1,7 +1,7 @@
 name: Crate Drift
 
-# Builds each published crate against freshly resolved dependencies, as consuming apps do, and
-# tracks failures in an issue.
+# Builds each published crate against freshly resolved dependencies, as consuming apps do, and the
+# Tauri plugin crates against their tauri floor too, and tracks failures in an issue.
 
 on:
   schedule:
@@ -139,9 +139,101 @@ jobs:
           done
           exit "$status"
 
+  floor-deps:
+    name: Tauri floor [${{ matrix.label }}]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - label: Linux + Windows cross-check
+            os: ubuntu-latest
+            targets: host x86_64-pc-windows-msvc
+          - label: macOS
+            os: macos-latest
+            targets: host
+    env:
+      CRATES: |
+        packages/tauri-plugin
+        packages/tauri-plugin-webdriver
+      # Both crates require `tauri ^2.10.0`. The tauri crates break across minors despite their caret
+      # ranges, so every family crate is pinned to the release that shipped with tauri 2.10.0
+      # (`crates/*/Cargo.toml` at tag tauri-v2.10.0). tauri-runtime-wry goes before tauri-runtime,
+      # because the locked tauri-runtime-wry requires its own tauri-runtime.
+      FLOOR: >-
+        tauri=2.10.0 tauri-runtime-wry=2.10.0 tauri-runtime=2.10.0
+        tauri-macros=2.5.3 tauri-codegen=2.5.3 tauri-plugin=2.5.3
+    steps:
+      - name: 👷 Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: 🦀 Install Rust toolchain
+        shell: bash
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          rustup update stable
+          rustup default stable
+          for target in $TARGETS; do
+            [ "$target" = host ] || rustup target add "$target"
+          done
+
+      - name: 🦀 Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: crate-drift-floor
+          workspaces: ${{ env.CRATES }}
+          cache-on-failure: true
+          cache-bin: false
+          cache-targets: false
+
+      - name: 🦀 Install Linux system dependencies
+        if: runner.os == 'Linux'
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            pkg-config \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libjavascriptcoregtk-4.1-dev \
+            libsoup-3.0-dev \
+            libxdo-dev \
+            libayatana-appindicator3-dev
+
+      - name: 🔍 cargo check against the tauri floor
+        shell: bash
+        env:
+          TARGETS: ${{ matrix.targets }}
+        run: |
+          set -uo pipefail
+          export CARGO_TARGET_DIR="$RUNNER_TEMP/target"
+          status=0
+          for crate in $CRATES; do
+            for pin in $FLOOR; do
+              if ! cargo update --manifest-path "$crate/Cargo.toml" -p "${pin%%=*}" --precise "${pin#*=}"; then
+                echo "::error file=$crate/Cargo.toml::cannot pin ${pin%%=*} to ${pin#*=} for $crate"
+                status=1
+              fi
+            done
+            for target in $TARGETS; do
+              args=(); [ "$target" = host ] || args=(--target "$target")
+              echo "::group::cargo check $crate ($target)"
+              # macOS runners ship bash 3.2, where "${args[@]}" on an empty array trips `set -u`.
+              if ! cargo check --manifest-path "$crate/Cargo.toml" ${args[@]+"${args[@]}"}; then
+                echo "::error file=$crate/Cargo.toml::$crate fails to build for $target against its tauri floor"
+                status=1
+              fi
+              echo "::endgroup::"
+            done
+          done
+          exit "$status"
+
   report:
     name: Report
-    needs: [fresh-deps]
+    needs: [fresh-deps, floor-deps]
     if: ${{ !cancelled() && github.ref == 'refs/heads/main' }}
     runs-on: ubuntu-latest
     permissions:
@@ -150,28 +242,34 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
-      RESULT: ${{ needs.fresh-deps.result }}
+      FRESH: ${{ needs.fresh-deps.result }}
+      FLOOR: ${{ needs.floor-deps.result }}
     steps:
       - name: 📋 File or close the tracking issue
         shell: bash
         run: |
           set -euo pipefail
-          title='Crate Drift: Rust crates fail against fresh dependencies'
+          title='Crate Drift: Rust crates fail against fresh or floor dependencies'
           issue=$(gh issue list --repo "$REPO" --state open --search "in:title \"$title\"" --json number,title \
             | jq -r --arg t "$title" '[.[] | select(.title == $t)][0].number // empty')
 
           # Superseded runs skip this job; a job that hit its timeout reports as cancelled.
-          if [ "$RESULT" = failure ] || [ "$RESULT" = cancelled ]; then
+          failed=false
+          for result in "$FRESH" "$FLOOR"; do
+            if [ "$result" = failure ] || [ "$result" = cancelled ]; then failed=true; fi
+          done
+          if [ "$failed" = true ]; then
             if [ -n "$issue" ]; then
               gh issue comment "$issue" --repo "$REPO" --body "Still failing in [this run]($RUN_URL)."
             else
               gh issue create --repo "$REPO" --title "$title" --label 'area:dependencies' --body "$(cat <<EOF
-          The nightly [Crate Drift run]($RUN_URL) failed against freshly resolved dependencies, so a crate we publish:
+          The nightly [Crate Drift run]($RUN_URL) failed, so a crate we publish:
 
-          - no longer builds, or
-          - generates permission files that differ from the committed ones.
+          - no longer builds against freshly resolved dependencies (Fresh deps),
+          - generates permission files that differ from the committed ones (Fresh deps), or
+          - no longer builds against the tauri release it declares as its floor (Tauri floor).
 
-          CI on the committed lockfiles may still pass. The step summary lists the releases picked up.
+          CI on the committed lockfiles may still pass. The Fresh deps step summary lists the releases picked up.
 
           This issue closes itself once a nightly run passes again.
           EOF
