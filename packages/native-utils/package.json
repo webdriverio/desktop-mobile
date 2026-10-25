@@ -60,6 +60,9 @@
     "tsx": "^4.22.4"
   },
   "peerDependenciesMeta": {
+    "@wdio/logger": {
+      "optional": true
+    },
     "tsx": {
       "optional": true
     }

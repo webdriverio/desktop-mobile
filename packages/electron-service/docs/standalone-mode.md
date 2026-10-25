@@ -2,6 +2,12 @@
 
 You can also use the service without the WDIO testrunner, e.g. in a normal Node.js script.
 
+The service takes `webdriverio` and `@wdio/globals` as peer dependencies, which the testrunner normally provides. Without it, install them next to the service:
+
+```sh
+npm install --save-dev @wdio/electron-service webdriverio @wdio/globals
+```
+
 The `startWdioSession` method accepts `ElectronServiceCapabilities`, which are the capabilities specified in a regular [WDIO configuration](./configuration.md).
 
 The method creates a new WDIO session using your configuration and returns the WebdriverIO browser object:

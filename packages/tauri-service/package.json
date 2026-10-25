@@ -50,17 +50,13 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@wdio/globals": "catalog:default",
     "@wdio/native-core": "workspace:*",
     "@wdio/native-spy": "workspace:*",
     "@wdio/native-types": "workspace:*",
     "@wdio/native-utils": "workspace:*",
-    "@wdio/spec-reporter": "catalog:default",
-    "@wdio/types": "catalog:default",
     "debug": "^4.4.3",
     "get-port": "^7.1.0",
-    "tslib": "^2.8.1",
-    "webdriverio": "catalog:default"
+    "tslib": "^2.8.1"
   },
   "devDependencies": {
     "@babel/parser": "^8.0.7",
@@ -68,18 +64,29 @@
     "@types/debug": "^4.1.12",
     "@types/node": "^26.6.5",
     "@wdio/bundler": "workspace:*",
+    "@wdio/globals": "catalog:default",
+    "@wdio/types": "catalog:default",
     "recast": "^0.24.0",
     "shx": "^0.4.0",
     "terser": "^5.51.2",
     "typescript": "^6.0.3",
-    "vitest": "^5.0.5"
+    "vitest": "^5.0.5",
+    "webdriverio": "catalog:default"
   },
   "peerDependencies": {
-    "webdriverio": "^9.0.0"
+    "@wdio/globals": "^9.0.0 || ^10.0.0",
+    "@wdio/types": "^9.0.0 || ^10.0.0",
+    "webdriverio": "^9.0.0 || ^10.0.0"
   },
   "peerDependenciesMeta": {
+    "@wdio/globals": {
+      "optional": true
+    },
+    "@wdio/types": {
+      "optional": true
+    },
     "webdriverio": {
-      "optional": false
+      "optional": true
     }
   },
   "keywords": [

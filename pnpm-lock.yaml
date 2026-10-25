@@ -182,9 +182,6 @@ catalogs:
     '@wdio/mocha-framework':
       specifier: 9.31.9
       version: 9.31.9
-    '@wdio/spec-reporter':
-      specifier: 9.31.2
-      version: 9.31.2
     '@wdio/types':
       specifier: 9.31.2
       version: 9.31.2
@@ -1071,9 +1068,6 @@ importers:
 
   packages/dioxus-service:
     dependencies:
-      '@wdio/globals':
-        specifier: catalog:default
-        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/native-core':
         specifier: workspace:*
         version: link:../native-core
@@ -1086,12 +1080,6 @@ importers:
       '@wdio/native-utils':
         specifier: workspace:*
         version: link:../native-utils
-      '@wdio/spec-reporter':
-        specifier: catalog:default
-        version: 9.31.2
-      '@wdio/types':
-        specifier: catalog:default
-        version: 9.31.2
       debug:
         specifier: ^4.4.3
         version: 4.4.3(supports-color@8.1.1)
@@ -1101,9 +1089,6 @@ importers:
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
-      webdriverio:
-        specifier: catalog:default
-        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     devDependencies:
       '@repo/test-utils':
         specifier: workspace:*
@@ -1120,6 +1105,9 @@ importers:
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.31.2
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1129,12 +1117,12 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      webdriverio:
+        specifier: catalog:default
+        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   packages/electrobun-service:
     dependencies:
-      '@wdio/globals':
-        specifier: catalog:default
-        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/native-cdp-bridge':
         specifier: workspace:*
         version: link:../native-cdp-bridge
@@ -1150,12 +1138,6 @@ importers:
       '@wdio/native-utils':
         specifier: workspace:*
         version: link:../native-utils
-      '@wdio/spec-reporter':
-        specifier: catalog:default
-        version: 9.31.2
-      '@wdio/types':
-        specifier: catalog:default
-        version: 9.31.2
       debug:
         specifier: ^4.4.3
         version: 4.4.3(supports-color@8.1.1)
@@ -1165,9 +1147,6 @@ importers:
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
-      webdriverio:
-        specifier: catalog:default
-        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     devDependencies:
       '@repo/test-utils':
         specifier: workspace:*
@@ -1184,6 +1163,9 @@ importers:
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.31.2
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1193,6 +1175,9 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      webdriverio:
+        specifier: catalog:default
+        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   packages/electron-service:
     dependencies:
@@ -1205,9 +1190,6 @@ importers:
       '@electron/packager':
         specifier: ^20.3.0
         version: 20.3.0(supports-color@8.1.1)
-      '@wdio/globals':
-        specifier: catalog:default
-        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/native-cdp-bridge':
         specifier: workspace:*
         version: link:../native-cdp-bridge
@@ -1247,9 +1229,6 @@ importers:
       recast:
         specifier: ^0.24.0
         version: 0.24.0
-      webdriverio:
-        specifier: catalog:default
-        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       yaml:
         specifier: ^2.9.1
         version: 2.9.1
@@ -1278,6 +1257,9 @@ importers:
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
+      '@wdio/globals':
+        specifier: catalog:default
+        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/native-spy':
         specifier: workspace:*
         version: link:../native-spy
@@ -1314,6 +1296,9 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.3(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      webdriverio:
+        specifier: catalog:default
+        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   packages/flutter-service:
     dependencies:
@@ -1332,15 +1317,9 @@ importers:
       '@wdio/native-utils':
         specifier: workspace:*
         version: link:../native-utils
-      '@wdio/types':
-        specifier: catalog:default
-        version: 9.31.2
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
-      webdriverio:
-        specifier: catalog:default
-        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
       ws:
         specifier: ^8.22.0
         version: 8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)
@@ -1357,6 +1336,9 @@ importers:
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.31.2
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1369,6 +1351,9 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      webdriverio:
+        specifier: catalog:default
+        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   packages/native-cdp-bridge:
     dependencies:
@@ -1473,15 +1458,9 @@ importers:
       '@wdio/native-utils':
         specifier: workspace:*
         version: link:../native-utils
-      '@wdio/types':
-        specifier: catalog:default
-        version: 9.31.2
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
-      webdriverio:
-        specifier: catalog:default
-        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     devDependencies:
       '@repo/test-utils':
         specifier: workspace:*
@@ -1495,6 +1474,9 @@ importers:
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.31.2
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1504,6 +1486,9 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      webdriverio:
+        specifier: catalog:default
+        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   packages/native-spy:
     devDependencies:
@@ -1640,15 +1625,9 @@ importers:
       '@wdio/native-utils':
         specifier: workspace:*
         version: link:../native-utils
-      '@wdio/types':
-        specifier: catalog:default
-        version: 9.31.2
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
-      webdriverio:
-        specifier: catalog:default
-        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     devDependencies:
       '@types/node':
         specifier: ^26.6.5
@@ -1659,6 +1638,9 @@ importers:
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.31.2
       shx:
         specifier: ^0.4.0
         version: 0.4.0
@@ -1671,6 +1653,9 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      webdriverio:
+        specifier: catalog:default
+        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   packages/tauri-plugin:
     dependencies:
@@ -1708,9 +1693,6 @@ importers:
 
   packages/tauri-service:
     dependencies:
-      '@wdio/globals':
-        specifier: catalog:default
-        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       '@wdio/native-core':
         specifier: workspace:*
         version: link:../native-core
@@ -1723,12 +1705,6 @@ importers:
       '@wdio/native-utils':
         specifier: workspace:*
         version: link:../native-utils
-      '@wdio/spec-reporter':
-        specifier: catalog:default
-        version: 9.31.2
-      '@wdio/types':
-        specifier: catalog:default
-        version: 9.31.2
       debug:
         specifier: ^4.4.3
         version: 4.4.3(supports-color@8.1.1)
@@ -1738,9 +1714,6 @@ importers:
       tslib:
         specifier: ^2.8.1
         version: 2.8.1
-      webdriverio:
-        specifier: catalog:default
-        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
     devDependencies:
       '@babel/parser':
         specifier: ^8.0.7
@@ -1757,6 +1730,12 @@ importers:
       '@wdio/bundler':
         specifier: workspace:*
         version: link:../bundler
+      '@wdio/globals':
+        specifier: catalog:default
+        version: 9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      '@wdio/types':
+        specifier: catalog:default
+        version: 9.31.2
       recast:
         specifier: ^0.24.0
         version: 0.24.0
@@ -1772,6 +1751,9 @@ importers:
       vitest:
         specifier: ^5.0.5
         version: 5.0.5(@opentelemetry/api@1.10.0)(@types/node@26.6.5)(@vitest/coverage-v8@5.0.5)(happy-dom@20.14.5(bufferutil@4.1.0)(utf-8-validate@6.0.6))(jsdom@30.1.2(@noble/hashes@2.2.0))(vite@8.3.4(@types/node@26.6.5)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      webdriverio:
+        specifier: catalog:default
+        version: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   packages/test-utils:
     devDependencies:
@@ -11446,7 +11428,7 @@ snapshots:
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':
     dependencies:
-      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
+      expect-webdriverio: 6.0.10(@wdio/globals@9.31.3)(@wdio/logger@9.29.1)(webdriverio@9.31.9(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))
       webdriverio: 9.31.9(bufferutil@4.1.0)(puppeteer-core@25.15.0(bufferutil@4.1.0)(utf-8-validate@6.0.6)(yauzl@3.4.0))(supports-color@8.1.1)(utf-8-validate@6.0.6)
 
   '@wdio/globals@9.31.3(expect-webdriverio@6.0.10)(webdriverio@9.32.0(bufferutil@4.1.0)(supports-color@8.1.1)(utf-8-validate@6.0.6))':

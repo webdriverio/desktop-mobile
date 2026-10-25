@@ -59,5 +59,17 @@
     "type": "git",
     "url": "https://github.com/webdriverio/desktop-mobile.git",
     "directory": "packages/native-types"
+  },
+  "peerDependencies": {
+    "@wdio/types": "^9.0.0 || ^10.0.0",
+    "webdriverio": "^9.0.0 || ^10.0.0"
+  },
+  "peerDependenciesMeta": {
+    "@wdio/types": {
+      "optional": true
+    },
+    "webdriverio": {
+      "optional": true
+    }
   }
 }
