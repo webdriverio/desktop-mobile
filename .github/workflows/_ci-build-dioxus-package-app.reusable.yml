@@ -66,23 +66,6 @@ jobs:
           # place of cargo) across runs on macOS, breaking the toolchain.
           cache-bin: false
 
-      - name: Fix ARM64 Package Sources (Linux)
-        if: runner.os == 'Linux' && runner.arch == 'ARM64'
-        shell: bash
-        run: |
-          echo "Fixing ARM64 package sources for Ubuntu..."
-          # Add proper arm64 sources for jammy
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy main restricted universe multiverse" | sudo tee /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-updates main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-backports main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
-          echo "deb [arch=arm64] http://ports.ubuntu.com/ubuntu-ports/ jammy-security main restricted universe multiverse" | sudo tee -a /etc/apt/sources.list.d/arm64-jammy.list > /dev/null
-
-          # Ensure default sources only use amd64
-          sudo sed -i -e 's/^deb http/deb [arch=amd64] http/' /etc/apt/sources.list
-          sudo sed -i -e 's/^deb mirror/deb [arch=amd64] mirror/' /etc/apt/sources.list
-
-          sudo apt-get update
-
       - name: Install Dioxus Dependencies (Linux)
         if: runner.os == 'Linux'
         shell: bash
