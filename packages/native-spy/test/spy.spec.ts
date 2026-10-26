@@ -171,6 +171,22 @@ describe('native-spy', () => {
       expect(mock()).toBe('default');
     });
 
+    it('should call a restored original with the receiver it was invoked on', () => {
+      const api = {
+        name: 'app',
+        getName(this: { name: string }) {
+          return this.name;
+        },
+      };
+      const original = api.getName;
+      const mock = fn(undefined, { original });
+      api.getName = mock;
+
+      mock.mockRestore();
+
+      expect(api.getName()).toBe('app');
+    });
+
     it('should reset all state including implementation with mockRestore', () => {
       const mock = fn(() => 'original');
       mock.mockReturnValue('overridden');

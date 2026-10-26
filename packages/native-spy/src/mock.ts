@@ -35,12 +35,17 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
   };
 
   const mockFn: Mock<T> = function (this: unknown, ...args: Parameters<T>): ReturnType<T> {
+    // Electron 45 throws if a native method is called with the wrong receiver
+    // (electron/electron#54313). A method call's `this` is that object; a bare call has none.
+    const receiver = this === mockFn ? undefined : this;
+    const callImpl = (fn: T): ReturnType<T> => Reflect.apply(fn, receiver, args) as ReturnType<T>;
+
     // Get next result from queue or defaults
     let result: MockResult;
     if (implementationQueue.length > 0) {
       const impl = implementationQueue.shift() as T;
       try {
-        const value = impl(...(args as Parameters<T>));
+        const value = callImpl(impl);
         result = { type: 'return', value };
       } catch (error) {
         result = { type: 'throw', value: error };
@@ -49,7 +54,7 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
       result = { type: 'throw', value: defaultRejectedValue };
     } else if (implementationFn !== undefined) {
       try {
-        const value = implementationFn(...(args as Parameters<T>));
+        const value = callImpl(implementationFn);
         result = { type: 'return', value };
       } catch (error) {
         result = { type: 'throw', value: error };
@@ -62,7 +67,7 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
       result = { type: 'return', value: defaultReturnValue };
     } else if (mockRestored && originalFn !== undefined) {
       try {
-        const value = originalFn(...(args as Parameters<T>));
+        const value = callImpl(originalFn);
         result = { type: 'return', value };
       } catch (error) {
         result = { type: 'throw', value: error };
@@ -72,9 +77,8 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
     }
 
     // Record the call (matches vitest's structure)
-    const context = this === mockFn ? undefined : this;
     state.calls.push(args as Parameters<T>);
-    state.contexts.push(context);
+    state.contexts.push(receiver);
     state.invocationCallOrder.push(globalCallId++);
 
     if (result.type === 'throw') {
