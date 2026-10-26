@@ -21,7 +21,6 @@ In normal (`native`) mode the service launches your compiled Dioxus app, drives 
 Browser mode is the right choice when your tests are renderer-focused: asserting UI state, verifying that components call the correct Dioxus commands with the right arguments, or checking that the renderer handles mock responses correctly.
 
 It is **not** suitable when your tests need to:
-
 - Call `browser.dioxus.execute()` to run code with access to the bridge
 - Test window management with `browser.dioxus.switchWindow()` or `browser.dioxus.listWindows()`
 - Use `browser.dioxus.triggerDeeplink()`
@@ -71,9 +70,7 @@ export const config = {
       },
     ],
   ],
-  capabilities: [
-    { browserName: 'dioxus' },
-  ],
+  capabilities: [{ browserName: 'dioxus' }],
 };
 ```
 
@@ -106,7 +103,6 @@ devServer: async () => {
 ```
 
 Notes:
-
 - `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode.
 - With `reuseExistingServer` (default off in CI, on locally), if `devServerUrl` is already reachable the spawn is skipped — handy when you already have `pnpm dev` running during local iteration.
 - The command form spawns in a shell and tears down the whole process tree (so `pnpm dev → vite → esbuild` grandchildren don't orphan); the function form avoids subprocesses entirely.
@@ -117,7 +113,6 @@ Notes:
 ### How It Works
 
 When the session starts, the service injects a script into the page that:
-
 1. Creates `window.__wdio_mocks__` — a registry of per-command mock functions.
 2. Patches the Dioxus invoke API to look up `window.__wdio_mocks__[command]` and call it; throws if the command has no registered mock.
 
@@ -202,13 +197,13 @@ describe('File panel', () => {
 
 ## Limitations
 
-| Feature | Browser Mode |
-|---------|-------------|
-| `browser.dioxus.execute()` | Throws — no Dioxus backend or bridge |
-| `browser.dioxus.triggerDeeplink()` | Throws — no Dioxus process |
-| `browser.dioxus.switchWindow()` | Throws — multi-window requires a native Dioxus app |
-| `browser.dioxus.listWindows()` | Throws — same reason as `switchWindow()` |
-| Backend log capture (`captureBackendLogs`) | Not available — no Rust process |
+| Feature                                      | Browser Mode                                         |
+| -------------------------------------------- | ---------------------------------------------------- |
+| `browser.dioxus.execute()`                   | Throws — no Dioxus backend or bridge                 |
+| `browser.dioxus.triggerDeeplink()`           | Throws — no Dioxus process                           |
+| `browser.dioxus.switchWindow()`              | Throws — multi-window requires a native Dioxus app   |
+| `browser.dioxus.listWindows()`               | Throws — same reason as `switchWindow()`             |
+| Backend log capture (`captureBackendLogs`)   | Not available — no Rust process                      |
 | Frontend log capture (`captureFrontendLogs`) | Available — Chrome session, standard console capture |
 
 ## Multiremote

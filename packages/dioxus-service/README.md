@@ -51,10 +51,10 @@ export const config = {
       browserName: 'dioxus',
       'dioxus:options': {
         // Debug build from `dx build --desktop` (Linux path; see the Quick Start for macOS and Windows)
-        application: './target/dx/my-app/debug/linux/app/my-app'
-      }
-    }
-  ]
+        application: './target/dx/my-app/debug/linux/app/my-app',
+      },
+    },
+  ],
 };
 ```
 
@@ -83,11 +83,11 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 
 ## Platform Support
 
-| Platform | Supported |
-|----------|-----------|
-| **Windows** | ✅ Yes |
-| **Linux** | ✅ Yes |
-| **macOS** | ✅ Yes |
+| Platform    | Supported |
+| ----------- | --------- |
+| **Windows** | ✅ Yes    |
+| **Linux**   | ✅ Yes    |
+| **macOS**   | ✅ Yes    |
 
 The WebDriver server runs inside your app on every platform, so there's no driver to install. See [Platform Support](./docs/platform-support.md) for detailed information.
 
@@ -98,7 +98,6 @@ Check out the E2E test fixtures in the [desktop-mobile repository](https://githu
 ## Support
 
 Having trouble? Here are some resources:
-
 1. **[Troubleshooting Guide](./docs/troubleshooting.md)** - Solutions for common issues
 2. **[Platform Support](./docs/platform-support.md)** - Platform-specific information
 3. **[GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)** - Bug reports and feature requests
@@ -107,7 +106,6 @@ Having trouble? Here are some resources:
 ## Contributing
 
 We welcome contributions! Please see our [Development Guide](./docs/development.md) for:
-
 - Setting up your development environment
 - Running tests
 - Code style guidelines

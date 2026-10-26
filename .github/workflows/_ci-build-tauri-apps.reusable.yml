@@ -10,25 +10,25 @@ on:
     # https://docs.github.com/en/actions/using-workflows/reusing-workflows
     inputs:
       os:
-        description: 'OS of runner'
+        description: "OS of runner"
         required: true
         type: string
       build-command:
-        description: 'Build command for Tauri apps (build or build:debug)'
+        description: "Build command for Tauri apps (build or build:debug)"
         type: string
-        default: 'build'
+        default: "build"
     outputs:
       build_id:
-        description: 'Unique identifier for this build'
+        description: "Unique identifier for this build"
         value: ${{ jobs.build-tauri-apps.outputs.build_id }}
       build_date:
-        description: 'Timestamp when the build completed'
+        description: "Timestamp when the build completed"
         value: ${{ jobs.build-tauri-apps.outputs.build_date }}
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         value: ${{ jobs.build-tauri-apps.outputs.artifact_size }}
       cache_key:
-        description: 'Cache key used for artifact uploads, can be passed to download actions'
+        description: "Cache key used for artifact uploads, can be passed to download actions"
         value: ${{ jobs.build-tauri-apps.outputs.cache_key }}
 
 env:
@@ -59,7 +59,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       # Install Rust toolchain for Tauri compilation
       - name: 🦀 Install Rust Toolchain
@@ -173,4 +173,4 @@ jobs:
           output: tauri-apps-${{ runner.os }}/artifact.zip
           paths: fixtures/e2e-apps/tauri/target fixtures/package-tests/tauri-app/target
           cache_key_prefix: tauri-apps
-          retention_days: '90'
+          retention_days: "90"

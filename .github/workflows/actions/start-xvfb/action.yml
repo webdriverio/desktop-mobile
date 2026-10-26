@@ -1,4 +1,4 @@
-name: 'Start Xvfb'
+name: "Start Xvfb"
 description: >-
   Starts one Xvfb display for the job on Linux and exports DISPLAY, so WDIO v9 forks workers
   instead of wrapping each one in xvfb-run, which closes their IPC fd on Ubuntu 26.04

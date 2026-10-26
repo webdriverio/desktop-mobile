@@ -8,21 +8,21 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'OS of runner'
+        description: "OS of runner"
         required: true
         type: string
     outputs:
       build_id:
-        description: 'Unique identifier for this build'
+        description: "Unique identifier for this build"
         value: ${{ jobs.build-tauri-package-app.outputs.build_id }}
       build_date:
-        description: 'Timestamp when the build completed'
+        description: "Timestamp when the build completed"
         value: ${{ jobs.build-tauri-package-app.outputs.build_date }}
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         value: ${{ jobs.build-tauri-package-app.outputs.artifact_size }}
       cache_key:
-        description: 'Cache key used for artifact uploads, can be passed to download actions'
+        description: "Cache key used for artifact uploads, can be passed to download actions"
         value: ${{ jobs.build-tauri-package-app.outputs.cache_key }}
 
 env:
@@ -49,7 +49,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: 🦀 Install Rust Toolchain
         shell: bash
@@ -58,7 +58,7 @@ jobs:
       - name: 🦀 Rust Cache
         uses: Swatinem/rust-cache@v2
         with:
-          workspaces: 'fixtures/package-tests/tauri-app/src-tauri'
+          workspaces: "fixtures/package-tests/tauri-app/src-tauri"
           cache-on-failure: true
           cache-targets: false
           # ~/.cargo/bin/ can carry over stale binaries (e.g. rustup-init in
@@ -361,5 +361,4 @@ jobs:
           output: tauri-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}/artifact.zip
           paths: fixtures/package-tests/tauri-app/target
           cache_key_prefix: tauri-package-app
-          retention_days: '90'
-
+          retention_days: "90"

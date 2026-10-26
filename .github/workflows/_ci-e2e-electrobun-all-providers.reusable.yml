@@ -11,27 +11,27 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Operating system to run tests on'
+        description: "Operating system to run tests on"
         required: true
         type: string
       node-version:
-        description: 'Node.js version to use for testing'
+        description: "Node.js version to use for testing"
         required: true
         type: string
       test-type:
-        description: 'Test type (standard, window, deeplink, multiremote)'
+        description: "Test type (standard, window, deeplink, multiremote)"
         type: string
-        default: 'standard'
+        default: "standard"
       build_id:
-        description: 'Build ID from the build job'
+        description: "Build ID from the build job"
         type: string
         required: false
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         type: string
         required: false
       cache_key:
-        description: 'Cache key to use for downloading package artifacts'
+        description: "Cache key to use for downloading package artifacts"
         type: string
         required: false
 

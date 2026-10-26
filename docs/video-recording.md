@@ -1,13 +1,12 @@
 # Video Recording
 
-WDIO's service architecture lets framework services and ecosystem services compose freely. Adding **[`wdio-video-reporter`](https://webdriver.io/docs/wdio-video-reporter/)** for video recording alongside any of our framework services is supported by default — no special integration needed. Comparable to Playwright's `recordVideo` or Cypress's built-in video capture. This guide covers only what's *framework-specific* on top of the [upstream guide](https://webdriver.io/docs/wdio-video-reporter/): install quirks, output-path conventions, and framework-specific known issues.
+WDIO's service architecture lets framework services and ecosystem services compose freely. Adding **[`wdio-video-reporter`](https://webdriver.io/docs/wdio-video-reporter/)** for video recording alongside any of our framework services is supported by default — no special integration needed. Comparable to Playwright's `recordVideo` or Cypress's built-in video capture. This guide covers only what's _framework-specific_ on top of the [upstream guide](https://webdriver.io/docs/wdio-video-reporter/): install quirks, output-path conventions, and framework-specific known issues.
 
 A complete working setup for every currently supported framework — see the [README](../README.md) for the list — lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo, each package with `wdio.video.conf.ts` + `test/video/video.spec.ts`.
 
 ## What you get (and what you don't)
 
 `wdio-video-reporter` captures via **screenshot stitching**, not a real video pipeline: it takes one screenshot after each command in a configurable allowlist (`click`, `setValue`, `keys`, navigation, etc.), optionally plus an interval timer, and stitches the frames into a `.webm` (or `.mp4`) at the end of each test. Practical consequences:
-
 - **Resolution and content** match whatever `browser.saveScreenshot` returns — renderer-only for webview-scoped providers (Electron, Tauri-`embedded`, Tauri-`external`); full OS window only on Tauri-`crabnebula` via its Screen Recording path. Dioxus screenshots are blank for now (#721), so Dioxus recordings are too.
 - **Frame rate is effectively the test's command rate**, not real video. With `videoSlowdownMultiplier: 3` (default) you get a 3–10 fps slideshow.
 - **Cursor motion between frames is invisible** ([upstream #588](https://github.com/webdriverio-community/wdio-video-reporter/issues/588)).
@@ -28,10 +27,10 @@ The reporter bundles `ffmpeg` via `@ffmpeg-installer/ffmpeg` — no host install
 ```yaml
 # pnpm-workspace.yaml
 allowBuilds:
-  '@ffmpeg-installer/darwin-arm64': true
-  '@ffmpeg-installer/darwin-x64': true
-  '@ffmpeg-installer/linux-x64': true
-  '@ffmpeg-installer/win32-x64': true
+  "@ffmpeg-installer/darwin-arm64": true
+  "@ffmpeg-installer/darwin-x64": true
+  "@ffmpeg-installer/linux-x64": true
+  "@ffmpeg-installer/win32-x64": true
 ```
 
 On pnpm 10 the same list goes in `package.json` under `pnpm.onlyBuiltDependencies`.
@@ -67,7 +66,6 @@ Tauri additionally appends `driverProvider` to the path because its three provid
 ## Output paths
 
 Per-OS / per-arch directories stop artefacts from different runners colliding. Some framework services need additional segments — for Tauri, the per-provider segment matters because a video recorded under `embedded` (webview only) looks very different from one recorded under `crabnebula` (full OS window) — keep them separate so you can compare like-for-like across runs.
-
 - **Default**: `__video__/<platform>/<arch>/<test-slug>-<timestamp>.webm`
 - **Tauri (extra `<provider>` segment)**: `__video__/<platform>/<arch>/<provider>/<test-slug>-<timestamp>.webm`
 
@@ -77,11 +75,11 @@ Failing tests will produce a `.webm` under `outputDir`. Passing tests will not, 
 
 Tauri's three driver providers behave differently for video recording:
 
-| Provider | Captures | Native chrome included? | Notes |
-|---|---|---|---|
-| `embedded` | Webview only | ❌ | Default, recommended for most users. Works on macOS, Linux, Windows. |
-| `external` | Webview only | ❌ | Works on Linux + Windows. No macOS support. |
-| `crabnebula` | OS window (incl. title bar) | ✅ | Captures via OS-level Screen Recording on macOS. **macOS CI is excluded** — see below. |
+| Provider     | Captures                    | Native chrome included? | Notes                                                                                  |
+| ------------ | --------------------------- | ----------------------- | -------------------------------------------------------------------------------------- |
+| `embedded`   | Webview only                | ❌                      | Default, recommended for most users. Works on macOS, Linux, Windows.                   |
+| `external`   | Webview only                | ❌                      | Works on Linux + Windows. No macOS support.                                            |
+| `crabnebula` | OS window (incl. title bar) | ✅                      | Captures via OS-level Screen Recording on macOS. **macOS CI is excluded** — see below. |
 
 ### Known issue: `crabnebula` on hosted macOS CI
 

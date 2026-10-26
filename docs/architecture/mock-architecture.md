@@ -3,6 +3,7 @@
 Mocks span two process boundaries: the **app context** (Electron main process or browser window) and the **test context** (WDIO worker). This requires a dual-mock architecture.
 
 ## Architecture
+
 ```
 Test Process (WDIO Worker)              App Process (Electron/Tauri)
 ┌──────────────────────────────┐    ┌──────────────────────────────┐
@@ -21,6 +22,7 @@ Test Process (WDIO Worker)              App Process (Electron/Tauri)
 ```
 
 ## Key Concepts
+
 - **Inner mock** runs inside app, created via `@wdio/native-spy` (vitest can't be bundled there)
 - **Outer mock** runs in test process, used for assertions
 - `update()` syncs call data from inner to outer via `JSON.parse(JSON.stringify(...))`
@@ -32,7 +34,6 @@ Test Process (WDIO Worker)              App Process (Electron/Tauri)
 
 The sub-path export `@wdio/native-spy/interceptor` is **test-process-only** (never bundled into the app).
 It provides a shared `IpcInterceptor` interface for building the script strings injected into the app context.
-
 - **Tauri** uses `createIpcInterceptor('tauri')` — all `build*Script` methods port from `tauri-service/src/mock.ts`
 - **Electron** uses `createIpcInterceptor('electron')` — stub (throws `Not implemented`), filled in by a future browser-mode spec
 - Transport stays in each service (`tauriExecute`, CDP, etc.) — interceptor returns strings only
@@ -41,6 +42,7 @@ Error values in `mockRejectedValue`/`mockRejectedValueOnce` are serialized with 
 `{ __wdioError: true, message }` and reconstructed as `new Error(message)` inside the app script.
 
 ## Mock Methods (all async)
+
 Every mock method operates on **both** inner and outer:
 - `mockImplementation(fn)` — serializes function string to inner, sets on outer
 - `mockReturnValue(value)` — sets on inner via execute, sets on outer
@@ -49,4 +51,5 @@ Every mock method operates on **both** inner and outer:
 - `mockRestore()` — restores original API in inner, clears outer
 
 ## Auto-Update Trigger
+
 Element commands (`click`, `doubleClick`, `setValue`, `clearValue`) trigger `updateAllMocks()` to sync call data after DOM interactions.

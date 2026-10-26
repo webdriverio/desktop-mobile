@@ -9,7 +9,6 @@ The service now uses only the Chrome DevTools Protocol (CDP) to communicate with
 ### Removed IPC bridge imports
 
 The following imports are no longer provided in v9:
-
 - `@wdio/electron-service/preload`
 - `@wdio/electron-service/main`
 
@@ -18,8 +17,5 @@ Unlike the IPC bridge, the CDP bridge functions without requiring these modules.
 ## Electron Fuses: Node CLI Inspect arguments
 
 If your application flips the Electron fuse `EnableNodeCliInspectArguments*` to `false`, the Node CLI `--inspect` argument is disabled. The service’s CDP bridge relies on this mechanism to connect. Disabling it prevents the bridge from working.
-
 - Action: ensure the fuse remains enabled for test builds.
 - Reference: [Electron fuses – “EnableNodeCliInspectArguments*”](https://www.electronjs.org/docs/latest/tutorial/fuses#nodecliinspect)
-
-

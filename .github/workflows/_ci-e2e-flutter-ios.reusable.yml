@@ -12,20 +12,20 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Runner OS (macos-latest)'
+        description: "Runner OS (macos-latest)"
         required: true
         type: string
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       test-type:
         type: string
-        default: 'standard'
+        default: "standard"
       ios-device:
-        description: 'Simulator device name'
+        description: "Simulator device name"
         type: string
-        default: 'iPhone 17'
+        default: "iPhone 17"
       build_id:
         type: string
         required: false

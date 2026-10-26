@@ -20,8 +20,8 @@ name: CI Required Status
 
 on:
   workflow_run:
-    workflows: ['CI']
-    types: [completed]
+    workflows: [ "CI" ]
+    types: [ completed ]
 
 # Statuses are per-commit, so serialising by head SHA is exactly the scope that
 # can race. Queue rather than cancel so a re-run cannot overtake its predecessor.

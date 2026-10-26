@@ -5,7 +5,6 @@ This directory contains end-to-end tests for WebdriverIO desktop & mobile servic
 ## Overview
 
 The E2E testing framework provides comprehensive testing capabilities for desktop applications built with Electron and Tauri frameworks. It includes:
-
 - **Framework-aware configuration**: Automatic detection and configuration based on the target framework
 - **Multi-platform support**: Windows, macOS, and Linux testing
 - **Comprehensive test coverage**: API testing, window management, file operations, and more
@@ -75,6 +74,7 @@ The testing framework uses environment variables to control test execution:
 ### Running Tests
 
 #### Full Test Matrix
+
 ```bash
 # Run all tests for all frameworks and configurations
 pnpm e2e
@@ -85,6 +85,7 @@ FRAMEWORK=tauri pnpm e2e
 ```
 
 #### Framework-Specific Tests
+
 ```bash
 # Electron tests
 pnpm e2e:builder
@@ -98,6 +99,7 @@ pnpm e2e:tauri:advanced
 ```
 
 #### Test Type-Specific
+
 ```bash
 # Standard tests
 pnpm e2e:standard
@@ -150,6 +152,7 @@ Electron tests focus on:
 - **Standalone Mode**: Direct Electron service usage
 
 #### Example Electron Test
+
 ```typescript
 describe('Electron API', () => {
   it('should execute main process code', async () => {
@@ -176,6 +179,7 @@ Tauri tests focus on:
 - **Backend Access**: Rust crate functionality
 
 #### Example Tauri Test
+
 ```typescript
 describe('Tauri Commands', () => {
   it('should execute Rust commands', async () => {
@@ -201,12 +205,14 @@ The main configuration file automatically selects the appropriate framework-spec
 ### Framework-Specific Configurations
 
 #### Electron Configuration (`wdio.electron.conf.ts`)
+
 - Configures Electron service
 - Handles binary detection for Forge/Builder apps
 - Sets up script mode for development
 - Manages Electron-specific capabilities
 
 #### Tauri Configuration (`wdio.tauri.conf.ts`)
+
 - Configures Tauri service
 - Handles Tauri binary detection
 - Sets up tauri-driver integration
@@ -233,16 +239,19 @@ tsx scripts/build-apps.ts --clean
 ### Build Artifacts
 
 #### Electron Apps
+
 - **Builder apps**: `dist/` directory with packaged binaries
 - **Forge apps**: `out/` directory with packaged binaries
 - **Script apps**: `dist/` directory with main.js
 
 #### Tauri Apps
+
 - **Basic/Advanced apps**: `target/release/` with compiled binaries (Cargo workspace root)
 
 ## Test Applications
 
 ### Electron Test Apps
+
 Located in `../fixtures/e2e-apps/`:
 - `electron-builder`: Electron Builder app (ESM only)
 - `electron-forge`: Electron Forge app (ESM only)
@@ -251,6 +260,7 @@ Located in `../fixtures/e2e-apps/`:
 **Note**: E2E tests use ESM-only apps. CJS/ESM variants are tested in package tests.
 
 ### Tauri Test Apps
+
 Located in `../fixtures/e2e-apps/`:
 - `tauri`: Tauri app with core functionality
 
@@ -281,9 +291,11 @@ turbo run test:e2e:tauri
 ## Debugging
 
 ### Log Files
+
 Test logs are stored in `logs/` directory with framework and configuration-specific subdirectories.
 
 ### Debug Mode
+
 Enable debug output:
 ```bash
 WDIO_MATRIX_DEBUG=true tsx scripts/run-matrix.ts
@@ -291,6 +303,7 @@ WDIO_VERBOSE=true pnpm e2e
 ```
 
 ### Status Tracking
+
 The framework includes real-time status tracking during test execution, showing progress and results.
 
 ## Troubleshooting
@@ -318,7 +331,6 @@ tsx scripts/build-apps.ts --all
 ## Contributing
 
 When adding new tests:
-
 1. **Framework-specific tests**: Place in `test/electron/` or `test/tauri/` directories
 2. **Test naming**: Use descriptive names that indicate the test purpose
 3. **Environment variables**: Update `envSchema.ts` for new configuration options
@@ -327,7 +339,6 @@ When adding new tests:
 ## Architecture
 
 The E2E framework follows a modular architecture:
-
 - **Configuration Layer**: Environment-aware configuration management
 - **Test Layer**: Framework-specific test implementations
 - **Build Layer**: Application building and artifact management

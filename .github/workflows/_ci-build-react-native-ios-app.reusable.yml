@@ -11,23 +11,23 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Runner OS (macos-latest)'
+        description: "Runner OS (macos-latest)"
         required: true
         type: string
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       rn-version:
-        description: 'React Native version to scaffold the native project with'
+        description: "React Native version to scaffold the native project with"
         type: string
-        default: '0.76.5'
+        default: "0.76.5"
       rn-cli-version:
-        description: '@react-native-community/cli major to scaffold with (pinned to match rn-version)'
+        description: "@react-native-community/cli major to scaffold with (pinned to match rn-version)"
         type: string
-        default: '15'
+        default: "15"
       new-arch:
-        description: 'Build the fixture with the New Architecture (Fabric/bridgeless) enabled'
+        description: "Build the fixture with the New Architecture (Fabric/bridgeless) enabled"
         type: boolean
         default: false
 

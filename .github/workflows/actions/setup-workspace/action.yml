@@ -1,10 +1,10 @@
-name: 'Setup Development Environment'
-description: 'Sets up Node.js environment with PNPM for CI/CD workflows'
+name: "Setup Development Environment"
+description: "Sets up Node.js environment with PNPM for CI/CD workflows"
 inputs:
   node-version:
     description: 'Node.js version to use for the environment (e.g., "24")'
     required: false
-    default: '24'
+    default: "24"
 
 runs:
   using: composite
@@ -22,8 +22,8 @@ runs:
         # override: it is applied only by test-package.ts, inside its isolated sandbox
         # install, so the root lockfile never references the mutable tarball and this
         # cache never sees it.
-        cache: 'pnpm'
-        cache-dependency-path: '**/pnpm-lock.yaml'
+        cache: "pnpm"
+        cache-dependency-path: "**/pnpm-lock.yaml"
 
     - name: 📦 Install Project Dependencies
       shell: bash

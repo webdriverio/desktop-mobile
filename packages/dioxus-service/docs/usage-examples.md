@@ -64,10 +64,7 @@ describe('Dioxus API Access', () => {
 
   it('should execute with parameters', async () => {
     const username = 'test_user';
-    const result = await browser.dioxus.execute(
-      (dx, name) => ({ received: name }),
-      username
-    );
+    const result = await browser.dioxus.execute((dx, name) => ({ received: name }), username);
 
     expect(result.received).toBe('test_user');
   });
@@ -191,9 +188,7 @@ describe('Log Capture', () => {
     await browser.$('button').click();
 
     const newLogs = await browser.getLogs('browser');
-    const hasExpectedLog = newLogs.some(log =>
-      log.message.includes('Button clicked')
-    );
+    const hasExpectedLog = newLogs.some((log) => log.message.includes('Button clicked'));
     expect(hasExpectedLog).toBe(true);
   });
 });
@@ -227,9 +222,7 @@ describe('Multi-Window Testing', () => {
   });
 
   it('should handle non-existent window gracefully', async () => {
-    await expect(browser.dioxus.switchWindow('nonexistent')).rejects.toThrow(
-      'window label "nonexistent" not found'
-    );
+    await expect(browser.dioxus.switchWindow('nonexistent')).rejects.toThrow('window label "nonexistent" not found');
   });
 });
 ```
@@ -238,12 +231,14 @@ Configuration for a default window:
 
 ```typescript
 // wdio.conf.ts
-capabilities: [{
-  browserName: 'dioxus',
-  'wdio:dioxusServiceOptions': {
-    windowLabel: 'window-1',  // Start in the second window the app opens
+capabilities: [
+  {
+    browserName: 'dioxus',
+    'wdio:dioxusServiceOptions': {
+      windowLabel: 'window-1', // Start in the second window the app opens
+    },
   },
-}]
+];
 ```
 
 ## Deeplink Testing
@@ -253,15 +248,18 @@ describe('Deeplink Tests', () => {
   it('should handle custom protocol deeplinks', async () => {
     await browser.dioxus.triggerDeeplink('myapp://open?file=test.txt');
 
-    await browser.waitUntil(async () => {
-      const openedFile = await browser.dioxus.execute(() => {
-        return globalThis.lastOpenedFile;
-      });
-      return openedFile === 'test.txt';
-    }, {
-      timeout: 5000,
-      timeoutMsg: 'App did not handle the deeplink',
-    });
+    await browser.waitUntil(
+      async () => {
+        const openedFile = await browser.dioxus.execute(() => {
+          return globalThis.lastOpenedFile;
+        });
+        return openedFile === 'test.txt';
+      },
+      {
+        timeout: 5000,
+        timeoutMsg: 'App did not handle the deeplink',
+      },
+    );
   });
 });
 ```

@@ -11,7 +11,6 @@ Deeplink testing allows you to verify that your Tauri application correctly hand
 ### When Should You Use It?
 
 Use `browser.tauri.triggerDeeplink()` when you need to:
-
 - Test that your app correctly handles custom protocol URLs
 - Verify deeplink parameter parsing and routing logic
 - Test protocol handler registration and activation
@@ -32,7 +31,9 @@ Your app must register its custom protocol scheme in `tauri.conf.json` under the
   "plugins": {
     "deep-link": {
       "desktop": {
-        "schemes": ["myapp"]
+        "schemes": [
+          "myapp"
+        ]
       }
     }
   }
@@ -48,15 +49,18 @@ describe('Protocol Handler Tests', () => {
   it('should handle custom protocol deeplinks', async () => {
     await browser.tauri.triggerDeeplink('myapp://open?file=test.txt');
 
-    await browser.waitUntil(async () => {
-      const openedFile = await browser.tauri.execute(() => {
-        return globalThis.lastOpenedFile;
-      });
-      return openedFile === 'test.txt';
-    }, {
-      timeout: 5000,
-      timeoutMsg: 'App did not handle the deeplink'
-    });
+    await browser.waitUntil(
+      async () => {
+        const openedFile = await browser.tauri.execute(() => {
+          return globalThis.lastOpenedFile;
+        });
+        return openedFile === 'test.txt';
+      },
+      {
+        timeout: 5000,
+        timeoutMsg: 'App did not handle the deeplink',
+      },
+    );
   });
 });
 ```
@@ -65,9 +69,7 @@ describe('Protocol Handler Tests', () => {
 
 ```typescript
 it('should preserve query parameters', async () => {
-  await browser.tauri.triggerDeeplink(
-    'myapp://action?param1=value1&param2=value2&array[]=a&array[]=b'
-  );
+  await browser.tauri.triggerDeeplink('myapp://action?param1=value1&param2=value2&array[]=a&array[]=b');
 
   const receivedParams = await browser.tauri.execute(() => {
     return globalThis.lastDeeplinkParams;
@@ -83,15 +85,11 @@ it('should preserve query parameters', async () => {
 
 ```typescript
 it('should reject invalid protocols', async () => {
-  await expect(
-    browser.tauri.triggerDeeplink('https://example.com')
-  ).rejects.toThrow('Invalid deeplink protocol');
+  await expect(browser.tauri.triggerDeeplink('https://example.com')).rejects.toThrow('Invalid deeplink protocol');
 });
 
 it('should reject malformed URLs', async () => {
-  await expect(
-    browser.tauri.triggerDeeplink('not a url')
-  ).rejects.toThrow('Invalid deeplink URL');
+  await expect(browser.tauri.triggerDeeplink('not a url')).rejects.toThrow('Invalid deeplink URL');
 });
 ```
 
@@ -176,7 +174,6 @@ async fn main() {
 **Symptom:** The deeplink is triggered but your app doesn't receive it.
 
 **Possible Causes and Solutions:**
-
 1. **Protocol not registered:**
    - Verify `protocol.register` is set in `tauri.conf.json`
    - Check your app is properly registered as the handler
@@ -217,15 +214,18 @@ await browser.tauri.triggerDeeplink('file:///path/to/file'); // Throws error
 ```typescript
 await browser.tauri.triggerDeeplink('myapp://action');
 
-await browser.waitUntil(async () => {
-  const processed = await browser.tauri.execute(() => {
-    return globalThis.deeplinkProcessed;
-  });
-  return processed === true;
-}, {
-  timeout: 5000,
-  timeoutMsg: 'App did not process the deeplink within 5 seconds'
-});
+await browser.waitUntil(
+  async () => {
+    const processed = await browser.tauri.execute(() => {
+      return globalThis.deeplinkProcessed;
+    });
+    return processed === true;
+  },
+  {
+    timeout: 5000,
+    timeoutMsg: 'App did not process the deeplink within 5 seconds',
+  },
+);
 ```
 
 ## See Also

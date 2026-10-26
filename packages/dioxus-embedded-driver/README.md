@@ -54,10 +54,10 @@ Build the app with `dx build --desktop` rather than `cargo build`, so the files 
 The embedded driver works on all three platforms:
 
 | Platform | Status |
-|----------|--------|
-| Windows  | ✅ |
-| Linux    | ✅ |
-| macOS    | ✅ |
+| -------- | ------ |
+| Windows  | ✅     |
+| Linux    | ✅     |
+| macOS    | ✅     |
 
 ## Configuration
 
@@ -65,9 +65,14 @@ Port is controlled via `@wdio/dioxus-service`:
 
 ```typescript
 // wdio.conf.ts
-services: [['@wdio/dioxus-service', {
-  embeddedPort: 4445,  // Optional, defaults to 4444
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      embeddedPort: 4445, // Optional, defaults to 4444
+    },
+  ],
+];
 ```
 
 Or via environment variable:

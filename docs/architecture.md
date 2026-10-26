@@ -46,32 +46,32 @@ This document describes the architecture of the WebdriverIO Desktop & Mobile mon
 
 ### Service Packages
 
-| Package | Responsibility |
-|---------|---------------|
-| `@wdio/electron-service` | WebdriverIO service for Electron apps |
-| `@wdio/tauri-service` | WebdriverIO service for Tauri apps |
-| `@wdio/dioxus-service` | WebdriverIO service for Dioxus desktop apps |
+| Package                    | Responsibility                                  |
+| -------------------------- | ----------------------------------------------- |
+| `@wdio/electron-service`   | WebdriverIO service for Electron apps           |
+| `@wdio/tauri-service`      | WebdriverIO service for Tauri apps              |
+| `@wdio/dioxus-service`     | WebdriverIO service for Dioxus desktop apps     |
 | `@wdio/electrobun-service` | WebdriverIO service for Electrobun desktop apps |
 
 ### Bridge/Plugin Packages
 
-| Package | Responsibility |
-|---------|---------------|
-| `@wdio/native-cdp-bridge` | Shared CDP bridge: single-target (`CdpBridge`) + multi-target (`MultiTargetCdpBridge`, one connection per window), with target classification injected per service |
-| `@wdio/tauri-plugin` | Tauri v2 plugin for backend command invocation |
-| `wdio-dioxus` | App-side crate — `install()` installs the bridge, plus the embedded driver under the embedded provider |
-| `wdio-dioxus-bridge` | Dioxus bridge crate — IPC channel, mock dispatch, log forwarding |
-| `wdio-dioxus-embedded-driver` | In-process WebDriver HTTP server for Dioxus |
-| `wdio-dioxus-driver` | External WebDriver proxy (fork of tauri-driver); Windows `'external'` provider only |
+| Package                       | Responsibility                                                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `@wdio/native-cdp-bridge`     | Shared CDP bridge: single-target (`CdpBridge`) + multi-target (`MultiTargetCdpBridge`, one connection per window), with target classification injected per service |
+| `@wdio/tauri-plugin`          | Tauri v2 plugin for backend command invocation                                                                                                                     |
+| `wdio-dioxus`                 | App-side crate — `install()` installs the bridge, plus the embedded driver under the embedded provider                                                             |
+| `wdio-dioxus-bridge`          | Dioxus bridge crate — IPC channel, mock dispatch, log forwarding                                                                                                   |
+| `wdio-dioxus-embedded-driver` | In-process WebDriver HTTP server for Dioxus                                                                                                                        |
+| `wdio-dioxus-driver`          | External WebDriver proxy (fork of tauri-driver); Windows `'external'` provider only                                                                                |
 
 ### Shared Packages
 
-| Package | Responsibility |
-|---------|---------------|
+| Package              | Responsibility                                       |
+| -------------------- | ---------------------------------------------------- |
 | `@wdio/native-utils` | Cross-platform utilities (logging, binary detection) |
-| `@wdio/native-types` | Shared TypeScript type definitions |
-| `@wdio/native-spy` | Spy utilities for mocking |
-| `@wdio/bundler` | Build tooling for package compilation |
+| `@wdio/native-types` | Shared TypeScript type definitions                   |
+| `@wdio/native-spy`   | Spy utilities for mocking                            |
+| `@wdio/bundler`      | Build tooling for package compilation                |
 
 ## Service Architecture Pattern
 

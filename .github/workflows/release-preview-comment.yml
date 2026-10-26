@@ -16,8 +16,8 @@ name: Release Preview Comment
 
 on:
   workflow_run:
-    workflows: ['Release Preview']
-    types: [completed]
+    workflows: [ "Release Preview" ]
+    types: [ completed ]
 
 # Serialise per source branch. `cancel-in-progress: false` is deliberate: cancelling
 # a consumer does not recall an update it already dispatched, so two live consumers

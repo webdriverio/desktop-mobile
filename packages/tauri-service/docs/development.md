@@ -53,7 +53,6 @@ See the [Monorepo Setup Guide](../../docs/setup.md#code-quality) for formatting 
 ### Windows Edge WebDriver Management
 
 Located in `src/edgeDriverManager.ts`:
-
 - Detects the WebView2 version from the Tauri binary
 - Auto-downloads a matching MSEdgeDriver from the Microsoft CDN
 - Handles version mismatches
@@ -61,18 +60,17 @@ Located in `src/edgeDriverManager.ts`:
 ### Plugin Communication
 
 `tauri-plugin-wdio` provides:
-
 - Script execution via `window.eval()`
 - Command mocking via invoke interception
 - Log forwarding via event listeners
 
 ### Cross-Platform Support
 
-| Platform | Driver | Status |
-|----------|--------|--------|
-| Windows | MSEdgeDriver (auto-managed) | Supported |
-| Linux | WebKitWebDriver (manual install) | Supported |
-| macOS | — | Not supported (WKWebView limitation) |
+| Platform | Driver                           | Status                               |
+| -------- | -------------------------------- | ------------------------------------ |
+| Windows  | MSEdgeDriver (auto-managed)      | Supported                            |
+| Linux    | WebKitWebDriver (manual install) | Supported                            |
+| macOS    | —                                | Not supported (WKWebView limitation) |
 
 ## Common Tasks
 
@@ -124,7 +122,9 @@ Add to `.vscode/launch.json`:
   "request": "launch",
   "name": "Vitest Debug",
   "program": "${workspaceFolder}/node_modules/vitest/vitest.mjs",
-  "args": ["run"],
+  "args": [
+    "run"
+  ],
   "console": "integratedTerminal",
   "internalConsoleOptions": "neverOpen"
 }
@@ -141,7 +141,6 @@ Releases are managed by maintainers via GitHub Actions. See [CONTRIBUTING.md](..
 ## Contributing
 
 See [CONTRIBUTING.md](../../CONTRIBUTING.md) for contribution guidelines, commit message format, and PR process.
-
 - **Questions**: [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
 - **Bugs**: [GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)
 - **Help Wanted**: [help:wanted issues](https://github.com/webdriverio/desktop-mobile/issues?q=is%3Aissue+is%3Aopen+label%3Ahelp%3Awanted+label%3Ascope%3Atauri)

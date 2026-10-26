@@ -21,7 +21,6 @@ In normal (`native`) mode the service launches your compiled Tauri app, drives i
 Browser mode is the right choice when your tests are renderer-focused: asserting UI state, verifying that components call the correct Tauri commands with the right arguments, or checking that the renderer handles mock responses correctly.
 
 It is **not** suitable when your tests need to:
-
 - Call `browser.tauri.execute()` to run code with access to the Tauri plugin bridge
 - Test window management with `browser.tauri.switchWindow()` or `browser.tauri.listWindows()`
 - Use `browser.tauri.triggerDeeplink()`
@@ -76,9 +75,7 @@ export const config = {
       },
     ],
   ],
-  capabilities: [
-    { browserName: 'tauri' },
-  ],
+  capabilities: [{ browserName: 'tauri' }],
 };
 ```
 
@@ -111,7 +108,6 @@ devServer: async () => {
 ```
 
 Notes:
-
 - `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode.
 - With `reuseExistingServer` (default off in CI, on locally), if `devServerUrl` is already reachable the spawn is skipped — handy when you already have `pnpm dev` running during local iteration.
 - The command form spawns in a shell and tears down the whole process tree (so `pnpm dev → vite → esbuild` grandchildren don't orphan); the function form avoids subprocesses entirely.
@@ -122,7 +118,6 @@ Notes:
 ### How It Works
 
 When the session starts, the service injects a script into the page that:
-
 1. Creates `window.__wdio_mocks__` — a registry of per-command mock functions.
 2. Patches `window.__TAURI_INTERNALS__.invoke` to look up `window.__wdio_mocks__[command]` and call it; throws if the command has no registered mock.
 3. Stubs `window.__TAURI_INTERNALS__.transformCallback` and related internals as no-ops where applicable.
@@ -203,7 +198,6 @@ Tauri's event API (`listen` / `once` / `unlisten` / `emit` / `emitTo` from `@tau
 ### How It Works
 
 The injection script:
-
 1. Provides minimal stubs for `window.__TAURI_INTERNALS__.callbacks`, `transformCallback`, `runCallback`, and `unregisterCallback` (the bridge that real Tauri ships uses).
 2. Maintains `window.__wdio_tauri_listeners__` — a per-event registry of `{ handlerId, target }` entries keyed by a monotonic event id.
 3. Intercepts `plugin:event|listen` to register the handler and resolve with a numeric event id.
@@ -264,7 +258,9 @@ expect(emitMock.mock.calls[0][0]).toEqual({ event: 'published', payload: { id: 7
 ```ts
 import { once } from '@tauri-apps/api/event';
 let calls = 0;
-await once('one-shot', () => { calls += 1; });
+await once('one-shot', () => {
+  calls += 1;
+});
 
 await browser.tauri.emitEvent('one-shot');
 await browser.tauri.emitEvent('one-shot');
@@ -303,11 +299,11 @@ describe('File panel', () => {
 
 ### Clearing vs Resetting
 
-| Method | Effect |
-|--------|--------|
-| `mockClear()` | Clears `.mock.calls`, `.mock.results`, `.mock.invocationCallOrder`. Implementation unchanged. |
-| `mockReset()` | Clears history **and** removes the implementation (returns `undefined` on next call). |
-| `mockRestore()` | Removes the mock entirely from `window.__wdio_mocks__`. |
+| Method          | Effect                                                                                        |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| `mockClear()`   | Clears `.mock.calls`, `.mock.results`, `.mock.invocationCallOrder`. Implementation unchanged. |
+| `mockReset()`   | Clears history **and** removes the implementation (returns `undefined` on next call).         |
+| `mockRestore()` | Removes the mock entirely from `window.__wdio_mocks__`.                                       |
 
 Use `mockClear()` in `beforeEach` when you want a clean call history but want to keep the implementation set up in `beforeAll`.
 
@@ -342,22 +338,21 @@ The injection script runs after `browser.url()` resolves (document `readyState` 
 
 ## Limitations
 
-| Feature | Browser Mode |
-|---------|-------------|
-| `browser.tauri.execute()` | Throws — no Tauri backend or plugin bridge |
-| `browser.tauri.triggerDeeplink()` | Throws — no Tauri process |
-| `browser.tauri.switchWindow()` | Throws — multi-window requires a native Tauri app |
-| `browser.tauri.listWindows()` | Throws — same reason as `switchWindow()` |
-| Backend log capture (`captureBackendLogs`) | Not available — no Rust process |
-| Frontend log capture (`captureFrontendLogs`) | Available — Chrome session, standard console capture |
-| Automatic window focus management | Disabled — standard Chrome window switching applies |
+| Feature                                             | Browser Mode                                           |
+| --------------------------------------------------- | ------------------------------------------------------ |
+| `browser.tauri.execute()`                           | Throws — no Tauri backend or plugin bridge             |
+| `browser.tauri.triggerDeeplink()`                   | Throws — no Tauri process                              |
+| `browser.tauri.switchWindow()`                      | Throws — multi-window requires a native Tauri app      |
+| `browser.tauri.listWindows()`                       | Throws — same reason as `switchWindow()`               |
+| Backend log capture (`captureBackendLogs`)          | Not available — no Rust process                        |
+| Frontend log capture (`captureFrontendLogs`)        | Available — Chrome session, standard console capture   |
+| Automatic window focus management                   | Disabled — standard Chrome window switching applies    |
 | `window.__TAURI_INTERNALS__.invoke` event listeners | Not intercepted — fire-and-forget listeners are no-ops |
-| `mock.withImplementation()` | Serialised to browser page — see below |
+| `mock.withImplementation()`                         | Serialised to browser page — see below                 |
 
 ### `withImplementation` in browser mode
 
 `mock.withImplementation(implFn, callbackFn)` serialises **both** functions via `.toString()` and runs them inside the browser page. This means:
-
 - The `callbackFn` runs in the browser page, **not** in the Node.js test-runner process.
 - It cannot close over test-runner variables, call WebdriverIO commands (`browser.$()`, `browser.click()`, etc.), or use Node.js APIs (`fs`, `path`, etc.) — those symbols do not exist in the page context.
 - Only use `withImplementation` when both functions are fully self-contained browser-side snippets.

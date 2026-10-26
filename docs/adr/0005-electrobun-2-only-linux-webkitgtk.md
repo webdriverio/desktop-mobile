@@ -18,7 +18,7 @@ Electrobun **2.0** (a Bun→Zig core rewrite) changed that. Upstream
 [electrobun#467](https://github.com/blackboardsh/electrobun/issues/467) (shipped in 2.0.1) exposes
 WebKitGTK automation: an app opts in via `--automation` / `ELECTROBUN_WEBKIT_AUTOMATION`, and
 `WebKitWebDriver` then drives it over **W3C WebDriver**. Linux support is therefore only possible on
-2.0+ — 1.x cannot do it at all. **These are one decision, not two:** adopting 2.0 *is* what enables
+2.0+ — 1.x cannot do it at all. **These are one decision, not two:** adopting 2.0 _is_ what enables
 Linux.
 
 Electrobun is a new framework with effectively no users, and the users it does have track the latest
@@ -33,10 +33,9 @@ possible in the first place.
 
 Adopting 2.0 unlocks the **Linux WebKitGTK** transport, a **W3C-WebDriver** path that sits alongside
 the existing CDP-attach paths:
-
 - **macOS** — CEF over CDP (unchanged).
 - **Windows** — native WebView2 over CDP (unchanged).
-- **Linux** — native WebKitGTK over **W3C WebDriver**: `WebKitWebDriver` *launches* the app (via
+- **Linux** — native WebKitGTK over **W3C WebDriver**: `WebKitWebDriver` _launches_ the app (via
   `webkitgtk:browserOptions.binary` + `--automation`) and drives it. There is no CDP endpoint, and
   the service does not spawn the app itself.
 

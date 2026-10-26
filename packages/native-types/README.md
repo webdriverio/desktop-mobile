@@ -9,6 +9,7 @@ This package provides comprehensive TypeScript type definitions for WebdriverIO 
 ## Features
 
 ### Electron Types
+
 Complete type definitions for Electron service integration.
 
 ```typescript
@@ -16,22 +17,25 @@ import type {
   ElectronServiceOptions,
   ElectronServiceCapabilities,
   WdioElectronConfig,
-  ElectronBrowserExtension
+  ElectronBrowserExtension,
 } from '@wdio/native-types';
 
 // Configure Electron service
 const config: WdioElectronConfig = {
-  capabilities: [{
-    browserName: 'electron',
-    'wdio:electronServiceOptions': {
-      appPath: './dist/main.js',
-      appArgs: ['--no-sandbox']
-    }
-  }]
+  capabilities: [
+    {
+      browserName: 'electron',
+      'wdio:electronServiceOptions': {
+        appPath: './dist/main.js',
+        appArgs: ['--no-sandbox'],
+      },
+    },
+  ],
 };
 ```
 
 ### Tauri Types
+
 Full type support for Tauri application testing.
 
 ```typescript
@@ -39,31 +43,28 @@ import type {
   TauriServiceOptions,
   TauriServiceCapabilities,
   WdioTauriConfig,
-  TauriBrowserExtension
+  TauriBrowserExtension,
 } from '@wdio/native-types';
 
 // Configure Tauri service
 const config: WdioTauriConfig = {
-  capabilities: [{
-    browserName: 'tauri',
-    'wdio:tauriServiceOptions': {
-      application: './src-tauri/target/release/app'
-    }
-  }]
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'wdio:tauriServiceOptions': {
+        application: './src-tauri/target/release/app',
+      },
+    },
+  ],
 };
 ```
 
 ### Mock Types
+
 Type definitions for mocking in desktop application contexts.
 
 ```typescript
-import type {
-  ElectronMock,
-  ElectronFunctionMock,
-  TauriMock,
-  MockResult,
-  ServiceMockContext
-} from '@wdio/native-types';
+import type { ElectronMock, ElectronFunctionMock, TauriMock, MockResult, ServiceMockContext } from '@wdio/native-types';
 
 // Type-safe mock usage
 const mock: ElectronFunctionMock = fn();
@@ -75,6 +76,7 @@ const results = mock.results; // Typed call results
 ```
 
 ### Browser Extension Types
+
 Extended WebdriverIO browser interface with native service capabilities.
 
 ```typescript
@@ -90,14 +92,11 @@ const tauriAPI = browser.tauriAPI;
 ```
 
 ### Package Types
+
 Type definitions for package.json handling.
 
 ```typescript
-import type {
-  NormalizedPackageJson,
-  NormalizedReadResult,
-  ReadPackageUpOptions
-} from '@wdio/native-types';
+import type { NormalizedPackageJson, NormalizedReadResult, ReadPackageUpOptions } from '@wdio/native-types';
 
 const packageInfo: NormalizedReadResult = {
   packageJson: {
@@ -105,11 +104,12 @@ const packageInfo: NormalizedReadResult = {
     version: '1.0.0',
     // ... fully typed
   },
-  path: '/path/to/package.json'
+  path: '/path/to/package.json',
 };
 ```
 
 ### Result Types
+
 Functional programming result types for error handling.
 
 ```typescript
@@ -129,36 +129,44 @@ function divide(a: number, b: number): Result<number, Error> {
 This package augments global types for seamless integration:
 
 ### Window Object
+
 ```typescript
 // Electron-specific window properties
 window.wdioElectron; // Fully typed Electron API access
 ```
 
 ### WebdriverIO Namespace
+
 ```typescript
 // Enhanced browser interface
 browser.electronAPI('method'); // Electron-specific methods
-browser.tauriAPI('method');   // Tauri-specific methods
+browser.tauriAPI('method'); // Tauri-specific methods
 
 // Enhanced capabilities
 const capabilities: WebdriverIO.Capabilities = {
-  'wdio:electronServiceOptions': { /* ... */ },
-  'wdio:tauriServiceOptions': { /* ... */ }
+  'wdio:electronServiceOptions': {
+    /* ... */
+  },
+  'wdio:tauriServiceOptions': {
+    /* ... */
+  },
 };
 ```
 
 ### Global Variables
+
 ```typescript
 // Available in test contexts
-fn;           // Mock function from @wdio/native-spy
-browser;      // Enhanced WebdriverIO browser
-packageJson;  // Current package.json (when available)
-__name;       // Function naming utility
+fn; // Mock function from @wdio/native-spy
+browser; // Enhanced WebdriverIO browser
+packageJson; // Current package.json (when available)
+__name; // Function naming utility
 ```
 
 ## API Reference
 
 ### Electron Types
+
 - `ElectronServiceOptions` - Configuration for Electron service
 - `ElectronServiceCapabilities` - Electron capability definitions
 - `ElectronBrowserExtension` - Browser methods for Electron
@@ -168,6 +176,7 @@ __name;       // Function naming utility
 - `ElectronType` - Type mappings for Electron APIs
 
 ### Tauri Types
+
 - `TauriServiceOptions` - Configuration for Tauri service
 - `TauriServiceCapabilities` - Tauri capability definitions
 - `TauriBrowserExtension` - Browser methods for Tauri
@@ -176,6 +185,7 @@ __name;       // Function naming utility
 - `TauriAPIs` - Available Tauri APIs
 
 ### Shared Types
+
 - `Result<T, E>` - Functional result type
 - `MockResult` - Mock execution results
 - `MockOverride` - Mock configuration overrides
@@ -184,53 +194,72 @@ __name;       // Function naming utility
 - `Fn` - Function type definitions
 
 ### Package Types
+
 - `NormalizedPackageJson` - Standardized package.json structure
 - `NormalizedReadResult` - Package reading results
 - `ReadPackageUpOptions` - Options for package reading
 
 ### Browser Extensions
+
 - `BrowserExtension` - Combined Electron + Tauri browser interface
 
 ## Usage Examples
 
 ### Complete Electron Configuration
+
 ```typescript
 import type { WdioElectronConfig } from '@wdio/native-types';
 
 export const config: WdioElectronConfig = {
-  capabilities: [{
-    browserName: 'electron',
-    'wdio:electronServiceOptions': {
-      appPath: './dist/main.js',
-      appArgs: ['--dev'],
-      env: { NODE_ENV: 'test' }
-    }
-  }],
-  services: [['electron', {
-    appPath: './dist/main.js'
-  }]]
+  capabilities: [
+    {
+      browserName: 'electron',
+      'wdio:electronServiceOptions': {
+        appPath: './dist/main.js',
+        appArgs: ['--dev'],
+        env: { NODE_ENV: 'test' },
+      },
+    },
+  ],
+  services: [
+    [
+      'electron',
+      {
+        appPath: './dist/main.js',
+      },
+    ],
+  ],
 };
 ```
 
 ### Complete Tauri Configuration
+
 ```typescript
 import type { WdioTauriConfig } from '@wdio/native-types';
 
 export const config: WdioTauriConfig = {
-  capabilities: [{
-    browserName: 'tauri',
-    'wdio:tauriServiceOptions': {
-      application: './src-tauri/target/release/app',
-      tauri: true
-    }
-  }],
-  services: [['tauri', {
-    application: './src-tauri/target/release/app'
-  }]]
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'wdio:tauriServiceOptions': {
+        application: './src-tauri/target/release/app',
+        tauri: true,
+      },
+    },
+  ],
+  services: [
+    [
+      'tauri',
+      {
+        application: './src-tauri/target/release/app',
+      },
+    ],
+  ],
 };
 ```
 
 ### Type-Safe Mocking
+
 ```typescript
 import type { ElectronFunctionMock } from '@wdio/native-types';
 import { fn } from '@wdio/native-spy';

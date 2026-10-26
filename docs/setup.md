@@ -5,8 +5,8 @@ This guide will help you set up the WebdriverIO Desktop & Mobile monorepo for de
 ## Prerequisites
 
 Before you begin, ensure you have the following installed:
-
 - **Node.js**: Version 24 LTS (contributor toolchain — end-user Node range is defined per-package via `engines`)
+
   ```bash
   node --version  # Should be v24.x
   ```
@@ -14,6 +14,7 @@ Before you begin, ensure you have the following installed:
 - **pnpm**: Version 12 ([installation](https://pnpm.io/installation)); `package.json` pins the exact version
 
 - **Git**: For version control
+
   ```bash
   git --version
   ```
@@ -118,7 +119,6 @@ pnpm --filter @wdio/electron-service dev
 See [package-structure.md](./package-structure.md) for detailed guidelines.
 
 Quick steps:
-
 1. Create package directory: `packages/my-package/`
 2. Copy structure from `packages/electron-service/`
 3. Update `package.json` with your package details
@@ -159,10 +159,10 @@ To use a catalog dependency:
 
 The project uses three catalogs to test against different versions of key dependencies:
 
-| Catalog | Purpose |
-|---------|---------|
-| `default` | Stable production versions — the reliable baseline |
-| `next` | Latest/nightly versions — validates upcoming compatibility |
+| Catalog   | Purpose                                                    |
+| --------- | ---------------------------------------------------------- |
+| `default` | Stable production versions — the reliable baseline         |
+| `next`    | Latest/nightly versions — validates upcoming compatibility |
 | `minimum` | Lowest supported versions — ensures backward compatibility |
 
 ### Switching Catalogs
@@ -285,7 +285,6 @@ pnpm prepare
 ### VS Code
 
 Recommended extensions:
-
 - **ESLint**: Microsoft ESLint extension
 - **Biome**: Biome formatter
 - **TypeScript and JavaScript Language Features**: Built-in
@@ -308,13 +307,14 @@ Workspace settings (`.vscode/settings.json`):
 ### Tauri Development
 
 For working with Tauri packages and plugins:
-
 1. **Install Rust** (if not already installed):
+
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 2. **Install Tauri CLI**:
+
    ```bash
    cargo install tauri-cli
    # or
@@ -322,12 +322,14 @@ For working with Tauri packages and plugins:
    ```
 
 3. **Build Tauri Plugin**:
+
    ```bash
    cd packages/tauri-plugin
    cargo build
    ```
 
 4. **Build Tauri Test Apps**:
+
    ```bash
    cd fixtures/e2e-apps/tauri
    pnpm tauri build
@@ -338,13 +340,14 @@ See the [Tauri Plugin README](../packages/tauri-plugin/README.md) for detailed s
 ### Dioxus Development
 
 For working with Dioxus packages:
-
 1. **Install Rust** (if not already installed):
+
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 2. **Install Linux system dependencies** (Linux only):
+
    ```bash
    # Debian/Ubuntu
    sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
@@ -357,12 +360,14 @@ For working with Dioxus packages:
    ```
 
 3. **Build the Dioxus Bridge Crate**:
+
    ```bash
    cd packages/dioxus-bridge
    cargo build
    ```
 
 4. **Build the Dioxus Fixture App** (for E2E tests):
+
    ```bash
    cd fixtures/e2e-apps/dioxus
    cargo build

@@ -10,19 +10,19 @@ on:
     # https://docs.github.com/en/actions/using-workflows/reusing-workflows
     inputs:
       os:
-        description: 'Operating system to run tests on'
+        description: "Operating system to run tests on"
         type: string
         required: true
       build_id:
-        description: 'Build ID from the build job'
+        description: "Build ID from the build job"
         type: string
         required: false
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         type: string
         required: false
       cache_key:
-        description: 'Cache key to use for downloading artifacts'
+        description: "Cache key to use for downloading artifacts"
         type: string
         required: false
 
@@ -47,7 +47,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       # Download the pre-built packages from the build job
       # This ensures all tests use the same build artifacts

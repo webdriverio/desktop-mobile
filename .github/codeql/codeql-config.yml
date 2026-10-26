@@ -1,14 +1,14 @@
 name: "WDIO Desktop Mobile CodeQL Config"
 
 paths-ignore:
-  - '**/*.spec.ts'
-  - '**/*.spec.js'
-  - '**/*.spec.mts'
-  - '**/*.spec.cts'
-  - '**/test/**'
-  - '**/e2e/**'
-  - '**/fixtures/**'
-  - '**/coverage/**'
+  - "**/*.spec.ts"
+  - "**/*.spec.js"
+  - "**/*.spec.mts"
+  - "**/*.spec.cts"
+  - "**/test/**"
+  - "**/e2e/**"
+  - "**/fixtures/**"
+  - "**/coverage/**"
 
 # Exclude artifact-poisoning queries - these are false positives in our codebase.
 # See artifact-poisoning-analysis.md in this directory for rationale.

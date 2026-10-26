@@ -6,7 +6,7 @@ name: CrabNebula Mirror Dispatch
 
 on:
   pull_request_target:
-    types: [labeled]
+    types: [ labeled ]
 
 permissions:
   contents: write

@@ -33,20 +33,20 @@
 
 > Stable releases — published on the `latest` dist-tag.
 
-| Service | Version | Platforms | Downloads |
-|---|---|---|---|
+| Service                                                                                                                                                                        | Version                                                                                                                 | Platforms               | Downloads                                                                                                                                                                                                                                                                                                                     |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | [![@wdio/electron-service](https://img.shields.io/badge/@wdio-electron--service-9feaf9?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electron-service) | [![version](https://img.shields.io/npm/v/@wdio/electron-service)](https://www.npmjs.com/package/@wdio/electron-service) | Windows / macOS / Linux | [![downloads v10+](https://img.shields.io/npm/dw/@wdio/electron-service?label=downloads%20(v10%2B))](https://www.npmjs.com/package/@wdio/electron-service)<br>[![downloads ≤v9](https://img.shields.io/npm/dw/wdio-electron-service?label=downloads%20(%E2%89%A4%20v9))](https://www.npmjs.com/package/wdio-electron-service) |
-| [![@wdio/tauri-service](https://img.shields.io/badge/@wdio-tauri--service-FFC131?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/tauri-service) | [![version](https://img.shields.io/npm/v/@wdio/tauri-service)](https://www.npmjs.com/package/@wdio/tauri-service) | Windows / macOS / Linux | [![downloads](https://img.shields.io/npm/dw/@wdio/tauri-service)](https://www.npmjs.com/package/@wdio/tauri-service) |
-| [![@wdio/dioxus-service](https://img.shields.io/badge/@wdio-dioxus--service-e96020?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/dioxus-service) | [![version](https://img.shields.io/npm/v/@wdio/dioxus-service)](https://www.npmjs.com/package/@wdio/dioxus-service) | Windows / macOS / Linux | [![downloads](https://img.shields.io/npm/dw/@wdio/dioxus-service)](https://www.npmjs.com/package/@wdio/dioxus-service) |
+| [![@wdio/tauri-service](https://img.shields.io/badge/@wdio-tauri--service-FFC131?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/tauri-service)          | [![version](https://img.shields.io/npm/v/@wdio/tauri-service)](https://www.npmjs.com/package/@wdio/tauri-service)       | Windows / macOS / Linux | [![downloads](https://img.shields.io/npm/dw/@wdio/tauri-service)](https://www.npmjs.com/package/@wdio/tauri-service)                                                                                                                                                                                                          |
+| [![@wdio/dioxus-service](https://img.shields.io/badge/@wdio-dioxus--service-e96020?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/dioxus-service)       | [![version](https://img.shields.io/npm/v/@wdio/dioxus-service)](https://www.npmjs.com/package/@wdio/dioxus-service)     | Windows / macOS / Linux | [![downloads](https://img.shields.io/npm/dw/@wdio/dioxus-service)](https://www.npmjs.com/package/@wdio/dioxus-service)                                                                                                                                                                                                        |
 
 ## Pre-release
 
 > Feature-complete services published under the `next` dist-tag (`1.0.0-next.x`).
 
-| Service | Version | Platforms | Downloads |
-|---|---|---|---|
+| Service                                                                                                                                                                                     | Version                                                                                                                              | Platforms     | Downloads                                                                                                                          |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
 | [![@wdio/react-native-service](https://img.shields.io/badge/@wdio-react--native--service-61DAFB?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/react-native-service) | [![version](https://img.shields.io/npm/v/@wdio/react-native-service/next)](https://www.npmjs.com/package/@wdio/react-native-service) | Android / iOS | [![downloads](https://img.shields.io/npm/dw/@wdio/react-native-service)](https://www.npmjs.com/package/@wdio/react-native-service) |
-| [![@wdio/flutter-service](https://img.shields.io/badge/@wdio-flutter--service-055a9d?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/flutter-service) | [![version](https://img.shields.io/npm/v/@wdio/flutter-service/next)](https://www.npmjs.com/package/@wdio/flutter-service) | Android / iOS | [![downloads](https://img.shields.io/npm/dw/@wdio/flutter-service)](https://www.npmjs.com/package/@wdio/flutter-service) |
+| [![@wdio/flutter-service](https://img.shields.io/badge/@wdio-flutter--service-055a9d?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/flutter-service)                 | [![version](https://img.shields.io/npm/v/@wdio/flutter-service/next)](https://www.npmjs.com/package/@wdio/flutter-service)           | Android / iOS | [![downloads](https://img.shields.io/npm/dw/@wdio/flutter-service)](https://www.npmjs.com/package/@wdio/flutter-service)           |
 
 ## Early Support
 
@@ -54,8 +54,8 @@
 >
 > Electrobun: macOS-CEF deeplink & multiremote upstream-blocked. [See README](./packages/electrobun-service)
 
-| Service | Version | Platforms | Downloads |
-|---|---|---|---|
+| Service                                                                                                                                                                              | Version                                                                                                                     | Platforms               | Downloads                                                                                                                      |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------- | ----------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
 | [![@wdio/electrobun-service](https://img.shields.io/badge/@wdio-electrobun--service-ffffff?labelColor=1a1a1a&style=plastic)](https://www.npmjs.com/package/@wdio/electrobun-service) | [![version](https://img.shields.io/npm/v/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) | macOS / Windows / Linux | [![downloads](https://img.shields.io/npm/dw/@wdio/electrobun-service)](https://www.npmjs.com/package/@wdio/electrobun-service) |
 
 ## Planned Support
@@ -105,19 +105,19 @@ See [docs/architecture.md](./docs/architecture.md) for detailed architecture doc
 
 ## Documentation
 
-| Document | Description |
-|----------|-------------|
-| [AGENTS.md](./AGENTS.md) | AI assistant context and coding standards |
-| [CONTRIBUTING.md](./CONTRIBUTING.md) | Contribution guidelines |
-| [ROADMAP.md](./ROADMAP.md) | Framework support roadmap |
-| [MAINTENANCE.md](./MAINTENANCE.md) | Version support and maintenance policy |
-| [SECURITY.md](./SECURITY.md) | Security policy and vulnerability reporting |
-| [docs/setup.md](./docs/setup.md) | Detailed setup instructions |
-| [docs/architecture.md](./docs/architecture.md) | Service architecture overview |
-| [docs/e2e-testing.md](./docs/e2e-testing.md) | E2E testing guide |
-| [Electron browser mode](./packages/electron-service/docs/browser-mode.md), [Tauri](./packages/tauri-service/docs/browser-mode.md), [Dioxus](./packages/dioxus-service/docs/browser-mode.md) | Browser-only test mode guides |
-| [docs/visual-testing.md](./docs/visual-testing.md) | Visual regression testing with `@wdio/visual-service` |
-| [docs/package-structure.md](./docs/package-structure.md) | Package conventions |
+| Document                                                                                                                                                                                    | Description                                           |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------- |
+| [AGENTS.md](./AGENTS.md)                                                                                                                                                                    | AI assistant context and coding standards             |
+| [CONTRIBUTING.md](./CONTRIBUTING.md)                                                                                                                                                        | Contribution guidelines                               |
+| [ROADMAP.md](./ROADMAP.md)                                                                                                                                                                  | Framework support roadmap                             |
+| [MAINTENANCE.md](./MAINTENANCE.md)                                                                                                                                                          | Version support and maintenance policy                |
+| [SECURITY.md](./SECURITY.md)                                                                                                                                                                | Security policy and vulnerability reporting           |
+| [docs/setup.md](./docs/setup.md)                                                                                                                                                            | Detailed setup instructions                           |
+| [docs/architecture.md](./docs/architecture.md)                                                                                                                                              | Service architecture overview                         |
+| [docs/e2e-testing.md](./docs/e2e-testing.md)                                                                                                                                                | E2E testing guide                                     |
+| [Electron browser mode](./packages/electron-service/docs/browser-mode.md), [Tauri](./packages/tauri-service/docs/browser-mode.md), [Dioxus](./packages/dioxus-service/docs/browser-mode.md) | Browser-only test mode guides                         |
+| [docs/visual-testing.md](./docs/visual-testing.md)                                                                                                                                          | Visual regression testing with `@wdio/visual-service` |
+| [docs/package-structure.md](./docs/package-structure.md)                                                                                                                                    | Package conventions                                   |
 
 ## License
 

@@ -35,6 +35,8 @@
       "!packages/tauri-plugin-webdriver/permissions/schemas",
       // ignore tauri-build-generated ACL/capability schemas (compact, no trailing newline)
       "!**/src-tauri/gen/schemas",
+      // pnpm owns this file. Biome 2.6 rewrites its quotes and blank lines, and the next install writes them back.
+      "!pnpm-lock.yaml",
       // ignore claude code tooling directory
       "!.claude"
     ]

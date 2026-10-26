@@ -11,7 +11,6 @@ Include: description, steps to reproduce, affected packages, and suggested fix i
 ## Out of Scope
 
 This project is a testing framework, not production runtime software. The following are not security vulnerabilities:
-
 - Issues in applications being tested
 - Local privilege escalation during test execution (tests run with user privileges by design)
 - Information disclosure in test logs (test output is controlled by the user)

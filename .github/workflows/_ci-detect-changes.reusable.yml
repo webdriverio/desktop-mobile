@@ -18,31 +18,31 @@ on:
   workflow_call:
     inputs:
       force_all:
-        description: 'Run all tests (ignore change detection)'
+        description: "Run all tests (ignore change detection)"
         required: false
         type: boolean
         default: false
     outputs:
       run_electron:
-        description: 'Whether to run Electron-related tests and builds'
+        description: "Whether to run Electron-related tests and builds"
         value: ${{ jobs.detect.outputs.run_electron }}
       run_tauri:
-        description: 'Whether to run Tauri-related tests and builds'
+        description: "Whether to run Tauri-related tests and builds"
         value: ${{ jobs.detect.outputs.run_tauri }}
       run_dioxus:
-        description: 'Whether to run Dioxus-related tests and builds'
+        description: "Whether to run Dioxus-related tests and builds"
         value: ${{ jobs.detect.outputs.run_dioxus }}
       run_electrobun:
-        description: 'Whether to run Electrobun-related tests and builds'
+        description: "Whether to run Electrobun-related tests and builds"
         value: ${{ jobs.detect.outputs.run_electrobun }}
       runs:
-        description: 'JSON map of service → boolean. New services appear here automatically; consume via fromJSON without adding static outputs.'
+        description: "JSON map of service → boolean. New services appear here automatically; consume via fromJSON without adding static outputs."
         value: ${{ jobs.detect.outputs.runs }}
       has_shared_changes:
-        description: 'Whether shared packages changed (affects all services)'
+        description: "Whether shared packages changed (affects all services)"
         value: ${{ jobs.detect.outputs.has_shared_changes }}
       run_lint_only:
-        description: 'Whether to run only lint (no service-affecting changes detected)'
+        description: "Whether to run only lint (no service-affecting changes detected)"
         value: ${{ jobs.detect.outputs.run_lint_only }}
 
 jobs:
@@ -69,7 +69,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v7
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: List Changed Files
         id: changes

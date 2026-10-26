@@ -9,11 +9,13 @@ Get up and running with WebdriverIO and Tauri E2E testing in minutes.
 1. **Node.js 22.19+** - Download from [nodejs.org](https://nodejs.org)
 
 2. **Rust Toolchain** - Required for building Tauri apps and tauri-driver
+
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 3. **Tauri CLI** - Install globally or as dev dependency
+
    ```bash
    npm install -g @tauri-apps/cli
    # or
@@ -30,6 +32,7 @@ Get up and running with WebdriverIO and Tauri E2E testing in minutes.
 #### Linux
 
 - **WebKitGTK Development Libraries** - Install WebKitWebDriver
+
   ```bash
   # Ubuntu 26.04+, Debian 13+
   sudo apt-get install -y webkitgtk-webdriver
@@ -170,7 +173,9 @@ fn main() {
 ```json
 {
   "identifier": "default",
-  "windows": ["main"],
+  "windows": [
+    "main"
+  ],
   "permissions": [
     "core:default",
     "core:window:default",
@@ -242,20 +247,27 @@ export const config = {
   maxInstances: 1,
 
   // Tauri service configuration
-  services: [['@wdio/tauri-service', {
-    appBinaryPath: './src-tauri/target/release/my-app.exe', // Adjust for your OS/app name
-    driverProvider: 'embedded',  // Default — embedded WebDriver, no external drivers needed
-    // driverProvider: 'external',  // Use external tauri-driver (explicit opt-in)
-    // driverProvider: 'crabnebula',  // Use CrabNebula (requires paid API key)
-  }]],
+  services: [
+    [
+      '@wdio/tauri-service',
+      {
+        appBinaryPath: './src-tauri/target/release/my-app.exe', // Adjust for your OS/app name
+        driverProvider: 'embedded', // Default — embedded WebDriver, no external drivers needed
+        // driverProvider: 'external',  // Use external tauri-driver (explicit opt-in)
+        // driverProvider: 'crabnebula',  // Use CrabNebula (requires paid API key)
+      },
+    ],
+  ],
 
   // Capabilities
-  capabilities: [{
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe',  // Path to built binary
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'tauri:options': {
+        application: './src-tauri/target/release/my-app.exe', // Path to built binary
+      },
     },
-  }],
+  ],
 
   // Logging
   logLevel: 'info',
@@ -344,8 +356,8 @@ npx wdio run wdio.conf.ts --logLevel debug
 ### "Cannot find module '@wdio/tauri-plugin'"
 
 The frontend plugin import is failing. Make sure:
-
 1. Install the peer dependencies:
+
    ```bash
    npm install --save-dev @wdio/tauri-plugin
    ```
@@ -355,19 +367,22 @@ The frontend plugin import is failing. Make sure:
 ### "tauri-driver not found" or "No driverProvider configured"
 
 The service couldn't determine which driver to use, or couldn't find tauri-driver. Solutions:
-
 1. **Use embedded provider** (no external driver needed):
+
    ```typescript
    driverProvider: 'embedded'
    ```
+
    Requires `tauri-plugin-wdio-webdriver` in your Tauri app. It is the default on every platform when `driverProvider` is unset.
 
 2. **Install tauri-driver manually** (if using `driverProvider: 'external'`):
+
    ```bash
    cargo install tauri-driver
    ```
 
 3. **Or enable auto-install** in `wdio.conf.ts`:
+
    ```typescript
    driverProvider: 'external',
    autoInstallTauriDriver: true
@@ -376,7 +391,6 @@ The service couldn't determine which driver to use, or couldn't find tauri-drive
 ### "Application not found at path"
 
 The `appBinaryPath` is wrong. Verify:
-
 1. You built the app in release mode: `cargo build --release`
 2. The path exists: `./src-tauri/target/release/my-app.exe`
 3. Update the path in `wdio.conf.ts` if needed
@@ -384,7 +398,6 @@ The `appBinaryPath` is wrong. Verify:
 ### Tests timeout on Windows
 
 Edge WebDriver version mismatch. The service auto-manages this, but if issues persist:
-
 1. See [Edge WebDriver (Windows)](./edge-webdriver-windows.md)
 2. Check your Edge version: Settings → About Microsoft Edge
 3. Verify the driver version matches
@@ -454,16 +467,16 @@ Example GitHub Actions workflow:
 
 ```yaml
 name: E2E Tests
-on: [push, pull_request]
+on: [ push, pull_request ]
 
 jobs:
   test:
-    runs-on: windows-latest  # or ubuntu-latest
+    runs-on: windows-latest # or ubuntu-latest
     steps:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: "18"
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies

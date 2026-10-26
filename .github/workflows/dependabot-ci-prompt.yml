@@ -12,7 +12,7 @@ name: Dependabot CI Prompt
 # so the elevated token carries no code-execution risk.
 on:
   pull_request_target:
-    types: [opened, reopened, synchronize]
+    types: [ opened, reopened, synchronize ]
 
 permissions:
   statuses: write

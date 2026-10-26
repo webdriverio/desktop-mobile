@@ -22,11 +22,14 @@ class PortManager {
     return port;
   }
 
-  clear(): void { this.usedPorts.clear(); }
+  clear(): void {
+    this.usedPorts.clear();
+  }
 }
 ```
 
 ## Rules
+
 - Always bind to `127.0.0.1` (not `0.0.0.0` or `localhost`)
 - Always pass `exclude` with previously allocated ports
 - Release ports in `onComplete` via `portManager.clear()`

@@ -94,7 +94,6 @@ See the [Monorepo Setup Guide](../../../docs/setup.md#code-quality) for formatti
 ### Embedded Driver Provider
 
 Located in `src/providers/embedded.ts`:
-
 - Spawns the Dioxus app with `DIOXUS_WEBVIEW_AUTOMATION=true` and `WDIO_EMBEDDED_PORT`
 - Polls the embedded WebDriver server `/status` endpoint on startup
 - Each worker gets a unique port (basePort + workerIndex)
@@ -102,18 +101,17 @@ Located in `src/providers/embedded.ts`:
 ### Bridge Communication
 
 `wdio-dioxus-bridge` provides:
-
 - Script execution via the `wdio://` custom protocol
 - `window.__WDIO_DIOXUS__.invoke`, which the service patches with `@wdio/native-spy`'s interceptor for command mocking
 - Log forwarding via the bridge's log pipeline
 
 ### Cross-Platform Support
 
-| Platform | Status |
-|----------|--------|
-| Windows | Supported |
-| Linux | Supported |
-| macOS | Supported |
+| Platform | Status    |
+| -------- | --------- |
+| Windows  | Supported |
+| Linux    | Supported |
+| macOS    | Supported |
 
 ## Common Tasks
 
@@ -161,14 +159,14 @@ Dependencies are managed via the monorepo's catalog system. See [Dependency Mana
 
 Releases run through GitHub Actions via [`release.yml`](../../../.github/workflows/release.yml), which delegates to [`_release.reusable.yml`](../../../.github/workflows/_release.reusable.yml). For Dioxus, **six artefacts** publish together as a scope:
 
-| Artefact | Registry | Initial version |
-|---|---|---|
-| `@wdio/dioxus-service` | npm | `1.0.0-next.0` |
-| `@wdio/dioxus-bridge` (guest-js) | npm | `1.0.0-next.0` |
-| `wdio-dioxus-bridge` (Rust crate) | crates.io | `1.0.0-rc.0` |
-| `wdio-dioxus-embedded-driver` (Rust crate) | crates.io | `1.0.0-rc.0` |
-| `wdio-dioxus-driver` (Rust crate) | crates.io | `1.0.0-rc.0` |
-| `@wdio/native-core` (shared, released independently via `core` or `shared` scope) | npm | `1.0.0` |
+| Artefact                                                                          | Registry  | Initial version |
+| --------------------------------------------------------------------------------- | --------- | --------------- |
+| `@wdio/dioxus-service`                                                            | npm       | `1.0.0-next.0`  |
+| `@wdio/dioxus-bridge` (guest-js)                                                  | npm       | `1.0.0-next.0`  |
+| `wdio-dioxus-bridge` (Rust crate)                                                 | crates.io | `1.0.0-rc.0`    |
+| `wdio-dioxus-embedded-driver` (Rust crate)                                        | crates.io | `1.0.0-rc.0`    |
+| `wdio-dioxus-driver` (Rust crate)                                                 | crates.io | `1.0.0-rc.0`    |
+| `@wdio/native-core` (shared, released independently via `core` or `shared` scope) | npm       | `1.0.0`         |
 
 ### Triggering a release
 
@@ -239,7 +237,6 @@ See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for the broader release process 
 ## Contributing
 
 See [CONTRIBUTING.md](../../../CONTRIBUTING.md) for contribution guidelines, commit message format, and PR process.
-
 - **Questions**: [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
 - **Bugs**: [GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)
 - **Help Wanted**: [help:wanted issues](https://github.com/webdriverio/desktop-mobile/issues?q=is%3Aissue+is%3Aopen+label%3Ahelp%3Awanted+label%3Ascope%3Adioxus)

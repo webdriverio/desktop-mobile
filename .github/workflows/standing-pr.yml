@@ -12,13 +12,13 @@ name: Standing Release PR
 
 on:
   push:
-    branches: [main]
+    branches: [ main ]
   pull_request:
     # Maintainer changes to the standing PR's selection (`edited`) or release labels (`labeled`,
     # `unlabeled`) apply straight away, so a merge before the next push to main can't ship a stale
     # selection. There's no `closed` trigger because merging pushes to main, and that push starts the publish.
-    types: [edited, labeled, unlabeled]
-    branches: [main]
+    types: [ edited, labeled, unlabeled ]
+    branches: [ main ]
   workflow_dispatch: {}
 
 # `release/next` mirrors ci.standingPr.branch: workflow expressions can't read the config.

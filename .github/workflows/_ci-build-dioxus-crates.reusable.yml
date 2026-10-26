@@ -9,10 +9,10 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Operating system to run on'
+        description: "Operating system to run on"
         required: false
         type: string
-        default: 'ubuntu-latest'
+        default: "ubuntu-latest"
 
 jobs:
   build:
@@ -62,8 +62,8 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v7
         with:
-          node-version-file: '.nvmrc'
-          cache: 'pnpm'
+          node-version-file: ".nvmrc"
+          cache: "pnpm"
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile --filter @wdio/dioxus-bridge
       - name: Build dioxus-bridge guest-js

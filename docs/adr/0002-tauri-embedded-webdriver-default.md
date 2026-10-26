@@ -15,12 +15,11 @@ development. The embedded provider landed in [#166](https://github.com/webdriver
 A Tauri app renders in the platform WebView — WKWebView on macOS, WebView2 on Windows,
 WebKitGTK on Linux. Driving it over WebDriver needs a WebDriver server for that WebView, and
 there were two off-the-shelf options, each with a hard limitation:
-
 - **The upstream `tauri-driver`** spawns an external platform driver (`msedgedriver` on
   Windows, `webkit2gtk-driver` on Linux). It has **no macOS path** — WKWebView exposes no
   automation driver. Early research concluded macOS was impossible and the service shipped
   Windows/Linux-only, with the launcher explicitly throwing on `darwin`.
-- **CrabNebula's proprietary fork** *does* support macOS, but only by taking a paid, closed
+- **CrabNebula's proprietary fork** _does_ support macOS, but only by taking a paid, closed
   dependency: a subscription + `CN_API_KEY`, a separate `test-runner-backend` process on
   macOS, a `tauri-plugin-automation` conditionally compiled into the app, and an OSS-license
   request to run it in CI.
@@ -36,7 +35,6 @@ all three platforms, macOS included, with no external driver binary and no subsc
 
 The other two mechanisms remain, as explicit opt-ins on the **same service** rather than
 separate packages:
-
 - **`'external'`** — the upstream `tauri-driver`, for users who prefer it on Windows/Linux.
 - **`'crabnebula'`** — CrabNebula's fork, a named exception for teams that want its product.
 

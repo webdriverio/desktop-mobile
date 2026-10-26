@@ -9,11 +9,14 @@ Add the Dioxus service to your `wdio.conf.ts`:
 ```typescript
 export const config = {
   services: [
-    ['@wdio/dioxus-service', {
-      // Service options go here
-      captureBackendLogs: true,
-      captureFrontendLogs: true,
-    }]
+    [
+      '@wdio/dioxus-service',
+      {
+        // Service options go here
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+      },
+    ],
   ],
   // ... rest of config
 };
@@ -43,8 +46,8 @@ Command-line arguments to pass to the Dioxus application when launching. Each ar
 
 **Example:**
 ```typescript
-appArgs: ['--debug', '--log-level', 'debug']
-appArgs: ['--window-size=1920,1080']
+appArgs: ['--debug', '--log-level', 'debug'];
+appArgs: ['--window-size=1920,1080'];
 ```
 
 **Default:** `[]`
@@ -54,7 +57,6 @@ appArgs: ['--window-size=1920,1080']
 ### `embeddedPort` (number, optional)
 
 Preferred port for the embedded WebDriver server.
-
 - The service spawns your app on this port if it's free. Each further app it spawns (multiremote instances, or more than one capability) prefers the next port up.
 - A port that's already in use is skipped for a free one, and the service connects to whichever port it chose.
 - Set it in an instance's `wdio:dioxusServiceOptions` to give that instance its own preferred port.
@@ -62,7 +64,7 @@ Preferred port for the embedded WebDriver server.
 
 **Example:**
 ```typescript
-embeddedPort: 4445
+embeddedPort: 4445;
 ```
 
 **Default:** `4444`
@@ -75,7 +77,7 @@ Timeout in milliseconds for the `/status` endpoint poll during embedded WebDrive
 
 **Example:**
 ```typescript
-statusPollTimeout: 5000
+statusPollTimeout: 5000;
 ```
 
 **Default:** `2000`
@@ -88,7 +90,7 @@ Timeout in milliseconds for the Dioxus app to start and become ready.
 
 **Example:**
 ```typescript
-startTimeout: 60000  // 60 seconds
+startTimeout: 60000; // 60 seconds
 ```
 
 **Default:** `60000`
@@ -101,7 +103,7 @@ The window the session starts in. Set it here, or per capability in `wdio:dioxus
 
 **Example:**
 ```typescript
-windowLabel: 'window-1'  // Start in the second window the app opens
+windowLabel: 'window-1'; // Start in the second window the app opens
 ```
 
 **Default:** the first window to open (`main`)
@@ -116,7 +118,7 @@ Capture logs from the Dioxus backend (Rust code) and forward them to WebdriverIO
 
 **Example:**
 ```typescript
-captureBackendLogs: true
+captureBackendLogs: true;
 ```
 
 **Default:** `false`
@@ -131,7 +133,7 @@ Capture console logs from the frontend (JavaScript/TypeScript in the webview).
 
 **Example:**
 ```typescript
-captureFrontendLogs: true
+captureFrontendLogs: true;
 ```
 
 **Default:** `false`
@@ -146,7 +148,7 @@ Minimum log level to capture from the Rust backend. Logs below this level are ig
 
 **Example:**
 ```typescript
-backendLogLevel: 'debug'  // Capture debug and above
+backendLogLevel: 'debug'; // Capture debug and above
 ```
 
 **Default:** `'info'`
@@ -161,7 +163,7 @@ Minimum log level to capture from the frontend webview. Logs below this level ar
 
 **Example:**
 ```typescript
-frontendLogLevel: 'debug'
+frontendLogLevel: 'debug';
 ```
 
 **Default:** `'info'`
@@ -189,13 +191,12 @@ env: {
 ### `mode` ('native' | 'browser', optional)
 
 Controls how the service connects to your application.
-
 - `'native'` (default) — launches your compiled Dioxus binary via the configured driver provider.
 - `'browser'` — skips all driver and binary setup; sets `browserName = 'chrome'`, navigates to `devServerUrl`, and intercepts the invoke API so Dioxus commands can be mocked without a running Rust backend.
 
 **Example:**
 ```typescript
-mode: 'browser'
+mode: 'browser';
 ```
 
 **Default:** `'native'`
@@ -212,7 +213,7 @@ URL of the dev server to navigate to when `mode: 'browser'` is set. Validated wi
 
 **Example:**
 ```typescript
-devServerUrl: 'http://localhost:8080'
+devServerUrl: 'http://localhost:8080';
 ```
 
 **Default:** `undefined`
@@ -276,42 +277,46 @@ Configure Dioxus-specific capabilities in your `capabilities` array:
 ### Basic Configuration
 
 ```typescript
-capabilities: [{
-  browserName: 'dioxus',
-  'dioxus:options': {
-    application: './target/debug/my_app'
-  }
-}]
+capabilities: [
+  {
+    browserName: 'dioxus',
+    'dioxus:options': {
+      application: './target/debug/my_app',
+    },
+  },
+];
 ```
 
 ### Full Capability Configuration
 
 ```typescript
-capabilities: [{
-  browserName: 'dioxus',
-  'dioxus:options': {
-    application: './target/debug/my_app',
-    args: ['--debug'],
-    webviewOptions: {
-      width: 1280,
-      height: 800,
+capabilities: [
+  {
+    browserName: 'dioxus',
+    'dioxus:options': {
+      application: './target/debug/my_app',
+      args: ['--debug'],
+      webviewOptions: {
+        width: 1280,
+        height: 800,
+      },
+    },
+    'wdio:dioxusServiceOptions': {
+      windowLabel: 'main',
+      captureBackendLogs: true,
     },
   },
-  'wdio:dioxusServiceOptions': {
-    windowLabel: 'main',
-    captureBackendLogs: true,
-  },
-}]
+];
 ```
 
 ### `dioxus:options` Fields
 
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `application` | string | Yes | Path to the Dioxus app binary |
-| `args` | string[] | No | Arguments passed to the app |
-| `webviewOptions.width` | number | No | Initial window width in pixels |
-| `webviewOptions.height` | number | No | Initial window height in pixels |
+| Field                   | Type     | Required | Description                     |
+| ----------------------- | -------- | -------- | ------------------------------- |
+| `application`           | string   | Yes      | Path to the Dioxus app binary   |
+| `args`                  | string[] | No       | Arguments passed to the app     |
+| `webviewOptions.width`  | number   | No       | Initial window width in pixels  |
+| `webviewOptions.height` | number   | No       | Initial window height in pixels |
 
 ### Multiremote Configuration
 
@@ -342,28 +347,33 @@ export const config = {
   maxInstances: 1,
 
   services: [
-    ['@wdio/dioxus-service', {
-      appBinaryPath: './target/debug/my_app',
-      appArgs: [],
-      embeddedPort: 4445,
-      startTimeout: 60000,
-      statusPollTimeout: 2000,
-      captureBackendLogs: true,
-      captureFrontendLogs: true,
-      backendLogLevel: 'debug',
-      frontendLogLevel: 'debug',
-      clearMocks: false,
-      resetMocks: false,
-      restoreMocks: false,
-    }]
+    [
+      '@wdio/dioxus-service',
+      {
+        appBinaryPath: './target/debug/my_app',
+        appArgs: [],
+        embeddedPort: 4445,
+        startTimeout: 60000,
+        statusPollTimeout: 2000,
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+        backendLogLevel: 'debug',
+        frontendLogLevel: 'debug',
+        clearMocks: false,
+        resetMocks: false,
+        restoreMocks: false,
+      },
+    ],
   ],
 
-  capabilities: [{
-    browserName: 'dioxus',
-    'dioxus:options': {
-      application: './target/debug/my_app',
+  capabilities: [
+    {
+      browserName: 'dioxus',
+      'dioxus:options': {
+        application: './target/debug/my_app',
+      },
     },
-  }],
+  ],
 
   logLevel: 'info',
   bail: 0,

@@ -9,14 +9,17 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
 1. **Node.js 22.19+** - Download from [nodejs.org](https://nodejs.org)
 
 2. **Rust Toolchain** - Required for building Dioxus apps
+
    ```bash
    curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
    ```
 
 3. **Dioxus CLI (`dx`)** - Builds the app and bundles the files it loads with `asset!()`. Install the version that matches your `dioxus` crate, for example:
+
    ```bash
    cargo install dioxus-cli --locked --version 0.7.10
    ```
+
    [cargo-binstall](https://github.com/cargo-bins/cargo-binstall), if you have it, downloads a prebuilt `dx` instead of compiling it: `cargo binstall dioxus-cli --version 0.7.10`.
 
 ### Platform-Specific Requirements
@@ -28,6 +31,7 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
 #### Linux
 
 - **WebKitGTK Development Libraries** - Required to build Dioxus desktop apps:
+
   ```bash
   # Debian/Ubuntu
   sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
@@ -110,11 +114,11 @@ Build with `dx` rather than `cargo build`. `dx` bundles the files your app loads
 
 `dx` prints the bundle path when the build finishes. The debug binary is at:
 
-| Platform | Binary path |
-|----------|-------------|
-| macOS | `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app` |
-| Linux | `target/dx/my_app/debug/linux/app/my_app` |
-| Windows | `target\dx\my_app\debug\windows\app\my_app.exe` |
+| Platform | Binary path                                                    |
+| -------- | -------------------------------------------------------------- |
+| macOS    | `target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app` |
+| Linux    | `target/dx/my_app/debug/linux/app/my_app`                      |
+| Windows  | `target\dx\my_app\debug\windows\app\my_app.exe`                |
 
 ## WebdriverIO Installation
 
@@ -143,12 +147,14 @@ export const config = {
 
   services: ['@wdio/dioxus-service'],
 
-  capabilities: [{
-    browserName: 'dioxus',
-    'dioxus:options': {
-      application: appPaths[process.platform],  // Path to debug binary
+  capabilities: [
+    {
+      browserName: 'dioxus',
+      'dioxus:options': {
+        application: appPaths[process.platform], // Path to debug binary
+      },
     },
-  }],
+  ],
 
   logLevel: 'info',
   waitforTimeout: 10000,
@@ -225,8 +231,8 @@ npx wdio run wdio.conf.ts --logLevel debug
 ### "Embedded WebDriver server did not become ready" or "Bridge not available"
 
 `wdio-dioxus` is not wired into your app. Make sure:
-
 1. Add to `[dependencies]` in `Cargo.toml`:
+
    ```toml
    wdio-dioxus = "1"
    ```
@@ -242,7 +248,6 @@ The app was built with `cargo build`, which doesn't bundle the files loaded with
 ### "Application not found at path"
 
 The `appBinaryPath` or `dioxus:options.application` is wrong. Verify:
-
 1. You built the app: `dx build --desktop`
 2. The path exists: `dx` prints it when the build finishes (see [Building the Dioxus App](#building-the-dioxus-app))
 3. Update the path in `wdio.conf.ts` if needed
@@ -308,16 +313,16 @@ Example GitHub Actions workflow:
 
 ```yaml
 name: E2E Tests
-on: [push, pull_request]
+on: [ push, pull_request ]
 
 jobs:
   test:
-    runs-on: ubuntu-latest  # or windows-latest / macos-latest
+    runs-on: ubuntu-latest # or windows-latest / macos-latest
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux dependencies

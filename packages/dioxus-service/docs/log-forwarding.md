@@ -14,12 +14,15 @@ Log forwarding is disabled by default. Enable it via service options:
 // wdio.conf.ts
 export const config = {
   services: [
-    ['@wdio/dioxus-service', {
-      captureBackendLogs: true,      // Capture Rust logs from the app process
-      captureFrontendLogs: true,     // Capture console logs from the webview
-      backendLogLevel: 'info',       // Minimum backend log level (default: 'info')
-      frontendLogLevel: 'info',      // Minimum frontend log level (default: 'info')
-    }],
+    [
+      '@wdio/dioxus-service',
+      {
+        captureBackendLogs: true, // Capture Rust logs from the app process
+        captureFrontendLogs: true, // Capture console logs from the webview
+        backendLogLevel: 'info', // Minimum backend log level (default: 'info')
+        frontendLogLevel: 'info', // Minimum frontend log level (default: 'info')
+      },
+    ],
   ],
   capabilities: [
     {
@@ -35,7 +38,6 @@ export const config = {
 ## Log Levels
 
 Both backend and frontend log capture support the following log levels (in order of priority):
-
 - `trace` - Most verbose
 - `debug` - Debug information
 - `info` - Informational messages (default)
@@ -47,7 +49,6 @@ Only logs at the configured level and above will be captured. For example, with 
 ## Log Format
 
 Captured logs are formatted with context tags:
-
 - Backend logs: `[Dioxus:Backend] message`
 - Frontend logs: `[Dioxus:Frontend] message`
 - Multiremote logs: `[Dioxus:Backend:instanceId] message` / `[Dioxus:Frontend:instanceId] message`

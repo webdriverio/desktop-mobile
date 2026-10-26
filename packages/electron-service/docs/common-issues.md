@@ -9,7 +9,6 @@ The service works out which Chromedriver to use from your app's Electron version
 The usual cause is testing an app built elsewhere — a downloaded release artifact, or a build produced by a separate CI job — so the tests have no local Electron install even though `appBinaryPath` points at a perfectly good app.
 
 Any one of these resolves it:
-
 - Install `electron` as a `devDependency` in the project being tested.
 - Set the `browserVersion` capability to the Electron version under test — see [Chromedriver Configuration](./configuration.md#chromedriver-configuration).
 - Set `wdio:chromedriverOptions.binary` to a Chromedriver you provide.
@@ -19,13 +18,11 @@ Any one of these resolves it:
 The Electron version was found, but the service could not map it to a Chromium version, so it cannot select a matching Chromedriver. Installing Electron will not help — it is already installed.
 
 The mapping comes from `https://electronjs.org/headers/index.json`, falling back to the bundled `electron-to-chromium` data when that request fails. It comes up short when:
-
 - the build is a **fork** whose version is not a published Electron release;
 - the build is a **nightly** and the online lookup is unavailable — the bundled fallback contains no nightly versions;
 - the Electron release is **newer than the bundled data** and the online lookup is unavailable.
 
 Resolve it by pinning Chromedriver yourself:
-
 - Set `wdio:chromedriverOptions.binary` to a Chromedriver matching your app's Chromium version.
 - Or set the `browserVersion` capability to the **Chromium** version your Electron build uses. You can read that from the app itself:
 
@@ -104,19 +101,19 @@ export const config = {
     [
       'electron',
       {
-        apparmorAutoInstall: 'sudo' // or true if running as root
-      }
-    ]
+        apparmorAutoInstall: 'sudo', // or true if running as root
+      },
+    ],
   ],
   // OR configure it per capability:
   capabilities: [
     {
-      'browserName': 'electron',
+      browserName: 'electron',
       'wdio:electronServiceOptions': {
-        apparmorAutoInstall: 'sudo'
-      }
-    }
-  ]
+        apparmorAutoInstall: 'sudo',
+      },
+    },
+  ],
 };
 ```
 
@@ -136,10 +133,10 @@ This error occurs when importing the `browser` object directly at the top level 
 
 ```typescript
 // ❌ This may cause "TypeError: logger is not a function"
-import { browser } from "@wdio/electron-service";
+import { browser } from '@wdio/electron-service';
 
-describe("My Tests", () => {
-  it("should work", async () => {
+describe('My Tests', () => {
+  it('should work', async () => {
     await browser.electron.execute(/* ... */);
   });
 });
@@ -151,18 +148,18 @@ The solution is to use dynamic import within a `before` hook to ensure the servi
 
 ```typescript
 // ✅ Correct approach - dynamic import in before hook
-import type { Mock } from "@vitest/spy";
-import { $, expect } from "@wdio/globals";
-import type { browser as WdioBrowser } from "@wdio/electron-service";
+import type { Mock } from '@vitest/spy';
+import { $, expect } from '@wdio/globals';
+import type { browser as WdioBrowser } from '@wdio/electron-service';
 
 let browser: typeof WdioBrowser;
 
-describe("My Tests", () => {
+describe('My Tests', () => {
   before(async () => {
-    ({ browser } = await import("@wdio/electron-service"));
+    ({ browser } = await import('@wdio/electron-service'));
   });
 
-  it("should work", async () => {
+  it('should work', async () => {
     await browser.electron.execute(/* ... */);
   });
 });

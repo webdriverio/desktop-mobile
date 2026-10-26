@@ -1,29 +1,29 @@
-name: 'Download and Extract Artifacts'
-description: 'Downloads and extracts compressed artifacts shared from previous jobs using GitHub cache (90-day retention)'
+name: "Download and Extract Artifacts"
+description: "Downloads and extracts compressed artifacts shared from previous jobs using GitHub cache (90-day retention)"
 inputs:
   path:
-    description: 'Destination directory to extract the artifact contents'
+    description: "Destination directory to extract the artifact contents"
     required: true
   filename:
-    description: 'Filename of the compressed artifact to download'
+    description: "Filename of the compressed artifact to download"
     required: true
-    default: 'artifact.zip'
+    default: "artifact.zip"
   name:
-    description: 'Artifact name as used in the cache key'
+    description: "Artifact name as used in the cache key"
     required: true
   cache_key_prefix:
-    description: 'Prefix for the cache key (must match upload setting)'
-    default: 'build-artifacts'
+    description: "Prefix for the cache key (must match upload setting)"
+    default: "build-artifacts"
     required: false
   exact_cache_key:
-    description: 'Exact cache key to use for retrieval (if provided)'
+    description: "Exact cache key to use for retrieval (if provided)"
     required: false
   use_cache:
-    description: 'Use cache only (true-only or false-only)'
+    description: "Use cache only (true-only or false-only)"
     required: false
 
 runs:
-  using: 'composite'
+  using: "composite"
   steps:
     # Generate cache keys and check for rerun
     - name: 🔑 Generate Cache Keys
@@ -62,7 +62,7 @@ runs:
       if: inputs.use_cache != 'false-only'
       uses: actions/cache/restore@v5
       env:
-        ACTIONS_CACHE_SERVICE_V2: 'true'
+        ACTIONS_CACHE_SERVICE_V2: "true"
       with:
         path: ${{ steps.generate-keys.outputs.normalized_path }}
         key: ${{ inputs.exact_cache_key || steps.generate-keys.outputs.primary_key }}

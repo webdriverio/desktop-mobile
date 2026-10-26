@@ -16,7 +16,6 @@ Spiritual successor to [Spectron](https://github.com/electron-userland/spectron)
 ### Features
 
 Makes testing Electron applications much easier via:
-
 - 🚗 Auto-setup of required Chromedriver (for Electron v26 and above)
 - 📦 Automatic path detection of your Electron application
   - Supports [Electron Forge](https://www.electronforge.io/), [Electron Builder](https://www.electron.build/) and unpackaged apps
@@ -56,10 +55,10 @@ _`wdio.conf.ts`_
 ```ts
 export const config = {
   // ...
-  services: ["electron"],
+  services: ['electron'],
   capabilities: [
     {
-      browserName: "electron",
+      browserName: 'electron',
     },
   ],
   // ...
@@ -79,10 +78,10 @@ export const config = {
   // ...
   capabilities: [
     {
-      browserName: "electron",
-      "wdio:electronServiceOptions": {
-        appBinaryPath: "./path/to/built/electron/app.exe",
-        appArgs: ["foo", "bar=baz"],
+      browserName: 'electron',
+      'wdio:electronServiceOptions': {
+        appBinaryPath: './path/to/built/electron/app.exe',
+        appArgs: ['foo', 'bar=baz'],
       },
     },
   ],
@@ -101,10 +100,10 @@ export const config = {
   // ...
   capabilities: [
     {
-      browserName: "electron",
-      "wdio:electronServiceOptions": {
-        appEntryPoint: "./path/to/bundled/electron/main.bundle.js",
-        appArgs: ["foo", "bar=baz"],
+      browserName: 'electron',
+      'wdio:electronServiceOptions': {
+        appEntryPoint: './path/to/bundled/electron/main.bundle.js',
+        appArgs: ['foo', 'bar=baz'],
       },
     },
   ],
@@ -121,14 +120,17 @@ This is because WDIO uses Chrome for Testing to download Chromedriver, which onl
 ## Documentation
 
 ### Getting Started
+
 - **[Configuration](./docs/configuration.md)** — service options and Chromedriver setup
 - **[Electron APIs](./docs/electron-apis.md)** — accessing and mocking Electron APIs in tests
 
 ### Reference
+
 - **[API Reference](./docs/api-reference.md)** — every `browser.electron.*` method and exported helper
 - **[Window Management](./docs/window-management.md)** — automatic window focus behaviour
 
 ### Operations
+
 - **[Browser Mode](./docs/browser-mode.md)** — test the renderer in Chrome against a Vite dev server, no Electron binary required
 - **[Deeplink Testing](./docs/deeplink-testing.md)** — protocol handler tests across platforms
 - **[Standalone Mode](./docs/standalone-mode.md)** — using the service without the WDIO test runner
@@ -138,11 +140,13 @@ This is because WDIO uses Chrome for Testing to download Chromedriver, which onl
 - **[Common Issues](./docs/common-issues.md)** — known issues and workarounds
 
 ### Migration & Release Notes
+
 - **[v10.0.0 Release Notes](./docs/release-notes/v10.0.0.md)** — full list of v10 changes
 - **[v9 → v10 Migration](./docs/migration/v9-to-v10.md)** — required upgrade actions
 - **[v8 → v9 Migration](./docs/migration/v8-to-v9.md)**
 
 ### Contributing
+
 - **[Development](./docs/development.md)** — local setup, testing, dependency catalogs
 - **[Release Management](./docs/release-management.md)** — release labels and workflow
 
