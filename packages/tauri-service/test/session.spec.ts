@@ -135,7 +135,6 @@ describe('session', () => {
           appArgs: [],
           tauriDriverPort: undefined,
           logLevel: 'info',
-          commandTimeout: 30000,
           startTimeout: 60000,
           driverProvider: undefined,
           autoInstallTauriDriver: undefined,
@@ -148,7 +147,6 @@ describe('session', () => {
       const serviceOpts = caps['wdio:tauriServiceOptions'];
 
       expect(serviceOpts?.logLevel).toBe('info');
-      expect(serviceOpts?.commandTimeout).toBe(30000);
       expect(serviceOpts?.startTimeout).toBe(60000);
       expect(serviceOpts?.appArgs).toEqual([]);
     });
@@ -183,11 +181,6 @@ describe('session', () => {
     it('should set logLevel to error', () => {
       const caps = createTauriCapabilities('/app', { logLevel: 'error' });
       expect(caps['wdio:tauriServiceOptions']?.logLevel).toBe('error');
-    });
-
-    it('should set custom commandTimeout', () => {
-      const caps = createTauriCapabilities('/app', { commandTimeout: 60000 });
-      expect(caps['wdio:tauriServiceOptions']?.commandTimeout).toBe(60000);
     });
 
     it('should set custom startTimeout', () => {
@@ -225,7 +218,6 @@ describe('session', () => {
         appArgs: ['--dev'],
         tauriDriverPort: 4444,
         logLevel: 'warn',
-        commandTimeout: 10000,
         startTimeout: 45000,
         driverProvider: 'crabnebula',
         autoInstallTauriDriver: true,
@@ -241,7 +233,6 @@ describe('session', () => {
           appArgs: ['--dev'],
           tauriDriverPort: 4444,
           logLevel: 'warn',
-          commandTimeout: 10000,
           startTimeout: 45000,
           driverProvider: 'crabnebula',
           autoInstallTauriDriver: true,

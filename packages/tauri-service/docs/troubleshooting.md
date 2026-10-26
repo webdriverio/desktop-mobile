@@ -316,17 +316,14 @@ services: [
 
 Operations take too long or timeout unexpectedly.
 
-**Solution 1: Increase Command Timeout**
+**Solution 1: Increase the Request Timeout**
+
+WebdriverIO's `connectionRetryTimeout` bounds each WebDriver request. The default is 120000 (2 minutes). Standalone sessions use four times `startTimeout` instead.
 
 ```typescript
-services: [
-  [
-    '@wdio/tauri-service',
-    {
-      commandTimeout: 60000, // 60 seconds instead of default 10s
-    },
-  ],
-];
+export const config = {
+  connectionRetryTimeout: 180000, // 3 minutes
+};
 ```
 
 **Solution 2: Increase Start Timeout**
@@ -525,7 +522,6 @@ services: [
     '@wdio/tauri-service',
     {
       logLevel: 'debug', // Verbose logging
-      commandTimeout: 60000,
     },
   ],
 ];

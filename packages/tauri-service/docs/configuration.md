@@ -157,19 +157,6 @@ windowLabel: 'settings'; // Target the settings window by default
 
 ---
 
-### `commandTimeout` (number, optional)
-
-Timeout in milliseconds for individual command execution.
-
-**Example:**
-```typescript
-commandTimeout: 60000; // 60 seconds
-```
-
-**Default:** `30000` (30 seconds)
-
----
-
 ### `startTimeout` (number, optional)
 
 Timeout in milliseconds for the Tauri app to start and become ready.
@@ -571,7 +558,6 @@ export const config = {
         autoDownloadEdgeDriver: true, // Windows only
         tauriDriverPort: 4444,
         logLevel: 'info',
-        commandTimeout: 30000,
         startTimeout: 30000,
         captureBackendLogs: true,
         captureFrontendLogs: true,

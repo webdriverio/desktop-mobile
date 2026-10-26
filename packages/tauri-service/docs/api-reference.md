@@ -553,7 +553,6 @@ interface TauriServiceOptions {
   tauriDriverPort?: number;
   tauriDriverPath?: string;
   logLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
-  commandTimeout?: number;
   startTimeout?: number;
   captureBackendLogs?: boolean;
   captureFrontendLogs?: boolean;

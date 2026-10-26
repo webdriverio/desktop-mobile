@@ -236,11 +236,6 @@ export interface BaseServiceOptions extends LogCaptureConfig, MockLifecycleConfi
    */
   appArgs?: string[];
   /**
-   * Timeout for command execution (in milliseconds)
-   * @default 30000
-   */
-  commandTimeout?: number;
-  /**
    * Timeout for app startup (in milliseconds)
    * @default 60000
    */

@@ -148,7 +148,6 @@ export interface ElectronServiceAPI {
  * Captured here so the Omit list stays in sync with the documented surface.
  */
 type ElectronUnsupportedBaseOptions =
-  | 'commandTimeout'
   | 'startTimeout'
   | 'captureBackendLogs'
   | 'captureFrontendLogs'
