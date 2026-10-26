@@ -74,19 +74,23 @@ describe('runBulkMockOp', () => {
     expect(third.mockReset).toHaveBeenCalledOnce();
   });
 
-  it('should use run instead of the named op when it is given', async () => {
+  it('should call run instead of the op, telling it whether the bulk app call succeeded', async () => {
     const a = fakeMock();
-    const seen: string[] = [];
+    const run = vi.fn();
 
+    await expect(runBulkMockOp([['a', a]], 'mockRestore', { run })).resolves.toBe(1);
+    await expect(runBulkMockOp([['a', a]], 'mockRestore', { bulkAppCall: () => Promise.resolve(), run })).resolves.toBe(
+      1,
+    );
     await expect(
-      runBulkMockOp([['a', a]], 'mockRestore', {
-        run: () => {
-          seen.push('custom');
-        },
-      }),
-    ).resolves.toBe(1);
+      runBulkMockOp([['a', a]], 'mockRestore', { bulkAppCall: () => Promise.reject(new Error('script error')), run }),
+    ).rejects.toBeInstanceOf(AggregateError);
 
-    expect(seen).toEqual(['custom']);
+    expect(run.mock.calls).toEqual([
+      [a, false],
+      [a, true],
+      [a, false],
+    ]);
     expect(a.mockRestore).not.toHaveBeenCalled();
   });
 

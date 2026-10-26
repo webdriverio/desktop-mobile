@@ -38,6 +38,19 @@ describe('restoreAllMocks in-app round-trips', () => {
     expect(mockStore.getMocks()).toEqual([]);
   });
 
+  it('should make one in-app execute for N browser-mode mocks when the bulk clear succeeds', async () => {
+    const browserMode = { execute: executeInApp, __wdioBrowserMode__: true } as unknown as WebdriverIO.Browser;
+    globalThis.browser = browserMode;
+    mockStore.setMock(await createMock('read_clipboard', browserMode));
+    mockStore.setMock(await createMock('write_clipboard', browserMode));
+    executeInApp.mockClear();
+
+    await restoreAllMocks();
+
+    expect(executeInApp).toHaveBeenCalledOnce();
+    expect(mockStore.getMocks()).toEqual([]);
+  });
+
   it('should unregister each mock when the bulk clear fails', async () => {
     mockStore.setMock(await createMock('read_clipboard', browser));
     mockStore.setMock(await createMock('write_clipboard', browser));
