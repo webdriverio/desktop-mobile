@@ -64,6 +64,16 @@ export async function probeDevServerReachable(
 const DEV_SERVER_READY_TIMEOUT_MS = 60_000;
 const DEV_SERVER_READY_POLL_MS = 500;
 
+const activeManagedServers = new Set<string>();
+
+function trimTrailingSlashes(url: string): string {
+  let end = url.length;
+  while (end > 0 && url.charCodeAt(end - 1) === 47) {
+    end -= 1;
+  }
+  return end === url.length ? url : url.slice(0, end);
+}
+
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 
 /**
@@ -127,12 +137,22 @@ export async function startManagedDevServer(
   const config = typeof devServer === 'string' ? { command: devServer } : devServer;
   const isCI = deps.isCI ?? Boolean(process.env.CI);
   const reuseExisting = config.reuseExistingServer ?? !isCI;
-  if (reuseExisting && isOk(await probeDevServerReachable(devServerUrl))) {
-    log.info(`Reusing dev server already reachable at ${devServerUrl}`);
-    return { url: devServerUrl, stop: async () => {} };
+  const resolvedUrl = trimTrailingSlashes(devServerUrl);
+  if (reuseExisting) {
+    if (activeManagedServers.has(resolvedUrl)) {
+      throw new Error(
+        `Managed dev server at ${devServerUrl} is already owned by an active session in this process. ` +
+          'Share an external server via devServerUrl (without devServer), or run concurrent sessions in separate processes.',
+      );
+    }
+    if (isOk(await probeDevServerReachable(devServerUrl))) {
+      log.info(`Reusing dev server already reachable at ${devServerUrl}`);
+      return { url: devServerUrl, stop: async () => {} };
+    }
   }
 
   const proc = new DevServerProcess({ spawn: deps.spawn, probe: deps.probe });
+  activeManagedServers.add(resolvedUrl);
   try {
     await proc.start({
       command: config.command,
@@ -142,10 +162,20 @@ export async function startManagedDevServer(
       timeoutMs: config.timeoutMs,
     });
   } catch (error) {
+    activeManagedServers.delete(resolvedUrl);
     // start() can throw *after* the process spawned (readiness timeout) — stop the live-but-unready
     // process before propagating, or it orphans (holding the port). Mirrors the function form's close().
     await proc.stop();
     throw error;
   }
-  return { url: devServerUrl, stop: () => proc.stop() };
+  return {
+    url: devServerUrl,
+    stop: async () => {
+      try {
+        await proc.stop();
+      } finally {
+        activeManagedServers.delete(resolvedUrl);
+      }
+    },
+  };
 }

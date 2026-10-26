@@ -15,11 +15,18 @@ function fakeChild() {
   const proc = new EventEmitter() as EventEmitter & Record<string, unknown>;
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
-  proc.kill = vi.fn();
-  proc.pid = 4242;
+  // pid undefined forces the direct-child kill branch so the test never signals a real process
+  // group; emit 'exit' so stop()'s teardown resolves.
+  proc.pid = undefined;
   proc.exitCode = null;
   proc.signalCode = null;
   proc.killed = false;
+  proc.kill = vi.fn(() => {
+    queueMicrotask(() => {
+      proc.exitCode = 143;
+      proc.emit('exit', null, 'SIGTERM');
+    });
+  });
   return proc;
 }
 
@@ -159,31 +166,27 @@ describe('startManagedDevServer', () => {
     });
     expect(spawn).toHaveBeenCalledWith('pnpm dev', expect.objectContaining({ shell: true }));
     expect(managed.url).toBe(url);
+    await managed.stop();
   });
 
   it('should spawn even when reachable if reuseExistingServer is false (string/object form)', async () => {
     vi.stubGlobal('fetch', reachable());
     const spawn = vi.fn(() => fakeChild()) as never;
-    await startManagedDevServer({ command: 'pnpm dev', reuseExistingServer: false, timeoutMs: 1000 }, url, {
-      spawn,
-      probe: async () => true,
-      isCI: false,
-    });
+    const managed = await startManagedDevServer(
+      { command: 'pnpm dev', reuseExistingServer: false, timeoutMs: 1000 },
+      url,
+      {
+        spawn,
+        probe: async () => true,
+        isCI: false,
+      },
+    );
     expect(spawn).toHaveBeenCalled();
+    await managed.stop();
   });
 
   it('should stop the spawned process and rethrow when it never becomes ready (no orphan)', async () => {
     const proc = fakeChild();
-    // Stays alive (exitCode null) but never answers the probe → start() times out while the process
-    // is still running, which is the orphan case. pid undefined forces the direct-child kill branch
-    // so the test never signals a real process group; emit 'exit' so stop()'s teardown resolves.
-    proc.pid = undefined;
-    proc.kill = vi.fn(() => {
-      queueMicrotask(() => {
-        proc.exitCode = 143;
-        proc.emit('exit', null, 'SIGTERM');
-      });
-    });
     const spawn = vi.fn(() => proc) as never;
 
     await expect(
@@ -194,5 +197,64 @@ describe('startManagedDevServer', () => {
       }),
     ).rejects.toThrow(/did not become ready/);
     expect(proc.kill).toHaveBeenCalled();
+  });
+
+  it('should reject a concurrent start that would reuse an active managed server in this process', async () => {
+    vi.stubGlobal('fetch', unreachable());
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const first = await startManagedDevServer('pnpm dev', url, {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+
+    vi.stubGlobal('fetch', reachable());
+    await expect(
+      startManagedDevServer('pnpm dev', `${url}/`, {
+        spawn,
+        probe: async () => true,
+        isCI: false,
+      }),
+    ).rejects.toThrow(/devServerUrl.*separate processes/);
+
+    await first.stop();
+  });
+
+  it('should allow starting again at the same URL after the owning managed server stops', async () => {
+    vi.stubGlobal('fetch', unreachable());
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const first = await startManagedDevServer('pnpm dev', url, {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+    await first.stop();
+
+    const second = await startManagedDevServer('pnpm dev', url, {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+    expect(spawn).toHaveBeenCalledTimes(2);
+    await second.stop();
+  });
+
+  it('should allow concurrent managed servers on different URLs', async () => {
+    vi.stubGlobal('fetch', unreachable());
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const first = await startManagedDevServer('pnpm dev', 'http://localhost:1420', {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+    const second = await startManagedDevServer('pnpm dev', 'http://localhost:1421', {
+      spawn,
+      probe: async () => true,
+      isCI: false,
+    });
+
+    expect(spawn).toHaveBeenCalledTimes(2);
+    await first.stop();
+    await second.stop();
   });
 });
