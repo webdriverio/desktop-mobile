@@ -11,25 +11,25 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Operating system to run tests on'
+        description: "Operating system to run tests on"
         type: string
         required: false
-        default: 'ubuntu-latest'
+        default: "ubuntu-latest"
       node-version:
-        description: 'Node.js version to use for testing'
+        description: "Node.js version to use for testing"
         type: string
         required: false
-        default: '24'
+        default: "24"
       build_id:
-        description: 'Build ID from the build job'
+        description: "Build ID from the build job"
         type: string
         required: false
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         type: string
         required: false
       cache_key:
-        description: 'Cache key to use for downloading artifacts'
+        description: "Cache key to use for downloading artifacts"
         type: string
         required: false
 

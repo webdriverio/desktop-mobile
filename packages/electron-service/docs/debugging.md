@@ -7,7 +7,6 @@ For configuration reference, see [Service Configuration](./configuration.md). Fo
 ## Debug Logging
 
 If you need extra insight into what the service is doing you can enable namespaced debug logging via the `DEBUG` environment variable.
-
 - `DEBUG=wdio-electron-service` is equivalent to `DEBUG=wdio-electron-service:*` (enable all service namespaces)
 - You can target specific areas, e.g. `DEBUG=wdio-electron-service:service,mock`
 
@@ -36,13 +35,16 @@ The service can capture console output from both Electron's main process and ren
 ```ts
 export const config = {
   services: [
-    ['electron', {
-      captureMainProcessLogs: true,
-      captureRendererLogs: true,
-      mainProcessLogLevel: 'info',
-      rendererLogLevel: 'info'
-    }]
-  ]
+    [
+      'electron',
+      {
+        captureMainProcessLogs: true,
+        captureRendererLogs: true,
+        mainProcessLogLevel: 'info',
+        rendererLogLevel: 'info',
+      },
+    ],
+  ],
 };
 ```
 
@@ -66,13 +68,13 @@ Examples:
 
 ```ts
 // Capture only warnings and errors from main process
-mainProcessLogLevel: 'warn'
+mainProcessLogLevel: 'warn';
 
 // Capture debug and above from renderer (excludes trace)
-rendererLogLevel: 'debug'
+rendererLogLevel: 'debug';
 
 // Capture everything from main process
-mainProcessLogLevel: 'trace'
+mainProcessLogLevel: 'trace';
 ```
 
 ### Debugging with Logs
@@ -116,20 +118,22 @@ Set log level to `debug` or `trace` to capture detailed diagnostic information:
 ```ts
 export const config = {
   services: [
-    ['electron', {
-      captureMainProcessLogs: true,
-      mainProcessLogLevel: 'debug',  // Capture detailed logs
-      captureRendererLogs: true,
-      rendererLogLevel: 'debug'
-    }]
-  ]
+    [
+      'electron',
+      {
+        captureMainProcessLogs: true,
+        mainProcessLogLevel: 'debug', // Capture detailed logs
+        captureRendererLogs: true,
+        rendererLogLevel: 'debug',
+      },
+    ],
+  ],
 };
 ```
 
 ### Log Capture Requirements
 
 **Main Process Logs:**
-
 - Require the `EnableNodeCliInspectArguments` Electron fuse to be enabled
 - Require CDP bridge connection to main process
 - If the CDP bridge is unavailable:
@@ -139,7 +143,6 @@ export const config = {
   - See [Common Issues - CDP bridge initialization](./common-issues.md#cdp-bridge-cannot-be-initialized-enablenodecliinspectarguments-fuse-is-disabled) for troubleshooting
 
 **Renderer Process Logs:**
-
 - Use Puppeteer CDP sessions - work independently of main process CDP bridge
 - Do NOT require the `EnableNodeCliInspectArguments` fuse
 - Will continue to work even if main process CDP bridge is unavailable
@@ -150,14 +153,16 @@ export const config = {
 When using `startWdioSession()` without the WDIO test runner, logs are written to files instead of being forwarded to WDIO's logger:
 
 ```ts
-const browser = await startWdioSession([{
-  browserName: 'electron',
-  'wdio:electronServiceOptions': {
-    appBinaryPath: '/path/to/binary',
-    captureMainProcessLogs: true,
-    logDir: './test-logs'  // Required for standalone mode
-  }
-}]);
+const browser = await startWdioSession([
+  {
+    browserName: 'electron',
+    'wdio:electronServiceOptions': {
+      appBinaryPath: '/path/to/binary',
+      captureMainProcessLogs: true,
+      logDir: './test-logs', // Required for standalone mode
+    },
+  },
+]);
 ```
 
 See [Standalone Mode documentation](./standalone-mode.md#log-capture-in-standalone-mode) for details.

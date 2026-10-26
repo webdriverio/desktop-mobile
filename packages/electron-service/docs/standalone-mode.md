@@ -15,19 +15,21 @@ The method creates a new WDIO session using your configuration and returns the W
 ```TS
 import { startWdioSession } from '@wdio/electron-service';
 
-const browser = await startWdioSession([{
-  'browserName': 'electron', // you need to specify browserName
-  'browserVersion': '33.2.1',
-  'wdio:electronServiceOptions': {
-    appBinaryPath: '/path/to/binary',
+const browser = await startWdioSession([
+  {
+    browserName: 'electron', // you need to specify browserName
+    browserVersion: '33.2.1',
+    'wdio:electronServiceOptions': {
+      appBinaryPath: '/path/to/binary',
+    },
+    'goog:chromeOptions': {
+      args: ['--disable-dev-shm-usage', '--disable-gpu', '--headless'],
+    },
+    'wdio:chromedriverOptions': {
+      binary: '/path/to/chromedriver',
+    },
   },
-  'goog:chromeOptions': {
-    args: ['--disable-dev-shm-usage', '--disable-gpu', '--headless'],
-  },
-  'wdio:chromedriverOptions': {
-    binary: '/path/to/chromedriver',
-  },
-}]);
+]);
 
 const appName = await browser.electron.execute((electron) => electron.app.getName());
 ```
@@ -68,17 +70,19 @@ Standalone mode supports capturing console logs from both main and renderer proc
 ```ts
 import { startWdioSession, cleanupWdioSession } from '@wdio/electron-service';
 
-const browser = await startWdioSession([{
-  browserName: 'electron',
-  'wdio:electronServiceOptions': {
-    appBinaryPath: '/path/to/binary',
-    captureMainProcessLogs: true,
-    captureRendererLogs: true,
-    mainProcessLogLevel: 'info',
-    rendererLogLevel: 'info',
-    logDir: './test-logs'  // Required for standalone mode
-  }
-}]);
+const browser = await startWdioSession([
+  {
+    browserName: 'electron',
+    'wdio:electronServiceOptions': {
+      appBinaryPath: '/path/to/binary',
+      captureMainProcessLogs: true,
+      captureRendererLogs: true,
+      mainProcessLogLevel: 'info',
+      rendererLogLevel: 'info',
+      logDir: './test-logs', // Required for standalone mode
+    },
+  },
+]);
 
 // Execute code in the main process - logs will be captured with [Electron:MainProcess] prefix
 await browser.electron.execute((electron) => {
@@ -116,17 +120,19 @@ Logs are written to `{logDir}/wdio-{timestamp}.log`:
 Control which logs are captured by setting minimum log levels:
 
 ```ts
-const browser = await startWdioSession([{
-  browserName: 'electron',
-  'wdio:electronServiceOptions': {
-    appBinaryPath: '/path/to/binary',
-    captureMainProcessLogs: true,
-    mainProcessLogLevel: 'warn',  // Only warn and error
-    captureRendererLogs: true,
-    rendererLogLevel: 'debug',    // Debug, info, warn, and error
-    logDir: './logs'
-  }
-}]);
+const browser = await startWdioSession([
+  {
+    browserName: 'electron',
+    'wdio:electronServiceOptions': {
+      appBinaryPath: '/path/to/binary',
+      captureMainProcessLogs: true,
+      mainProcessLogLevel: 'warn', // Only warn and error
+      captureRendererLogs: true,
+      rendererLogLevel: 'debug', // Debug, info, warn, and error
+      logDir: './logs',
+    },
+  },
+]);
 ```
 
 ### Reading Logs Programmatically
@@ -137,14 +143,12 @@ import { join } from 'node:path';
 
 // After test execution
 const logDir = './test-logs';
-const logFiles = readdirSync(logDir).filter(f => f.startsWith('wdio-'));
+const logFiles = readdirSync(logDir).filter((f) => f.startsWith('wdio-'));
 const latestLog = logFiles.sort().reverse()[0];
 const logContent = readFileSync(join(logDir, latestLog), 'utf-8');
 
 // Parse or analyze logs
-const mainProcessLogs = logContent
-  .split('\n')
-  .filter(line => line.includes('[Electron:MainProcess]'));
+const mainProcessLogs = logContent.split('\n').filter((line) => line.includes('[Electron:MainProcess]'));
 ```
 
 ### Important Notes

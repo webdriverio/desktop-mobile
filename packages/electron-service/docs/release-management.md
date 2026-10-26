@@ -6,13 +6,13 @@ This document outlines how we manage releases, milestones, and issue/PR tracking
 
 The monorepo publishes several packages to npm, but GitHub release notes are only maintained for user-facing service packages:
 
-| Package | Release notes |
-|---|---|
-| `@wdio/electron-service` | Yes |
-| `@wdio/tauri-service` | Yes |
-| `@wdio/native-utils` | No — shared internal utilities |
-| `@wdio/native-spy` | No — shared internal mock implementation |
-| `@wdio/native-types` | No — shared internal type definitions |
+| Package                  | Release notes                            |
+| ------------------------ | ---------------------------------------- |
+| `@wdio/electron-service` | Yes                                      |
+| `@wdio/tauri-service`    | Yes                                      |
+| `@wdio/native-utils`     | No — shared internal utilities           |
+| `@wdio/native-spy`       | No — shared internal mock implementation |
+| `@wdio/native-types`     | No — shared internal type definitions    |
 
 The internal packages are versioned and published to npm so workspace dependency resolution works correctly, but they have no direct consumers and no user-facing changelog to maintain. GitHub release draft creation is suppressed for them via the `publish.githubRelease.skipPackages` array in `releasekit.config.json`. Tags are still created for skipped packages — this is required so that changelog range detection works correctly on the next release.
 
@@ -33,7 +33,6 @@ We use a two-tier milestone structure:
 ### Automated Milestone Creation
 
 Milestones are automatically created during the release process:
-
 - **For major releases**: Both specific major milestone (e.g., `9.0.0`) and range milestone (e.g., `9.x.y`)
 - **For minor/patch releases**: Range milestone (e.g., `8.x.y`) if it doesn't exist
 - **When a new major version is released**: Previous range milestone updated to indicate it is now a maintenance milestone
@@ -89,7 +88,6 @@ Milestones are automatically created during the release process:
 ### 4. Release Execution
 
 To trigger a release:
-
 1. Go to the Actions tab in GitHub
 2. Select either "Manual Release Publish" or "Manual Pre-Release Publish"
 3. Choose the branch, version increment type, and whether it's a dry run
@@ -98,7 +96,6 @@ To trigger a release:
 ### 5. Post-Release
 
 After a release is complete:
-
 1. Close issues and PRs that were included
 2. Review and update labels from `release:future` to `release:next` for the next batch
    - Run the interactive script: `GITHUB_TOKEN=<your-token> TRACK=<branch-type> pnpx tsx scripts/update-release-labels.ts`

@@ -88,7 +88,7 @@ describe('Tauri API Access', () => {
       (args) => {
         return { received: args.username };
       },
-      { username }
+      { username },
     );
 
     expect(result.received).toBe('test_user');
@@ -223,7 +223,7 @@ describe('Custom Tauri Commands', () => {
   it('should handle command with file paths', async () => {
     const result = await browser.tauri.execute(({ core }) => {
       return core.invoke('read_project_file', {
-        path: './src/main.rs'
+        path: './src/main.rs',
       });
     });
 
@@ -270,9 +270,7 @@ describe('Log Capture', () => {
     // Get new logs
     const newLogs = await browser.getLogs('browser');
 
-    const hasExpectedLog = newLogs.some(log =>
-      log.message.includes('Button clicked')
-    );
+    const hasExpectedLog = newLogs.some((log) => log.message.includes('Button clicked'));
     expect(hasExpectedLog).toBe(true);
   });
 
@@ -282,7 +280,7 @@ describe('Log Capture', () => {
     });
 
     const logs = await browser.getLogs('browser');
-    const debugLogs = logs.filter(log => log.level === 'DEBUG');
+    const debugLogs = logs.filter((log) => log.level === 'DEBUG');
 
     expect(debugLogs.length).toBeGreaterThan(0);
   });
@@ -393,14 +391,14 @@ describe('Multi-Window Testing', () => {
     // Use per-call windowLabel to target a specific window
     const result = await browser.tauri.execute(
       (tauri) => tauri.core.invoke('get_window_data'),
-      withExecuteOptions({ windowLabel: 'popup' })
+      withExecuteOptions({ windowLabel: 'popup' }),
     );
     expect(result).toEqual({ source: 'popup' });
   });
 
   it('should handle non-existent window gracefully', async () => {
     await expect(browser.tauri.switchWindow('nonexistent')).rejects.toThrow(
-      'Window label "nonexistent" not found. Available windows: main, settings, popup'
+      'Window label "nonexistent" not found. Available windows: main, settings, popup',
     );
   });
 });
@@ -411,12 +409,14 @@ describe('Multi-Window Testing', () => {
 ```typescript
 // wdio.conf.ts
 export const config = {
-  capabilities: [{
-    browserName: 'tauri',
-    'wdio:tauriServiceOptions': {
-      windowLabel: 'settings',  // Default to settings window
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'wdio:tauriServiceOptions': {
+        windowLabel: 'settings', // Default to settings window
+      },
     },
-  }],
+  ],
 };
 ```
 

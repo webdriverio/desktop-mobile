@@ -37,7 +37,10 @@ export const config = {
 ```json
 {
   "appBinaryPath": "/foo/bar/myOtherApp",
-  "appArgs": ["foo", "bar"]
+  "appArgs": [
+    "foo",
+    "bar"
+  ]
 }
 ```
 
@@ -57,7 +60,7 @@ The path to the Electron binary of the app for testing. In most cases the servic
 
 If you manually set the path to the Electron binary, the path will be in different formats depending on the build tool you are using, how that tool is configured, and which OS you are building the app on.
 
-**Note:** `appBinaryPath` tells the service where your app is, but not which Chromedriver to run against it — that is still derived from the `electron` dependency in your `package.json`. If your app is built elsewhere and the tests have no local Electron install, set `browserVersion` or `wdio:chromedriverOptions.binary` as well, or the run will fail with *"Could not determine the Electron version under test"*. See [Chromedriver Configuration](#chromedriver-configuration).
+**Note:** `appBinaryPath` tells the service where your app is, but not which Chromedriver to run against it — that is still derived from the `electron` dependency in your `package.json`. If your app is built elsewhere and the tests have no local Electron install, set `browserVersion` or `wdio:chromedriverOptions.binary` as well, or the run will fail with _"Could not determine the Electron version under test"_. See [Chromedriver Configuration](#chromedriver-configuration).
 
 Here are some examples of binary paths using default build configurations for a hypothetical app called `myApp` which is built in the `workspace/myApp` directory:
 
@@ -97,7 +100,6 @@ Here are some examples of binary paths using default build configurations for a 
 ```
 
 Note:
-
 - The above examples assume electron-builder's `"directories": { "output": "dist-electron" }` config (default is `"dist"`). Your actual binary path depends on your electron-builder configuration.
 - Electron Forge uses a standardised output directory which can be represented as `out/{appName}-{OS}-{arch}`
 
@@ -143,7 +145,6 @@ Controls which test execution mode the service uses.
 Type: `'native' | 'browser'`
 
 Default: `'native'`
-
 - **`'native'`** (default) — launches your packaged Electron app via Chromedriver, establishes a CDP bridge to the main process, and provides the full `browser.electron.*` API surface.
 - **`'browser'`** — skips binary detection, Chromedriver setup, and the CDP bridge entirely. The service sets `browserName` to `'chrome'` and navigates to `devServerUrl`. IPC calls are intercepted at the `window.electron.ipcRenderer` JavaScript boundary, making it suitable for fast renderer-only tests against a running dev server.
 
@@ -198,7 +199,6 @@ Default: `3`
 ### `apparmorAutoInstall`:
 
 Control automatic installation of AppArmor profiles on Linux if needed. This helps resolve Electron startup issues on Ubuntu 24.04+ and other AppArmor-enabled Linux distributions where unprivileged user namespace restrictions prevent Electron from starting.
-
 - `false` (default): Never install; warn and continue without AppArmor profile
 - `true`: Install only if running as root (no sudo)
 - `'sudo'`: Install if root or via non-interactive sudo (`sudo -n`) if available
@@ -223,11 +223,14 @@ Example:
 ```ts
 export const config = {
   services: [
-    ['electron', {
-      captureMainProcessLogs: true,
-      mainProcessLogLevel: 'info'
-    }]
-  ]
+    [
+      'electron',
+      {
+        captureMainProcessLogs: true,
+        mainProcessLogLevel: 'info',
+      },
+    ],
+  ],
 };
 ```
 
@@ -245,11 +248,14 @@ Example:
 ```ts
 export const config = {
   services: [
-    ['electron', {
-      captureRendererLogs: true,
-      rendererLogLevel: 'info'
-    }]
-  ]
+    [
+      'electron',
+      {
+        captureRendererLogs: true,
+        rendererLogLevel: 'info',
+      },
+    ],
+  ],
 };
 ```
 
@@ -267,11 +273,14 @@ Example:
 ```ts
 export const config = {
   services: [
-    ['electron', {
-      captureMainProcessLogs: true,
-      mainProcessLogLevel: 'warn' // Only capture warn and error logs
-    }]
-  ]
+    [
+      'electron',
+      {
+        captureMainProcessLogs: true,
+        mainProcessLogLevel: 'warn', // Only capture warn and error logs
+      },
+    ],
+  ],
 };
 ```
 
@@ -289,11 +298,14 @@ Example:
 ```ts
 export const config = {
   services: [
-    ['electron', {
-      captureRendererLogs: true,
-      rendererLogLevel: 'debug' // Capture debug, info, warn, and error logs
-    }]
-  ]
+    [
+      'electron',
+      {
+        captureRendererLogs: true,
+        rendererLogLevel: 'debug', // Capture debug, info, warn, and error logs
+      },
+    ],
+  ],
 };
 ```
 
@@ -311,15 +323,17 @@ Example:
 ```ts
 import { startWdioSession } from '@wdio/electron-service';
 
-const browser = await startWdioSession([{
-  browserName: 'electron',
-  'wdio:electronServiceOptions': {
-    appBinaryPath: '/path/to/binary',
-    captureMainProcessLogs: true,
-    captureRendererLogs: true,
-    logDir: './logs'  // Logs written to ./logs/wdio-{timestamp}.log
-  }
-}]);
+const browser = await startWdioSession([
+  {
+    browserName: 'electron',
+    'wdio:electronServiceOptions': {
+      appBinaryPath: '/path/to/binary',
+      captureMainProcessLogs: true,
+      captureRendererLogs: true,
+      logDir: './logs', // Logs written to ./logs/wdio-{timestamp}.log
+    },
+  },
+]);
 ```
 
 ## Log Output Format
@@ -355,20 +369,20 @@ export const config = {
         browserName: 'electron',
         'wdio:electronServiceOptions': {
           appBinaryPath: '/path/to/app1',
-          captureMainProcessLogs: true
-        }
-      }
+          captureMainProcessLogs: true,
+        },
+      },
     },
     app2: {
       capabilities: {
         browserName: 'electron',
         'wdio:electronServiceOptions': {
           appBinaryPath: '/path/to/app2',
-          captureMainProcessLogs: true
-        }
-      }
-    }
-  }
+          captureMainProcessLogs: true,
+        },
+      },
+    },
+  },
 };
 ```
 
@@ -382,13 +396,11 @@ Output:
 ## Log Capture Requirements
 
 **Main Process Logs:**
-
 - Requires the `EnableNodeCliInspectArguments` Electron fuse to be enabled
 - Requires CDP bridge connection to main process
 - If CDP bridge is unavailable (e.g., fuse disabled), main process log capture will be disabled with a warning
 
 **Renderer Process Logs:**
-
 - Uses Puppeteer CDP sessions - works independently of main process CDP bridge
 - Does NOT require the `EnableNodeCliInspectArguments` fuse
 - Will continue to work even if main process CDP bridge is unavailable
@@ -404,7 +416,6 @@ If you want to manually set this value, you can specify the [`appBinaryPath`](#a
 ### Build tool compatibility
 
 The v10 release is exercised in CI against:
-
 - **electron-builder** 26.x
 - **@electron-forge/cli** 7.x
 
@@ -437,7 +448,7 @@ Other 2.x and 7.x versions generally work because the layout of `dist-electron/`
 
 If you are not specifying a Chromedriver binary then the service will download and use the appropriate version for your app's Electron version. The Electron version of your app is determined by the version of `electron` or `electron-nightly` in your `package.json`, however you may want to override this behaviour - for instance, if the app you are testing is in a different repo from the tests. You can specify the Electron version manually by setting the `browserVersion` capability, as shown in the example configuration below:
 
-This is **required**, not merely an override, when the project running the tests has no `electron` dependency of its own — otherwise the run fails with *"Could not determine the Electron version under test"*. Setting `appBinaryPath` alone is not enough. If the version is a fork or nightly that the service cannot map to a Chromium version, use [User Managed](#user-managed) instead. See [Common Issues](./common-issues.md#could-not-determine-the-electron-version-under-test).
+This is **required**, not merely an override, when the project running the tests has no `electron` dependency of its own — otherwise the run fails with _"Could not determine the Electron version under test"_. Setting `appBinaryPath` alone is not enough. If the version is a fork or nightly that the service cannot map to a Chromium version, use [User Managed](#user-managed) instead. See [Common Issues](./common-issues.md#could-not-determine-the-electron-version-under-test).
 
 _`wdio.conf.ts`_
 
@@ -469,7 +480,7 @@ export const config = {
   services: ['electron'],
   capabilities: [
     {
-      'browserName': 'electron',
+      browserName: 'electron',
       'wdio:chromedriverOptions': {
         binary: '/Users/wdio/Downloads/chromedriver', // path to Chromedriver you just downloaded
       },

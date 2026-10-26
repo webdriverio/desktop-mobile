@@ -14,16 +14,19 @@ Log forwarding is disabled by default. Enable it via service options:
 // wdio.conf.ts
 export const config = {
   services: [
-    ['@wdio/tauri-service', {
-      // Enable backend log capture (Rust logs from stdout)
-      captureBackendLogs: true,
-      // Enable frontend log capture (console logs from webview)
-      captureFrontendLogs: true,
-      // Minimum log level for backend logs (default: 'info')
-      backendLogLevel: 'info',
-      // Minimum log level for frontend logs (default: 'info')
-      frontendLogLevel: 'info',
-    }],
+    [
+      '@wdio/tauri-service',
+      {
+        // Enable backend log capture (Rust logs from stdout)
+        captureBackendLogs: true,
+        // Enable frontend log capture (console logs from webview)
+        captureFrontendLogs: true,
+        // Minimum log level for backend logs (default: 'info')
+        backendLogLevel: 'info',
+        // Minimum log level for frontend logs (default: 'info')
+        frontendLogLevel: 'info',
+      },
+    ],
   ],
   capabilities: [
     {
@@ -39,7 +42,6 @@ export const config = {
 ## Log Levels
 
 Both backend and frontend log capture support the following log levels (in order of priority):
-
 - `trace` - Most verbose
 - `debug` - Debug information
 - `info` - Informational messages (default)
@@ -51,7 +53,6 @@ Only logs at the configured level and above will be captured. For example, with 
 ## Log Format
 
 Captured logs are formatted with context tags:
-
 - Backend logs: `[Tauri:Backend] message`
 - Frontend logs: `[Tauri:Frontend] message`
 - Multiremote logs: `[Tauri:Backend:instanceId] message` or `[Tauri:Frontend:instanceId] message`

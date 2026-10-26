@@ -30,7 +30,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       # The smoke imports the built dist of @wdio/native-mobile-core.
       - name: 🏗️ Build @wdio/native-mobile-core

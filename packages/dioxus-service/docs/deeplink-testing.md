@@ -11,7 +11,6 @@ Deeplink testing allows you to verify that your Dioxus application correctly han
 ### When Should You Use It?
 
 Use `browser.dioxus.triggerDeeplink()` when you need to:
-
 - Test that your app correctly handles custom protocol URLs
 - Verify deeplink parameter parsing and routing logic
 - Test protocol handler registration and activation
@@ -32,15 +31,18 @@ describe('Protocol Handler Tests', () => {
   it('should handle custom protocol deeplinks', async () => {
     await browser.dioxus.triggerDeeplink('myapp://open?file=test.txt');
 
-    await browser.waitUntil(async () => {
-      const openedFile = await browser.dioxus.execute(() => {
-        return globalThis.lastOpenedFile;
-      });
-      return openedFile === 'test.txt';
-    }, {
-      timeout: 5000,
-      timeoutMsg: 'App did not handle the deeplink',
-    });
+    await browser.waitUntil(
+      async () => {
+        const openedFile = await browser.dioxus.execute(() => {
+          return globalThis.lastOpenedFile;
+        });
+        return openedFile === 'test.txt';
+      },
+      {
+        timeout: 5000,
+        timeoutMsg: 'App did not handle the deeplink',
+      },
+    );
   });
 });
 ```
@@ -49,9 +51,7 @@ describe('Protocol Handler Tests', () => {
 
 ```typescript
 it('should preserve query parameters', async () => {
-  await browser.dioxus.triggerDeeplink(
-    'myapp://action?param1=value1&param2=value2'
-  );
+  await browser.dioxus.triggerDeeplink('myapp://action?param1=value1&param2=value2');
 
   const receivedParams = await browser.dioxus.execute(() => {
     return globalThis.lastDeeplinkParams;
@@ -66,9 +66,7 @@ it('should preserve query parameters', async () => {
 
 ```typescript
 it('should reject invalid protocols', async () => {
-  await expect(
-    browser.dioxus.triggerDeeplink('https://example.com')
-  ).rejects.toThrow('Invalid deeplink protocol');
+  await expect(browser.dioxus.triggerDeeplink('https://example.com')).rejects.toThrow('Invalid deeplink protocol');
 });
 ```
 
@@ -119,7 +117,6 @@ Store deeplink data in a globally accessible location so tests can read it via `
 **Symptom:** The deeplink is triggered but your app doesn't receive it.
 
 **Possible Causes:**
-
 1. **Protocol not registered** — verify your app is registered as the handler for the scheme.
 2. **Listener not set up before trigger** — ensure your deeplink listener is active before calling `triggerDeeplink()`.
 3. **Timing** — the OS may take a moment to route the deeplink to your running app.
@@ -131,15 +128,18 @@ Store deeplink data in a globally accessible location so tests can read it via `
 ```typescript
 await browser.dioxus.triggerDeeplink('myapp://action');
 
-await browser.waitUntil(async () => {
-  const processed = await browser.dioxus.execute(() => {
-    return globalThis.deeplinkProcessed;
-  });
-  return processed === true;
-}, {
-  timeout: 5000,
-  timeoutMsg: 'App did not process the deeplink within 5 seconds',
-});
+await browser.waitUntil(
+  async () => {
+    const processed = await browser.dioxus.execute(() => {
+      return globalThis.deeplinkProcessed;
+    });
+    return processed === true;
+  },
+  {
+    timeout: 5000,
+    timeoutMsg: 'App did not process the deeplink within 5 seconds',
+  },
+);
 ```
 
 ### Invalid Protocol Error

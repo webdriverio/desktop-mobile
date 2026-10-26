@@ -10,37 +10,37 @@ on:
     # https://docs.github.com/en/actions/using-workflows/reusing-workflows
     inputs:
       os:
-        description: 'Operating system to run tests on'
+        description: "Operating system to run tests on"
         type: string
         required: true
       service:
-        description: 'Service to test (electron, tauri, dioxus, electrobun, or all)'
+        description: "Service to test (electron, tauri, dioxus, electrobun, or all)"
         type: string
         required: false
-        default: 'all'
+        default: "all"
       module-type:
-        description: 'Module type for Electron package tests (cjs, esm, or both)'
+        description: "Module type for Electron package tests (cjs, esm, or both)"
         type: string
         required: false
-        default: 'both'
+        default: "both"
       build_id:
-        description: 'Build ID from the build job'
+        description: "Build ID from the build job"
         type: string
         required: false
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         type: string
         required: false
       cache_key:
-        description: 'Cache key to use for downloading artifacts'
+        description: "Cache key to use for downloading artifacts"
         type: string
         required: false
       tauri_cache_key:
-        description: 'Cache key for Tauri package test app binaries'
+        description: "Cache key for Tauri package test app binaries"
         type: string
         required: false
       dioxus_cache_key:
-        description: 'Cache key for Dioxus package test app binaries'
+        description: "Cache key for Dioxus package test app binaries"
         type: string
         required: false
 
@@ -69,7 +69,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       # Install Rust toolchain for auto-installing tauri-driver if testing Tauri service
       # The @wdio/tauri-service will automatically install tauri-driver via cargo if not found
@@ -280,9 +280,9 @@ jobs:
         shell: bash
         env:
           # Enable Rust backtraces for debugging Tauri/GTK issues
-          RUST_BACKTRACE: '1'
+          RUST_BACKTRACE: "1"
           # Disable AT-SPI accessibility bus warnings (same as E2E)
-          NO_AT_BRIDGE: '1'
+          NO_AT_BRIDGE: "1"
           SERVICE: ${{ inputs.service }}
         run: |
           case "$SERVICE" in
@@ -364,4 +364,4 @@ jobs:
         uses: goosewobbler/vscode-server-action@v1.5.0
         if: failure()
         with:
-          timeout: '180000'
+          timeout: "180000"

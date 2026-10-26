@@ -5,12 +5,14 @@ A basic Tauri application for WebDriverIO testing. This app demonstrates core Ta
 ## Features
 
 ### Frontend
+
 - Simple counter application with increment, decrement, and reset functionality
 - Modern UI with gradient background and smooth animations
 - Status display showing application state
 - Tauri API availability detection
 
 ### Backend (Rust)
+
 - Window management commands (bounds, minimize, maximize, close)
 - Screenshot capture functionality
 - File system operations (read, write, delete)
@@ -21,6 +23,7 @@ A basic Tauri application for WebDriverIO testing. This app demonstrates core Ta
 ## Commands
 
 ### Development
+
 ```bash
 # Install dependencies
 pnpm install
@@ -36,6 +39,7 @@ pnpm build:debug
 ```
 
 ### Testing
+
 ```bash
 # Run WebDriverIO tests
 pnpm test
@@ -44,12 +48,14 @@ pnpm test
 ## Test Structure
 
 ### Basic Functionality Tests (`test/basic.spec.ts`)
+
 - Application loading and UI elements
 - Counter increment/decrement/reset
 - Status updates
 - User interactions
 
 ### Tauri Commands Tests (`test/tauri-commands.spec.ts`)
+
 - Window management (bounds, minimize, maximize)
 - Screenshot capture
 - File operations
@@ -59,12 +65,14 @@ pnpm test
 ## Configuration
 
 ### WebDriverIO Configuration (`wdio.conf.ts`)
+
 - Uses `@wdio/tauri-service` for Tauri-specific functionality
 - Connects to `tauri-driver` on port 4444
 - Configurable app binary path via environment variables
 - Debug mode support
 
 ### Tauri Configuration (`src-tauri/tauri.conf.json`)
+
 - Enables all necessary Tauri features
 - Configures `tauri-driver` for WebDriver testing
 - Sets up window properties and security settings
@@ -77,9 +85,11 @@ pnpm test
 ## Dependencies
 
 ### Frontend
+
 - `@tauri-apps/api`: Tauri frontend API
 
 ### Backend (Rust)
+
 - `tauri`: Core Tauri framework
 - `serde`: Serialization
 - `screenshot-rs`: Screenshot capture
@@ -87,6 +97,7 @@ pnpm test
 - `clipboard`: Clipboard operations
 
 ### Testing
+
 - `@wdio/tauri-service`: WebDriverIO Tauri service
 - `@wdio/cli`: WebDriverIO CLI
 - `@wdio/local-runner`: Local test runner
@@ -96,7 +107,6 @@ pnpm test
 ## Usage in CI/CD
 
 This app is designed to be used as a test fixture in CI/CD pipelines:
-
 1. **Build the app**: `pnpm build`
 2. **Set binary path**: `export TAURI_APP_BINARY_PATH=/path/to/built/app`
 3. **Run tests**: `pnpm test`

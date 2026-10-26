@@ -61,7 +61,7 @@ const flutterOptions: FlutterServiceOptions = {
 
 export const config = {
   services: [
-    'appium',                       // starts the local Appium server
+    'appium', // starts the local Appium server
     ['flutter', { ...flutterOptions }],
   ],
   capabilities: [
@@ -117,7 +117,6 @@ void main() {
 ```
 
 Build a debug app:
-
 - **Android**: `flutter build apk --debug`
 - **iOS** (simulator): `flutter build ios --debug --simulator`
 
@@ -128,23 +127,23 @@ Native find/tap via appium-flutter-driver works with any debug/profile build.
 All standard [Appium capabilities](https://appium.io/docs/en/latest/guides/caps/) are supported.
 The service adds `wdio:flutterServiceOptions`:
 
-| Capability | Type | Description |
-|---|---|---|
-| `platformName` | `'Android' \| 'iOS'` | Target platform (required) |
-| `appium:automationName` | `'Flutter'` | appium-flutter-driver, both platforms |
-| `appium:deviceName` | `string` | Device name or emulator AVD name |
-| `appium:udid` | `string` | Device serial (Android) or UDID (iOS) |
-| `appium:app` | `string` | Path to the built `.apk` / `.app` |
-| `appium:dartVmServicePort` | `number` | Pin the VM Service port → skips the (up to 60s) log scrape (CI-robust) |
-| `wdio:flutterServiceOptions` | `FlutterServiceOptions` | Service options |
+| Capability                   | Type                    | Description                                                            |
+| ---------------------------- | ----------------------- | ---------------------------------------------------------------------- |
+| `platformName`               | `'Android' \| 'iOS'`    | Target platform (required)                                             |
+| `appium:automationName`      | `'Flutter'`             | appium-flutter-driver, both platforms                                  |
+| `appium:deviceName`          | `string`                | Device name or emulator AVD name                                       |
+| `appium:udid`                | `string`                | Device serial (Android) or UDID (iOS)                                  |
+| `appium:app`                 | `string`                | Path to the built `.apk` / `.app`                                      |
+| `appium:dartVmServicePort`   | `number`                | Pin the VM Service port → skips the (up to 60s) log scrape (CI-robust) |
+| `wdio:flutterServiceOptions` | `FlutterServiceOptions` | Service options                                                        |
 
 ## Service options (`FlutterServiceOptions`)
 
 ```ts
 interface FlutterServiceOptions {
   // Dart VM Service connection
-  vmServiceHost?: string;       // default: 'localhost'
-  vmServicePort?: number;       // pin the port (skips the log scrape); also via appium:dartVmServicePort
+  vmServiceHost?: string; // default: 'localhost'
+  vmServicePort?: number; // pin the port (skips the log scrape); also via appium:dartVmServicePort
 
   // Convenience — maps onto appium:app if not already set in the capability
   appBinaryPath?: string;
@@ -156,13 +155,13 @@ interface FlutterServiceOptions {
   captureBackendLogs?: boolean; // forward logcat (Android) / syslog (iOS) to the WDIO output
 
   // Setup automation (see "Zero-config setup automation" below)
-  autoInstallDriver?: boolean;  // install the flutter Appium driver if missing (default: false)
+  autoInstallDriver?: boolean; // install the flutter Appium driver if missing (default: false)
   doctor?: boolean | { strict?: boolean }; // preflight checks (default: true; { strict: true } aborts on error)
 
   // Mock lifecycle (run before each test)
-  clearMocks?: boolean;         // clear mock call history
-  resetMocks?: boolean;         // clear value + call history
-  restoreMocks?: boolean;       // remove the mock entirely
+  clearMocks?: boolean; // clear mock call history
+  resetMocks?: boolean; // clear value + call history
+  restoreMocks?: boolean; // remove the mock entirely
 }
 ```
 
@@ -191,11 +190,11 @@ need (see [Installation](#installation)); the doctor warns when an older driver 
 `doctor` runs fail-fast preflight validation in `onPrepare` so a misconfiguration surfaces
 as a clear message instead of a cryptic Appium timeout:
 
-| `doctor` | Behaviour |
-|---|---|
-| `false` | Skip all checks. |
-| `true` *(default)*, or omitted | Run the checks; log actionable warnings; never abort. |
-| `{ strict: true }` | Run the checks; abort the run (`SevereServiceError`) on any error-level check. |
+| `doctor`                       | Behaviour                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| `false`                        | Skip all checks.                                                               |
+| `true` _(default)_, or omitted | Run the checks; log actionable warnings; never abort.                          |
+| `{ strict: true }`             | Run the checks; abort the run (`SevereServiceError`) on any error-level check. |
 
 For Flutter it checks: `@wdio/appium-service` is in `services`, `flutter` is on PATH, the
 installed `appium-flutter-driver` is ≥ 3.8.0 (Android only), and (iOS) the Xcode toolchain is warm.
@@ -246,7 +245,7 @@ Returns a Vitest/Jest-compatible mock instance.
 const fn = await browser.flutter.mock('Analytics.track');
 await fn.mockReturnValue(null);
 // ... run the test ...
-await fn.update();            // sync call data from the app into fn.mock.calls
+await fn.update(); // sync call data from the app into fn.mock.calls
 expect(fn.mock.calls).toHaveLength(1);
 await browser.flutter.restoreAllMocks();
 ```
@@ -299,7 +298,7 @@ Flutter paints its own widgets, so prefer the Flutter finders (they run in the `
 auto-switched):
 
 ```ts
-await browser.flutter.byValueKey('increment').tap();           // const ValueKey('increment')
+await browser.flutter.byValueKey('increment').tap(); // const ValueKey('increment')
 const text = await browser.flutter.byText('Submit').getText();
 ```
 
@@ -320,9 +319,12 @@ const config = {
   maxInstances: 2,
   services: [
     'appium',
-    ['flutter', {
-      devices: [{ avd: 'Pixel_8_API_35' }, { avd: 'Pixel_7_API_35' }],
-    }],
+    [
+      'flutter',
+      {
+        devices: [{ avd: 'Pixel_8_API_35' }, { avd: 'Pixel_7_API_35' }],
+      },
+    ],
   ],
 };
 ```
@@ -332,7 +334,7 @@ single-device run.
 
 > **Multiremote** — one session driving several devices at once (a capabilities object plus
 > `multiRemoteBrowser.getInstance(...)`) — is **not yet supported**: the `devices` pool gives each
-> *worker* one device, not each *instance*. Tracked in
+> _worker_ one device, not each _instance_. Tracked in
 > [webdriverio/desktop-mobile#446](https://github.com/webdriverio/desktop-mobile/issues/446).
 
 ## Standalone / session mode
@@ -356,21 +358,21 @@ try {
 
 ## Known limitations
 
-| Area | Status |
-|---|---|
-| `execute` (handler-based) | ✅ supported — **debug / profile build only** (VM Service) |
-| `mock` (cooperative contract) | ✅ supported — app opts in via [`wdio_flutter`](../flutter-bridge) |
-| Android | ✅ full support |
-| iOS | ✅ full support |
-| find/tap (`byValueKey` / `byText`) | ✅ via appium-flutter-driver |
-| parallel workers | ✅ N workers → N devices via the `devices` pool |
-| multiremote (one session, N devices) | ❌ not yet — [#446](https://github.com/webdriverio/desktop-mobile/issues/446) |
-| context switching (`NATIVE_APP` ↔ `FLUTTER`) | ✅ |
-| deeplink | ✅ via `mobile: deepLink` |
-| log capture | ✅ logcat / syslog |
-| `emitEvent` | ✅ via the `wdio_flutter` event bus |
-| `mockImplementation` | ❌ Dart can't run a serialised JS closure — use `mockReturnValue` etc. |
-| Release build `execute` / `mock` | ❌ the VM Service is not exposed in release builds |
+| Area                                         | Status                                                                        |
+| -------------------------------------------- | ----------------------------------------------------------------------------- |
+| `execute` (handler-based)                    | ✅ supported — **debug / profile build only** (VM Service)                    |
+| `mock` (cooperative contract)                | ✅ supported — app opts in via [`wdio_flutter`](../flutter-bridge)            |
+| Android                                      | ✅ full support                                                               |
+| iOS                                          | ✅ full support                                                               |
+| find/tap (`byValueKey` / `byText`)           | ✅ via appium-flutter-driver                                                  |
+| parallel workers                             | ✅ N workers → N devices via the `devices` pool                               |
+| multiremote (one session, N devices)         | ❌ not yet — [#446](https://github.com/webdriverio/desktop-mobile/issues/446) |
+| context switching (`NATIVE_APP` ↔ `FLUTTER`) | ✅                                                                            |
+| deeplink                                     | ✅ via `mobile: deepLink`                                                     |
+| log capture                                  | ✅ logcat / syslog                                                            |
+| `emitEvent`                                  | ✅ via the `wdio_flutter` event bus                                           |
+| `mockImplementation`                         | ❌ Dart can't run a serialised JS closure — use `mockReturnValue` etc.        |
+| Release build `execute` / `mock`             | ❌ the VM Service is not exposed in release builds                            |
 
 ## License
 

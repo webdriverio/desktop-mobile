@@ -10,21 +10,21 @@ on:
     # https://docs.github.com/en/actions/using-workflows/reusing-workflows
     inputs:
       os:
-        description: 'OS of runner'
-        default: 'ubuntu-latest'
+        description: "OS of runner"
+        default: "ubuntu-latest"
         type: string
     outputs:
       build_id:
-        description: 'Unique identifier for this build'
+        description: "Unique identifier for this build"
         value: ${{ jobs.build.outputs.build_id }}
       build_date:
-        description: 'Timestamp when the build completed'
+        description: "Timestamp when the build completed"
         value: ${{ jobs.build.outputs.build_date }}
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         value: ${{ jobs.build.outputs.artifact_size }}
       cache_key:
-        description: 'Cache key used for artifact uploads, can be passed to download actions'
+        description: "Cache key used for artifact uploads, can be passed to download actions"
         value: ${{ jobs.build.outputs.cache_key }}
 
 env:
@@ -56,7 +56,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       # Generate build information for tracking
       - name: 📊 Generate Build Information
@@ -96,4 +96,4 @@ jobs:
           output: wdio-desktop-mobile-build/artifact.zip
           paths: packages/*/dist packages/*/dist-js
           cache_key_prefix: wdio-desktop-build
-          retention_days: '90'
+          retention_days: "90"

@@ -66,20 +66,20 @@ createElectronCapabilities(options: ElectronServiceOptions): ElectronStandaloneC
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type                     | Description                                                                |
+| --------- | ------------------------ | -------------------------------------------------------------------------- |
 | `options` | `ElectronServiceOptions` | Service options. Must include at least `appBinaryPath` or `appEntryPoint`. |
 
 Common fields:
 
-| Field | Type | Description |
-|-------|------|-------------|
-| `appBinaryPath` | `string` | Path to the compiled Electron app binary |
-| `appEntryPoint` | `string` | Path to the unpackaged app entry point (e.g., `main.js`) |
-| `appArgs` | `string[]` | Command-line arguments passed to the app |
-| `captureMainProcessLogs` | `boolean` | Enable main process log capture |
-| `captureRendererLogs` | `boolean` | Enable renderer process log capture |
-| `logDir` | `string` | Directory for standalone mode logs |
+| Field                    | Type       | Description                                              |
+| ------------------------ | ---------- | -------------------------------------------------------- |
+| `appBinaryPath`          | `string`   | Path to the compiled Electron app binary                 |
+| `appEntryPoint`          | `string`   | Path to the unpackaged app entry point (e.g., `main.js`) |
+| `appArgs`                | `string[]` | Command-line arguments passed to the app                 |
+| `captureMainProcessLogs` | `boolean`  | Enable main process log capture                          |
+| `captureRendererLogs`    | `boolean`  | Enable renderer process log capture                      |
+| `logDir`                 | `string`   | Directory for standalone mode logs                       |
 
 See [Configuration](./configuration.md) for the full list of `ElectronServiceOptions` fields.
 
@@ -89,8 +89,8 @@ See [Configuration](./configuration.md) for the full list of `ElectronServiceOpt
 
 **Throws:**
 
-| Error | Condition |
-|-------|-----------|
+| Error   | Condition                                                  |
+| ------- | ---------------------------------------------------------- |
 | `Error` | If neither `appBinaryPath` nor `appEntryPoint` is provided |
 
 **Example:**
@@ -127,9 +127,9 @@ getElectronBinaryPath(appDir: string): Promise<string>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `appDir` | `string` | Path to the Electron app directory (must contain a `package.json`) |
+| Parameter | Type     | Description                                                        |
+| --------- | -------- | ------------------------------------------------------------------ |
+| `appDir`  | `string` | Path to the Electron app directory (must contain a `package.json`) |
 
 **Returns:**
 
@@ -137,10 +137,10 @@ getElectronBinaryPath(appDir: string): Promise<string>
 
 **Throws:**
 
-| Error | Condition |
-|-------|-----------|
+| Error   | Condition                                 |
+| ------- | ----------------------------------------- |
 | `Error` | If no `package.json` is found in `appDir` |
-| `Error` | If the binary path cannot be resolved |
+| `Error` | If the binary path cannot be resolved     |
 
 **Example:**
 
@@ -173,10 +173,10 @@ startWdioSession(
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `capabilities` | `ElectronServiceCapabilities` | An array of standalone capability objects (typically one, built with [`createElectronCapabilities()`](#createelectroncapabilities)), or a multiremote capabilities object. |
-| `globalOptions` | `ElectronServiceGlobalOptions` | Optional. Service-level options applied to all capabilities (e.g., `rootDir`). |
+| Parameter       | Type                           | Description                                                                                                                                                                |
+| --------------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `capabilities`  | `ElectronServiceCapabilities`  | An array of standalone capability objects (typically one, built with [`createElectronCapabilities()`](#createelectroncapabilities)), or a multiremote capabilities object. |
+| `globalOptions` | `ElectronServiceGlobalOptions` | Optional. Service-level options applied to all capabilities (e.g., `rootDir`).                                                                                             |
 
 **Returns:**
 
@@ -222,8 +222,8 @@ cleanupWdioSession(browser: WebdriverIO.Browser): Promise<void>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type                  | Description                                              |
+| --------- | --------------------- | -------------------------------------------------------- |
 | `browser` | `WebdriverIO.Browser` | The browser instance returned from `startWdioSession()`. |
 
 **Returns:**
@@ -252,10 +252,10 @@ browser.electron.execute<T>(
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `script` | `(electron, ...args) => T \| Promise<T>` | Function to execute in main process. First arg is always the `electron` module. |
-| `...args` | `any[]` | Additional arguments passed to the script function |
+| Parameter | Type                                     | Description                                                                     |
+| --------- | ---------------------------------------- | ------------------------------------------------------------------------------- |
+| `script`  | `(electron, ...args) => T \| Promise<T>` | Function to execute in main process. First arg is always the `electron` module. |
+| `...args` | `any[]`                                  | Additional arguments passed to the script function                              |
 
 **Returns:**
 
@@ -275,7 +275,7 @@ const result = await browser.electron.execute(
     return param1 + param2;
   },
   5,
-  10
+  10,
 );
 
 // With async code
@@ -304,9 +304,9 @@ browser.electron.triggerDeeplink(url: string): Promise<void>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `url` | `string` | The deeplink URL to trigger (e.g., `'myapp://open?path=/test'`). Must use a custom protocol scheme (not http/https/file). |
+| Parameter | Type     | Description                                                                                                               |
+| --------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `url`     | `string` | The deeplink URL to trigger (e.g., `'myapp://open?path=/test'`). Must use a custom protocol scheme (not http/https/file). |
 
 **Returns:**
 
@@ -314,13 +314,13 @@ browser.electron.triggerDeeplink(url: string): Promise<void>
 
 **Throws:**
 
-| Error | Condition |
-|-------|-----------|
+| Error   | Condition                                                 |
+| ------- | --------------------------------------------------------- |
 | `Error` | If `appBinaryPath` is not configured (Windows/Linux only) |
-| `Error` | If the URL is invalid or malformed |
-| `Error` | If the URL uses http/https/file protocols |
-| `Error` | If the platform is unsupported |
-| `Error` | If the command to trigger the deeplink fails |
+| `Error` | If the URL is invalid or malformed                        |
+| `Error` | If the URL uses http/https/file protocols                 |
+| `Error` | If the platform is unsupported                            |
+| `Error` | If the command to trigger the deeplink fails              |
 
 **Example:**
 
@@ -335,20 +335,22 @@ await browser.electron.triggerDeeplink('myapp://action?id=123&type=user&tags[]=a
 it('should handle deeplinks', async () => {
   await browser.electron.triggerDeeplink('myapp://navigate?to=/settings');
 
-  await browser.waitUntil(async () => {
-    const currentPath = await browser.electron.execute(() => {
-      return globalThis.currentPath;
-    });
-    return currentPath === '/settings';
-  }, {
-    timeout: 5000,
-    timeoutMsg: 'App did not process the deeplink'
-  });
+  await browser.waitUntil(
+    async () => {
+      const currentPath = await browser.electron.execute(() => {
+        return globalThis.currentPath;
+      });
+      return currentPath === '/settings';
+    },
+    {
+      timeout: 5000,
+      timeoutMsg: 'App did not process the deeplink',
+    },
+  );
 });
 ```
 
 **Platform-Specific Behavior:**
-
 - **Windows**: Cannot use `appEntryPoint` (must use packaged binary). Automatically appends `userData` parameter to URL.
 - **macOS**: Works with both packaged binaries and script-based apps. No URL modification.
 - **Linux**: Cannot use `appEntryPoint` (must use packaged binary). Automatically appends `userData` parameter to URL.
@@ -379,10 +381,10 @@ browser.electron.mock(className: string): Promise<ElectronClassMock>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `apiName` | `string` | The Electron API module name (e.g., `'dialog'`, `'app'`, `'clipboard'`) or class name (e.g., `'Tray'`, `'BrowserWindow'`) |
-| `funcName` | `string` | **Optional.** The function name to mock (e.g., `'showOpenDialog'`, `'getName'`). If omitted, mocks the entire class. |
+| Parameter  | Type     | Description                                                                                                               |
+| ---------- | -------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `apiName`  | `string` | The Electron API module name (e.g., `'dialog'`, `'app'`, `'clipboard'`) or class name (e.g., `'Tray'`, `'BrowserWindow'`) |
+| `funcName` | `string` | **Optional.** The function name to mock (e.g., `'showOpenDialog'`, `'getName'`). If omitted, mocks the entire class.      |
 
 **Returns:**
 
@@ -451,8 +453,8 @@ browser.electron.mockAll(apiName: string): Promise<Record<string, ElectronMock>>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type     | Description                                              |
+| --------- | -------- | -------------------------------------------------------- |
 | `apiName` | `string` | The Electron API module name (e.g., `'dialog'`, `'app'`) |
 
 **Returns:**
@@ -485,8 +487,8 @@ browser.electron.clearAllMocks(apiName?: string): Promise<void>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type     | Description                                                   |
+| --------- | -------- | ------------------------------------------------------------- |
 | `apiName` | `string` | Optional. If provided, only clears mocks of this specific API |
 
 **Returns:**
@@ -527,8 +529,8 @@ browser.electron.resetAllMocks(apiName?: string): Promise<void>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type     | Description                                                   |
+| --------- | -------- | ------------------------------------------------------------- |
 | `apiName` | `string` | Optional. If provided, only resets mocks of this specific API |
 
 **Returns:**
@@ -564,8 +566,8 @@ browser.electron.restoreAllMocks(apiName?: string): Promise<void>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
+| Parameter | Type     | Description                                                     |
+| --------- | -------- | --------------------------------------------------------------- |
 | `apiName` | `string` | Optional. If provided, only restores mocks of this specific API |
 
 **Returns:**
@@ -601,9 +603,9 @@ browser.electron.isMockFunction(fn: any): fn is ElectronMock
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `fn` | `any` | The value to check |
+| Parameter | Type  | Description        |
+| --------- | ----- | ------------------ |
+| `fn`      | `any` | The value to check |
 
 **Returns:**
 
@@ -635,9 +637,9 @@ mockImplementation(fn: (...args: any[]) => any): Promise<ElectronFunctionMock>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `fn` | `(...args: any[]) => any` | Function to use as mock implementation |
+| Parameter | Type                      | Description                            |
+| --------- | ------------------------- | -------------------------------------- |
+| `fn`      | `(...args: any[]) => any` | Function to use as mock implementation |
 
 **Returns:**
 
@@ -673,9 +675,9 @@ mockImplementationOnce(fn: (...args: any[]) => any): Promise<ElectronFunctionMoc
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `fn` | `(...args: any[]) => any` | Function to use for the next call |
+| Parameter | Type                      | Description                       |
+| --------- | ------------------------- | --------------------------------- |
+| `fn`      | `(...args: any[]) => any` | Function to use for the next call |
 
 **Returns:**
 
@@ -709,9 +711,9 @@ mockReturnValue(value: any): Promise<ElectronFunctionMock>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `value` | `any` | Value to return from the mock |
+| Parameter | Type  | Description                   |
+| --------- | ----- | ----------------------------- |
+| `value`   | `any` | Value to return from the mock |
 
 **Returns:**
 
@@ -740,9 +742,9 @@ mockReturnValueOnce(value: any): Promise<ElectronFunctionMock>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `value` | `any` | Value to return for the next call |
+| Parameter | Type  | Description                       |
+| --------- | ----- | --------------------------------- |
+| `value`   | `any` | Value to return for the next call |
 
 **Returns:**
 
@@ -776,9 +778,9 @@ mockResolvedValue(value: any): Promise<ElectronFunctionMock>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `value` | `any` | Value to resolve from the mock |
+| Parameter | Type  | Description                    |
+| --------- | ----- | ------------------------------ |
+| `value`   | `any` | Value to resolve from the mock |
 
 **Returns:**
 
@@ -808,9 +810,9 @@ mockResolvedValueOnce(value: any): Promise<ElectronFunctionMock>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `value` | `any` | Value to resolve for the next call |
+| Parameter | Type  | Description                        |
+| --------- | ----- | ---------------------------------- |
+| `value`   | `any` | Value to resolve for the next call |
 
 **Returns:**
 
@@ -846,9 +848,9 @@ mockRejectedValue(value: any): Promise<ElectronFunctionMock>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `value` | `any` | Value to reject from the mock |
+| Parameter | Type  | Description                   |
+| --------- | ----- | ----------------------------- |
+| `value`   | `any` | Value to reject from the mock |
 
 **Returns:**
 
@@ -884,9 +886,9 @@ mockRejectedValueOnce(value: any): Promise<ElectronFunctionMock>
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `value` | `any` | Value to reject for the next call |
+| Parameter | Type  | Description                       |
+| --------- | ----- | --------------------------------- |
+| `value`   | `any` | Value to reject for the next call |
 
 **Returns:**
 
@@ -1018,10 +1020,10 @@ withImplementation(
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `implementation` | `(...args: any[]) => any` | Temporary implementation to use |
-| `callback` | `(electron) => any` | Callback function to execute with temporary implementation |
+| Parameter        | Type                      | Description                                                |
+| ---------------- | ------------------------- | ---------------------------------------------------------- |
+| `implementation` | `(...args: any[]) => any` | Temporary implementation to use                            |
+| `callback`       | `(electron) => any`       | Callback function to execute with temporary implementation |
 
 **Returns:**
 
@@ -1109,9 +1111,9 @@ mockName(name: string): ElectronFunctionMock
 
 **Parameters:**
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `name` | `string` | Name to assign to the mock |
+| Parameter | Type     | Description                |
+| --------- | -------- | -------------------------- |
+| `name`    | `string` | Name to assign to the mock |
 
 **Returns:**
 
@@ -1169,7 +1171,7 @@ An array containing all arguments for each call. Each item of the array is the a
 
 **Type:**
 ```ts
-Array<Array<any>>
+Array<Array<any>>;
 ```
 
 **Example:**
@@ -1194,7 +1196,7 @@ Contains the arguments of the last call. Returns `undefined` if the mock wasn't 
 
 **Type:**
 ```ts
-Array<any> | undefined
+Array<any> | undefined;
 ```
 
 **Example:**
@@ -1218,7 +1220,7 @@ An array containing all values that were returned from the mock. Each item is an
 
 **Type:**
 ```ts
-Array<{ type: 'return' | 'throw', value: any }>
+Array<{ type: 'return' | 'throw'; value: any }>;
 ```
 
 Available types:
@@ -1260,7 +1262,7 @@ The order of mock invocation. Returns an array of numbers that are shared betwee
 
 **Type:**
 ```ts
-Array<number>
+Array<number>;
 ```
 
 **Example:**
@@ -1291,7 +1293,7 @@ An [ElectronFunctionMock](#mock-object-methods) object that tracks calls to the 
 
 **Type:**
 ```ts
-ElectronFunctionMock
+ElectronFunctionMock;
 ```
 
 **Example:**
@@ -1306,10 +1308,7 @@ await browser.electron.execute((electron) => {
 });
 
 expect(mockTray.__constructor).toHaveBeenCalledTimes(2);
-expect(mockTray.__constructor.mock.calls).toStrictEqual([
-  ['/path/to/icon.png'],
-  ['/path/to/other-icon.png'],
-]);
+expect(mockTray.__constructor.mock.calls).toStrictEqual([['/path/to/icon.png'], ['/path/to/other-icon.png']]);
 ```
 
 #### `[methodName]`
@@ -1318,7 +1317,7 @@ All instance methods of the class are available as [ElectronFunctionMock](#mock-
 
 **Type:**
 ```ts
-ElectronFunctionMock
+ElectronFunctionMock;
 ```
 
 **Example:**

@@ -84,9 +84,9 @@ void main() {
 
 ```js
 // test — args are JSON-serialised, the result is returned as-is
-await browser.flutter.execute('readCounter');     // → 0
-await browser.flutter.execute('add', 2, 3);       // → 5
-await browser.flutter.execute('loadUser', 'u1');  // awaits the Future
+await browser.flutter.execute('readCounter'); // → 0
+await browser.flutter.execute('add', 2, 3); // → 5
+await browser.flutter.execute('loadUser', 'u1'); // awaits the Future
 ```
 
 `execute` is **handler-only**: an unknown name throws an error listing the registered handlers. It

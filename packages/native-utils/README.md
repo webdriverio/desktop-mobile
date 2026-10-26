@@ -9,6 +9,7 @@ This package provides essential utilities for WebdriverIO Native Desktop Service
 ## Features
 
 ### Configuration Management
+
 Read and parse configuration files (JSON, YAML, TOML) with support for environment variable substitution.
 
 ```typescript
@@ -19,15 +20,11 @@ const config = await readConfig('./config.json');
 ```
 
 ### Diagnostics
+
 Comprehensive diagnostic utilities for troubleshooting desktop application issues.
 
 ```typescript
-import {
-  diagnoseBinary,
-  diagnosePlatform,
-  diagnoseDisplay,
-  formatDiagnosticResults
-} from '@wdio/native-utils';
+import { diagnoseBinary, diagnosePlatform, diagnoseDisplay, formatDiagnosticResults } from '@wdio/native-utils';
 
 // Check binary paths
 const binaryResult = await diagnoseBinary('/path/to/binary');
@@ -43,6 +40,7 @@ const formatted = formatDiagnosticResults([binaryResult, platformInfo, displayIn
 ```
 
 ### Package Management
+
 Utilities for reading and working with package.json files.
 
 ```typescript
@@ -59,6 +57,7 @@ const syncResult = readPackageUpSync();
 ```
 
 ### Result Types
+
 Functional programming style Result types (Ok/Err pattern) for error handling.
 
 ```typescript
@@ -81,6 +80,7 @@ const asyncResult = await wrapAsync(() => fetchData());
 ```
 
 ### Executable Management
+
 Cross-platform executable selection and validation.
 
 ```typescript
@@ -94,6 +94,7 @@ const validation = await validateBinaryPaths(['/path/to/electron', '/path/to/tau
 ```
 
 ### Window Utilities
+
 Utilities for working with application windows.
 
 ```typescript
@@ -104,6 +105,7 @@ await waitUntilWindowAvailable('My App Window', { timeout: 5000 });
 ```
 
 ### Logging
+
 Structured logging utilities.
 
 ```typescript
@@ -117,9 +119,11 @@ log.error('Something went wrong', error);
 ## API Reference
 
 ### Configuration
+
 - `readConfig(path: string)` - Read and parse configuration files
 
 ### Diagnostics
+
 - `diagnoseBinary(path: string)` - Check binary file information
 - `diagnosePlatform()` - Get platform-specific information
 - `diagnoseDisplay()` - Check display capabilities
@@ -129,10 +133,12 @@ log.error('Something went wrong', error);
 - `formatDiagnosticResults(results: DiagnosticResult[])` - Format diagnostic results
 
 ### Package Management
+
 - `readPackageUp(options?: ReadPackageUpOptions)` - Find and read package.json upward
 - `readPackageUpSync(options?: ReadPackageUpOptions)` - Synchronous version
 
 ### Result Types
+
 - `Ok<T>(value: T)` - Create successful result
 - `Err<E>(error: E)` - Create error result
 - `isOk<T>(result: Result<T, any>)` - Check if result is success
@@ -144,13 +150,16 @@ log.error('Something went wrong', error);
 - `wrapAsync<T>(fn: () => Promise<T>)` - Wrap async function in Result
 
 ### Executable Management
+
 - `selectExecutable(candidates: string[], customPath?: string)` - Select best executable
 - `validateBinaryPaths(paths: string[])` - Validate multiple binary paths
 
 ### Window Management
+
 - `waitUntilWindowAvailable(windowTitle: string, options?: { timeout?: number })` - Wait for window
 
 ### Logging
+
 - `createLogger(name: string, area?: string)` - Create structured logger
 
 ## License

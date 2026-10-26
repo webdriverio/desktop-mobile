@@ -51,10 +51,10 @@ export const config = {
     {
       browserName: 'tauri',
       'tauri:options': {
-        application: './src-tauri/target/release/my-app.exe'
-      }
-    }
-  ]
+        application: './src-tauri/target/release/my-app.exe',
+      },
+    },
+  ],
 };
 ```
 
@@ -86,11 +86,11 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 
 ## Platform Support
 
-| Platform | Supported | Driver Providers | Notes |
-|----------|-----------|------------------|-------|
-| **Windows** | ✅ Yes | `embedded`, `external`, `crabnebula` | `external` auto-manages the Edge WebDriver |
-| **Linux** | ✅ Yes | `embedded`, `external`, `crabnebula` | `external` requires WebKitWebDriver |
-| **macOS** | ✅ Yes | `embedded`, `crabnebula` | Native via embedded, or CrabNebula |
+| Platform    | Supported | Driver Providers                     | Notes                                      |
+| ----------- | --------- | ------------------------------------ | ------------------------------------------ |
+| **Windows** | ✅ Yes    | `embedded`, `external`, `crabnebula` | `external` auto-manages the Edge WebDriver |
+| **Linux**   | ✅ Yes    | `embedded`, `external`, `crabnebula` | `external` requires WebKitWebDriver        |
+| **macOS**   | ✅ Yes    | `embedded`, `crabnebula`             | Native via embedded, or CrabNebula         |
 
 See [Platform Support](./docs/platform-support.md) for detailed information including distribution support and troubleshooting.
 
@@ -106,7 +106,6 @@ Check out the E2E test fixtures in the [desktop-mobile repository](https://githu
 ## Support
 
 Having trouble? Here are some resources:
-
 1. **[Troubleshooting Guide](./docs/troubleshooting.md)** - Solutions for common issues
 2. **[Platform Support](./docs/platform-support.md)** - Platform-specific information
 3. **[GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)** - Bug reports and feature requests for tauri-service
@@ -115,7 +114,6 @@ Having trouble? Here are some resources:
 ## Contributing
 
 We welcome contributions! Please see our [Development Guide](./docs/development.md) for:
-
 - Setting up your development environment
 - Running tests
 - Code style guidelines

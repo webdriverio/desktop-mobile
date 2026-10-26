@@ -9,11 +9,11 @@ on:
   workflow_dispatch:
     inputs:
       pr:
-        description: 'Fork PR number to report back to'
+        description: "Fork PR number to report back to"
         required: true
         type: string
       sha:
-        description: 'Reviewed fork head SHA the result attaches to'
+        description: "Reviewed fork head SHA the result attaches to"
         required: true
         type: string
 
@@ -36,30 +36,30 @@ jobs:
       - run: echo "Authorized dispatch by ${{ github.actor }}"
 
   build:
-    needs: [authorize]
+    needs: [ authorize ]
     uses: ./.github/workflows/_ci-build.reusable.yml
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
 
   build-app:
-    needs: [authorize]
+    needs: [ authorize ]
     uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
     with:
-      os: 'macos-latest'
+      os: "macos-latest"
 
   # Runs every macOS Tauri test-type (all providers).
   e2e:
-    needs: [build, build-app]
+    needs: [ build, build-app ]
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
     uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
     secrets:
       CN_API_KEY: ${{ secrets.CN_API_KEY }}
     with:
-      os: 'macos-latest'
-      node-version: '24'
+      os: "macos-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       require_crabnebula: true
       crabnebula_only: true
@@ -71,7 +71,7 @@ jobs:
 
   # Gate report/cleanup: an unauthorized dispatch must not touch the PR, a superseded run must not race the survivor.
   report:
-    needs: [authorize, e2e]
+    needs: [ authorize, e2e ]
     if: ${{ !cancelled() && needs.authorize.result == 'success' }}
     runs-on: ubuntu-latest
     steps:

@@ -40,7 +40,7 @@ const rnOptions: ReactNativeServiceOptions = {
 
 export const config = {
   services: [
-    'appium',                          // starts the local Appium server
+    'appium', // starts the local Appium server
     ['react-native', { ...rnOptions }],
   ],
   capabilities: [
@@ -95,31 +95,31 @@ to warm the first cold compile). The preflight doctor warns if Metro is unreacha
 All standard [Appium capabilities](https://appium.io/docs/en/latest/guides/caps/) are
 supported. The service adds `wdio:reactNativeServiceOptions`:
 
-| Capability | Type | Description |
-|---|---|---|
-| `platformName` | `'Android' \| 'iOS'` | Target platform (required) |
-| `appium:automationName` | `'UiAutomator2' \| 'XCUITest'` | Automation driver (defaults to platform) |
-| `appium:deviceName` | `string` | Device name or emulator AVD name |
-| `appium:udid` | `string` | Device serial (Android) or UDID (iOS) |
-| `appium:app` | `string` | Path to the built APK / .app bundle |
-| `appium:noReset` | `boolean` | Skip app reset between sessions |
-| `wdio:reactNativeServiceOptions` | `ReactNativeServiceOptions` | Service options |
+| Capability                       | Type                           | Description                              |
+| -------------------------------- | ------------------------------ | ---------------------------------------- |
+| `platformName`                   | `'Android' \| 'iOS'`           | Target platform (required)               |
+| `appium:automationName`          | `'UiAutomator2' \| 'XCUITest'` | Automation driver (defaults to platform) |
+| `appium:deviceName`              | `string`                       | Device name or emulator AVD name         |
+| `appium:udid`                    | `string`                       | Device serial (Android) or UDID (iOS)    |
+| `appium:app`                     | `string`                       | Path to the built APK / .app bundle      |
+| `appium:noReset`                 | `boolean`                      | Skip app reset between sessions          |
+| `wdio:reactNativeServiceOptions` | `ReactNativeServiceOptions`    | Service options                          |
 
 ## Service options (`ReactNativeServiceOptions`)
 
 ```ts
 interface ReactNativeServiceOptions {
   // Metro inspector-proxy connection
-  metroHost?: string;           // default: 'localhost'
-  metroPort?: number;           // default: 8081
+  metroHost?: string; // default: 'localhost'
+  metroPort?: number; // default: 8081
 
   // Metro lifecycle (opt-in) — the service owns `react-native start` so you don't have to
-  manageMetro?: boolean;        // start/stop Metro for the run (default: false)
-  metroProjectRoot?: string;    // app project root for `react-native start` (default: cwd)
-  prebundle?: boolean;          // warm the cold compile via /index.bundle (default: false)
+  manageMetro?: boolean; // start/stop Metro for the run (default: false)
+  metroProjectRoot?: string; // app project root for `react-native start` (default: cwd)
+  prebundle?: boolean; // warm the cold compile via /index.bundle (default: false)
 
   // Appium driver auto-install + preflight doctor (shared mobile setup automation)
-  autoInstallDriver?: boolean;  // install uiautomator2 / xcuitest if missing (default: false)
+  autoInstallDriver?: boolean; // install uiautomator2 / xcuitest if missing (default: false)
   doctor?: boolean | { strict?: boolean }; // preflight checks (default: true; { strict: true } aborts on error)
 
   // Convenience — maps onto appium:app if not already set in the capability
@@ -135,9 +135,9 @@ interface ReactNativeServiceOptions {
   frontendLogLevel?: 'trace' | 'debug' | 'info' | 'warn' | 'error';
 
   // Mock lifecycle
-  clearMocks?: boolean;         // clear mock call history before each test
-  resetMocks?: boolean;         // reset mock implementations before each test
-  restoreMocks?: boolean;       // restore originals before each test
+  clearMocks?: boolean; // clear mock call history before each test
+  resetMocks?: boolean; // reset mock implementations before each test
+  restoreMocks?: boolean; // restore originals before each test
 }
 ```
 
@@ -167,11 +167,11 @@ and may lack network/permissions. Requires `appium` to be resolvable (it comes w
 `doctor` runs fail-fast preflight validation in `onPrepare` so a misconfiguration surfaces
 as a clear message instead of a cryptic Appium timeout:
 
-| `doctor` | Behaviour |
-|---|---|
-| `false` | Skip all checks. |
-| `true` *(default)*, or omitted | Run the checks; log actionable warnings; never abort. |
-| `{ strict: true }` | Run the checks; abort the run (`SevereServiceError`) on any error-level check. |
+| `doctor`                       | Behaviour                                                                      |
+| ------------------------------ | ------------------------------------------------------------------------------ |
+| `false`                        | Skip all checks.                                                               |
+| `true` _(default)_, or omitted | Run the checks; log actionable warnings; never abort.                          |
+| `{ strict: true }`             | Run the checks; abort the run (`SevereServiceError`) on any error-level check. |
 
 For React Native it checks: `@wdio/appium-service` is in `services`, Metro is reachable on
 the configured port, and (iOS) the Xcode toolchain is warm. Checks are advisory (`warn`)
@@ -260,7 +260,7 @@ idiomatically rather than as "windows".
 
 ```ts
 const contexts = await browser.reactNative.listContexts();
-await browser.reactNative.switchContext(contexts.find(c => c.startsWith('WEBVIEW')) ?? 'NATIVE_APP');
+await browser.reactNative.switchContext(contexts.find((c) => c.startsWith('WEBVIEW')) ?? 'NATIVE_APP');
 ```
 
 ### `emitEvent(name, payload?)`
@@ -276,12 +276,12 @@ await browser.reactNative.emitEvent('onNetworkChange', { isConnected: false });
 
 React Native renders **real native views**, so standard Appium locators apply:
 
-| RN prop | Appium strategy | Example |
-|---|---|---|
-| `testID` | `accessibility id` (iOS) or `id` / `resource-id` (Android) | `browser.$('~my-button')` |
-| `accessibilityLabel` | `accessibility id` | `browser.$('~Submit')` |
-| `text` (Android) | `-android uiautomator` | `browser.$('android=new UiSelector().text("Submit")')` |
-| class / xpath | `xpath` | `browser.$('//android.widget.Button')` |
+| RN prop              | Appium strategy                                            | Example                                                |
+| -------------------- | ---------------------------------------------------------- | ------------------------------------------------------ |
+| `testID`             | `accessibility id` (iOS) or `id` / `resource-id` (Android) | `browser.$('~my-button')`                              |
+| `accessibilityLabel` | `accessibility id`                                         | `browser.$('~Submit')`                                 |
+| `text` (Android)     | `-android uiautomator`                                     | `browser.$('android=new UiSelector().text("Submit")')` |
+| class / xpath        | `xpath`                                                    | `browser.$('//android.widget.Button')`                 |
 
 > **iOS locator note:** a static `accessibilityLabel` on a value-bearing element
 > masks the element's runtime value on iOS. Read dynamic text from the `value`
@@ -303,7 +303,6 @@ await browser.reactNative.switchContext('NATIVE_APP');
 
 The service forwards two independent channels into the WDIO test output, each opt-in
 and off by default:
-
 - **Backend** — native device logs: **logcat** (Android) / **syslog** (iOS). Enable with
   `captureBackendLogs`; filter with `backendLogLevel` (default `info`).
 - **Frontend** — the app's JS / Metro console (`console.log/info/warn/error`, via the
@@ -323,12 +322,12 @@ const config = {
   maxInstances: 2,
   services: [
     'appium',
-    ['react-native', {
-      devices: [
-        { avd: 'Pixel_8_API_35' },
-        { avd: 'Pixel_7_API_35' },
-      ],
-    }],
+    [
+      'react-native',
+      {
+        devices: [{ avd: 'Pixel_8_API_35' }, { avd: 'Pixel_7_API_35' }],
+      },
+    ],
   ],
   // ...
 };
@@ -339,7 +338,7 @@ Appium picks whatever is connected.
 
 > **Multiremote** — one session driving several devices at once (a capabilities object plus
 > `multiRemoteBrowser.getInstance(...)`) — is **not yet supported**: the `devices` pool gives each
-> *worker* one device, not each *instance*. Tracked in
+> _worker_ one device, not each _instance_. Tracked in
 > [webdriverio/desktop-mobile#446](https://github.com/webdriverio/desktop-mobile/issues/446).
 
 ## Standalone / session mode
@@ -367,19 +366,19 @@ try {
 
 ## Known limitations
 
-| Area | Status |
-|---|---|
-| `execute` / `mock` | ✅ supported — **debug / Metro build only** (Hermes inspector present only when `HERMES_ENABLE_DEBUGGER` is set) |
-| Android | ✅ full support |
-| iOS | ✅ full support |
-| parallel workers | ✅ N workers → N devices via the `devices` pool |
-| multiremote (one session, N devices) | ❌ not yet — [#446](https://github.com/webdriverio/desktop-mobile/issues/446) |
-| context switching (`NATIVE_APP` ↔ `WEBVIEW_*`) | ✅ |
-| deeplink | ✅ via `mobile: deepLink` |
-| log capture | ✅ logcat / syslog + Metro console |
-| `emitEvent` | ✅ via `DeviceEventEmitter` |
-| mock — JS-global scope only | ⚠️ native-module internals (Java/Kotlin, Obj-C/Swift) not patchable from JS |
-| Release build `execute` / `mock` | ❌ Hermes inspector not present in stock release builds |
+| Area                                           | Status                                                                                                           |
+| ---------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `execute` / `mock`                             | ✅ supported — **debug / Metro build only** (Hermes inspector present only when `HERMES_ENABLE_DEBUGGER` is set) |
+| Android                                        | ✅ full support                                                                                                  |
+| iOS                                            | ✅ full support                                                                                                  |
+| parallel workers                               | ✅ N workers → N devices via the `devices` pool                                                                  |
+| multiremote (one session, N devices)           | ❌ not yet — [#446](https://github.com/webdriverio/desktop-mobile/issues/446)                                    |
+| context switching (`NATIVE_APP` ↔ `WEBVIEW_*`) | ✅                                                                                                               |
+| deeplink                                       | ✅ via `mobile: deepLink`                                                                                        |
+| log capture                                    | ✅ logcat / syslog + Metro console                                                                               |
+| `emitEvent`                                    | ✅ via `DeviceEventEmitter`                                                                                      |
+| mock — JS-global scope only                    | ⚠️ native-module internals (Java/Kotlin, Obj-C/Swift) not patchable from JS                                      |
+| Release build `execute` / `mock`               | ❌ Hermes inspector not present in stock release builds                                                          |
 
 ## License
 

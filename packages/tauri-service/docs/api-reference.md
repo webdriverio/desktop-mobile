@@ -29,10 +29,7 @@ const version = await browser.tauri.execute(async (tauri) => {
 });
 
 // Execute with arguments
-const result = await browser.tauri.execute(
-  (tauri, name) => tauri.core.invoke('greet', { name }),
-  'World'
-);
+const result = await browser.tauri.execute((tauri, name) => tauri.core.invoke('greet', { name }), 'World');
 
 // Execute string of code
 const result = await browser.tauri.execute('window.location.href');
@@ -274,14 +271,14 @@ import { withExecuteOptions } from '@wdio/tauri-service';
 // Execute in a specific window without changing session default
 const result = await browser.tauri.execute(
   (tauri) => tauri.core.invoke('get_data'),
-  withExecuteOptions({ windowLabel: 'popup' })
+  withExecuteOptions({ windowLabel: 'popup' }),
 );
 
 // Can also pass arguments after options
 const greeting = await browser.tauri.execute(
   (tauri, name) => tauri.core.invoke('greet', { name }),
   withExecuteOptions({ windowLabel: 'settings' }),
-  'Alice'
+  'Alice',
 );
 ```
 
@@ -450,7 +447,7 @@ await mock.withImplementation(
   async () => {
     const result = await browser.tauri.execute(({ core }) => core.invoke('my_command'));
     console.log(result); // 'temporary'
-  }
+  },
 );
 
 const result = await browser.tauri.execute(({ core }) => core.invoke('my_command'));
@@ -488,8 +485,8 @@ import { startWdioSession } from '@wdio/tauri-service';
 const browser = await startWdioSession({
   browserName: 'tauri',
   'tauri:options': {
-    application: './path/to/app.exe'
-  }
+    application: './path/to/app.exe',
+  },
 });
 
 // Use browser...
@@ -522,7 +519,7 @@ Create Tauri-specific capabilities for use in WebdriverIO config.
 import { createTauriCapabilities } from '@wdio/tauri-service';
 
 const capabilities = createTauriCapabilities('./path/to/app.exe', {
-  captureBackendLogs: true
+  captureBackendLogs: true,
 });
 ```
 
@@ -595,7 +592,7 @@ type TauriResult<T = unknown> = { ok: true; value: T } | { ok: false; error: str
 
 // Usage
 if (result.ok) {
-  console.log(result.value);  // Success case
+  console.log(result.value); // Success case
 } else {
   console.error(result.error); // Error case
 }

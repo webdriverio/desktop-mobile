@@ -9,13 +9,16 @@ Add the Tauri service to your `wdio.conf.ts`:
 ```typescript
 export const config = {
   services: [
-    ['@wdio/tauri-service', {
-      // Service options go here
-      autoInstallTauriDriver: true,
-      autoDownloadEdgeDriver: true,
-      captureBackendLogs: true,
-      captureFrontendLogs: true,
-    }]
+    [
+      '@wdio/tauri-service',
+      {
+        // Service options go here
+        autoInstallTauriDriver: true,
+        autoDownloadEdgeDriver: true,
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+      },
+    ],
   ],
   // ... rest of config
 };
@@ -49,11 +52,11 @@ Command-line arguments to pass to the Tauri application when launching. Each arr
 
 **Example:**
 ```typescript
-appArgs: ['--debug', '--log-level', 'debug']
+appArgs: ['--debug', '--log-level', 'debug'];
 
 // For key=value style arguments, use either form:
-appArgs: ['--window-size', '1920,1080']   // Two separate elements
-appArgs: ['--window-size=1920,1080']       // Single element with equals
+appArgs: ['--window-size', '1920,1080']; // Two separate elements
+appArgs: ['--window-size=1920,1080']; // Single element with equals
 ```
 
 **Default:** `[]`
@@ -70,7 +73,7 @@ Automatically install `tauri-driver` if not found in PATH.
 
 **Example:**
 ```typescript
-autoInstallTauriDriver: true
+autoInstallTauriDriver: true;
 ```
 
 **Default:** `false`
@@ -85,7 +88,7 @@ Automatically download MSEdgeDriver on Windows if version mismatch detected.
 
 **Example:**
 ```typescript
-autoDownloadEdgeDriver: true  // Windows only
+autoDownloadEdgeDriver: true; // Windows only
 ```
 
 **Default:** `true`
@@ -100,7 +103,7 @@ Port for tauri-driver to listen on. Each worker process gets a unique port (port
 
 **Example:**
 ```typescript
-tauriDriverPort: 4444
+tauriDriverPort: 4444;
 ```
 
 **Default:** `4444`
@@ -115,8 +118,8 @@ Path to the `tauri-driver` executable if not in PATH.
 
 **Example:**
 ```typescript
-tauriDriverPath: '/usr/local/bin/tauri-driver'  // Linux/macOS
-tauriDriverPath: 'C:\\tools\\tauri-driver.exe'  // Windows
+tauriDriverPath: '/usr/local/bin/tauri-driver'; // Linux/macOS
+tauriDriverPath: 'C:\\tools\\tauri-driver.exe'; // Windows
 ```
 
 **Default:** Use `tauri-driver` from PATH
@@ -129,7 +132,7 @@ Log level for tauri-driver output.
 
 **Example:**
 ```typescript
-logLevel: 'debug'  // More verbose
+logLevel: 'debug'; // More verbose
 ```
 
 **Default:** `'info'`
@@ -142,12 +145,12 @@ The default window label to target for Tauri operations. This controls which web
 
 **Example:**
 ```typescript
-windowLabel: 'settings'  // Target the settings window by default
+windowLabel: 'settings'; // Target the settings window by default
 ```
 
 **Default:** `'main'`
 
-**Note:** 
+**Note:**
 - Each browser instance (including multiremote) can have its own default windowLabel
 - Override at runtime with `browser.tauri.switchWindow(label)`
 - Per-call override with `browser.tauri.execute(fn, withExecuteOptions({ windowLabel: 'x' }))` is supported
@@ -160,7 +163,7 @@ Timeout in milliseconds for individual command execution.
 
 **Example:**
 ```typescript
-commandTimeout: 60000  // 60 seconds
+commandTimeout: 60000; // 60 seconds
 ```
 
 **Default:** `30000` (30 seconds)
@@ -173,7 +176,7 @@ Timeout in milliseconds for the Tauri app to start and become ready.
 
 **Example:**
 ```typescript
-startTimeout: 60000  // 60 seconds
+startTimeout: 60000; // 60 seconds
 ```
 
 **Default:** `30000` for the `'external'` and `'crabnebula'` providers, `60000` for the `'embedded'` provider (the embedded WebDriver server takes longer to come up, especially on Windows CI).
@@ -186,7 +189,7 @@ Capture logs from the Tauri backend (Rust code).
 
 **Example:**
 ```typescript
-captureBackendLogs: true
+captureBackendLogs: true;
 ```
 
 **Default:** `false`
@@ -201,7 +204,7 @@ Capture console logs from the frontend (JavaScript/TypeScript).
 
 **Example:**
 ```typescript
-captureFrontendLogs: true
+captureFrontendLogs: true;
 ```
 
 **Default:** `false`
@@ -216,7 +219,7 @@ Minimum log level to capture from backend. Logs below this level are ignored.
 
 **Example:**
 ```typescript
-backendLogLevel: 'debug'  // Capture debug and above
+backendLogLevel: 'debug'; // Capture debug and above
 ```
 
 **Default:** `'info'`
@@ -231,7 +234,7 @@ Minimum log level to capture from frontend. Logs below this level are ignored.
 
 **Example:**
 ```typescript
-frontendLogLevel: 'debug'
+frontendLogLevel: 'debug';
 ```
 
 **Default:** `'info'`
@@ -246,7 +249,7 @@ Directory to store logs from the Tauri service (for standalone mode).
 
 **Example:**
 ```typescript
-logDir: './test-logs'
+logDir: './test-logs';
 ```
 
 **Default:** Logs to stdout/stderr
@@ -259,7 +262,7 @@ Timeout in milliseconds for the `/status` endpoint poll during embedded WebDrive
 
 **Example:**
 ```typescript
-statusPollTimeout: 5000
+statusPollTimeout: 5000;
 ```
 
 **Default:** `2000`
@@ -274,7 +277,7 @@ URL of the Vite (or other) dev server to navigate to when `mode: 'browser'` is s
 
 **Example:**
 ```typescript
-devServerUrl: 'http://localhost:1420'  // Tauri Vite default
+devServerUrl: 'http://localhost:1420'; // Tauri Vite default
 ```
 
 **Default:** `undefined`
@@ -286,13 +289,12 @@ devServerUrl: 'http://localhost:1420'  // Tauri Vite default
 ### `mode` ('native' | 'browser', optional)
 
 Controls how the service connects to your application.
-
 - `'native'` (default) — launches your compiled Tauri binary via tauri-driver and WebKitWebDriver/msedgedriver.
 - `'browser'` — skips all driver and binary setup; sets `browserName = 'chrome'`, navigates to `devServerUrl`, and intercepts `window.__TAURI_INTERNALS__.invoke` so Tauri commands can be mocked without a running Rust backend.
 
 **Example:**
 ```typescript
-mode: 'browser'
+mode: 'browser';
 ```
 
 **Default:** `'native'`
@@ -309,7 +311,7 @@ If `true`, all mock call history is cleared before each test. Equivalent to call
 
 **Example:**
 ```typescript
-clearMocks: true
+clearMocks: true;
 ```
 
 **Default:** `false`
@@ -336,7 +338,7 @@ If `true`, all mocks are reset (implementation + history) before each test. Equi
 
 **Example:**
 ```typescript
-resetMocks: true
+resetMocks: true;
 ```
 
 **Default:** `false`
@@ -357,7 +359,7 @@ If `true`, all mocks are restored to their original implementations before each 
 
 **Example:**
 ```typescript
-restoreMocks: true
+restoreMocks: true;
 ```
 
 **Default:** `false`
@@ -375,7 +377,6 @@ If set, only mocks whose command name starts with this prefix are restored. Only
 ### `driverProvider` ('embedded' | 'external' | 'crabnebula', optional)
 
 Select which driver provider to use for WebDriver communication.
-
 - `'embedded'`: Use the embedded WebDriver server via tauri-plugin-wdio-webdriver (no external driver needed, works on all platforms)
 - `'external'`: Use the cargo-installed tauri-driver (supports Windows/Linux)
 - `'crabnebula'`: Use @crabnebula/tauri-driver from npm (supports Windows/Linux/macOS; CN_API_KEY required for macOS only)
@@ -388,10 +389,10 @@ Select which driver provider to use for WebDriver communication.
 // driverProvider: 'embedded'
 
 // Use CrabNebula — all platforms; CN_API_KEY required for macOS
-driverProvider: 'crabnebula'
+driverProvider: 'crabnebula';
 
 // Drive the external tauri-driver instead of the embedded server
-driverProvider: 'external'
+driverProvider: 'external';
 ```
 
 **Note:** Install `tauri-plugin-wdio-webdriver` in your Tauri app to use the embedded provider. See [Plugin Setup](./plugin-setup.md) for details.
@@ -400,14 +401,13 @@ driverProvider: 'external'
 
 ### Choosing a Driver Provider
 
-| Provider | Platform Support | External driver required | Notes |
-|----------|-----------------|--------------------------|-------|
-| `'embedded'` | Windows, Linux, macOS | No | Default; no external deps; requires `tauri-plugin-wdio-webdriver` |
-| `'external'` | Windows, Linux | Yes (tauri-driver + platform driver) | Explicit opt-in; cargo-installed |
+| Provider       | Platform Support      | External driver required                    | Notes                                                                         |
+| -------------- | --------------------- | ------------------------------------------- | ----------------------------------------------------------------------------- |
+| `'embedded'`   | Windows, Linux, macOS | No                                          | Default; no external deps; requires `tauri-plugin-wdio-webdriver`             |
+| `'external'`   | Windows, Linux        | Yes (tauri-driver + platform driver)        | Explicit opt-in; cargo-installed                                              |
 | `'crabnebula'` | Windows, Linux, macOS | Yes (platform driver; CN_API_KEY for macOS) | Fork of the upstream tauri-driver; good fit if already on CrabNebula platform |
 
 **Recommendation:**
-
 - **`'embedded'`** — the default and simplest setup: no external driver installation, works on all three platforms
 - **`'crabnebula'`** — best if you are already using CrabNebula Cloud or want a single driver config across all platforms; macOS testing requires a CrabNebula subscription
 - **`'external'`** — explicit opt-in for Windows/Linux if you have `tauri-driver` already installed
@@ -417,7 +417,6 @@ driverProvider: 'external'
 ### `embeddedPort` (number, optional)
 
 Preferred port for the embedded WebDriver server. Only used when `driverProvider: 'embedded'`.
-
 - The service spawns your Tauri app on this port if it's free. Each further app it spawns (multiremote instances, or more than one capability) prefers the next port up.
 - A port that's already in use is skipped for a free one, and the service connects to whichever port it chose.
 - Set it in an instance's `wdio:tauriServiceOptions` to give that instance its own preferred port.
@@ -425,7 +424,7 @@ Preferred port for the embedded WebDriver server. Only used when `driverProvider
 
 **Example:**
 ```typescript
-embeddedPort: 4445
+embeddedPort: 4445;
 ```
 
 **Default:** `4445`
@@ -438,7 +437,7 @@ Path to the @crabnebula/tauri-driver executable. Only used when `driverProvider:
 
 **Example:**
 ```typescript
-crabnebulaDriverPath: './node_modules/.bin/tauri-driver'
+crabnebulaDriverPath: './node_modules/.bin/tauri-driver';
 ```
 
 **Default:** Auto-detected from node_modules
@@ -451,7 +450,7 @@ Auto-manage the test-runner-backend process (macOS only). When enabled, the serv
 
 **Example:**
 ```typescript
-crabnebulaManageBackend: true
+crabnebulaManageBackend: true;
 ```
 
 **Default:** `true` when using CrabNebula on macOS
@@ -464,7 +463,7 @@ Port for the test-runner-backend to listen on (macOS only).
 
 **Example:**
 ```typescript
-crabnebulaBackendPort: 3000
+crabnebulaBackendPort: 3000;
 ```
 
 **Default:** `3000`
@@ -478,12 +477,14 @@ Configure Tauri-specific capabilities in your `capabilities` array:
 ### Basic Configuration
 
 ```typescript
-capabilities: [{
-  browserName: 'tauri',
-  'tauri:options': {
-    application: './src-tauri/target/release/my-app.exe'
-  }
-}]
+capabilities: [
+  {
+    browserName: 'tauri',
+    'tauri:options': {
+      application: './src-tauri/target/release/my-app.exe',
+    },
+  },
+];
 ```
 
 > `browserName` accepts either `'tauri'` (preferred) or `'wry'` (the underlying webview library). Both are treated identically by the service.
@@ -491,15 +492,17 @@ capabilities: [{
 ### Full Configuration
 
 ```typescript
-capabilities: [{
-  browserName: 'tauri',
-  'tauri:options': {
-    application: './src-tauri/target/release/my-app.exe',
-    args: ['--debug']
+capabilities: [
+  {
+    browserName: 'tauri',
+    'tauri:options': {
+      application: './src-tauri/target/release/my-app.exe',
+      args: ['--debug'],
+    },
+    // Optional: override service settings per capability
+    // tauriDriverPort: 4445,
   },
-  // Optional: override service settings per capability
-  // tauriDriverPort: 4445,
-}]
+];
 ```
 
 ### Multiremote Configuration
@@ -530,16 +533,16 @@ capabilities: [
   {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe'
-    }
+      application: './src-tauri/target/release/my-app.exe',
+    },
   },
   {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe'
-    }
-  }
-]
+      application: './src-tauri/target/release/my-app.exe',
+    },
+  },
+];
 ```
 
 ## Complete Configuration Example
@@ -559,30 +562,35 @@ export const config = {
 
   // Tauri Service
   services: [
-    ['@wdio/tauri-service', {
-      appBinaryPath: './src-tauri/target/release/my-app.exe',
-      appArgs: ['--debug'],
-      autoInstallTauriDriver: true,
-      autoDownloadEdgeDriver: true,  // Windows only
-      tauriDriverPort: 4444,
-      logLevel: 'info',
-      commandTimeout: 30000,
-      startTimeout: 30000,
-      captureBackendLogs: true,
-      captureFrontendLogs: true,
-      backendLogLevel: 'debug',
-      frontendLogLevel: 'debug',
-    }]
+    [
+      '@wdio/tauri-service',
+      {
+        appBinaryPath: './src-tauri/target/release/my-app.exe',
+        appArgs: ['--debug'],
+        autoInstallTauriDriver: true,
+        autoDownloadEdgeDriver: true, // Windows only
+        tauriDriverPort: 4444,
+        logLevel: 'info',
+        commandTimeout: 30000,
+        startTimeout: 30000,
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+        backendLogLevel: 'debug',
+        frontendLogLevel: 'debug',
+      },
+    ],
   ],
 
   // Capabilities
-  capabilities: [{
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe',
-      args: ['--debug']
-    }
-  }],
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'tauri:options': {
+        application: './src-tauri/target/release/my-app.exe',
+        args: ['--debug'],
+      },
+    },
+  ],
 
   // Connection settings
   logLevel: 'info',
@@ -596,7 +604,7 @@ export const config = {
   framework: 'mocha',
   mochaOpts: {
     ui: 'bdd',
-    timeout: 60000
+    timeout: 60000,
   },
 
   // Reporters
@@ -609,7 +617,7 @@ export const config = {
 
   onComplete: async (exitCode, config, capabilities, results) => {
     console.log('Test run completed');
-  }
+  },
 };
 ```
 
@@ -621,11 +629,14 @@ Enable auto Edge WebDriver management:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    appBinaryPath: './src-tauri/target/release/my-app.exe',
-    autoDownloadEdgeDriver: true,  // Auto-download on version mismatch
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      appBinaryPath: './src-tauri/target/release/my-app.exe',
+      autoDownloadEdgeDriver: true, // Auto-download on version mismatch
+    },
+  ],
+];
 ```
 
 ### Linux Configuration
@@ -634,11 +645,14 @@ WebKitWebDriver is auto-detected:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    appBinaryPath: './src-tauri/target/release/my-app',
-    autoInstallTauriDriver: true,
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      appBinaryPath: './src-tauri/target/release/my-app',
+      autoInstallTauriDriver: true,
+    },
+  ],
+];
 ```
 
 ### Headless Configuration (Linux)
@@ -647,11 +661,14 @@ Run tests without a display server:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    appBinaryPath: './src-tauri/target/release/my-app',
-    // Xvfb is auto-detected if available (WebdriverIO 9.19.1+)
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      appBinaryPath: './src-tauri/target/release/my-app',
+      // Xvfb is auto-detected if available (WebdriverIO 9.19.1+)
+    },
+  ],
+];
 ```
 
 ## Finding Your appBinaryPath
@@ -716,16 +733,19 @@ npx wdio run wdio.conf.ts --logLevel debug
 export const config = {
   // ... other settings
   services: [
-    ['@wdio/tauri-service', {
-      appBinaryPath: './src-tauri/target/release/my-app.exe',
-      autoInstallTauriDriver: true,
-      autoDownloadEdgeDriver: true,
-      captureBackendLogs: true,
-      captureFrontendLogs: true,
-      backendLogLevel: 'debug',
-      frontendLogLevel: 'debug',
-      logLevel: 'debug',
-    }]
+    [
+      '@wdio/tauri-service',
+      {
+        appBinaryPath: './src-tauri/target/release/my-app.exe',
+        autoInstallTauriDriver: true,
+        autoDownloadEdgeDriver: true,
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+        backendLogLevel: 'debug',
+        frontendLogLevel: 'debug',
+        logLevel: 'debug',
+      },
+    ],
   ],
 };
 ```
@@ -736,14 +756,17 @@ export const config = {
 export const config = {
   // ... other settings
   services: [
-    ['@wdio/tauri-service', {
-      appBinaryPath: process.env.APP_BINARY || './src-tauri/target/release/my-app.exe',
-      autoInstallTauriDriver: true,
-      autoDownloadEdgeDriver: true,
-      captureBackendLogs: true,
-      captureFrontendLogs: true,
-      logLevel: 'info',
-    }]
+    [
+      '@wdio/tauri-service',
+      {
+        appBinaryPath: process.env.APP_BINARY || './src-tauri/target/release/my-app.exe',
+        autoInstallTauriDriver: true,
+        autoDownloadEdgeDriver: true,
+        captureBackendLogs: true,
+        captureFrontendLogs: true,
+        logLevel: 'info',
+      },
+    ],
   ],
 };
 ```
@@ -754,14 +777,17 @@ export const config = {
 export const config = {
   // ... other settings
   services: [
-    ['@wdio/tauri-service', {
-      appBinaryPath: './src-tauri/target/release/my-app.exe',
-      autoInstallTauriDriver: false,  // Pre-installed
-      autoDownloadEdgeDriver: false,  // Pre-downloaded
-      captureBackendLogs: false,
-      captureFrontendLogs: false,
-      logLevel: 'warn',
-    }]
+    [
+      '@wdio/tauri-service',
+      {
+        appBinaryPath: './src-tauri/target/release/my-app.exe',
+        autoInstallTauriDriver: false, // Pre-installed
+        autoDownloadEdgeDriver: false, // Pre-downloaded
+        captureBackendLogs: false,
+        captureFrontendLogs: false,
+        logLevel: 'warn',
+      },
+    ],
   ],
 };
 ```
@@ -769,18 +795,20 @@ export const config = {
 ## Troubleshooting Configuration Issues
 
 **"Cannot find appBinaryPath"**
-
 1. Verify path exists:
+
    ```bash
    ls -la src-tauri/target/release/my-app*
    ```
 
 2. Build the app first:
+
    ```bash
    cd src-tauri && cargo build --release
    ```
 
 3. Use absolute path in config:
+
    ```typescript
    appBinaryPath: path.resolve('./src-tauri/target/release/my-app.exe')
    ```
@@ -801,12 +829,12 @@ npm install --save-dev @wdio/tauri-service
 
 Change the tauri-driver port:
 ```typescript
-tauriDriverPort: 4445  // Instead of 4444
+tauriDriverPort: 4445; // Instead of 4444
 ```
 
 Or enable multiremote with auto-port assignment:
 ```typescript
-maxInstances: 3  // Each gets unique port
+maxInstances: 3; // Each gets unique port
 ```
 
 ## See Also

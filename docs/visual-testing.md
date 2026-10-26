@@ -1,6 +1,6 @@
 # Visual Regression Testing
 
-WDIO's service architecture lets framework services and ecosystem services compose freely. Adding **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)** for visual regression testing (VRT) alongside any of our framework services is supported by default — no special integration needed. This guide covers only what's *framework-specific* on top of the [upstream guide](https://webdriver.io/docs/visual-testing/): output-path conventions, framework-specific known issues, and the mock-API handoff for native UI surfaces.
+WDIO's service architecture lets framework services and ecosystem services compose freely. Adding **[`@wdio/visual-service`](https://webdriver.io/docs/visual-testing/)** for visual regression testing (VRT) alongside any of our framework services is supported by default — no special integration needed. This guide covers only what's _framework-specific_ on top of the [upstream guide](https://webdriver.io/docs/visual-testing/): output-path conventions, framework-specific known issues, and the mock-API handoff for native UI surfaces.
 
 A complete working setup for every currently supported framework — see the [README](../README.md) for the list — lives in the [wdio-desktop-mobile-example](https://github.com/goosewobbler/wdio-desktop-mobile-example) repo, each package with `wdio.visual.conf.ts` + `test/visual/visual.spec.ts`.
 
@@ -45,7 +45,9 @@ import { browser, expect } from '@wdio/globals';
 const MAX_MISMATCH_PCT = 1; // see "Cross-platform considerations"
 
 it('matches baseline', async () => {
-  await browser.execute(async () => { await document.fonts.ready; });
+  await browser.execute(async () => {
+    await document.fonts.ready;
+  });
   expect(await browser.checkScreen('home')).toBeLessThanOrEqual(MAX_MISMATCH_PCT);
 });
 ```
@@ -73,7 +75,9 @@ Consecutive WebView2 / Chromium renders on Windows produce ~0.5% pixel-level mis
 Before any `checkScreen()` / `checkElement()` call:
 
 ```ts
-await browser.execute(async () => { await document.fonts.ready; });
+await browser.execute(async () => {
+  await document.fonts.ready;
+});
 await browser.execute(() => {
   if (document.getElementById('wdio-vrt-stabilise')) return;
   const style = document.createElement('style');
@@ -103,11 +107,11 @@ Electron does not need a manual wrapper — WDIO manages the display via its `au
 
 Tauri's three driver providers behave differently for VRT:
 
-| Provider | Captures | Native chrome included? | Notes |
-|---|---|---|---|
-| `embedded` | Webview only | ❌ | Default, recommended for most users. Works on macOS, Linux, Windows. |
-| `external` | Webview only | ❌ | Works on Windows. **Known issue on Linux** (see below). No macOS support. |
-| `crabnebula` | OS window (incl. title bar) | ✅ | Captures via OS-level Screen Recording. **macOS CI is excluded** — see below. |
+| Provider     | Captures                    | Native chrome included? | Notes                                                                         |
+| ------------ | --------------------------- | ----------------------- | ----------------------------------------------------------------------------- |
+| `embedded`   | Webview only                | ❌                      | Default, recommended for most users. Works on macOS, Linux, Windows.          |
+| `external`   | Webview only                | ❌                      | Works on Windows. **Known issue on Linux** (see below). No macOS support.     |
+| `crabnebula` | OS window (incl. title bar) | ✅                      | Captures via OS-level Screen Recording. **macOS CI is excluded** — see below. |
 
 **Per-provider baselines are required.** Switching from `embedded` to `crabnebula` mid-suite would mismatch every baseline by ~30% because CrabNebula's screenshot includes the OS title bar and embedded's does not. Use the `<provider>` segment in your output path.
 
@@ -133,14 +137,15 @@ Visual testing doesn't work with Dioxus yet: the embedded driver's screenshots a
 ## Asserting native UI behaviour without pixels
 
 The visual service captures **webview content only** (with the noted CrabNebula exception). Native menus, tray icons, file pickers, and OS-level dialogs aren't part of the capture and aren't worth pixel-diffing — they're OS-rendered and stable. Use your framework service's mock APIs instead — they intercept at the framework layer, where the native UI originates. The shape varies per framework; examples:
-
 - **Electron** — see [API Reference](../packages/electron-service/docs/api-reference.md):
+
   ```ts
   const menuMock = await browser.electron.mock('Menu', 'setApplicationMenu');
   // … exercise the app …
   expect(menuMock).toHaveBeenCalled();
   ```
 - **Tauri** — see [Usage Examples](../packages/tauri-service/docs/usage-examples.md) and [API Reference](../packages/tauri-service/docs/api-reference.md):
+
   ```ts
   const dialogMock = await browser.tauri.mock('plugin:dialog|open');
   dialogMock.mockReturnValue('/some/file');
@@ -148,6 +153,7 @@ The visual service captures **webview content only** (with the noted CrabNebula 
   expect(dialogMock).toHaveBeenCalled();
   ```
 - **Dioxus** — see [Usage Examples](../packages/dioxus-service/docs/usage-examples.md) and [API Reference](../packages/dioxus-service/docs/api-reference.md):
+
   ```ts
   const clipboardMock = await browser.dioxus.mock('clipboard_read');
   await clipboardMock.mockReturnValue('mocked clipboard text');

@@ -11,7 +11,6 @@ Accepted — retroactively documenting the decision made in [#275](https://githu
 The native-app testing services (`@wdio/electron-service`, `@wdio/tauri-service`, `@wdio/dioxus-service`, and the mobile services that follow) are converging on a near-identical API and feature surface, with shared plumbing extracted into `@wdio/native-core`. A consistent vocabulary across that family is a goal in its own right: an option a user learns for one service should mean the same thing in the next.
 
 Every service that drives a WebView through WebDriver has to choose _how_ the WebDriver server is provided. Two mechanisms recur across the family:
-
 - **In-app server** — WebDriver is served from inside the application under test. Tauri does this with `tauri-plugin-wdio-webdriver`; Dioxus with its embedded driver.
 - **Separate driver process** — an external WebDriver binary is spawned alongside the app. Tauri uses `tauri-driver`; Dioxus uses `wdio-dioxus-driver` (which proxies to `msedgedriver` on Windows).
 
@@ -20,12 +19,10 @@ Tauri originally named these two `'embedded'` and `'official'`. `'official'` was
 ## Decision
 
 Driver-provider values name the **mechanism**, not the vendor:
-
 - **`'embedded'`** — the WebDriver server runs inside the app under test.
 - **`'external'`** — a separate, external WebDriver process is used.
 
 Consequences of that principle:
-
 - **`'embedded'` is the default** for every service when `driverProvider` is unset.
 - A vendor-specific driver that is not the generic external path keeps an explicit name. For Tauri that is **`'crabnebula'`**.
 - Tauri's `'official'` becomes a deprecated alias for `'external'`. It is normalised to `'external'` with a one-time warning and is scheduled for removal in `@wdio/tauri-service` v2.

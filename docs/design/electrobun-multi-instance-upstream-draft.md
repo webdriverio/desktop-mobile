@@ -4,15 +4,17 @@
 **Target repo:** `blackboardsh/electrobun`.
 
 ## Why
+
 `@wdio/electrobun-service` multiremote/parallel test execution needs to run multiple
 concurrent instances of the same app. Today that requires a workaround (per-worker
 `.app` clone + `build.json` port edit + distinct `CFFIXED_USER_HOME`). A launch-time
 override would make it first-class.
 
 ## Existing adjacent issues (searched — none covers this exact need)
+
 - **#445** Make CEF remote debugging opt-in — same `settings.remote_debugging_port` code path (security framing, not a runtime port override).
 - **#380** macOS CEF persistent partitions / custom request-context cache paths — the cache-root machinery our isolation depends on.
-- **#227** `requestSingleInstanceLock()` equivalent — the implicit single-instance folding is our root cause; that issue asks to *enforce* single-instance (inverse need).
+- **#227** `requestSingleInstanceLock()` equivalent — the implicit single-instance folding is our root cause; that issue asks to _enforce_ single-instance (inverse need).
 - **#228** Batteries-included E2E tests (`electrobun test`) — overlapping automation goals (their built-in runner).
 - (#438 already tracks the `dirname` bundler crash we hit; #424 is the no-TCP RPC transport.)
 

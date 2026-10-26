@@ -31,11 +31,14 @@ By default, auto-download is **enabled**. Just use the service normally:
 // wdio.conf.js
 export const config = {
   services: [
-    ['tauri', {
-      application: './path/to/your-app.exe',
-      // autoDownloadEdgeDriver: true (default)
-    }]
-  ]
+    [
+      'tauri',
+      {
+        application: './path/to/your-app.exe',
+        // autoDownloadEdgeDriver: true (default)
+      },
+    ],
+  ],
 };
 ```
 
@@ -46,11 +49,14 @@ Disable auto-download if you prefer to manage drivers yourself:
 ```javascript
 export const config = {
   services: [
-    ['tauri', {
-      application: './path/to/your-app.exe',
-      autoDownloadEdgeDriver: false
-    }]
-  ]
+    [
+      'tauri',
+      {
+        application: './path/to/your-app.exe',
+        autoDownloadEdgeDriver: false,
+      },
+    ],
+  ],
 };
 ```
 
@@ -85,7 +91,6 @@ Current browser version is 149.0.4022.98 ... tauri-e2e-app.exe
 ```
 
 The service resolves the target version in this precedence order:
-
 1. **Explicit pin** — the `edgeDriverVersion` service option, or the `EDGEDRIVER_VERSION` environment variable, is used as the exact msedgedriver version verbatim (a CI escape hatch for the next Evergreen drift that breaks automation).
 2. **Fixed-version runtime folder** — if `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` is set, the runtime version is read from the `msedgewebview2.exe` in that folder, and the driver is matched to it. This is read from the service `env` option first, then `process.env`, mirroring what the app actually receives.
 3. **Evergreen** — the installed runtime from the registry (the default, and the canary that catches runtime regressions).
@@ -94,25 +99,31 @@ The service resolves the target version in this precedence order:
 
 ```javascript
 services: [
-  ['tauri', {
-    application: './dist/my-app.exe',
-    edgeDriverVersion: '149.0.4022.98', // or set EDGEDRIVER_VERSION in the environment
-  }]
-]
+  [
+    'tauri',
+    {
+      application: './dist/my-app.exe',
+      edgeDriverVersion: '149.0.4022.98', // or set EDGEDRIVER_VERSION in the environment
+    },
+  ],
+];
 ```
 
 ### Drive a fixed-version runtime
 
 ```javascript
 services: [
-  ['tauri', {
-    application: './dist/my-app.exe',
-    env: {
-      // The app renders with this runtime; the driver is matched to it automatically.
-      WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\path\\to\\fixed-version-runtime',
+  [
+    'tauri',
+    {
+      application: './dist/my-app.exe',
+      env: {
+        // The app renders with this runtime; the driver is matched to it automatically.
+        WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\path\\to\\fixed-version-runtime',
+      },
     },
-  }]
-]
+  ],
+];
 ```
 
 > Windows-only. macOS (WKWebView) and Linux (WebKitGTK) have no separately-versioned driver to mismatch.
@@ -198,33 +209,45 @@ interface TauriServiceOptions {
 ### Example Configurations
 
 #### Default (Auto-Download Enabled)
+
 ```javascript
 services: [
-  ['tauri', {
-    application: './dist/my-app.exe'
-  }]
-]
+  [
+    'tauri',
+    {
+      application: './dist/my-app.exe',
+    },
+  ],
+];
 ```
 
 #### Explicit Configuration
+
 ```javascript
 services: [
-  ['tauri', {
-    application: './dist/my-app.exe',
-    autoDownloadEdgeDriver: true,
-    tauriDriverPort: 4444
-  }]
-]
+  [
+    'tauri',
+    {
+      application: './dist/my-app.exe',
+      autoDownloadEdgeDriver: true,
+      tauriDriverPort: 4444,
+    },
+  ],
+];
 ```
 
 #### Disable Auto-Download
+
 ```javascript
 services: [
-  ['tauri', {
-    application: './dist/my-app.exe',
-    autoDownloadEdgeDriver: false
-  }]
-]
+  [
+    'tauri',
+    {
+      application: './dist/my-app.exe',
+      autoDownloadEdgeDriver: false,
+    },
+  ],
+];
 ```
 
 ## Manual Driver Management
@@ -232,17 +255,20 @@ services: [
 If you disable auto-download, ensure msedgedriver matches your Edge version:
 
 ### Check Edge Version
+
 ```powershell
 reg query "HKLM\SOFTWARE\WOW6432Node\Microsoft\EdgeUpdate\Clients\{56EB18F8-B008-4CBD-B6D2-8C97FE7E9062}" /v pv
 ```
 
 ### Download Matching Driver
+
 1. Visit https://developer.microsoft.com/en-us/microsoft-edge/tools/webdriver/
 2. Download version matching your Edge major version
 3. Extract `msedgedriver.exe`
 4. Add to PATH or place in project directory
 
 ### Verify Installation
+
 ```powershell
 msedgedriver.exe --version
 # Should output: MSEdgeDriver 143.x.xxxx.xx
@@ -251,11 +277,13 @@ msedgedriver.exe --version
 ## Development Notes
 
 ### File Structure
+
 - `src/edgeDriverManager.ts` - Edge driver detection and download logic
 - `src/launcher.ts` - Integration point in onPrepare hook
 - `src/types.ts` - TypeScript interfaces
 
 ### Cache Location
+
 Downloaded drivers are cached at:
 ```
 %TEMP%\msedgedriver\{majorVersion}\msedgedriver.exe
@@ -264,11 +292,12 @@ Downloaded drivers are cached at:
 Example: `C:\Users\YourName\AppData\Local\Temp\msedgedriver\143\msedgedriver.exe`
 
 ### Logging
+
 Enable debug logs to troubleshoot:
 ```javascript
 export const config = {
   logLevel: 'debug',
-  services: ['tauri']
+  services: ['tauri'],
 };
 ```
 

@@ -10,35 +10,35 @@ on:
     # https://docs.github.com/en/actions/using-workflows/reusing-workflows
     inputs:
       os:
-        description: 'Operating system to run tests on'
+        description: "Operating system to run tests on"
         required: true
         type: string
       node-version:
-        description: 'Node.js version to use for testing'
+        description: "Node.js version to use for testing"
         required: true
         type: string
       build-command:
-        description: 'Build command for test applications (build or build:mac-universal)'
+        description: "Build command for test applications (build or build:mac-universal)"
         type: string
-        default: 'build'
+        default: "build"
       scenario:
-        description: 'Test scenario (forge, builder, or script)'
+        description: "Test scenario (forge, builder, or script)"
         required: true
         type: string
       build_id:
-        description: 'Build ID from the build job'
+        description: "Build ID from the build job"
         type: string
         required: false
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         type: string
         required: false
       variant:
-        description: 'Optional variant label to disambiguate artifact names (e.g. window)'
+        description: "Optional variant label to disambiguate artifact names (e.g. window)"
         type: string
-        default: ''
+        default: ""
       cache_key:
-        description: 'Cache key to use for downloading artifacts'
+        description: "Cache key to use for downloading artifacts"
         type: string
         required: false
 
@@ -264,7 +264,7 @@ jobs:
       - name: 🧪 Execute E2E Tests
         shell: bash
         env:
-          ENABLE_SPLASH_WINDOW: 'true'
+          ENABLE_SPLASH_WINDOW: "true"
           TEST_TASKS: ${{ steps.gen-test.outputs.result }}
         run: |
           # TEST_TASKS intentionally splits into multiple turbo task names
@@ -298,7 +298,7 @@ jobs:
         uses: goosewobbler/vscode-server-action@v1.5.0
         if: failure()
         with:
-          timeout: '300000'
+          timeout: "300000"
 
       # The build/install footprint can fill the runner disk by job end, which
       # then fails the job's post-actions as they write to a full disk. Tests and

@@ -1,7 +1,6 @@
 # Package Test Applications
 
 This directory contains simple package test applications that serve two purposes:
-
 1. Demonstrate different ways to use `wdio-electron-service` and `wdio-tauri-service` in real-world applications
 2. Serve as package tests to validate basic service functionality and module system compatibility (CJS/ESM) during development
 
@@ -64,7 +63,6 @@ Each Electron package test has both CJS and ESM variants:
 ## Common Features
 
 All examples demonstrate:
-
 - electron-vite for building and development
 - TypeScript support
 - IPC communication between main and renderer processes

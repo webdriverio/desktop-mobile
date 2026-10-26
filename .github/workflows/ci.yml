@@ -5,15 +5,15 @@ on:
     branches:
       - main
     paths-ignore:
-      - '**/*.md'
-      - 'docs/**/*.md'
+      - "**/*.md"
+      - "docs/**/*.md"
   pull_request:
     # Doc-only PRs still trigger CI but use lint-only mode via detect-changes
-    types: [opened, synchronize, reopened]
+    types: [ opened, synchronize, reopened ]
   workflow_dispatch:
     inputs:
       force_all:
-        description: 'Run all tests (ignore change detection)'
+        description: "Run all tests (ignore change detection)"
         required: false
         type: boolean
         default: false
@@ -56,17 +56,17 @@ jobs:
   # Skip build when only docs changed
   build:
     name: Build [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
 
   # Run linting - doesn't need build artifacts
   lint:
     name: Lint [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     uses: ./.github/workflows/_ci-lint.reusable.yml
     secrets: inherit
 
@@ -75,7 +75,7 @@ jobs:
   # APPIUM_HOME, so this clean-env job is the only place the real install path runs.
   setup-automation-smoke:
     name: Mobile Setup-Automation Smoke
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.has_shared_changes == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-smoke-autoinstall-driver.reusable.yml
     secrets: inherit
@@ -83,7 +83,7 @@ jobs:
   # Run unit tests - skip when only docs changed
   unit-matrix:
     name: Unit [${{ matrix.display-name }}]
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -111,13 +111,13 @@ jobs:
   # plus the shared native-spy/native-types layer, so any non-docs change can affect it.
   browser-mode:
     name: Browser Mode [Linux]
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-browser-mode.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
-      node-version: '24'
+      os: "ubuntu-latest"
+      node-version: "24"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -127,12 +127,12 @@ jobs:
   # macos.rs / windows.rs / linux.rs unlinted.
   clippy-tauri-crates-linux:
     name: Clippy Tauri Crates [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-rust-clippy.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
       crates: |
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
@@ -144,24 +144,24 @@ jobs:
 
   clippy-tauri-crates-windows:
     name: Clippy Tauri Crates [Windows]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-rust-clippy.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
+      os: "windows-latest"
       crates: |
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
 
   clippy-tauri-crates-macos-arm:
     name: Clippy Tauri Crates [macOS-ARM]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-rust-clippy.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
+      os: "macos-latest"
       crates: |
         packages/tauri-plugin
         packages/tauri-plugin-webdriver
@@ -170,12 +170,12 @@ jobs:
   # build-dioxus-crates-linux below.
   clippy-dioxus-crates-linux:
     name: Clippy Dioxus Crates [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-rust-clippy.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
       crates: |
         packages/dioxus-bridge
         packages/dioxus-driver
@@ -185,30 +185,30 @@ jobs:
   # Build Tauri E2E app binaries - only if Tauri tests will run
   build-tauri-e2e-app-linux:
     name: Build Tauri E2E App [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
 
   build-tauri-e2e-app-windows:
     name: Build Tauri E2E App [Windows]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
+      os: "windows-latest"
 
   build-tauri-e2e-app-macos-arm:
     name: Build Tauri E2E App [macOS-ARM]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
+      os: "macos-latest"
 
   # Build Dioxus Rust crates - only if Dioxus tests will run.
   # v1 scope: Linux only. wdio-dioxus-driver is Windows-targeted but
@@ -216,40 +216,40 @@ jobs:
   # neutral code paths. Cross-platform verification lands in PR3.
   build-dioxus-crates-linux:
     name: Build Dioxus Crates [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-crates.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
 
   # Build Dioxus E2E app binaries - only if Dioxus tests will run
   build-dioxus-e2e-app-linux:
     name: Build Dioxus E2E App [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
 
   build-dioxus-e2e-app-windows:
     name: Build Dioxus E2E App [Windows]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
+      os: "windows-latest"
 
   build-dioxus-e2e-app-macos-arm:
     name: Build Dioxus E2E App [macOS-ARM]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
+      os: "macos-latest"
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E app — macOS (CEF bundle, no Rust crates). The CEF fixture build is
@@ -259,12 +259,12 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-macos-arm:
     name: Build Electrobun E2E App [macOS-ARM]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
+      os: "macos-latest"
 
   # ────────────────────────────────────────────────────────────────────────
   # Electrobun E2E app [Windows] — built with the native WebView2 renderer. The service injects
@@ -273,135 +273,135 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   build-electrobun-e2e-app-windows:
     name: Build Electrobun E2E App [Windows]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
+      os: "windows-latest"
 
   # Electrobun E2E app [Linux] — native WebKitGTK renderer, driven over W3C WebDriver in the
   # e2e leg below.
   build-electrobun-e2e-app-linux:
     name: Build Electrobun E2E App [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-e2e-app.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
 
   # macOS (CEF) + Windows (WebView2). The package-test fixture build mirrors the e2e build
   # (Bun, tar artifact); Windows builds the native WebView2 renderer (no CEF download).
   build-electrobun-package-app-macos-arm:
     name: Build Electrobun Package Test App [macOS-ARM]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
+      os: "macos-latest"
 
   build-electrobun-package-app-windows:
     name: Build Electrobun Package Test App [Windows]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-electrobun-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
+      os: "windows-latest"
 
   # Build Dioxus package test apps - only if Dioxus package tests will run
   build-dioxus-package-app-linux:
     name: Build Dioxus Package Test App [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
 
   build-dioxus-package-app-windows:
     name: Build Dioxus Package Test App [Windows]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
+      os: "windows-latest"
 
   build-dioxus-package-app-macos-arm:
     name: Build Dioxus Package Test App [macOS-ARM]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
+      os: "macos-latest"
 
   build-dioxus-package-app-macos-intel:
     name: Build Dioxus Package Test App [macOS-Intel]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-15-intel'
+      os: "macos-15-intel"
 
   build-dioxus-package-app-linux-arm:
     name: Build Dioxus Package Test App [Linux-ARM64]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-dioxus-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-24.04-arm'
+      os: "ubuntu-24.04-arm"
 
   # Build Tauri package test apps - only if Tauri package tests will run
   build-tauri-package-app-linux:
     name: Build Tauri Package Test App [Linux]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
+      os: "ubuntu-latest"
 
   build-tauri-package-app-windows:
     name: Build Tauri Package Test App [Windows]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
+      os: "windows-latest"
 
   build-tauri-package-app-linux-arm:
     name: Build Tauri Package Test App [Linux-ARM64]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-24.04-arm'
+      os: "ubuntu-24.04-arm"
 
   build-tauri-package-app-macos-arm:
     name: Build Tauri Package Test App [macOS-ARM]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
+      os: "macos-latest"
 
   build-tauri-package-app-macos-intel:
     name: Build Tauri Package Test App [macOS-Intel]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-tauri-package-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-15-intel'
+      os: "macos-15-intel"
 
   # Run package tests after unit tests to ensure the package is built correctly
   # Split Electron and Tauri tests across separate jobs for better parallelization and clarity
@@ -410,7 +410,7 @@ jobs:
   # Electron package tests are split by module type (CJS/ESM) for better error isolation
   package-electron-matrix:
     name: Package - Electron [${{ matrix.display-name }}] - ${{ matrix.module-type }}
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -444,7 +444,7 @@ jobs:
     secrets: inherit
     with:
       os: ${{ matrix.os }}
-      service: 'electron'
+      service: "electron"
       module-type: ${{ matrix.module-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -452,13 +452,13 @@ jobs:
 
   package-tauri-linux:
     name: Package - Tauri [Linux]
-    needs: [detect-changes, build, build-tauri-package-app-linux]
+    needs: [ detect-changes, build, build-tauri-package-app-linux ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
-      service: 'tauri'
+      os: "ubuntu-latest"
+      service: "tauri"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -466,13 +466,13 @@ jobs:
 
   package-tauri-windows:
     name: Package - Tauri [Windows]
-    needs: [detect-changes, build, build-tauri-package-app-windows]
+    needs: [ detect-changes, build, build-tauri-package-app-windows ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
-      service: 'tauri'
+      os: "windows-latest"
+      service: "tauri"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -480,13 +480,13 @@ jobs:
 
   package-tauri-linux-arm:
     name: Package - Tauri [Linux-ARM64]
-    needs: [detect-changes, build, build-tauri-package-app-linux-arm]
+    needs: [ detect-changes, build, build-tauri-package-app-linux-arm ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-24.04-arm'
-      service: 'tauri'
+      os: "ubuntu-24.04-arm"
+      service: "tauri"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -494,13 +494,13 @@ jobs:
 
   package-tauri-macos-arm:
     name: Package - Tauri [macOS-ARM]
-    needs: [detect-changes, build, build-tauri-package-app-macos-arm]
+    needs: [ detect-changes, build, build-tauri-package-app-macos-arm ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      service: 'tauri'
+      os: "macos-latest"
+      service: "tauri"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -508,13 +508,13 @@ jobs:
 
   package-tauri-macos-intel:
     name: Package - Tauri [macOS-Intel]
-    needs: [detect-changes, build, build-tauri-package-app-macos-intel]
+    needs: [ detect-changes, build, build-tauri-package-app-macos-intel ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-15-intel'
-      service: 'tauri'
+      os: "macos-15-intel"
+      service: "tauri"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -529,7 +529,7 @@ jobs:
   # - CentOS Stream 10: WebKitGTK removed by Red Hat due to 200+ CVEs and unsustainable maintenance
   package-tauri-distros:
     name: Package - Tauri (Docker) [${{ matrix.display-name }}]
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -555,7 +555,7 @@ jobs:
   # needs detect-changes (not build) — gating it on build just delayed these starts.
   build-matrix:
     name: Build [${{ matrix.display-name }}]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -581,7 +581,7 @@ jobs:
   # - Optimize for GitHub Actions concurrency limits
   e2e-matrix:
     name: E2E - Electron [${{ matrix.display-name }}] - ${{ matrix.scenario }}
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -618,7 +618,7 @@ jobs:
     secrets: inherit
     with:
       os: ${{ matrix.os }}
-      node-version: '24'
+      node-version: "24"
       scenario: ${{ matrix.scenario }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -627,7 +627,7 @@ jobs:
   # Electron window tests - run on Linux with splash screen enabled
   e2e-electron-window:
     name: E2E - Electron [${{ matrix.display-name }}] (window) - ${{ matrix.scenario }}
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -646,7 +646,7 @@ jobs:
     secrets: inherit
     with:
       os: ${{ matrix.os }}
-      node-version: '24'
+      node-version: "24"
       scenario: ${{ matrix.scenario }}
       variant: window
       build_id: ${{ needs.build.outputs.build_id }}
@@ -658,17 +658,17 @@ jobs:
   # External provider is automatically skipped on macOS (WKWebView limitations)
   e2e-tauri-linux:
     name: E2E - Tauri [Linux] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-tauri-e2e-app-linux]
+    needs: [ detect-changes, build, build-tauri-e2e-app-linux ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
     uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
-      node-version: '24'
+      os: "ubuntu-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -677,17 +677,17 @@ jobs:
 
   e2e-tauri-windows:
     name: E2E - Tauri [Windows] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-tauri-e2e-app-windows]
+    needs: [ detect-changes, build, build-tauri-e2e-app-windows ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
     uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
-      node-version: '24'
+      os: "windows-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -696,17 +696,17 @@ jobs:
 
   e2e-tauri-macos-arm:
     name: E2E - Tauri [macOS-ARM] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-tauri-e2e-app-macos-arm]
+    needs: [ detect-changes, build, build-tauri-e2e-app-macos-arm ]
     if: needs.detect-changes.outputs.run_tauri == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
     uses: ./.github/workflows/_ci-e2e-tauri-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
+      os: "macos-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       # Require for internal PRs and non-PR events; forks skip here (no key) — the crabnebula:run gate
       # covers them. Keyed on full_name so a null/detached head.repo resolves to skip, not a spurious require.
@@ -720,17 +720,17 @@ jobs:
   # All providers run sequentially per runner; external provider auto-skips on Linux/macOS
   e2e-dioxus-linux:
     name: E2E - Dioxus [Linux] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-dioxus-e2e-app-linux]
+    needs: [ detect-changes, build, build-dioxus-e2e-app-linux ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
     uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
-      node-version: '24'
+      os: "ubuntu-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -739,17 +739,17 @@ jobs:
 
   e2e-dioxus-windows:
     name: E2E - Dioxus [Windows] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-dioxus-e2e-app-windows]
+    needs: [ detect-changes, build, build-dioxus-e2e-app-windows ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
     uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
-      node-version: '24'
+      os: "windows-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -758,17 +758,17 @@ jobs:
 
   e2e-dioxus-macos-arm:
     name: E2E - Dioxus [macOS-ARM] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-dioxus-e2e-app-macos-arm]
+    needs: [ detect-changes, build, build-dioxus-e2e-app-macos-arm ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote', 'standalone', 'deeplink']
+        test-type: [ "standard", "window", "multiremote", "standalone", "deeplink" ]
     uses: ./.github/workflows/_ci-e2e-dioxus-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
+      os: "macos-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -794,17 +794,17 @@ jobs:
   # in window.spec.ts / deeplink.spec.ts.
   e2e-electrobun-macos-arm:
     name: E2E - Electrobun [macOS-ARM] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-electrobun-e2e-app-macos-arm]
+    needs: [ detect-changes, build, build-electrobun-e2e-app-macos-arm ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard']
+        test-type: [ "standard" ]
     uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
+      os: "macos-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -823,22 +823,22 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   e2e-react-native-linux:
     name: E2E - React Native [Android] - ${{ matrix.test-type }} (${{ matrix.arch }}-arch)
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     # New services consume the `runs` JSON map rather than a static run_<svc> output
     # (see _ci-detect-changes.reusable.yml — the map is populated automatically).
     if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard']
+        test-type: [ "standard" ]
         # Both RN architectures are required gates: old (Paper) and new (Fabric/bridgeless,
         # the 0.76 default). One fixture, two scaffold flags — see the reusable workflow.
-        arch: ['old', 'new']
+        arch: [ "old", "new" ]
     uses: ./.github/workflows/_ci-e2e-react-native.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
-      node-version: '24'
+      os: "ubuntu-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       new-arch: ${{ matrix.arch == 'new' }}
       build_id: ${{ needs.build.outputs.build_id }}
@@ -853,17 +853,17 @@ jobs:
   # legs; desktop services keep the runner-OS axis). Job key stays `-linux` (the runner).
   e2e-flutter-linux:
     name: E2E - Flutter [Android] - ${{ matrix.test-type }}
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: fromJSON(needs.detect-changes.outputs.runs)['flutter'] && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard']
+        test-type: [ "standard" ]
     uses: ./.github/workflows/_ci-e2e-flutter.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
-      node-version: '24'
+      os: "ubuntu-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -873,28 +873,28 @@ jobs:
   # runner (appium-xcuitest's SDK probe is fragile under build contention). Mirrors the RN iOS split.
   build-flutter-ios-e2e-app-macos:
     name: Build Flutter iOS E2E App
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: fromJSON(needs.detect-changes.outputs.runs)['flutter'] && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-flutter-ios-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
+      os: "macos-latest"
+      node-version: "24"
 
   # Flutter — iOS simulator E2E (fast-follow to the Android leg). Required gate (see ci-status).
   e2e-flutter-ios-macos:
     name: E2E - Flutter [iOS] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-flutter-ios-e2e-app-macos]
+    needs: [ detect-changes, build, build-flutter-ios-e2e-app-macos ]
     if: fromJSON(needs.detect-changes.outputs.runs)['flutter'] && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard']
+        test-type: [ "standard" ]
     uses: ./.github/workflows/_ci-e2e-flutter-ios.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
+      os: "macos-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -908,24 +908,24 @@ jobs:
   # leg — no cross-arch wait from a shared matrix job.
   build-rn-ios-e2e-app-macos-old-arch:
     name: Build RN iOS E2E App [old-arch]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-react-native-ios-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
+      os: "macos-latest"
+      node-version: "24"
       new-arch: false
 
   build-rn-ios-e2e-app-macos-new-arch:
     name: Build RN iOS E2E App [new-arch]
-    needs: [detect-changes]
+    needs: [ detect-changes ]
     if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-build-react-native-ios-app.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
+      os: "macos-latest"
+      node-version: "24"
       new-arch: true
 
   # React Native — iOS simulator E2E (the fast-follow to the Android leg). macOS runner;
@@ -933,14 +933,14 @@ jobs:
   # Required gate (see ci-status).
   e2e-react-native-ios-macos-old-arch:
     name: E2E - React Native [iOS] - standard (old-arch)
-    needs: [detect-changes, build, build-rn-ios-e2e-app-macos-old-arch]
+    needs: [ detect-changes, build, build-rn-ios-e2e-app-macos-old-arch ]
     if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-e2e-react-native-ios.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
-      test-type: 'standard'
+      os: "macos-latest"
+      node-version: "24"
+      test-type: "standard"
       new-arch: false
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -948,14 +948,14 @@ jobs:
 
   e2e-react-native-ios-macos-new-arch:
     name: E2E - React Native [iOS] - standard (new-arch)
-    needs: [detect-changes, build, build-rn-ios-e2e-app-macos-new-arch]
+    needs: [ detect-changes, build, build-rn-ios-e2e-app-macos-new-arch ]
     if: fromJSON(needs.detect-changes.outputs.runs)['react-native'] && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-e2e-react-native-ios.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      node-version: '24'
-      test-type: 'standard'
+      os: "macos-latest"
+      node-version: "24"
+      test-type: "standard"
       new-arch: true
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -968,17 +968,17 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-windows:
     name: E2E - Electrobun [Windows] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-electrobun-e2e-app-windows]
+    needs: [ detect-changes, build, build-electrobun-e2e-app-windows ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'window', 'multiremote']
+        test-type: [ "standard", "window", "multiremote" ]
     uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
-      node-version: '24'
+      os: "windows-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
@@ -989,33 +989,32 @@ jobs:
   # ────────────────────────────────────────────────────────────────────────
   e2e-electrobun-linux:
     name: E2E - Electrobun [Linux] - ${{ matrix.test-type }}
-    needs: [detect-changes, build, build-electrobun-e2e-app-linux]
+    needs: [ detect-changes, build, build-electrobun-e2e-app-linux ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
       matrix:
-        test-type: ['standard', 'multiremote']
+        test-type: [ "standard", "multiremote" ]
     uses: ./.github/workflows/_ci-e2e-electrobun-all-providers.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
-      node-version: '24'
+      os: "ubuntu-latest"
+      node-version: "24"
       test-type: ${{ matrix.test-type }}
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
-
   # Dioxus package tests - all platforms (mirrors E2E coverage)
   package-dioxus-linux:
     name: Package - Dioxus [Linux]
-    needs: [detect-changes, build, build-dioxus-package-app-linux]
+    needs: [ detect-changes, build, build-dioxus-package-app-linux ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-latest'
-      service: 'dioxus'
+      os: "ubuntu-latest"
+      service: "dioxus"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -1023,13 +1022,13 @@ jobs:
 
   package-dioxus-windows:
     name: Package - Dioxus [Windows]
-    needs: [detect-changes, build, build-dioxus-package-app-windows]
+    needs: [ detect-changes, build, build-dioxus-package-app-windows ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
-      service: 'dioxus'
+      os: "windows-latest"
+      service: "dioxus"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -1037,13 +1036,13 @@ jobs:
 
   package-dioxus-macos-arm:
     name: Package - Dioxus [macOS-ARM]
-    needs: [detect-changes, build, build-dioxus-package-app-macos-arm]
+    needs: [ detect-changes, build, build-dioxus-package-app-macos-arm ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      service: 'dioxus'
+      os: "macos-latest"
+      service: "dioxus"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -1051,13 +1050,13 @@ jobs:
 
   package-dioxus-macos-intel:
     name: Package - Dioxus [macOS-Intel]
-    needs: [detect-changes, build, build-dioxus-package-app-macos-intel]
+    needs: [ detect-changes, build, build-dioxus-package-app-macos-intel ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-15-intel'
-      service: 'dioxus'
+      os: "macos-15-intel"
+      service: "dioxus"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -1065,13 +1064,13 @@ jobs:
 
   package-dioxus-linux-arm:
     name: Package - Dioxus [Linux-ARM64]
-    needs: [detect-changes, build, build-dioxus-package-app-linux-arm]
+    needs: [ detect-changes, build, build-dioxus-package-app-linux-arm ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'ubuntu-24.04-arm'
-      service: 'dioxus'
+      os: "ubuntu-24.04-arm"
+      service: "dioxus"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -1086,7 +1085,7 @@ jobs:
   # discovery. Same distro exclusions as package-tauri-distros apply.
   package-dioxus-distros:
     name: Package - Dioxus (Docker) [${{ matrix.display-name }}]
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: needs.detect-changes.outputs.run_dioxus == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     strategy:
       fail-fast: false
@@ -1111,26 +1110,26 @@ jobs:
   # downloaded by artifact name within the run (tar/symlinks), so no cache_key is threaded.
   package-electrobun-macos-arm:
     name: Package - Electrobun [macOS-ARM]
-    needs: [detect-changes, build, build-electrobun-package-app-macos-arm]
+    needs: [ detect-changes, build, build-electrobun-package-app-macos-arm ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'macos-latest'
-      service: 'electrobun'
+      os: "macos-latest"
+      service: "electrobun"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
 
   package-electrobun-windows:
     name: Package - Electrobun [Windows]
-    needs: [detect-changes, build, build-electrobun-package-app-windows]
+    needs: [ detect-changes, build, build-electrobun-package-app-windows ]
     if: needs.detect-changes.outputs.run_electrobun == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     uses: ./.github/workflows/_ci-package.reusable.yml
     secrets: inherit
     with:
-      os: 'windows-latest'
-      service: 'electrobun'
+      os: "windows-latest"
+      service: "electrobun"
       build_id: ${{ needs.build.outputs.build_id }}
       artifact_size: ${{ needs.build.outputs.artifact_size }}
       cache_key: ${{ needs.build.outputs.cache_key }}
@@ -1138,7 +1137,7 @@ jobs:
   # Universal binary verification - Electron only
   package-electron-mac-universal:
     name: Package - Electron [macOS-Universal-Verify]
-    needs: [detect-changes, build]
+    needs: [ detect-changes, build ]
     if: needs.detect-changes.outputs.run_electron == 'true' && needs.detect-changes.outputs.run_lint_only != 'true'
     runs-on: macos-latest
     steps:
@@ -1148,7 +1147,7 @@ jobs:
       - name: 🛠️ Setup Development Environment
         uses: ./.github/workflows/actions/setup-workspace
         with:
-          node-version: '24'
+          node-version: "24"
 
       - name: 📦 Download Build Artifacts
         uses: ./.github/workflows/actions/download-archive

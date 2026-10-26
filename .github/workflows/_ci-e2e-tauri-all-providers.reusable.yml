@@ -9,43 +9,43 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Operating system to run tests on'
+        description: "Operating system to run tests on"
         required: true
         type: string
       node-version:
-        description: 'Node.js version to use for testing'
+        description: "Node.js version to use for testing"
         required: true
         type: string
       test-type:
-        description: 'Test type (standard, window, multiremote, standalone, deeplink)'
+        description: "Test type (standard, window, multiremote, standalone, deeplink)"
         type: string
-        default: 'standard'
+        default: "standard"
       build_id:
-        description: 'Build ID from the build job'
+        description: "Build ID from the build job"
         type: string
         required: false
       artifact_size:
-        description: 'Size of the build artifact in bytes'
+        description: "Size of the build artifact in bytes"
         type: string
         required: false
       cache_key:
-        description: 'Cache key to use for downloading package artifacts'
+        description: "Cache key to use for downloading package artifacts"
         type: string
         required: false
       tauri_cache_key:
-        description: 'Cache key to use for downloading Tauri app binaries'
+        description: "Cache key to use for downloading Tauri app binaries"
         type: string
         required: false
       require_crabnebula:
-        description: 'Fail the job if the CrabNebula leg is skipped (used by the keyed verification run)'
+        description: "Fail the job if the CrabNebula leg is skipped (used by the keyed verification run)"
         type: boolean
         default: false
       crabnebula_only:
-        description: 'Run only the CrabNebula provider — the fork PR''s own CI already covered external/embedded.'
+        description: "Run only the CrabNebula provider — the fork PR's own CI already covered external/embedded."
         type: boolean
         default: false
       enable_debug:
-        description: 'Debug conveniences that widen exposure (interactive session + log artifacts). Off for the keyed fork-code run.'
+        description: "Debug conveniences that widen exposure (interactive session + log artifacts). Off for the keyed fork-code run."
         type: boolean
         default: true
     # Declared explicitly so a caller can pass only a subset — the mirror run passes just CN_API_KEY.
@@ -394,9 +394,9 @@ jobs:
         shell: pwsh
         working-directory: e2e
         env:
-          RUST_BACKTRACE: '1'
-          NO_AT_BRIDGE: '1'
-          DRIVER_PROVIDER: 'external'
+          RUST_BACKTRACE: "1"
+          NO_AT_BRIDGE: "1"
+          DRIVER_PROVIDER: "external"
         run: |
           if ($env:RUNNER_OS -eq "Linux") {
             xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" `
@@ -447,9 +447,9 @@ jobs:
         shell: pwsh
         working-directory: e2e
         env:
-          RUST_BACKTRACE: '1'
-          NO_AT_BRIDGE: '1'
-          DRIVER_PROVIDER: 'embedded'
+          RUST_BACKTRACE: "1"
+          NO_AT_BRIDGE: "1"
+          DRIVER_PROVIDER: "embedded"
         run: |
           if ($env:RUNNER_OS -eq "Linux") {
             xvfb-run --auto-servernum --server-args="-screen 0 1280x1024x16" `
@@ -518,9 +518,9 @@ jobs:
         shell: pwsh
         working-directory: e2e
         env:
-          RUST_BACKTRACE: '1'
-          NO_AT_BRIDGE: '1'
-          DRIVER_PROVIDER: 'crabnebula'
+          RUST_BACKTRACE: "1"
+          NO_AT_BRIDGE: "1"
+          DRIVER_PROVIDER: "crabnebula"
           CN_API_KEY: ${{ secrets.CN_API_KEY }}
         run: |
           if ($env:RUNNER_OS -eq "Linux") {
@@ -671,4 +671,4 @@ jobs:
         if: ${{ failure() && inputs.enable_debug }}
         uses: goosewobbler/vscode-server-action@v1.5.0
         with:
-          timeout: '300000'
+          timeout: "300000"

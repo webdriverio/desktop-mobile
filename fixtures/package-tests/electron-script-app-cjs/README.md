@@ -50,7 +50,6 @@ pnpm test:headless
 ## 🧪 Testing
 
 The test suite demonstrates essential testing patterns:
-
 1. **IPC Communication** - Testing main/renderer message passing
 2. **Platform Detection** - Cross-platform compatibility testing
 3. **Security Validation** - Context isolation and API surface
@@ -60,7 +59,6 @@ The test suite demonstrates essential testing patterns:
 ## 📋 When to Use This Setup
 
 Choose **Script-based setup** when you want:
-
 - **Simplicity** - No build tools or complex configurations
 - **Learning** - Understanding Electron fundamentals
 - **Prototyping** - Quick experimentation and testing
@@ -78,7 +76,6 @@ Choose **Script-based setup** when you want:
 ### WebDriverIO Configuration
 
 See `wdio.conf.js` for test configuration. Uses:
-
 - `appArgs: ['.']` to run the app directly
 - No binary path needed - uses source files
 
@@ -100,7 +97,6 @@ See `wdio.conf.js` for test configuration. Uses:
 ## 🔍 What You'll Learn
 
 This example teaches:
-
 - **Electron Basics** - Core concepts without abstractions
 - **IPC Patterns** - Main/renderer communication
 - **Security Best Practices** - Context isolation setup
@@ -123,7 +119,7 @@ This example teaches:
    ```
 
 3. **Run tests**:
+
    ```bash
    pnpm test
    ```
-

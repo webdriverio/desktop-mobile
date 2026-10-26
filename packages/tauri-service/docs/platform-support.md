@@ -4,11 +4,11 @@ Complete guide to platform-specific requirements, limitations, and WebDriver set
 
 ## Platform Support Overview
 
-| Platform | Supported | WebDriver | Driver Provider | Setup |
-|----------|-----------|-----------|----------------|-------|
-| **Windows** | ✅ Yes | Microsoft Edge WebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` auto-manages the Edge WebDriver |
-| **Linux** | ✅ Yes | WebKitWebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` needs WebKitWebDriver |
-| **macOS** | ✅ Yes | Built-in | `'embedded'`, `'crabnebula'` | No external driver needed |
+| Platform    | Supported | WebDriver                | Driver Provider                                  | Setup                                        |
+| ----------- | --------- | ------------------------ | ------------------------------------------------ | -------------------------------------------- |
+| **Windows** | ✅ Yes    | Microsoft Edge WebDriver | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` auto-manages the Edge WebDriver |
+| **Linux**   | ✅ Yes    | WebKitWebDriver          | All (`'embedded'`, `'external'`, `'crabnebula'`) | `'external'` needs WebKitWebDriver           |
+| **macOS**   | ✅ Yes    | Built-in                 | `'embedded'`, `'crabnebula'`                     | No external driver needed                    |
 
 > `'embedded'` is the default on every platform when `driverProvider` is unset. See [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md).
 
@@ -36,7 +36,6 @@ services: [['@wdio/tauri-service', {
 #### Manual Setup
 
 If auto-management fails:
-
 1. **Detect your WebView2 version**
    - Build your app: `cargo build --release`
    - Right-click the .exe → Properties → Details
@@ -48,6 +47,7 @@ If auto-management fails:
    - Extract to PATH or specify in config
 
 3. **Configure WebdriverIO**
+
    ```typescript
    services: [['@wdio/tauri-service', {
      autoDownloadEdgeDriver: false,
@@ -60,8 +60,8 @@ If auto-management fails:
 **"This version of Microsoft Edge WebDriver only supports Microsoft Edge version X"**
 
 Version mismatch between driver and WebView2. Solutions:
-
 1. Enable auto-download (default):
+
    ```typescript
    autoDownloadEdgeDriver: true
    ```
@@ -72,8 +72,8 @@ Version mismatch between driver and WebView2. Solutions:
    - Update PATH or config
 
 **"msedgedriver.exe not found"**
-
 1. Check if installed:
+
    ```bash
    where msedgedriver.exe
    ```
@@ -86,11 +86,11 @@ Version mismatch between driver and WebView2. Solutions:
 
 `'embedded'` is the default. All three providers work on Windows:
 
-| Provider | Notes |
-|----------|-------|
-| `'embedded'` | Default — requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
-| `'external'` | Uses `tauri-driver` + MSEdgeDriver; the Edge WebDriver is auto-managed |
-| `'crabnebula'` | Requires a paid CrabNebula API key; cross-platform alternative |
+| Provider       | Notes                                                                            |
+| -------------- | -------------------------------------------------------------------------------- |
+| `'embedded'`   | Default — requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
+| `'external'`   | Uses `tauri-driver` + MSEdgeDriver; the Edge WebDriver is auto-managed           |
+| `'crabnebula'` | Requires a paid CrabNebula API key; cross-platform alternative                   |
 
 Use `'embedded'` for a consistent setup across Windows, Linux, and macOS without managing external drivers, `'external'` to drive `tauri-driver` directly, or `'crabnebula'` if you already have a CrabNebula subscription.
 
@@ -165,7 +165,6 @@ which WebKitWebDriver
 Alpine uses musl C library which is incompatible with Tauri app building. Alpine can only be used as a **runtime container**, not for building Tauri apps.
 
 **CentOS Stream / RHEL (❌ Not Supported)**
-
 - **Stream 9 / RHEL 9**: glib 2.68 is too old (requires 2.70+)
 - **Stream 10 / RHEL 10**: WebKitGTK intentionally removed due to security vulnerabilities
 
@@ -230,8 +229,8 @@ npm run test:e2e
 #### Troubleshooting Linux Issues
 
 **"WebKitWebDriver not found"**
-
 1. Verify installation:
+
    ```bash
    which WebKitWebDriver
    ```
@@ -239,6 +238,7 @@ npm run test:e2e
 2. If not found, install for your distribution (see above)
 
 3. Add to PATH if in non-standard location:
+
    ```bash
    export PATH="/path/to/driver:$PATH"
    ```
@@ -246,18 +246,20 @@ npm run test:e2e
 **"X11 connection refused" or "Cannot open display"**
 
 Your system doesn't have a display server. Solutions:
-
 1. **Use Xvfb**
+
    ```bash
    xvfb-run -a npm run test:e2e
    ```
 
 2. **Or use Docker with X11 forwarding**
+
    ```bash
    docker run -e DISPLAY -v /tmp/.X11-unix:/tmp/.X11-unix my-image
    ```
 
 3. **Or enable headless mode** (if supported):
+
    ```bash
    export WAYLAND_DISPLAY=""
    npm run test:e2e
@@ -279,11 +281,11 @@ sudo apt-get install webkitgtk-webdriver
 
 `'embedded'` is the default. All three providers work on Linux:
 
-| Provider | Notes |
-|----------|-------|
-| `'embedded'` | Default — requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
-| `'external'` | Uses `tauri-driver` + WebKitWebDriver (see above) |
-| `'crabnebula'` | Requires a paid CrabNebula API key; cross-platform alternative |
+| Provider       | Notes                                                                            |
+| -------------- | -------------------------------------------------------------------------------- |
+| `'embedded'`   | Default — requires `tauri-plugin-wdio-webdriver` in your app; no external driver |
+| `'external'`   | Uses `tauri-driver` + WebKitWebDriver (see above)                                |
+| `'crabnebula'` | Requires a paid CrabNebula API key; cross-platform alternative                   |
 
 Use `'embedded'` for a consistent setup across Windows, Linux, and macOS without managing external drivers, `'external'` to drive `tauri-driver` directly, or `'crabnebula'` if you already have a CrabNebula subscription.
 
@@ -316,11 +318,13 @@ The embedded WebDriver provider uses `tauri-plugin-wdio-webdriver` to provide na
 #### Requirements
 
 1. Install `tauri-plugin-wdio-webdriver` in your Tauri app:
+
    ```bash
    cd src-tauri && cargo add tauri-plugin-wdio-webdriver
    ```
 
 2. Register the plugin in your Rust code (debug builds only):
+
    ```rust
    fn main() {
        let builder = tauri::Builder::default();
@@ -335,6 +339,7 @@ The embedded WebDriver provider uses `tauri-plugin-wdio-webdriver` to provide na
    ```
 
 3. Add permissions in `src-tauri/capabilities/default.json`:
+
    ```json
    {
      "permissions": [
@@ -346,6 +351,7 @@ The embedded WebDriver provider uses `tauri-plugin-wdio-webdriver` to provide na
    ```
 
 4. Configure WebdriverIO — no explicit `driverProvider` needed on macOS:
+
    ```typescript
    services: [['@wdio/tauri-service', {
      // driverProvider auto-detected as 'embedded' on macOS
@@ -353,6 +359,7 @@ The embedded WebDriver provider uses `tauri-plugin-wdio-webdriver` to provide na
    ```
 
    You can also set it explicitly if you prefer:
+
    ```typescript
    services: [['@wdio/tauri-service', {
      driverProvider: 'embedded',
@@ -376,11 +383,11 @@ See [Plugin Setup](./plugin-setup.md) for detailed setup instructions.
 
 #### Platform Support
 
-| Platform | Supported | Requirements |
-|----------|-----------|--------------|
-| **Windows** | ✅ Yes | `@crabnebula/tauri-driver` |
-| **Linux** | ✅ Yes | `@crabnebula/tauri-driver` + WebKitWebDriver |
-| **macOS** | ✅ Yes | `@crabnebula/tauri-driver` + `CN_API_KEY` |
+| Platform    | Supported | Requirements                                 |
+| ----------- | --------- | -------------------------------------------- |
+| **Windows** | ✅ Yes    | `@crabnebula/tauri-driver`                   |
+| **Linux**   | ✅ Yes    | `@crabnebula/tauri-driver` + WebKitWebDriver |
+| **macOS**   | ✅ Yes    | `@crabnebula/tauri-driver` + `CN_API_KEY`    |
 
 > **Note:** `CN_API_KEY` is only required for macOS. Windows and Linux work without an API key.
 
@@ -401,6 +408,7 @@ See [Plugin Setup](./plugin-setup.md) for detailed setup instructions.
 #### Setup
 
 1. Install CrabNebula packages:
+
    ```bash
    npm install -D @crabnebula/tauri-driver
    # For macOS, also install:
@@ -408,11 +416,13 @@ See [Plugin Setup](./plugin-setup.md) for detailed setup instructions.
    ```
 
 2. **For macOS only** — add the automation plugin to your Tauri app:
+
    ```bash
    cd src-tauri && cargo add tauri-plugin-automation
    ```
 
 3. **For macOS only** — register the plugin (debug builds only):
+
    ```rust
    let mut builder = tauri::Builder::default();
    #[cfg(debug_assertions)]
@@ -422,11 +432,13 @@ See [Plugin Setup](./plugin-setup.md) for detailed setup instructions.
    ```
 
 4. **For macOS only** — set your API key:
+
    ```bash
    export CN_API_KEY="your-api-key"
    ```
 
 5. Configure WebdriverIO:
+
    ```typescript
    services: [['@wdio/tauri-service', {
      driverProvider: 'crabnebula',
@@ -438,7 +450,6 @@ See the [CrabNebula Setup Guide](./crabnebula-setup.md) for detailed instruction
 ### Alternatives for macOS
 
 If you cannot use the embedded provider or CrabNebula, consider:
-
 1. **Cross-Platform Testing**
    - Develop on macOS, run automated tests on Linux/Windows
    - Perform manual QA on macOS
@@ -503,17 +514,32 @@ export const config = {
     console.log(`Testing on ${platform}-${arch}`);
 
     if (platform === 'win32') {
-      config.services = [['@wdio/tauri-service', {
-        autoDownloadEdgeDriver: true,
-      }]];
+      config.services = [
+        [
+          '@wdio/tauri-service',
+          {
+            autoDownloadEdgeDriver: true,
+          },
+        ],
+      ];
     } else if (platform === 'linux') {
-      config.services = [['@wdio/tauri-service', {
-        // WebKitWebDriver auto-detected
-      }]];
+      config.services = [
+        [
+          '@wdio/tauri-service',
+          {
+            // WebKitWebDriver auto-detected
+          },
+        ],
+      ];
     } else if (platform === 'darwin') {
-      config.services = [['@wdio/tauri-service', {
-        // embedded provider auto-detected on macOS
-      }]];
+      config.services = [
+        [
+          '@wdio/tauri-service',
+          {
+            // embedded provider auto-detected on macOS
+          },
+        ],
+      ];
     }
   },
 };
@@ -525,14 +551,14 @@ Skip tests on unsupported platforms:
 
 ```typescript
 describe('Platform-specific features', () => {
-  it('should handle Windows path format', function() {
+  it('should handle Windows path format', function () {
     if (process.platform !== 'win32') {
       this.skip();
     }
     // Windows-specific test
   });
 
-  it('should handle Linux file permissions', function() {
+  it('should handle Linux file permissions', function () {
     if (process.platform !== 'linux') {
       this.skip();
     }

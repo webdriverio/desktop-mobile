@@ -12,10 +12,13 @@ The service cannot find the tauri-driver executable.
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    autoInstallTauriDriver: true, // Requires Rust/cargo
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      autoInstallTauriDriver: true, // Requires Rust/cargo
+    },
+  ],
+];
 ```
 
 **Solution 2: Manual Installation**
@@ -35,10 +38,13 @@ If installed in a non-standard location:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    tauriDriverPath: '/custom/path/tauri-driver'
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      tauriDriverPath: '/custom/path/tauri-driver',
+    },
+  ],
+];
 ```
 
 ### "WebKitWebDriver not found" (Linux only)
@@ -67,7 +73,6 @@ sudo xbps-install -y libwebkit2gtk41
 ```
 
 **Unsupported Distributions**
-
 - **Alpine Linux**: Cannot build Tauri apps (musl incompatibility). Use Ubuntu, Debian, Fedora, or Arch instead.
 - **CentOS/RHEL**: Stream 9 has glib too old (requires 2.70+), Stream 10 removed WebKitGTK. Use **Fedora 40+** instead.
 - **openSUSE**: Untested. WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6).
@@ -80,14 +85,16 @@ The Edge WebDriver for Windows is not found.
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    autoDownloadEdgeDriver: true  // Default: true
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      autoDownloadEdgeDriver: true, // Default: true
+    },
+  ],
+];
 ```
 
 **Solution 2: Manual Download**
-
 1. Check your WebView2 version:
    - Build your app: `cargo build --release`
    - Right-click the .exe → Properties → Details
@@ -99,10 +106,13 @@ services: [
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    autoDownloadEdgeDriver: false
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      autoDownloadEdgeDriver: false,
+    },
+  ],
+];
 ```
 
 See [Edge WebDriver (Windows)](./edge-webdriver-windows.md) for detailed setup.
@@ -243,7 +253,7 @@ const mock = await browser.tauri.mock('my_command');
 
 ```typescript
 // Make sure command name matches exactly
-const mock = await browser.tauri.mock('get_user');  // Must match your command name
+const mock = await browser.tauri.mock('get_user'); // Must match your command name
 await mock.mockReturnValue({ id: 1 });
 ```
 
@@ -276,12 +286,15 @@ Update `wdio.conf.ts`:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows
-    // or
-    appBinaryPath: './src-tauri/target/release/my-app',     // Linux/macOS
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      appBinaryPath: './src-tauri/target/release/my-app.exe', // Windows
+      // or
+      appBinaryPath: './src-tauri/target/release/my-app', // Linux/macOS
+    },
+  ],
+];
 ```
 
 **Solution 4: Use Absolute Path**
@@ -290,10 +303,13 @@ services: [
 import path from 'path';
 
 services: [
-  ['@wdio/tauri-service', {
-    appBinaryPath: path.resolve('./src-tauri/target/release/my-app.exe')
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      appBinaryPath: path.resolve('./src-tauri/target/release/my-app.exe'),
+    },
+  ],
+];
 ```
 
 ### Commands Timing Out
@@ -304,20 +320,26 @@ Operations take too long or timeout unexpectedly.
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    commandTimeout: 60000  // 60 seconds instead of default 10s
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      commandTimeout: 60000, // 60 seconds instead of default 10s
+    },
+  ],
+];
 ```
 
 **Solution 2: Increase Start Timeout**
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    startTimeout: 60000  // Allow more time for app to start
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      startTimeout: 60000, // Allow more time for app to start
+    },
+  ],
+];
 ```
 
 **Solution 3: Wait for App to Be Ready**
@@ -339,12 +361,15 @@ Enable logging to see what's happening:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    captureBackendLogs: true,
-    captureFrontendLogs: true,
-    logLevel: 'debug'
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      captureBackendLogs: true,
+      captureFrontendLogs: true,
+      logLevel: 'debug',
+    },
+  ],
+];
 ```
 
 ### "Port already in use"
@@ -355,16 +380,19 @@ Multiple tests are conflicting on the same port.
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    tauriDriverPort: 4445  // Instead of default 4444
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      tauriDriverPort: 4445, // Instead of default 4444
+    },
+  ],
+];
 ```
 
 **Solution 2: Auto-Assign Ports for Multiremote**
 
 ```typescript
-maxInstances: 3  // Each worker gets unique port (4444, 4445, 4446)
+maxInstances: 3; // Each worker gets unique port (4444, 4445, 4446)
 ```
 
 **Solution 3: Kill Process Using Port**
@@ -384,26 +412,33 @@ Get-Process -Id (Get-NetTCPConnection -LocalPort 4444).OwningProcess | Stop-Proc
 `'embedded'` is the default provider on every platform, and it requires `tauri-plugin-wdio-webdriver` in your app. If the plugin is missing or not registered, the embedded server never starts and the session times out waiting for it.
 
 **Solution 1: Add the embedded plugin (recommended)**
-
 1. Install `tauri-plugin-wdio-webdriver` in your Tauri app:
+
    ```bash
    cd src-tauri && cargo add tauri-plugin-wdio-webdriver
    ```
 2. Register it in your Rust code (debug builds) and keep the default embedded provider:
+
    ```typescript
    services: [['@wdio/tauri-service', {
      driverProvider: 'embedded',
    }]]
    ```
+
    The embedded server listens on port 4445 by default; override it with the `embeddedPort` option or the `TAURI_WEBDRIVER_PORT` env var if needed.
 
 **Solution 2: Use the external tauri-driver instead**
 
 ```typescript
-services: [['@wdio/tauri-service', {
-  driverProvider: 'external',
-  autoInstallTauriDriver: true,
-}]]
+services: [
+  [
+    '@wdio/tauri-service',
+    {
+      driverProvider: 'external',
+      autoInstallTauriDriver: true,
+    },
+  ],
+];
 ```
 
 See [Platform Support](./platform-support.md) for per-platform details.
@@ -459,18 +494,20 @@ import { withExecuteOptions } from '@wdio/tauri-service';
 
 const result = await browser.tauri.execute(
   (tauri) => tauri.core.invoke('get_data'),
-  withExecuteOptions({ windowLabel: 'popup' })
+  withExecuteOptions({ windowLabel: 'popup' }),
 );
 ```
 
 ```typescript
 // wdio.conf.ts
 export const config = {
-  capabilities: [{
-    'wdio:tauriServiceOptions': {
-      driverProvider: 'embedded',
+  capabilities: [
+    {
+      'wdio:tauriServiceOptions': {
+        driverProvider: 'embedded',
+      },
     },
-  }],
+  ],
 };
 ```
 
@@ -484,11 +521,14 @@ Get more detailed information about what the service is doing:
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    logLevel: 'debug',  // Verbose logging
-    commandTimeout: 60000
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      logLevel: 'debug', // Verbose logging
+      commandTimeout: 60000,
+    },
+  ],
+];
 ```
 
 ### Verbose Test Output
@@ -514,22 +554,28 @@ it('should check service', async () => {
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    captureBackendLogs: false,
-    captureFrontendLogs: false,  // Logs add overhead
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      captureBackendLogs: false,
+      captureFrontendLogs: false, // Logs add overhead
+    },
+  ],
+];
 ```
 
 **Solution 2: Increase Log Level**
 
 ```typescript
 services: [
-  ['@wdio/tauri-service', {
-    backendLogLevel: 'warn',  // Skip debug/info logs
-    frontendLogLevel: 'warn',
-  }]
-]
+  [
+    '@wdio/tauri-service',
+    {
+      backendLogLevel: 'warn', // Skip debug/info logs
+      frontendLogLevel: 'warn',
+    },
+  ],
+];
 ```
 
 **Solution 3: Run Tests Serially**
@@ -537,7 +583,7 @@ services: [
 ```typescript
 // wdio.conf.ts
 export const config = {
-  maxInstances: 1,  // Run one test at a time
+  maxInstances: 1, // Run one test at a time
 };
 ```
 
@@ -546,13 +592,13 @@ export const config = {
 ### Tests Fail in CI But Pass Locally
 
 **Common Causes:**
-
 1. **Missing WebDriver on CI**
    - Install WebKitWebDriver on Linux CI
    - Download MSEdgeDriver on Windows CI
 
 2. **Display Server Missing on Linux CI**
    - Use Xvfb for headless testing:
+
      ```bash
      xvfb-run -a npm run test:e2e
      ```
@@ -563,6 +609,7 @@ export const config = {
 
 4. **Environment Variables**
    - Set `APP_BINARY` or similar if using env-based paths:
+
      ```bash
      APP_BINARY="./src-tauri/target/release/my-app" npm run test:e2e
      ```
@@ -571,7 +618,7 @@ export const config = {
 
 ```yaml
 name: E2E Tests
-on: [push, pull_request]
+on: [ push, pull_request ]
 
 jobs:
   test:
@@ -580,7 +627,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-node@v3
         with:
-          node-version: '18'
+          node-version: "18"
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install WebKitWebDriver
@@ -601,7 +648,6 @@ jobs:
 ## Getting Help
 
 If you're still stuck:
-
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
 3. **See [Plugin Setup](./plugin-setup.md)** for plugin requirements

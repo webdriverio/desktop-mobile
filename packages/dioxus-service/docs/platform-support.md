@@ -4,11 +4,11 @@ Platform-specific requirements and setup for Dioxus testing.
 
 ## Platform Support Overview
 
-| Platform | Supported |
-|----------|-----------|
-| **Windows** | ✅ Yes |
-| **Linux** | ✅ Yes |
-| **macOS** | ✅ Yes |
+| Platform    | Supported |
+| ----------- | --------- |
+| **Windows** | ✅ Yes    |
+| **Linux**   | ✅ Yes    |
+| **macOS**   | ✅ Yes    |
 
 ## How the Service Drives Your App
 
@@ -22,7 +22,6 @@ The WebDriver server runs inside your app, so there's no driver to install on an
 ### Limitations
 
 On every platform (#721):
-
 - Screenshots, of the page or an element, return a blank 1×1 image.
 - Alerts, frames, shadow roots and printing aren't supported.
 - Cookie commands only see cookies the page's JavaScript can read, so not HttpOnly cookies.
@@ -30,9 +29,14 @@ On every platform (#721):
 ## Windows
 
 ```typescript
-services: [['@wdio/dioxus-service', {
-  appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe',
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      appBinaryPath: './target/dx/my_app/debug/windows/app/my_app.exe',
+    },
+  ],
+];
 ```
 
 ### Windows-Specific Features
@@ -51,9 +55,14 @@ services: [['@wdio/dioxus-service', {
 ## Linux
 
 ```typescript
-services: [['@wdio/dioxus-service', {
-  appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',
+    },
+  ],
+];
 ```
 
 ### Linux Build Requirements
@@ -91,19 +100,24 @@ xvfb-run -a npx wdio run wdio.conf.ts
 
 ### Linux Distribution Support
 
-| Distribution | Status |
-|-------------|--------|
-| Debian / Ubuntu 22.04+ | ✅ Supported |
-| Fedora 40+ | ✅ Supported |
-| Arch Linux | ✅ Supported |
-| Alpine Linux | ❌ Not supported (musl incompatibility) |
+| Distribution           | Status                                  |
+| ---------------------- | --------------------------------------- |
+| Debian / Ubuntu 22.04+ | ✅ Supported                            |
+| Fedora 40+             | ✅ Supported                            |
+| Arch Linux             | ✅ Supported                            |
+| Alpine Linux           | ❌ Not supported (musl incompatibility) |
 
 ## macOS
 
 ```typescript
-services: [['@wdio/dioxus-service', {
-  appBinaryPath: './target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app',
-}]]
+services: [
+  [
+    '@wdio/dioxus-service',
+    {
+      appBinaryPath: './target/dx/my_app/debug/macos/MyApp.app/Contents/MacOS/my_app',
+    },
+  ],
+];
 ```
 
 ### macOS-Specific Features
@@ -123,7 +137,7 @@ jobs:
   e2e:
     strategy:
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-latest]
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -135,7 +149,7 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
 
       - run: npm install
       - uses: cargo-bins/cargo-binstall@main
@@ -155,14 +169,14 @@ jobs:
 
 ```typescript
 describe('Platform-specific features', () => {
-  it('should handle Windows path format', function() {
+  it('should handle Windows path format', function () {
     if (process.platform !== 'win32') {
       this.skip();
     }
     // Windows-specific test
   });
 
-  it('should handle Linux file permissions', function() {
+  it('should handle Linux file permissions', function () {
     if (process.platform !== 'linux') {
       this.skip();
     }

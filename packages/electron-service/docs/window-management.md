@@ -11,7 +11,6 @@ This runs on the WDIO `beforeCommand` hook, so the switch happens transparently 
 ### When the Switch Triggers
 
 The service evaluates window state before every command **except** the four that already deal in window state directly:
-
 - `getWindowHandle`
 - `getWindowHandles`
 - `switchToWindow`

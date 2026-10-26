@@ -10,7 +10,6 @@ This is a fork of [`Choochmeque/tauri-plugin-webdriver`](https://github.com/Choo
 ## When to Use This Plugin
 
 This plugin is required when using the `'embedded'` driver provider with `@wdio/tauri-service`:
-
 - **macOS** — auto-detected, no configuration needed
 - **Windows/Linux** — set `driverProvider: 'embedded'` or `TAURI_WEBDRIVER_PORT` env var
 
@@ -25,11 +24,11 @@ It is **not needed** if you use the `'external'` or `'crabnebula'` driver provid
 
 ### Supported Platforms
 
-| Platform | Status | Backend |
-|----------|--------|---------|
-| macOS | Full support | WKWebView native APIs |
-| Windows | Full support | WebView2 native APIs |
-| Linux | Full support | WebKitGTK native APIs |
+| Platform | Status       | Backend               |
+| -------- | ------------ | --------------------- |
+| macOS    | Full support | WKWebView native APIs |
+| Windows  | Full support | WebView2 native APIs  |
+| Linux    | Full support | WebKitGTK native APIs |
 
 Android and iOS are not supported. The plugin still builds for them, so an app that also targets mobile compiles, but on mobile it does nothing.
 
@@ -78,16 +77,23 @@ fn main() {
 ```typescript
 // wdio.conf.ts
 export const config = {
-  services: [['@wdio/tauri-service', {
-    driverProvider: 'embedded',  // Auto-detected on macOS
-  }]],
+  services: [
+    [
+      '@wdio/tauri-service',
+      {
+        driverProvider: 'embedded', // Auto-detected on macOS
+      },
+    ],
+  ],
 
-  capabilities: [{
-    browserName: 'tauri',
-    'tauri:options': {
-      application: './src-tauri/target/release/my-app',
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'tauri:options': {
+        application: './src-tauri/target/release/my-app',
+      },
     },
-  }],
+  ],
 };
 ```
 
@@ -119,9 +125,9 @@ Then connect with any client:
 ```javascript
 // WebdriverIO
 const browser = await remote({
-    hostname: '127.0.0.1',
-    port: 4445,
-    capabilities: {}
+  hostname: '127.0.0.1',
+  port: 4445,
+  capabilities: {},
 });
 ```
 
@@ -159,72 +165,78 @@ Port resolution order:
 ## W3C WebDriver Endpoints
 
 ### Session Management
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/status` | Server status |
-| POST | `/session` | Create session |
+
+| Method | Endpoint        | Description    |
+| ------ | --------------- | -------------- |
+| GET    | `/status`       | Server status  |
+| POST   | `/session`      | Create session |
 | DELETE | `/session/{id}` | Delete session |
 
 ### Timeouts
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/session/{id}/timeouts` | Get timeouts |
-| POST | `/session/{id}/timeouts` | Set timeouts |
+
+| Method | Endpoint                 | Description  |
+| ------ | ------------------------ | ------------ |
+| GET    | `/session/{id}/timeouts` | Get timeouts |
+| POST   | `/session/{id}/timeouts` | Set timeouts |
 
 ### Navigation
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/session/{id}/url` | Get current URL |
-| POST | `/session/{id}/url` | Navigate to URL |
-| GET | `/session/{id}/title` | Get page title |
-| POST | `/session/{id}/back` | Go back |
-| POST | `/session/{id}/forward` | Go forward |
-| POST | `/session/{id}/refresh` | Refresh page |
+
+| Method | Endpoint                | Description     |
+| ------ | ----------------------- | --------------- |
+| GET    | `/session/{id}/url`     | Get current URL |
+| POST   | `/session/{id}/url`     | Navigate to URL |
+| GET    | `/session/{id}/title`   | Get page title  |
+| POST   | `/session/{id}/back`    | Go back         |
+| POST   | `/session/{id}/forward` | Go forward      |
+| POST   | `/session/{id}/refresh` | Refresh page    |
 
 ### Elements
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/session/{id}/element` | Find element |
-| POST | `/session/{id}/elements` | Find elements |
-| GET | `/session/{id}/element/active` | Get active element |
-| POST | `/session/{id}/element/{eid}/element` | Find from element |
-| POST | `/session/{id}/element/{eid}/elements` | Find all from element |
-| POST | `/session/{id}/element/{eid}/click` | Click element |
-| POST | `/session/{id}/element/{eid}/clear` | Clear element |
-| POST | `/session/{id}/element/{eid}/value` | Send keys |
-| GET | `/session/{id}/element/{eid}/text` | Get text |
-| GET | `/session/{id}/element/{eid}/name` | Get tag name |
-| GET | `/session/{id}/element/{eid}/attribute/{name}` | Get attribute |
-| GET | `/session/{id}/element/{eid}/property/{name}` | Get property |
-| GET | `/session/{id}/element/{eid}/css/{prop}` | Get CSS value |
-| GET | `/session/{id}/element/{eid}/rect` | Get rect |
-| GET | `/session/{id}/element/{eid}/selected` | Is selected |
-| GET | `/session/{id}/element/{eid}/displayed` | Is displayed |
-| GET | `/session/{id}/element/{eid}/enabled` | Is enabled |
-| GET | `/session/{id}/element/{eid}/computedrole` | Get ARIA role |
-| GET | `/session/{id}/element/{eid}/computedlabel` | Get ARIA label |
-| GET | `/session/{id}/element/{eid}/screenshot` | Element screenshot |
+
+| Method | Endpoint                                       | Description           |
+| ------ | ---------------------------------------------- | --------------------- |
+| POST   | `/session/{id}/element`                        | Find element          |
+| POST   | `/session/{id}/elements`                       | Find elements         |
+| GET    | `/session/{id}/element/active`                 | Get active element    |
+| POST   | `/session/{id}/element/{eid}/element`          | Find from element     |
+| POST   | `/session/{id}/element/{eid}/elements`         | Find all from element |
+| POST   | `/session/{id}/element/{eid}/click`            | Click element         |
+| POST   | `/session/{id}/element/{eid}/clear`            | Clear element         |
+| POST   | `/session/{id}/element/{eid}/value`            | Send keys             |
+| GET    | `/session/{id}/element/{eid}/text`             | Get text              |
+| GET    | `/session/{id}/element/{eid}/name`             | Get tag name          |
+| GET    | `/session/{id}/element/{eid}/attribute/{name}` | Get attribute         |
+| GET    | `/session/{id}/element/{eid}/property/{name}`  | Get property          |
+| GET    | `/session/{id}/element/{eid}/css/{prop}`       | Get CSS value         |
+| GET    | `/session/{id}/element/{eid}/rect`             | Get rect              |
+| GET    | `/session/{id}/element/{eid}/selected`         | Is selected           |
+| GET    | `/session/{id}/element/{eid}/displayed`        | Is displayed          |
+| GET    | `/session/{id}/element/{eid}/enabled`          | Is enabled            |
+| GET    | `/session/{id}/element/{eid}/computedrole`     | Get ARIA role         |
+| GET    | `/session/{id}/element/{eid}/computedlabel`    | Get ARIA label        |
+| GET    | `/session/{id}/element/{eid}/screenshot`       | Element screenshot    |
 
 ### Shadow DOM
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/session/{id}/element/{eid}/shadow` | Get shadow root |
-| POST | `/session/{id}/shadow/{sid}/element` | Find in shadow |
-| POST | `/session/{id}/shadow/{sid}/elements` | Find all in shadow |
+
+| Method | Endpoint                              | Description        |
+| ------ | ------------------------------------- | ------------------ |
+| GET    | `/session/{id}/element/{eid}/shadow`  | Get shadow root    |
+| POST   | `/session/{id}/shadow/{sid}/element`  | Find in shadow     |
+| POST   | `/session/{id}/shadow/{sid}/elements` | Find all in shadow |
 
 ### Windows
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/session/{id}/window` | Get window handle |
-| POST | `/session/{id}/window` | Switch to window |
-| DELETE | `/session/{id}/window` | Close window |
-| POST | `/session/{id}/window/new` | New window |
-| GET | `/session/{id}/window/handles` | Get all handles |
-| GET | `/session/{id}/window/rect` | Get window rect |
-| POST | `/session/{id}/window/rect` | Set window rect |
-| POST | `/session/{id}/window/maximize` | Maximize |
-| POST | `/session/{id}/window/minimize` | Minimize |
-| POST | `/session/{id}/window/fullscreen` | Fullscreen |
+
+| Method | Endpoint                          | Description       |
+| ------ | --------------------------------- | ----------------- |
+| GET    | `/session/{id}/window`            | Get window handle |
+| POST   | `/session/{id}/window`            | Switch to window  |
+| DELETE | `/session/{id}/window`            | Close window      |
+| POST   | `/session/{id}/window/new`        | New window        |
+| GET    | `/session/{id}/window/handles`    | Get all handles   |
+| GET    | `/session/{id}/window/rect`       | Get window rect   |
+| POST   | `/session/{id}/window/rect`       | Set window rect   |
+| POST   | `/session/{id}/window/maximize`   | Maximize          |
+| POST   | `/session/{id}/window/minimize`   | Minimize          |
+| POST   | `/session/{id}/window/fullscreen` | Fullscreen        |
 
 `Get Window Rect` and `Set Window Rect` use CSS pixels, as required by the
 [W3C WebDriver Window Rect commands](https://www.w3.org/TR/webdriver2/#set-window-rect).
@@ -233,56 +245,62 @@ using the window's current display scale factor. Position changes are completed
 before a requested size is applied, including moves between displays.
 
 ### Frames
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/session/{id}/frame` | Switch to frame |
-| POST | `/session/{id}/frame/parent` | Switch to parent |
+
+| Method | Endpoint                     | Description      |
+| ------ | ---------------------------- | ---------------- |
+| POST   | `/session/{id}/frame`        | Switch to frame  |
+| POST   | `/session/{id}/frame/parent` | Switch to parent |
 
 ### Scripts
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/session/{id}/execute/sync` | Execute sync script |
-| POST | `/session/{id}/execute/async` | Execute async script |
+
+| Method | Endpoint                      | Description          |
+| ------ | ----------------------------- | -------------------- |
+| POST   | `/session/{id}/execute/sync`  | Execute sync script  |
+| POST   | `/session/{id}/execute/async` | Execute async script |
 
 ### Cookies
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/session/{id}/cookie` | Get all cookies |
-| POST | `/session/{id}/cookie` | Add cookie |
-| DELETE | `/session/{id}/cookie` | Delete all cookies |
-| GET | `/session/{id}/cookie/{name}` | Get cookie |
-| DELETE | `/session/{id}/cookie/{name}` | Delete cookie |
+
+| Method | Endpoint                      | Description        |
+| ------ | ----------------------------- | ------------------ |
+| GET    | `/session/{id}/cookie`        | Get all cookies    |
+| POST   | `/session/{id}/cookie`        | Add cookie         |
+| DELETE | `/session/{id}/cookie`        | Delete all cookies |
+| GET    | `/session/{id}/cookie/{name}` | Get cookie         |
+| DELETE | `/session/{id}/cookie/{name}` | Delete cookie      |
 
 ### Alerts
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/session/{id}/alert/dismiss` | Dismiss alert |
-| POST | `/session/{id}/alert/accept` | Accept alert |
-| GET | `/session/{id}/alert/text` | Get alert text |
-| POST | `/session/{id}/alert/text` | Send alert text |
+
+| Method | Endpoint                      | Description     |
+| ------ | ----------------------------- | --------------- |
+| POST   | `/session/{id}/alert/dismiss` | Dismiss alert   |
+| POST   | `/session/{id}/alert/accept`  | Accept alert    |
+| GET    | `/session/{id}/alert/text`    | Get alert text  |
+| POST   | `/session/{id}/alert/text`    | Send alert text |
 
 ### Actions
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| POST | `/session/{id}/actions` | Perform actions |
+
+| Method | Endpoint                | Description     |
+| ------ | ----------------------- | --------------- |
+| POST   | `/session/{id}/actions` | Perform actions |
 | DELETE | `/session/{id}/actions` | Release actions |
 
 ### Document
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/session/{id}/source` | Get page source |
-| GET | `/session/{id}/screenshot` | Take screenshot |
-| POST | `/session/{id}/print` | Print to PDF |
+
+| Method | Endpoint                   | Description     |
+| ------ | -------------------------- | --------------- |
+| GET    | `/session/{id}/source`     | Get page source |
+| GET    | `/session/{id}/screenshot` | Take screenshot |
+| POST   | `/session/{id}/print`      | Print to PDF    |
 
 ## Locator Strategies
 
-| Strategy | Example |
-|----------|---------|
-| `css selector` | `#id`, `.class`, `div > p` |
-| `xpath` | `//div[@id='test']` |
-| `tag name` | `button`, `input` |
-| `link text` | Exact link text match |
-| `partial link text` | Partial link text match |
+| Strategy            | Example                    |
+| ------------------- | -------------------------- |
+| `css selector`      | `#id`, `.class`, `div > p` |
+| `xpath`             | `//div[@id='test']`        |
+| `tag name`          | `button`, `input`          |
+| `link text`         | Exact link text match      |
+| `partial link text` | Partial link text match    |
 
 ## See Also
 

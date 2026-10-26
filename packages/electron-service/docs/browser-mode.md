@@ -21,7 +21,6 @@ In normal (`native`) mode the service launches your compiled Electron app, drive
 Browser mode is the right choice when your tests are renderer-focused: asserting UI state, verifying that components call the correct IPC channels with the right arguments, or checking that the renderer handles mock responses correctly.
 
 It is **not** suitable when your tests need to:
-
 - Call `browser.electron.execute()` to run code in the main process
 - Test window management, native menus, or system tray behaviour
 - Use `browser.electron.triggerDeeplink()`
@@ -77,9 +76,7 @@ export const config = {
       },
     ],
   ],
-  capabilities: [
-    { browserName: 'electron' },
-  ],
+  capabilities: [{ browserName: 'electron' }],
 };
 ```
 
@@ -112,7 +109,6 @@ devServer: async () => {
 ```
 
 Notes:
-
 - `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode.
 - With `reuseExistingServer` (default off in CI, on locally), if `devServerUrl` is already reachable the spawn is skipped — handy when you already have `pnpm dev` running during local iteration.
 - The command form spawns in a shell and tears down the whole process tree (so `pnpm dev → vite → esbuild` grandchildren don't orphan); the function form avoids subprocesses entirely.
@@ -124,7 +120,6 @@ Notes:
 ### How It Works
 
 When the session starts, the service injects a script into the page that:
-
 1. Creates `window.__wdio_mocks__` — a registry of per-channel mock functions.
 2. Patches `window.electron.ipcRenderer.invoke` to look up `window.__wdio_mocks__[channel]` and call it; throws if the channel has no registered mock.
 3. Patches `send` and `sendSync` to throw immediately for unmocked channels.
@@ -197,7 +192,6 @@ await mockGetUser.mockRestore();
 ### How It Works
 
 The injection script:
-
 1. Maintains `window.__wdio_electron_listeners__` — a per-channel registry of `{ id, fn, once }` entries.
 2. Replaces `ipcRenderer.on` / `addListener` / `once` with implementations that push into the registry and return `ipcRenderer` (chainable, matching Electron's API).
 3. Replaces `ipcRenderer.removeListener` / `off` / `removeAllListeners` with implementations that mutate the registry.
@@ -223,7 +217,9 @@ await expect($('#status')).toHaveText('ready');
 `ipcRenderer.once(channel, listener)` fires the listener exactly once; subsequent emits are ignored. The listener is removed before the call, mirroring Node.js EventEmitter behaviour.
 
 ```ts
-window.electron.ipcRenderer.once('one-shot', () => { /* … */ });
+window.electron.ipcRenderer.once('one-shot', () => {
+  /* … */
+});
 
 await browser.electron.emitEvent('one-shot');
 await browser.electron.emitEvent('one-shot');
@@ -270,11 +266,11 @@ describe('User panel', () => {
 
 ### Clearing vs Resetting
 
-| Method | Effect |
-|--------|--------|
-| `mockClear()` | Clears `.mock.calls`, `.mock.results`, `.mock.invocationCallOrder`. Implementation unchanged. |
-| `mockReset()` | Clears history **and** removes the implementation (returns `undefined` on next call). |
-| `mockRestore()` | Removes the mock entirely from `window.__wdio_mocks__`. |
+| Method          | Effect                                                                                        |
+| --------------- | --------------------------------------------------------------------------------------------- |
+| `mockClear()`   | Clears `.mock.calls`, `.mock.results`, `.mock.invocationCallOrder`. Implementation unchanged. |
+| `mockReset()`   | Clears history **and** removes the implementation (returns `undefined` on next call).         |
+| `mockRestore()` | Removes the mock entirely from `window.__wdio_mocks__`.                                       |
 
 Use `mockClear()` in `beforeEach` when you want a clean call history but want to keep the implementation set up in `beforeAll`.
 
@@ -307,21 +303,20 @@ The injection script runs after `browser.url()` resolves (document `readyState` 
 
 ## Limitations
 
-| Feature | Browser Mode |
-|---------|-------------|
-| `browser.electron.execute()` | Throws — no main process |
-| `browser.electron.mockAll()` | Throws — mock channels individually |
-| `browser.electron.triggerDeeplink()` | Throws — no Electron process |
-| `browser.electron.mock(apiName, funcName)` | Throws — use `mock(channel)` instead |
-| `browser.electron.windowHandle` | Not meaningful — standard Chrome window handle |
+| Feature                                             | Browser Mode                                                                                                                                                                                                                                          |
+| --------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `browser.electron.execute()`                        | Throws — no main process                                                                                                                                                                                                                              |
+| `browser.electron.mockAll()`                        | Throws — mock channels individually                                                                                                                                                                                                                   |
+| `browser.electron.triggerDeeplink()`                | Throws — no Electron process                                                                                                                                                                                                                          |
+| `browser.electron.mock(apiName, funcName)`          | Throws — use `mock(channel)` instead                                                                                                                                                                                                                  |
+| `browser.electron.windowHandle`                     | Not meaningful — standard Chrome window handle                                                                                                                                                                                                        |
 | `nodeIntegration: true` preloads (no contextBridge) | Unsupported — the browser page has no `require()`. The injection creates a synthetic `window.electron.ipcRenderer` that won't match a preload that exposes a custom API shape via `nodeIntegration`. Use `contextBridge.exposeInMainWorld()` instead. |
-| Automatic window focus management | Disabled — standard browser window switching applies |
-| `mock.withImplementation()` | Serialised to browser page — see below |
+| Automatic window focus management                   | Disabled — standard browser window switching applies                                                                                                                                                                                                  |
+| `mock.withImplementation()`                         | Serialised to browser page — see below                                                                                                                                                                                                                |
 
 ### `withImplementation` in browser mode
 
 `mock.withImplementation(implFn, callbackFn)` serialises **both** functions via `.toString()` and runs them inside the browser page. This means:
-
 - The `callbackFn` runs in the browser page, **not** in the Node.js test-runner process.
 - It cannot close over test-runner variables, call WebdriverIO commands (`browser.$()`, `browser.click()`, etc.), or use Node.js APIs (`fs`, `path`, etc.) — those symbols do not exist in the page context.
 - Only use `withImplementation` when both functions are fully self-contained browser-side snippets.

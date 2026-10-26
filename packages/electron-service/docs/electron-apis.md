@@ -29,14 +29,13 @@ await browser.electron.execute(
 
 ...which results in the application displaying the following alert:
 
-![Execute Demo](../.github/assets/execute-demo.png 'Execute Demo')
+![Execute Demo](../.github/assets/execute-demo.png "Execute Demo")
 
 **Note:** The first argument of the function is always the default export of the `electron` package that contains the [Electron API](https://www.electronjs.org/docs/latest/api/app).
 
 ### How It Works
 
 The service uses the Chrome DevTools Protocol (CDP) to communicate with your Electron application's main process. This provides a reliable and efficient way to:
-
 - Execute JavaScript code in the main process context
 - Access all Electron APIs
 - Mock Electron APIs for testing
@@ -140,9 +139,7 @@ await mockGetName.mockImplementation((customName) => {
   return customName || 'default name';
 });
 
-const result = await browser.electron.execute(
-  (electron) => electron.app.getName('custom')
-);
+const result = await browser.electron.execute((electron) => electron.app.getName('custom'));
 expect(result).toBe('custom');
 ```
 
@@ -169,9 +166,9 @@ You can also manage individual mocks:
 ```ts
 const mockGetName = await browser.electron.mock('app', 'getName');
 
-await mockGetName.mockClear();     // Clear call history
-await mockGetName.mockReset();     // Clear history and implementation
-await mockGetName.mockRestore();   // Restore original function
+await mockGetName.mockClear(); // Clear call history
+await mockGetName.mockReset(); // Clear history and implementation
+await mockGetName.mockRestore(); // Restore original function
 ```
 
 ### Inspecting Mock Calls
@@ -185,10 +182,7 @@ await browser.electron.execute((electron) => electron.app.setName('test'));
 await browser.electron.execute((electron) => electron.app.setName('test 2'));
 
 // Check all calls
-expect(mockSetName.mock.calls).toStrictEqual([
-  ['test'],
-  ['test 2'],
-]);
+expect(mockSetName.mock.calls).toStrictEqual([['test'], ['test 2']]);
 
 // Check last call
 expect(mockSetName.mock.lastCall).toStrictEqual(['test 2']);
@@ -204,12 +198,15 @@ You can automatically manage mocks before each test using service configuration:
 ```ts
 export const config = {
   services: [
-    ['electron', {
-      clearMocks: true,    // Calls mockClear() before each test
-      resetMocks: false,   // Calls mockReset() before each test
-      restoreMocks: false  // Calls mockRestore() before each test
-    }]
-  ]
+    [
+      'electron',
+      {
+        clearMocks: true, // Calls mockClear() before each test
+        resetMocks: false, // Calls mockReset() before each test
+        restoreMocks: false, // Calls mockRestore() before each test
+      },
+    ],
+  ],
 };
 ```
 
@@ -218,7 +215,6 @@ export const config = {
 ## API Reference
 
 For complete API documentation including all parameters, return types, and mock object methods:
-
 - [API Reference - `execute()`](./api-reference.md#execute)
 - [API Reference - Mocking Methods](./api-reference.md#mocking-methods)
 - [API Reference - Mock Object Methods](./api-reference.md#mock-object-methods)

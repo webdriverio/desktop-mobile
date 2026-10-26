@@ -27,10 +27,12 @@ browser.<framework> = {
 Not all methods may be feasible for every framework. Unsupported methods should throw descriptive errors.
 
 ## Mock Lifecycle Integration
+
 - Override element commands (`click`, `doubleClick`, `setValue`, `clearValue`) to trigger `updateAllMocks()` after execution
 - Support `clearMocks`/`resetMocks`/`restoreMocks` options in `beforeTest` hook
 - Use `mockStore` singleton to track active mocks
 
 ## Multiremote Support
+
 - Inject API on both root multiremote browser and each individual instance
 - Each instance gets its own API context (e.g. own CDP bridge for Electron)

@@ -8,11 +8,11 @@ This guide walks you through setting up CrabNebula's tauri-driver for cross-plat
 
 ### Platform Support
 
-| Platform | Supported | Requirements |
-|----------|-----------|--------------|
-| **Windows** | ✅ Yes | `@crabnebula/tauri-driver` |
-| **Linux** | ✅ Yes | `@crabnebula/tauri-driver` + WebKitWebDriver |
-| **macOS** | ✅ Yes | `@crabnebula/tauri-driver` + `CN_API_KEY` |
+| Platform    | Supported | Requirements                                 |
+| ----------- | --------- | -------------------------------------------- |
+| **Windows** | ✅ Yes    | `@crabnebula/tauri-driver`                   |
+| **Linux**   | ✅ Yes    | `@crabnebula/tauri-driver` + WebKitWebDriver |
+| **macOS**   | ✅ Yes    | `@crabnebula/tauri-driver` + `CN_API_KEY`    |
 
 ### Key Points
 
@@ -23,7 +23,6 @@ This guide walks you through setting up CrabNebula's tauri-driver for cross-plat
 ## When to Use CrabNebula
 
 Choose CrabNebula when:
-
 - You want a single driver configuration across all platforms (Windows, Linux, macOS)
 - You already have a CrabNebula subscription
 - You need macOS testing but cannot use the embedded provider (`tauri-plugin-wdio-webdriver`)
@@ -102,34 +101,33 @@ For macOS testing, you need the automation plugin and API key:
 #### Add Automation Plugin
 
 1. Navigate to your Tauri source directory:
+
    ```bash
    cd src-tauri
    ```
 
 2. Add the plugin:
+
    ```bash
    cargo add tauri-plugin-automation
    ```
 
 3. Register the plugin in your Rust code. **Important**: Only include this in debug builds:
+
    ```rust
    // src-tauri/src/lib.rs or main.rs
-   
-   let mut builder = tauri::Builder::default();
-   
-   // Only enable automation in debug builds
+      let mut builder = tauri::Builder::default();
+      // Only enable automation in debug builds
    #[cfg(debug_assertions)]
    {
      builder = builder.plugin(tauri_plugin_automation::init());
    }
-   
-   builder
+      builder
      .run(tauri::generate_context!())
      .expect("error while running tauri application");
    ```
 
    > ⚠️ **Warning**: Never include the automation plugin in release builds, as it could allow external control of your application.
-
 #### Set API Key
 
 Set your CrabNebula API key as an environment variable:
@@ -153,23 +151,28 @@ Update your `wdio.conf.ts` to use CrabNebula:
 ```typescript
 export const config = {
   services: [
-    ['@wdio/tauri-service', {
-      driverProvider: 'crabnebula',
-      // macOS only - auto-manage the test-runner-backend (default: true)
-      crabnebulaManageBackend: true,
-      // macOS only - backend port (default: 3000)
-      crabnebulaBackendPort: 3000,
-    }]
+    [
+      '@wdio/tauri-service',
+      {
+        driverProvider: 'crabnebula',
+        // macOS only - auto-manage the test-runner-backend (default: true)
+        crabnebulaManageBackend: true,
+        // macOS only - backend port (default: 3000)
+        crabnebulaBackendPort: 3000,
+      },
+    ],
   ],
-  
-  capabilities: [{
-    browserName: 'tauri',
-    'tauri:options': {
-      // Path to your binary
-      application: './src-tauri/target/release/your-app-name',
-    }
-  }],
-  
+
+  capabilities: [
+    {
+      browserName: 'tauri',
+      'tauri:options': {
+        // Path to your binary
+        application: './src-tauri/target/release/your-app-name',
+      },
+    },
+  ],
+
   // ... rest of your config
 };
 ```
@@ -203,6 +206,7 @@ npm run wdio
 
 - Requires WebKitWebDriver (see installation above)
 - For headless CI, use Xvfb:
+
   ```bash
   xvfb-run -a npm run wdio
   ```
@@ -221,7 +225,7 @@ npm run wdio
 ```yaml
 name: E2E Tests
 
-on: [push, pull_request]
+on: [ push, pull_request ]
 
 jobs:
   test-linux:
@@ -232,18 +236,18 @@ jobs:
         with:
           node-version: 20
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install WebKitWebDriver
         run: |
           sudo apt-get update
           sudo apt-get install -y webkitgtk-webdriver
-      
+
       - name: Install dependencies
         run: npm install
-      
+
       - name: Build Tauri app
         run: npm run tauri build -- --debug
-      
+
       - name: Run E2E tests
         run: xvfb-run -a npm run test:e2e
         env:
@@ -257,13 +261,13 @@ jobs:
         with:
           node-version: 20
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install dependencies
         run: npm install
-      
+
       - name: Build Tauri app
         run: npm run tauri build -- --debug
-      
+
       - name: Run E2E tests
         env:
           CN_API_KEY: ${{ secrets.CN_API_KEY }}
@@ -278,13 +282,13 @@ jobs:
         with:
           node-version: 20
       - uses: dtolnay/rust-toolchain@stable
-      
+
       - name: Install dependencies
         run: npm install
-      
+
       - name: Build Tauri app
         run: npm run tauri build -- --debug
-      
+
       - name: Run E2E tests
         env:
           DRIVER_PROVIDER: crabnebula
@@ -364,6 +368,7 @@ sudo pacman -S webkitgtk-6.0
 **Solutions**:
 1. Verify your API key is valid
 2. Change the backend port:
+
    ```typescript
    crabnebulaBackendPort: 3001
    ```
@@ -386,10 +391,15 @@ sudo pacman -S webkitgtk-6.0
 If port 3000 is already in use:
 
 ```typescript
-services: [['@wdio/tauri-service', {
-  driverProvider: 'crabnebula',
-  crabnebulaBackendPort: 3001,
-}]]
+services: [
+  [
+    '@wdio/tauri-service',
+    {
+      driverProvider: 'crabnebula',
+      crabnebulaBackendPort: 3001,
+    },
+  ],
+];
 ```
 
 ### Manual Backend Management (macOS)
@@ -397,10 +407,15 @@ services: [['@wdio/tauri-service', {
 If you prefer to manage the backend yourself:
 
 ```typescript
-services: [['@wdio/tauri-service', {
-  driverProvider: 'crabnebula',
-  crabnebulaManageBackend: false,  // You'll start/stop it manually
-}]]
+services: [
+  [
+    '@wdio/tauri-service',
+    {
+      driverProvider: 'crabnebula',
+      crabnebulaManageBackend: false, // You'll start/stop it manually
+    },
+  ],
+];
 ```
 
 Then in your test setup:
@@ -418,16 +433,20 @@ npm run wdio
 If the driver is not in node_modules/.bin:
 
 ```typescript
-services: [['@wdio/tauri-service', {
-  driverProvider: 'crabnebula',
-  crabnebulaDriverPath: '/custom/path/to/tauri-driver',
-}]]
+services: [
+  [
+    '@wdio/tauri-service',
+    {
+      driverProvider: 'crabnebula',
+      crabnebulaDriverPath: '/custom/path/to/tauri-driver',
+    },
+  ],
+];
 ```
 
 ## Migration from Official Driver
 
 If you're already using the official tauri-driver on Windows/Linux:
-
 1. Keep your existing configuration for Windows/Linux
 2. Add CrabNebula packages as dev dependencies
 3. **For macOS only**: Add the automation plugin to your Tauri app
@@ -438,10 +457,15 @@ If you're already using the official tauri-driver on Windows/Linux:
 const isMacOS = process.platform === 'darwin';
 
 export const config = {
-  services: [['@wdio/tauri-service', {
-    driverProvider: 'crabnebula',  // Works on all platforms
-    // On macOS, also needs CN_API_KEY and automation plugin
-  }]]
+  services: [
+    [
+      '@wdio/tauri-service',
+      {
+        driverProvider: 'crabnebula', // Works on all platforms
+        // On macOS, also needs CN_API_KEY and automation plugin
+      },
+    ],
+  ],
 };
 ```
 
@@ -450,27 +474,31 @@ Or conditionally use different external drivers — CrabNebula on macOS, the sta
 driver at all, `embedded` works on every platform and is the simplest default.)
 
 ```typescript
-const driverProvider = process.env.DRIVER_PROVIDER ||
-  (process.platform === 'darwin' ? 'crabnebula' : 'external');
+const driverProvider = process.env.DRIVER_PROVIDER || (process.platform === 'darwin' ? 'crabnebula' : 'external');
 
 export const config = {
-  services: [['@wdio/tauri-service', {
-    driverProvider,
-  }]]
+  services: [
+    [
+      '@wdio/tauri-service',
+      {
+        driverProvider,
+      },
+    ],
+  ],
 };
 ```
 
 ## Comparison: Driver Providers
 
-| Feature | `external` | `crabnebula` | `embedded` |
-|---------|-----------|--------------|------------|
-| Windows | ✅ | ✅ | ✅ |
-| Linux | ✅ | ✅ | ✅ |
-| macOS | ❌ | ✅ | ✅ |
-| External driver | Yes | Yes | No |
-| API key | No | macOS only | No |
-| Plugin required | No | macOS only | Yes |
-| Cost | Free | Subscription | Free |
+| Feature         | `external` | `crabnebula` | `embedded` |
+| --------------- | ---------- | ------------ | ---------- |
+| Windows         | ✅         | ✅           | ✅         |
+| Linux           | ✅         | ✅           | ✅         |
+| macOS           | ❌         | ✅           | ✅         |
+| External driver | Yes        | Yes          | No         |
+| API key         | No         | macOS only   | No         |
+| Plugin required | No         | macOS only   | Yes        |
+| Cost            | Free       | Subscription | Free       |
 
 **Recommendation**: Use `embedded` for the simplest cross-platform setup. Use `crabnebula` if you already have a subscription or need specific features.
 

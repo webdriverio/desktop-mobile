@@ -55,7 +55,6 @@ pnpm test
 ## 🧪 Testing
 
 The test suite demonstrates all major features of `wdio-electron-service`:
-
 1. **Basic Testing** - UI elements, titles, interactions
 2. **Electron API Access** - Direct access to Electron APIs
 3. **Mocking** - Mock Electron APIs for controlled testing
@@ -64,7 +63,6 @@ The test suite demonstrates all major features of `wdio-electron-service`:
 ## 📋 When to Use This Setup
 
 Choose **Electron Forge** when you want:
-
 - The "official" Electron toolchain
 - Built-in packaging and distribution
 - Simple, opinionated setup

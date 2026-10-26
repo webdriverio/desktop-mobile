@@ -17,16 +17,17 @@ This directory contains Dockerfiles and testing scripts for verifying Tauri appl
 
 ## Supported Distributions
 
-| Distribution | glib Version | webkit2gtk | Status | Notes |
-|-------------|-------------|-----------|---------|-------|
-| **Ubuntu 24.04** | 2.80+ | webkit2gtk-4.1 | ✅ Supported | Stable, well-tested |
-| **Debian 12+** | 2.74+ | webkit2gtk-4.0 | ✅ Supported | Rock-solid stability |
-| **Fedora 40+** | 2.80+ | webkit2gtk-4.1 | ✅ Supported | Latest packages |
-| **Arch Linux** | 2.82+ | webkit2gtk-4.1 | ✅ Supported | Rolling release |
+| Distribution     | glib Version | webkit2gtk     | Status       | Notes                |
+| ---------------- | ------------ | -------------- | ------------ | -------------------- |
+| **Ubuntu 24.04** | 2.80+        | webkit2gtk-4.1 | ✅ Supported | Stable, well-tested  |
+| **Debian 12+**   | 2.74+        | webkit2gtk-4.0 | ✅ Supported | Rock-solid stability |
+| **Fedora 40+**   | 2.80+        | webkit2gtk-4.1 | ✅ Supported | Latest packages      |
+| **Arch Linux**   | 2.82+        | webkit2gtk-4.1 | ✅ Supported | Rolling release      |
 
 ### Unsupported Distributions
 
 #### Alpine Linux
+
 **Status:** ❌ Unsupported for building
 
 Alpine uses **musl libc** which defaults to static linking. GTK/webkit libraries don't provide static versions (`.a` files) in Alpine repositories, making it impossible to build Tauri applications.
@@ -34,8 +35,8 @@ Alpine uses **musl libc** which defaults to static linking. GTK/webkit libraries
 **Alternative:** Use Alpine for runtime-only containers by building on a glibc-based distro and copying the binary to Alpine.
 
 #### CentOS Stream / RHEL
-**Status:** ❌ Unsupported
 
+**Status:** ❌ Unsupported
 - **CentOS Stream 9 / RHEL 9:** Ships with glib 2.68.4, but Tauri requires glib >= 2.70
 - **CentOS Stream 10 / RHEL 10:** WebKitGTK was **intentionally removed** by Red Hat
 
@@ -53,7 +54,6 @@ Alpine uses **musl libc** which defaults to static linking. GTK/webkit libraries
 ## Distribution Requirements
 
 All supported distributions must provide:
-
 1. **glib-2.0 >= 2.70** (critical for Tauri)
 2. **webkit2gtk** (4.0 or 4.1)
 3. **GTK 3** development libraries
@@ -64,6 +64,7 @@ All supported distributions must provide:
 ## Package Installation Commands
 
 ### Ubuntu / Debian
+
 ```bash
 apt-get update
 apt-get install -y \
@@ -76,6 +77,7 @@ apt-get install -y \
 ```
 
 ### Fedora
+
 ```bash
 dnf install -y \
     webkit2gtk4.1-devel \
@@ -87,6 +89,7 @@ dnf install -y \
 ```
 
 ### Arch Linux
+
 ```bash
 pacman -Syu --noconfirm \
     webkit2gtk-4.1 \
@@ -99,6 +102,7 @@ pacman -Syu --noconfirm \
 ## Test Script Usage
 
 ### Build Only
+
 Tests if the Docker image can be built with all system dependencies:
 
 ```bash
@@ -113,6 +117,7 @@ Tests if the Docker image can be built with all system dependencies:
 - Verifies critical packages are available
 
 ### Full Test Suite
+
 Builds the Docker image and runs the complete test suite inside:
 
 ```bash
@@ -128,6 +133,7 @@ Builds the Docker image and runs the complete test suite inside:
 6. Run WebdriverIO tests with Xvfb
 
 ### Debug Mode
+
 Build with verbose output and no caching:
 
 ```bash
@@ -192,39 +198,47 @@ cat /tmp/docker-test-ubuntu.log
 ## Common Issues
 
 ### "glib-2.0 >= 2.70 not found"
+
 **Cause:** Distribution ships with older glib version
 **Solution:** Use Fedora 40+, Ubuntu 24.04, Debian 12+, or Arch Linux
 
 ### "cannot find -lgdk-3: No such file or directory"
+
 **Cause:** Alpine Linux / musl static linking incompatibility
 **Solution:** Use glibc-based distro (Ubuntu/Debian/Fedora/Arch)
 
 ### "No match for argument: webkit2gtk"
+
 **Cause:** CentOS Stream 10 / RHEL 10 intentionally removed WebKitGTK
 **Solution:** Use Fedora 40+ for RHEL-based workflows
 
 ### "WebKitWebDriver not found"
+
 **Cause:** webkit2gtk-driver package not installed
 **Solution:** Install the appropriate package for your distro (see [Package Installation Commands](#package-installation-commands))
 
 ## Why These Distributions?
 
 ### Ubuntu 24.04 LTS
+
 - **Use case:** CI/CD, general testing
 - **Pros:** Most documented, stable, wide tooling support, GitHub Actions default
 - **Cons:** Some packages may lag behind latest
 
 ### Debian 13 (Trixie)
+
 - **Use case:** Production builds, long-term stability
 - **Pros:** Rock-solid, conservative updates, excellent for production
 - **Cons:** Slightly older packages than Ubuntu
 
 ### Fedora 44
+
 - **Use case:** Development, RHEL-based workflows
 - **Pros:** Latest stable packages, upstream for RHEL, modern environment
 - **Cons:** More frequent updates, shorter support lifecycle
 
 ### Arch Linux
+
 - **Use case:** Development, bleeding-edge testing
 - **Pros:** Always latest packages, excellent package manager
 - **Cons:** Rolling release = potential for breaking changes
@@ -273,7 +287,6 @@ CMD ["tauri-app"]
 ## Contributing
 
 When adding support for a new distribution:
-
 1. Create `distro-name.dockerfile` based on existing templates
 2. Add entry to `get_test_case()` in `test.sh`
 3. Add to `get_all_test_keys()` in `test.sh`

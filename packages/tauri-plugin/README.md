@@ -95,9 +95,7 @@ The plugin exposes `window.wdioTauri` with the following API:
 
 ```typescript
 // Execute JavaScript with Tauri APIs
-const result = await window.wdioTauri.execute(
-  (tauri) => tauri.core.invoke('get_platform_info'),
-);
+const result = await window.wdioTauri.execute((tauri) => tauri.core.invoke('get_platform_info'));
 
 // Wait for plugin initialization
 await window.wdioTauri.waitForInit();
@@ -143,7 +141,6 @@ Mocking is handled via `@wdio/tauri-service`'s `browser.tauri.mock()` API, which
 ### Rust Commands
 
 The plugin provides these Tauri commands:
-
 - `plugin:wdio|execute` - Execute JavaScript in frontend context
 - `plugin:wdio|log-frontend` - Forward frontend logs to Rust logger
 - `plugin:wdio|debug-plugin` - Debug plugin state
@@ -155,14 +152,14 @@ The plugin provides these Tauri commands:
 
 The `wdio:default` permission grants every plugin command. Mocking is implemented entirely via JS-side invoke interception (`window.__wdio_mocks__`), so there are no mock-related Rust permissions.
 
-| Permission | Description |
-|---|---|
-| `wdio:allow-execute` | Execute JavaScript in frontend context |
-| `wdio:allow-log-frontend` | Forward frontend logs |
-| `wdio:allow-debug-plugin` | Debug plugin state |
-| `wdio:allow-get-active-window-label` | Get active window label |
-| `wdio:allow-get-window-states` | Get window states |
-| `wdio:allow-list-windows` | List windows |
+| Permission                           | Description                            |
+| ------------------------------------ | -------------------------------------- |
+| `wdio:allow-execute`                 | Execute JavaScript in frontend context |
+| `wdio:allow-log-frontend`            | Forward frontend logs                  |
+| `wdio:allow-debug-plugin`            | Debug plugin state                     |
+| `wdio:allow-get-active-window-label` | Get active window label                |
+| `wdio:allow-get-window-states`       | Get window states                      |
+| `wdio:allow-list-windows`            | List windows                           |
 
 ## Configuration
 
@@ -177,7 +174,6 @@ The plugin requires explicit permissions in your Tauri app's capability file. Us
 ### Plugin Not Available
 
 If `window.wdioTauri` is undefined:
-
 1. Ensure the plugin is registered in `main.rs`
 2. Ensure permissions are configured in your capability file
 3. Ensure the frontend JavaScript is included in your app
@@ -194,7 +190,6 @@ If `window.wdioTauri` is undefined:
 ### Permission Errors
 
 If you get permission errors:
-
 1. Verify your capability file includes `"wdio:default"` or the specific permissions needed
 2. Ensure the capability file is referenced correctly in `tauri.conf.json`
 3. Clean and rebuild: `cargo clean && pnpm build`
@@ -202,7 +197,6 @@ If you get permission errors:
 ### Execute Timeout
 
 If execute commands timeout:
-
 1. Check that the script is valid JavaScript
 2. Ensure `window.__TAURI__` is available
 3. Verify the script doesn't have infinite loops
@@ -211,7 +205,6 @@ If execute commands timeout:
 ## Examples
 
 See the test fixtures in `fixtures/e2e-apps/tauri/` for complete examples of:
-
 - Plugin registration
 - Permission configuration
 - Frontend integration

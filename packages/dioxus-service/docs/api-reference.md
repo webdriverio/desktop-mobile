@@ -43,10 +43,7 @@ const greeting = await browser.dioxus.execute(async (dx) => {
 });
 
 // Execute with arguments
-const result = await browser.dioxus.execute(
-  (dx, name) => dx.invoke('greet', { name }),
-  'World'
-);
+const result = await browser.dioxus.execute((dx, name) => dx.invoke('greet', { name }), 'World');
 
 // Execute string of code
 const href = await browser.dioxus.execute('window.location.href');
@@ -376,7 +373,7 @@ await mock.withImplementation(
   async () => {
     const result = await browser.dioxus.execute(({ invoke }) => invoke('my_command'));
     console.log(result); // 'temporary'
-  }
+  },
 );
 
 const result = await browser.dioxus.execute(({ invoke }) => invoke('my_command'));
@@ -412,8 +409,8 @@ import { startWdioSession } from '@wdio/dioxus-service';
 const browser = await startWdioSession({
   browserName: 'dioxus',
   'dioxus:options': {
-    application: './target/debug/my_app'
-  }
+    application: './target/debug/my_app',
+  },
 });
 
 // Use browser...

@@ -11,17 +11,17 @@ on:
   workflow_call:
     inputs:
       os:
-        description: 'Runner OS (macos-latest)'
+        description: "Runner OS (macos-latest)"
         required: true
         type: string
       node-version:
-        description: 'Node.js version'
+        description: "Node.js version"
         required: true
         type: string
       flutter-version:
-        description: 'Flutter SDK version to build the fixture with'
+        description: "Flutter SDK version to build the fixture with"
         type: string
-        default: '3.35.6'
+        default: "3.35.6"
 
 env:
   TURBO_TELEMETRY_DISABLED: 1

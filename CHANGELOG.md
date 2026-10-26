@@ -13,9 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-bridge@v1.0.0...wdio-dioxus-bridge@v1.1.0)
 
 ### Added
+
 - **dioxus**: add single app crate `wdio-dioxus` (PR [#717](https://github.com/webdriverio/desktop-mobile/pull/717))
 
 ### Changed
+
 - **dioxus**: set apps up with wdio-dioxus, and point the service's errors at it (PR [#777](https://github.com/webdriverio/desktop-mobile/pull/777))
 - **deps**: bump the cargo-dependencies group across 7 directories with 8 updates (PR [#770](https://github.com/webdriverio/desktop-mobile/pull/770))
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
@@ -36,6 +38,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - update dependencies across multiple packages (incl. major versions) (PR [#585](https://github.com/webdriverio/desktop-mobile/pull/585))
 
 ### Fixed
+
 - **dioxus**: make the setup docs and errors match what v1 supports (embedded driver only) (PR [#703](https://github.com/webdriverio/desktop-mobile/pull/703))
 
 ## [@wdio/dioxus-service@1.1.0] - 2026-10-24
@@ -43,6 +46,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-dioxus-service@v1.0.0...wdio-dioxus-service@v1.1.0)
 
 ### Changed
+
 - **dioxus**: set apps up with wdio-dioxus, and point the service's errors at it (PR [#777](https://github.com/webdriverio/desktop-mobile/pull/777))
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
@@ -59,6 +63,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **deps-dev**: bump the development-dependencies group across 1 directory with 24 updates (PR [#628](https://github.com/webdriverio/desktop-mobile/pull/628))
 
 ### Fixed
+
 - **dioxus**: pass the service-level windowLabel to the embedded driver (PR [#773](https://github.com/webdriverio/desktop-mobile/pull/773))
 - **tauri,dioxus**: open standalone browser-mode sessions without a driver port (PR [#745](https://github.com/webdriverio/desktop-mobile/pull/745) · closes [#696](https://github.com/webdriverio/desktop-mobile/issues/696))
 - **dioxus**: start the embedded driver only under the service, and say why startup failed (PR [#710](https://github.com/webdriverio/desktop-mobile/pull/710))
@@ -69,9 +74,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [wdio-dioxus-driver@1.1.0] - 2026-10-24
 
 ### Added
+
 - **dioxus**: add single app crate `wdio-dioxus` (\#717)
 
 ### Changed
+
 - **deps**: bump the cargo-dependencies group across 7 directories with 8 updates (\#770)
 - **deps**: bump the cargo-dependencies group across 6 directories with 2 updates (\#715)
 - **release**: revert the unpublished \#642 release and fix standing-PR selection (\#707)
@@ -80,11 +87,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **deps**: bump the cargo-dependencies group across 5 directories with 10 updates (\#616)
 
 ### Fixed
+
 - **dioxus**: make the setup docs and errors match what v1 supports (embedded driver only) (\#703)
 
 ## [wdio-dioxus-embedded-driver@1.1.0] - 2026-10-24
 
 ### Changed
+
 - **dioxus**: set apps up with wdio-dioxus, and point the service's errors at it (\#777)
 - **deps**: bump the cargo-dependencies group across 7 directories with 8 updates (\#770)
 - **deps**: bump the cargo-dependencies group across 6 directories with 2 updates (\#715)
@@ -96,6 +105,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **deps**: bump the cargo-dependencies group across 2 directories with 3 updates (\#599)
 
 ### Fixed
+
 - **dioxus**: start the embedded driver only under the service, and say why startup failed (\#710)
 - **dioxus**: make the setup docs and errors match what v1 supports (embedded driver only) (\#703)
 
@@ -104,6 +114,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 _First release of wdio-dioxus._
 
 ### Added
+
 - **dioxus**: add single app crate `wdio-dioxus` (\#717)
 
 ## [@wdio/tauri-plugin@1.5.1] - 2026-10-24
@@ -111,12 +122,14 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v1.5.0...wdio-tauri-plugin@v1.5.1)
 
 ### Changed
+
 - **deps**: bump the cargo-dependencies group across 7 directories with 8 updates (PR [#770](https://github.com/webdriverio/desktop-mobile/pull/770))
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - **tauri**: make the embedded WebDriver plugin desktop-only (PR [#758](https://github.com/webdriverio/desktop-mobile/pull/758))
 - **tauri**: sync the crates' own versions in the committed Cargo.lock files (PR [#748](https://github.com/webdriverio/desktop-mobile/pull/748))
 
 ### Fixed
+
 - **tauri**: ship generated permission files in the plugin crates (PR [#743](https://github.com/webdriverio/desktop-mobile/pull/743) · closes [#730](https://github.com/webdriverio/desktop-mobile/issues/730))
 
 ## [@wdio/tauri-service@1.5.1] - 2026-10-24
@@ -124,22 +137,26 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-service@v1.5.0...wdio-tauri-service@v1.5.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 - **biome**: flag barrel files outside package entry points (PR [#729](https://github.com/webdriverio/desktop-mobile/pull/729))
 
 ### Fixed
+
 - **tauri,electrobun**: name the right WebKitWebDriver package for each Linux distro (PR [#771](https://github.com/webdriverio/desktop-mobile/pull/771))
 - **tauri,dioxus**: open standalone browser-mode sessions without a driver port (PR [#745](https://github.com/webdriverio/desktop-mobile/pull/745) · closes [#696](https://github.com/webdriverio/desktop-mobile/issues/696))
 
 ## [tauri-plugin-wdio-webdriver@1.5.1] - 2026-10-24
 
 ### Changed
+
 - **deps**: bump the cargo-dependencies group across 7 directories with 8 updates (\#770)
 - **tauri**: make the embedded WebDriver plugin desktop-only (\#758)
 - **tauri**: sync the crates' own versions in the committed Cargo.lock files (\#748)
 
 ### Fixed
+
 - **tauri**: let Close Window request a close the app can prevent (\#772, \#737)
 - **tauri,electrobun**: name the right WebKitWebDriver package for each Linux distro (\#771)
 - **tauri**: dispatch PointerEvents for embedded pointer actions (\#746, \#736)
@@ -151,6 +168,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-flutter-service@v1.0.0-next.3...wdio-flutter-service@v1.0.0-next.4)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 
@@ -159,10 +177,12 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electrobun-service@v0.3.0...wdio-electrobun-service@v0.3.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 
 ### Fixed
+
 - **tauri,electrobun**: name the right WebKitWebDriver package for each Linux distro (PR [#771](https://github.com/webdriverio/desktop-mobile/pull/771))
 
 ## [@wdio/electron-service@10.4.1] - 2026-10-24
@@ -170,6 +190,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v10.4.0...wdio-electron-service@v10.4.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 - **biome**: flag barrel files outside package entry points (PR [#729](https://github.com/webdriverio/desktop-mobile/pull/729))
@@ -179,6 +200,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-cdp-bridge@v1.3.0...wdio-native-cdp-bridge@v1.3.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 
@@ -187,6 +209,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-core@v1.3.0...wdio-native-core@v1.3.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - **biome**: flag console in package source (PR [#726](https://github.com/webdriverio/desktop-mobile/pull/726))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
@@ -197,6 +220,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-mobile-core@v1.2.0...wdio-native-mobile-core@v1.2.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 
@@ -205,6 +229,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-spy@v1.4.0...wdio-native-spy@v1.4.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 
@@ -213,9 +238,11 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-types@v2.6.0...wdio-native-types@v2.6.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 
 ### Fixed
+
 - **dioxus**: pass the service-level windowLabel to the embedded driver (PR [#773](https://github.com/webdriverio/desktop-mobile/pull/773))
 - **dioxus**: make the setup docs and errors match what v1 supports (embedded driver only) (PR [#703](https://github.com/webdriverio/desktop-mobile/pull/703))
 
@@ -224,11 +251,13 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-utils@v2.8.0...wdio-native-utils@v2.8.1)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - **biome**: flag console in package source (PR [#726](https://github.com/webdriverio/desktop-mobile/pull/726))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 
 ### Fixed
+
 - **tauri,electrobun**: name the right WebKitWebDriver package for each Linux distro (PR [#771](https://github.com/webdriverio/desktop-mobile/pull/771))
 
 ## [@wdio/react-native-service@1.0.0-next.3] - 2026-10-24
@@ -236,6 +265,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-react-native-service@v1.0.0-next.2...wdio-react-native-service@v1.0.0-next.3)
 
 ### Changed
+
 - **deps**: update dependencies and keep the Tauri sync script on stable releases (PR [#759](https://github.com/webdriverio/desktop-mobile/pull/759))
 - enforce coverage thresholds in every package's unit run (PR [#728](https://github.com/webdriverio/desktop-mobile/pull/728))
 - **biome**: flag barrel files outside package entry points (PR [#729](https://github.com/webdriverio/desktop-mobile/pull/729))
@@ -245,6 +275,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-plugin@v1.4.0...wdio-tauri-plugin@v1.5.0)
 
 ### Changed
+
 - **deps-dev**: bump the development-dependencies group with 6 updates (PR [#714](https://github.com/webdriverio/desktop-mobile/pull/714))
 - **deps**: bump the cargo-dependencies group across 6 directories with 2 updates (PR [#715](https://github.com/webdriverio/desktop-mobile/pull/715))
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
@@ -264,6 +295,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-tauri-service@v1.4.0...wdio-tauri-service@v1.5.0)
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps**: bump the production-dependencies group across 1 directory with 14 updates (PR [#698](https://github.com/webdriverio/desktop-mobile/pull/698))
@@ -276,6 +308,7 @@ _First release of wdio-dioxus._
 - update deps (PR [#648](https://github.com/webdriverio/desktop-mobile/pull/648))
 
 ### Fixed
+
 - **tauri**: evaluate tauri.execute on the session's own embedded port (PR [#702](https://github.com/webdriverio/desktop-mobile/pull/702) · closes [#694](https://github.com/webdriverio/desktop-mobile/issues/694))
 - **tauri,electron,dioxus**: stop restoring mocks after the session is deleted (PR [#686](https://github.com/webdriverio/desktop-mobile/pull/686) · closes [#685](https://github.com/webdriverio/desktop-mobile/issues/685))
 - **tauri**: guarantee teardown on failed standalone startup and await embedded cleanup (PR [#636](https://github.com/webdriverio/desktop-mobile/pull/636))
@@ -283,6 +316,7 @@ _First release of wdio-dioxus._
 ## [tauri-plugin-wdio-webdriver@1.5.0] - 2026-10-07
 
 ### Changed
+
 - **deps**: bump the cargo-dependencies group across 6 directories with 2 updates (\#715)
 - **release**: revert the unpublished \#642 release and fix standing-PR selection (\#707)
 - **rust**: run the Tauri and Dioxus driver tests in CI and ban Listener::once (\#705)
@@ -292,6 +326,7 @@ _First release of wdio-dioxus._
 - **deps**: bump the cargo-dependencies group across 4 directories with 1 update (\#646)
 
 ### Fixed
+
 - **tauri**: wait for the window's actual state after a window change (\#706)
 - **tauri**: stop the embedded driver panicking when a window event repeats (\#704)
 - **tauri**: build the webdriver plugin against any Tauri 2 webview2-com (\#687)
@@ -301,6 +336,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-flutter-service@v1.0.0-next.2...wdio-flutter-service@v1.0.0-next.3)
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps**: bump the production-dependencies group across 1 directory with 14 updates (PR [#698](https://github.com/webdriverio/desktop-mobile/pull/698))
@@ -318,9 +354,11 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electrobun-service@v0.2.0...wdio-electrobun-service@v0.3.0)
 
 ### Added
+
 - **electrobun**: parallel Linux workers & multiremote (PR [#635](https://github.com/webdriverio/desktop-mobile/pull/635))
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps-dev**: bump the development-dependencies group across 1 directory with 19 updates (PR [#699](https://github.com/webdriverio/desktop-mobile/pull/699))
@@ -333,6 +371,7 @@ _First release of wdio-dioxus._
 - update deps (PR [#648](https://github.com/webdriverio/desktop-mobile/pull/648))
 
 ### Fixed
+
 - **electrobun**: reap spawned app when standalone onWorkerStart fails (PR [#666](https://github.com/webdriverio/desktop-mobile/pull/666) · closes [#658](https://github.com/webdriverio/desktop-mobile/issues/658))
 
 ## [@wdio/electron-service@10.4.0] - 2026-10-07
@@ -340,6 +379,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-electron-service@v10.3.0...wdio-electron-service@v10.4.0)
 
 ### Changed
+
 - **deps-dev**: bump the development-dependencies group with 6 updates (PR [#714](https://github.com/webdriverio/desktop-mobile/pull/714))
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
@@ -352,6 +392,7 @@ _First release of wdio-dioxus._
 - update deps (PR [#648](https://github.com/webdriverio/desktop-mobile/pull/648))
 
 ### Fixed
+
 - **tauri,electron,dioxus**: stop restoring mocks after the session is deleted (PR [#686](https://github.com/webdriverio/desktop-mobile/pull/686) · closes [#685](https://github.com/webdriverio/desktop-mobile/issues/685))
 - **electron**: correct how the Electron version is passed to WebdriverIO (PR [#693](https://github.com/webdriverio/desktop-mobile/pull/693))
 - **electron**: stop browser-mode dev server on standalone failure and cleanup (PR [#667](https://github.com/webdriverio/desktop-mobile/pull/667) · closes [#660](https://github.com/webdriverio/desktop-mobile/issues/660))
@@ -361,6 +402,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-cdp-bridge@v1.2.0...wdio-native-cdp-bridge@v1.3.0)
 
 ### Changed
+
 - **deps-dev**: bump the development-dependencies group with 6 updates (PR [#714](https://github.com/webdriverio/desktop-mobile/pull/714))
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
@@ -376,6 +418,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-core@v1.2.0...wdio-native-core@v1.3.0)
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps-dev**: bump the development-dependencies group across 1 directory with 19 updates (PR [#699](https://github.com/webdriverio/desktop-mobile/pull/699))
@@ -389,6 +432,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-mobile-core@v1.1.0...wdio-native-mobile-core@v1.2.0)
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps-dev**: bump the development-dependencies group across 1 directory with 19 updates (PR [#699](https://github.com/webdriverio/desktop-mobile/pull/699))
@@ -402,6 +446,7 @@ _First release of wdio-dioxus._
 - update dependencies across multiple packages (incl. major versions) (PR [#585](https://github.com/webdriverio/desktop-mobile/pull/585))
 
 ### Fixed
+
 - **react-native**: stop Metro on standalone cleanup/failure (native-mobile-core onComplete) (PR [#663](https://github.com/webdriverio/desktop-mobile/pull/663))
 - **flutter**: unpin appium-flutter-driver, move to ^3.10.1 (PR [#622](https://github.com/webdriverio/desktop-mobile/pull/622) · closes [#604](https://github.com/webdriverio/desktop-mobile/issues/604))
 - **mobile**: sync the xcuitest matrix row with the pinned driver (PR [#581](https://github.com/webdriverio/desktop-mobile/pull/581))
@@ -411,6 +456,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-spy@v1.3.0...wdio-native-spy@v1.4.0)
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps-dev**: bump the development-dependencies group across 1 directory with 19 updates (PR [#699](https://github.com/webdriverio/desktop-mobile/pull/699))
@@ -423,6 +469,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-types@v2.5.0...wdio-native-types@v2.6.0)
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps-dev**: bump the development-dependencies group across 1 directory with 19 updates (PR [#699](https://github.com/webdriverio/desktop-mobile/pull/699))
@@ -434,6 +481,7 @@ _First release of wdio-dioxus._
 - **deps-dev**: bump the development-dependencies group across 1 directory with 24 updates (PR [#628](https://github.com/webdriverio/desktop-mobile/pull/628))
 
 ### Fixed
+
 - **electron**: correct how the Electron version is passed to WebdriverIO (PR [#693](https://github.com/webdriverio/desktop-mobile/pull/693))
 - **native-types**: model appium:* tuning keys on ReactNativeCapabilities (PR [#605](https://github.com/webdriverio/desktop-mobile/pull/605) · closes [#574](https://github.com/webdriverio/desktop-mobile/issues/574))
 
@@ -442,6 +490,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-native-utils@v2.7.0...wdio-native-utils@v2.8.0)
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps**: bump the production-dependencies group across 1 directory with 14 updates (PR [#698](https://github.com/webdriverio/desktop-mobile/pull/698))
@@ -457,6 +506,7 @@ _First release of wdio-dioxus._
 [Full Changelog](https://github.com/webdriverio/desktop-mobile/compare/wdio-react-native-service@v1.0.0-next.1...wdio-react-native-service@v1.0.0-next.2)
 
 ### Changed
+
 - **release**: revert the unpublished [#642](https://github.com/webdriverio/desktop-mobile/issues/642) release and fix standing-PR selection (PR [#707](https://github.com/webdriverio/desktop-mobile/pull/707))
 - release 17 package(s) (PR [#642](https://github.com/webdriverio/desktop-mobile/pull/642))
 - **deps**: bump the production-dependencies group across 1 directory with 14 updates (PR [#698](https://github.com/webdriverio/desktop-mobile/pull/698))
@@ -469,4 +519,5 @@ _First release of wdio-dioxus._
 - update dependencies across multiple packages (incl. major versions) (PR [#585](https://github.com/webdriverio/desktop-mobile/pull/585))
 
 ### Fixed
+
 - **native-types**: model appium:* tuning keys on ReactNativeCapabilities (PR [#605](https://github.com/webdriverio/desktop-mobile/pull/605) · closes [#574](https://github.com/webdriverio/desktop-mobile/issues/574))

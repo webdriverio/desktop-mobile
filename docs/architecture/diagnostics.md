@@ -3,16 +3,18 @@
 Services should run environment diagnostics in `onWorkerStart` before tests execute.
 
 ## DiagnosticResult Format
+
 ```typescript
 interface DiagnosticResult {
-  category: string;     // e.g. 'Binary', 'Driver', 'Platform'
+  category: string; // e.g. 'Binary', 'Driver', 'Platform'
   status: 'ok' | 'warn' | 'error';
-  message: string;      // Human-readable summary
-  details?: string;     // Additional context (shown at debug level)
+  message: string; // Human-readable summary
+  details?: string; // Additional context (shown at debug level)
 }
 ```
 
 ## Standard Checks
+
 All services should check:
 - **Platform** — OS, arch, Node version
 - **Binary** — App exists, is executable, correct permissions
@@ -20,6 +22,7 @@ All services should check:
 - **Dependencies** — Platform-specific libraries/packages
 
 ## Output
+
 ```
 ✅ Platform: linux x64
 ✅ Binary Permissions: 755
@@ -29,6 +32,7 @@ All services should check:
 ```
 
 ## Rules
+
 - `warn` = tests may work but something is suboptimal
 - `error` = tests will likely fail
 - Always include actionable details for `warn`/`error` results
