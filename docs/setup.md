@@ -350,13 +350,13 @@ For working with Dioxus packages:
 
    ```bash
    # Debian/Ubuntu
-   sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+   sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 
    # Fedora
-   sudo dnf install -y webkit2gtk4.1-devel gtk3-devel
+   sudo dnf install -y webkit2gtk4.1-devel gtk3-devel libxdo-devel
 
    # Arch Linux
-   sudo pacman -S webkit2gtk-4.1 gtk3
+   sudo pacman -S webkit2gtk-4.1 gtk3 xdotool
    ```
 
 3. **Build the Dioxus Bridge Crate**:

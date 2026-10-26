@@ -30,22 +30,26 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
 
 #### Linux
 
-- **WebKitGTK Development Libraries** - Required to build Dioxus desktop apps:
+- **WebKitGTK and libxdo Development Libraries** - Required to build Dioxus desktop apps:
 
   ```bash
   # Debian/Ubuntu
-  sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+  sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
 
   # Fedora
-  sudo dnf install -y webkit2gtk4.1-devel gtk3-devel
+  sudo dnf install -y webkit2gtk4.1-devel gtk3-devel libxdo-devel
 
   # Arch Linux
-  sudo pacman -S webkit2gtk-4.1 gtk3
+  sudo pacman -S webkit2gtk-4.1 gtk3 xdotool
   ```
+
+- **Supported distributions** - Debian 12+, Ubuntu 22.04+, Fedora 40+, Arch Linux and Void Linux. Alpine isn't supported, because its musl C library can't build GTK and WebKitGTK apps. Neither are CentOS Stream and RHEL: version 9's glib is too old, and version 10 drops WebKitGTK.
+
+- **A display** - See [Linux Without a Display](#linux-without-a-display) for CI and other headless machines.
 
 #### macOS
 
-✅ **Supported** - No additional setup. See [Platform Support](./platform-support.md) for details.
+✅ **Supported** - No additional setup.
 
 ## Setting Up a Dioxus App
 
@@ -317,36 +321,61 @@ on: [ push, pull_request ]
 
 jobs:
   test:
-    runs-on: ubuntu-latest # or windows-latest / macos-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "20"
+          node-version: "22"
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install Linux dependencies
         if: runner.os == 'Linux'
-        run: sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev xvfb
 
       - name: Install dependencies
         run: npm install
 
-      - uses: cargo-bins/cargo-binstall@main
+      - uses: cargo-bins/cargo-binstall@v1.25.3
 
       - name: Install Dioxus CLI
-        run: cargo binstall dioxus-cli --no-confirm
+        # Match the dioxus version in your Cargo.lock.
+        run: cargo binstall dioxus-cli --version 0.7.10 --no-confirm
 
       - name: Build Dioxus app
         run: dx build --desktop
 
-      - name: Run tests (Linux needs a virtual display for desktop apps)
-        if: runner.os == 'Linux'
-        run: xvfb-run -a npm run test:e2e
-
       - name: Run tests
-        if: runner.os != 'Linux'
         run: npm run test:e2e
+```
+
+### Linux Without a Display
+
+Install Xvfb:
+
+```bash
+sudo apt-get install -y xvfb
+```
+
+With WebdriverIO v10 you don't need a wrapper: when no display is set, WebdriverIO starts a display server before the service starts your app. It prefers Weston when that's installed, and the service is only tested on Xvfb, so set `displayServer: 'xvfb'`:
+
+```typescript
+export const config = {
+  displayServer: 'xvfb',
+  // ...
+};
+```
+
+With WebdriverIO v9, its virtual display only covers the test workers, not the service that starts your app, so wrap the whole run:
+
+```bash
+xvfb-run -a npx wdio run wdio.conf.ts
 ```
 
 ## See Also
@@ -354,7 +383,6 @@ jobs:
 - [Configuration Reference](./configuration.md)
 - [API Reference](./api-reference.md)
 - [App Setup](./app-setup.md)
-- [Platform Support](./platform-support.md)
 - [Troubleshooting](./troubleshooting.md)
 - [WebdriverIO Documentation](https://webdriver.io/docs)
 - [Dioxus Documentation](https://dioxuslabs.com/learn)

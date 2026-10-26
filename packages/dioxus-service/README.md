@@ -69,7 +69,6 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 **Reference**
 - [Configuration](./docs/configuration.md) - All service options
 - [API Reference](./docs/api-reference.md) - Complete API documentation
-- [Platform Support](./docs/platform-support.md) - Windows, Linux, macOS
 
 **Guides**
 - [Browser Mode](./docs/browser-mode.md) - Test the renderer in Chrome without a Dioxus binary
@@ -89,7 +88,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 | **Linux**   | ✅ Yes    |
 | **macOS**   | ✅ Yes    |
 
-The WebDriver server runs inside your app on every platform, so there's no driver to install. See [Platform Support](./docs/platform-support.md) for detailed information.
+The WebDriver server runs inside your app, so there's no driver to install. The [Quick Start](./docs/quick-start.md#platform-specific-requirements) lists each platform's requirements.
 
 ## Example Projects
 
@@ -99,9 +98,8 @@ Check out the E2E test fixtures in the [desktop-mobile repository](https://githu
 
 Having trouble? Here are some resources:
 1. **[Troubleshooting Guide](./docs/troubleshooting.md)** - Solutions for common issues
-2. **[Platform Support](./docs/platform-support.md)** - Platform-specific information
-3. **[GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)** - Bug reports and feature requests
-4. **[WebdriverIO Forum](https://github.com/webdriverio/webdriverio/discussions)** - General community help and discussions
+2. **[GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)** - Bug reports and feature requests
+3. **[WebdriverIO Forum](https://github.com/webdriverio/webdriverio/discussions)** - General community help and discussions
 
 ## Contributing
 

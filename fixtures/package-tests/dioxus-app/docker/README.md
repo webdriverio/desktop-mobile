@@ -105,5 +105,5 @@ In CI these are uploaded as the `test-results-dioxus-<distro>-…` artifact.
 ## Related Documentation
 
 - [Tauri Docker README](../../tauri-app/docker/README.md) — the sibling harness this one mirrors
-- [Dioxus Service Platform Support](../../../../packages/dioxus-service/docs/platform-support.md)
+- [Dioxus Service Quick Start](../../../../packages/dioxus-service/docs/quick-start.md#platform-specific-requirements)
 - [Package Tests README](../../README.md)

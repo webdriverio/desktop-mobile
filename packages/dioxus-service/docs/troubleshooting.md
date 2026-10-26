@@ -226,14 +226,10 @@ xvfb-run -a npx wdio run wdio.conf.ts
 1. **Missing Linux build dependencies**
 
    ```bash
-   sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev
+   sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libxdo-dev
    ```
 
-2. **Display server missing on Linux CI**
-
-   ```bash
-   xvfb-run -a npm run test:e2e
-   ```
+2. **Display server missing on Linux CI** - See [Linux Without a Display](./quick-start.md#linux-without-a-display).
 
 3. **Release binary used instead of debug**
    - Ensure `dx build --desktop` (not `dx build --desktop --release`) is run in CI
@@ -295,6 +291,5 @@ If you're still stuck:
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
 3. **See [App Setup](./app-setup.md)** for what the app needs
-4. **Check [Platform Support](./platform-support.md)** for platform-specific issues
-5. **Enable debug logging** to see detailed output
-6. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)
+4. **Enable debug logging** to see detailed output
+5. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions)

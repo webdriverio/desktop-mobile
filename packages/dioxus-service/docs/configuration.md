@@ -428,4 +428,3 @@ If your app doesn't use `asset!()`, `cargo build` also works; its binary is at `
 - [App Setup](./app-setup.md) for setting up the Dioxus app
 - [API Reference](./api-reference.md) for available functions
 - [Log Forwarding](./log-forwarding.md) for logging configuration
-- [Platform Support](./platform-support.md) for per-platform details
