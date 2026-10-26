@@ -302,6 +302,12 @@ before a requested size is applied, including moves between displays.
 | `link text`         | Exact link text match      |
 | `partial link text` | Partial link text match    |
 
+## Keyboard Events
+
+Keyboard events carry the `key`, `code` and `keyCode` a browser sends on a US keyboard: `a` and `A` are `code: 'KeyA'`, `keyCode: 65`, and `;` is `code: 'Semicolon'`, `keyCode: 186`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`.
+
+One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
+
 ## See Also
 
 - [Plugin Setup Guide](../tauri-service/docs/plugin-setup.md) — Full setup instructions including this plugin

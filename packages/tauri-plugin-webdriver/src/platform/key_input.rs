@@ -106,17 +106,63 @@ pub fn is_modifier_key(key: &str) -> bool {
   matches!(map_special_key(key), Some(("Shift" | "Control" | "Alt" | "Meta", _, _)))
 }
 
-/// The `KeyboardEvent.code` for a printable character.
+/// The `KeyboardEvent.code` a US keyboard sends for a printable character, or `""` for one it has
+/// no key for.
 pub fn regular_key_code_for(key: &str) -> String {
-  let ch = key.chars().next().unwrap_or(' ');
-  let upper = ch.to_ascii_uppercase();
-  if ch.is_ascii_alphabetic() {
-    format!("Key{upper}")
-  } else if ch.is_ascii_digit() {
-    format!("Digit{ch}")
-  } else {
-    key.to_string()
+  single_char(key).and_then(us_keyboard_key).map(|(code, _)| code).unwrap_or_default()
+}
+
+/// The legacy `keyCode` a browser sends for a printable character on a US keyboard: the key's
+/// virtual-key code (65 for `a` and `A`), or 0 for a character the keyboard has no key for.
+pub fn regular_key_code_number(key: &str) -> u32 {
+  single_char(key).and_then(us_keyboard_key).map_or(0, |(_, key_code)| key_code)
+}
+
+fn single_char(key: &str) -> Option<char> {
+  let mut chars = key.chars();
+  match (chars.next(), chars.next()) {
+    (Some(ch), None) => Some(ch),
+    _ => None,
   }
+}
+
+/// The `(code, keyCode)` of the US-keyboard key that types `ch`, shifted or not.
+fn us_keyboard_key(ch: char) -> Option<(String, u32)> {
+  if ch.is_ascii_alphabetic() {
+    let upper = ch.to_ascii_uppercase();
+    return Some((format!("Key{upper}"), upper as u32));
+  }
+  if ch.is_ascii_digit() {
+    return Some((format!("Digit{ch}"), ch as u32));
+  }
+  let (code, key_code) = match ch {
+    ' ' => ("Space", 32),
+    '\n' | '\r' => ("Enter", 13),
+    '\t' => ("Tab", 9),
+    ')' => ("Digit0", 48),
+    '!' => ("Digit1", 49),
+    '@' => ("Digit2", 50),
+    '#' => ("Digit3", 51),
+    '$' => ("Digit4", 52),
+    '%' => ("Digit5", 53),
+    '^' => ("Digit6", 54),
+    '&' => ("Digit7", 55),
+    '*' => ("Digit8", 56),
+    '(' => ("Digit9", 57),
+    ';' | ':' => ("Semicolon", 186),
+    '=' | '+' => ("Equal", 187),
+    ',' | '<' => ("Comma", 188),
+    '-' | '_' => ("Minus", 189),
+    '.' | '>' => ("Period", 190),
+    '/' | '?' => ("Slash", 191),
+    '`' | '~' => ("Backquote", 192),
+    '[' | '{' => ("BracketLeft", 219),
+    '\\' | '|' => ("Backslash", 220),
+    ']' | '}' => ("BracketRight", 221),
+    '\'' | '"' => ("Quote", 222),
+    _ => return None,
+  };
+  Some((code.to_string(), key_code))
 }
 
 /// A JS string literal for `text` that is safe to splice into a script.
@@ -177,12 +223,11 @@ pub fn build_regular_key_script(
   is_down: bool,
   modifiers: &ModifierState,
 ) -> String {
-  let ch = key.chars().next().unwrap_or(' ');
-  build_printable_key_script(key, code, ch as u32, is_down, modifiers)
+  build_printable_key_script(key, code, regular_key_code_number(key), is_down, modifiers)
 }
 
 /// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys whose
-/// legacy code differs from the character's (e.g. Numpad5 is 101, not 53).
+/// `keyCode` differs from the main keyboard key's (e.g. Numpad5 is 101, not 53).
 pub fn build_printable_key_script(
   key: &str,
   code: &str,
@@ -778,11 +823,71 @@ mod tests {
   }
 
   #[test]
-  fn regular_key_code_for_derives_code() {
-    assert_eq!(regular_key_code_for("a"), "KeyA");
-    assert_eq!(regular_key_code_for("A"), "KeyA");
-    assert_eq!(regular_key_code_for("5"), "Digit5");
-    assert_eq!(regular_key_code_for("!"), "!");
+  fn regular_keys_send_the_us_keyboard_code() {
+    for (key, code) in [
+      ("a", "KeyA"),
+      ("A", "KeyA"),
+      ("5", "Digit5"),
+      ("!", "Digit1"),
+      (")", "Digit0"),
+      (" ", "Space"),
+      (";", "Semicolon"),
+      (":", "Semicolon"),
+      ("'", "Quote"),
+      ("\"", "Quote"),
+      ("\\", "Backslash"),
+      ("~", "Backquote"),
+      ("\n", "Enter"),
+      ("\t", "Tab"),
+      ("é", ""),
+      ("ab", ""),
+    ] {
+      assert_eq!(regular_key_code_for(key), code, "{key:?}");
+    }
+  }
+
+  #[test]
+  fn regular_keys_send_the_browser_key_code() {
+    for (key, key_code) in [
+      ("a", 65),
+      ("A", 65),
+      ("p", 80),
+      ("z", 90),
+      ("0", 48),
+      ("5", 53),
+      ("%", 53),
+      (" ", 32),
+      (";", 186),
+      ("=", 187),
+      (",", 188),
+      ("-", 189),
+      (".", 190),
+      ("/", 191),
+      ("`", 192),
+      ("[", 219),
+      ("\\", 220),
+      ("]", 221),
+      ("'", 222),
+      ("\n", 13),
+      ("é", 0),
+    ] {
+      assert_eq!(regular_key_code_number(key), key_code, "{key:?}");
+    }
+  }
+
+  #[test]
+  fn letters_no_longer_share_numpad_and_function_key_codes() {
+    let special_codes: Vec<u32> = special_key_range()
+      .filter_map(|ch| map_special_key(&ch.to_string()))
+      .map(|(_, _, key_code)| key_code)
+      .collect();
+    for ch in ('a'..='z').chain('A'..='Z') {
+      let key_code = regular_key_code_number(&ch.to_string());
+      assert!(
+        !special_codes.contains(&key_code),
+        "{ch} shares keyCode {key_code} with a special key"
+      );
+    }
   }
 
   #[test]
@@ -823,7 +928,7 @@ mod tests {
   fn build_regular_key_script_carries_modifiers_and_value_mutation() {
     let script = build_regular_key_script("a", "KeyA", true, &mods(false, false, false, false));
     assert!(script.contains("key: \"a\""));
-    assert!(script.contains("keyCode: 97"));
+    assert!(script.contains("keyCode: 65"));
     assert!(script.contains("inputType: 'insertText'"));
 
     let select_all = build_regular_key_script("a", "KeyA", true, &mods(true, false, false, false));

@@ -297,6 +297,22 @@ describe('special keys (embedded)', () => {
     expect((await keyTargetEvents()).find((event) => event.key === 'PageDown')).toMatchObject({ shiftKey: true });
   });
 
+  it('should send the code and keyCode a browser sends for printable keys', async () => {
+    await browser.$('#key-target').click();
+    await browser.execute('window.__keyTargetEvents = [];');
+    await browser.keys(['a', 'A', 'p', '5', '!', ';', "'", 'é']);
+    expect((await keyTargetEvents()).map(({ key, code, keyCode }) => ({ key, code, keyCode }))).toEqual([
+      { key: 'a', code: 'KeyA', keyCode: 65 },
+      { key: 'A', code: 'KeyA', keyCode: 65 },
+      { key: 'p', code: 'KeyP', keyCode: 80 },
+      { key: '5', code: 'Digit5', keyCode: 53 },
+      { key: '!', code: 'Digit1', keyCode: 49 },
+      { key: ';', code: 'Semicolon', keyCode: 186 },
+      { key: "'", code: 'Quote', keyCode: 222 },
+      { key: 'é', code: '', keyCode: 0 },
+    ]);
+  });
+
   it('should fire input and change only when the value changes', async () => {
     const input = browser.$('#keys-input');
     await input.addValue(Key.NULL);
