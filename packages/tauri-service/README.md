@@ -51,7 +51,7 @@ export const config = {
     {
       browserName: 'tauri',
       'tauri:options': {
-        application: './src-tauri/target/release/my-app.exe',
+        application: './src-tauri/target/debug/my-app.exe',
       },
     },
   ],
@@ -69,7 +69,6 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 **Reference**
 - [Configuration](./docs/configuration.md) - All service options
 - [API Reference](./docs/api-reference.md) - Complete API documentation
-- [Platform Support](./docs/platform-support.md) - Windows, Linux, macOS
 
 **Guides**
 - [Browser Mode](./docs/browser-mode.md) - Test the renderer in Chrome without a Tauri binary
@@ -92,7 +91,7 @@ See [Configuration Reference](./docs/configuration.md) for all options.
 | **Linux**   | ✅ Yes    | `embedded`, `external`, `crabnebula` | `external` requires WebKitWebDriver        |
 | **macOS**   | ✅ Yes    | `embedded`, `crabnebula`             | Native via embedded, or CrabNebula         |
 
-See [Platform Support](./docs/platform-support.md) for detailed information including distribution support and troubleshooting.
+See the [Quick Start](./docs/quick-start.md#platform-specific-requirements) for each platform's requirements and the supported Linux distributions.
 
 > **Choosing a driver provider** (see [ADR 0001](https://github.com/webdriverio/desktop-mobile/blob/main/docs/adr/0001-driver-provider-naming.md) for the naming):
 > - **`embedded`** (default, all platforms) — WebDriver runs inside your app; no external driver needed
@@ -107,9 +106,8 @@ Check out the E2E test fixtures in the [desktop-mobile repository](https://githu
 
 Having trouble? Here are some resources:
 1. **[Troubleshooting Guide](./docs/troubleshooting.md)** - Solutions for common issues
-2. **[Platform Support](./docs/platform-support.md)** - Platform-specific information
-3. **[GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)** - Bug reports and feature requests for tauri-service
-4. **[WebdriverIO Forum](https://github.com/webdriverio/webdriverio/discussions)** - General community help and discussions
+2. **[GitHub Issues](https://github.com/webdriverio/desktop-mobile/issues)** - Bug reports and feature requests for tauri-service
+3. **[WebdriverIO Forum](https://github.com/webdriverio/webdriverio/discussions)** - General community help and discussions
 
 ## Contributing
 

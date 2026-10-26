@@ -305,7 +305,7 @@ before a requested size is applied, including moves between displays.
 ## See Also
 
 - [Plugin Setup Guide](../tauri-service/docs/plugin-setup.md) — Full setup instructions including this plugin
-- [Platform Support](../tauri-service/docs/platform-support.md) — Per-platform details
+- [Choosing a Driver Provider](../tauri-service/docs/configuration.md#choosing-a-driver-provider) — When to use the embedded provider
 - [Upstream repository](https://github.com/Choochmeque/tauri-plugin-webdriver) — Original project
 
 ## License

@@ -183,7 +183,7 @@ Ensure the correct version appears first
 
 - **Windows**: Edge driver check runs automatically
 - **Linux**: Skipped (Tauri uses WebKitGTK)
-- **macOS**: N/A (Tauri testing not supported on macOS)
+- **macOS**: Skipped (Tauri uses WKWebView)
 
 ## API Reference
 

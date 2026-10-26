@@ -34,10 +34,10 @@ Path to the compiled Tauri application binary (executable). The service trusts t
 
 **Example:**
 ```typescript
-appBinaryPath: './src-tauri/target/release/my-app.exe',  // Windows, single-crate
-appBinaryPath: './src-tauri/target/release/my-app',     // Linux/macOS, single-crate
-appBinaryPath: './target/release/my-app',               // Cargo workspace (target/ at workspace root)
-appBinaryPath: './target/release/bundle/macos/My App.app',  // macOS .app bundle
+appBinaryPath: './src-tauri/target/debug/my-app.exe',  // Windows, single-crate
+appBinaryPath: './src-tauri/target/debug/my-app',     // Linux/macOS, single-crate
+appBinaryPath: './target/debug/my-app',               // Cargo workspace (target/ at workspace root)
+appBinaryPath: './target/debug/bundle/macos/My App.app',  // macOS .app bundle
 ```
 
 **Resolution order:** `tauri:options.application` (capability-level) takes precedence; `appBinaryPath` (service-level) is used when no capability-level `application` is set. At least one of the two must be supplied; spawning surfaces a clear OS error if the path is wrong.
@@ -472,7 +472,7 @@ capabilities: [
   {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe',
+      application: './src-tauri/target/debug/my-app.exe',
     },
   },
 ];
@@ -487,7 +487,7 @@ capabilities: [
   {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe',
+      application: './src-tauri/target/debug/my-app.exe',
       args: ['--debug'],
     },
     // Optional: override service settings per capability
@@ -505,13 +505,13 @@ capabilities: {
   app1: {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe'
+      application: './src-tauri/target/debug/my-app.exe'
     }
   },
   app2: {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe'
+      application: './src-tauri/target/debug/my-app.exe'
     }
   }
 }
@@ -524,13 +524,13 @@ capabilities: [
   {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe',
+      application: './src-tauri/target/debug/my-app.exe',
     },
   },
   {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe',
+      application: './src-tauri/target/debug/my-app.exe',
     },
   },
 ];
@@ -556,7 +556,7 @@ export const config = {
     [
       '@wdio/tauri-service',
       {
-        appBinaryPath: './src-tauri/target/release/my-app.exe',
+        appBinaryPath: './src-tauri/target/debug/my-app.exe',
         appArgs: ['--debug'],
         autoInstallTauriDriver: true,
         autoDownloadEdgeDriver: true, // Windows only
@@ -576,7 +576,7 @@ export const config = {
     {
       browserName: 'tauri',
       'tauri:options': {
-        application: './src-tauri/target/release/my-app.exe',
+        application: './src-tauri/target/debug/my-app.exe',
         args: ['--debug'],
       },
     },
@@ -622,7 +622,7 @@ services: [
   [
     '@wdio/tauri-service',
     {
-      appBinaryPath: './src-tauri/target/release/my-app.exe',
+      appBinaryPath: './src-tauri/target/debug/my-app.exe',
       autoDownloadEdgeDriver: true, // Auto-download on version mismatch
     },
   ],
@@ -638,7 +638,7 @@ services: [
   [
     '@wdio/tauri-service',
     {
-      appBinaryPath: './src-tauri/target/release/my-app',
+      appBinaryPath: './src-tauri/target/debug/my-app',
       autoInstallTauriDriver: true,
     },
   ],
@@ -647,45 +647,34 @@ services: [
 
 ### Headless Configuration (Linux)
 
-To run without a display on WebdriverIO v10, install Xvfb and set `displayServer: 'xvfb'` at the root of the config:
-
-```typescript
-export const config = {
-  displayServer: 'xvfb',
-  services: [['@wdio/tauri-service', { appBinaryPath: './src-tauri/target/release/my-app' }]],
-};
-```
-
-On WebdriverIO v9, wrap the run in `xvfb-run` instead. See [Headless Testing](./platform-support.md#headless-testing).
+See [Linux Without a Display](./quick-start.md#linux-without-a-display).
 
 ## Finding Your appBinaryPath
 
 ### Windows
 
-Build your app:
+Build a debug binary:
 ```bash
-cd src-tauri
-cargo build --release
+npm run tauri build -- --debug
 ```
 
 Binary is at:
 ```
-./src-tauri/target/release/my-app.exe
+./src-tauri/target/debug/my-app.exe
 ```
 
 (Replace `my-app` with your app name from `Cargo.toml`)
 
 ### Linux
 
-Build your app:
+Build a debug binary:
 ```bash
-cd src-tauri
-cargo build --release
+npm run tauri build -- --debug
 ```
 
 Binary is at:
 ```
-./src-tauri/target/release/my-app
+./src-tauri/target/debug/my-app
 ```
 
 (Replace `my-app` with your app name)
@@ -694,10 +683,10 @@ Binary is at:
 
 ```bash
 # Windows
-if exist "src-tauri\target\release\my-app.exe" echo "Binary found"
+if exist "src-tauri\target\debug\my-app.exe" echo "Binary found"
 
 # Linux/macOS
-ls -la src-tauri/target/release/my-app
+ls -la src-tauri/target/debug/my-app
 ```
 
 ## Configuration Validation
@@ -723,7 +712,7 @@ export const config = {
     [
       '@wdio/tauri-service',
       {
-        appBinaryPath: './src-tauri/target/release/my-app.exe',
+        appBinaryPath: './src-tauri/target/debug/my-app.exe',
         autoInstallTauriDriver: true,
         autoDownloadEdgeDriver: true,
         captureBackendLogs: true,
@@ -746,7 +735,7 @@ export const config = {
     [
       '@wdio/tauri-service',
       {
-        appBinaryPath: process.env.APP_BINARY || './src-tauri/target/release/my-app.exe',
+        appBinaryPath: process.env.APP_BINARY || './src-tauri/target/debug/my-app.exe',
         autoInstallTauriDriver: true,
         autoDownloadEdgeDriver: true,
         captureBackendLogs: true,
@@ -767,7 +756,7 @@ export const config = {
     [
       '@wdio/tauri-service',
       {
-        appBinaryPath: './src-tauri/target/release/my-app.exe',
+        appBinaryPath: './src-tauri/target/debug/my-app.exe',
         autoInstallTauriDriver: false, // Pre-installed
         autoDownloadEdgeDriver: false, // Pre-downloaded
         captureBackendLogs: false,
@@ -785,19 +774,19 @@ export const config = {
 1. Verify path exists:
 
    ```bash
-   ls -la src-tauri/target/release/my-app*
+   ls -la src-tauri/target/debug/my-app*
    ```
 
 2. Build the app first:
 
    ```bash
-   cd src-tauri && cargo build --release
+   npm run tauri build -- --debug
    ```
 
 3. Use absolute path in config:
 
    ```typescript
-   appBinaryPath: path.resolve('./src-tauri/target/release/my-app.exe')
+   appBinaryPath: path.resolve('./src-tauri/target/debug/my-app.exe')
    ```
 
 **"Service not found"**

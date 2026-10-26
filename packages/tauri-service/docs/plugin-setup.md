@@ -12,10 +12,10 @@ The `tauri-plugin-wdio` is a **required** Tauri plugin that enables WebdriverIO 
 
 There are two Tauri plugins for WebdriverIO testing:
 
-| Plugin                        | Package   | Purpose                              | Required                   |
-| ----------------------------- | --------- | ------------------------------------ | -------------------------- |
-| `tauri-plugin-wdio`           | Rust + JS | Execute API, mocking, log forwarding | **Yes**                    |
-| `tauri-plugin-wdio-webdriver` | Rust only | Embedded WebDriver server            | Only for embedded provider |
+| Plugin                        | Package   | Purpose                              | Required                    |
+| ----------------------------- | --------- | ------------------------------------ | --------------------------- |
+| `tauri-plugin-wdio`           | Rust + JS | Execute API, mocking, log forwarding | **Yes**                     |
+| `tauri-plugin-wdio-webdriver` | Rust only | Embedded WebDriver server            | For `embedded`, the default |
 
 ### When You Need Each
 
@@ -168,11 +168,10 @@ This import must happen **before** your tests run. The plugin auto-initializes o
 
 ### Step 6: Build and Verify
 
-Build your Tauri app:
+Build a debug binary to test:
 
 ```bash
-cd src-tauri
-cargo build --release
+npm run tauri build -- --debug
 ```
 
 The build should complete successfully without errors about the plugin.
@@ -280,7 +279,7 @@ If you get Rust compilation errors:
    ```bash
    cd src-tauri
    cargo clean
-   cargo build --release
+   cargo build
    ```
 
 3. **Check Tauri version compatibility**
@@ -411,9 +410,9 @@ Once the plugin is installed and verified:
 3. Check [Usage Examples](./usage-examples.md) for testing patterns
 4. View [Configuration](./configuration.md) for service options
 
-## Plugin 2: tauri-plugin-wdio-webdriver (Optional - Embedded WebDriver)
+## Plugin 2: tauri-plugin-wdio-webdriver (Embedded WebDriver)
 
-This plugin embeds a W3C WebDriver HTTP server directly in your Tauri application. Use it when you want to test on macOS without CrabNebula, or when you prefer not to install an external driver.
+This plugin embeds a W3C WebDriver HTTP server directly in your Tauri application. The default `embedded` provider needs it; the `external` and `crabnebula` providers don't.
 
 ### Requirements
 

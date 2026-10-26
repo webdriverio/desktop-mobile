@@ -27,11 +27,13 @@ Get up and running with WebdriverIO and Tauri E2E testing in minutes.
 #### Windows
 
 - **Microsoft Visual C++ Build Tools** - Download from [Microsoft Visual C++](https://visualstudio.microsoft.com/visual-cpp-build-tools/)
-- **Edge WebDriver** - Auto-managed by the service (see [Edge WebDriver Windows](./edge-webdriver-windows.md))
+- **Edge WebDriver** - Only for the `external` provider, which manages it for you (see [Edge WebDriver Windows](./edge-webdriver-windows.md))
 
 #### Linux
 
-- **WebKitGTK Development Libraries** - Install WebKitWebDriver
+- **Tauri's build dependencies** - See [Tauri's Linux prerequisites](https://v2.tauri.app/start/prerequisites/#linux).
+
+- **WebKitWebDriver** - Only for the `external` and `crabnebula` providers. The default `embedded` provider doesn't need it.
 
   ```bash
   # Ubuntu 26.04+, Debian 13+
@@ -50,11 +52,13 @@ Get up and running with WebdriverIO and Tauri E2E testing in minutes.
   sudo xbps-install -y libwebkit2gtk41
   ```
 
-See [Platform Support](./platform-support.md) for detailed distribution support information.
+- **Supported distributions** - Debian 12+, Ubuntu 22.04+, Fedora 40+, Arch Linux and Void Linux. Alpine isn't supported, because its musl C library can't build Tauri apps. Neither are CentOS Stream and RHEL: version 9's glib is too old, and version 10 drops WebKitGTK.
+
+- **A display** - See [Linux Without a Display](#linux-without-a-display) for CI and other headless machines.
 
 #### macOS
 
-✅ **Supported** - Use the embedded WebDriver provider (`driverProvider: 'embedded'`) for native macOS testing without external dependencies. See [Platform Support](./platform-support.md) for details.
+✅ **Supported** - The default `embedded` provider needs no external driver. See [Plugin Setup](./plugin-setup.md) for the plugin it needs.
 
 ## Setting Up a Tauri App
 
@@ -137,6 +141,9 @@ fn main() {
 tauri = { version = "2", features = [] }
 tauri-plugin-wdio = "1"
 
+[target.'cfg(debug_assertions)'.dependencies]
+tauri-plugin-wdio-webdriver = "1"
+
 [build-dependencies]
 tauri-build = "2"
 ```
@@ -151,7 +158,7 @@ fn main() {
 
 ## Tauri Plugin Setup
 
-⚠️ **The tauri-plugin-wdio is required for testing** - Skip this section only if you want basic WebDriver operations without mocking or log capture.
+Your app needs two plugins: `tauri-plugin-wdio`, for mocking, `execute` and log capture, and `tauri-plugin-wdio-webdriver`, the WebDriver server the default `embedded` provider connects to. Both are in the `Cargo.toml` above; the WebDriver server is only compiled into debug builds.
 
 ### Complete Plugin Setup
 
@@ -161,8 +168,12 @@ fn main() {
 
 ```rust
 fn main() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_wdio::init())  // Add this line
+    let builder = tauri::Builder::default().plugin(tauri_plugin_wdio::init());
+
+    #[cfg(debug_assertions)]
+    let builder = builder.plugin(tauri_plugin_wdio_webdriver::init());
+
+    builder
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
@@ -179,7 +190,8 @@ fn main() {
   "permissions": [
     "core:default",
     "core:window:default",
-    "wdio:default"
+    "wdio:default",
+    "wdio-webdriver:default"
   ]
 }
 ```
@@ -208,19 +220,13 @@ For detailed plugin setup and troubleshooting, see [Plugin Setup](./plugin-setup
 
 ## Building the Tauri App
 
-```bash
-# Build for release (required for testing with WebdriverIO)
-cd src-tauri
-cargo build --release
-```
-
-On macOS/Linux, you'll also need to give the app executable permissions:
+Test a debug build: the WebDriver server plugin is only compiled into debug builds, so a release build can't start a session with the default `embedded` provider.
 
 ```bash
-chmod +x target/release/my_app  # Linux/macOS
-# or on Windows:
-# target\release\my_app.exe
+npm run tauri build -- --debug
 ```
+
+The binary is at `src-tauri/target/debug/my-app` (`my-app.exe` on Windows), named after your app in `Cargo.toml`.
 
 ## WebdriverIO Installation
 
@@ -251,7 +257,7 @@ export const config = {
     [
       '@wdio/tauri-service',
       {
-        appBinaryPath: './src-tauri/target/release/my-app.exe', // Adjust for your OS/app name
+        appBinaryPath: './src-tauri/target/debug/my-app.exe', // Adjust for your OS/app name
         driverProvider: 'embedded', // Default — embedded WebDriver, no external drivers needed
         // driverProvider: 'external',  // Use external tauri-driver (explicit opt-in)
         // driverProvider: 'crabnebula',  // Use CrabNebula (requires paid API key)
@@ -264,7 +270,7 @@ export const config = {
     {
       browserName: 'tauri',
       'tauri:options': {
-        application: './src-tauri/target/release/my-app.exe', // Path to built binary
+        application: './src-tauri/target/debug/my-app.exe', // Path to built binary
       },
     },
   ],
@@ -391,8 +397,8 @@ The service couldn't determine which driver to use, or couldn't find tauri-drive
 ### "Application not found at path"
 
 The `appBinaryPath` is wrong. Verify:
-1. You built the app in release mode: `cargo build --release`
-2. The path exists: `./src-tauri/target/release/my-app.exe`
+1. You built a debug binary: `npm run tauri build -- --debug`
+2. The path exists: `./src-tauri/target/debug/my-app.exe`
 3. Update the path in `wdio.conf.ts` if needed
 
 ### Tests timeout on Windows
@@ -449,13 +455,13 @@ capabilities: [
   {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe',
+      application: './src-tauri/target/debug/my-app.exe',
     },
   },
   {
     browserName: 'tauri',
     'tauri:options': {
-      application: './src-tauri/target/release/my-app.exe',
+      application: './src-tauri/target/debug/my-app.exe',
     },
   },
 ],
@@ -471,22 +477,56 @@ on: [ push, pull_request ]
 
 jobs:
   test:
-    runs-on: windows-latest # or ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: "18"
+          node-version: "22"
       - uses: dtolnay/rust-toolchain@stable
+
+      - name: Install Linux dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev xvfb
 
       - name: Install dependencies
         run: npm install
 
       - name: Build Tauri app
-        run: npm run tauri build
+        run: npm run tauri build -- --debug
 
       - name: Run tests
         run: npm run test:e2e
+```
+
+### Linux Without a Display
+
+Install Xvfb:
+
+```bash
+sudo apt-get install -y xvfb              # Debian/Ubuntu
+sudo dnf install -y xorg-x11-server-Xvfb  # Fedora
+```
+
+With WebdriverIO v10 you don't need a wrapper: when no display is set, WebdriverIO starts a display server before the service starts your app. It tries Weston first, and the service is only tested on Xvfb, so set `displayServer: 'xvfb'`:
+
+```typescript
+export const config = {
+  displayServer: 'xvfb',
+  // ...
+};
+```
+
+With WebdriverIO v9, its virtual display only covers the test workers, not the service that starts your app, so wrap the whole run:
+
+```bash
+xvfb-run -a npm run test:e2e
 ```
 
 ## See Also
@@ -494,7 +534,6 @@ jobs:
 - [Configuration Reference](./configuration.md)
 - [API Reference](./api-reference.md)
 - [Plugin Setup](./plugin-setup.md)
-- [Platform Support](./platform-support.md)
 - [Troubleshooting](./troubleshooting.md)
 - [WebdriverIO Documentation](https://webdriver.io/docs)
 - [Tauri Documentation](https://v2.tauri.app)

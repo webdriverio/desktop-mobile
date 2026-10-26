@@ -168,7 +168,7 @@ export const config = {
       browserName: 'tauri',
       'tauri:options': {
         // Path to your binary
-        application: './src-tauri/target/release/your-app-name',
+        application: './src-tauri/target/debug/your-app-name',
       },
     },
   ],
@@ -231,16 +231,16 @@ jobs:
   test-linux:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: "22"
       - uses: dtolnay/rust-toolchain@stable
 
-      - name: Install WebKitWebDriver
+      - name: Install Linux dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y webkitgtk-webdriver
+          sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libxdo-dev libssl-dev libayatana-appindicator3-dev librsvg2-dev webkitgtk-webdriver xvfb
 
       - name: Install dependencies
         run: npm install
@@ -256,10 +256,10 @@ jobs:
   test-macos:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: "22"
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies
@@ -277,10 +277,10 @@ jobs:
   test-windows:
     runs-on: windows-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
         with:
-          node-version: 20
+          node-version: "22"
       - uses: dtolnay/rust-toolchain@stable
 
       - name: Install dependencies

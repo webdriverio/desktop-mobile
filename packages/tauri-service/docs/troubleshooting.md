@@ -72,10 +72,20 @@ sudo pacman -S webkitgtk-6.0
 sudo xbps-install -y libwebkit2gtk41
 ```
 
-**Unsupported Distributions**
-- **Alpine Linux**: Cannot build Tauri apps (musl incompatibility). Use Ubuntu, Debian, Fedora, or Arch instead.
-- **CentOS/RHEL**: Stream 9 has glib too old (requires 2.70+), Stream 10 removed WebKitGTK. Use **Fedora 40+** instead.
-- **openSUSE**: Untested. WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6).
+On openSUSE, which is untested, WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6). On other distributions, find the package that ships it:
+
+```bash
+# Debian-based
+apt-cache search webkit webdriver
+
+# RedHat-based
+dnf provides '*/WebKitWebDriver'
+
+# Pacman-based (sync the file database first with sudo pacman -Fy)
+pacman -F WebKitWebDriver
+```
+
+See the [Quick Start](./quick-start.md#linux) for the supported distributions.
 
 ### "MSEdgeDriver not found" (Windows only)
 
@@ -96,7 +106,7 @@ services: [
 
 **Solution 2: Manual Download**
 1. Check your WebView2 version:
-   - Build your app: `cargo build --release`
+   - Build your app: `npm run tauri build -- --debug`
    - Right-click the .exe → Properties → Details
    - Note the "File version" (e.g., 143.0.3650.139)
 
@@ -175,9 +185,8 @@ Edit `src-tauri/capabilities/default.json`:
 **Check 5: Rebuild Application**
 
 ```bash
-cd src-tauri
-cargo clean
-cargo build --release
+cargo clean --manifest-path src-tauri/Cargo.toml
+npm run tauri build -- --debug
 ```
 
 See [Plugin Setup](./plugin-setup.md) for complete installation guide.
@@ -267,17 +276,16 @@ The Tauri app binary cannot be found.
 
 ```bash
 # Windows
-if exist "src-tauri\target\release\my-app.exe" echo "Found"
+if exist "src-tauri\target\debug\my-app.exe" echo "Found"
 
 # Linux/macOS
-ls -la src-tauri/target/release/my-app
+ls -la src-tauri/target/debug/my-app
 ```
 
 **Solution 2: Build the Application**
 
 ```bash
-cd src-tauri
-cargo build --release
+npm run tauri build -- --debug
 ```
 
 **Solution 3: Use Correct Path**
@@ -289,9 +297,9 @@ services: [
   [
     '@wdio/tauri-service',
     {
-      appBinaryPath: './src-tauri/target/release/my-app.exe', // Windows
+      appBinaryPath: './src-tauri/target/debug/my-app.exe', // Windows
       // or
-      appBinaryPath: './src-tauri/target/release/my-app', // Linux/macOS
+      appBinaryPath: './src-tauri/target/debug/my-app', // Linux/macOS
     },
   ],
 ];
@@ -306,7 +314,7 @@ services: [
   [
     '@wdio/tauri-service',
     {
-      appBinaryPath: path.resolve('./src-tauri/target/release/my-app.exe'),
+      appBinaryPath: path.resolve('./src-tauri/target/debug/my-app.exe'),
     },
   ],
 ];
@@ -438,7 +446,7 @@ services: [
 ];
 ```
 
-See [Platform Support](./platform-support.md) for per-platform details.
+See [Choosing a Driver Provider](./configuration.md#choosing-a-driver-provider) to compare the providers.
 
 ### macOS: Embedded WebDriver Not Ready
 
@@ -593,53 +601,20 @@ export const config = {
    - Download MSEdgeDriver on Windows CI
 
 2. **Display Server Missing on Linux CI**
-   - Use Xvfb for headless testing:
-
-     ```bash
-     xvfb-run -a npm run test:e2e
-     ```
+   - See [Linux Without a Display](./quick-start.md#linux-without-a-display)
 
 3. **Different Binary on CI**
-   - Ensure build happens before tests: `cargo build --release`
+   - Ensure a debug build happens before tests: `npm run tauri build -- --debug`
    - Verify binary path matches CI environment
 
 4. **Environment Variables**
    - Set `APP_BINARY` or similar if using env-based paths:
 
      ```bash
-     APP_BINARY="./src-tauri/target/release/my-app" npm run test:e2e
+     APP_BINARY="./src-tauri/target/debug/my-app" npm run test:e2e
      ```
 
-### Example GitHub Actions Setup
-
-```yaml
-name: E2E Tests
-on: [ push, pull_request ]
-
-jobs:
-  test:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-      - uses: actions/setup-node@v3
-        with:
-          node-version: "18"
-      - uses: dtolnay/rust-toolchain@stable
-
-      - name: Install WebKitWebDriver
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y webkitgtk-webdriver
-
-      - name: Install dependencies
-        run: npm install
-
-      - name: Build Tauri app
-        run: npm run tauri build
-
-      - name: Run tests with Xvfb
-        run: xvfb-run -a npm run test:e2e
-```
+See the [Quick Start](./quick-start.md#cicd-integration) for an example GitHub Actions workflow.
 
 ## Getting Help
 
@@ -647,6 +622,5 @@ If you're still stuck:
 1. **Check [Configuration](./configuration.md)** for all available options
 2. **Review [Usage Examples](./usage-examples.md)** for correct patterns
 3. **See [Plugin Setup](./plugin-setup.md)** for plugin requirements
-4. **Check [Platform Support](./platform-support.md)** for platform-specific issues
-5. **Enable debug logging** to see detailed output
-6. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions) or [WDIO forum](https://github.com/webdriverio/webdriverio/discussions)
+4. **Enable debug logging** to see detailed output
+5. **Open a discussion** in the [GitHub Discussions](https://github.com/webdriverio/desktop-mobile/discussions) or [WDIO forum](https://github.com/webdriverio/webdriverio/discussions)
