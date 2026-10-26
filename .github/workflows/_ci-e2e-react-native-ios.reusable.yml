@@ -192,7 +192,7 @@ jobs:
         # Idempotent: appium exits 1 if the driver is already registered.
         run: |
           set -euo pipefail
-          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi xcuitest; then
+          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -i xcuitest >/dev/null; then
             echo "xcuitest driver already installed"
           else
             pnpm --filter @repo/e2e exec appium driver install xcuitest

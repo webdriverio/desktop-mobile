@@ -154,7 +154,7 @@ jobs:
         # APPIUM_HOME, so only install when `driver list --installed` doesn't show it.
         run: |
           set -euo pipefail
-          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -qi uiautomator2; then
+          if pnpm --filter @repo/e2e exec appium driver list --installed 2>&1 | grep -i uiautomator2 >/dev/null; then
             echo "uiautomator2 driver already installed"
           else
             pnpm --filter @repo/e2e exec appium driver install uiautomator2

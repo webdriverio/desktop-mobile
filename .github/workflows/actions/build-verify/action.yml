@@ -67,7 +67,7 @@ runs:
 
         # Verify that no unexpected files are included
         for pkg in "${EXPECTED_PACKAGES[@]}"; do
-          if find "$pkg" -name "*.spec.js" -o -name "*.spec.ts" -o -name "*.test.js" -o -name "*.test.ts" | grep -q .; then
+          if find "$pkg" -name "*.spec.js" -o -name "*.spec.ts" -o -name "*.test.js" -o -name "*.test.ts" | grep . >/dev/null; then
             echo "::error::Test files found in distribution package: $pkg"
             find "$pkg" -name "*.spec.js" -o -name "*.spec.ts" -o -name "*.test.js" -o -name "*.test.ts"
             exit 1

@@ -188,7 +188,7 @@ jobs:
                 echo "  ✅ Found Windows binary in $target_dir/debug/"
               fi
             elif [ "${{ runner.os }}" = "macOS" ]; then
-              if find "$target_dir/debug" -maxdepth 1 -type f -perm +111 2>/dev/null | grep -q .; then
+              if find "$target_dir/debug" -maxdepth 1 -type f -perm +111 2>/dev/null | grep . >/dev/null; then
                 BINARY_COUNT=$((BINARY_COUNT + 1))
                 echo "  ✅ Found macOS raw binary in $target_dir/debug/"
               else
@@ -201,7 +201,7 @@ jobs:
                 done
               fi
             else
-              if find "$target_dir/debug" -maxdepth 1 -type f -executable 2>/dev/null | grep -q .; then
+              if find "$target_dir/debug" -maxdepth 1 -type f -executable 2>/dev/null | grep . >/dev/null; then
                 BINARY_COUNT=$((BINARY_COUNT + 1))
                 echo "  ✅ Found binary in $target_dir/debug/"
               fi
