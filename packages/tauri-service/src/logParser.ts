@@ -68,7 +68,6 @@ function isTauriDriverLog(line: string): boolean {
   return TAURI_DRIVER_PATTERNS.some((pattern) => pattern.test(line));
 }
 
-// App-log parsing drops these lines. Their own level still decides whether the driver logger prints them.
 export function driverOutputLevel(line: string): LogLevel | undefined {
   const trimmed = line.trim();
   if (!trimmed || !isTauriDriverLog(trimmed)) {

@@ -137,7 +137,7 @@ export function forwardLog(
   }
 }
 
-// tauri-driver exits on any argument other than its port options, so a log flag cannot select this output.
+// tauri-driver has no log-level flag and exits on unknown arguments, so the service filters its output instead.
 function emitDriverOutput(line: string, minLevel: LogLevel): void {
   const level = driverOutputLevel(line);
   if (!level || !shouldLog(level, minLevel)) {
