@@ -35,8 +35,6 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
   };
 
   const mockFn: Mock<T> = function (this: unknown, ...args: Parameters<T>): ReturnType<T> {
-    // Electron 45 throws if a native method is called with the wrong receiver
-    // (electron/electron#54313). A method call's `this` is that object; a bare call has none.
     const receiver = this === mockFn ? undefined : this;
     const callImpl = (fn: T): ReturnType<T> => Reflect.apply(fn, receiver, args) as ReturnType<T>;
 
