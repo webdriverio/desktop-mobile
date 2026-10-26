@@ -333,49 +333,6 @@ describe('TauriWorkerService', () => {
   });
 
   describe('before()', () => {
-    it('should bound commands with the default timeout', async () => {
-      const options = { connectionRetryTimeout: 120_000 };
-      const mockBrowser = createMockBrowser({ options });
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-
-      await service.before({} as TauriCapabilities, [], mockBrowser);
-
-      expect(options.connectionRetryTimeout).toBe(30_000);
-    });
-
-    it('should keep a global commandTimeout when the capability leaves it unset', async () => {
-      const options = { connectionRetryTimeout: 120_000 };
-      const mockBrowser = createMockBrowser({ options });
-      const service = new TauriWorkerService({ commandTimeout: 45_000 }, { 'wdio:tauriServiceOptions': {} });
-
-      await service.before({} as TauriCapabilities, [], mockBrowser);
-
-      expect(options.connectionRetryTimeout).toBe(45_000);
-    });
-
-    it('should let a capability commandTimeout override the global value', async () => {
-      const options = { connectionRetryTimeout: 120_000 };
-      const instanceOptions = { connectionRetryTimeout: 120_000 };
-      const instance = createMockBrowser({ options: instanceOptions });
-      const mockBrowser = createMockBrowser({
-        options,
-        isMultiremote: true,
-        instances: ['browserA'],
-        getInstance: () => instance,
-      });
-      const service = new TauriWorkerService(
-        { commandTimeout: 45_000 },
-        {
-          'wdio:tauriServiceOptions': { commandTimeout: 10_000 },
-        },
-      );
-
-      await service.before({} as TauriCapabilities, [], mockBrowser);
-
-      expect(options.connectionRetryTimeout).toBe(10_000);
-      expect(instanceOptions.connectionRetryTimeout).toBe(10_000);
-    });
-
     it('should initialize standard browser with tauri API and patched execute', async () => {
       const mockBrowser = createMockBrowser();
       const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });

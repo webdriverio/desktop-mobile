@@ -130,7 +130,7 @@ tauriDriverPath: 'C:\\tools\\tauri-driver.exe'; // Windows
 
 Log level for tauri-driver output.
 
-`tauri-driver` accepts only its port options and exits if it is given anything else, so this does not pass a log flag. The service prints the driver's own stdout and stderr down to this level.
+`tauri-driver` accepts only its port options and exits if it is given anything else, so this does not pass a log flag. Instead, the service prints the lines it recognises as driver output, down to this level. Lines without a level count as `info`.
 
 Embedded mode does not run `tauri-driver`, so `logLevel` has no effect there. App logs in that mode use `backendLogLevel`.
 
@@ -163,7 +163,7 @@ windowLabel: 'settings'; // Target the settings window by default
 
 ### `commandTimeout` (number, optional)
 
-Timeout in milliseconds for individual command execution. Applied to each WebDriver command after the session exists. Creating the session still waits on `startTimeout`.
+Timeout in milliseconds for individual command execution.
 
 **Example:**
 ```typescript

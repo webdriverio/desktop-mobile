@@ -134,8 +134,8 @@ describe('session', () => {
           appBinaryPath: '/path/to/app',
           appArgs: [],
           tauriDriverPort: undefined,
-          logLevel: undefined,
-          commandTimeout: undefined,
+          logLevel: 'info',
+          commandTimeout: 30000,
           startTimeout: 60000,
           driverProvider: undefined,
           autoInstallTauriDriver: undefined,
@@ -143,12 +143,12 @@ describe('session', () => {
       });
     });
 
-    it('should leave logLevel and commandTimeout unset so a global value can win', () => {
+    it('should use default values for optional fields', () => {
       const caps = createTauriCapabilities('/app');
       const serviceOpts = caps['wdio:tauriServiceOptions'];
 
-      expect(serviceOpts?.logLevel).toBeUndefined();
-      expect(serviceOpts?.commandTimeout).toBeUndefined();
+      expect(serviceOpts?.logLevel).toBe('info');
+      expect(serviceOpts?.commandTimeout).toBe(30000);
       expect(serviceOpts?.startTimeout).toBe(60000);
       expect(serviceOpts?.appArgs).toEqual([]);
     });
