@@ -351,6 +351,12 @@ export interface TauriServiceGlobalOptions extends BaseServiceGlobalOptions, Dri
   mode?: 'native' | 'browser';
   devServerUrl?: string;
   logLevel?: LogLevel;
+  /**
+   * Timeout for an individual WebDriver command, in milliseconds.
+   * A capability value wins. Applied once the session exists, so startup still uses `startTimeout`.
+   * @default 30000
+   */
+  commandTimeout?: number;
   tauriDriverPort?: number;
   nativeDriverPath?: string;
   /**

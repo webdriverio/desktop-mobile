@@ -62,10 +62,17 @@ function extractPrefixAndSource(line: string): { prefix: string | null; source: 
 }
 
 /**
- * Check if a log line is from tauri-driver (should be filtered out)
+ * Check if a log line is from tauri-driver (should be filtered out of app logs)
  */
 function isTauriDriverLog(line: string): boolean {
   return TAURI_DRIVER_PATTERNS.some((pattern) => pattern.test(line));
+}
+
+// App-log parsing drops these lines. Their own level still decides whether the driver logger prints them.
+export function driverOutputLevel(line: string): LogLevel | undefined {
+  const trimmed = line.trim();
+  if (!trimmed || !isTauriDriverLog(trimmed)) return undefined;
+  return extractLogLevel(trimmed) ?? 'info';
 }
 
 /**

@@ -14,7 +14,7 @@ import { clearAllMocks, isMockFunction, mock, resetAllMocks, restoreAllMocks } f
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
-import { mergeServiceOptions } from './serviceConfig.js';
+import { applyCommandTimeout, DEFAULT_COMMAND_TIMEOUT, mergeServiceOptions } from './serviceConfig.js';
 
 import type { DriverProvider, TauriCapabilities, TauriServiceGlobalOptions, TauriServiceOptions } from './types.js';
 import {
@@ -51,6 +51,7 @@ export default class TauriWorkerService {
   private windowLabel: string;
   private mode?: string;
   private devServerUrl?: string;
+  private commandTimeout: number;
 
   constructor(options: TauriServiceOptions & TauriServiceGlobalOptions, capabilities: TauriCapabilities) {
     // Options may be supplied service-level (services: [['tauri', {...}]]) or capability-level
@@ -78,6 +79,7 @@ export default class TauriWorkerService {
     this.windowLabel = merged.windowLabel || getDefaultWindowLabel();
     this.mode = launcherOptions.mode;
     this.devServerUrl = launcherOptions.devServerUrl;
+    this.commandTimeout = launcherOptions.commandTimeout ?? DEFAULT_COMMAND_TIMEOUT;
     log.debug('TauriWorkerService initialized');
   }
 
@@ -95,6 +97,7 @@ export default class TauriWorkerService {
         `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
     this.browser = browser;
+    applyCommandTimeout(browser, this.commandTimeout);
 
     let stage = 'init';
     try {
@@ -116,6 +119,7 @@ export default class TauriWorkerService {
         // Add Tauri API to each instance and wait for readiness
         for (const instanceName of mrBrowser.instances) {
           const mrInstance = mrBrowser.getInstance(instanceName);
+          applyCommandTimeout(mrInstance, this.commandTimeout);
           stage = `init:${instanceName}`;
           log.info(`Initializing instance: ${instanceName}`);
           this.addTauriApi(mrInstance);
