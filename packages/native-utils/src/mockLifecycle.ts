@@ -9,6 +9,8 @@ export interface BulkMockOpOptions {
   matches?: (name: string) => boolean;
   /** One in-app call for the whole batch, run before the per-mock ops. */
   bulkAppCall?: () => Promise<unknown>;
+  /** Replaces `mock[op]()` for each matching entry. */
+  run?: (mock: LifecycleMock) => unknown;
 }
 
 /** Attempts `op` on every matching mock, then throws an AggregateError of the failures. */
@@ -33,7 +35,7 @@ export async function runBulkMockOp(
       continue;
     }
     try {
-      await mock[op]();
+      await (options.run ? options.run(mock) : mock[op]());
       processed++;
     } catch (error) {
       failures.push({ name, error });

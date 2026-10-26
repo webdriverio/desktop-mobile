@@ -74,6 +74,22 @@ describe('runBulkMockOp', () => {
     expect(third.mockReset).toHaveBeenCalledOnce();
   });
 
+  it('should use run instead of the named op when it is given', async () => {
+    const a = fakeMock();
+    const seen: string[] = [];
+
+    await expect(
+      runBulkMockOp([['a', a]], 'mockRestore', {
+        run: () => {
+          seen.push('custom');
+        },
+      }),
+    ).resolves.toBe(1);
+
+    expect(seen).toEqual(['custom']);
+    expect(a.mockRestore).not.toHaveBeenCalled();
+  });
+
   it('should report a failed bulk app call with the per-mock failures and still run every mock', async () => {
     const a = fakeMock();
     const b = fakeMock();

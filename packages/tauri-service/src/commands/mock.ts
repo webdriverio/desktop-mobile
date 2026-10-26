@@ -124,29 +124,43 @@ export async function restoreAllMocks(this: TauriServiceContext | undefined, com
 
   const stdBrowser = browserContext as WebdriverIO.Browser;
   const mocks = mockStore.getMocks();
-  const restoredCount = await runBulkMockOp(mocks, 'mockRestore', {
-    matches: (name) => shouldProcessMock(name, commandPrefix),
-    // Restore mocks in the injection script (with prefix filtering if provided)
-    bulkAppCall: () =>
-      stdBrowser.execute<void, [string]>((prefix) => {
-        // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-        if (window.__wdio_mocks__) {
-          if (!prefix) {
-            // No prefix: clear all mocks
-            // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-            window.__wdio_mocks__ = {};
-          } else {
-            // With prefix: selectively delete matching mocks
-            // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-            for (const commandName of Object.keys(window.__wdio_mocks__)) {
-              if (commandName.startsWith(prefix)) {
-                // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-                delete window.__wdio_mocks__[commandName];
-              }
+  const matches = (name: string) => shouldProcessMock(name, commandPrefix);
+  const clearInApp = () =>
+    stdBrowser.execute<void, [string]>((prefix) => {
+      // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+      if (window.__wdio_mocks__) {
+        if (!prefix) {
+          // No prefix: clear all mocks
+          // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+          window.__wdio_mocks__ = {};
+        } else {
+          // With prefix: selectively delete matching mocks
+          // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+          for (const commandName of Object.keys(window.__wdio_mocks__)) {
+            if (commandName.startsWith(prefix)) {
+              // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
+              delete window.__wdio_mocks__[commandName];
             }
           }
         }
-      }, commandPrefix ?? ''),
+      }
+    }, commandPrefix ?? '');
+
+  let bulkError: unknown;
+  try {
+    await clearInApp();
+  } catch (error) {
+    bulkError = error;
+  }
+
+  const restoredCount = await runBulkMockOp(mocks, 'mockRestore', {
+    matches,
+    ...(bulkError
+      ? { bulkAppCall: () => Promise.reject(bulkError) }
+      : {
+          run: (mock) =>
+            (mock.mockRestore as (options?: { inAppCleared?: boolean }) => Promise<unknown>)({ inAppCleared: true }),
+        }),
   });
 
   log.debug(
