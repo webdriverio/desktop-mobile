@@ -51,6 +51,19 @@ describe('restoreAllMocks in-app round-trips', () => {
     expect(mockStore.getMocks()).toEqual([]);
   });
 
+  it("should still unregister another multiremote instance's mock in that instance's app", async () => {
+    const otherInstance = { execute: vi.fn(async () => undefined) } as unknown as WebdriverIO.Browser;
+    mockStore.setMock(await createMock('read_clipboard', browser));
+    mockStore.setMock(await createMock('write_clipboard', otherInstance));
+    vi.mocked(execute).mockClear();
+
+    await restoreAllMocks();
+
+    expect(executeInApp).toHaveBeenCalledOnce();
+    expect(vi.mocked(execute).mock.calls.map(([target]) => target)).toEqual([otherInstance]);
+    expect(mockStore.getMocks()).toEqual([]);
+  });
+
   it('should unregister each mock when the bulk clear fails', async () => {
     mockStore.setMock(await createMock('read_clipboard', browser));
     mockStore.setMock(await createMock('write_clipboard', browser));

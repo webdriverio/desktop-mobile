@@ -147,7 +147,7 @@ export async function restoreAllMocks(this: TauriServiceContext | undefined, com
           }
         }
       }, commandPrefix ?? ''),
-    run: restoreMock,
+    run: (tauriMock, bulkSucceeded) => restoreMock(tauriMock, bulkSucceeded ? stdBrowser : undefined),
   });
 
   log.debug(

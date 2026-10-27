@@ -8,14 +8,14 @@ import mockStore from './mockStore.js';
 const log = createLogger('tauri-service', 'mock');
 const interceptor = createIpcInterceptor('tauri');
 
-// Each mock's test-process half of mockRestore, held here rather than on the public mock, so that
-// restoreAllMocks can skip the per-mock in-app call once it has cleared them all in one.
-const outerRestores = new WeakMap<TauriMock, () => void>();
+// Each mock's outer half of mockRestore, and the browser its inner mock lives in. restoreAllMocks skips
+// the in-app call only for mocks in the browser it has just cleared, not another multiremote instance's.
+const outerRestores = new WeakMap<TauriMock, { browser: WebdriverIO.Browser; restoreOuter: () => void }>();
 
-export async function restoreMock(mock: TauriMock, inAppCleared: boolean): Promise<void> {
-  const restoreOuter = outerRestores.get(mock);
-  if (inAppCleared && restoreOuter) {
-    restoreOuter();
+export async function restoreMock(mock: TauriMock, inAppClearedIn?: WebdriverIO.Browser): Promise<void> {
+  const entry = outerRestores.get(mock);
+  if (entry && inAppClearedIn && entry.browser === inAppClearedIn) {
+    entry.restoreOuter();
     return;
   }
   await mock.mockRestore();
@@ -237,7 +237,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
 
   wrapperMock.__isTauriMock = true;
 
-  outerRestores.set(wrapperMock, restoreOuter);
+  outerRestores.set(wrapperMock, { browser: browserToUse, restoreOuter });
   return wrapperMock;
 }
 
@@ -406,6 +406,6 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     return result as ReturnType<typeof callbackFn>;
   };
 
-  outerRestores.set(mock, restoreOuter);
+  outerRestores.set(mock, { browser, restoreOuter });
   return mock;
 }
