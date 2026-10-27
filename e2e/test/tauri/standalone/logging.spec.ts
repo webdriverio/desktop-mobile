@@ -4,7 +4,7 @@ import process from 'node:process';
 import url from 'node:url';
 import { cleanupWdioSession, createTauriCapabilities, startWdioSession } from '@wdio/tauri-service';
 import '@wdio/native-types';
-import { startWebKitDisplay } from '../../../lib/display.js';
+import { startDisplay, webkitDisplayServer } from '../../../lib/display.js';
 import {
   assertLogContains,
   getLogDirName,
@@ -51,7 +51,7 @@ if (sessionOptions['wdio:tauriServiceOptions']) {
   console.log(`[DEBUG] Setting logDir to: ${logDir}`);
 }
 
-const display = await startWebKitDisplay();
+const display = await startDisplay(webkitDisplayServer);
 
 console.log('🔍 Debug: Starting Tauri standalone logging test');
 

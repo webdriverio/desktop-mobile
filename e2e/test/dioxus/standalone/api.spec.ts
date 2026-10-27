@@ -3,7 +3,7 @@ import process from 'node:process';
 import url from 'node:url';
 import { cleanupWdioSession, createDioxusCapabilities, startWdioSession } from '@wdio/dioxus-service';
 import type { DioxusAPIs } from '@wdio/native-types';
-import { startWebKitDisplay } from '../../../lib/display.js';
+import { startDisplay, webkitDisplayServer } from '../../../lib/display.js';
 
 const __dirname = path.dirname(url.fileURLToPath(import.meta.url));
 
@@ -13,7 +13,7 @@ const appBinaryPath = path.join(
   process.platform === 'win32' ? 'wdio-dioxus-e2e-app.exe' : 'wdio-dioxus-e2e-app',
 );
 
-const display = await startWebKitDisplay();
+const display = await startDisplay(webkitDisplayServer);
 const browser = await startWdioSession(
   createDioxusCapabilities(appBinaryPath, {
     appArgs: ['foo', 'bar=baz'],

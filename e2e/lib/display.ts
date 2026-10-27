@@ -6,6 +6,6 @@ import type { Options } from '@wdio/types';
 export const webkitDisplayServer = { displayServer: 'xvfb' } as const;
 
 // Standalone specs bypass the testrunner, which is what starts the display, so they start their own.
-export function startWebKitDisplay() {
-  return startDisplayDaemonFromConfig(webkitDisplayServer as Options.Testrunner);
+export function startDisplay(config: Partial<Options.Testrunner> = {}) {
+  return startDisplayDaemonFromConfig(config as Options.Testrunner);
 }

@@ -242,12 +242,7 @@ async function runTest(
         console.log(`  Running standalone test: ${specFile}`);
 
         // Use execWdio but with tsx instead of wdio command
-        // Electron needs a display on Linux, and standalone runs skip the testrunner that starts one.
-        const command =
-          process.platform === 'linux' && variant.framework === 'electron' && !process.env.DISPLAY
-            ? `xvfb-run --auto-servernum tsx ${specPath}`
-            : `tsx ${specPath}`;
-        lastResult = await execWdio(command, testEnv, {
+        lastResult = await execWdio(`tsx ${specPath}`, testEnv, {
           cwd: process.cwd(),
           timeout: 300000, // 5 minutes
         });

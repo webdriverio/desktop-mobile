@@ -4,7 +4,7 @@ import process from 'node:process';
 import url from 'node:url';
 import { cleanupWdioSession, createTauriCapabilities, startWdioSession } from '@wdio/tauri-service';
 import '@wdio/native-types';
-import { startWebKitDisplay } from '../../../lib/display.js';
+import { startDisplay, webkitDisplayServer } from '../../../lib/display.js';
 import { resolveTauriFixtureBinary } from '../../../lib/utils.js';
 
 // Get the directory name once at the top
@@ -33,7 +33,7 @@ const sessionOptions = createTauriCapabilities(appBinaryPath, {
   autoInstallTauriDriver: true,
 });
 
-const display = await startWebKitDisplay();
+const display = await startDisplay(webkitDisplayServer);
 
 console.log('🔍 Debug: Starting session with options:', JSON.stringify(sessionOptions, null, 2));
 const browser = await startWdioSession(sessionOptions);
