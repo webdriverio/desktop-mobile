@@ -307,6 +307,18 @@
           "markdownDescription": "Denies the debug_plugin command without any pre-configured scope."
         },
         {
+          "description": "Enables the emit_deep_link command without any pre-configured scope.",
+          "type": "string",
+          "const": "allow-emit-deep-link",
+          "markdownDescription": "Enables the emit_deep_link command without any pre-configured scope."
+        },
+        {
+          "description": "Denies the emit_deep_link command without any pre-configured scope.",
+          "type": "string",
+          "const": "deny-emit-deep-link",
+          "markdownDescription": "Denies the emit_deep_link command without any pre-configured scope."
+        },
+        {
           "description": "Enables the execute command without any pre-configured scope.",
           "type": "string",
           "const": "allow-execute",
@@ -367,10 +379,10 @@
           "markdownDescription": "Denies the log_frontend command without any pre-configured scope."
         },
         {
-          "description": "Allows all WebDriverIO plugin commands for testing\n#### This default permission set includes:\n\n- `wdio:allow-execute`\n- `wdio:allow-log-frontend`\n- `wdio:allow-debug-plugin`\n- `wdio:allow-get-active-window-label`\n- `wdio:allow-get-window-states`\n- `wdio:allow-list-windows`",
+          "description": "Allows all WebDriverIO plugin commands for testing\n#### This default permission set includes:\n\n- `wdio:allow-execute`\n- `wdio:allow-emit-deep-link`\n- `wdio:allow-log-frontend`\n- `wdio:allow-debug-plugin`\n- `wdio:allow-get-active-window-label`\n- `wdio:allow-get-window-states`\n- `wdio:allow-list-windows`",
           "type": "string",
           "const": "default",
-          "markdownDescription": "Allows all WebDriverIO plugin commands for testing\n#### This default permission set includes:\n\n- `wdio:allow-execute`\n- `wdio:allow-log-frontend`\n- `wdio:allow-debug-plugin`\n- `wdio:allow-get-active-window-label`\n- `wdio:allow-get-window-states`\n- `wdio:allow-list-windows`"
+          "markdownDescription": "Allows all WebDriverIO plugin commands for testing\n#### This default permission set includes:\n\n- `wdio:allow-execute`\n- `wdio:allow-emit-deep-link`\n- `wdio:allow-log-frontend`\n- `wdio:allow-debug-plugin`\n- `wdio:allow-get-active-window-label`\n- `wdio:allow-get-window-states`\n- `wdio:allow-list-windows`"
         }
       ]
     }

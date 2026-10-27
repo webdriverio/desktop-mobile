@@ -155,6 +155,7 @@ The `wdio:default` permission grants every plugin command. Mocking is implemente
 | Permission                           | Description                            |
 | ------------------------------------ | -------------------------------------- |
 | `wdio:allow-execute`                 | Execute JavaScript in frontend context |
+| `wdio:allow-emit-deep-link`          | Emit a deep link (`triggerDeeplink()`) |
 | `wdio:allow-log-frontend`            | Forward frontend logs                  |
 | `wdio:allow-debug-plugin`            | Debug plugin state                     |
 | `wdio:allow-get-active-window-label` | Get active window label                |

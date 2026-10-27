@@ -128,7 +128,7 @@ How `triggerDeeplink()` delivers the URL depends on the driver provider:
 
 | Provider                                          | Delivery                                                                                                 |
 | ------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
-| `embedded` (all platforms), `crabnebula` on macOS | Emits the deep-link plugin's `deep-link://new-url` event inside the app                                  |
+| `embedded` (all platforms), `crabnebula` on macOS | `tauri-plugin-wdio` emits the deep-link plugin's `deep-link://new-url` event on the app's main thread    |
 | `external`, `crabnebula` on Windows and Linux     | Opens the URL through the OS: `rundll32.exe url.dll,FileProtocolHandler` on Windows, `gio open` on Linux |
 
 Either way, your app's `onOpenUrl` (frontend) and `on_open_url` (Rust) handlers receive the URL, so handle deep links there. On Windows and Linux, the OS route needs the [single-instance plugin](#single-instance-on-windows-and-linux).
@@ -137,8 +137,8 @@ The in-app event skips the OS, so a few things differ from a real launch:
 
 - The plugin's `getCurrent()` doesn't change.
 - No second instance starts, so a single-instance callback that reads the URL from its arguments doesn't run. With the single-instance plugin's `deep-link` feature, those URLs reach `onOpenUrl` too, so handle them there.
-- Your app's capabilities must allow `core:event:allow-emit`, which `core:default` includes.
-- Rust `on_open_url` handlers run on an async worker thread, and `triggerDeeplink()` waits for them to return. A real deep link runs them on the main thread (macOS and Windows) or the single-instance plugin's D-Bus thread (Linux), and nothing waits. So a handler that blocks holds up `triggerDeeplink()`, and one that calls `tauri::async_runtime::block_on` panics. Move that work into `tauri::async_runtime::spawn` ([#841](https://github.com/webdriverio/desktop-mobile/issues/841)).
+- Your app's capabilities must allow `wdio:allow-emit-deep-link`, which `wdio:default` includes.
+- Rust `on_open_url` handlers run on the main thread on every platform, as a real deep link runs them on macOS and Windows. On Linux, a real deep link runs them on the single-instance plugin's D-Bus thread. Either way, `triggerDeeplink()` returns without waiting for them, so wait for their effect in your test.
 
 ## App Implementation
 

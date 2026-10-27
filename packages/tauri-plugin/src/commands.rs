@@ -1,5 +1,5 @@
 use serde_json::Value as JsonValue;
-use tauri::{command, Listener, Manager, Runtime, WebviewWindow};
+use tauri::{command, Emitter, Listener, Manager, Runtime, WebviewWindow};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
@@ -21,6 +21,22 @@ pub struct WindowState {
 pub(crate) async fn debug_plugin<R: Runtime>(_window: WebviewWindow<R>) -> String {
   eprintln!("[WDIO-Rust] DEBUG PLUGIN CALLED!");
   "Plugin alive".to_string()
+}
+
+/// Emits tauri-plugin-deep-link's `deep-link://new-url` event on the main thread, as that plugin
+/// does on macOS, and returns without waiting for the app's `on_open_url` handlers.
+#[command]
+pub(crate) async fn emit_deep_link<R: Runtime>(
+  app: tauri::AppHandle<R>,
+  url: String,
+) -> Result<()> {
+  let handle = app.clone();
+  app.run_on_main_thread(move || {
+    if let Err(e) = handle.emit("deep-link://new-url", [url]) {
+      log::error!("Failed to emit deep-link://new-url: {e}");
+    }
+  })?;
+  Ok(())
 }
 
 /// Log a frontend message to stderr (for standalone mode capture)

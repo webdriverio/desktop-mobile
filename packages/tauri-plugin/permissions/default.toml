@@ -20,6 +20,7 @@
 description = "Allows all WebDriverIO plugin commands for testing"
 permissions = [
   "wdio:allow-execute",
+  "wdio:allow-emit-deep-link",
   "wdio:allow-log-frontend",
   "wdio:allow-debug-plugin",
   "wdio:allow-get-active-window-label",
@@ -31,6 +32,11 @@ permissions = [
 identifier = "wdio:allow-execute"
 description = "Allow executing scripts via the wdio plugin"
 commands = { allow = ["execute"], deny = [] }
+
+[wdio_allow_emit_deep_link]
+identifier = "wdio:allow-emit-deep-link"
+description = "Allow emitting a deep link, for browser.tauri.triggerDeeplink()"
+commands = { allow = ["emit_deep_link"], deny = [] }
 
 [wdio_allow_log_frontend]
 identifier = "wdio:allow-log-frontend"

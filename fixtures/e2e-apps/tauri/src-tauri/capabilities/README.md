@@ -6,6 +6,7 @@ This directory contains capability files that define the ACL (Access Control Lis
 
 The `@wdio/tauri-plugin` exposes the following permissions:
 - `wdio:allow-execute` - Allows executing JavaScript in the frontend with access to Tauri APIs
+- `wdio:allow-emit-deep-link` - Allows `triggerDeeplink()` to emit a deep link in the app
 - `wdio:allow-log-frontend` - Allows the plugin to forward frontend logs through Rust's logger
 - `wdio:allow-debug-plugin` - Diagnostic helper command for plugin state
 - `wdio:allow-get-active-window-label` - Read the currently active webview window label

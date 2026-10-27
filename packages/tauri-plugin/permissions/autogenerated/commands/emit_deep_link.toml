@@ -1,0 +1,13 @@
+# Automatically generated - DO NOT EDIT!
+
+"$schema" = "../../schemas/schema.json"
+
+[[permission]]
+identifier = "allow-emit-deep-link"
+description = "Enables the emit_deep_link command without any pre-configured scope."
+commands.allow = ["emit_deep_link"]
+
+[[permission]]
+identifier = "deny-emit-deep-link"
+description = "Denies the emit_deep_link command without any pre-configured scope."
+commands.deny = ["emit_deep_link"]

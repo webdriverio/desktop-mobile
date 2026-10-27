@@ -107,6 +107,7 @@ Or use individual permissions if you prefer fine-grained control:
     "core:default",
     "core:window:default",
     "wdio:allow-execute",
+    "wdio:allow-emit-deep-link",
     "wdio:allow-log-frontend",
     "wdio:allow-debug-plugin",
     "wdio:allow-get-active-window-label",
@@ -323,6 +324,7 @@ When you import `@wdio/tauri-plugin`:
 
 The `wdio:default` permission includes every plugin command:
 - `wdio:allow-execute` - Execute JavaScript in frontend context
+- `wdio:allow-emit-deep-link` - Emit a deep link for `triggerDeeplink()`
 - `wdio:allow-log-frontend` - Forward frontend logs
 - `wdio:allow-debug-plugin` - Debug plugin state
 - `wdio:allow-get-active-window-label` - Get active window label

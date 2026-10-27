@@ -177,7 +177,7 @@ describe('triggerDeeplink Command', () => {
       const browser = createBrowser();
       await triggerDeeplink.call({ browser, provider }, 'myapp://test');
 
-      expect(browser.execute).toHaveBeenCalledWith(expect.any(Function), 'deep-link://new-url', 'myapp://test');
+      expect(browser.execute).toHaveBeenCalledWith(expect.any(Function), 'myapp://test');
       expect(spawn).not.toHaveBeenCalled();
     });
 
@@ -226,49 +226,40 @@ describe('triggerDeeplink Command', () => {
       );
     });
 
-    it("should emit the URL through Tauri's event plugin, as the deep-link plugin does", async () => {
+    it('should ask tauri-plugin-wdio to emit the deep-link event', async () => {
       const browser = createBrowser();
       await triggerDeeplink.call({ browser, provider: 'embedded' }, 'myapp://x');
 
-      const [emitInApp, event, url] = vi.mocked(browser.execute).mock.calls[0] as unknown as [
-        (event: string, url: string) => unknown,
-        string,
+      const [emitInApp, url] = vi.mocked(browser.execute).mock.calls[0] as unknown as [
+        (url: string) => unknown,
         string,
       ];
       const invoke = vi.fn().mockResolvedValue(undefined);
       vi.stubGlobal('__TAURI_INTERNALS__', { invoke });
       try {
-        await emitInApp(event, url);
+        await emitInApp(url);
       } finally {
         vi.unstubAllGlobals();
       }
-      expect(invoke).toHaveBeenCalledWith('plugin:event|emit', {
-        event: 'deep-link://new-url',
-        payload: ['myapp://x'],
-      });
+      expect(invoke).toHaveBeenCalledWith('plugin:wdio|emit_deep_link', { url: 'myapp://x' });
     });
 
     it('should normalize the URL as the deep-link plugin does', async () => {
       const browser = createBrowser();
       await triggerDeeplink.call({ browser, provider: 'embedded' }, 'MyApp://Open?name=John Doe');
 
-      expect(browser.execute).toHaveBeenCalledWith(
-        expect.any(Function),
-        'deep-link://new-url',
-        'myapp://Open?name=John%20Doe',
-      );
+      expect(browser.execute).toHaveBeenCalledWith(expect.any(Function), 'myapp://Open?name=John%20Doe');
     });
 
     it('should say when the window has no Tauri IPC', async () => {
       const browser = createBrowser();
       await triggerDeeplink.call({ browser, provider: 'embedded' }, 'myapp://x');
 
-      const [emitInApp, event, url] = vi.mocked(browser.execute).mock.calls[0] as unknown as [
-        (event: string, url: string) => unknown,
-        string,
+      const [emitInApp, url] = vi.mocked(browser.execute).mock.calls[0] as unknown as [
+        (url: string) => unknown,
         string,
       ];
-      expect(() => emitInApp(event, url)).toThrow('Tauri IPC (__TAURI_INTERNALS__) is not available in this window');
+      expect(() => emitInApp(url)).toThrow('Tauri IPC (__TAURI_INTERNALS__) is not available in this window');
     });
   });
 });

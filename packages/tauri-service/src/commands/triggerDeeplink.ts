@@ -10,8 +10,6 @@ export { executeDeeplinkCommand, getPlatformCommand, validateDeeplinkUrl };
 
 const log = createLogger('tauri-service', 'triggerDeeplink');
 
-const DEEP_LINK_EVENT = 'deep-link://new-url';
-
 interface TauriInternals {
   invoke: (cmd: string, args: unknown) => Promise<unknown>;
 }
@@ -25,8 +23,9 @@ interface TauriServiceContext {
  * Triggers a deeplink to the Tauri application for testing protocol handlers.
  *
  * For the embedded provider, and CrabNebula on macOS:
- * - Emits tauri-plugin-deep-link's `deep-link://new-url` event inside the app, so the app's
- *   `onOpenUrl` / `on_open_url` handlers receive the URL. The plugin's `getCurrent()` doesn't change.
+ * - Has tauri-plugin-wdio emit tauri-plugin-deep-link's `deep-link://new-url` event on the app's
+ *   main thread, so the app's `onOpenUrl` / `on_open_url` handlers receive the URL. It doesn't wait
+ *   for those handlers, and the deep-link plugin's `getCurrent()` doesn't change.
  * - This bypasses platform-specific single-instance IPC mechanisms (D-Bus on Linux,
  *   NSDistributedNotificationCenter on macOS) which don't work reliably with
  *   unbundled binaries or when the app is managed by test-runner-backend.
@@ -54,28 +53,24 @@ export async function triggerDeeplink(this: TauriServiceContext, url: string): P
   const { provider } = this;
 
   if (provider === 'embedded' || (provider === 'crabnebula' && platform === 'darwin')) {
-    log.debug(`${provider} mode: emitting ${DEEP_LINK_EVENT} in the app`);
+    log.debug(`${provider} mode: emitting the deep-link event in the app`);
 
     if (!this.browser) {
       throw new Error(`${provider} deeplink injection requires browser context`);
     }
 
-    // Normalized like the plugin's own payload; Rust's url crate follows the same URL standard.
+    // Normalized like the deep-link plugin's own payload; Rust's url crate follows the same URL standard.
     const href = new URL(validatedUrl).href;
 
     try {
       // `__TAURI_INTERNALS__` exists in every Tauri 2 webview; `__TAURI__` needs `withGlobalTauri`.
-      await (this.browser as WebdriverIO.Browser).execute(
-        (event: string, url: string) => {
-          const internals = (globalThis as unknown as { __TAURI_INTERNALS__?: TauriInternals }).__TAURI_INTERNALS__;
-          if (!internals) {
-            throw new Error('Tauri IPC (__TAURI_INTERNALS__) is not available in this window');
-          }
-          return internals.invoke('plugin:event|emit', { event, payload: [url] });
-        },
-        DEEP_LINK_EVENT,
-        href,
-      );
+      await (this.browser as WebdriverIO.Browser).execute((url: string) => {
+        const internals = (globalThis as unknown as { __TAURI_INTERNALS__?: TauriInternals }).__TAURI_INTERNALS__;
+        if (!internals) {
+          throw new Error('Tauri IPC (__TAURI_INTERNALS__) is not available in this window');
+        }
+        return internals.invoke('plugin:wdio|emit_deep_link', { url });
+      }, href);
 
       log.debug(`Deeplink injected successfully: ${href}`);
       return;
