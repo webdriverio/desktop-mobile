@@ -2,7 +2,9 @@ import type { ChildProcess } from 'node:child_process';
 
 /** Sends `signal` and resolves whether the process exited within `timeoutMs`. */
 export function signalAndWaitForExit(child: ChildProcess, signal: NodeJS.Signals, timeoutMs: number): Promise<boolean> {
-  if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve(true);
+  if (child.exitCode !== null || child.signalCode !== null) {
+    return Promise.resolve(true);
+  }
   return new Promise((resolve, reject) => {
     const cleanup = () => {
       clearTimeout(timer);
@@ -27,7 +29,9 @@ export function signalAndWaitForExit(child: ChildProcess, signal: NodeJS.Signals
     child.once('error', onError);
     try {
       child.kill(signal);
-      if (child.exitCode !== null || child.signalCode !== null) onExit();
+      if (child.exitCode !== null || child.signalCode !== null) {
+        onExit();
+      }
     } catch (error) {
       cleanup();
       reject(error);

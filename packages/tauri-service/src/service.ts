@@ -195,13 +195,19 @@ export default class TauriWorkerService {
               const mrInstance = mrBrowser.getInstance(instanceName);
               await mrInstance.execute(function clearStaleMocks() {
                 // @ts-expect-error - window is available in browser context
-                if (window.__wdio_mocks__) window.__wdio_mocks__ = {};
+                if (window.__wdio_mocks__) {
+                  // @ts-expect-error - window is available in browser context
+                  window.__wdio_mocks__ = {};
+                }
               });
             }
           } else {
             await (browser as WebdriverIO.Browser).execute(function clearStaleMocks() {
               // @ts-expect-error - window is available in browser context
-              if (window.__wdio_mocks__) window.__wdio_mocks__ = {};
+              if (window.__wdio_mocks__) {
+                // @ts-expect-error - window is available in browser context
+                window.__wdio_mocks__ = {};
+              }
             });
           }
           log.debug('Cleared stale mocks at session start');
@@ -764,7 +770,9 @@ class MockUpdateScheduler {
   #wrapRun(run: Promise<void>): Promise<void> {
     let wrapped!: Promise<void>;
     wrapped = run.finally(() => {
-      if (this.#running !== wrapped) return;
+      if (this.#running !== wrapped) {
+        return;
+      }
       if (this.#queued) {
         const promoted = this.#queued;
         this.#queued = null;
@@ -784,7 +792,9 @@ class MockUpdateScheduler {
 
   async #runOnce(): Promise<void> {
     const mocks = mockStore.getMocks();
-    if (mocks.length === 0) return;
+    if (mocks.length === 0) {
+      return;
+    }
 
     const tryUpdate = async (
       mockId: string,

@@ -83,7 +83,9 @@ interface AddedLine {
   content: string;
 }
 const addedLines = (patch: string | undefined): AddedLine[] => {
-  if (!patch) return [];
+  if (!patch) {
+    return [];
+  }
   const out: AddedLine[] = [];
   let newLine = 0;
   for (const l of patch.split('\n')) {
@@ -124,7 +126,9 @@ const rx = {
 };
 
 for (const { filename, status, patch, additions } of files) {
-  if (status === 'removed') continue;
+  if (status === 'removed') {
+    continue;
+  }
   const added = addedLines(patch);
 
   if (/^\.github\/workflows\/.*\.ya?ml$/.test(filename) || /(^|\/)action\.ya?ml$/.test(filename)) {
@@ -181,7 +185,7 @@ for (const { filename, status, patch, additions } of files) {
     );
   }
 
-  if (/(^|\/)\.pnpmfile\.cjs$/.test(filename))
+  if (/(^|\/)\.pnpmfile\.cjs$/.test(filename)) {
     add(
       filename,
       1,
@@ -189,6 +193,7 @@ for (const { filename, status, patch, additions } of files) {
       'lifecycle/pnpmfile',
       '.pnpmfile.cjs added/changed — its hooks run arbitrary code during pnpm install. Inspect it.',
     );
+  }
 
   if (/(^|\/)package\.json$/.test(filename)) {
     for (const { line, content } of added) {
@@ -198,7 +203,7 @@ for (const { filename, status, patch, additions } of files) {
       const v = m?.[2]?.trim() ?? '';
       const isDepSpec =
         /^[\s\d.xX*^~><=|+-]+$/.test(v) || /^(npm|file|link|workspace|git|github|https?):/.test(v) || v === 'latest';
-      if (m && !isDepSpec)
+      if (m && !isDepSpec) {
         add(
           filename,
           line,
@@ -206,10 +211,11 @@ for (const { filename, status, patch, additions } of files) {
           'lifecycle/install-script',
           `Install-time lifecycle script "${m[1]}" added — runs automatically with the runner env. Inspect it.`,
         );
+      }
     }
   }
 
-  if (/(^|\/)build\.rs$/.test(filename))
+  if (/(^|\/)build\.rs$/.test(filename)) {
     add(
       filename,
       1,
@@ -217,11 +223,12 @@ for (const { filename, status, patch, additions } of files) {
       'rust/build-script',
       'Rust build.rs changed — executes at compile time in the E2E job. Inspect for network/env access.',
     );
+  }
   if (/(^|\/)Cargo\.toml$/.test(filename)) {
     for (const { line, content } of added) {
       // Flag both the [build-dependencies] header and git/path source markers — keying only on the
       // header would miss a dep added under a pre-existing one.
-      if (/\[build-dependencies\]/.test(content))
+      if (/\[build-dependencies\]/.test(content)) {
         add(
           filename,
           line,
@@ -229,13 +236,14 @@ for (const { filename, status, patch, additions } of files) {
           'rust/build-deps',
           'Cargo [build-dependencies] added — runs at compile time. Review.',
         );
+      }
       // A git/path source value (URL or a path with a slash), inline or expanded form. Matches the
       // source not a bare version, so a crate named `git` (git = "0.2") is safe; the path must not end
       // in .rs, so a [[bin]]/[lib] target path isn't taken for a dep.
       else if (
         /\bgit\s*=\s*["'][^"']*(:\/\/|@|\.git)/.test(content) ||
         /\bpath\s*=\s*["'][^"']*\/[^"']*(?<!\.rs)["']/.test(content)
-      )
+      ) {
         add(
           filename,
           line,
@@ -243,6 +251,7 @@ for (const { filename, status, patch, additions } of files) {
           'rust/non-registry-dep',
           'Non-registry Rust dependency (git/path source) added — runs code at build/test time. Review.',
         );
+      }
     }
   }
 
@@ -257,7 +266,7 @@ for (const { filename, status, patch, additions } of files) {
   const enc = first(rx.encode);
   // Two shapes error (red gate): a named secret, and an env read paired with a network call (which can
   // ship the whole env without naming the key). Outbound-alone and encoding stay advisory — too common.
-  if (sec)
+  if (sec) {
     add(
       filename,
       sec.line,
@@ -265,8 +274,11 @@ for (const { filename, status, patch, additions } of files) {
       'secret/named',
       'A named secret or full-env dump (CN_API_KEY/TURBO_TOKEN/DEPLOY_KEY/printenv) appears in an added line.',
     );
-  if (out) add(filename, out.line, 'warning', 'net/outbound-command', 'Outbound network command in an added line.');
-  if (env && (out || http))
+  }
+  if (out) {
+    add(filename, out.line, 'warning', 'net/outbound-command', 'Outbound network command in an added line.');
+  }
+  if (env && (out || http)) {
     add(
       filename,
       env.line,
@@ -274,7 +286,8 @@ for (const { filename, status, patch, additions } of files) {
       'exfil/env-egress',
       'Environment read alongside a network call in this file — possible exfiltration shape.',
     );
-  if (enc && (sec || env))
+  }
+  if (enc && (sec || env)) {
     add(
       filename,
       enc.line,
@@ -282,6 +295,7 @@ for (const { filename, status, patch, additions } of files) {
       'obfuscation/encode',
       'Encoding near env/secret access — can hide exfiltrated data.',
     );
+  }
 
   // additions !== 0 so a pure rename (no patch, additions:0) isn't flagged as an unscanned blind spot.
   if (

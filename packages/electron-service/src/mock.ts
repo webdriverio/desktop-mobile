@@ -133,7 +133,9 @@ export async function createMock(
       (await browserToUse.electron.execute<unknown[][], [string, string, ExecuteOpts]>(
         (electron, apiName, funcName) => {
           const api = electron[apiName as keyof typeof electron];
-          if (!api) return [];
+          if (!api) {
+            return [];
+          }
           const mockObj = api[funcName as keyof ElectronType[ElectronInterface]] as ElectronFunctionMock;
           return mockObj?.mock?.calls ? JSON.parse(JSON.stringify(mockObj.mock?.calls)) : [];
         },
@@ -382,7 +384,9 @@ export async function createElectronBrowserModeMock(
   // after a navigation wipes window.__wdio_mocks__. "Once" variants are intentionally
   // excluded — they were consumed before the navigation.
   (mock as unknown as Record<string, unknown>).__replayBrowserImpl = async (): Promise<void> => {
-    if (!implState) return;
+    if (!implState) {
+      return;
+    }
     if (implState.kind === 'implementation') {
       const s = browserInterceptor.serializeHandler(implState.fn);
       await runInterceptorScript<void>(browser, browserInterceptor.buildSetImplementationScript(channel, s));

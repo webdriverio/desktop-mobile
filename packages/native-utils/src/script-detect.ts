@@ -35,7 +35,9 @@ export function hasSemicolonOutsideQuotes(s: string): boolean {
       inDouble = !inDouble;
       continue;
     }
-    if (inSingle || inDouble) continue;
+    if (inSingle || inDouble) {
+      continue;
+    }
 
     if (c === '`') {
       tmpl.push({ inStr: true, exprDepth: 0 });
@@ -91,7 +93,9 @@ export function hasTopLevelArrow(s: string): boolean {
       inDouble = !inDouble;
       continue;
     }
-    if (inSingle || inDouble) continue;
+    if (inSingle || inDouble) {
+      continue;
+    }
 
     if (c === '`') {
       tmpl.push({ inStr: true, exprDepth: 0 });

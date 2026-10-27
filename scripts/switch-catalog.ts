@@ -24,7 +24,9 @@ type CatalogName = (typeof VALID_CATALOGS)[number];
 
 // Function to sort dependencies alphabetically
 function sortDependencies(deps: Record<string, string> | undefined): Record<string, string> | undefined {
-  if (!deps) return undefined;
+  if (!deps) {
+    return undefined;
+  }
   return Object.keys(deps)
     .sort()
     .reduce(
@@ -97,10 +99,14 @@ const CATALOG_DEPENDENCIES = CATALOGS.get('default') ?? new Set<string>();
 
 // Only handles "dir/*" trailing-glob; the workspace doesn't use anything fancier.
 function expandWorkspacePath(entry: string): string[] {
-  if (!entry.endsWith('/*')) return [entry];
+  if (!entry.endsWith('/*')) {
+    return [entry];
+  }
   const parent = entry.slice(0, -2);
   const parentAbs = path.join(rootDir, parent);
-  if (!fs.existsSync(parentAbs)) return [];
+  if (!fs.existsSync(parentAbs)) {
+    return [];
+  }
   return fs
     .readdirSync(parentAbs, { withFileTypes: true })
     .filter((dirent) => dirent.isDirectory())
@@ -138,7 +144,9 @@ if (!catalogName || !VALID_CATALOGS.includes(catalogName)) {
 // `catalog:<missing>` ref.
 function resolveCatalogRef(dep: string, target: CatalogName): string {
   const targetDeps = CATALOGS.get(target);
-  if (targetDeps?.has(dep)) return `catalog:${target}`;
+  if (targetDeps?.has(dep)) {
+    return `catalog:${target}`;
+  }
   return 'catalog:default';
 }
 

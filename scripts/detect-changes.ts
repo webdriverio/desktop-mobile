@@ -123,14 +123,18 @@ export function buildServiceDependents(repoRoot: string, services: string[]): Re
   const wdioDepsByDir: Record<string, string[]> = {};
   for (const dir of fs.readdirSync(packagesDir)) {
     const pkgPath = path.join(packagesDir, dir, 'package.json');
-    if (!fs.existsSync(pkgPath)) continue;
+    if (!fs.existsSync(pkgPath)) {
+      continue;
+    }
     let pkg: { name?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
     try {
       pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
     } catch {
       continue;
     }
-    if (pkg.name) dirByName[pkg.name] = dir;
+    if (pkg.name) {
+      dirByName[pkg.name] = dir;
+    }
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     wdioDepsByDir[dir] = Object.keys(deps).filter((d) => d.startsWith('@wdio/'));
   }
@@ -148,11 +152,15 @@ export function buildServiceDependents(repoRoot: string, services: string[]): Re
   const dependents: Record<string, string[]> = {};
   for (const svc of services) {
     for (const sharedDir of closure(`${svc}-service`, new Set<string>())) {
-      if (!dependents[sharedDir]) dependents[sharedDir] = [];
+      if (!dependents[sharedDir]) {
+        dependents[sharedDir] = [];
+      }
       dependents[sharedDir].push(svc);
     }
   }
-  for (const dir of Object.keys(dependents)) dependents[dir].sort();
+  for (const dir of Object.keys(dependents)) {
+    dependents[dir].sort();
+  }
   return dependents;
 }
 
@@ -186,7 +194,9 @@ export function classifyFile(file: string, services: string[]): Verdict {
   const pkg = file.match(/^packages\/([^/]+)\//);
   if (pkg) {
     const dir = pkg[1];
-    if (SHARED_PACKAGES.has(dir) || SHARED_PACKAGE_PREFIXES.some((p) => dir.startsWith(p))) return 'shared';
+    if (SHARED_PACKAGES.has(dir) || SHARED_PACKAGE_PREFIXES.some((p) => dir.startsWith(p))) {
+      return 'shared';
+    }
     return serviceForDir(dir, services) ?? 'unknown';
   }
 
@@ -194,33 +204,55 @@ export function classifyFile(file: string, services: string[]): Verdict {
     const test = file.match(/^e2e\/test\/([^/]+)\//);
     // serviceForDir (not exact match) so suffixed dirs like `dioxus-browser`
     // route to their service — mirrors the wdio.<svc>-*.conf.ts rule below.
-    if (test) return serviceForDir(test[1], services) ?? 'all';
+    if (test) {
+      return serviceForDir(test[1], services) ?? 'all';
+    }
     const conf = file.match(/^e2e\/wdio\.([^/]+)\.conf\.ts$/);
-    if (conf) return serviceForDir(conf[1], services) ?? 'all';
+    if (conf) {
+      return serviceForDir(conf[1], services) ?? 'all';
+    }
     return 'all';
   }
 
   const fixture = file.match(/^fixtures\/(?:e2e-apps|package-tests)\/([^/]+)\//);
-  if (fixture) return serviceForDir(fixture[1], services) ?? 'unknown';
-  if (file.startsWith('fixtures/')) return 'unknown';
+  if (fixture) {
+    return serviceForDir(fixture[1], services) ?? 'unknown';
+  }
+  if (file.startsWith('fixtures/')) {
+    return 'unknown';
+  }
 
-  if (file.startsWith('.github/workflows/actions/')) return 'all';
+  if (file.startsWith('.github/workflows/actions/')) {
+    return 'all';
+  }
   if (file.startsWith('.github/workflows/')) {
     const name = path.basename(file);
-    if (CORE_INFRA_WORKFLOWS.has(name)) return 'all';
-    if (META_WORKFLOWS.has(name)) return 'none';
+    if (CORE_INFRA_WORKFLOWS.has(name)) {
+      return 'all';
+    }
+    if (META_WORKFLOWS.has(name)) {
+      return 'none';
+    }
     return serviceForToken(name, services) ?? 'unknown';
   }
-  if (file.startsWith('.github/')) return 'none';
+  if (file.startsWith('.github/')) {
+    return 'none';
+  }
 
   if (file.startsWith('scripts/')) {
     return serviceForToken(path.basename(file), services) ?? 'all';
   }
 
   if (!file.includes('/')) {
-    if (LINT_ONLY_FILES.has(file)) return 'none';
-    if (ROOT_INFRA_FILES.has(file)) return 'all';
-    if (file.startsWith('tsconfig') && file.endsWith('.json')) return 'all';
+    if (LINT_ONLY_FILES.has(file)) {
+      return 'none';
+    }
+    if (ROOT_INFRA_FILES.has(file)) {
+      return 'all';
+    }
+    if (file.startsWith('tsconfig') && file.endsWith('.json')) {
+      return 'all';
+    }
   }
 
   return 'none';
@@ -234,8 +266,12 @@ export function classifyFile(file: string, services: string[]): Verdict {
  * (over-run, never silently under-run).
  */
 function affectedServices(dir: string, services: string[], dependents: Record<string, string[]>): string[] {
-  if (TYPES_ONLY_PACKAGES.has(dir)) return [];
-  if (SHARED_PACKAGES.has(dir)) return services;
+  if (TYPES_ONLY_PACKAGES.has(dir)) {
+    return [];
+  }
+  if (SHARED_PACKAGES.has(dir)) {
+    return services;
+  }
   return dependents[dir]?.length ? dependents[dir] : services;
 }
 
@@ -254,7 +290,9 @@ export function classifyChanges(
   const sharedDetail: Array<{ file: string; pkg: string; services: string[]; typesOnly: boolean }> = [];
 
   if (forceAll) {
-    for (const svc of services) runs[svc] = true;
+    for (const svc of services) {
+      runs[svc] = true;
+    }
     return { runs, sharedChanges: true, lintOnly: false, triggersAll, unknownFiles, sharedDetail, perFile: [] };
   }
 
@@ -266,19 +304,28 @@ export function classifyChanges(
   for (const file of files) {
     const verdict = classifyFile(file, services);
     perFile.push({ file, verdict });
-    if (verdict === 'none') continue;
+    if (verdict === 'none') {
+      continue;
+    }
     if (verdict === 'shared') {
       // A shared-package change always needs build/unit (sharedChanges keeps it off the lint-only
       // path below); affectedServices decides which services' E2E it can actually affect at runtime.
       sharedChanges = true;
       const dir = (file.match(/^packages\/([^/]+)\//) as RegExpMatchArray)[1];
       const affected = affectedServices(dir, services, dependents);
-      for (const svc of affected) runs[svc] = true;
+      for (const svc of affected) {
+        runs[svc] = true;
+      }
       sharedDetail.push({ file, pkg: dir, services: affected, typesOnly: TYPES_ONLY_PACKAGES.has(dir) });
     } else if (verdict === 'all' || verdict === 'unknown') {
-      if (verdict === 'all') triggersAll.push(file);
-      else unknownFiles.push(file);
-      for (const svc of services) runs[svc] = true;
+      if (verdict === 'all') {
+        triggersAll.push(file);
+      } else {
+        unknownFiles.push(file);
+      }
+      for (const svc of services) {
+        runs[svc] = true;
+      }
     } else {
       runs[verdict] = true;
     }
@@ -293,7 +340,9 @@ export function classifyChanges(
 
 function appendFile(envVar: string, content: string): void {
   const target = process.env[envVar];
-  if (target) fs.appendFileSync(target, content);
+  if (target) {
+    fs.appendFileSync(target, content);
+  }
 }
 
 function main(): void {
@@ -310,7 +359,9 @@ function main(): void {
   );
 
   let output = '';
-  for (const [svc, run] of Object.entries(runs)) output += `run_${svc}=${run}\n`;
+  for (const [svc, run] of Object.entries(runs)) {
+    output += `run_${svc}=${run}\n`;
+  }
   output += `runs=${JSON.stringify(runs)}\n`;
   output += `has_shared_changes=${sharedChanges}\n`;
   output += `run_lint_only=${lintOnly}\n`;
@@ -320,7 +371,9 @@ function main(): void {
   summary += forceAll ? '**Force-all mode** — running everything.\n\n' : '';
   summary += releaseCommit && !forceAll ? '**Release commit** — lint only.\n\n' : '';
   summary += '| Service | Run |\n|---------|-----|\n';
-  for (const [svc, run] of Object.entries(runs)) summary += `| ${svc} | ${run} |\n`;
+  for (const [svc, run] of Object.entries(runs)) {
+    summary += `| ${svc} | ${run} |\n`;
+  }
   summary += `\n- Shared package changes: ${sharedChanges}\n- Lint only: ${lintOnly}\n`;
   if (sharedDetail.length > 0) {
     summary += '\n### Shared package changes (narrowed to runtime dependents)\n\n';
@@ -332,18 +385,24 @@ function main(): void {
   }
   if (triggersAll.length > 0) {
     summary += '\n### Core infra / cross-service changes (run all pipelines)\n\n';
-    for (const file of triggersAll) summary += `- \`${file}\`\n`;
+    for (const file of triggersAll) {
+      summary += `- \`${file}\`\n`;
+    }
   }
   if (unknownFiles.length > 0) {
     summary += '\n### ⚠️ Unclassified files (running all pipelines defensively)\n\n';
     summary += 'No naming-convention rule places these — possible convention drift. ';
     summary += 'Either rename to match the conventions or teach `scripts/detect-changes.ts` about them:\n\n';
-    for (const file of unknownFiles) summary += `- \`${file}\`\n`;
+    for (const file of unknownFiles) {
+      summary += `- \`${file}\`\n`;
+    }
   }
   appendFile('GITHUB_STEP_SUMMARY', summary);
 
   console.log(`services: ${services.join(', ')}`);
-  for (const { file, verdict } of perFile) console.log(`  ${verdict.padEnd(7)} ${file}`);
+  for (const { file, verdict } of perFile) {
+    console.log(`  ${verdict.padEnd(7)} ${file}`);
+  }
   console.log(output.trimEnd());
 }
 

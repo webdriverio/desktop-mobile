@@ -15,7 +15,9 @@ const appDir = join(__dirname, '..', 'fixtures', 'e2e-apps', 'dioxus');
 
 function getDioxusBinaryPath(dir: string): string {
   const targetDir = join(dir, 'target', 'debug');
-  if (process.platform === 'win32') return join(targetDir, 'wdio-dioxus-e2e-app.exe');
+  if (process.platform === 'win32') {
+    return join(targetDir, 'wdio-dioxus-e2e-app.exe');
+  }
   return join(targetDir, 'wdio-dioxus-e2e-app');
 }
 

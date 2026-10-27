@@ -38,8 +38,12 @@ describe('ConfigGenerator', () => {
     // Use normalize to handle cross-platform path separators
     mockExistsSync.mockImplementation((path: string) => {
       const normalizedPath = normalize(path);
-      if (normalizedPath.endsWith('package.json')) return true;
-      if (normalizedPath.endsWith(normalize('src/index.ts'))) return true;
+      if (normalizedPath.endsWith('package.json')) {
+        return true;
+      }
+      if (normalizedPath.endsWith(normalize('src/index.ts'))) {
+        return true;
+      }
       return false;
     });
 

@@ -959,7 +959,9 @@ export default class TauriLaunchService {
    */
   private async cycleCnInfrastructure(): Promise<void> {
     const configs = this.cnCycleConfigs;
-    if (!configs) return;
+    if (!configs) {
+      return;
+    }
 
     const hostname = '127.0.0.1';
     log.info(`Cycling ${configs.length} CrabNebula backend(s) + driver(s) between workers`);

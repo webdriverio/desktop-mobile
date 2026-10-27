@@ -100,7 +100,9 @@ class MockUpdateScheduler {
   #wrapRun(run: Promise<void>): Promise<void> {
     let wrapped!: Promise<void>;
     wrapped = run.finally(() => {
-      if (this.#running !== wrapped) return;
+      if (this.#running !== wrapped) {
+        return;
+      }
       if (this.#queued) {
         const promoted = this.#queued;
         this.#queued = null;
@@ -128,7 +130,9 @@ class MockUpdateScheduler {
     const suffix = `\x00${browserModeInstanceId(this.#browser)}`;
     const mocks = mockStore.getMocks().filter(([key]) => !key.includes('\x00') || key.endsWith(suffix));
     log.debug(`Found ${mocks.length} mocks to update`);
-    if (mocks.length === 0) return;
+    if (mocks.length === 0) {
+      return;
+    }
 
     // Split mocks by accessor kind so we can route each subset through the
     // right transport in exactly one round-trip: native mocks ride
@@ -209,7 +213,9 @@ async function batchUpdateNativeMocks(
   browser: WebdriverIO.Browser,
   entries: Array<[string, ElectronMock]>,
 ): Promise<void> {
-  if (entries.length === 0) return;
+  if (entries.length === 0) {
+    return;
+  }
   const items: Array<[string, ElectronMockReadAccessor]> = entries.map(([id, m]) => [
     id,
     (m as { __accessor: ElectronMockReadAccessor }).__accessor,
@@ -297,7 +303,9 @@ async function batchUpdateBrowserModeMocks(
   browser: WebdriverIO.Browser,
   entries: Array<[string, ElectronMock]>,
 ): Promise<void> {
-  if (entries.length === 0) return;
+  if (entries.length === 0) {
+    return;
+  }
   const ids = entries.map(([id]) => id);
   const channels = entries.map(([, m]) => {
     const acc = (m as { __accessor: ElectronMockReadAccessor }).__accessor;
@@ -714,7 +722,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             const isLive = (await browser.execute(
               `return !!(window.__wdio_mocks__ && typeof window.__wdio_mocks__[${JSON.stringify(channel)}] === 'function')`,
             )) as boolean;
-            if (isLive) return;
+            if (isLive) {
+              return;
+            }
             await browser.execute(`return (${browserInterceptor.buildRegistrationScript(channel)})()`);
             const replayImpl = (target as unknown as Record<string, unknown>).__replayBrowserImpl;
             if (typeof replayImpl === 'function') {
@@ -723,7 +733,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             await target.mockClear();
           })();
           registration = run.finally(() => {
-            if (inflight.get(channel) === registration) inflight.delete(channel);
+            if (inflight.get(channel) === registration) {
+              inflight.delete(channel);
+            }
           });
           inflight.set(channel, registration);
         }

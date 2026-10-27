@@ -101,8 +101,12 @@ function compareVersions(v1: string, v2: string): number {
   const a = parse(v1);
   const b = parse(v2);
 
-  if (a.major !== b.major) return b.major - a.major;
-  if (a.minor !== b.minor) return b.minor - a.minor;
+  if (a.major !== b.major) {
+    return b.major - a.major;
+  }
+  if (a.minor !== b.minor) {
+    return b.minor - a.minor;
+  }
   return b.patch - a.patch;
 }
 

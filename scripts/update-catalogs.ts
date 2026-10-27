@@ -320,8 +320,12 @@ async function runPnpmInstall(): Promise<void> {
     const { stdout, stderr } = await execAsync('pnpm install');
     spinner.succeed('Dependencies updated successfully!');
 
-    if (stdout.trim()) console.log(stdout);
-    if (stderr) console.error(stderr);
+    if (stdout.trim()) {
+      console.log(stdout);
+    }
+    if (stderr) {
+      console.error(stderr);
+    }
   } catch (error) {
     spinner.fail('Error updating dependencies');
     console.error(chalk.red('Error details:'), error);

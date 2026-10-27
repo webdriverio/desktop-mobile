@@ -13,7 +13,9 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const LOGS_DIR = path.resolve(__dirname, '../logs');
 
 function matchesProvider(dirName: string, provider?: string): boolean {
-  if (!provider) return true;
+  if (!provider) {
+    return true;
+  }
   if (provider === 'external') {
     return !dirName.startsWith('embedded-') && !dirName.startsWith('crabnebula-');
   }

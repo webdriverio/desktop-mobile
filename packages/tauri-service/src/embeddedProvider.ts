@@ -133,7 +133,9 @@ export async function startEmbeddedDriver(
   try {
     for (const stream of [child.stdout, child.stderr]) {
       const handler = createLogCapture({ stream, identifier: `embedded-${port}`, options, instanceId });
-      if (handler) logHandlers.push(handler);
+      if (handler) {
+        logHandlers.push(handler);
+      }
     }
     await pollWebDriverStatus(port, startup.signal);
     if (process.platform === 'win32') {

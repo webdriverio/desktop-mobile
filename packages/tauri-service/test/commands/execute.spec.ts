@@ -334,8 +334,12 @@ describe('execute — IPC provider (external/crabnebula)', () => {
       let callCount = 0;
       const mockExecute = vi.fn().mockImplementation((..._args: unknown[]) => {
         callCount++;
-        if (callCount <= 3) return Promise.resolve(false);
-        if (callCount === 4) return Promise.resolve(true);
+        if (callCount <= 3) {
+          return Promise.resolve(false);
+        }
+        if (callCount === 4) {
+          return Promise.resolve(true);
+        }
         return Promise.resolve(JSON.stringify({ __wdio_value__: 'result' }));
       });
       browser = createMockBrowser();
@@ -358,7 +362,9 @@ describe('execute — IPC provider (external/crabnebula)', () => {
       let callCount = 0;
       const mockExecute = vi.fn().mockImplementation(() => {
         callCount++;
-        if (callCount === 1) return Promise.resolve(true);
+        if (callCount === 1) {
+          return Promise.resolve(true);
+        }
         return Promise.resolve(JSON.stringify({ __wdio_value__: 'result' }));
       });
       browser = createMockBrowser();
@@ -385,7 +391,9 @@ describe('execute — IPC provider (external/crabnebula)', () => {
       (browser1.execute as ReturnType<typeof vi.fn>).mockImplementation(() => {
         count1++;
         calls1.push(count1);
-        if (count1 === 1) return Promise.resolve(true);
+        if (count1 === 1) {
+          return Promise.resolve(true);
+        }
         return Promise.resolve(JSON.stringify({ __wdio_value__: 'b1' }));
       });
 
@@ -393,7 +401,9 @@ describe('execute — IPC provider (external/crabnebula)', () => {
       (browser2.execute as ReturnType<typeof vi.fn>).mockImplementation(() => {
         count2++;
         calls2.push(count2);
-        if (count2 === 1) return Promise.resolve(true);
+        if (count2 === 1) {
+          return Promise.resolve(true);
+        }
         return Promise.resolve(JSON.stringify({ __wdio_value__: 'b2' }));
       });
 

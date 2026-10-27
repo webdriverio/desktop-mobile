@@ -112,7 +112,9 @@ describe('browser mode — navigation lifecycle', () => {
   it('should call through to the original url before re-injecting', async () => {
     const order: string[] = [];
     browser.execute.mockImplementation(async (arg: unknown) => {
-      if (isInjectionScript(arg)) order.push('inject');
+      if (isInjectionScript(arg)) {
+        order.push('inject');
+      }
       return undefined;
     });
     // The override calls the original url() (recorded as 'navigate') first, then re-injects.

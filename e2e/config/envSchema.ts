@@ -190,9 +190,15 @@ export class EnvironmentContext {
   toString(): string {
     const parts = [this.framework, this.app, this.testType, this.isBinary ? 'binary' : 'script'];
 
-    if (this.driverProvider) parts.push(`provider-${this.driverProvider}`);
-    if (this.isMacUniversal) parts.push('mac-universal');
-    if (this.isSplashEnabled) parts.push('splash');
+    if (this.driverProvider) {
+      parts.push(`provider-${this.driverProvider}`);
+    }
+    if (this.isMacUniversal) {
+      parts.push('mac-universal');
+    }
+    if (this.isSplashEnabled) {
+      parts.push('splash');
+    }
 
     return parts.join('-');
   }

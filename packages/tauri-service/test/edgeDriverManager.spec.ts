@@ -15,8 +15,11 @@ vi.mock('node:util', () => ({
     (...args: unknown[]) =>
       new Promise((resolve, reject) => {
         fn(...args, (err: Error | null, stdout: string, stderr: string) => {
-          if (err) reject(err);
-          else resolve({ stdout, stderr });
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ stdout, stderr });
+          }
         });
       }),
 }));
@@ -283,7 +286,9 @@ describe('Edge Driver Manager', () => {
       const { existsSync, writeFileSync } = await import('node:fs');
 
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, _args: string[], _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
         callback?.(null, 'SUCCESS', '');
         return {} as any;
       }) as any);
@@ -345,7 +350,9 @@ describe('Edge Driver Manager', () => {
       vi.mocked(readdirSync as any).mockReturnValue(['149.0.4022.98', '151.0.0.0', '150.0.1.0', 'not-a-version']);
       // Echo the version embedded in the queried exe path so we can tell which subdir was chosen.
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, args: string[], _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
         const match = (Array.isArray(args) ? args.join(' ') : '').match(/(\d+\.\d+\.\d+\.\d+)/);
         callback?.(null, `${match ? match[1] : '0.0.0.0'}\n`, '');
         return {} as any;
@@ -409,11 +416,17 @@ describe('Edge Driver Manager', () => {
       const { existsSync } = await import('node:fs');
       vi.mocked(existsSync).mockImplementation((p: any) => String(p).endsWith('msedgewebview2.exe'));
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, args: string[], _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
         const command = Array.isArray(args) ? args.join(' ') : '';
-        if (command.includes('OptionRuntime')) callback?.(null, '149.0.4022.98\n', '');
-        else if (command.includes('ProcessRuntime')) callback?.(null, '130.0.0.0\n', '');
-        else callback?.(new Error('unexpected'), '', '');
+        if (command.includes('OptionRuntime')) {
+          callback?.(null, '149.0.4022.98\n', '');
+        } else if (command.includes('ProcessRuntime')) {
+          callback?.(null, '130.0.0.0\n', '');
+        } else {
+          callback?.(new Error('unexpected'), '', '');
+        }
         return {} as any;
       }) as any);
 
@@ -440,7 +453,9 @@ describe('Edge Driver Manager', () => {
     it('should return undefined when nothing resolves', async () => {
       const { exec } = await import('node:child_process');
       vi.mocked(exec as any).mockImplementation(((_cmd: string, _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
         callback?.(new Error('not found'), '', '');
         return {} as any;
       }) as any);
@@ -457,19 +472,29 @@ describe('Edge Driver Manager', () => {
       // Registry Evergreen 150, but the app is pinned to a 149 fixed runtime and a 150 driver is on
       // PATH → mismatch → download for 149 (the runtime the app actually uses).
       vi.mocked(exec as any).mockImplementation(((cmd: string, _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
-        if (cmd.includes('reg query') && cmd.includes('F3017226'))
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        if (cmd.includes('reg query') && cmd.includes('F3017226')) {
           callback?.(null, '    pv    REG_SZ    150.0.4000.0\n', '');
-        else if (cmd.includes('where msedgedriver')) callback?.(null, 'C:\\driver\\msedgedriver.exe\n', '');
-        else if (cmd.includes('--version')) callback?.(null, 'MSEdgeDriver 150.0.4000.0\n', '');
-        else callback?.(new Error('Not found'), '', '');
+        } else if (cmd.includes('where msedgedriver')) {
+          callback?.(null, 'C:\\driver\\msedgedriver.exe\n', '');
+        } else if (cmd.includes('--version')) {
+          callback?.(null, 'MSEdgeDriver 150.0.4000.0\n', '');
+        } else {
+          callback?.(new Error('Not found'), '', '');
+        }
         return {} as any;
       }) as any);
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, args: string[], _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
-        if (Array.isArray(args) && args.some((a) => String(a).includes('VersionInfo.FileVersion')))
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        if (Array.isArray(args) && args.some((a) => String(a).includes('VersionInfo.FileVersion'))) {
           callback?.(null, '149.0.4022.98\n', '');
-        else callback?.(null, 'SUCCESS', '');
+        } else {
+          callback?.(null, 'SUCCESS', '');
+        }
         return {} as any;
       }) as any);
       vi.mocked(existsSync).mockImplementation(
@@ -489,12 +514,16 @@ describe('Edge Driver Manager', () => {
       const { existsSync } = await import('node:fs');
 
       vi.mocked(exec as any).mockImplementation(((_cmd: string, _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
         callback?.(new Error('not found'), '', '');
         return {} as any;
       }) as any);
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, _args: string[], _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
         callback?.(null, 'SUCCESS', '');
         return {} as any;
       }) as any);
@@ -512,14 +541,22 @@ describe('Edge Driver Manager', () => {
 
       // PATH already has a 149 driver, but the pin asks for a *different* 149 build → must not reuse it.
       vi.mocked(exec as any).mockImplementation(((cmd: string, _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
-        if (cmd.includes('where msedgedriver')) callback?.(null, 'C:\\driver\\msedgedriver.exe\n', '');
-        else if (cmd.includes('--version')) callback?.(null, 'MSEdgeDriver 149.0.4022.98\n', '');
-        else callback?.(new Error('Not found'), '', '');
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        if (cmd.includes('where msedgedriver')) {
+          callback?.(null, 'C:\\driver\\msedgedriver.exe\n', '');
+        } else if (cmd.includes('--version')) {
+          callback?.(null, 'MSEdgeDriver 149.0.4022.98\n', '');
+        } else {
+          callback?.(new Error('Not found'), '', '');
+        }
         return {} as any;
       }) as any);
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, _args: string[], _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
         callback?.(null, 'SUCCESS', '');
         return {} as any;
       }) as any);
@@ -536,14 +573,22 @@ describe('Edge Driver Manager', () => {
       const { existsSync } = await import('node:fs');
 
       vi.mocked(exec as any).mockImplementation(((cmd: string, _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
-        if (cmd.includes('where msedgedriver')) callback?.(null, 'C:\\driver\\msedgedriver.exe\n', '');
-        else if (cmd.includes('--version')) callback?.(null, 'MSEdgeDriver 149.0.4022.98\n', '');
-        else callback?.(new Error('Not found'), '', '');
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        if (cmd.includes('where msedgedriver')) {
+          callback?.(null, 'C:\\driver\\msedgedriver.exe\n', '');
+        } else if (cmd.includes('--version')) {
+          callback?.(null, 'MSEdgeDriver 149.0.4022.98\n', '');
+        } else {
+          callback?.(new Error('Not found'), '', '');
+        }
         return {} as any;
       }) as any);
       vi.mocked(execFile as any).mockImplementation(((_cmd: string, _args: string[], _opts: any, callback: any) => {
-        if (typeof _opts === 'function') callback = _opts;
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
         callback?.(null, 'SUCCESS', '');
         return {} as any;
       }) as any);
@@ -559,7 +604,9 @@ describe('Edge Driver Manager', () => {
   async function mockExecRegistry(pv: string) {
     const { exec } = await import('node:child_process');
     vi.mocked(exec as any).mockImplementation(((cmd: string, _opts: any, callback: any) => {
-      if (typeof _opts === 'function') callback = _opts;
+      if (typeof _opts === 'function') {
+        callback = _opts;
+      }
       if (cmd.includes('reg query') && cmd.includes('F3017226')) {
         callback?.(null, `    pv    REG_SZ    ${pv}\n`, '');
       } else {
@@ -572,7 +619,9 @@ describe('Edge Driver Manager', () => {
   async function mockVersionInfo(version: string) {
     const { execFile } = await import('node:child_process');
     vi.mocked(execFile as any).mockImplementation(((_cmd: string, args: string[], _opts: any, callback: any) => {
-      if (typeof _opts === 'function') callback = _opts;
+      if (typeof _opts === 'function') {
+        callback = _opts;
+      }
       if (Array.isArray(args) && args.some((a) => String(a).includes('VersionInfo.FileVersion'))) {
         callback?.(null, `${version}\n`, '');
       } else {

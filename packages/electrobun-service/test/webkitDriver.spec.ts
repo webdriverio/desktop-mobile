@@ -98,7 +98,9 @@ describe('spawnWebKitWebDriver', () => {
     ['no display is set', {}],
     ['only a Wayland display is set', { WAYLAND_DISPLAY: 'wayland-0' }],
   ])('should run under xvfb-run on X11 when %s', async (_case, displayEnv: Record<string, string>) => {
-    for (const [name, value] of Object.entries(displayEnv)) vi.stubEnv(name, value);
+    for (const [name, value] of Object.entries(displayEnv)) {
+      vi.stubEnv(name, value);
+    }
 
     const handle = await spawnWebKitWebDriver({ driverPath: '/usr/bin/WebKitWebDriver', port: 4444 });
 

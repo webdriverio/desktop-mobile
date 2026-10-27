@@ -71,7 +71,9 @@ function writeNpmVersion(newVersion: string): PendingEdit | undefined {
     throw new Error(`Missing \`version\` field in ${NPM_PACKAGE_JSON}`);
   }
   const before = pkg.version;
-  if (before === newVersion) return undefined;
+  if (before === newVersion) {
+    return undefined;
+  }
   return {
     label: 'package.json [version]',
     path: NPM_PACKAGE_JSON,
@@ -99,7 +101,9 @@ function syncPackageVersion(cargoPath: string, newCore: string): PendingEdit | u
   }
   const before = match[2];
   const after = withCore(before, newCore);
-  if (before === after) return undefined;
+  if (before === after) {
+    return undefined;
+  }
   return {
     label: `${cargoPath.replace(`${REPO_ROOT}/`, '')} [package].version`,
     path: cargoPath,
@@ -119,7 +123,9 @@ function syncPathDepVersion(cargoPath: string, newCore: string): PendingEdit | u
   }
   const before = match[2];
   const after = withCore(before, newCore);
-  if (before === after) return undefined;
+  if (before === after) {
+    return undefined;
+  }
   return {
     label: `${cargoPath.replace(`${REPO_ROOT}/`, '')} wdio-dioxus-bridge path-dep`,
     path: cargoPath,
@@ -142,7 +148,9 @@ function main(): void {
       process.exit(2);
     }
     const npmEdit = writeNpmVersion(positional);
-    if (npmEdit) edits.push(npmEdit);
+    if (npmEdit) {
+      edits.push(npmEdit);
+    }
   }
 
   const npmVersion = positional ?? readNpmVersion();
@@ -155,7 +163,9 @@ function main(): void {
     () => syncPathDepVersion(EMBEDDED_DRIVER_CARGO_TOML, newCore),
   ]) {
     const edit = sync();
-    if (edit) edits.push(edit);
+    if (edit) {
+      edits.push(edit);
+    }
   }
 
   if (edits.length === 0) {
@@ -179,8 +189,11 @@ function main(): void {
   const byPath = new Map<string, PendingEdit[]>();
   for (const edit of edits) {
     const existing = byPath.get(edit.path);
-    if (existing) existing.push(edit);
-    else byPath.set(edit.path, [edit]);
+    if (existing) {
+      existing.push(edit);
+    } else {
+      byPath.set(edit.path, [edit]);
+    }
   }
   for (const [path, fileEdits] of byPath) {
     let content = readFileSync(path, 'utf8');

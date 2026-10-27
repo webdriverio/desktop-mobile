@@ -28,6 +28,8 @@ export interface NormalizedReadResult {
 
 export function readPackageUpSync(options: { cwd?: string } = {}): NormalizedReadResult | undefined {
   const filePath = findUpSync('package.json', { cwd: options.cwd || process.cwd() });
-  if (!filePath) return undefined;
+  if (!filePath) {
+    return undefined;
+  }
   return { packageJson: JSON.parse(readFileSync(filePath, 'utf-8')) as NormalizedPackageJson, path: filePath };
 }

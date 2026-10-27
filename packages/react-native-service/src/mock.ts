@@ -53,8 +53,12 @@ function reconstructErrors(value: unknown): unknown {
   const obj = value as Record<string, unknown>;
   if (obj.__wdioError === true) {
     const err = new Error(typeof obj.message === 'string' ? obj.message : '');
-    if (typeof obj.name === 'string') err.name = obj.name;
-    if (typeof obj.stack === 'string') err.stack = obj.stack;
+    if (typeof obj.name === 'string') {
+      err.name = obj.name;
+    }
+    if (typeof obj.stack === 'string') {
+      err.stack = obj.stack;
+    }
     return err;
   }
   const out: Record<string, unknown> = {};

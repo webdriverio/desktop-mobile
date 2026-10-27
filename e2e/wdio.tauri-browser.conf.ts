@@ -33,7 +33,9 @@ function startStaticServer(rootPath: string): Promise<Server> {
         walk(abs, rel);
       } else if (entry.isFile()) {
         allowed.set(`/${rel}`, abs);
-        if (rel === 'index.html') allowed.set('/', abs);
+        if (rel === 'index.html') {
+          allowed.set('/', abs);
+        }
       }
     }
   };
@@ -65,7 +67,9 @@ function startStaticServer(rootPath: string): Promise<Server> {
  * relies on the launcher integration test (no driver constructed in browser mode).
  */
 function assertNoTauriDriverProcesses(): void {
-  if (process.platform === 'win32') return;
+  if (process.platform === 'win32') {
+    return;
+  }
   try {
     const psOutput = execSync('ps -A -o command=', { encoding: 'utf-8' });
     const offenders = psOutput

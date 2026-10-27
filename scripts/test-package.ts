@@ -97,7 +97,9 @@ function execCommand(command: string, cwd: string, description: string) {
         timeout: COMMAND_TIMEOUT_MS,
         killSignal: 'SIGKILL',
       });
-      if (attempt > 1) log(`(retry ${attempt - 1} succeeded)`);
+      if (attempt > 1) {
+        log(`(retry ${attempt - 1} succeeded)`);
+      }
       log(`✅ ${description} completed`);
       return;
     } catch (error) {
@@ -408,7 +410,9 @@ async function startStaticServer(rootPath: string, port: number): Promise<Server
         walk(abs, rel);
       } else if (entry.isFile()) {
         allowed.set(`/${rel}`, abs);
-        if (rel === 'index.html') allowed.set('/', abs);
+        if (rel === 'index.html') {
+          allowed.set('/', abs);
+        }
       }
     }
   };
@@ -646,7 +650,9 @@ async function testExample(
             `(${crate}\\s*=\\s*\\{\\s*path\\s*=\\s*)"\\.\\./\\.\\./\\.\\./\\.\\./packages/${pluginPackageDir}"(\\s*\\})`,
           );
 
-          if (!pathPattern.test(cargoToml)) continue;
+          if (!pathPattern.test(cargoToml)) {
+            continue;
+          }
 
           if (!existsSync(pluginSourceDir)) {
             log(`⚠️  Plugin source not found at ${pluginSourceDir}`);
@@ -1203,8 +1209,12 @@ async function main() {
             seenBaseNames.add(baseName);
             const cjsVariant = `${baseName}-cjs`;
             const esmVariant = `${baseName}-esm`;
-            if (filteredDirs.includes(cjsVariant)) expandedPackages.push(cjsVariant);
-            if (filteredDirs.includes(esmVariant)) expandedPackages.push(esmVariant);
+            if (filteredDirs.includes(cjsVariant)) {
+              expandedPackages.push(cjsVariant);
+            }
+            if (filteredDirs.includes(esmVariant)) {
+              expandedPackages.push(esmVariant);
+            }
           }
         } else {
           expandedPackages.push(dir);

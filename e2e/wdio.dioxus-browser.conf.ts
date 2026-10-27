@@ -27,7 +27,9 @@ const devServer = `node "${staticServer}" "${fixtureRoot}" ${port}`;
  * browser mode).
  */
 function assertNoDioxusDriverProcesses(): void {
-  if (process.platform === 'win32') return;
+  if (process.platform === 'win32') {
+    return;
+  }
   try {
     const psOutput = execSync('ps -A -o command=', { encoding: 'utf-8' });
     const offenders = psOutput

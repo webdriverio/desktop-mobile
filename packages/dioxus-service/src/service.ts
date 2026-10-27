@@ -207,7 +207,9 @@ export default class DioxusWorkerService {
     try {
       await browser.execute(function clearStaleMocks() {
         const page = globalThis as { __wdio_mocks__?: Record<string, unknown> };
-        if (page.__wdio_mocks__) page.__wdio_mocks__ = {};
+        if (page.__wdio_mocks__) {
+          page.__wdio_mocks__ = {};
+        }
       });
       log.debug('Cleared stale mocks at session start');
     } catch (err) {

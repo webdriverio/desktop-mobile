@@ -142,8 +142,12 @@ export default class DioxusLaunchService extends BaseLauncher {
     const provider = mergedOptions.driverProvider ?? 'embedded';
 
     if (provider === 'external') {
-      if (process.platform === 'linux') throw linuxExternalProviderUnsupported();
-      if (process.platform === 'darwin') throw macosExternalProviderUnsupported();
+      if (process.platform === 'linux') {
+        throw linuxExternalProviderUnsupported();
+      }
+      if (process.platform === 'darwin') {
+        throw macosExternalProviderUnsupported();
+      }
       throw windowsExternalProviderUnsupported();
     }
 

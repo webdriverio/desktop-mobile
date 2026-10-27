@@ -31,8 +31,12 @@ async function createPrototypeMock(
       const originalFn = cls.prototype[methodName];
 
       const globalApi = globalThis as unknown as Record<string, Record<string, Record<string, () => unknown>>>;
-      if (!globalApi.__protoOriginals) globalApi.__protoOriginals = {};
-      if (!globalApi.__protoOriginals[className]) globalApi.__protoOriginals[className] = {};
+      if (!globalApi.__protoOriginals) {
+        globalApi.__protoOriginals = {};
+      }
+      if (!globalApi.__protoOriginals[className]) {
+        globalApi.__protoOriginals[className] = {};
+      }
       globalApi.__protoOriginals[className][methodName] = originalFn;
 
       cls.prototype[methodName] = spy.fn(undefined, { original: originalFn });
@@ -118,16 +122,24 @@ export async function createClassMock(
             ...args: unknown[]
           ) => unknown)
         | undefined;
-      if (!ElectronClass || typeof ElectronClass !== 'function') return null;
+      if (!ElectronClass || typeof ElectronClass !== 'function') {
+        return null;
+      }
       const methods = new Set<string>();
       let proto: object | null = ElectronClass.prototype;
       while (proto && proto !== Object.prototype) {
         const ctorName = (proto as { constructor?: { name?: string } }).constructor?.name ?? '';
-        if (ctorName === 'EventEmitter') break;
+        if (ctorName === 'EventEmitter') {
+          break;
+        }
         Object.getOwnPropertyNames(proto).forEach((name) => {
-          if (name === 'constructor') return;
+          if (name === 'constructor') {
+            return;
+          }
           const desc = Object.getOwnPropertyDescriptor(proto as object, name);
-          if (desc && typeof desc.value === 'function') methods.add(name);
+          if (desc && typeof desc.value === 'function') {
+            methods.add(name);
+          }
         });
         proto = Object.getPrototypeOf(proto) as object | null;
       }
@@ -188,7 +200,9 @@ export async function createClassMock(
         (globalThis as Record<string, unknown>).electron = new Proxy(origElectron, {
           get(target, key) {
             const classMocks = (globalThis as Record<string, unknown>).__electronClassMocks as Record<string, unknown>;
-            if (classMocks && typeof key === 'string' && key in classMocks) return classMocks[key];
+            if (classMocks && typeof key === 'string' && key in classMocks) {
+              return classMocks[key];
+            }
             return Reflect.get(target, key);
           },
         });

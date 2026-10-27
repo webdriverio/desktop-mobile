@@ -31,8 +31,11 @@ vi.mock('node:util', () => ({
     (...args: unknown[]) =>
       new Promise((resolve, reject) => {
         fn(...args, (err: Error | null, stdout: string, stderr: string) => {
-          if (err) reject(err);
-          else resolve({ stdout, stderr });
+          if (err) {
+            reject(err);
+          } else {
+            resolve({ stdout, stderr });
+          }
         });
       }),
 }));
@@ -338,7 +341,9 @@ describe('ensureTauriDriver', () => {
       mockPlatform('linux');
 
       vi.mocked(execSync).mockImplementation((cmd: string) => {
-        if (cmd === 'cargo --version') return 'cargo 1.75.0';
+        if (cmd === 'cargo --version') {
+          return 'cargo 1.75.0';
+        }
         throw new Error('not found');
       });
       vi.mocked(existsSync).mockReturnValue(false);
@@ -380,7 +385,9 @@ describe('ensureTauriDriver', () => {
       mockPlatform('linux');
 
       vi.mocked(execSync).mockImplementation((cmd: string) => {
-        if (cmd === 'cargo --version') return 'cargo 1.75.0';
+        if (cmd === 'cargo --version') {
+          return 'cargo 1.75.0';
+        }
         throw new Error('not found');
       });
       vi.mocked(existsSync).mockReturnValue(false);
