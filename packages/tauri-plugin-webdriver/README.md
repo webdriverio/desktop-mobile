@@ -34,16 +34,16 @@ Android and iOS are not supported. The plugin still builds for them, so an app t
 
 ## Installation
 
-> **Warning**: This plugin exposes automation capabilities via HTTP. Never include it in production builds.
+> **Warning**: This plugin exposes automation capabilities via HTTP. Never register it in production builds.
 
-Add to your `Cargo.toml` as a dev/test-only dependency:
+Add it to your `Cargo.toml`:
 
 ```toml
-[target.'cfg(debug_assertions)'.dependencies]
+[dependencies]
 tauri-plugin-wdio-webdriver = "1"
 ```
 
-Or use a feature flag for more control:
+The registration below only runs in debug builds, so release builds never start the server. To leave the crate out of release builds entirely, use a feature flag, and gate the registration on `#[cfg(feature = "webdriver")]` instead:
 
 ```toml
 [features]

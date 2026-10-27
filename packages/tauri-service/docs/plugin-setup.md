@@ -424,9 +424,11 @@ This plugin embeds a W3C WebDriver HTTP server directly in your Tauri applicatio
 #### 1. Add Cargo Dependency
 
 ```toml
-[target.'cfg(debug_assertions)'.dependencies]
+[dependencies]
 tauri-plugin-wdio-webdriver = "1"
 ```
+
+The next step registers it only in debug builds, so release builds never start its WebDriver server.
 
 #### 2. Register Plugin in Rust
 

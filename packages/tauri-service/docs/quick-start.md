@@ -140,8 +140,6 @@ fn main() {
 [dependencies]
 tauri = { version = "2", features = [] }
 tauri-plugin-wdio = "1"
-
-[target.'cfg(debug_assertions)'.dependencies]
 tauri-plugin-wdio-webdriver = "1"
 
 [build-dependencies]
@@ -158,7 +156,7 @@ fn main() {
 
 ## Tauri Plugin Setup
 
-Your app needs two plugins: `tauri-plugin-wdio`, for mocking, `execute` and log capture, and `tauri-plugin-wdio-webdriver`, the WebDriver server the default `embedded` provider connects to. Both are in the `Cargo.toml` above; the WebDriver server is only compiled into debug builds.
+Your app needs two plugins: `tauri-plugin-wdio`, for mocking, `execute` and log capture, and `tauri-plugin-wdio-webdriver`, the WebDriver server the default `embedded` provider connects to. Both are in the `Cargo.toml` above. The WebDriver server plugin is only registered in debug builds, so release builds never start it.
 
 ### Complete Plugin Setup
 
@@ -220,7 +218,7 @@ For detailed plugin setup and troubleshooting, see [Plugin Setup](./plugin-setup
 
 ## Building the Tauri App
 
-Test a debug build: the WebDriver server plugin is only compiled into debug builds, so a release build can't start a session with the default `embedded` provider.
+Test a debug build: the WebDriver server plugin is only registered in debug builds, so a release build can't start a session with the default `embedded` provider.
 
 ```bash
 npm run tauri build -- --debug
@@ -504,6 +502,8 @@ jobs:
       - name: Run tests
         run: npm run test:e2e
 ```
+
+On WebdriverIO v9, the Linux tests also need `xvfb-run`; see [Linux Without a Display](#linux-without-a-display).
 
 ### Linux Without a Display
 
