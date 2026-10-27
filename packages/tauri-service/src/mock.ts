@@ -8,19 +8,6 @@ import mockStore from './mockStore.js';
 const log = createLogger('tauri-service', 'mock');
 const interceptor = createIpcInterceptor('tauri');
 
-// Each mock's outer half of mockRestore, and the browser its inner mock lives in. restoreAllMocks skips
-// the in-app call only for mocks in the browser it has just cleared, not another multiremote instance's.
-const outerRestores = new WeakMap<TauriMock, { browser: WebdriverIO.Browser; restoreOuter: () => void }>();
-
-export async function restoreMock(mock: TauriMock, inAppClearedIn?: WebdriverIO.Browser): Promise<void> {
-  const entry = outerRestores.get(mock);
-  if (entry && inAppClearedIn && entry.browser === inAppClearedIn) {
-    entry.restoreOuter();
-    return;
-  }
-  await mock.mockRestore();
-}
-
 function isBrowserMode(browser: WebdriverIO.Browser): boolean {
   return !!(browser as unknown as Record<string, unknown>).__wdioBrowserMode__;
 }
@@ -186,16 +173,12 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
-  const restoreOuter = () => {
-    outerMockClear();
-    mockStore.deleteMock(`tauri.${command}`);
-  };
-
   mock.mockRestore = async () => {
     try {
       await tauriExecute<void>(browserToUse, interceptor.buildUnregistrationScript(command));
     } finally {
-      restoreOuter();
+      outerMockClear();
+      mockStore.deleteMock(`tauri.${command}`);
     }
     return mock;
   };
@@ -237,7 +220,6 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
 
   wrapperMock.__isTauriMock = true;
 
-  outerRestores.set(wrapperMock, { browser: browserToUse, restoreOuter });
   return wrapperMock;
 }
 
@@ -365,16 +347,12 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     return mock;
   };
 
-  const restoreOuter = () => {
-    outerMockClear();
-    mockStore.deleteMock(`tauri.${command}`);
-  };
-
   mock.mockRestore = async () => {
     try {
       await runInterceptorScript<void>(browser, interceptor.buildUnregistrationScript(command));
     } finally {
-      restoreOuter();
+      outerMockClear();
+      mockStore.deleteMock(`tauri.${command}`);
     }
     return mock;
   };
@@ -406,6 +384,5 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     return result as ReturnType<typeof callbackFn>;
   };
 
-  outerRestores.set(mock, { browser, restoreOuter });
   return mock;
 }

@@ -41,31 +41,12 @@ describe('restoreAllMocks Command', () => {
     delete (globalThis as any).browser;
   });
 
-  it('should restore all mocks in the injection script when no prefix is provided', async () => {
-    await restoreAllMocks();
-    expect((globalThis.browser as any).execute).toHaveBeenCalledWith(expect.any(Function), '');
-
-    const callback = (globalThis.browser as any).execute.mock.calls[0][0];
-    const mockWindow = {
-      __wdio_mocks__: {
-        get_platform_info: { implementation: () => {} },
-        read_clipboard: { implementation: () => {} },
-      },
-    } as any;
-    (globalThis as any).window = mockWindow;
-    try {
-      callback(undefined);
-      expect(mockWindow.__wdio_mocks__).toEqual({});
-    } finally {
-      delete (globalThis as any).window;
-    }
-  });
-
-  it('should restore all outer mock functions when no prefix is provided', async () => {
+  it('should call mockRestore on every mock, with no bulk in-app call, when no prefix is provided', async () => {
     await restoreAllMocks();
     expect(mockedGetPlatformInfo.mockRestore).toHaveBeenCalled();
     expect(mockedReadClipboard.mockRestore).toHaveBeenCalled();
     expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
+    expect((globalThis.browser as any).execute).not.toHaveBeenCalled();
   });
 
   it('should restore only mocks matching the command prefix', async () => {
@@ -73,27 +54,6 @@ describe('restoreAllMocks Command', () => {
     expect(mockedGetPlatformInfo.mockRestore).not.toHaveBeenCalled();
     expect(mockedReadClipboard.mockRestore).toHaveBeenCalled();
     expect(mockedWriteClipboard.mockRestore).not.toHaveBeenCalled();
-  });
-
-  it('should pass prefix to browser execute for inner mock filtering', async () => {
-    await restoreAllMocks('write');
-    expect((globalThis.browser as any).execute).toHaveBeenCalledWith(expect.any(Function), 'write');
-
-    const callback = (globalThis.browser as any).execute.mock.calls[0][0];
-    const mockWindow = {
-      __wdio_mocks__: {
-        get_platform_info: { implementation: () => {} },
-        write_clipboard: { implementation: () => {} },
-      },
-    } as any;
-    (globalThis as any).window = mockWindow;
-    try {
-      callback('write');
-      expect(mockWindow.__wdio_mocks__.get_platform_info).toBeDefined();
-      expect(mockWindow.__wdio_mocks__.write_clipboard).toBeUndefined();
-    } finally {
-      delete (globalThis as any).window;
-    }
   });
 
   it('should handle prefix that matches no mocks', async () => {
@@ -114,30 +74,24 @@ describe('restoreAllMocks Command', () => {
     expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
   });
 
-  it('should still run every mockRestore and report the failure when the in-app bulk call fails', async () => {
-    (globalThis.browser as any).execute.mockRejectedValue(new Error('script error'));
-
-    await expect(restoreAllMocks()).rejects.toMatchObject({
-      message: 'mockRestore failed: all mocks (in-app): script error',
-    });
-
+  it('should restore every mock without a browser context', async () => {
+    delete (globalThis as any).browser;
+    await restoreAllMocks.call({});
     expect(mockedGetPlatformInfo.mockRestore).toHaveBeenCalled();
     expect(mockedReadClipboard.mockRestore).toHaveBeenCalled();
     expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
   });
 
-  it('should throw when no browser context is available', async () => {
-    delete (globalThis as any).browser;
-    await expect(restoreAllMocks.call({})).rejects.toThrow('restoreAllMocks requires a valid browser context');
-  });
-
-  it('should throw when browser is multiremote', async () => {
+  it('should restore every mock when called on the multiremote browser', async () => {
     const multiremoteBrowser = {
       isMultiremote: true,
       execute: vi.fn(),
     } as unknown as WebdriverIO.MultiRemoteBrowser;
-    globalThis.browser = multiremoteBrowser as any;
 
-    await expect(restoreAllMocks.call({})).rejects.toThrow('restoreAllMocks requires a valid browser context');
+    await restoreAllMocks.call({ browser: multiremoteBrowser });
+
+    expect(mockedGetPlatformInfo.mockRestore).toHaveBeenCalled();
+    expect(mockedReadClipboard.mockRestore).toHaveBeenCalled();
+    expect(mockedWriteClipboard.mockRestore).toHaveBeenCalled();
   });
 });

@@ -1,6 +1,6 @@
 import type { TauriMock } from '@wdio/native-types';
 import { createLogger, isMultiremote, runBulkMockOp } from '@wdio/native-utils';
-import { createMock, restoreMock } from '../mock.js';
+import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
 
 const log = createLogger('tauri-service', 'mock');
@@ -116,38 +116,11 @@ export async function resetAllMocks(this: TauriServiceContext | undefined, comma
 }
 
 export async function restoreAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
-  const browserContext = this?.browser || globalThis.browser;
-
-  if (!browserContext || isMultiremote(browserContext)) {
-    throw new Error('restoreAllMocks requires a valid browser context');
-  }
-
-  const stdBrowser = browserContext as WebdriverIO.Browser;
   const mocks = mockStore.getMocks();
+  // No bulk in-app clear: browser.execute runs in WebDriver's current window or frame, which needn't be
+  // where the mocks live. Each mockRestore unregisters by the same route its mock was registered by.
   const restoredCount = await runBulkMockOp(mocks, 'mockRestore', {
     matches: (name) => shouldProcessMock(name, commandPrefix),
-    // Restore mocks in the injection script (with prefix filtering if provided)
-    bulkAppCall: () =>
-      stdBrowser.execute<void, [string]>((prefix) => {
-        // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-        if (window.__wdio_mocks__) {
-          if (!prefix) {
-            // No prefix: clear all mocks
-            // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-            window.__wdio_mocks__ = {};
-          } else {
-            // With prefix: selectively delete matching mocks
-            // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-            for (const commandName of Object.keys(window.__wdio_mocks__)) {
-              if (commandName.startsWith(prefix)) {
-                // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-                delete window.__wdio_mocks__[commandName];
-              }
-            }
-          }
-        }
-      }, commandPrefix ?? ''),
-    run: (tauriMock, bulkSucceeded) => restoreMock(tauriMock, bulkSucceeded ? stdBrowser : undefined),
   });
 
   log.debug(
