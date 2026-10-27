@@ -182,7 +182,7 @@ __name; // Function naming utility
 - `TauriBrowserExtension` - Browser methods for Tauri
 - `TauriMock` - Mock types for Tauri contexts
 - `WdioTauriConfig` - Complete Tauri WebdriverIO configuration
-- `TauriAPIs` - Available Tauri APIs
+- `TauriAPIs` - The `{ core: { invoke } }` object a `browser.tauri.execute()` script receives
 
 ### Shared Types
 

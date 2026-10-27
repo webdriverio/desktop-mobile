@@ -19,19 +19,13 @@ import type {
 // ============================================================================
 
 /**
- * Tauri APIs object type - matches window.__TAURI__ structure
+ * The object a `browser.tauri.execute()` script function receives as its first argument. It only
+ * has `core.invoke`, which goes through any mocks set up with `browser.tauri.mock()`.
  */
 export interface TauriAPIs {
   core: {
     invoke: (command: string, ...args: unknown[]) => Promise<unknown>;
   };
-  app?: {
-    getName: () => Promise<string>;
-    getVersion: () => Promise<string>;
-  };
-  window?: unknown;
-  event?: unknown;
-  [key: string]: unknown;
 }
 
 /**
