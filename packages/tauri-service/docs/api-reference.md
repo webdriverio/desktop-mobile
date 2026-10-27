@@ -43,7 +43,7 @@ const result = await browser.tauri.execute('window.location.href');
 
 ### `browser.tauri.emitEvent(event, payload?, target?)`
 
-Emit a Tauri event to all listeners registered via `listen()` or `once()` in the frontend. The same call works in both native and browser mode — in native mode it routes through Tauri's real `event.emit()` / `event.emitTo()` via the plugin bridge; in browser mode it dispatches through the in-page listener registry installed by the IPC injection.
+Emit a Tauri event to all listeners registered via `listen()` or `once()` in the frontend. The same call works in both native and browser mode — in native mode it calls Tauri's event commands in the app, as `@tauri-apps/api`'s `emit()` / `emitTo()` do; in browser mode it dispatches through the in-page listener registry installed by the IPC injection. In native mode the app's capabilities must allow `core:event:allow-emit` and `core:event:allow-emit-to`, which `core:default` includes.
 
 **Parameters:**
 - `event` (string) - The event name to emit
