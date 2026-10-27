@@ -92,10 +92,22 @@ jobs:
         run: pnpm --filter @wdio/dioxus-bridge build
         shell: bash
 
-      - name: Build Dioxus Package Test App
-        run: cargo build
+      # Without a version the action installs the latest binstall. Passing its own tag
+      # means a Dependabot bump of the tag moves the binary too.
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.25.3
+        with:
+          version: ${{ github.action_ref }}
+
+      - name: Install Dioxus CLI
+        run: bash scripts/install-dx.sh
         shell: bash
-        working-directory: fixtures/package-tests/dioxus-app/src-dioxus
+        working-directory: fixtures/package-tests/dioxus-app
+
+      - name: Build Dioxus Package Test App
+        run: pnpm run build
+        shell: bash
+        working-directory: fixtures/package-tests/dioxus-app
 
       - name: Upload Dioxus Package Test App Binary
         id: upload-archive
@@ -103,6 +115,6 @@ jobs:
         with:
           name: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}
           output: dioxus-package-app-${{ runner.os }}-${{ runner.arch == 'ARM64' && 'ARM64' || 'x64' }}/artifact.zip
-          paths: fixtures/package-tests/dioxus-app/target
+          paths: fixtures/package-tests/dioxus-app/target/dx
           cache_key_prefix: dioxus-package-app
           retention_days: "90"

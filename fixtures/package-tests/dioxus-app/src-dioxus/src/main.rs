@@ -44,10 +44,12 @@ fn main() {
 #[component]
 fn App() -> Element {
   rsx! {
+    document::Stylesheet { href: asset!("/assets/main.css") }
     head {
       title { "WDIO Dioxus Package Test App" }
       style { {SHARED_STYLES} }
     }
+    div { id: "bundled-style" }
     div { class: "container",
       h1 { id: "app-title", "WDIO Dioxus Package Test App" }
       div { class: "info-section",

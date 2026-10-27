@@ -69,13 +69,17 @@ bind-mount and never runs the workspace toolchain itself — no `pnpm install`, 
 1. Build the Docker image (system packages, Node 24, Rust toolchain, WebKitGTK build deps).
 2. Mount the workspace at `/workspace` and the packed tarballs at `/tarballs`; start Xvfb.
 3. Verify the bridge guest-js bundle (`packages/dioxus-bridge/dist-js/index.js`) is present —
-   the runner built it, and the bridge crate's `build.rs` bakes it into the app binary at
-   `cargo build` time. Without it the bundle silently degrades to a no-op and every bridge
-   call times out.
+   the runner built it, and the bridge crate's `build.rs` bakes it into the app binary when
+   `dx build` compiles the app. Without it the bundle silently degrades to a no-op and every
+   bridge call times out.
 4. Rewrite the fixture's `workspace:*` deps to `file:` tarball paths and `npm install`. The
    fixture's pnpm `node_modules` (symlinks into the workspace) is cleared first — npm's
    arborist cannot load a pnpm layout.
-5. `cargo build` the Dioxus app — this also compiles the embedded driver and the bridge crate into the binary.
+5. `scripts/install-dx.sh` installs the `dx` matching the `dioxus` version in `Cargo.lock`,
+   with the cargo-binstall that CI mounts from the runner (`BINSTALL_BIN`), or with
+   `cargo install` without one. Then `npm run build` runs `dx build --desktop`, which
+   compiles the embedded driver and the bridge into the binary and bundles files loaded
+   with `asset!()`.
 6. `npx wdio run` (WebdriverIO against the embedded driver, headless under Xvfb).
 
 There is no separate plugin-build step: unlike Tauri's JS plugin, the Dioxus bridge

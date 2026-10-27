@@ -6,13 +6,25 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const appPath = path.resolve(__dirname);
-// Cargo workspace layout: target/ at the workspace root, sibling to src-dioxus/.
-const targetDir = join(appPath, 'target', 'debug');
-const binaryName = process.platform === 'win32' ? 'dioxus-package-test-app.exe' : 'dioxus-package-test-app';
-const appBinaryPath = join(targetDir, binaryName);
+// The Cargo workspace's target/ sits next to src-dioxus/. dx names the macOS bundle
+// with the bin name in Pascal case.
+const appName = 'dioxus-package-test-app';
+const bundleRoot = join(appPath, 'target', 'dx', appName, 'debug');
+const appBinaryByPlatform: Record<string, string> = {
+  linux: join(bundleRoot, 'linux', 'app', appName),
+  darwin: join(bundleRoot, 'macos', 'DioxusPackageTestApp.app', 'Contents', 'MacOS', appName),
+  win32: join(bundleRoot, 'windows', 'app', `${appName}.exe`),
+};
+const appBinaryPath = appBinaryByPlatform[process.platform];
+
+if (!appBinaryPath) {
+  throw new Error(`No dx output path for platform ${process.platform}.`);
+}
 
 if (!existsSync(appBinaryPath)) {
-  throw new Error(`Dioxus binary not found: ${appBinaryPath}. Run 'cargo build' from this directory first.`);
+  throw new Error(
+    `Dioxus binary not found: ${appBinaryPath}. Run 'pnpm build' first; scripts/install-dx.sh installs the dx it needs.`,
+  );
 }
 
 type DioxusCapability = {

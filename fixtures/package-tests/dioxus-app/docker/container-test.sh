@@ -11,11 +11,6 @@
 # and bind-mounted at /tarballs. The container only needs to install them and
 # build the fixture's Rust binary -- it no longer requires the workspace
 # toolchain (pnpm install --frozen-lockfile, turbo, TS execution). (#350)
-#
-# Note: dioxus-bridge dist-js is baked into the app binary at cargo-build time
-# via build.rs (packages/dioxus-bridge/build.rs). The bridge Rust crate is
-# referenced via a workspace path dep in Cargo.toml, so dist-js/index.js is
-# already present in the bind-mounted workspace after the runner's build step.
 
 set -e
 
@@ -50,7 +45,7 @@ ls -lh /tarballs/
 
 echo '=== Verifying bridge guest-js bundle ==='
 # The bridge crate's build.rs (packages/dioxus-bridge/build.rs) embeds
-# dist-js/index.js into the binary at cargo-build time. The CI runner builds
+# dist-js/index.js into the binary at compile time. The CI runner builds
 # @wdio/dioxus-bridge before packing, so the file is present in the workspace.
 test -s /workspace/packages/dioxus-bridge/dist-js/index.js || {
     echo 'ERROR: bridge guest-js bundle missing from workspace.'
@@ -134,8 +129,11 @@ npm install --prefer-offline 2>&1
 rm package.json
 mv package.json.orig package.json
 
-echo '=== Building Dioxus app (compiles embedded driver + bridge) ==='
-cargo build --manifest-path src-dioxus/Cargo.toml
+echo '=== Installing Dioxus CLI ==='
+bash scripts/install-dx.sh
+
+echo '=== Building Dioxus app with dx ==='
+npm run build
 
 echo '=== Running Dioxus package test ==='
 # Capture the exit code instead of letting set -e abort here, so the

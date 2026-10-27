@@ -35,9 +35,8 @@ jobs:
       # Pack workspace packages to tarballs so the container only receives pre-built
       # artefacts and does not need the full workspace toolchain (Node >=23.6 .ts
       # execution, Turbo, etc.) -- root cause of the Node-version breakage (#350).
-      # Note: dioxus-bridge dist-js is baked into the app binary at cargo-build time
-      # via build.rs; its Rust crate stays as a path dep so the JS is still available
-      # in the workspace during the container's cargo build step.
+      # dioxus-bridge isn't packed: its build.rs bakes dist-js into the app binary, and the
+      # app takes its crate as a path dependency from the workspace.
       - name: Pack tarballs
         run: |
           mkdir -p dist/tarballs
@@ -50,10 +49,18 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v4
 
+      # Pinned by its own tag, as in the package-app build. The containers can't run
+      # actions, so test.sh mounts this binary into them.
+      - name: Install cargo-binstall
+        uses: cargo-bins/cargo-binstall@v1.25.3
+        with:
+          version: ${{ github.action_ref }}
+
       - name: Run tests using test.sh
         run: |
+          binstall_bin=$(command -v cargo-binstall)
           cd fixtures/package-tests/dioxus-app/docker
-          TARBALLS_DIR="$(pwd)/../../../../dist/tarballs" ./test.sh ${{ inputs.distro }} test
+          TARBALLS_DIR="$(pwd)/../../../../dist/tarballs" BINSTALL_BIN="$binstall_bin" ./test.sh ${{ inputs.distro }} test
 
       - name: Copy logs to workspace
         if: always()
