@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CI=true
 
-# Basic build tooling + Xvfb for headless GUI testing
+# Basic build tooling, plus Xvfb and Weston: container-test.sh runs the tests on each
 RUN apt-get update -qq && \
     apt-get install -y \
         curl \
@@ -15,7 +15,8 @@ RUN apt-get update -qq && \
         build-essential \
         pkg-config \
         libssl-dev \
-        xvfb && \
+        xvfb \
+        weston && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 

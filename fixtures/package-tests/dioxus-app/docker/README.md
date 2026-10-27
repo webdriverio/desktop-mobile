@@ -81,6 +81,8 @@ bind-mount and never runs the workspace toolchain itself — no `pnpm install`, 
    compiles the embedded driver and the bridge into the binary and bundles files loaded
    with `asset!()`.
 6. `npx wdio run` (WebdriverIO against the embedded driver, headless under Xvfb).
+7. Ubuntu only: `npx wdio run` again on Weston, with `DISPLAY` unset and
+   `DISPLAY_SERVER=wayland`, so a Weston failure can't fall back to Xvfb.
 
 There is no separate plugin-build step: unlike Tauri's JS plugin, the Dioxus bridge
 and embedded driver are Rust crates pulled in by the app's `Cargo.toml` and built by `cargo`.

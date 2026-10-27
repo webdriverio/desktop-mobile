@@ -208,13 +208,7 @@ Verify the window label matches exactly (case-sensitive) and the window is creat
 
 ### "X11 connection refused" or "Cannot open display"
 
-```bash
-# Install Xvfb
-sudo apt-get install -y xvfb
-
-# Run tests headless
-xvfb-run -a npx wdio run wdio.conf.ts
-```
+The app has no display: see [Linux Without a Display](./quick-start.md#linux-without-a-display). If you see this error while Weston is running, your app needs X11 (for example, an X11-only crate), so set `displayServer: 'xvfb'`.
 
 ---
 

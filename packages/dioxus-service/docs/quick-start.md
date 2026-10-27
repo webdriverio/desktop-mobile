@@ -357,13 +357,13 @@ jobs:
 
 ### Linux Without a Display
 
-Install Xvfb:
+Install Xvfb or Weston:
 
 ```bash
-sudo apt-get install -y xvfb
+sudo apt-get install -y xvfb    # or: weston
 ```
 
-With WebdriverIO v10 you don't need a wrapper: when no display is set, WebdriverIO starts a display server before the service starts your app. It prefers Weston when that's installed, and the service is only tested on Xvfb, so set `displayServer: 'xvfb'`:
+With WebdriverIO v10 you don't need a wrapper or any config: when no display is set, WebdriverIO starts a display server before the service starts your app, Weston if it's installed and Xvfb otherwise. The service is tested on both. If your app has X11-only dependencies, set `displayServer: 'xvfb'` so WebdriverIO doesn't pick Weston:
 
 ```typescript
 export const config = {
@@ -372,7 +372,7 @@ export const config = {
 };
 ```
 
-With WebdriverIO v9, its virtual display only covers the test workers, not the service that starts your app, so wrap the whole run:
+With WebdriverIO v9, its virtual display only covers the test workers, not the service that starts your app, so install Xvfb and wrap the whole run:
 
 ```bash
 xvfb-run -a npx wdio run wdio.conf.ts

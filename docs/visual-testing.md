@@ -92,9 +92,9 @@ await browser.execute(() => {
 
 Mask volatile regions (timestamps, avatars) using the visual service's `hideElements` / `removeElements` options.
 
-### Linux: Xvfb display server (Tauri + Dioxus)
+### Linux: display server
 
-Tauri and Dioxus tests on Linux need a display server. On WebdriverIO v10, WebdriverIO starts one before the service starts your app. It tries Weston first, and both services are only tested on Xvfb, so set `displayServer: 'xvfb'`:
+On Linux, WebdriverIO v10 starts a display server before the service starts your app: Weston if it's installed, otherwise Xvfb. Screenshots differ between the two, so pin one for visual tests, or baselines captured on one machine won't match runs on another. Xvfb is the one every service is tested on:
 
 ```typescript
 export const config = {
@@ -103,13 +103,13 @@ export const config = {
 };
 ```
 
-On WebdriverIO v9, wrap the run instead:
+On WebdriverIO v9, the display only covers the test workers. That's enough for Electron, but Tauri and Dioxus start the app outside the workers, so wrap the run:
 
 ```bash
 xvfb-run -a pnpm wdio run wdio.visual.conf.ts
 ```
 
-Screenshots depend on the display's size and colour depth, so capture baselines and compare them under the same display settings. Electron needs no setup: WebdriverIO starts the display itself.
+Screenshots also depend on the display's size and colour depth, so capture baselines and compare them under the same display settings.
 
 ## Tauri provider notes
 

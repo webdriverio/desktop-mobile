@@ -71,8 +71,9 @@ export const config = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  // Dioxus is tested on X11, not Weston.
-  displayServer: 'xvfb',
+  // Normally unset, so WebdriverIO picks the display server itself. The Ubuntu Docker
+  // test sets it to wayland for its Weston run (see container-test.sh).
+  displayServer: process.env.DISPLAY_SERVER,
   outputDir: path.join(__dirname, 'logs'),
   services: [
     [
