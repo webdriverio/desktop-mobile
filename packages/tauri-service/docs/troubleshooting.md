@@ -72,7 +72,12 @@ sudo pacman -S webkitgtk-6.0
 sudo xbps-install -y libwebkit2gtk41
 ```
 
-On openSUSE, which is untested, WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6). On other distributions, find the package that ships it:
+**Unsupported Distributions**
+- **Alpine Linux**: Cannot build Tauri apps (musl incompatibility). Use Ubuntu, Debian, Fedora, or Arch instead.
+- **CentOS/RHEL**: Stream 9 has glib too old (requires 2.70+), Stream 10 removed WebKitGTK. Use **Fedora 40+** instead.
+- **openSUSE**: Untested. WebKitWebDriver ships in `webkitgtk4-minibrowser` (Tumbleweed) or `webkit2gtk4-minibrowser` (Leap 15.6).
+
+On other distributions, find the package that ships it:
 
 ```bash
 # Debian-based
@@ -84,8 +89,6 @@ dnf provides '*/WebKitWebDriver'
 # Pacman-based (sync the file database first with sudo pacman -Fy)
 pacman -F WebKitWebDriver
 ```
-
-See the [Quick Start](./quick-start.md#linux) for the supported distributions.
 
 ### "MSEdgeDriver not found" (Windows only)
 

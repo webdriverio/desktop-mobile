@@ -81,7 +81,7 @@ export const config = {
     [
       '@wdio/tauri-service',
       {
-        driverProvider: 'embedded', // Auto-detected on macOS
+        driverProvider: 'embedded', // The default, so this line is optional
       },
     ],
   ],
@@ -90,7 +90,7 @@ export const config = {
     {
       browserName: 'tauri',
       'tauri:options': {
-        application: './src-tauri/target/release/my-app',
+        application: './src-tauri/target/debug/my-app',
       },
     },
   ],

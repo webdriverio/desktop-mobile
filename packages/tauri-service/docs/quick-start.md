@@ -52,7 +52,7 @@ Get up and running with WebdriverIO and Tauri E2E testing in minutes.
   sudo xbps-install -y libwebkit2gtk41
   ```
 
-- **Supported distributions** - Debian 12+, Ubuntu 22.04+, Fedora 40+, Arch Linux and Void Linux. Alpine isn't supported, because its musl C library can't build Tauri apps. Neither are CentOS Stream and RHEL: version 9's glib is too old, and version 10 drops WebKitGTK.
+- **Supported distributions** - Debian 12+, Ubuntu 22.04+, Fedora 40+, Arch Linux and Void Linux. See [Troubleshooting](./troubleshooting.md#webkitwebdriver-not-found-linux-only) for the ones that aren't.
 
 - **A display** - See [Linux Without a Display](#linux-without-a-display) for CI and other headless machines.
 
@@ -225,6 +225,8 @@ npm run tauri build -- --debug
 ```
 
 The binary is at `src-tauri/target/debug/my-app` (`my-app.exe` on Windows), named after your app in `Cargo.toml`.
+
+A release build works with the `external` provider, and with `crabnebula` on Windows and Linux. To test a release build with `embedded`, register the WebDriver plugin behind a feature flag instead, as [Plugin Setup](./plugin-setup.md#should-i-include-the-plugin-in-production) shows for `tauri-plugin-wdio`.
 
 ## WebdriverIO Installation
 
