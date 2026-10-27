@@ -1644,7 +1644,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // Helper Functions for Default Implementations
 // =============================================================================
 
-/// Extract string value from JavaScript result
 /// JS clicking `el` and focusing it, firing first any `change` a field owes from Send Keys if the
 /// click moves focus away from it.
 fn click_element_script(js_var: &str) -> String {
@@ -1754,6 +1753,7 @@ mod element_script_tests {
   }
 }
 
+/// Extract string value from JavaScript result
 fn extract_string_value(result: &Value) -> Result<String, WebDriverErrorResponse> {
   if let Some(success) = result.get("success").and_then(Value::as_bool) {
     if success {
