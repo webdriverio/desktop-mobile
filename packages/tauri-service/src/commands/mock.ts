@@ -117,8 +117,6 @@ export async function resetAllMocks(this: TauriServiceContext | undefined, comma
 
 export async function restoreAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
   const mocks = mockStore.getMocks();
-  // No bulk in-app clear: browser.execute runs in WebDriver's current window or frame, which needn't be
-  // where the mocks live. Each mockRestore unregisters by the same route its mock was registered by.
   const restoredCount = await runBulkMockOp(mocks, 'mockRestore', {
     matches: (name) => shouldProcessMock(name, commandPrefix),
   });
