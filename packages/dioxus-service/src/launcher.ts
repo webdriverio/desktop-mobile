@@ -112,7 +112,7 @@ export default class DioxusLaunchService extends BaseLauncher {
           // Unmanaged: preflight the user-started server before workers navigate to it.
           const reachable = await probeDevServerReachable(devServerUrl);
           if (isErr(reachable)) {
-            throw severeServiceError('', reachable.error);
+            throw severeServiceError(reachable.error);
           }
         }
         this.#browserMode = true;

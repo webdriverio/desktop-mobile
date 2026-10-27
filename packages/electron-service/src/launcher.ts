@@ -209,7 +209,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
           if (!this.#globalOptions.devServer && !probedUrls.has(devServerUrl)) {
             const reachable = await probeDevServerReachable(devServerUrl);
             if (isErr(reachable)) {
-              throw severeServiceError('', reachable.error);
+              throw severeServiceError(reachable.error);
             }
             probedUrls.add(devServerUrl);
           }
@@ -353,7 +353,7 @@ export default class ElectronLaunchService implements Services.ServiceInstance {
             }
           } catch (e) {
             log.error(String(e));
-            throw severeServiceError('', e);
+            throw severeServiceError(e);
           }
         }
 

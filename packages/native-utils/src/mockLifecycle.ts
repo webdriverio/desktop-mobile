@@ -1,4 +1,4 @@
-import { errorMessage } from './teardown.js';
+import { errorMessage } from './errors.js';
 
 export type MockLifecycleOp = 'mockClear' | 'mockReset' | 'mockRestore';
 

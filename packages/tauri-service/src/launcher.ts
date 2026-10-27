@@ -194,7 +194,7 @@ export default class TauriLaunchService {
           // Unmanaged: preflight the user-started server before workers navigate to it.
           const reachable = await probeDevServerReachable(devServerUrl);
           if (isErr(reachable)) {
-            throw severeServiceError('', reachable.error);
+            throw severeServiceError(reachable.error);
           }
         }
         this.browserMode = true;
