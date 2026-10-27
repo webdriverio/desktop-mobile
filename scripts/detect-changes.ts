@@ -23,6 +23,9 @@
  *   - .github/workflows/: core-infra list → all; meta list → none;
  *     actions/** → all; service token in filename → that service; else → unknown
  *   - scripts/: service token in filename → that service; else → all (cross-service tooling)
+ *   - pnpm-lock.yaml, when the base copy can be read: a changed importer is classified like its
+ *     package.json; an edited package or snapshot, or a catalog or other top-level change → all;
+ *     a package or snapshot that was only added or removed → none
  *   - root infra files (package.json, lockfile, turbo.json, tsconfig*…) → all
  *   - biome.jsonc, eslint.config.js → none (the lint job has no `if:` gate)
  *   - everything else (docs/, .claude/, dotfiles…) → none
@@ -36,6 +39,7 @@
  * mode that hid real gaps before (#330), so drift over-runs, never under-runs.
  */
 
+import { execFileSync } from 'node:child_process';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -123,14 +127,18 @@ export function buildServiceDependents(repoRoot: string, services: string[]): Re
   const wdioDepsByDir: Record<string, string[]> = {};
   for (const dir of fs.readdirSync(packagesDir)) {
     const pkgPath = path.join(packagesDir, dir, 'package.json');
-    if (!fs.existsSync(pkgPath)) continue;
+    if (!fs.existsSync(pkgPath)) {
+      continue;
+    }
     let pkg: { name?: string; dependencies?: Record<string, string>; devDependencies?: Record<string, string> };
     try {
       pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
     } catch {
       continue;
     }
-    if (pkg.name) dirByName[pkg.name] = dir;
+    if (pkg.name) {
+      dirByName[pkg.name] = dir;
+    }
     const deps = { ...pkg.dependencies, ...pkg.devDependencies };
     wdioDepsByDir[dir] = Object.keys(deps).filter((d) => d.startsWith('@wdio/'));
   }
@@ -148,11 +156,15 @@ export function buildServiceDependents(repoRoot: string, services: string[]): Re
   const dependents: Record<string, string[]> = {};
   for (const svc of services) {
     for (const sharedDir of closure(`${svc}-service`, new Set<string>())) {
-      if (!dependents[sharedDir]) dependents[sharedDir] = [];
+      if (!dependents[sharedDir]) {
+        dependents[sharedDir] = [];
+      }
       dependents[sharedDir].push(svc);
     }
   }
-  for (const dir of Object.keys(dependents)) dependents[dir].sort();
+  for (const dir of Object.keys(dependents)) {
+    dependents[dir].sort();
+  }
   return dependents;
 }
 
@@ -172,6 +184,260 @@ function serviceForToken(filename: string, services: string[]): string | undefin
   return services.filter((svc) => normalized.includes(`-${svc}-`)).sort((a, b) => b.length - a.length)[0];
 }
 
+const LOCKFILE_ENTRY_SECTIONS = new Set(['importers', 'packages', 'snapshots']);
+
+interface ParsedLockfile {
+  entries: Record<'importers' | 'packages' | 'snapshots', Map<string, string>>;
+  other: Map<string, string>;
+}
+
+interface LockfileEffect {
+  all: boolean;
+  unknown: boolean;
+  services: Set<string>;
+  sharedDirs: string[];
+}
+
+function unquoteLockKey(raw: string): string {
+  if (raw.length >= 2) {
+    const quote = raw[0];
+    if ((quote === "'" || quote === '"') && raw.endsWith(quote)) {
+      return raw.slice(1, -1);
+    }
+  }
+  return raw;
+}
+
+// Entry keys sit at two spaces: `key:` opens a block, and `key: {}` is pnpm's inline form for an entry with no body.
+function splitLockEntryLine(line: string): { key: string; inline: string } | undefined {
+  if (!line.startsWith('  ') || line.startsWith('   ')) {
+    return undefined;
+  }
+  const rest = line.slice(2).trimEnd();
+  let keyEnd: number;
+  if (rest.startsWith("'") || rest.startsWith('"')) {
+    keyEnd = rest.indexOf(rest[0] as string, 1) + 1;
+  } else {
+    const separator = rest.indexOf(': ');
+    keyEnd = separator === -1 ? rest.length - 1 : separator;
+  }
+  if (keyEnd <= 0 || rest[keyEnd] !== ':') {
+    return undefined;
+  }
+  return { key: unquoteLockKey(rest.slice(0, keyEnd)), inline: rest.slice(keyEnd + 1).trim() };
+}
+
+// pnpm-lock.yaml is two YAML documents, with entries under importers, packages and snapshots. The detect
+// job has no YAML parser, so this reads it line by line.
+function parseLockfile(text: string): ParsedLockfile {
+  const entries: ParsedLockfile['entries'] = {
+    importers: new Map(),
+    packages: new Map(),
+    snapshots: new Map(),
+  };
+  const other = new Map<string, string>();
+  let section: string | undefined;
+  let entryKey: string | undefined;
+  let entryLines: string[] = [];
+
+  const flushEntry = () => {
+    if (!section || !entryKey || !LOCKFILE_ENTRY_SECTIONS.has(section)) {
+      return;
+    }
+    const bucket = entries[section as 'importers' | 'packages' | 'snapshots'];
+    // Blank lines separate entries, so they mustn't count as part of the one they follow.
+    while (entryLines.at(-1)?.trim() === '') {
+      entryLines.pop();
+    }
+    const body = entryLines.join('\n');
+    const previous = bucket.get(entryKey);
+    bucket.set(entryKey, previous === undefined ? body : `${previous}\n${body}`);
+    entryKey = undefined;
+    entryLines = [];
+  };
+
+  for (const rawLine of text.split('\n')) {
+    const line = rawLine.endsWith('\r') ? rawLine.slice(0, -1) : rawLine;
+    if (line === '---' || line === '...') {
+      flushEntry();
+      section = undefined;
+      continue;
+    }
+    if (line.length > 0 && !line.startsWith(' ') && !line.startsWith('#')) {
+      flushEntry();
+      const colon = line.indexOf(':');
+      section = colon === -1 ? line : line.slice(0, colon);
+      if (!LOCKFILE_ENTRY_SECTIONS.has(section)) {
+        const previous = other.get(section);
+        other.set(section, previous === undefined ? line : `${previous}\n${line}`);
+      }
+      continue;
+    }
+    if (!section) {
+      continue;
+    }
+    if (LOCKFILE_ENTRY_SECTIONS.has(section)) {
+      const entry = splitLockEntryLine(line);
+      if (entry) {
+        flushEntry();
+        entryKey = entry.key;
+        if (entry.inline) {
+          entryLines.push(entry.inline);
+        }
+        continue;
+      }
+      if (entryKey) {
+        entryLines.push(line);
+      }
+      continue;
+    }
+    const previous = other.get(section) ?? '';
+    other.set(section, previous ? `${previous}\n${line}` : line);
+  }
+  flushEntry();
+  return { entries, other };
+}
+
+function looksLikeLockfile(text: string): boolean {
+  return text.includes('lockfileVersion:') && text.includes('\nimporters:');
+}
+
+function canonicalLockfile(parsed: ParsedLockfile): string {
+  const dump = (map: Map<string, string>) =>
+    [...map.entries()]
+      .sort(([a], [b]) => {
+        if (a < b) {
+          return -1;
+        }
+        if (a > b) {
+          return 1;
+        }
+        return 0;
+      })
+      .map(([key, body]) => `${key}\n${body}`)
+      .join('\n');
+  return [
+    dump(parsed.other),
+    dump(parsed.entries.importers),
+    dump(parsed.entries.packages),
+    dump(parsed.entries.snapshots),
+  ].join('\n---\n');
+}
+
+function classifyImporterPath(importer: string, services: string[]): Verdict {
+  if (importer === '.' || importer === 'e2e') {
+    return 'all';
+  }
+  const asFile =
+    importer.startsWith('packages/') || importer.startsWith('fixtures/') ? `${importer}/package.json` : undefined;
+  if (!asFile) {
+    return 'all';
+  }
+  const verdict = classifyFile(asFile, services);
+  if (verdict === 'none' || verdict === 'unknown') {
+    return 'all';
+  }
+  return verdict;
+}
+
+function classifyLockfile(base: string, head: string, services: string[]): LockfileEffect {
+  const effect: LockfileEffect = { all: false, unknown: false, services: new Set(), sharedDirs: [] };
+  if (!looksLikeLockfile(base) || !looksLikeLockfile(head)) {
+    effect.all = true;
+    effect.unknown = true;
+    return effect;
+  }
+  const parsedBase = parseLockfile(base);
+  const parsedHead = parseLockfile(head);
+
+  for (const name of new Set([...parsedBase.other.keys(), ...parsedHead.other.keys()])) {
+    if ((parsedBase.other.get(name) ?? '') !== (parsedHead.other.get(name) ?? '')) {
+      effect.all = true;
+    }
+  }
+
+  for (const key of new Set([...parsedBase.entries.importers.keys(), ...parsedHead.entries.importers.keys()])) {
+    if (parsedBase.entries.importers.get(key) === parsedHead.entries.importers.get(key)) {
+      continue;
+    }
+    const verdict = classifyImporterPath(key, services);
+    if (verdict === 'all' || verdict === 'unknown') {
+      effect.all = true;
+    } else if (verdict === 'shared') {
+      const dir = key.split('/')[1];
+      if (dir) {
+        effect.sharedDirs.push(dir);
+      }
+    } else {
+      effect.services.add(verdict);
+    }
+  }
+
+  // Only in-place edits count. Anything that uses a newly added package also changes an importer or an
+  // existing snapshot, which is classified.
+  for (const section of ['packages', 'snapshots'] as const) {
+    const baseEntries = parsedBase.entries[section];
+    const headEntries = parsedHead.entries[section];
+    for (const key of new Set([...baseEntries.keys(), ...headEntries.keys()])) {
+      if (baseEntries.has(key) && headEntries.has(key) && baseEntries.get(key) !== headEntries.get(key)) {
+        effect.all = true;
+      }
+    }
+  }
+
+  // The text changed but no entry the reader understands did, so it can't place the change: run everything.
+  if (
+    !effect.all &&
+    effect.services.size === 0 &&
+    effect.sharedDirs.length === 0 &&
+    base !== head &&
+    canonicalLockfile(parsedBase) === canonicalLockfile(parsedHead)
+  ) {
+    effect.all = true;
+    effect.unknown = true;
+  }
+  return effect;
+}
+
+function lockfileVerdict(effect: LockfileEffect): Verdict {
+  if (effect.unknown) {
+    return 'unknown';
+  }
+  if (effect.all) {
+    return 'all';
+  }
+  if (effect.sharedDirs.length > 0) {
+    return 'shared';
+  }
+  if (effect.services.size === 1) {
+    return [...effect.services][0] as string;
+  }
+  if (effect.services.size === 0) {
+    return 'none';
+  }
+  return [...effect.services].sort().join(',');
+}
+
+function readLockfilePair(files: string[]): { base: string; head: string } | undefined {
+  if (!files.includes('pnpm-lock.yaml')) {
+    return undefined;
+  }
+  const baseRef = process.env.LOCKFILE_BASE ?? '';
+  // Reject anything that isn't a plain ref, and a new branch's all-zero before-sha.
+  if (!/^[A-Za-z0-9._/-]+$/.test(baseRef) || baseRef.startsWith('-') || /^0+$/.test(baseRef)) {
+    return undefined;
+  }
+  try {
+    const base = execFileSync('git', ['show', `${baseRef}:pnpm-lock.yaml`], {
+      encoding: 'utf8',
+      maxBuffer: 32 * 1024 * 1024,
+    });
+    return { base, head: fs.readFileSync('pnpm-lock.yaml', 'utf8') };
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Classify one changed file.
  * Returns: 'none' | 'shared' | 'all' | a service name.
@@ -186,7 +452,9 @@ export function classifyFile(file: string, services: string[]): Verdict {
   const pkg = file.match(/^packages\/([^/]+)\//);
   if (pkg) {
     const dir = pkg[1];
-    if (SHARED_PACKAGES.has(dir) || SHARED_PACKAGE_PREFIXES.some((p) => dir.startsWith(p))) return 'shared';
+    if (SHARED_PACKAGES.has(dir) || SHARED_PACKAGE_PREFIXES.some((p) => dir.startsWith(p))) {
+      return 'shared';
+    }
     return serviceForDir(dir, services) ?? 'unknown';
   }
 
@@ -194,33 +462,55 @@ export function classifyFile(file: string, services: string[]): Verdict {
     const test = file.match(/^e2e\/test\/([^/]+)\//);
     // serviceForDir (not exact match) so suffixed dirs like `dioxus-browser`
     // route to their service — mirrors the wdio.<svc>-*.conf.ts rule below.
-    if (test) return serviceForDir(test[1], services) ?? 'all';
+    if (test) {
+      return serviceForDir(test[1], services) ?? 'all';
+    }
     const conf = file.match(/^e2e\/wdio\.([^/]+)\.conf\.ts$/);
-    if (conf) return serviceForDir(conf[1], services) ?? 'all';
+    if (conf) {
+      return serviceForDir(conf[1], services) ?? 'all';
+    }
     return 'all';
   }
 
   const fixture = file.match(/^fixtures\/(?:e2e-apps|package-tests)\/([^/]+)\//);
-  if (fixture) return serviceForDir(fixture[1], services) ?? 'unknown';
-  if (file.startsWith('fixtures/')) return 'unknown';
+  if (fixture) {
+    return serviceForDir(fixture[1], services) ?? 'unknown';
+  }
+  if (file.startsWith('fixtures/')) {
+    return 'unknown';
+  }
 
-  if (file.startsWith('.github/workflows/actions/')) return 'all';
+  if (file.startsWith('.github/workflows/actions/')) {
+    return 'all';
+  }
   if (file.startsWith('.github/workflows/')) {
     const name = path.basename(file);
-    if (CORE_INFRA_WORKFLOWS.has(name)) return 'all';
-    if (META_WORKFLOWS.has(name)) return 'none';
+    if (CORE_INFRA_WORKFLOWS.has(name)) {
+      return 'all';
+    }
+    if (META_WORKFLOWS.has(name)) {
+      return 'none';
+    }
     return serviceForToken(name, services) ?? 'unknown';
   }
-  if (file.startsWith('.github/')) return 'none';
+  if (file.startsWith('.github/')) {
+    return 'none';
+  }
 
   if (file.startsWith('scripts/')) {
     return serviceForToken(path.basename(file), services) ?? 'all';
   }
 
   if (!file.includes('/')) {
-    if (LINT_ONLY_FILES.has(file)) return 'none';
-    if (ROOT_INFRA_FILES.has(file)) return 'all';
-    if (file.startsWith('tsconfig') && file.endsWith('.json')) return 'all';
+    if (LINT_ONLY_FILES.has(file)) {
+      return 'none';
+    }
+    if (ROOT_INFRA_FILES.has(file)) {
+      return 'all';
+    }
+    if (file.startsWith('tsconfig') && file.endsWith('.json')) {
+      return 'all';
+    }
   }
 
   return 'none';
@@ -234,15 +524,29 @@ export function classifyFile(file: string, services: string[]): Verdict {
  * (over-run, never silently under-run).
  */
 function affectedServices(dir: string, services: string[], dependents: Record<string, string[]>): string[] {
-  if (TYPES_ONLY_PACKAGES.has(dir)) return [];
-  if (SHARED_PACKAGES.has(dir)) return services;
+  if (TYPES_ONLY_PACKAGES.has(dir)) {
+    return [];
+  }
+  if (SHARED_PACKAGES.has(dir)) {
+    return services;
+  }
   return dependents[dir]?.length ? dependents[dir] : services;
 }
 
 export function classifyChanges(
   files: string[],
   services: string[],
-  { forceAll = false, releaseCommit = false, dependents = {} as Record<string, string[]> } = {},
+  {
+    forceAll = false,
+    releaseCommit = false,
+    dependents = {} as Record<string, string[]>,
+    lockfile,
+  }: {
+    forceAll?: boolean;
+    releaseCommit?: boolean;
+    dependents?: Record<string, string[]>;
+    lockfile?: { base: string; head: string };
+  } = {},
 ): Classification {
   const runs: Record<string, boolean> = Object.fromEntries(services.map((svc) => [svc, false]));
   let sharedChanges = false;
@@ -254,7 +558,9 @@ export function classifyChanges(
   const sharedDetail: Array<{ file: string; pkg: string; services: string[]; typesOnly: boolean }> = [];
 
   if (forceAll) {
-    for (const svc of services) runs[svc] = true;
+    for (const svc of services) {
+      runs[svc] = true;
+    }
     return { runs, sharedChanges: true, lintOnly: false, triggersAll, unknownFiles, sharedDetail, perFile: [] };
   }
 
@@ -264,21 +570,71 @@ export function classifyChanges(
 
   const perFile: Array<{ file: string; verdict: Verdict }> = [];
   for (const file of files) {
+    if (file === 'pnpm-lock.yaml') {
+      if (!lockfile) {
+        perFile.push({ file, verdict: 'all' });
+        triggersAll.push(file);
+        for (const svc of services) {
+          runs[svc] = true;
+        }
+        continue;
+      }
+      const effect = classifyLockfile(lockfile.base, lockfile.head, services);
+      if (effect.all) {
+        if (effect.unknown) {
+          unknownFiles.push(file);
+        } else {
+          triggersAll.push(file);
+        }
+        for (const svc of services) {
+          runs[svc] = true;
+        }
+      }
+      for (const dir of effect.sharedDirs) {
+        sharedChanges = true;
+        const affected = affectedServices(dir, services, dependents);
+        for (const svc of affected) {
+          runs[svc] = true;
+        }
+        sharedDetail.push({ file, pkg: dir, services: affected, typesOnly: TYPES_ONLY_PACKAGES.has(dir) });
+      }
+      for (const svc of effect.services) {
+        if (services.includes(svc)) {
+          runs[svc] = true;
+        } else {
+          unknownFiles.push(file);
+          for (const every of services) {
+            runs[every] = true;
+          }
+        }
+      }
+      perFile.push({ file, verdict: lockfileVerdict(effect) });
+      continue;
+    }
     const verdict = classifyFile(file, services);
     perFile.push({ file, verdict });
-    if (verdict === 'none') continue;
+    if (verdict === 'none') {
+      continue;
+    }
     if (verdict === 'shared') {
       // A shared-package change always needs build/unit (sharedChanges keeps it off the lint-only
       // path below); affectedServices decides which services' E2E it can actually affect at runtime.
       sharedChanges = true;
       const dir = (file.match(/^packages\/([^/]+)\//) as RegExpMatchArray)[1];
       const affected = affectedServices(dir, services, dependents);
-      for (const svc of affected) runs[svc] = true;
+      for (const svc of affected) {
+        runs[svc] = true;
+      }
       sharedDetail.push({ file, pkg: dir, services: affected, typesOnly: TYPES_ONLY_PACKAGES.has(dir) });
     } else if (verdict === 'all' || verdict === 'unknown') {
-      if (verdict === 'all') triggersAll.push(file);
-      else unknownFiles.push(file);
-      for (const svc of services) runs[svc] = true;
+      if (verdict === 'all') {
+        triggersAll.push(file);
+      } else {
+        unknownFiles.push(file);
+      }
+      for (const svc of services) {
+        runs[svc] = true;
+      }
     } else {
       runs[verdict] = true;
     }
@@ -293,7 +649,9 @@ export function classifyChanges(
 
 function appendFile(envVar: string, content: string): void {
   const target = process.env[envVar];
-  if (target) fs.appendFileSync(target, content);
+  if (target) {
+    fs.appendFileSync(target, content);
+  }
 }
 
 function main(): void {
@@ -302,15 +660,18 @@ function main(): void {
   const releaseCommit = process.env.RELEASE_COMMIT === 'true';
   const services = discoverServices(process.cwd());
   const dependents = buildServiceDependents(process.cwd(), services);
+  const lockfile = readLockfilePair(files);
 
   const { runs, sharedChanges, lintOnly, triggersAll, unknownFiles, sharedDetail, perFile } = classifyChanges(
     files,
     services,
-    { forceAll, releaseCommit, dependents },
+    { forceAll, releaseCommit, dependents, lockfile },
   );
 
   let output = '';
-  for (const [svc, run] of Object.entries(runs)) output += `run_${svc}=${run}\n`;
+  for (const [svc, run] of Object.entries(runs)) {
+    output += `run_${svc}=${run}\n`;
+  }
   output += `runs=${JSON.stringify(runs)}\n`;
   output += `has_shared_changes=${sharedChanges}\n`;
   output += `run_lint_only=${lintOnly}\n`;
@@ -320,7 +681,9 @@ function main(): void {
   summary += forceAll ? '**Force-all mode** — running everything.\n\n' : '';
   summary += releaseCommit && !forceAll ? '**Release commit** — lint only.\n\n' : '';
   summary += '| Service | Run |\n|---------|-----|\n';
-  for (const [svc, run] of Object.entries(runs)) summary += `| ${svc} | ${run} |\n`;
+  for (const [svc, run] of Object.entries(runs)) {
+    summary += `| ${svc} | ${run} |\n`;
+  }
   summary += `\n- Shared package changes: ${sharedChanges}\n- Lint only: ${lintOnly}\n`;
   if (sharedDetail.length > 0) {
     summary += '\n### Shared package changes (narrowed to runtime dependents)\n\n';
@@ -332,18 +695,24 @@ function main(): void {
   }
   if (triggersAll.length > 0) {
     summary += '\n### Core infra / cross-service changes (run all pipelines)\n\n';
-    for (const file of triggersAll) summary += `- \`${file}\`\n`;
+    for (const file of triggersAll) {
+      summary += `- \`${file}\`\n`;
+    }
   }
   if (unknownFiles.length > 0) {
     summary += '\n### ⚠️ Unclassified files (running all pipelines defensively)\n\n';
     summary += 'No naming-convention rule places these — possible convention drift. ';
     summary += 'Either rename to match the conventions or teach `scripts/detect-changes.ts` about them:\n\n';
-    for (const file of unknownFiles) summary += `- \`${file}\`\n`;
+    for (const file of unknownFiles) {
+      summary += `- \`${file}\`\n`;
+    }
   }
   appendFile('GITHUB_STEP_SUMMARY', summary);
 
   console.log(`services: ${services.join(', ')}`);
-  for (const { file, verdict } of perFile) console.log(`  ${verdict.padEnd(7)} ${file}`);
+  for (const { file, verdict } of perFile) {
+    console.log(`  ${verdict.padEnd(7)} ${file}`);
+  }
   console.log(output.trimEnd());
 }
 
