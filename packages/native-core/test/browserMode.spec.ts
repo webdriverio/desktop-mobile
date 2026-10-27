@@ -208,16 +208,54 @@ describe('startManagedDevServer', () => {
       isCI: false,
     });
 
-    vi.stubGlobal('fetch', reachable());
-    await expect(
-      startManagedDevServer('pnpm dev', `${url}/`, {
-        spawn,
-        probe: async () => true,
-        isCI: false,
-      }),
-    ).rejects.toThrow(/devServerUrl.*separate processes/);
+    try {
+      vi.stubGlobal('fetch', reachable());
+      await expect(
+        startManagedDevServer('pnpm dev', `${url}/index.html`, {
+          spawn,
+          probe: async () => true,
+          isCI: false,
+        }),
+      ).rejects.toThrow(/devServerUrl without devServer.*separate processes/);
+    } finally {
+      await first.stop();
+    }
+  });
 
-    await first.stop();
+  it('should reject a concurrent start at the same URL in CI, where it would spawn a second server', async () => {
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const first = await startManagedDevServer('pnpm dev', url, { spawn, probe: async () => true, isCI: true });
+
+    try {
+      await expect(
+        startManagedDevServer('pnpm dev', url, { spawn, probe: async () => true, isCI: true }),
+      ).rejects.toThrow(/still in use by another session/);
+      expect(spawn).toHaveBeenCalledTimes(1);
+    } finally {
+      await first.stop();
+    }
+  });
+
+  it('should let only one of two sessions starting at once claim the same URL', async () => {
+    vi.stubGlobal('fetch', unreachable());
+    const spawn = vi.fn(() => fakeChild()) as never;
+    const deps = { spawn, probe: async () => true, isCI: false };
+
+    const [a, b] = await Promise.allSettled([
+      startManagedDevServer('pnpm dev', url, deps),
+      startManagedDevServer('pnpm dev', url, deps),
+    ]);
+
+    const started = [a, b].filter((result) => result.status === 'fulfilled');
+    try {
+      expect(started).toHaveLength(1);
+      expect([a, b].filter((result) => result.status === 'rejected')).toHaveLength(1);
+      expect(spawn).toHaveBeenCalledTimes(1);
+    } finally {
+      for (const result of started) {
+        await result.value.stop();
+      }
+    }
   });
 
   it('should allow starting again at the same URL after the owning managed server stops', async () => {
@@ -235,8 +273,11 @@ describe('startManagedDevServer', () => {
       probe: async () => true,
       isCI: false,
     });
-    expect(spawn).toHaveBeenCalledTimes(2);
-    await second.stop();
+    try {
+      expect(spawn).toHaveBeenCalledTimes(2);
+    } finally {
+      await second.stop();
+    }
   });
 
   it('should allow concurrent managed servers on different URLs', async () => {
@@ -247,14 +288,19 @@ describe('startManagedDevServer', () => {
       probe: async () => true,
       isCI: false,
     });
-    const second = await startManagedDevServer('pnpm dev', 'http://localhost:1421', {
-      spawn,
-      probe: async () => true,
-      isCI: false,
-    });
-
-    expect(spawn).toHaveBeenCalledTimes(2);
-    await first.stop();
-    await second.stop();
+    try {
+      const second = await startManagedDevServer('pnpm dev', 'http://localhost:1421', {
+        spawn,
+        probe: async () => true,
+        isCI: false,
+      });
+      try {
+        expect(spawn).toHaveBeenCalledTimes(2);
+      } finally {
+        await second.stop();
+      }
+    } finally {
+      await first.stop();
+    }
   });
 });

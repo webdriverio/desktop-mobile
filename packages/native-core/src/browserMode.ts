@@ -64,14 +64,25 @@ export async function probeDevServerReachable(
 const DEV_SERVER_READY_TIMEOUT_MS = 60_000;
 const DEV_SERVER_READY_POLL_MS = 500;
 
+// Origins of the dev servers this process started and hasn't stopped. A second session can't share
+// one, because the first session's cleanup stops it.
 const activeManagedServers = new Set<string>();
 
-function trimTrailingSlashes(url: string): string {
-  let end = url.length;
-  while (end > 0 && url.charCodeAt(end - 1) === 47) {
-    end -= 1;
+function originOf(url: string): string {
+  try {
+    return new URL(url).origin;
+  } catch {
+    return url;
   }
-  return end === url.length ? url : url.slice(0, end);
+}
+
+function assertNotInUse(origin: string, url: string): void {
+  if (activeManagedServers.has(origin)) {
+    throw new Error(
+      `A dev server this process started at ${url} is still in use by another session. ` +
+        'To share one dev server, start it yourself and pass devServerUrl without devServer, or run the sessions in separate processes.',
+    );
+  }
 }
 
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -137,22 +148,18 @@ export async function startManagedDevServer(
   const config = typeof devServer === 'string' ? { command: devServer } : devServer;
   const isCI = deps.isCI ?? Boolean(process.env.CI);
   const reuseExisting = config.reuseExistingServer ?? !isCI;
-  const resolvedUrl = trimTrailingSlashes(devServerUrl);
-  if (reuseExisting) {
-    if (activeManagedServers.has(resolvedUrl)) {
-      throw new Error(
-        `Managed dev server at ${devServerUrl} is already owned by an active session in this process. ` +
-          'Share an external server via devServerUrl (without devServer), or run concurrent sessions in separate processes.',
-      );
-    }
-    if (isOk(await probeDevServerReachable(devServerUrl))) {
-      log.info(`Reusing dev server already reachable at ${devServerUrl}`);
-      return { url: devServerUrl, stop: async () => {} };
-    }
+  const origin = originOf(devServerUrl);
+  assertNotInUse(origin, devServerUrl);
+  const reachable = reuseExisting && isOk(await probeDevServerReachable(devServerUrl));
+  // Again after the await: another session may have started a server here in the meantime.
+  assertNotInUse(origin, devServerUrl);
+  if (reachable) {
+    log.info(`Reusing dev server already reachable at ${devServerUrl}`);
+    return { url: devServerUrl, stop: async () => {} };
   }
 
   const proc = new DevServerProcess({ spawn: deps.spawn, probe: deps.probe });
-  activeManagedServers.add(resolvedUrl);
+  activeManagedServers.add(origin);
   try {
     await proc.start({
       command: config.command,
@@ -162,10 +169,13 @@ export async function startManagedDevServer(
       timeoutMs: config.timeoutMs,
     });
   } catch (error) {
-    activeManagedServers.delete(resolvedUrl);
     // start() can throw *after* the process spawned (readiness timeout) — stop the live-but-unready
     // process before propagating, or it orphans (holding the port). Mirrors the function form's close().
-    await proc.stop();
+    try {
+      await proc.stop();
+    } finally {
+      activeManagedServers.delete(origin);
+    }
     throw error;
   }
   return {
@@ -174,7 +184,7 @@ export async function startManagedDevServer(
       try {
         await proc.stop();
       } finally {
-        activeManagedServers.delete(resolvedUrl);
+        activeManagedServers.delete(origin);
       }
     },
   };
