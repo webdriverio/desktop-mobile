@@ -28,20 +28,23 @@ vi.mock('../src/commands/execute.js', () => ({
 import { execute as tauriExecute } from '../src/commands/execute.js';
 import { createMock } from '../src/mock.js';
 import mockStore from '../src/mockStore.js';
+import { clearWindowState, setCurrentWindowLabel } from '../src/window.js';
 
 const mockExecute = vi.mocked(tauriExecute);
 
 function makeBrowser(): WebdriverIO.Browser {
-  return { isMultiremote: false } as unknown as WebdriverIO.Browser;
+  return { isMultiremote: false, sessionId: 'test-session' } as unknown as WebdriverIO.Browser;
 }
 
 beforeEach(() => {
   vi.clearAllMocks();
+  clearWindowState();
   mockExecute.mockResolvedValue(undefined);
 });
 
 afterEach(() => {
   vi.clearAllMocks();
+  clearWindowState();
 });
 
 describe('createMock', () => {
@@ -358,6 +361,77 @@ describe('createMock', () => {
       mockExecute.mockResolvedValueOnce({ calls: [], results: [], invocationCallOrder: [] });
       const result = await wrapper.update();
       expect(result).toBeDefined();
+    });
+  });
+
+  describe('window routing (#852)', () => {
+    it('routes every mock operation to the window the mock was registered in after switchWindow', async () => {
+      const browser = makeBrowser();
+      const mock = await createMock('read_clipboard', browser);
+
+      // Switch session window to 'settings' after registering the mock in 'main'
+      setCurrentWindowLabel(browser, 'settings');
+      mockExecute.mockClear();
+
+      await mock.mockReturnValue('clip');
+      await mock.mockReturnValueOnce('clip-once');
+      await mock.mockResolvedValue('res');
+      await mock.mockResolvedValueOnce('res-once');
+      await mock.mockRejectedValue(new Error('err'));
+      await mock.mockRejectedValueOnce(new Error('err-once'));
+      await mock.mockImplementation(() => 'impl');
+      await mock.mockImplementationOnce(() => 'impl-once');
+      await mock.mockReturnThis();
+      mockExecute.mockResolvedValueOnce({ calls: [], results: [], invocationCallOrder: [] });
+      await mock.update();
+      await mock.mockClear();
+      await mock.mockReset();
+      mockExecute.mockResolvedValueOnce('cb-result');
+      await mock.withImplementation(
+        () => 'temp',
+        () => 'cb-result',
+      );
+      await mock.mockRestore();
+
+      expect(mockExecute).toHaveBeenCalledTimes(14);
+      for (const call of mockExecute.mock.calls) {
+        expect(call[0]).toBe(browser);
+        expect(call[2]).toEqual({ windowLabel: 'main', __wdioOptions__: true });
+      }
+    });
+
+    it('records the window label returned by the registration script when no explicit session label is set', async () => {
+      const browser = makeBrowser();
+      mockExecute.mockResolvedValueOnce('popup');
+
+      const mock = await createMock('read_clipboard', browser);
+      setCurrentWindowLabel(browser, 'settings');
+      mockExecute.mockClear();
+
+      await mock.mockReturnValue('from-popup');
+      await mock.mockRestore();
+
+      expect(mockExecute).toHaveBeenCalledTimes(2);
+      for (const call of mockExecute.mock.calls) {
+        expect(call[2]).toEqual({ windowLabel: 'popup', __wdioOptions__: true });
+      }
+    });
+
+    it('uses the explicit session window label at registration when registration returns undefined', async () => {
+      const browser = makeBrowser();
+      setCurrentWindowLabel(browser, 'settings');
+
+      const mock = await createMock('read_clipboard', browser);
+      setCurrentWindowLabel(browser, 'main');
+      mockExecute.mockClear();
+
+      await mock.mockReturnValue('from-settings');
+      await mock.mockRestore();
+
+      expect(mockExecute).toHaveBeenCalledTimes(2);
+      for (const call of mockExecute.mock.calls) {
+        expect(call[2]).toEqual({ windowLabel: 'settings', __wdioOptions__: true });
+      }
     });
   });
 });
