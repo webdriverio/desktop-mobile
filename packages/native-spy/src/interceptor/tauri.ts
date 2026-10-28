@@ -138,7 +138,8 @@ ${WDIO_MOCK_SETUP_SCRIPT}
       window.__TAURI_INTERNALS__.runCallback(entry.handlerId, {
         event: eventName,
         id: Number(ids[i]),
-        payload: payload
+        // Tauri delivers a missing payload as null
+        payload: payload === undefined ? null : payload
       });
     }
   };

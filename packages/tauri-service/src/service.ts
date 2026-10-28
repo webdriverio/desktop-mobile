@@ -551,10 +551,21 @@ export default class TauriWorkerService {
         payload?: T,
         target?: string | TauriEventTarget,
       ): Promise<void> => {
-        const mrBrowser = isMultiremote(browser) ? (browser as unknown as WebdriverIO.MultiRemoteBrowser) : undefined;
-        const sessions = mrBrowser ? mrBrowser.instances.map((name) => mrBrowser.getInstance(name)) : [browser];
-        await Promise.all(sessions.map((session) => emitTauriEvent(session, browserMode, eventName, payload, target)));
+        const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+        const sessions = isMultiremote(browser)
+          ? mrBrowser.instances.map((name) => mrBrowser.getInstance(name))
+          : [browser];
+        const results = await Promise.allSettled(
+          sessions.map((session) => emitTauriEvent(session, browserMode, eventName, payload, target)),
+        );
+        // Sync the mocks the delivered emits triggered before reporting any that failed
         await getMockUpdateScheduler(browser).schedule();
+        const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []));
+        if (failures.length > 0) {
+          throw failures.length === 1
+            ? failures[0]
+            : new AggregateError(failures, `emitEvent('${eventName}') failed on ${failures.length} instances`);
+        }
       },
     };
   }
@@ -838,22 +849,15 @@ async function emitTauriEvent(
   // user's mocks, so a spy on these commands can't swallow the test's own emit
   await execute(
     browser,
-    (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) => {
-      const internals = (
+    (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) =>
+      (
         globalThis as unknown as {
-          __TAURI_INTERNALS__?: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<unknown> };
+          __TAURI_INTERNALS__: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<unknown> };
         }
-      ).__TAURI_INTERNALS__;
-      if (!internals) {
-        throw new Error('Tauri IPC is not available in this window');
-      }
-      return internals.invoke(cmd, cmdArgs);
-    },
+      ).__TAURI_INTERNALS__.invoke(cmd, cmdArgs),
     command,
     args,
   );
-  // Tauri runs the listeners apart from the IPC reply; a round trip lets them run before mocks sync
-  await execute(browser, () => undefined);
 }
 
 function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateScheduler {

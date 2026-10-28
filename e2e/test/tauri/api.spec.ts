@@ -125,11 +125,25 @@ describe('Tauri API', () => {
       browser.tauri.execute(() => (globalThis as unknown as EventTestGlobals).__wdioEvents ?? []);
 
     afterEach(async () => {
+      await browser.tauri.restoreAllMocks('plugin:event|');
       await browser.tauri.execute(() => {
         const g = globalThis as unknown as EventTestGlobals;
         g.__wdioUnlisten?.();
         g.__wdioUnlisten = undefined;
       });
+    });
+
+    it("should reach listeners while plugin:event|emit is mocked, without the mock seeing the test's emit", async () => {
+      const emitMock = await browser.tauri.mock('plugin:event|emit');
+      await listen('wdio:test-emit-mocked');
+      await browser.tauri.emitEvent('wdio:test-emit-mocked', { mocked: true });
+
+      await browser.waitUntil(async () => (await receivedEvents()).length > 0, {
+        timeout: 5000,
+        timeoutMsg: 'expected the listener to receive the event while plugin:event|emit is mocked',
+      });
+      expect(await receivedEvents()).toEqual([{ mocked: true }]);
+      expect(emitMock).toHaveBeenCalledTimes(0);
     });
 
     it('should emit an event to listeners when target is omitted', async () => {

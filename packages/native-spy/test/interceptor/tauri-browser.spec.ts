@@ -250,6 +250,20 @@ describe('TauriAdapter browser-mode events', () => {
     expect(typeof ev.id).toBe('number');
   });
 
+  it('should deliver a missing payload as null, as Tauri does', async () => {
+    const window = setup();
+    const received: unknown[] = [];
+    const handlerId = window.__TAURI_INTERNALS__.transformCallback((data) => received.push(data));
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|listen', {
+      event: 'foo',
+      target: { kind: 'Any' },
+      handler: handlerId,
+    });
+    window.__wdio_emit_tauri_event__('foo');
+    await window.__TAURI_INTERNALS__.invoke('plugin:event|emit', { event: 'foo' });
+    expect(received.map((ev) => (ev as { payload: unknown }).payload)).toEqual([null, null]);
+  });
+
   it('should remove the listener via plugin:event|unlisten', async () => {
     const window = setup();
     const received: unknown[] = [];
