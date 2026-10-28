@@ -106,14 +106,13 @@ pub fn is_modifier_key(key: &str) -> bool {
   matches!(map_special_key(key), Some(("Shift" | "Control" | "Alt" | "Meta", _, _)))
 }
 
-/// The `KeyboardEvent.code` a US keyboard sends for a printable character, or `""` for one it has
-/// no key for.
+/// The `KeyboardEvent.code` of a printable character's US-keyboard key, or `""` without one.
 pub fn regular_key_code_for(key: &str) -> String {
   single_char(key).and_then(us_keyboard_key).map(|(code, _)| code).unwrap_or_default()
 }
 
-/// The legacy `keyCode` a browser sends for a printable character on a US keyboard: the key's
-/// virtual-key code (65 for `a` and `A`), or 0 for a character the keyboard has no key for.
+/// The legacy `keyCode` a browser sends for a printable character: its US-keyboard key's
+/// virtual-key code (65 for `a` and `A`), or 0 without one.
 pub fn regular_key_code_number(key: &str) -> u32 {
   single_char(key).and_then(us_keyboard_key).map_or(0, |(_, key_code)| key_code)
 }
@@ -226,8 +225,8 @@ pub fn build_regular_key_script(
   build_printable_key_script(key, code, regular_key_code_number(key), is_down, modifiers)
 }
 
-/// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys whose
-/// `keyCode` differs from the main keyboard key's (e.g. Numpad5 is 101, not 53).
+/// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys that don't
+/// share the main key's (Numpad5 is 101, not 53).
 pub fn build_printable_key_script(
   key: &str,
   code: &str,
@@ -876,7 +875,7 @@ mod tests {
   }
 
   #[test]
-  fn letters_no_longer_share_numpad_and_function_key_codes() {
+  fn letters_dont_share_numpad_or_function_key_codes() {
     let special_codes: Vec<u32> = special_key_range()
       .filter_map(|ch| map_special_key(&ch.to_string()))
       .map(|(_, _, key_code)| key_code)
