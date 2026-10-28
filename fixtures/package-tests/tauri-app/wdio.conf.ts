@@ -88,8 +88,8 @@ export const config = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
-  // The app's clipboard crate needs X11.
-  displayServer: 'xvfb',
+  // Allows the Ubuntu docker test to select wayland for its Weston run (see docker/container-test.sh)
+  displayServer: process.env.DISPLAY_SERVER,
   // Output directory for logs
   outputDir: path.join(__dirname, 'logs'),
   services: [

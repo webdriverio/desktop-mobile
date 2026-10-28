@@ -509,14 +509,14 @@ On WebdriverIO v9, the Linux tests also need `xvfb-run`; see [Linux Without a Di
 
 ### Linux Without a Display
 
-Install Xvfb:
+Install Xvfb or Weston:
 
 ```bash
-sudo apt-get install -y xvfb              # Debian/Ubuntu
-sudo dnf install -y xorg-x11-server-Xvfb  # Fedora
+sudo apt-get install -y xvfb              # Debian/Ubuntu, or: weston
+sudo dnf install -y xorg-x11-server-Xvfb  # Fedora, or: weston
 ```
 
-With WebdriverIO v10 you don't need a wrapper: when no display is set, WebdriverIO starts a display server before the service starts your app. It tries Weston first, and the service is only tested on Xvfb, so set `displayServer: 'xvfb'`:
+With WebdriverIO v10 you don't need a wrapper or any config: when no display is set, WebdriverIO starts a display server before the service starts your app, Weston if it's installed and Xvfb otherwise. The `embedded` and `external` providers are tested on both. If your app has X11-only dependencies, set `displayServer: 'xvfb'` so WebdriverIO doesn't pick Weston:
 
 ```typescript
 export const config = {

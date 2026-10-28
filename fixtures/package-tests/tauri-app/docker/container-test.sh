@@ -163,4 +163,25 @@ if [ -n "$XVFB_PID" ]; then
     kill $XVFB_PID 2>/dev/null || true
 fi
 
+# Run the tests again on Weston for images which have it installed
+if command -v weston > /dev/null; then
+    for provider in embedded external; do
+        echo "=== Running Tauri package test ($provider) on Weston ==="
+        conf=wdio.conf.ts
+        if [ "$provider" = embedded ]; then
+            conf=wdio.embedded.conf.ts
+        fi
+        rm -rf /workspace/fixtures/package-tests/tauri-app/logs
+        set +e
+        env -u DISPLAY DISPLAY_SERVER=wayland npx wdio run "$conf"
+        WESTON_EXIT=$?
+        set -e
+        echo "=== Weston $provider exit code: $WESTON_EXIT ==="
+        cp -r /workspace/fixtures/package-tests/tauri-app/logs "/workspace/logs-output/weston-$provider" 2>/dev/null || echo 'No Weston logs to copy'
+        if [ "$TEST_EXIT" -eq 0 ]; then
+            TEST_EXIT=$WESTON_EXIT
+        fi
+    done
+fi
+
 exit $TEST_EXIT
