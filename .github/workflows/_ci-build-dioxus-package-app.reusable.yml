@@ -95,7 +95,7 @@ jobs:
       # Without a version the action installs the latest binstall. Passing its own tag
       # means a Dependabot bump of the tag moves the binary too.
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.25.3
+        uses: cargo-bins/cargo-binstall@v1.26.1
         with:
           version: ${{ github.action_ref }}
 
