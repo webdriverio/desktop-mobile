@@ -8,6 +8,7 @@ import { getCurrentWindowLabel } from './window.js';
 
 const log = createLogger('tauri-service', 'mock');
 const interceptor = createIpcInterceptor('tauri');
+const WINDOW_CLOSED = Symbol('window closed');
 
 function isBrowserMode(browser: WebdriverIO.Browser): boolean {
   return !!(browser as unknown as Record<string, unknown>).__wdioBrowserMode__;
@@ -72,9 +73,23 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   const executeOptions = { windowLabel, __wdioOptions__: true } as TauriExecuteOptions;
   const executeInMockWindow = <T>(script: string): Promise<T> =>
     tauriExecute<T, [TauriExecuteOptions]>(browserToUse, script, executeOptions);
+  // The mock's in-app half closes with its window, leaving nothing there to sync, clear or restore.
+  const executeUnlessWindowClosed = async <T>(script: string): Promise<T | typeof WINDOW_CLOSED> => {
+    try {
+      return await executeInMockWindow<T>(script);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes(`'${windowLabel}' not found`)) {
+        return WINDOW_CLOSED;
+      }
+      throw error;
+    }
+  };
 
   mock.update = async () => {
-    const raw = await executeInMockWindow<unknown>(interceptor.buildCallDataReadScript(command));
+    const raw = await executeUnlessWindowClosed<unknown>(interceptor.buildCallDataReadScript(command));
+    if (raw === WINDOW_CLOSED) {
+      return mock;
+    }
     const syncData = interceptor.parseCallData(raw);
 
     const existingCount = originalMock.calls.length;
@@ -159,7 +174,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   };
 
   mock.mockClear = async () => {
-    await executeInMockWindow<void>(interceptor.buildInnerInvocationScript(command, 'mockClear'));
+    await executeUnlessWindowClosed<void>(interceptor.buildInnerInvocationScript(command, 'mockClear'));
     outerMockClear();
     return mock;
   };
@@ -167,7 +182,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
 
-    await executeInMockWindow<void>(interceptor.buildInnerInvocationScript(command, 'mockReset'));
+    await executeUnlessWindowClosed<void>(interceptor.buildInnerInvocationScript(command, 'mockReset'));
 
     // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
     // call doesn't fire the async override, which would defer outerMockClear() and race
@@ -186,7 +201,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
 
   mock.mockRestore = async () => {
     try {
-      await executeInMockWindow<void>(interceptor.buildUnregistrationScript(command));
+      await executeUnlessWindowClosed<void>(interceptor.buildUnregistrationScript(command));
     } finally {
       outerMockClear();
       mockStore.deleteMock(browserToUse, `tauri.${command}`);

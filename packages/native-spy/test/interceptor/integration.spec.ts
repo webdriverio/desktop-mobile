@@ -45,26 +45,13 @@ describe('TauriAdapter integration (synthetic window)', () => {
       expect(win.__wdio_mocks__.my_cmd.mock.calls).toHaveLength(0);
     });
 
-    it('should return window label from __TAURI_INTERNALS__.metadata.currentWindow.label when present', () => {
+    it('should return the label of the window it ran in', () => {
       const win = {
         ...makeSyntheticWindow(),
         __TAURI_INTERNALS__: { metadata: { currentWindow: { label: 'settings' } } },
       };
       const script = interceptor.buildRegistrationScript('my_cmd');
       expect(evalScript(script, win)).toBe('settings');
-    });
-
-    it('should fall back to plugin:wdio|get_active_window_label when metadata is absent', async () => {
-      const win = makeSyntheticWindow();
-      const script = interceptor.buildRegistrationScript('my_cmd');
-      const fnWithTauri = new Function('window', '_tauri', `return (${script})(_tauri)`);
-      const tauri = {
-        core: {
-          invoke: (cmd: string) =>
-            cmd === 'plugin:wdio|get_active_window_label' ? Promise.resolve('popup') : undefined,
-        },
-      };
-      await expect(fnWithTauri(win, tauri)).resolves.toBe('popup');
     });
   });
 

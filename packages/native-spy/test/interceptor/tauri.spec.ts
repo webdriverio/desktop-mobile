@@ -39,7 +39,6 @@ describe('TauriAdapter', () => {
     it('returns the current window label', () => {
       const script = adapter.buildRegistrationScript('cmd');
       expect(script).toContain('currentWindow?.label');
-      expect(script).toContain('plugin:wdio|get_active_window_label');
     });
   });
 

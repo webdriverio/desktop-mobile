@@ -364,8 +364,8 @@ describe('createMock', () => {
     });
   });
 
-  describe('window routing (#852)', () => {
-    it('routes every mock operation to the window the mock was registered in after switchWindow', async () => {
+  describe('window routing', () => {
+    it('should route every mock operation to the window the mock was registered in', async () => {
       const browser = makeBrowser();
       const mock = await createMock('read_clipboard', browser);
 
@@ -400,7 +400,7 @@ describe('createMock', () => {
       }
     });
 
-    it('records the window label returned by the registration script when no explicit session label is set', async () => {
+    it('should use the window label the registration script returns', async () => {
       const browser = makeBrowser();
       mockExecute.mockResolvedValueOnce('popup');
 
@@ -417,7 +417,7 @@ describe('createMock', () => {
       }
     });
 
-    it('uses the explicit session window label at registration when registration returns undefined', async () => {
+    it('should fall back to the session window label when registration returns none', async () => {
       const browser = makeBrowser();
       setCurrentWindowLabel(browser, 'settings');
 
@@ -432,6 +432,52 @@ describe('createMock', () => {
       for (const call of mockExecute.mock.calls) {
         expect(call[2]).toEqual({ windowLabel: 'settings', __wdioOptions__: true });
       }
+    });
+
+    describe.each([
+      ['embedded', "Window 'popup' not found. Available: [main]"],
+      [
+        'external',
+        'Promise error: Failed to execute script: Execute error: Window with label \'popup\' not found. Available windows: ["main"]',
+      ],
+    ])('once the mock window has closed (%s provider)', (_provider, closedError) => {
+      async function mockInClosedWindow() {
+        mockExecute.mockResolvedValueOnce('popup');
+        const mock = await createMock('read_clipboard', makeBrowser());
+        mockExecute.mockResolvedValueOnce({ calls: [['a']], results: [], invocationCallOrder: [1] });
+        await mock.update();
+        mockExecute.mockRejectedValue(new Error(closedError));
+        return mock;
+      }
+
+      it('should keep the calls synced before it closed', async () => {
+        const mock = await mockInClosedWindow();
+        await mock.update();
+        expect(mock.mock.calls).toEqual([['a']]);
+      });
+
+      it('should clear, reset and restore without an error', async () => {
+        const mock = await mockInClosedWindow();
+        await mock.mockClear();
+        expect(mock.mock.calls).toEqual([]);
+        await mock.mockReset();
+        await mock.mockRestore();
+        expect(mockStore.deleteMock).toHaveBeenCalledWith('tauri.read_clipboard');
+      });
+
+      it('should still reject a setter', async () => {
+        const mock = await mockInClosedWindow();
+        await expect(mock.mockReturnValue('x')).rejects.toMatchObject({ message: closedError });
+      });
+    });
+
+    it('should still reject an update that fails for another reason', async () => {
+      mockExecute.mockResolvedValueOnce('popup');
+      const mock = await createMock('read_clipboard', makeBrowser());
+      mockExecute.mockRejectedValueOnce(new Error('Direct eval HTTP error: 500 Internal Server Error'));
+      await expect(mock.update()).rejects.toMatchObject({
+        message: 'Direct eval HTTP error: 500 Internal Server Error',
+      });
     });
   });
 });

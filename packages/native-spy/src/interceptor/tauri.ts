@@ -17,7 +17,7 @@ export class TauriAdapter implements FrameworkAdapter {
   if (!window.__wdio_mocks__) { window.__wdio_mocks__ = {}; }
   window.__wdio_mocks__[${JSON.stringify(mockName)}] = mockFn;
   mockFn.mockClear();
-  return window.__TAURI_INTERNALS__?.metadata?.currentWindow?.label ?? _tauri?.core?.invoke?.('plugin:wdio|get_active_window_label')?.catch?.(() => undefined);
+  return window.__TAURI_INTERNALS__?.metadata?.currentWindow?.label;
 }`;
   }
 
