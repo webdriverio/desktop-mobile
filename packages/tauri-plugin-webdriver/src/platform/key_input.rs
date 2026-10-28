@@ -149,15 +149,6 @@ pub fn is_editable_text_field_js(el: &str) -> String {
   format!("({text_field} && !{el}.readOnly && !{el}.disabled)")
 }
 
-/// JS expression that is true when `el` is a non-typeable form control whose value Send Keys sets
-/// directly (W3C), such as a date or colour input.
-pub fn is_value_control_js(el: &str) -> String {
-  format!(
-        "({el}.tagName === 'INPUT' && \
-         ['color', 'date', 'datetime-local', 'month', 'range', 'time', 'week'].indexOf({el}.type) !== -1)"
-    )
-}
-
 /// JS dispatching a special-key `KeyboardEvent`. Synthetic events have no default action, so
 /// unless a handler cancels the keydown, the script performs the key's action itself.
 pub fn build_special_key_script(
@@ -338,15 +329,9 @@ fn enter_js(shift: bool) -> String {
                     {insert_newline}
                 }} else if (activeEl.isContentEditable) {{
                     document.execCommand('{command}', false, null);
-                }} else if (activeEl.tagName === 'INPUT') {{
-                    var pendingChange = {PENDING_CHANGE};
-                    if (pendingChange && pendingChange.el === activeEl && activeEl.value !== pendingChange.value) {{
-                        // Record the value before dispatch, so a handler that blurs the field
-                        // doesn't fire change again, and after, so a value it sets doesn't either.
-                        pendingChange.value = activeEl.value;
-                        activeEl.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        pendingChange.value = activeEl.value;
-                    }}
+                }} else {{
+                    {ELEMENT_EVENTS_JS}
+                    wdioCommitOnEnter(activeEl);
                 }}"
   )
 }
@@ -567,61 +552,19 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
   }
 }
 
-/// The field Send Keys edited, as `{ el, value }`. When focus leaves, it gets a `change` if its
-/// value is no longer `value`.
-pub const PENDING_CHANGE: &str = "window.__wdio_pending_change";
-
-/// JS firing the pending field's `change` before the driver moves focus, so it precedes `blur`,
-/// unless `keeps_focus` (a JS expression over `pendingField`) says focus stays in the field.
-pub fn commit_pending_change_js(keeps_focus: &str) -> String {
-  format!(
-    r"var pendingChange = {PENDING_CHANGE};
-                if (pendingChange) {{
-                    var pendingField = pendingChange.el;
-                    if (!({keeps_focus})) {{
-                        {PENDING_CHANGE} = null;
-                        if (pendingField.isConnected && pendingField.value !== pendingChange.value) {{
-                            pendingField.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                        }}
-                    }}
-                }}"
-  )
-}
-
-/// JS making `el` the pending field with `initial_value`, unless it already is. A `blur`
-/// listener covers focus the page moves, though there `change` follows `blur`.
-fn record_pending_change_js(el: &str, initial_value: &str) -> String {
-  let commit_other_field = commit_pending_change_js(&format!("pendingField === {el}"));
-  format!(
-    r"{commit_other_field}
-                if (!{PENDING_CHANGE}) {{
-                    var record = {{ el: {el}, value: {initial_value} }};
-                    {PENDING_CHANGE} = record;
-                    {el}.addEventListener('blur', function onBlur() {{
-                        record.el.removeEventListener('blur', onBlur);
-                        if ({PENDING_CHANGE} === record) {{
-                            {PENDING_CHANGE} = null;
-                            if (record.el.value !== record.value) {{
-                                record.el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                            }}
-                        }}
-                    }});
-                }}"
-  )
-}
+/// Page-side helpers for focus moves and form events, shared with wdio-dioxus-embedded-driver. The
+/// source is in @wdio/native-utils, and a test checks this copy matches it.
+pub const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
 /// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
-/// records the pending field and types `plain`, if given. Returns `{ status }` and never throws.
+/// records that the field owes a `change` and types `plain`, if given. Returns `{ status }` and
+/// never throws.
 pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
   let active_element = deep_active_element_js("activeEl");
   let text_field = is_text_field_js("el");
   let receiver_text_field = is_text_field_js("receiver");
-  let value_control = is_value_control_js("el");
   let typed = js_string(typed);
-  let commit_change = commit_pending_change_js(
-    "(function (node) { for (; node; node = node.parentNode || node.host) { if (node === el) { return true; } } return false; })(pendingField)",
-  );
-  let record_change = record_pending_change_js("receiver", "initialValue");
+  let record_change = "wdioRecordPendingChange(receiver, initialValue);";
   let finish = match plain {
     None => format!(
       r"if (initialValue !== null) {{
@@ -643,6 +586,7 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
   };
   format!(
     r"(function() {{
+                {ELEMENT_EVENTS_JS}
                 var el = window.{js_var};
                 if (!el || !el.isConnected) {{
                     return {{ status: 'stale' }};
@@ -650,25 +594,9 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                 if (el.tagName === 'INPUT' && el.type === 'file') {{
                     return {{ status: 'file' }};
                 }}
-                {commit_change}
-                var typed = {typed};
-                if ({value_control} && typed !== '') {{
-                    if (el.readOnly || el.disabled) {{
-                        return {{ status: 'immutable' }};
-                    }}
-                    el.focus();
-                    var setValue = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
-                    var previousValue = el.value;
-                    setValue.call(el, typed);
-                    if (el.value === '') {{
-                        setValue.call(el, previousValue);
-                        return {{ status: 'invalid' }};
-                    }}
-                    if (el.value !== previousValue) {{
-                        el.dispatchEvent(new Event('input', {{ bubbles: true, composed: true }}));
-                        el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                    }}
-                    return {{ status: 'set' }};
+                var valueControlStatus = wdioSetValueControl(el, {typed});
+                if (valueControlStatus) {{
+                    return {{ status: valueControlStatus }};
                 }}
                 {active_element}
                 var wasFocused = activeEl === el;
@@ -1257,10 +1185,10 @@ mod tests {
       "var initialValue = {} ? receiver.value : null;",
       is_text_field_js("receiver")
     )));
-    let record = script.find("var record = { el: receiver, value: initialValue };").unwrap();
+    let record = script.find("wdioRecordPendingChange(receiver, initialValue);").unwrap();
     assert!(record < script.find("return { status: 'focused' };").unwrap());
     let plain = build_send_keys_start_script("__wd_el_abc", "x", Some("x"));
-    assert!(plain.contains("var record = { el: receiver, value: initialValue };"));
+    assert!(plain.contains("wdioRecordPendingChange(receiver, initialValue);"));
     assert!(!plain.contains("receiver.dispatchEvent(new Event('change'"));
   }
 
@@ -1287,7 +1215,7 @@ mod tests {
     let plain = build_send_keys_start_script("__wd_el_abc", "hi", Some("hi"));
     let focus = plain.find("focusTarget.focus()").unwrap();
     let insert = plain.find("var insertedText = \"hi\"").unwrap();
-    let record = plain.find("var record = { el: receiver").unwrap();
+    let record = plain.find("wdioRecordPendingChange(receiver").unwrap();
     assert!(focus < insert && insert < record);
     assert!(plain.contains("return { status: 'done' };"));
     let empty = build_send_keys_start_script("__wd_el_abc", "", Some(""));
@@ -1314,59 +1242,38 @@ mod tests {
   }
 
   #[test]
-  fn enter_commits_an_inputs_pending_change_and_keeps_tracking_it() {
+  fn enter_commits_the_change_the_focused_field_owes() {
     let none = mods(false, false, false, false);
     let shift = mods(false, true, false, false);
     for modifiers in [none, shift] {
       let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
-      let input = enter.find("} else if (activeEl.tagName === 'INPUT') {").unwrap();
-      let owed = enter[input..]
-        .find("pendingChange.el === activeEl && activeEl.value !== pendingChange.value")
-        .unwrap();
-      let change = enter[input..].find("activeEl.dispatchEvent(new Event('change'").unwrap();
-      assert!(owed < change);
-      let rebased = "pendingChange.value = activeEl.value;";
-      assert_eq!(enter[input..].matches(rebased).count(), 2, "{enter}");
-      assert!(!enter.contains(&format!("{PENDING_CHANGE} = null")), "{enter}");
+      let dispatch = enter.find("if (!activeEl.dispatchEvent(keyEvent))").unwrap();
+      let commit = enter.find("wdioCommitOnEnter(activeEl);").unwrap();
+      assert!(dispatch < commit && enter.contains(ELEMENT_EVENTS_JS));
     }
     let enter_up = build_special_key_script("Enter", "Enter", 13, false, &none);
-    assert!(!enter_up.contains("pendingChange"));
+    assert!(!enter_up.contains("wdioCommitOnEnter"));
     let ctrl_enter =
       build_special_key_script("Enter", "Enter", 13, true, &mods(true, false, false, false));
-    assert!(!ctrl_enter.contains("pendingChange"));
+    assert!(!ctrl_enter.contains("wdioCommitOnEnter"));
   }
 
   #[test]
-  fn commit_pending_change_fires_change_once_and_only_for_a_changed_value() {
-    let script = commit_pending_change_js("pendingField === el");
-    let keeps = script.find("if (!(pendingField === el)) {").unwrap();
-    let cleared = script.find(&format!("{PENDING_CHANGE} = null;")).unwrap();
-    let changed = script.find("pendingField.value !== pendingChange.value").unwrap();
-    let change = script.find("pendingField.dispatchEvent(new Event('change'").unwrap();
-    assert!(keeps < cleared && cleared < changed && changed < change);
-    assert!(script.contains("pendingField.isConnected"));
-  }
-
-  #[test]
-  fn record_pending_change_keeps_the_first_edit_and_commits_on_blur() {
-    let script = record_pending_change_js("receiver", "initialValue");
-    let other_field = script.find("if (!(pendingField === receiver)) {").unwrap();
-    let only_if_none = script.find(&format!("if (!{PENDING_CHANGE}) {{")).unwrap();
-    let blur = script.find("receiver.addEventListener('blur'").unwrap();
-    assert!(other_field < only_if_none && only_if_none < blur);
-    let listener = &script[blur..];
-    assert!(listener.contains(&format!("if ({PENDING_CHANGE} === record) {{")));
-    assert!(listener.contains("record.el.value !== record.value"));
-    assert!(listener.contains("record.el.removeEventListener('blur', onBlur);"));
-  }
-
-  #[test]
-  fn send_keys_start_commits_a_pending_change_before_moving_focus() {
+  fn send_keys_start_leaves_the_owed_change_to_the_blur_that_focusing_causes() {
     let script = build_send_keys_start_script("__wd_el_abc", "x", Some("x"));
-    let commit = script.find(&format!("var pendingChange = {PENDING_CHANGE};")).unwrap();
-    assert!(commit < script.find("el.focus();").unwrap());
-    assert!(commit < script.find("focusTarget.focus();").unwrap());
-    assert!(script[commit..].contains("node = node.parentNode || node.host) { if (node === el)"));
+    let helpers = script.find(ELEMENT_EVENTS_JS).unwrap();
+    let body = &script[helpers + ELEMENT_EVENTS_JS.len()..];
+    let focus = body.find("focusTarget.focus();").unwrap();
+    assert!(!body[..focus].contains("PendingChange("));
+    assert!(focus < body.find("wdioRecordPendingChange(receiver, initialValue);").unwrap());
+  }
+
+  #[test]
+  fn element_events_js_matches_its_native_utils_source() {
+    assert!(
+      ELEMENT_EVENTS_JS == include_str!("../../../native-utils/src/scripts/element-events.js"),
+      "copy packages/native-utils/src/scripts/element-events.js over this crate's element-events.js"
+    );
   }
 
   #[test]
@@ -1403,31 +1310,19 @@ mod tests {
   }
 
   #[test]
-  fn value_controls_get_their_value_set_directly() {
-    let control = is_value_control_js("el");
-    for kind in ["color", "date", "datetime-local", "month", "range", "time", "week"] {
-      assert!(control.contains(&format!("'{kind}'")));
-    }
-    for typeable in ["text", "checkbox", "radio", "file", "button"] {
-      assert!(!control.contains(&format!("'{typeable}'")));
-    }
+  fn send_keys_start_sets_a_value_controls_value_before_focusing_a_text_field() {
     let script = build_send_keys_start_script("__wd_el_abc", "2026-10-21", Some("2026-10-21"));
-    assert!(script.contains(&format!("var typed = {};", js_string("2026-10-21"))));
-    assert!(script.contains(&format!("if ({control} && typed !== '')")));
-    assert!(script.contains("return { status: 'immutable' };"));
-    let input = script.find("el.dispatchEvent(new Event('input'").unwrap();
-    let change = script.find("el.dispatchEvent(new Event('change'").unwrap();
-    assert!(script.contains("if (el.value !== previousValue)") && input < change);
-  }
-
-  #[test]
-  fn send_keys_start_refuses_file_inputs_and_invalid_values() {
-    let script = build_send_keys_start_script("__wd_el_abc", "not-a-date", Some("not-a-date"));
     let file = script.find("el.type === 'file'").unwrap();
-    assert!(file < script.find("var typed").unwrap());
-    let invalid = script.find("if (el.value === '') {").unwrap();
-    let restore = script.find("setValue.call(el, previousValue);").unwrap();
-    assert!(invalid < restore && restore < script.find("status: 'invalid'").unwrap());
+    let set = script
+      .find(&format!(
+        "var valueControlStatus = wdioSetValueControl(el, {});",
+        js_string("2026-10-21")
+      ))
+      .unwrap();
+    let returned = script.find("return { status: valueControlStatus };").unwrap();
+    assert!(
+      file < set && set < returned && returned < script.find("focusTarget.focus();").unwrap()
+    );
   }
 
   #[test]

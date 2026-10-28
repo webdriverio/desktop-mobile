@@ -736,7 +736,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     let script = clear_element_script(js_var);
     if extract_value(&self.evaluate_js(&script).await?)?.as_str() == Some("not editable") {
       return Err(WebDriverErrorResponse::invalid_element_state(
-        "element is disabled or read-only, so it cannot be cleared",
+        "element is disabled, read-only, or not a text field or contenteditable, so it cannot be cleared",
       ));
     }
     Ok(())
@@ -1641,14 +1641,12 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // =============================================================================
 
 fn click_element_script(js_var: &str) -> String {
+  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
   let active_element = crate::platform::key_input::deep_active_element_js("activeEl");
   let text_field = crate::platform::key_input::is_text_field_js("el");
-  // A click on the field, its label or parent shadow host keeps focus in the field.
-  let commit_change = crate::platform::key_input::commit_pending_change_js(
-    "el.control === pendingField || (function (node) { for (; node; node = node.getRootNode().host) { if (node === el) { return true; } } return false; })(pendingField)",
-  );
   format!(
     r"(function() {{
+              {element_events}
               var el = window.{js_var};
               if (!el || !el.isConnected) {{
                   throw new Error('stale element reference');
@@ -1661,58 +1659,26 @@ fn click_element_script(js_var: &str) -> String {
                       el.setSelectionRange(el.value.length, el.value.length);
                   }} catch (e) {{}}
               }}
-              {commit_change}
               el.scrollIntoView({{ block: 'center', inline: 'center' }});
+              // `click()` doesn't move focus, so focus moves first, as on a real mousedown.
+              wdioFocusForClick(el);
               el.click();
-              // `click()` doesn't move focus as a real click does.
-              if (typeof el.focus === 'function') {{
-                  el.focus();
-              }}
               return true;
           }})()"
   )
 }
 
-/// JS for Element Clear, which per W3C focuses the element first and blurs it after.
+/// JS for Element Clear: returns 'not editable' for an element W3C can't clear.
 fn clear_element_script(js_var: &str) -> String {
-  let pending_change = crate::platform::key_input::PENDING_CHANGE;
-  let commit_change = crate::platform::key_input::commit_pending_change_js("pendingField === el");
+  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
   format!(
     r"(function() {{
+              {element_events}
               var el = window.{js_var};
               if (!el || !el.isConnected) {{
                   throw new Error('stale element reference');
               }}
-              if ((el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') && (el.disabled || el.readOnly)) {{
-                  return 'not editable';
-              }}
-              {commit_change}
-              var committedValue = el.value;
-              if ({pending_change} && {pending_change}.el === el) {{
-                  committedValue = {pending_change}.value;
-                  {pending_change} = null;
-              }}
-              el.focus();
-              if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA') {{
-                  var nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-                      el.tagName === 'INPUT' ? window.HTMLInputElement.prototype : window.HTMLTextAreaElement.prototype,
-                      'value'
-                  ).set;
-                  nativeInputValueSetter.call(el, '');
-                  var inputEvent = new InputEvent('input', {{
-                      bubbles: true,
-                      cancelable: true,
-                      inputType: 'deleteContentBackward'
-                  }});
-                  el.dispatchEvent(inputEvent);
-                  if (el.value !== committedValue) {{
-                      el.dispatchEvent(new Event('change', {{ bubbles: true }}));
-                  }}
-              }} else if (el.isContentEditable) {{
-                  el.innerHTML = '';
-              }}
-              el.blur();
-              return true;
+              return wdioClearElement(el);
           }})()"
   )
 }
@@ -1720,32 +1686,26 @@ fn clear_element_script(js_var: &str) -> String {
 #[cfg(test)]
 mod element_script_tests {
   use super::*;
-  use crate::platform::key_input::PENDING_CHANGE;
+  use crate::platform::key_input::ELEMENT_EVENTS_JS;
 
   #[test]
-  fn click_commits_a_pending_change_unless_it_clicks_that_field_its_label_or_its_host() {
+  fn click_moves_focus_before_clicking_and_leaves_it_to_the_page_after() {
     let script = click_element_script("__wd_el_abc");
-    let commit = script.find(&format!("var pendingChange = {PENDING_CHANGE};")).unwrap();
-    assert!(commit < script.find("el.click();").unwrap());
-    assert!(commit < script.find("el.focus();").unwrap());
-    assert!(script.contains("if (!(el.control === pendingField || (function (node) {"));
-    // Shadow hosts keep focus in the field, other ancestors don't: clicking the body fires change.
-    assert!(script.contains("node = node.getRootNode().host) { if (node === el)"));
-    assert!(!script.contains("node.parentNode"));
+    assert!(script.contains(ELEMENT_EVENTS_JS));
+    let caret = script.find("el.setSelectionRange(el.value.length, el.value.length);").unwrap();
+    let scroll = script.find("el.scrollIntoView(").unwrap();
+    let focus = script.find("wdioFocusForClick(el);").unwrap();
+    let click = script.find("el.click();").unwrap();
+    assert!(caret < scroll && scroll < focus && focus < click);
+    assert!(!script[click..].contains("focus()"));
   }
 
   #[test]
-  fn clear_fires_input_then_change_against_the_committed_value_then_blurs() {
+  fn clear_returns_the_shared_helpers_status() {
     let script = clear_element_script("__wd_el_abc");
-    let commit = script.find("if (!(pendingField === el)) {").unwrap();
-    let committed = script.find(&format!("committedValue = {PENDING_CHANGE}.value;")).unwrap();
-    let focus = script.find("el.focus();").unwrap();
-    let input = script.find("el.dispatchEvent(inputEvent);").unwrap();
-    let change = script.find("if (el.value !== committedValue) {").unwrap();
-    let blur = script.find("el.blur();").unwrap();
-    assert!(commit < committed && committed < focus && focus < input);
-    assert!(input < change && change < blur);
-    assert_eq!(script.matches("new Event('change'").count(), 2, "{script}");
+    assert!(script.contains(ELEMENT_EVENTS_JS));
+    let stale = script.find("throw new Error('stale element reference');").unwrap();
+    assert!(stale < script.find("return wdioClearElement(el);").unwrap());
   }
 }
 

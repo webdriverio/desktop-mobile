@@ -322,11 +322,57 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input ab', 'input abc', 'change abc', 'blur abc']);
   });
 
-  it('should fire change after blur when the page moves focus', async () => {
+  it('should fire change before blur when the page moves focus', async () => {
     await fillChangeScratch();
     await browser.$('#fresh-field').addValue('x');
     await browser.execute('document.querySelector("#fresh-other").focus()');
-    expect(await fieldEvents()).toEqual(['input x', 'blur x', 'change x']);
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+  });
+
+  it('should take focus off the field when a click lands on an element that cannot take it', async () => {
+    await fillChangeScratch();
+    await fillScratch(`scratch.insertAdjacentHTML("beforeend", '<div id="fresh-plain">plain</div>');`);
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-plain').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+    expect(await browser.execute('return document.activeElement === document.body')).toBe(true);
+  });
+
+  it("should fire change when a click on the field's label takes focus from it, as a browser does", async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<label id="fresh-label" for="fresh-field">label</label>');`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-label').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+  });
+
+  it('should leave focus where a click handler moves it', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<input id="fresh-target">');
+      document.querySelector("#fresh-other").addEventListener("click", function () {
+        document.querySelector("#fresh-target").focus();
+      });`,
+    );
+    await browser.$('#fresh-other').click();
+    expect(await browser.execute('return document.activeElement.id')).toBe('fresh-target');
+  });
+
+  it('should refuse to clear an element that is not editable', async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<input id="fresh-box" type="checkbox"><select id="fresh-select"><option>1</option></select>';`,
+    );
+    for (const selector of ['#fresh-box', '#fresh-select']) {
+      expect((await errorOf(browser.$(selector).clearValue()))?.message).toMatch(/cannot be cleared/);
+    }
+  });
+
+  it('should leave an empty field alone on Clear', async () => {
+    await fillChangeScratch();
+    await browser.$('#fresh-field').clearValue();
+    expect(await fieldEvents()).toEqual([]);
   });
 
   it('should fire no change when the edits leave the value as it was', async () => {
