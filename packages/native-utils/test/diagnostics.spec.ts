@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { diagnoseBinary, diagnoseLinuxDependencies, type LinuxLibrary } from '../src/diagnostics.js';
+import { diagnoseBinary, diagnoseDisplay, diagnoseLinuxDependencies, type LinuxLibrary } from '../src/diagnostics.js';
 
 vi.mock('node:fs', async (importActual) => {
   const actual = await importActual<typeof import('node:fs')>();
@@ -147,5 +147,42 @@ describe('diagnoseLinuxDependencies', () => {
     const result = linuxDeps(LIBS);
     expect(result?.status).toBe('warn');
     expect(result?.message).toMatch(/could not check/i);
+  });
+});
+
+describe('diagnoseDisplay', () => {
+  beforeEach(() => {
+    mockPlatform('linux');
+    vi.stubEnv('DISPLAY', '');
+    vi.stubEnv('WAYLAND_DISPLAY', '');
+  });
+
+  afterEach(() => {
+    restorePlatform();
+    vi.unstubAllEnvs();
+  });
+
+  it('should return nothing on non-Linux platforms', () => {
+    mockPlatform('darwin');
+    expect(diagnoseDisplay()).toEqual([]);
+  });
+
+  it('should report an X display', () => {
+    vi.stubEnv('DISPLAY', ':99');
+    expect(diagnoseDisplay()).toEqual([{ category: 'Display', status: 'ok', message: ':99', details: undefined }]);
+  });
+
+  it('should report a Wayland display when no X display is set', () => {
+    vi.stubEnv('WAYLAND_DISPLAY', 'wayland-0');
+    expect(diagnoseDisplay()).toEqual([
+      { category: 'Display', status: 'ok', message: 'wayland-0', details: undefined },
+    ]);
+  });
+
+  it('should warn when no display is set', () => {
+    const [result] = diagnoseDisplay();
+    expect(result.status).toBe('warn');
+    expect(result.message).toBe('not set');
+    expect(result.details).toMatch(/Neither DISPLAY nor WAYLAND_DISPLAY is set/);
   });
 });

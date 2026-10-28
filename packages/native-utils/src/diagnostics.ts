@@ -31,14 +31,15 @@ export function diagnoseDisplay(): DiagnosticResult[] {
     return [];
   }
 
+  const display = process.env.DISPLAY || process.env.WAYLAND_DISPLAY;
   return [
     {
       category: 'Display',
-      status: process.env.DISPLAY ? 'ok' : 'warn',
-      message: process.env.DISPLAY || 'not set',
-      details: process.env.DISPLAY
+      status: display ? 'ok' : 'warn',
+      message: display || 'not set',
+      details: display
         ? undefined
-        : 'DISPLAY not set. GUI tests may fail. Consider using Xvfb for headless testing.',
+        : 'Neither DISPLAY nor WAYLAND_DISPLAY is set. GUI tests may fail. Consider using Xvfb or Weston for headless testing.',
     },
   ];
 }
