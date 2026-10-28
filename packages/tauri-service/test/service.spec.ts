@@ -1,5 +1,6 @@
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { closeLogWriter, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
+import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseLogLines } from '../src/logParser.js';
 
@@ -819,75 +820,88 @@ describe('TauriWorkerService', () => {
       expect(target).toBe('main');
     });
 
-    it('should call execute() with a function that uses tauri.core.invoke in native mode', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
+    describe('in native mode', () => {
+      const tauriOf = (b: WebdriverIO.Browser) => (b as unknown as { tauri: TauriServiceAPI }).tauri;
 
-      vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
+      // Runs the script emitEvent hands to execute(), as the app would
+      async function emitInApp(target?: string | TauriEventTarget | null) {
+        const mockBrowser = createMockBrowser();
+        const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+        await service.before({} as never, [], mockBrowser);
 
-      await (mockBrowser as any).tauri.emitEvent('foo', 'payload');
+        await tauriOf(mockBrowser).emitEvent('foo', 'payload', target as string | TauriEventTarget | undefined);
 
-      expect(executeCommand).toHaveBeenCalledTimes(1);
-      const [, fn, ...args] = vi.mocked(executeCommand).mock.calls[0];
-      expect(typeof fn).toBe('function');
-      expect(args).toEqual(['foo', 'payload']);
-    });
+        expect(executeCommand).toHaveBeenCalledTimes(1);
+        const [, script, ...args] = vi.mocked(executeCommand).mock.calls[0];
+        const ipcInvoke = vi.fn().mockResolvedValue(undefined);
+        const mockAwareInvoke = vi.fn().mockResolvedValue(undefined);
+        vi.stubGlobal('__TAURI_INTERNALS__', { invoke: ipcInvoke });
+        await (script as (tauri: TauriAPIs, ...a: unknown[]) => Promise<unknown>)(
+          { core: { invoke: mockAwareInvoke } },
+          ...args,
+        );
+        return { ipcInvoke, mockAwareInvoke };
+      }
 
-    it('should route through plugin:event|emit when target is omitted in native mode', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
-
-      vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
-      await (mockBrowser as any).tauri.emitEvent('foo', 'payload');
-
-      const [, fn, ...args] = vi.mocked(executeCommand).mock.calls[0];
-      const invoke = vi.fn().mockResolvedValue(undefined);
-      await (fn as any)({ core: { invoke } }, ...args);
-
-      expect(invoke).toHaveBeenCalledWith('plugin:event|emit', {
-        event: 'foo',
-        payload: 'payload',
+      afterEach(() => {
+        vi.unstubAllGlobals();
       });
-    });
 
-    it('should route through plugin:event|emit_to with AnyLabel when target is a string label in native mode', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
+      it.each([
+        ['omitted', undefined, 'plugin:event|emit', { event: 'foo', payload: 'payload' }],
+        ['null', null, 'plugin:event|emit', { event: 'foo', payload: 'payload' }],
+        [
+          'a label',
+          'main',
+          'plugin:event|emit_to',
+          { target: { kind: 'AnyLabel', label: 'main' }, event: 'foo', payload: 'payload' },
+        ],
+        [
+          'a TauriEventTarget',
+          { kind: 'Window', label: 'main' } as const,
+          'plugin:event|emit_to',
+          { target: { kind: 'Window', label: 'main' }, event: 'foo', payload: 'payload' },
+        ],
+      ])('should invoke the event command once when the target is %s', async (_name, target, command, args) => {
+        const { ipcInvoke } = await emitInApp(target);
 
-      vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
-      await (mockBrowser as any).tauri.emitEvent('foo', 'payload', 'main');
-
-      const [, fn, ...args] = vi.mocked(executeCommand).mock.calls[0];
-      const invoke = vi.fn().mockResolvedValue(undefined);
-      await (fn as any)({ core: { invoke } }, ...args);
-
-      expect(invoke).toHaveBeenCalledWith('plugin:event|emit_to', {
-        target: { kind: 'AnyLabel', label: 'main' },
-        event: 'foo',
-        payload: 'payload',
+        expect(ipcInvoke).toHaveBeenCalledTimes(1);
+        expect(ipcInvoke).toHaveBeenCalledWith(command, args);
       });
-    });
 
-    it('should route through plugin:event|emit_to with raw target when target is a TauriEventTarget object in native mode', async () => {
-      const mockBrowser = createMockBrowser();
-      const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
-      await service.before({} as any, [], mockBrowser);
+      it("should bypass the user's mocks of the event commands", async () => {
+        const { mockAwareInvoke } = await emitInApp('main');
 
-      vi.mocked(executeCommand).mockResolvedValueOnce(undefined as any);
-      const target = { kind: 'Window' as const, label: 'main' };
-      await (mockBrowser as any).tauri.emitEvent('foo', 'payload', target);
+        expect(mockAwareInvoke).not.toHaveBeenCalled();
+      });
 
-      const [, fn, ...args] = vi.mocked(executeCommand).mock.calls[0];
-      const invoke = vi.fn().mockResolvedValue(undefined);
-      await (fn as any)({ core: { invoke } }, ...args);
+      it('should emit on every instance when called on the multiremote root', async () => {
+        const instances: Record<string, WebdriverIO.Browser> = {
+          browserA: createMockBrowser({ sessionId: 'session-a' }),
+          browserB: createMockBrowser({ sessionId: 'session-b' }),
+        };
+        const mrBrowser = createMockBrowser({
+          isMultiremote: true,
+          instances: Object.keys(instances),
+          getInstance: (name: string) => instances[name],
+        });
+        const service = new TauriWorkerService({}, {
+          browserA: { capabilities: { 'wdio:tauriServiceOptions': {} } },
+          browserB: { capabilities: { 'wdio:tauriServiceOptions': {} } },
+        } as unknown as TauriCapabilities);
+        await service.before({} as never, [], mrBrowser);
+        vi.mocked(executeCommand).mockClear();
 
-      expect(invoke).toHaveBeenCalledWith('plugin:event|emit_to', {
-        target: { kind: 'Window', label: 'main' },
-        event: 'foo',
-        payload: 'payload',
+        await tauriOf(mrBrowser).emitEvent('foo', 'payload', 'main');
+
+        const emitTo = [
+          'plugin:event|emit_to',
+          { target: { kind: 'AnyLabel', label: 'main' }, event: 'foo', payload: 'payload' },
+        ];
+        expect(vi.mocked(executeCommand).mock.calls.map(([b, , ...args]) => [b, ...args])).toEqual([
+          [instances.browserA, ...emitTo],
+          [instances.browserB, ...emitTo],
+        ]);
       });
     });
 

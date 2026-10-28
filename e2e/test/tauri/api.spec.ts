@@ -102,60 +102,62 @@ describe('Tauri API', () => {
       };
     };
 
+    // Drops any earlier listener first, so a retried script can't leave two behind
+    const listen = (event: string, target?: { kind: string; label: string }) =>
+      browser.tauri.execute(
+        async (_tauri, ev: string, t?: { kind: string; label: string }) => {
+          const g = globalThis as unknown as EventTestGlobals;
+          g.__wdioUnlisten?.();
+          g.__wdioEvents = [];
+          g.__wdioUnlisten = await g.__TAURI__.event.listen(
+            ev,
+            (e) => {
+              g.__wdioEvents?.push(e.payload);
+            },
+            t ? { target: t } : undefined,
+          );
+        },
+        event,
+        target,
+      );
+
     const receivedEvents = () =>
       browser.tauri.execute(() => (globalThis as unknown as EventTestGlobals).__wdioEvents ?? []);
 
-    const unlisten = () => browser.tauri.execute(() => (globalThis as unknown as EventTestGlobals).__wdioUnlisten?.());
+    afterEach(async () => {
+      await browser.tauri.execute(() => {
+        const g = globalThis as unknown as EventTestGlobals;
+        g.__wdioUnlisten?.();
+        g.__wdioUnlisten = undefined;
+      });
+    });
 
     it('should emit an event to listeners when target is omitted', async () => {
-      await browser.tauri.execute(async () => {
-        const g = globalThis as unknown as EventTestGlobals;
-        g.__wdioEvents = [];
-        g.__wdioUnlisten = await g.__TAURI__.event.listen('wdio:test-emit', (event) => {
-          g.__wdioEvents?.push(event.payload);
-        });
+      await listen('wdio:test-emit');
+      await browser.tauri.emitEvent('wdio:test-emit', { message: 'hello from emitEvent' });
+
+      await browser.waitUntil(async () => (await receivedEvents()).length > 0, {
+        timeout: 5000,
+        timeoutMsg: 'expected wdio:test-emit listener to receive event',
       });
-
-      try {
-        await browser.tauri.emitEvent('wdio:test-emit', { message: 'hello from emitEvent' });
-
-        await browser.waitUntil(async () => (await receivedEvents()).length === 1, {
-          timeout: 5000,
-          timeoutMsg: 'expected wdio:test-emit listener to receive event',
-        });
-        expect(await receivedEvents()).toEqual([{ message: 'hello from emitEvent' }]);
-      } finally {
-        await unlisten();
-      }
+      expect(await receivedEvents()).toEqual([{ message: 'hello from emitEvent' }]);
     });
 
     it('should emit only to the target window when a target is provided', async () => {
-      await browser.tauri.execute(async () => {
-        const g = globalThis as unknown as EventTestGlobals;
-        g.__wdioEvents = [];
-        // Listen as the main window, so an event sent to another label doesn't arrive.
-        g.__wdioUnlisten = await g.__TAURI__.event.listen(
-          'wdio:test-emit-to',
-          (event) => {
-            g.__wdioEvents?.push(event.payload);
-          },
-          { target: { kind: 'WebviewWindow', label: 'main' } },
-        );
+      // Listen as the main window, so an event sent to another label doesn't arrive.
+      await listen('wdio:test-emit-to', { kind: 'WebviewWindow', label: 'main' });
+
+      // Events arrive in order, so if an earlier one leaked, it would arrive before the last.
+      await browser.tauri.emitEvent('wdio:test-emit-to', { to: 'other' }, 'no-such-window');
+      // Same label but a different kind, which Tauri doesn't deliver
+      await browser.tauri.emitEvent('wdio:test-emit-to', { to: 'main as a Window' }, { kind: 'Window', label: 'main' });
+      await browser.tauri.emitEvent('wdio:test-emit-to', { to: 'main' }, 'main');
+
+      await browser.waitUntil(async () => (await receivedEvents()).length > 0, {
+        timeout: 5000,
+        timeoutMsg: 'expected wdio:test-emit-to listener on main to receive event',
       });
-
-      try {
-        // Events arrive in order, so if the first one leaked, it would arrive before the second.
-        await browser.tauri.emitEvent('wdio:test-emit-to', { to: 'other' }, 'no-such-window');
-        await browser.tauri.emitEvent('wdio:test-emit-to', { to: 'main' }, 'main');
-
-        await browser.waitUntil(async () => (await receivedEvents()).length > 0, {
-          timeout: 5000,
-          timeoutMsg: 'expected wdio:test-emit-to listener on main to receive event',
-        });
-        expect(await receivedEvents()).toEqual([{ to: 'main' }]);
-      } finally {
-        await unlisten();
-      }
+      expect(await receivedEvents()).toEqual([{ to: 'main' }]);
     });
   });
 });

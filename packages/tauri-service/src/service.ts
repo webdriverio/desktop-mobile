@@ -551,6 +551,13 @@ export default class TauriWorkerService {
         payload?: T,
         target?: string | TauriEventTarget,
       ): Promise<void> => {
+        if (isMultiremote(browser)) {
+          const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+          await Promise.all(
+            mrBrowser.instances.map((name) => mrBrowser.getInstance(name).tauri.emitEvent(eventName, payload, target)),
+          );
+          return;
+        }
         if (browserMode) {
           await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
             (...inner: unknown[]) => {
@@ -568,30 +575,31 @@ export default class TauriWorkerService {
             payload,
             target,
           );
-        } else if (target === undefined) {
-          await execute(
-            browser,
-            (tauri: TauriAPIs, ...a: unknown[]) => {
-              const [ev, p] = a as [string, unknown];
-              return tauri.core.invoke('plugin:event|emit', { event: ev, payload: p });
-            },
-            eventName,
-            payload,
-          );
         } else {
+          // A null target emits to everyone, as in browser mode
+          const [command, args] =
+            target == null
+              ? ['plugin:event|emit', { event: eventName, payload }]
+              : [
+                  'plugin:event|emit_to',
+                  {
+                    target: typeof target === 'string' ? { kind: 'AnyLabel', label: target } : target,
+                    event: eventName,
+                    payload,
+                  },
+                ];
+          // The raw IPC that @tauri-apps/api's emit() uses: unlike tauri.core.invoke it skips the
+          // user's mocks, so a spy on these commands can't swallow the test's own emit
           await execute(
             browser,
-            (tauri: TauriAPIs, ...a: unknown[]) => {
-              const [ev, p, t] = a as [string, unknown, string | TauriEventTarget];
-              return tauri.core.invoke('plugin:event|emit_to', {
-                target: typeof t === 'string' ? { kind: 'AnyLabel', label: t } : t,
-                event: ev,
-                payload: p,
-              });
-            },
-            eventName,
-            payload,
-            target,
+            (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) =>
+              (
+                globalThis as unknown as {
+                  __TAURI_INTERNALS__: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<unknown> };
+                }
+              ).__TAURI_INTERNALS__.invoke(cmd, cmdArgs),
+            command,
+            args,
           );
         }
         await getMockUpdateScheduler(browser).schedule();
