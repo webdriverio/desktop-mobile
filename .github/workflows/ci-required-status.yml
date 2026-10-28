@@ -31,7 +31,7 @@ concurrency:
 
 permissions:
   statuses: write
-  actions: read
+  checks: read
 
 jobs:
   publish:
@@ -48,13 +48,15 @@ jobs:
           script: |
             const run = context.payload.workflow_run;
 
-            const jobs = await github.paginate(github.rest.actions.listJobsForWorkflowRun, {
+            // Listing a large run's jobs can outlast GitHub's request timeout, so fetch just this one.
+            // The default `filter: 'latest'` leaves out earlier attempts.
+            const { data } = await github.rest.checks.listForSuite({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              run_id: run.id,
-              per_page: 100,
+              check_suite_id: run.check_suite_id,
+              check_name: 'CI Summary',
             });
-            const summary = jobs.find((job) => job.name === 'CI Summary');
+            const [summary] = data.check_runs;
 
             // Never leave the context unpublished: the ruleset would sit pending forever
             // with nothing able to resolve it. An absent or non-success summary is red.
