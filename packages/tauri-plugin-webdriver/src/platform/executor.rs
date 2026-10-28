@@ -1640,11 +1640,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // Helper Functions for Default Implementations
 // =============================================================================
 
-/// JS clicking and focusing `el`. It first fires any `change` a field owes from Send Keys, unless
-/// `el` is that field, its label or a shadow host it's in, which leave focus on the field.
 fn click_element_script(js_var: &str) -> String {
   let active_element = crate::platform::key_input::deep_active_element_js("activeEl");
   let text_field = crate::platform::key_input::is_text_field_js("el");
+  // A click on the field, its label or a shadow host it's in keeps focus in the field.
   let commit_change = crate::platform::key_input::commit_pending_change_js(
     "el.control === pendingField || (function (node) { for (; node; node = node.getRootNode().host) { if (node === el) { return true; } } return false; })(pendingField)",
   );
@@ -1674,8 +1673,7 @@ fn click_element_script(js_var: &str) -> String {
   )
 }
 
-/// JS for Element Clear, with W3C's focusing and unfocusing steps: it focuses `el`, clears it,
-/// fires `change` if the value differs from the last committed one, then blurs.
+/// JS for Element Clear, which per W3C focuses the element first and blurs it after.
 fn clear_element_script(js_var: &str) -> String {
   let pending_change = crate::platform::key_input::PENDING_CHANGE;
   let commit_change = crate::platform::key_input::commit_pending_change_js("pendingField === el");
@@ -1731,7 +1729,7 @@ mod element_script_tests {
     assert!(commit < script.find("el.click();").unwrap());
     assert!(commit < script.find("el.focus();").unwrap());
     assert!(script.contains("if (!(el.control === pendingField || (function (node) {"));
-    // Only shadow hosts above the field keep it, not every ancestor: clicking the body commits.
+    // Shadow hosts keep focus in the field, other ancestors don't: clicking the body fires change.
     assert!(script.contains("node = node.getRootNode().host) { if (node === el)"));
     assert!(!script.contains("node.parentNode"));
   }

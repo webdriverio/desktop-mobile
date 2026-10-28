@@ -42,13 +42,16 @@ async function fieldEvents() {
   return (await browser.execute('return window.__fieldEvents || []')) as unknown as string[];
 }
 
-// A field that logs input, change and blur with its value, next to a button to move focus to.
-async function fillChangeScratch(initialValue = '') {
+// A field which logs events alongside its value, next to a button for focus switching.
+async function fillChangeScratch({ initialValue = '', inShadowHost = false } = {}) {
   await fillScratch(
-    `scratch.innerHTML = '<input id="fresh-field" value="${initialValue}"><button id="fresh-other">other</button>';
+    `scratch.innerHTML = '<div id="fresh-host"></div><button id="fresh-other">other</button>';
+    var host = document.querySelector("#fresh-host");
+    var parent = ${inShadowHost ? 'host.attachShadow({ mode: "open", delegatesFocus: true })' : 'host'};
+    parent.innerHTML = '<input id="fresh-field" value="${initialValue}">';
     window.__fieldEvents = [];
     for (var type of ["input", "change", "blur"]) {
-      document.querySelector("#fresh-field").addEventListener(type, function (ev) {
+      parent.querySelector("#fresh-field").addEventListener(type, function (ev) {
         window.__fieldEvents.push(ev.type + " " + ev.target.value);
       });
     }`,
@@ -68,7 +71,7 @@ async function errorOf(action: Promise<unknown>) {
 
 describe('special keys (embedded)', () => {
   beforeEach(async () => {
-    // Blurring first fires any change a field still owes, before the event logs reset.
+    // Blur to fire any pending change, then reset the event logs.
     await browser.execute(
       'if (document.activeElement) { document.activeElement.blur(); }' +
         'window.__keyTargetEvents = [];' +
@@ -309,7 +312,7 @@ describe('special keys (embedded)', () => {
     ]);
   });
 
-  it('should fire change once focus leaves a field Send Keys edited, before blur', async () => {
+  it('should fire change before blur when a click moves focus', async () => {
     await fillChangeScratch();
     const field = browser.$('#fresh-field');
     await field.addValue('ab');
@@ -336,13 +339,13 @@ describe('special keys (embedded)', () => {
   });
 
   it('should clear with input, then change, then blur', async () => {
-    await fillChangeScratch('old');
+    await fillChangeScratch({ initialValue: 'old' });
     await browser.$('#fresh-field').clearValue();
     expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ']);
   });
 
-  it('should leave the change for setValue until focus leaves', async () => {
-    await fillChangeScratch('1');
+  it('should fire the change resulting from setValue when focus leaves', async () => {
+    await fillChangeScratch({ initialValue: '1' });
     await browser.$('#fresh-field').setValue('2');
     expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2']);
     await browser.$('#fresh-other').click();
@@ -357,8 +360,8 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
   });
 
-  it('should fire the change setValue owes when the actions API presses Enter', async () => {
-    await fillChangeScratch('1');
+  it('should fire the change resulting from setValue when Enter is pressed', async () => {
+    await fillChangeScratch({ initialValue: '1' });
     await browser.$('#fresh-field').setValue('2');
     await browser.keys(Key.Enter);
     expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2']);
@@ -366,18 +369,8 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
   });
 
-  it('should keep the change owed when Click targets the shadow host the field is in', async () => {
-    await fillScratch(
-      `scratch.innerHTML = '<div id="fresh-host"></div><button id="fresh-other">other</button>';
-      var root = document.querySelector("#fresh-host").attachShadow({ mode: "open", delegatesFocus: true });
-      root.innerHTML = '<input>';
-      window.__fieldEvents = [];
-      for (var type of ["input", "change", "blur"]) {
-        root.querySelector("input").addEventListener(type, function (ev) {
-          window.__fieldEvents.push(ev.type + " " + ev.target.value);
-        });
-      }`,
-    );
+  it('should not fire change when a click on the shadow host leaves the field focused', async () => {
+    await fillChangeScratch({ inShadowHost: true });
     const host = browser.$('#fresh-host');
     await host.addValue('x');
     await host.click();

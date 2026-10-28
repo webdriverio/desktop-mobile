@@ -158,8 +158,8 @@ pub fn is_value_control_js(el: &str) -> String {
     )
 }
 
-/// JS dispatching a synthetic special-key `KeyboardEvent` plus the editing, radio and Enter
-/// side-effects an untrusted event can't drive itself, skipped when a handler cancels the keydown.
+/// JS dispatching a special-key `KeyboardEvent`. Synthetic events have no default action, so
+/// unless a handler cancels the keydown, the script does the key's action itself.
 pub fn build_special_key_script(
   js_key: &str,
   js_code: &str,
@@ -329,8 +329,7 @@ fn radio_step_js(forward: bool) -> String {
 }
 
 /// JS for Enter: a line break in a textarea or contenteditable (Shift+Enter inserts a `<br>`
-/// rather than a new paragraph). In an input it commits the value, as a browser does, firing any
-/// `change` Send Keys left owed.
+/// rather than a new paragraph), or `change` in an edited input.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
@@ -342,8 +341,8 @@ fn enter_js(shift: bool) -> String {
                 }} else if (activeEl.tagName === 'INPUT') {{
                     var pendingChange = {PENDING_CHANGE};
                     if (pendingChange && pendingChange.el === activeEl && activeEl.value !== pendingChange.value) {{
-                        // Set before, so a handler that blurs the field can't fire a second change, and
-                        // after, so a value the handler sets counts as committed.
+                        // Record the value before dispatch, so a handler that blurs the field
+                        // doesn't fire change again, and after, so a value it sets doesn't either.
                         pendingChange.value = activeEl.value;
                         activeEl.dispatchEvent(new Event('change', {{ bubbles: true }}));
                         pendingChange.value = activeEl.value;
@@ -568,12 +567,12 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
   }
 }
 
-/// The field Send Keys edited and its value from before the edit, kept until focus leaves or
-/// Enter commits it, when the driver fires the `change` a browser would.
+/// `{ el, value }`: the field Send Keys edited, and its value from before the edits or at the
+/// last Enter. If the value differs when focus leaves, the field gets a `change`.
 pub const PENDING_CHANGE: &str = "window.__wdio_pending_change";
 
-/// JS firing the `change` a field still owes from Send Keys, unless `keeps_focus` (a JS expression
-/// over `pendingField`) holds. The driver runs it before it moves focus, so `change` precedes `blur`.
+/// JS firing the pending field's `change`, unless `keeps_focus`, a JS expression over
+/// `pendingField`, is true. Run it before moving focus, so `change` comes before `blur`.
 pub fn commit_pending_change_js(keeps_focus: &str) -> String {
   format!(
     r"var pendingChange = {PENDING_CHANGE};
@@ -589,9 +588,9 @@ pub fn commit_pending_change_js(keeps_focus: &str) -> String {
   )
 }
 
-/// JS recording that `el` owes a `change` if its value differs from `initial_value` once focus
-/// leaves it. An earlier record for the same field wins, as it holds the value from before the first
-/// edit. A `blur` listener covers focus the page moves; there `change` follows `blur`.
+/// JS making `el` the pending field, with `initial_value` as its value before the edits, unless
+/// it already is. A `blur` listener covers focus the page moves, though there `change` follows
+/// `blur`.
 fn record_pending_change_js(el: &str, initial_value: &str) -> String {
   let commit_other_field = commit_pending_change_js(&format!("pendingField === {el}"));
   format!(
@@ -613,8 +612,8 @@ fn record_pending_change_js(el: &str, initial_value: &str) -> String {
 }
 
 /// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
-/// records the field for its `change` (ahead of the keys, so an Enter can commit it) and, for a
-/// `plain` request, types it. Returns `{ status }` and never throws.
+/// records the pending field and, for a `plain` request, types it. Returns `{ status }` and never
+/// throws.
 pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
   let active_element = deep_active_element_js("activeEl");
   let text_field = is_text_field_js("el");
