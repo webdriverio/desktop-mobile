@@ -154,9 +154,7 @@ if [ -n "$XVFB_PID" ]; then
     kill $XVFB_PID 2>/dev/null || true
 fi
 
-# Images that install Weston run the tests again on it. With DISPLAY unset,
-# WebdriverIO's display server starts Weston, and DISPLAY_SERVER=wayland stops
-# it falling back to Xvfb.
+# Run the tests again on Weston for images which have it installed
 if command -v weston > /dev/null; then
     echo '=== Running Dioxus package test on Weston ==='
     rm -rf /workspace/fixtures/package-tests/dioxus-app/logs
@@ -164,7 +162,7 @@ if command -v weston > /dev/null; then
     env -u DISPLAY DISPLAY_SERVER=wayland npx wdio run wdio.conf.ts
     WESTON_EXIT=$?
     set -e
-    cp -r /workspace/fixtures/package-tests/dioxus-app/logs /workspace/logs-output/logs-weston 2>/dev/null || echo 'No Weston logs to copy'
+    cp -r /workspace/fixtures/package-tests/dioxus-app/logs /workspace/logs-output/weston 2>/dev/null || echo 'No Weston logs to copy'
     if [ "$TEST_EXIT" -eq 0 ]; then
         TEST_EXIT=$WESTON_EXIT
     fi

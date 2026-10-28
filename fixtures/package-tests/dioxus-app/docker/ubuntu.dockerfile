@@ -4,7 +4,7 @@ FROM ubuntu:24.04
 ENV DEBIAN_FRONTEND=noninteractive
 ENV CI=true
 
-# Basic build tooling, plus Xvfb and Weston: container-test.sh runs the tests on each
+# Build tooling and display servers for headless testing
 RUN apt-get update -qq && \
     apt-get install -y \
         curl \
