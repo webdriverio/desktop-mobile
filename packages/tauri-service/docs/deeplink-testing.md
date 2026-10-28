@@ -44,7 +44,7 @@ Your app must register its custom protocol scheme in `tauri.conf.json` under the
 
 With the `external` provider, and CrabNebula on Windows and Linux, `triggerDeeplink()` opens the URL through the OS, which starts a second instance of your app with the URL as an argument. Register the [single-instance plugin](https://v2.tauri.app/plugin/single-instance/) with its `deep-link` feature, so that instance hands the URL to the running app's deep-link handlers and exits.
 
-The plugin allows one copy of the app at a time, so multiremote and `maxInstances` above 1 can only start one. To keep those working, turn the plugin on only for deeplink runs. The second instance the OS starts doesn't get your test run's environment, so also turn it on when the app is launched with one of your URLs:
+The plugin allows one copy of the app at a time, so multiremote and `maxInstances` above 1 can only start one. To keep those working, register the plugin only for deeplink runs. The instance the OS starts for a URL doesn't get the service's `env`, so also register the plugin when the app is launched with one of your URLs:
 
 ```toml
 # src-tauri/Cargo.toml
@@ -62,7 +62,7 @@ if deeplink_run {
 builder = builder.plugin(tauri_plugin_deep_link::init());
 ```
 
-Then set `ENABLE_SINGLE_INSTANCE` in the environment of your deeplink test run.
+Then set `ENABLE_SINGLE_INSTANCE` for deeplink runs with the service's `env` option, for example `env: { ENABLE_SINGLE_INSTANCE: 'true' }`.
 
 ## Basic Usage
 
@@ -208,7 +208,7 @@ fn main() {
 1. **Scheme not configured:**
    - Check that `plugins.deep-link.desktop.schemes` in `tauri.conf.json` lists your scheme (see [Protocol Registration](#protocol-registration))
    - On the OS route (`external`, and CrabNebula on Windows and Linux), check your app is registered as the scheme's handler
-   - On Windows and Linux with the OS route, check the single-instance plugin is registered with its `deep-link` feature and turned on for the run (see [Single Instance on Windows and Linux](#single-instance-on-windows-and-linux))
+   - On Windows and Linux with the OS route, check the single-instance plugin is registered for the run, with its `deep-link` feature (see [Single Instance on Windows and Linux](#single-instance-on-windows-and-linux))
 
 2. **Deep link listener not set up:**
    - Ensure `onOpenUrl()` (frontend) or `on_open_url` (Rust) is set up
