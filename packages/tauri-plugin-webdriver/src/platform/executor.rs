@@ -1643,7 +1643,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 fn click_element_script(js_var: &str) -> String {
   let active_element = crate::platform::key_input::deep_active_element_js("activeEl");
   let text_field = crate::platform::key_input::is_text_field_js("el");
-  // A click on the field, its label or a shadow host it's in keeps focus in the field.
+  // A click on the field, its label or parent shadow host keeps focus in the field.
   let commit_change = crate::platform::key_input::commit_pending_change_js(
     "el.control === pendingField || (function (node) { for (; node; node = node.getRootNode().host) { if (node === el) { return true; } } return false; })(pendingField)",
   );

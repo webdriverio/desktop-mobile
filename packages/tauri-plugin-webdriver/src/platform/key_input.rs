@@ -159,7 +159,7 @@ pub fn is_value_control_js(el: &str) -> String {
 }
 
 /// JS dispatching a special-key `KeyboardEvent`. Synthetic events have no default action, so
-/// unless a handler cancels the keydown, the script does the key's action itself.
+/// unless a handler cancels the keydown, the script performs the key's action itself.
 pub fn build_special_key_script(
   js_key: &str,
   js_code: &str,
@@ -329,7 +329,7 @@ fn radio_step_js(forward: bool) -> String {
 }
 
 /// JS for Enter: a line break in a textarea or contenteditable (Shift+Enter inserts a `<br>`
-/// rather than a new paragraph), or `change` in an edited input.
+/// rather than a new paragraph).
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
@@ -567,12 +567,12 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
   }
 }
 
-/// `{ el, value }`: the field Send Keys edited, and its value from before the edits or at the
-/// last Enter. If the value differs when focus leaves, the field gets a `change`.
+/// The field Send Keys edited, as `{ el, value }`. When focus leaves, it gets a `change` if its
+/// value is no longer `value`.
 pub const PENDING_CHANGE: &str = "window.__wdio_pending_change";
 
-/// JS firing the pending field's `change`, unless `keeps_focus`, a JS expression over
-/// `pendingField`, is true. Run it before moving focus, so `change` comes before `blur`.
+/// JS firing the pending field's `change` before the driver moves focus, so it precedes `blur`,
+/// unless `keeps_focus` (a JS expression over `pendingField`) says focus stays in the field.
 pub fn commit_pending_change_js(keeps_focus: &str) -> String {
   format!(
     r"var pendingChange = {PENDING_CHANGE};
@@ -588,9 +588,8 @@ pub fn commit_pending_change_js(keeps_focus: &str) -> String {
   )
 }
 
-/// JS making `el` the pending field, with `initial_value` as its value before the edits, unless
-/// it already is. A `blur` listener covers focus the page moves, though there `change` follows
-/// `blur`.
+/// JS making `el` the pending field with `initial_value`, unless it already is. A `blur`
+/// listener covers focus the page moves, though there `change` follows `blur`.
 fn record_pending_change_js(el: &str, initial_value: &str) -> String {
   let commit_other_field = commit_pending_change_js(&format!("pendingField === {el}"));
   format!(
@@ -612,8 +611,7 @@ fn record_pending_change_js(el: &str, initial_value: &str) -> String {
 }
 
 /// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
-/// records the pending field and, for a `plain` request, types it. Returns `{ status }` and never
-/// throws.
+/// records the pending field and types `plain`, if given. Returns `{ status }` and never throws.
 pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
   let active_element = deep_active_element_js("activeEl");
   let text_field = is_text_field_js("el");
