@@ -82,7 +82,7 @@ Check that:
 
 This is a Chromium error which may appear when using Docker or CI. Most of the "fixes" discussed online are based around passing different combinations of args to Chromium - you can set these via [`appArgs`](./configuration.md#appargs), though in most cases running under a virtual display such as Xvfb has proven more effective.
 
-WebdriverIO 9.19.1+ starts a virtual display on Linux when none is set; older versions need `xvfb-run` or `xvfb-maybe`. See [Headless & Display Servers](https://webdriver.io/docs/headless-and-display-servers).
+WebdriverIO 9.19.1+ starts a virtual display on Linux when none is set; older versions need `xvfb-run` or `xvfb-maybe`. WebdriverIO v10 starts Weston if it's installed and Xvfb otherwise, and the service is tested on both. See [Headless & Display Servers](https://webdriver.io/docs/headless-and-display-servers).
 
 ### Failed to create session. session not created: probably user data directory is already in use, please specify a unique value for --user-data-dir argument, or don't use --user-data-dir
 

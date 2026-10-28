@@ -329,6 +329,25 @@ jobs:
               ;;
           esac
 
+      # Run the ESM apps again on Weston, which the runner image doesn't have
+      - name: 🧪 Execute Package Tests on Weston
+        if: inputs.service == 'electron' && runner.os == 'Linux' && inputs.module-type == 'esm'
+        shell: bash
+        env:
+          NO_AT_BRIDGE: "1"
+          # Stops WebdriverIO falling back to Xvfb if Weston fails to start
+          DISPLAY_SERVER: wayland
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y weston
+          # Both passes write the same log names, so each pass's logs get their own folder
+          mkdir -p logs/package-tests/xvfb logs/package-tests/weston
+          mv logs/package-tests/*.log logs/package-tests/xvfb/ 2>/dev/null || true
+          status=0
+          env -u DISPLAY pnpm run test:package:electron -- --module-type=esm --skip-build || status=$?
+          mv logs/package-tests/*.log logs/package-tests/weston/ 2>/dev/null || true
+          exit $status
+
       # Upload logs as artifacts for later analysis (same as E2E tests)
       # This helps debug issues without cluttering the GitHub Actions console
       - name: 📦 Upload Package Test Logs
@@ -337,7 +356,7 @@ jobs:
         uses: actions/upload-artifact@v7
         with:
           name: package-test-logs-${{ inputs.os }}-${{ inputs.service }}-${{ inputs.module-type || 'default' }}-${{ github.run_id }}-${{ github.run_attempt }}
-          path: logs/package-tests/*.log
+          path: logs/package-tests/**/*.log
           retention-days: 90
           if-no-files-found: warn
 

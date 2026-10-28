@@ -33,6 +33,8 @@ export const config: Options.Testrunner = {
   waitforTimeout: 10000,
   connectionRetryTimeout: 120000,
   connectionRetryCount: 3,
+  // Allows the Linux package test to select wayland for its Weston run (see .github/workflows/_ci-package.reusable.yml)
+  displayServer: process.env.DISPLAY_SERVER as Options.Testrunner['displayServer'],
   services: [['electron', { appBinaryPath }]],
   framework: 'mocha',
   reporters: ['spec'],
