@@ -138,7 +138,7 @@ The in-app event skips the OS, so a few things differ from a real launch:
 - The plugin's `getCurrent()` doesn't change.
 - No second instance starts, so a single-instance callback that reads the URL from its arguments doesn't run. With the single-instance plugin's `deep-link` feature, those URLs reach `onOpenUrl` too, so handle them there.
 - Your app's capabilities must allow `wdio:allow-emit-deep-link`, which `wdio:default` includes.
-- Rust `on_open_url` handlers run on the main thread on every platform, as a real deep link runs them on macOS and Windows. On Linux, a real deep link runs them on the single-instance plugin's D-Bus thread. Either way, `triggerDeeplink()` returns without waiting for them, so wait for their effect in your test.
+- Rust `on_open_url` handlers run on the main thread on every platform, as a real deep link runs them on macOS and Windows. On Linux, a real deep link runs them on the single-instance plugin's D-Bus thread. `triggerDeeplink()` returns without waiting for them, so wait for their effect in your test.
 
 ## App Implementation
 

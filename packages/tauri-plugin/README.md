@@ -152,15 +152,15 @@ The plugin provides these Tauri commands:
 
 The `wdio:default` permission grants every plugin command. Mocking is implemented entirely via JS-side invoke interception (`window.__wdio_mocks__`), so there are no mock-related Rust permissions.
 
-| Permission                           | Description                            |
-| ------------------------------------ | -------------------------------------- |
-| `wdio:allow-execute`                 | Execute JavaScript in frontend context |
-| `wdio:allow-emit-deep-link`          | Emit a deep link (`triggerDeeplink()`) |
-| `wdio:allow-log-frontend`            | Forward frontend logs                  |
-| `wdio:allow-debug-plugin`            | Debug plugin state                     |
-| `wdio:allow-get-active-window-label` | Get active window label                |
-| `wdio:allow-get-window-states`       | Get window states                      |
-| `wdio:allow-list-windows`            | List windows                           |
+| Permission                           | Description                              |
+| ------------------------------------ | ---------------------------------------- |
+| `wdio:allow-execute`                 | Execute JavaScript in frontend context   |
+| `wdio:allow-emit-deep-link`          | Emit a deep link for `triggerDeeplink()` |
+| `wdio:allow-log-frontend`            | Forward frontend logs                    |
+| `wdio:allow-debug-plugin`            | Debug plugin state                       |
+| `wdio:allow-get-active-window-label` | Get active window label                  |
+| `wdio:allow-get-window-states`       | Get window states                        |
+| `wdio:allow-list-windows`            | List windows                             |
 
 ## Configuration
 
