@@ -349,6 +349,43 @@ describe('special keys (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
   });
 
+  it('should fire change on Enter in an input, and not again when focus leaves', async () => {
+    await fillChangeScratch();
+    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+    expect(await fieldEvents()).toEqual(['input x', 'change x']);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+  });
+
+  it('should fire the change setValue owes when the actions API presses Enter', async () => {
+    await fillChangeScratch('1');
+    await browser.$('#fresh-field').setValue('2');
+    await browser.keys(Key.Enter);
+    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2']);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
+  });
+
+  it('should keep the change owed when Click targets the shadow host the field is in', async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<div id="fresh-host"></div><button id="fresh-other">other</button>';
+      var root = document.querySelector("#fresh-host").attachShadow({ mode: "open", delegatesFocus: true });
+      root.innerHTML = '<input>';
+      window.__fieldEvents = [];
+      for (var type of ["input", "change", "blur"]) {
+        root.querySelector("input").addEventListener(type, function (ev) {
+          window.__fieldEvents.push(ev.type + " " + ev.target.value);
+        });
+      }`,
+    );
+    const host = browser.$('#fresh-host');
+    await host.addValue('x');
+    await host.click();
+    expect(await fieldEvents()).toEqual(['input x']);
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+  });
+
   it('should type line breaks and quotes from the actions API', async () => {
     await browser.$('#keys-textarea').click();
     await browser.keys(['a', NEWLINE, "'", 'b']);

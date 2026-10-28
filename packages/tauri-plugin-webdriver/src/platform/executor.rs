@@ -792,10 +792,6 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         }
       }
     }
-    if let Some(initial_value) = start.get("value").and_then(Value::as_str) {
-      let record_script = key_input::build_send_keys_record_change_script(js_var, initial_value);
-      self.evaluate_js(&record_script).await?;
-    }
     Ok(())
   }
 
@@ -1644,13 +1640,14 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // Helper Functions for Default Implementations
 // =============================================================================
 
-/// JS clicking `el` and focusing it, firing first any `change` a field owes from Send Keys if the
-/// click moves focus away from it.
+/// JS clicking `el` and focusing it, firing first any `change` a field owes from Send Keys. Focus
+/// stays on the field when `el` is the field, its label or a shadow host it's inside, so those keep
+/// the `change` owed; clicking any other element, even one holding the field, commits it.
 fn click_element_script(js_var: &str) -> String {
   let active_element = crate::platform::key_input::deep_active_element_js("activeEl");
   let text_field = crate::platform::key_input::is_text_field_js("el");
   let commit_change = crate::platform::key_input::commit_pending_change_js(
-    "pendingField === el || el.control === pendingField",
+    "el.control === pendingField || (function (node) { for (; node; node = node.getRootNode().host) { if (node === el) { return true; } } return false; })(pendingField)",
   );
   format!(
     r"(function() {{
@@ -1730,12 +1727,15 @@ mod element_script_tests {
   use crate::platform::key_input::PENDING_CHANGE;
 
   #[test]
-  fn click_commits_a_pending_change_unless_it_clicks_that_field_or_its_label() {
+  fn click_commits_a_pending_change_unless_it_clicks_that_field_its_label_or_its_host() {
     let script = click_element_script("__wd_el_abc");
     let commit = script.find(&format!("var pendingChange = {PENDING_CHANGE};")).unwrap();
     assert!(commit < script.find("el.click();").unwrap());
     assert!(commit < script.find("el.focus();").unwrap());
-    assert!(script.contains("if (!(pendingField === el || el.control === pendingField)) {"));
+    assert!(script.contains("if (!(el.control === pendingField || (function (node) {"));
+    // Only shadow hosts above the field keep it, not every ancestor: clicking the body commits.
+    assert!(script.contains("node = node.getRootNode().host) { if (node === el)"));
+    assert!(!script.contains("node.parentNode"));
   }
 
   #[test]

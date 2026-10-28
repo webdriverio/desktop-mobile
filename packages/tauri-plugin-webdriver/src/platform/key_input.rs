@@ -158,7 +158,7 @@ pub fn is_value_control_js(el: &str) -> String {
     )
 }
 
-/// JS dispatching a synthetic special-key `KeyboardEvent` plus the editing, radio and line-break
+/// JS dispatching a synthetic special-key `KeyboardEvent` plus the editing, radio and Enter
 /// side-effects an untrusted event can't drive itself, skipped when a handler cancels the keydown.
 pub fn build_special_key_script(
   js_key: &str,
@@ -172,9 +172,7 @@ pub fn build_special_key_script(
     "Backspace" | "Delete" => delete_js(js_key == "Backspace"),
     "ArrowDown" | "ArrowRight" => radio_step_js(true),
     "ArrowUp" | "ArrowLeft" => radio_step_js(false),
-    "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => {
-      line_break_js(modifiers.shift)
-    }
+    "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => enter_js(modifiers.shift),
     _ => String::new(),
   };
   key_event_script(js_key, js_code, key_code, is_down, modifiers, &default_action)
@@ -331,8 +329,9 @@ fn radio_step_js(forward: bool) -> String {
 }
 
 /// JS for Enter: a line break in a textarea or contenteditable (Shift+Enter inserts a `<br>`
-/// rather than a new paragraph). Inputs get none.
-fn line_break_js(shift: bool) -> String {
+/// rather than a new paragraph). In an input, Enter commits the value as in a browser: it fires the
+/// `change` Send Keys left owed, and the current value becomes the one a later `change` compares to.
+fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
   format!(
@@ -340,6 +339,15 @@ fn line_break_js(shift: bool) -> String {
                     {insert_newline}
                 }} else if (activeEl.isContentEditable) {{
                     document.execCommand('{command}', false, null);
+                }} else if (activeEl.tagName === 'INPUT') {{
+                    var pendingChange = {PENDING_CHANGE};
+                    if (pendingChange && pendingChange.el === activeEl && activeEl.value !== pendingChange.value) {{
+                        // Set before, so a handler that blurs the field can't fire a second change, and
+                        // after, so a value the handler sets counts as committed.
+                        pendingChange.value = activeEl.value;
+                        activeEl.dispatchEvent(new Event('change', {{ bubbles: true }}));
+                        pendingChange.value = activeEl.value;
+                    }}
                 }}"
   )
 }
@@ -561,7 +569,8 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
 }
 
 /// Where the page records the field Send Keys edited and its value from before the edit: a browser
-/// fires `change` when focus leaves an edited field, so the driver fires it then.
+/// fires `change` when focus leaves an edited field, or Enter commits an input, so the driver fires
+/// it then.
 pub const PENDING_CHANGE: &str = "window.__wdio_pending_change";
 
 /// JS firing the `change` a field still owes from Send Keys, unless `keeps_focus` (a JS expression
@@ -604,8 +613,10 @@ fn record_pending_change_js(el: &str, initial_value: &str) -> String {
   )
 }
 
-/// JS starting send keys: sets a value control's value to `typed`, or focuses the element once and,
-/// for a `plain` request, types it too. Returns `{ status, value }` and never throws.
+/// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
+/// records the text field's value for its `change` and, for a `plain` request, types it too. The
+/// record comes before any key, so an Enter among them can commit it. Returns `{ status }` and never
+/// throws.
 pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
   let active_element = deep_active_element_js("activeEl");
   let text_field = is_text_field_js("el");
@@ -615,15 +626,17 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
   let commit_change = commit_pending_change_js(
     "(function (node) { for (; node; node = node.parentNode || node.host) { if (node === el) { return true; } } return false; })(pendingField)",
   );
+  let record_change = record_pending_change_js("receiver", "initialValue");
   let finish = match plain {
     None => format!(
-      r"window.{js_var}__receiver = receiver;
-                return {{ status: 'focused', value: initialValue }};"
+      r"if (initialValue !== null) {{
+                    {record_change}
+                }}
+                return {{ status: 'focused' }};"
     ),
     Some(text) => {
       let insert_text =
         if text.is_empty() { String::new() } else { insert_text_js("receiver", &js_string(text)) };
-      let record_change = record_pending_change_js("receiver", "initialValue");
       format!(
         r"{insert_text}
                 if (initialValue !== null) {{
@@ -719,22 +732,6 @@ pub fn build_insert_run_script(run: &str) -> String {
     r"(function() {{
                 {active_element}
                 {insert_text}
-                return true;
-            }})()"
-  )
-}
-
-/// JS recording that the field that received the keys owes a `change` once focus leaves it, if it no
-/// longer holds `initial_value`; it skips a detached field.
-pub fn build_send_keys_record_change_script(js_var: &str, initial_value: &str) -> String {
-  let record_change = record_pending_change_js("el", &js_string(initial_value));
-  format!(
-    r"(function() {{
-                var el = window.{js_var}__receiver;
-                delete window.{js_var}__receiver;
-                if (el && el.isConnected) {{
-                    {record_change}
-                }}
                 return true;
             }})()"
   )
@@ -1265,7 +1262,8 @@ mod tests {
       "var initialValue = {} ? receiver.value : null;",
       is_text_field_js("receiver")
     )));
-    assert!(script.contains("window.__wd_el_abc__receiver = receiver;"));
+    let record = script.find("var record = { el: receiver, value: initialValue };").unwrap();
+    assert!(record < script.find("return { status: 'focused' };").unwrap());
     let plain = build_send_keys_start_script("__wd_el_abc", "x", Some("x"));
     assert!(plain.contains("var record = { el: receiver, value: initialValue };"));
     assert!(!plain.contains("receiver.dispatchEvent(new Event('change'"));
@@ -1312,14 +1310,38 @@ mod tests {
   }
 
   #[test]
-  fn build_send_keys_record_change_script_defers_change_to_when_focus_leaves() {
-    let script = build_send_keys_record_change_script("__wd_el_abc", "it's\n");
-    assert!(script.contains("var el = window.__wd_el_abc__receiver;"));
-    assert!(script.contains(&format!("var record = {{ el: el, value: {} }};", js_string("it's\n"))));
-    assert!(script.contains("if (el && el.isConnected) {"));
-    // Only the commit of another field and the blur listener fire `change`, never the record itself.
-    assert_eq!(script.matches("new Event('change'").count(), 2, "{script}");
-    assert!(!script.contains("throw"));
+  fn send_keys_start_records_the_change_without_firing_it() {
+    for plain in [None, Some("x")] {
+      let script = build_send_keys_start_script("__wd_el_abc", "x", plain);
+      assert!(script.contains("if (initialValue !== null) {"), "{script}");
+      // The commits of another field and the blur listener fire `change`, as does setting a value
+      // control; the record itself doesn't.
+      assert!(!script.contains("receiver.dispatchEvent(new Event('change'"), "{script}");
+      assert_eq!(script.matches("new Event('change'").count(), 4, "{script}");
+    }
+  }
+
+  #[test]
+  fn enter_commits_an_inputs_pending_change_and_keeps_tracking_it() {
+    let none = mods(false, false, false, false);
+    let shift = mods(false, true, false, false);
+    for modifiers in [none, shift] {
+      let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
+      let input = enter.find("} else if (activeEl.tagName === 'INPUT') {").unwrap();
+      let owed = enter[input..]
+        .find("pendingChange.el === activeEl && activeEl.value !== pendingChange.value")
+        .unwrap();
+      let change = enter[input..].find("activeEl.dispatchEvent(new Event('change'").unwrap();
+      assert!(owed < change);
+      let rebased = "pendingChange.value = activeEl.value;";
+      assert_eq!(enter[input..].matches(rebased).count(), 2, "{enter}");
+      assert!(!enter.contains(&format!("{PENDING_CHANGE} = null")), "{enter}");
+    }
+    let enter_up = build_special_key_script("Enter", "Enter", 13, false, &none);
+    assert!(!enter_up.contains("pendingChange"));
+    let ctrl_enter =
+      build_special_key_script("Enter", "Enter", 13, true, &mods(true, false, false, false));
+    assert!(!ctrl_enter.contains("pendingChange"));
   }
 
   #[test]
