@@ -552,8 +552,8 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
   }
 }
 
-/// Page-side helpers for focus moves and form events, shared with wdio-dioxus-embedded-driver. The
-/// source is in @wdio/native-utils, and a test checks this copy matches it.
+/// Page-side helpers for focus moves and form events. wdio-dioxus-embedded-driver keeps an
+/// identical copy; test/scripts/element-events.spec.ts tests the file and compares the copies.
 pub const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
 /// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
@@ -1266,14 +1266,6 @@ mod tests {
     let focus = body.find("focusTarget.focus();").unwrap();
     assert!(!body[..focus].contains("PendingChange("));
     assert!(focus < body.find("wdioRecordPendingChange(receiver, initialValue);").unwrap());
-  }
-
-  #[test]
-  fn element_events_js_matches_its_native_utils_source() {
-    assert!(
-      ELEMENT_EVENTS_JS == include_str!("../../../native-utils/src/scripts/element-events.js"),
-      "copy packages/native-utils/src/scripts/element-events.js over this crate's element-events.js"
-    );
   }
 
   #[test]

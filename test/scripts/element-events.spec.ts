@@ -1,8 +1,15 @@
 // @vitest-environment jsdom
+/// <reference lib="dom" />
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
+
+// The embedded drivers' page-side element events. The crates can't share a file, so each keeps a
+// copy; these tests run in jsdom, which can't delegate focus, so the E2E specs cover shadow hosts
+// that keep focus in their field.
+const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
+const TAURI_COPY = 'packages/tauri-plugin-webdriver/src/platform/element-events.js';
 
 type ElementEvents = {
   wdioRecordPendingChange(el: HTMLElement, value: string): void;
@@ -13,7 +20,7 @@ type ElementEvents = {
   wdioSetValueControl(el: HTMLElement, typed: string): 'immutable' | 'invalid' | 'set' | undefined;
 };
 
-const source = readFileSync(join(dirname(fileURLToPath(import.meta.url)), '../src/scripts/element-events.js'), 'utf8');
+const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
   return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
@@ -158,7 +165,6 @@ describe('wdioFocusForClick', () => {
     expect(log).toEqual(['change a=x', 'blur a=x']);
   });
 
-  // jsdom doesn't delegate focus, so the E2E specs cover a host that keeps focus in its field.
   it("should take focus off a field in a shadow host that doesn't delegate focus", () => {
     const host = document.createElement('div');
     document.body.append(host);

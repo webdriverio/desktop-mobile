@@ -253,6 +253,9 @@ importers:
       husky:
         specifier: ^9.1.7
         version: 9.1.7
+      jsdom:
+        specifier: ^30.1.3
+        version: 30.1.3(@noble/hashes@1.8.0)
       lint-staged:
         specifier: ^17.6.0
         version: 17.6.0
@@ -1598,9 +1601,6 @@ importers:
       '@wdio/native-types':
         specifier: workspace:*
         version: link:../native-types
-      jsdom:
-        specifier: ^30.1.3
-        version: 30.1.3(@noble/hashes@1.8.0)
       shx:
         specifier: ^0.4.0
         version: 0.4.0

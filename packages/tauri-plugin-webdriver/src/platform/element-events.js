@@ -1,8 +1,7 @@
 // biome-ignore-all lint/correctness/noUnusedVariables: the embedded drivers' scripts call these functions
 // The page side of the embedded drivers' element commands: the focus moves and form events a browser
-// produces for a user. The source is packages/native-utils/src/scripts/element-events.js. A crate
-// can't depend on an npm package, so the driver crates ship copies, and a test in each fails if its
-// copy differs.
+// produces for a user. tauri-plugin-webdriver and wdio-dioxus-embedded-driver keep identical copies,
+// which test/scripts/element-events.spec.ts tests and compares.
 
 const WDIO_CLEARABLE_INPUT_TYPES = [
   'text',
