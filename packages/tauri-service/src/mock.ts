@@ -69,7 +69,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     typeof registeredWindowLabel === 'string' && registeredWindowLabel.length > 0
       ? registeredWindowLabel
       : getCurrentWindowLabel(browserToUse);
-  const executeOptions: TauriExecuteOptions = { windowLabel, __wdioOptions__: true };
+  const executeOptions = { windowLabel, __wdioOptions__: true } as TauriExecuteOptions;
   const executeInMockWindow = <T>(script: string): Promise<T> =>
     tauriExecute<T, [TauriExecuteOptions]>(browserToUse, script, executeOptions);
 
