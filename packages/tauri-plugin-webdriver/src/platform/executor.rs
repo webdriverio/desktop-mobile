@@ -1640,9 +1640,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // Helper Functions for Default Implementations
 // =============================================================================
 
-/// JS clicking `el` and focusing it, firing first any `change` a field owes from Send Keys. Focus
-/// stays on the field when `el` is the field, its label or a shadow host it's inside, so those keep
-/// the `change` owed; clicking any other element, even one holding the field, commits it.
+/// JS clicking and focusing `el`. It first fires any `change` a field owes from Send Keys, unless
+/// `el` is that field, its label or a shadow host it's in, which leave focus on the field.
 fn click_element_script(js_var: &str) -> String {
   let active_element = crate::platform::key_input::deep_active_element_js("activeEl");
   let text_field = crate::platform::key_input::is_text_field_js("el");
@@ -1666,8 +1665,7 @@ fn click_element_script(js_var: &str) -> String {
               {commit_change}
               el.scrollIntoView({{ block: 'center', inline: 'center' }});
               el.click();
-              // Explicitly focus the element after click - programmatic click()
-              // doesn't always trigger focus like a real click would
+              // `click()` doesn't move focus as a real click does.
               if (typeof el.focus === 'function') {{
                   el.focus();
               }}
@@ -1676,8 +1674,8 @@ fn click_element_script(js_var: &str) -> String {
   )
 }
 
-/// JS for Element Clear with W3C's focusing and unfocusing steps: `el` takes focus, clears with an
-/// `input` event, then blurs, firing `change` first if its value differs from its last committed one.
+/// JS for Element Clear, with W3C's focusing and unfocusing steps: it focuses `el`, clears it,
+/// fires `change` if the value differs from the last committed one, then blurs.
 fn clear_element_script(js_var: &str) -> String {
   let pending_change = crate::platform::key_input::PENDING_CHANGE;
   let commit_change = crate::platform::key_input::commit_pending_change_js("pendingField === el");

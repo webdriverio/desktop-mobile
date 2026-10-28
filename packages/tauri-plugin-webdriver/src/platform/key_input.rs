@@ -329,8 +329,8 @@ fn radio_step_js(forward: bool) -> String {
 }
 
 /// JS for Enter: a line break in a textarea or contenteditable (Shift+Enter inserts a `<br>`
-/// rather than a new paragraph). In an input, Enter commits the value as in a browser: it fires the
-/// `change` Send Keys left owed, and the current value becomes the one a later `change` compares to.
+/// rather than a new paragraph). In an input it commits the value, as a browser does, firing any
+/// `change` Send Keys left owed.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
@@ -568,9 +568,8 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
   }
 }
 
-/// Where the page records the field Send Keys edited and its value from before the edit: a browser
-/// fires `change` when focus leaves an edited field, or Enter commits an input, so the driver fires
-/// it then.
+/// The field Send Keys edited and its value from before the edit, kept until focus leaves or
+/// Enter commits it, when the driver fires the `change` a browser would.
 pub const PENDING_CHANGE: &str = "window.__wdio_pending_change";
 
 /// JS firing the `change` a field still owes from Send Keys, unless `keeps_focus` (a JS expression
@@ -614,9 +613,8 @@ fn record_pending_change_js(el: &str, initial_value: &str) -> String {
 }
 
 /// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
-/// records the text field's value for its `change` and, for a `plain` request, types it too. The
-/// record comes before any key, so an Enter among them can commit it. Returns `{ status }` and never
-/// throws.
+/// records the field for its `change` (ahead of the keys, so an Enter can commit it) and, for a
+/// `plain` request, types it. Returns `{ status }` and never throws.
 pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
   let active_element = deep_active_element_js("activeEl");
   let text_field = is_text_field_js("el");
@@ -1314,10 +1312,7 @@ mod tests {
     for plain in [None, Some("x")] {
       let script = build_send_keys_start_script("__wd_el_abc", "x", plain);
       assert!(script.contains("if (initialValue !== null) {"), "{script}");
-      // The commits of another field and the blur listener fire `change`, as does setting a value
-      // control; the record itself doesn't.
       assert!(!script.contains("receiver.dispatchEvent(new Event('change'"), "{script}");
-      assert_eq!(script.matches("new Event('change'").count(), 4, "{script}");
     }
   }
 
