@@ -726,8 +726,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 
   /// Click on element
   async fn click_element(&self, js_var: &str) -> Result<(), WebDriverErrorResponse> {
-    let script = click_element_script(js_var);
-    self.evaluate_js(&script).await?;
+    self.evaluate_js(&click_press_script(js_var)).await?;
+    self.evaluate_js(&click_release_script(js_var)).await?;
     Ok(())
   }
 
@@ -1640,10 +1640,8 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
 // Helper Functions for Default Implementations
 // =============================================================================
 
-fn click_element_script(js_var: &str) -> String {
+fn click_press_script(js_var: &str) -> String {
   let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
-  let active_element = crate::platform::key_input::deep_active_element_js("activeEl");
-  let text_field = crate::platform::key_input::is_text_field_js("el");
   format!(
     r"(function() {{
               {element_events}
@@ -1651,18 +1649,20 @@ fn click_element_script(js_var: &str) -> String {
               if (!el || !el.isConnected) {{
                   throw new Error('stale element reference');
               }}
-              {active_element}
-              // A caret set before focus stops WebKit selecting a fresh field's text (or putting a
-              // textarea's caret first), while a select-on-focus handler still picks its own selection.
-              if (activeEl !== el && {text_field}) {{
-                  try {{
-                      el.setSelectionRange(el.value.length, el.value.length);
-                  }} catch (e) {{}}
-              }}
-              el.scrollIntoView({{ block: 'center', inline: 'center' }});
-              // `click()` doesn't move focus, so focus moves first, as on a real mousedown.
-              wdioFocusForClick(el);
-              el.click();
+              el.scrollIntoView({{ behavior: 'instant', block: 'center', inline: 'center' }});
+              wdioPress(el);
+              return true;
+          }})()"
+  )
+}
+
+/// JS releasing the press, in its own script so that the page reacts to the press first.
+fn click_release_script(js_var: &str) -> String {
+  let element_events = crate::platform::key_input::ELEMENT_EVENTS_JS;
+  format!(
+    r"(function() {{
+              {element_events}
+              wdioRelease(window.{js_var});
               return true;
           }})()"
   )
@@ -1686,18 +1686,19 @@ fn clear_element_script(js_var: &str) -> String {
 #[cfg(test)]
 mod element_script_tests {
   use super::*;
-  use crate::platform::key_input::ELEMENT_EVENTS_JS;
+  use crate::platform::key_input::{after_helpers, ELEMENT_EVENTS_JS};
 
   #[test]
-  fn click_moves_focus_before_clicking_and_leaves_it_to_the_page_after() {
-    let script = click_element_script("__wd_el_abc");
-    assert!(script.contains(ELEMENT_EVENTS_JS));
-    let caret = script.find("el.setSelectionRange(el.value.length, el.value.length);").unwrap();
-    let scroll = script.find("el.scrollIntoView(").unwrap();
-    let focus = script.find("wdioFocusForClick(el);").unwrap();
-    let click = script.find("el.click();").unwrap();
-    assert!(caret < scroll && scroll < focus && focus < click);
-    assert!(!script[click..].contains("focus()"));
+  fn click_scrolls_and_presses_then_releases_in_a_later_script() {
+    let press = click_press_script("__wd_el_abc");
+    let body = after_helpers(&press);
+    let scroll = body.find("el.scrollIntoView(").unwrap();
+    assert!(scroll < body.find("wdioPress(el);").unwrap());
+    assert!(body.contains("el.scrollIntoView({ behavior: 'instant',"));
+    assert!(!body.contains("wdioRelease("));
+    let release = click_release_script("__wd_el_abc");
+    let body = after_helpers(&release);
+    assert!(body.contains("wdioRelease(window.__wd_el_abc);"));
   }
 
   #[test]

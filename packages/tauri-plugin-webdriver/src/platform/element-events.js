@@ -24,6 +24,9 @@ const WDIO_CLEARABLE_INPUT_TYPES = [
 
 const WDIO_VALUE_CONTROL_TYPES = ['color', 'date', 'datetime-local', 'month', 'range', 'time', 'week'];
 
+const WDIO_CLICK_FOCUSABLE =
+  'a[href], area[href], button, input, select, textarea, iframe, summary, audio[controls], video[controls], [tabindex]';
+
 // The focused element, looking through open shadow roots.
 function wdioDeepActiveElement() {
   let el = document.activeElement || document.body;
@@ -39,18 +42,42 @@ function wdioRecordPendingChange(el, value) {
   if (window.__wdio_pending_change?.el === el) {
     return;
   }
-  wdioTakePendingChange();
+  wdioFirePendingChange();
   const root = el.getRootNode();
   // Capturing on the field's root runs before the field's own blur listeners, so `change` precedes
   // `blur` however focus leaves, as in a browser.
   const onBlur = (event) => {
-    const record = event.target === el && wdioTakePendingChange(el);
-    if (record && el.value !== record.value) {
-      el.dispatchEvent(new Event('change', { bubbles: true }));
+    if (event.target === el) {
+      wdioFirePendingChange(el);
     }
   };
   root.addEventListener('blur', onBlur, true);
   window.__wdio_pending_change = { el, value, root, onBlur };
+}
+
+// Chromium (WebView2) skips `blur` on scripted focus moves while the window isn't focused, so the
+// driver calls this before and after it moves focus: a field that lost focus without a `blur`, to
+// the page or to the driver, then fires the `change` it owes. Workaround for #886; drop once the
+// drivers emulate focus.
+function wdioFlushPendingChange() {
+  const record = window.__wdio_pending_change;
+  if (record && record.root.activeElement !== record.el) {
+    wdioFirePendingChange();
+  }
+}
+
+function wdioFocus(el) {
+  wdioFlushPendingChange();
+  el.focus();
+  wdioFlushPendingChange();
+}
+
+// A field the page has removed fires nothing, as its component may be gone.
+function wdioFirePendingChange(el) {
+  const record = wdioTakePendingChange(el);
+  if (record?.el.isConnected && record.el.value !== record.value) {
+    record.el.dispatchEvent(new Event('change', { bubbles: true }));
+  }
 }
 
 // Removes and returns the pending change, or only `el`'s when `el` is given.
@@ -77,27 +104,161 @@ function wdioCommitOnEnter(el) {
   record.value = el.value;
 }
 
-// Moves focus as a mousedown on `el` does: to `el` or its nearest focusable ancestor, or off the
-// focused element when there is none. A label's click then focuses its control itself.
+// Element Click's press, as Chrome sends it: a cancelled pointerdown or mousedown keeps focus where it
+// is, as combobox lists and editor toolbars rely on, and a disabled control gets no mouse events. The
+// mouse events have detail 0, as synthetic events do: Tauri's drag regions start a native window drag
+// on a mousedown with detail 1, which with no button held wouldn't end.
+function wdioPress(el) {
+  const rect = el.getBoundingClientRect();
+  const init = {
+    bubbles: true,
+    cancelable: true,
+    composed: true,
+    clientX: Math.floor(rect.left + rect.width / 2),
+    clientY: Math.floor(rect.top + rect.height / 2),
+  };
+  const pressed = el.dispatchEvent(
+    new PointerEvent('pointerdown', { ...wdioPointer(init), buttons: 1, pressure: 0.5 }),
+  );
+  let focusMoves = pressed;
+  if (pressed && !wdioDisabled(el)) {
+    focusMoves = wdioMouseDown(el, { ...init, buttons: 1 });
+  }
+  if (focusMoves) {
+    wdioFocusForClick(el);
+  }
+  window.__wdio_press = { init, pressed };
+}
+
+// Element Click's release, which the driver runs in a later script than the press, as a real click's
+// comes in a later task, so the page's reactions to the press (a re-render, an effect) land first. The
+// press's blur can enable or disable the control, so each step checks.
+function wdioRelease(el) {
+  const { init, pressed } = window.__wdio_press;
+  window.__wdio_press = undefined;
+  el.dispatchEvent(new PointerEvent('pointerup', wdioPointer(init)));
+  if (pressed && !wdioDisabled(el)) {
+    el.dispatchEvent(new MouseEvent('mouseup', init));
+  }
+  if (wdioDisabled(el)) {
+    return;
+  }
+  // A component's own click() can pass the click to a control in its shadow root.
+  if (wdioOwnMethod(el, 'click')) {
+    el.click();
+  } else {
+    el.dispatchEvent(new PointerEvent('click', { ...wdioPointer(init), detail: 1 }));
+  }
+}
+
+function wdioPointer(init) {
+  return { ...init, pointerId: 1, pointerType: 'mouse', isPrimary: true };
+}
+
+function wdioDisabled(el) {
+  return el.closest(':disabled:not(fieldset)');
+}
+
+// Returns whether the page left the mousedown uncancelled. WebKit acts on a synthetic mousedown, so a
+// range input's thumb jumps to it, where Chromium doesn't, so the driver cancels it once the page's
+// listeners have run.
+function wdioMouseDown(el, init) {
+  let pageCanceled;
+  const cancel = (event) => {
+    pageCanceled = event.defaultPrevented;
+    event.preventDefault();
+  };
+  window.addEventListener('mousedown', cancel);
+  const uncanceled = el.dispatchEvent(new MouseEvent('mousedown', init));
+  window.removeEventListener('mousedown', cancel);
+  return pageCanceled === undefined ? uncanceled : !pageCanceled;
+}
+
+// Moves focus as a mousedown on `el` does: to `el` or its nearest ancestor a click can focus, or off
+// the focused element when there is none.
 function wdioFocusForClick(el) {
-  for (let node = el; node && node !== document.body; node = node.parentNode || node.host) {
+  wdioFlushPendingChange();
+  const previous = wdioDeepActiveElement();
+  let moved = false;
+  const onFocus = () => {
+    moved = true;
+  };
+  document.addEventListener('focus', onFocus, true);
+  // `activeElement` reports a shadow host when focus is anywhere in its tree; that only counts as the
+  // host holding focus when it delegates focus.
+  const holdsFocus = (node) =>
+    node.getRootNode().activeElement === node && (!node.shadowRoot?.activeElement || node.shadowRoot.delegatesFocus);
+  let node = el;
+  // The walk follows the tree as rendered, through the slot that shows a slotted element.
+  for (; node && node !== document.body; node = node.assignedSlot || node.parentNode || node.host) {
     if (typeof node.focus !== 'function') {
       continue;
     }
+    // An element that already has focus keeps it, even one a click couldn't have focused.
+    if (holdsFocus(node)) {
+      break;
+    }
+    if (!wdioClickFocusable(node)) {
+      continue;
+    }
+    wdioCaretToEnd(node);
     node.focus({ preventScroll: true });
-    // `activeElement` reports a shadow host when focus is anywhere in its tree; that only counts as
-    // the host taking focus when it delegates focus.
+    // A component's focus() or a focus handler can send focus elsewhere, or back, and a component's
+    // focus() can keep it in a field of its own that already had it.
     if (
-      node.getRootNode().activeElement === node &&
-      (!node.shadowRoot?.activeElement || node.shadowRoot.delegatesFocus)
+      moved ||
+      wdioDeepActiveElement() !== previous ||
+      (wdioOwnMethod(node, 'focus') && wdioContains(node, previous))
     ) {
-      return;
+      break;
     }
   }
-  const active = wdioDeepActiveElement();
-  if (active !== document.body) {
-    active.blur();
+  document.removeEventListener('focus', onFocus, true);
+  if (!node || node === document.body) {
+    const active = wdioDeepActiveElement();
+    if (active !== document.body) {
+      active.blur();
+    }
   }
+  wdioFlushPendingChange();
+}
+
+// A label's focus() focuses its field, and Chromium's focuses a scrolling box, which no mousedown does.
+// Custom elements count, as one can delegate focus through a closed shadow root or its own focus()
+// method.
+function wdioClickFocusable(node) {
+  return (
+    node.matches(WDIO_CLICK_FOCUSABLE) ||
+    (node.isContentEditable && !node.parentElement?.isContentEditable) ||
+    node.localName.includes('-') ||
+    node.shadowRoot?.delegatesFocus ||
+    wdioOwnMethod(node, 'focus')
+  );
+}
+
+// A caret set before focus stops WebKit selecting a fresh field's text, or putting a textarea's caret
+// first, while a select-on-focus handler still picks its own selection.
+function wdioCaretToEnd(el) {
+  try {
+    el.setSelectionRange?.(el.value.length, el.value.length);
+  } catch {
+    // Inputs such as checkboxes have no selection.
+  }
+}
+
+// Whether `node` overrides a built-in method, as components do to pass focus or a click inward.
+function wdioOwnMethod(node, name) {
+  return node instanceof HTMLElement && node[name] !== HTMLElement.prototype[name];
+}
+
+// Whether `el` is `node` or inside it, looking through shadow roots.
+function wdioContains(node, el) {
+  for (let current = el; current; current = current.parentNode || current.host) {
+    if (current === node) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Element Clear (W3C): returns 'not editable', 'empty' (leaving the element alone) or 'cleared'.
@@ -110,7 +271,7 @@ function wdioClearElement(el) {
   if (field ? el.value === '' : el.innerHTML === '') {
     return 'empty';
   }
-  el.focus();
+  wdioFocus(el);
   const record = wdioTakePendingChange(el);
   const committedValue = record ? record.value : el.value;
   if (field) {
@@ -136,10 +297,10 @@ function wdioSetValueControl(el, typed) {
   if (el.tagName !== 'INPUT' || !WDIO_VALUE_CONTROL_TYPES.includes(el.type) || typed === '') {
     return undefined;
   }
-  if (el.readOnly || el.disabled) {
+  if (el.readOnly || el.matches(':disabled')) {
     return 'immutable';
   }
-  el.focus();
+  wdioFocus(el);
   const setValue = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, 'value').set;
   const previousValue = el.value;
   setValue.call(el, typed);

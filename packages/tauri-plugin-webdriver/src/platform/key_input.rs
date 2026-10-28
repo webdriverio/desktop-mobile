@@ -555,30 +555,26 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
 /// Page-side helpers for focus moves and form events.
 pub const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
+/// The script after the shared helpers, so a test can't match their definitions.
+#[cfg(test)]
+pub(crate) fn after_helpers(script: &str) -> &str {
+  &script[script.find(ELEMENT_EVENTS_JS).unwrap() + ELEMENT_EVENTS_JS.len()..]
+}
+
 /// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
-/// types `plain` if given, and records that the field owes a `change`. Returns `{ status }` and
+/// records that a text field owes a `change`, and types `plain` if given. Returns `{ status }` and
 /// never throws.
 pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
   let active_element = deep_active_element_js("activeEl");
-  let text_field = is_text_field_js("el");
-  let receiver_text_field = is_text_field_js("receiver");
+  let receiver_editable = is_editable_text_field_js("receiver");
   let typed = js_string(typed);
-  let record_change = "wdioRecordPendingChange(receiver, initialValue);";
   let finish = match plain {
-    None => format!(
-      r"if (initialValue !== null) {{
-                    {record_change}
-                }}
-                return {{ status: 'focused' }};"
-    ),
+    None => "return { status: 'focused' };".to_string(),
     Some(text) => {
       let insert_text =
         if text.is_empty() { String::new() } else { insert_text_js("receiver", &js_string(text)) };
       format!(
         r"{insert_text}
-                if (initialValue !== null) {{
-                    {record_change}
-                }}
                 return {{ status: 'done' }};"
       )
     }
@@ -605,14 +601,9 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                     && focusTarget.parentElement.isContentEditable) {{
                     focusTarget = focusTarget.parentElement;
                 }}
-                // Text fields get the caret at the end before focus: typing appends, yet a select-on-focus
-                // handler still wins.
-                if ({text_field}) {{
-                    try {{
-                        el.setSelectionRange(el.value.length, el.value.length);
-                    }} catch (e) {{}}
-                }}
-                focusTarget.focus();
+                // Typing appends, yet a select-on-focus handler still wins.
+                wdioCaretToEnd(el);
+                wdioFocus(focusTarget);
                 if (!wasFocused && el.isContentEditable) {{
                     try {{
                         var range = document.createRange();
@@ -625,21 +616,19 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                 }}
                 {active_element}
                 // The body, focus-delegating hosts and an editing host holding the element count as focus.
-                var focused = el === document.body || el === document.documentElement || activeEl === focusTarget;
-                for (var node = activeEl; node && !focused; node = node.parentNode || node.host) {{
-                    focused = node === el;
-                }}
+                var focused = el === document.body || el === document.documentElement || activeEl === focusTarget
+                    || wdioContains(el, activeEl);
                 if (!focused) {{
                     return {{ status: 'unfocused' }};
                 }}
                 var receiver = activeEl;
-                // A field that focus was delegated to is only known now, so its caret moves after focus.
-                if (receiver !== el && {receiver_text_field}) {{
-                    try {{
-                        receiver.setSelectionRange(receiver.value.length, receiver.value.length);
-                    }} catch (e) {{}}
+                if ({receiver_editable}) {{
+                    // A field that focus was delegated to is only known now, so its caret moves after focus.
+                    if (receiver !== el) {{
+                        wdioCaretToEnd(receiver);
+                    }}
+                    wdioRecordPendingChange(receiver, receiver.value);
                 }}
-                var initialValue = {receiver_text_field} ? receiver.value : null;
                 {finish}
             }})()"
   )
@@ -1171,34 +1160,27 @@ mod tests {
   #[test]
   fn build_send_keys_start_script_appends_to_the_field_that_receives_the_text() {
     let script = build_send_keys_start_script("__wd_el_abc", "", None);
-    let field_caret =
-      script.find("el.setSelectionRange(el.value.length, el.value.length)").unwrap();
-    let focus = script.find("focusTarget.focus()").unwrap();
-    let editor_caret = script.find("range.collapse(false)").unwrap();
-    let delegated_caret = script
-      .find("receiver.setSelectionRange(receiver.value.length, receiver.value.length)")
-      .unwrap();
+    let body = after_helpers(&script);
+    let field_caret = body.find("wdioCaretToEnd(el);").unwrap();
+    let focus = body.find("wdioFocus(focusTarget)").unwrap();
+    let editor_caret = body.find("range.collapse(false)").unwrap();
+    let delegated_caret = body.find("wdioCaretToEnd(receiver);").unwrap();
     assert!(field_caret < focus && focus < editor_caret && editor_caret < delegated_caret);
-    assert!(script.contains("if (!wasFocused && el.isContentEditable)"));
-    assert!(script.contains(&format!(
-      "var initialValue = {} ? receiver.value : null;",
-      is_text_field_js("receiver")
-    )));
-    let record = script.find("wdioRecordPendingChange(receiver, initialValue);").unwrap();
-    assert!(record < script.find("return { status: 'focused' };").unwrap());
-    let plain = build_send_keys_start_script("__wd_el_abc", "x", Some("x"));
-    assert!(plain.contains("wdioRecordPendingChange(receiver, initialValue);"));
-    assert!(!plain.contains("receiver.dispatchEvent(new Event('change'"));
+    assert!(body.contains("if (!wasFocused && el.isContentEditable)"));
+    assert!(body.contains(&format!("if ({}) {{", is_editable_text_field_js("receiver"))));
+    let record = body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap();
+    assert!(delegated_caret < record);
+    assert!(record < body.find("return { status: 'focused' };").unwrap());
   }
 
   #[test]
   fn build_send_keys_start_script_accepts_the_body_editing_hosts_and_focus_inside() {
     let script = build_send_keys_start_script("__wd_el_abc", "", None);
     assert!(script.contains(
-      "el === document.body || el === document.documentElement || activeEl === focusTarget;"
+      "el === document.body || el === document.documentElement || activeEl === focusTarget"
     ));
     assert!(script.contains("focusTarget = focusTarget.parentElement;"));
-    assert!(script.contains("node = node.parentNode || node.host"));
+    assert!(script.contains("|| wdioContains(el, activeEl);"));
     assert!(script.contains("return { status: 'unfocused' };"));
   }
 
@@ -1212,10 +1194,10 @@ mod tests {
   #[test]
   fn build_send_keys_start_script_types_plain_text_in_the_same_script() {
     let plain = build_send_keys_start_script("__wd_el_abc", "hi", Some("hi"));
-    let focus = plain.find("focusTarget.focus()").unwrap();
-    let insert = plain.find("var insertedText = \"hi\"").unwrap();
+    let focus = plain.find("wdioFocus(focusTarget)").unwrap();
     let record = plain.find("wdioRecordPendingChange(receiver").unwrap();
-    assert!(focus < insert && insert < record);
+    let insert = plain.find("var insertedText = \"hi\"").unwrap();
+    assert!(focus < record && record < insert);
     assert!(plain.contains("return { status: 'done' };"));
     let empty = build_send_keys_start_script("__wd_el_abc", "", Some(""));
     assert!(!empty.contains("insertedText") && empty.contains("return { status: 'done' };"));
@@ -1229,15 +1211,6 @@ mod tests {
     assert!(script.contains("inputType: 'insertText'"));
     assert!(script.contains("document.execCommand('insertText', false, insertedText)"));
     assert!(!script.contains("new Event('change'"));
-  }
-
-  #[test]
-  fn send_keys_start_records_the_change_without_firing_it() {
-    for plain in [None, Some("x")] {
-      let script = build_send_keys_start_script("__wd_el_abc", "x", plain);
-      assert!(script.contains("if (initialValue !== null) {"), "{script}");
-      assert!(!script.contains("receiver.dispatchEvent(new Event('change'"), "{script}");
-    }
   }
 
   #[test]
@@ -1258,13 +1231,14 @@ mod tests {
   }
 
   #[test]
-  fn send_keys_start_leaves_the_owed_change_to_the_blur_that_focusing_causes() {
-    let script = build_send_keys_start_script("__wd_el_abc", "x", Some("x"));
-    let helpers = script.find(ELEMENT_EVENTS_JS).unwrap();
-    let body = &script[helpers + ELEMENT_EVENTS_JS.len()..];
-    let focus = body.find("focusTarget.focus();").unwrap();
-    assert!(!body[..focus].contains("PendingChange("));
-    assert!(focus < body.find("wdioRecordPendingChange(receiver, initialValue);").unwrap());
+  fn send_keys_start_records_the_change_after_focusing() {
+    for plain in [None, Some("x")] {
+      let script = build_send_keys_start_script("__wd_el_abc", "x", plain);
+      let body = after_helpers(&script);
+      let focus = body.find("wdioFocus(focusTarget);").unwrap();
+      assert!(focus < body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap());
+      assert!(!body.contains("new Event('change'"));
+    }
   }
 
   #[test]
@@ -1312,7 +1286,7 @@ mod tests {
       .unwrap();
     let returned = script.find("return { status: valueControlStatus };").unwrap();
     assert!(
-      file < set && set < returned && returned < script.find("focusTarget.focus();").unwrap()
+      file < set && set < returned && returned < script.find("wdioFocus(focusTarget);").unwrap()
     );
   }
 

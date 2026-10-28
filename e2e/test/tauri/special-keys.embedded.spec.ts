@@ -338,6 +338,17 @@ describe('special keys (embedded)', () => {
     expect(await browser.execute('return document.activeElement === document.body')).toBe(true);
   });
 
+  it('should fire change when an input handler moves focus on', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `document.querySelector("#fresh-field").addEventListener("input", function () {
+        document.querySelector("#fresh-other").focus();
+      });`,
+    );
+    await browser.$('#fresh-field').addValue('1');
+    expect(await fieldEvents()).toEqual(['input 1', 'change 1', 'blur 1']);
+  });
+
   it("should fire change when a click on the field's label takes focus from it, as a browser does", async () => {
     await fillChangeScratch();
     await fillScratch(
@@ -346,6 +357,97 @@ describe('special keys (embedded)', () => {
     await browser.$('#fresh-field').addValue('x');
     await browser.$('#fresh-label').click();
     expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+  });
+
+  it('should focus the field a label points to only once', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<input id="fresh-b"><label id="fresh-b-label" for="fresh-b">b</label>');
+      for (var type of ["focus", "blur"]) {
+        document.querySelector("#fresh-b").addEventListener(type, function (ev) {
+          window.__fieldEvents.push(ev.type + " b");
+        });
+      }`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-b-label').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x', 'focus b']);
+  });
+
+  it('should focus a contenteditable when a click lands inside it', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<div id="fresh-editor" contenteditable="true"><b id="fresh-bold">bold</b></div>');`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-bold').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+    expect(await browser.execute('return document.activeElement.id')).toBe('fresh-editor');
+  });
+
+  it('should take focus off the field when a click lands in a scrolling box', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `scratch.insertAdjacentHTML("beforeend", '<div style="overflow: auto; height: 20px"><p id="fresh-para">a</p><p>b</p><p>c</p></div>');`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-para').click();
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'blur x']);
+    expect(await browser.execute('return document.activeElement === document.body')).toBe(true);
+  });
+
+  it('should keep focus on a focused element when a click lands on its text', async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<div id="fresh-panel" tabindex="-1"><p id="fresh-text">text</p></div>';
+      document.querySelector("#fresh-panel").focus();`,
+    );
+    await browser.$('#fresh-text').click();
+    expect(await browser.execute('return document.activeElement.id')).toBe('fresh-panel');
+  });
+
+  it("should leave a range input's value alone when clicking it", async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<input id="fresh-range" type="range" min="0" max="100" value="10" style="width: 300px">';`,
+    );
+    await browser.$('#fresh-range').click();
+    expect(await browser.$('#fresh-range').getValue()).toBe('10');
+  });
+
+  it("should let the page react to a click's press before its release, as real input does", async () => {
+    await fillScratch(
+      `scratch.innerHTML = '<button id="fresh-press">press</button>';
+      var button = document.querySelector("#fresh-press");
+      window.__pressReacted = false;
+      button.addEventListener("pointerdown", function () {
+        Promise.resolve().then(function () { window.__pressReacted = true; });
+      });
+      button.addEventListener("pointerup", function () { window.__releaseSawPress = window.__pressReacted; });`,
+    );
+    await browser.$('#fresh-press').click();
+    expect(await browser.execute('return window.__releaseSawPress')).toBe(true);
+  });
+
+  it("should not start a window drag when clicking in Tauri's drag region", async () => {
+    // Tauri's drag.js stops a mousedown it starts a drag for from reaching the window.
+    await fillScratch(
+      `scratch.innerHTML = '<div id="fresh-drag" data-tauri-drag-region>title</div>';
+      window.__mousedownReachedWindow = false;
+      window.addEventListener("mousedown", function () { window.__mousedownReachedWindow = true; }, { once: true });`,
+    );
+    await browser.$('#fresh-drag').click();
+    expect(await browser.execute('return window.__mousedownReachedWindow')).toBe(true);
+  });
+
+  it('should keep focus in the field when the clicked element cancels its mousedown', async () => {
+    await fillChangeScratch();
+    await fillScratch(
+      `var other = document.querySelector("#fresh-other");
+      other.addEventListener("mousedown", function (ev) { ev.preventDefault(); });
+      other.addEventListener("click", function () { window.__fieldEvents.push("click other"); });`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.$('#fresh-other').click();
+    expect(await fieldEvents()).toEqual(['input x', 'click other']);
   });
 
   it('should leave focus where a click handler moves it', async () => {

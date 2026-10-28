@@ -19,5 +19,9 @@
     "scripts/**/*.ts",
     "e2e/scripts/show-logs.ts",
     "test/scripts/**/*.ts"
+  ],
+  // References the DOM lib, so tsconfig.scripts.dom.json typechecks it on its own.
+  "exclude": [
+    "test/scripts/element-events.spec.ts"
   ]
 }

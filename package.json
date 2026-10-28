@@ -77,7 +77,7 @@
     "update:releasekit": "node ./scripts/update-releasekit.ts",
     "update:tauri": "node ./scripts/update-tauri-version.ts",
     "test:scripts": "vitest run --config vitest.scripts.config.ts",
-    "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json"
+    "typecheck:scripts": "tsc --noEmit -p tsconfig.scripts.json && tsc --noEmit -p tsconfig.scripts.dom.json"
   },
   "devDependencies": {
     "@biomejs/biome": "2.6.3",
