@@ -124,7 +124,8 @@ ${WDIO_MOCK_SETUP_SCRIPT}
     var e = __wdio_normalize_target__(emitTarget);
     if (s.kind === 'Any' || e.kind === 'Any') { return true; }
     if (s.kind === 'App' || e.kind === 'App') { return s.kind === e.kind; }
-    return s.label === e.label;
+    // As Tauri's emit_to: AnyLabel on either side matches any kind with that label; otherwise the kinds must match
+    return s.label === e.label && (s.kind === e.kind || s.kind === 'AnyLabel' || e.kind === 'AnyLabel');
   }
   window.__wdio_emit_tauri_event__ = function(eventName, payload, target) {
     var bucket = window.__wdio_tauri_listeners__[eventName];
