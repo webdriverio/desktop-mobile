@@ -1,7 +1,8 @@
-// biome-ignore-all lint/correctness/noUnusedVariables: the embedded drivers' scripts call these functions
-// The page side of the embedded drivers' element commands: the focus moves and form events a browser
-// produces for a user. tauri-plugin-webdriver and wdio-dioxus-embedded-driver keep identical copies,
-// which test/scripts/element-events.spec.ts tests and compares.
+// biome-ignore-all lint/correctness/noUnusedVariables: the Rust drivers paste this file into page scripts that call its functions
+// Page-side helpers for the embedded drivers' element commands: the focus moves and form events
+// a user's input causes in a browser. A published crate can only include its own files, so
+// tauri-plugin-wdio-webdriver and wdio-dioxus-embedded-driver each keep an identical copy;
+// test/scripts/element-events.spec.ts tests it and checks the copies match.
 
 const WDIO_CLEARABLE_INPUT_TYPES = [
   'text',
@@ -40,7 +41,7 @@ function wdioRecordPendingChange(el, value) {
   }
   wdioTakePendingChange();
   const root = el.getRootNode();
-  // Capturing on the field's root runs before the page's own blur listeners, so `change` precedes
+  // Capturing on the field's root runs before the field's own blur listeners, so `change` precedes
   // `blur` however focus leaves, as in a browser.
   const onBlur = (event) => {
     const record = event.target === el && wdioTakePendingChange(el);
@@ -69,14 +70,14 @@ function wdioCommitOnEnter(el) {
   if (el.tagName !== 'INPUT' || record?.el !== el || el.value === record.value) {
     return;
   }
-  // Rebased before dispatch, so a handler that blurs the field doesn't fire `change` again, and
-  // after, so a value the handler sets doesn't either.
+  // The committed value is updated before the dispatch, so a handler that blurs the field doesn't
+  // fire a second `change`, and again after, so a value the handler sets doesn't either.
   record.value = el.value;
   el.dispatchEvent(new Event('change', { bubbles: true }));
   record.value = el.value;
 }
 
-// Moves focus as a mousedown on `el` does: to its nearest focusable inclusive ancestor, or off the
+// Moves focus as a mousedown on `el` does: to `el` or its nearest focusable ancestor, or off the
 // focused element when there is none. A label's click then focuses its control itself.
 function wdioFocusForClick(el) {
   for (let node = el; node && node !== document.body; node = node.parentNode || node.host) {
@@ -84,7 +85,8 @@ function wdioFocusForClick(el) {
       continue;
     }
     node.focus({ preventScroll: true });
-    // A shadow host holds focus that is inside its tree only when it delegates focus there.
+    // `activeElement` reports a shadow host when focus is anywhere in its tree; that only counts as
+    // the host taking focus when it delegates focus.
     if (
       node.getRootNode().activeElement === node &&
       (!node.shadowRoot?.activeElement || node.shadowRoot.delegatesFocus)
@@ -98,9 +100,8 @@ function wdioFocusForClick(el) {
   }
 }
 
-// Element Clear (W3C). Returns 'not editable' for an element that isn't an editable field or
-// contenteditable, and leaves an empty one alone. Otherwise the element takes focus, empties with an
-// `input` event, fires `change` if its value differs from its last committed one, and loses focus.
+// Element Clear (W3C): returns 'not editable', 'empty' (leaving the element alone) or 'cleared'.
+// Clearing fires `change` only if the value differs from its last committed one.
 function wdioClearElement(el) {
   const field = el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && WDIO_CLEARABLE_INPUT_TYPES.includes(el.type));
   if (field ? el.readOnly || el.matches(':disabled') : !el.isContentEditable) {

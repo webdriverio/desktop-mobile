@@ -5,9 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { beforeEach, describe, expect, it } from 'vitest';
 
-// The embedded drivers' page-side element events. The crates can't share a file, so each keeps a
-// copy; these tests run in jsdom, which can't delegate focus, so the E2E specs cover shadow hosts
-// that keep focus in their field.
+// jsdom has no delegatesFocus, so the E2E specs cover shadow hosts that keep focus.
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
 const TAURI_COPY = 'packages/tauri-plugin-webdriver/src/platform/element-events.js';
 

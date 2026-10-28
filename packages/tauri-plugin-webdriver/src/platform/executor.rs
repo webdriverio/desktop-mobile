@@ -731,7 +731,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     Ok(())
   }
 
-  /// Clear element content (for inputs/textareas)
+  /// Element Clear (W3C)
   async fn clear_element(&self, js_var: &str) -> Result<(), WebDriverErrorResponse> {
     let script = clear_element_script(js_var);
     if extract_value(&self.evaluate_js(&script).await?)?.as_str() == Some("not editable") {

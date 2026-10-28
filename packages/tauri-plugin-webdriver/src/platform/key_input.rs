@@ -320,7 +320,7 @@ fn radio_step_js(forward: bool) -> String {
 }
 
 /// JS for Enter: a line break in a textarea or contenteditable (Shift+Enter inserts a `<br>`
-/// rather than a new paragraph).
+/// rather than a new paragraph); in an input, the `change` the field owes.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
@@ -552,12 +552,11 @@ pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
   }
 }
 
-/// Page-side helpers for focus moves and form events. wdio-dioxus-embedded-driver keeps an
-/// identical copy; test/scripts/element-events.spec.ts tests the file and compares the copies.
+/// Page-side helpers for focus moves and form events.
 pub const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
 
 /// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
-/// records that the field owes a `change` and types `plain`, if given. Returns `{ status }` and
+/// types `plain` if given, and records that the field owes a `change`. Returns `{ status }` and
 /// never throws.
 pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
   let active_element = deep_active_element_js("activeEl");
