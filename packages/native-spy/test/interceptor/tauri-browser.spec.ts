@@ -317,7 +317,7 @@ describe('TauriAdapter browser-mode events', () => {
     expect(otherReceived).toHaveLength(1);
   });
 
-  // Mirrors filter_target in Tauri's emit_to
+  // Tauri's emit_to target rules
   it.each([
     [{ kind: 'Any' }, { kind: 'Window', label: 'main' }, true],
     [{ kind: 'Window', label: 'main' }, { kind: 'Any' }, true],

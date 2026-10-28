@@ -268,17 +268,18 @@ export interface TauriServiceAPI {
    *
    * Works in both modes:
    * - Browser mode: routes through the in-browser listener registry
-   * - Native mode: calls Tauri's event commands, as `emit()` / `emitTo()` do. The app's capabilities
-   *   must allow `core:event:allow-emit` and `core:event:allow-emit-to`, which `core:default` includes.
+   * - Native mode: calls Tauri's event commands, as `emit()` / `emitTo()` do, from the session's
+   *   current window. A capability for that window must allow `core:event:allow-emit` and
+   *   `core:event:allow-emit-to`, which `core:default` includes.
    *
    * The call skips any mocks of `plugin:event|emit` / `plugin:event|emit_to`, so it always reaches
    * the listeners. On the multiremote root, it emits on every instance.
    *
    * @param event - Event name to emit (e.g. `'data-loaded'`)
    * @param payload - Optional event payload (JSON-serialised across the boundary)
-   * @param target - Optional target. A string is a label (`{ kind: 'AnyLabel', label }`), reaching
-   *                 listeners of any kind with that label; a `TauriEventTarget` must also match the
-   *                 listener's kind. Listeners registered without a target receive every event.
+   * @param target - Optional target; a string is a label, as `{ kind: 'AnyLabel', label }`. A listener
+   *                 receives the event when either side is `Any` (as a plain `listen()` is), when the
+   *                 labels match and either side is `AnyLabel`, or when the kinds and labels both match.
    *
    * @example
    * ```js

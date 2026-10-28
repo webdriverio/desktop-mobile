@@ -551,57 +551,9 @@ export default class TauriWorkerService {
         payload?: T,
         target?: string | TauriEventTarget,
       ): Promise<void> => {
-        if (isMultiremote(browser)) {
-          const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-          await Promise.all(
-            mrBrowser.instances.map((name) => mrBrowser.getInstance(name).tauri.emitEvent(eventName, payload, target)),
-          );
-          return;
-        }
-        if (browserMode) {
-          await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
-            (...inner: unknown[]) => {
-              const [ev, p, t] = inner as [string, unknown, unknown];
-              // @ts-expect-error - window exists in browser context
-              const w = window as {
-                __wdio_emit_tauri_event__?: (e: string, p: unknown, t: unknown) => void;
-              };
-              if (!w.__wdio_emit_tauri_event__) {
-                throw new Error('Tauri event registry not initialised — is browser mode active?');
-              }
-              w.__wdio_emit_tauri_event__(ev, p, t);
-            },
-            eventName,
-            payload,
-            target,
-          );
-        } else {
-          // A null target emits to everyone, as in browser mode
-          const [command, args] =
-            target == null
-              ? ['plugin:event|emit', { event: eventName, payload }]
-              : [
-                  'plugin:event|emit_to',
-                  {
-                    target: typeof target === 'string' ? { kind: 'AnyLabel', label: target } : target,
-                    event: eventName,
-                    payload,
-                  },
-                ];
-          // The raw IPC that @tauri-apps/api's emit() uses: unlike tauri.core.invoke it skips the
-          // user's mocks, so a spy on these commands can't swallow the test's own emit
-          await execute(
-            browser,
-            (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) =>
-              (
-                globalThis as unknown as {
-                  __TAURI_INTERNALS__: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<unknown> };
-                }
-              ).__TAURI_INTERNALS__.invoke(cmd, cmdArgs),
-            command,
-            args,
-          );
-        }
+        const mrBrowser = isMultiremote(browser) ? (browser as unknown as WebdriverIO.MultiRemoteBrowser) : undefined;
+        const sessions = mrBrowser ? mrBrowser.instances.map((name) => mrBrowser.getInstance(name)) : [browser];
+        await Promise.all(sessions.map((session) => emitTauriEvent(session, browserMode, eventName, payload, target)));
         await getMockUpdateScheduler(browser).schedule();
       },
     };
@@ -841,6 +793,67 @@ class MockUpdateScheduler {
       }
     }
   }
+}
+
+async function emitTauriEvent(
+  browser: WebdriverIO.Browser,
+  browserMode: boolean,
+  eventName: string,
+  payload: unknown,
+  target: string | TauriEventTarget | undefined,
+): Promise<void> {
+  if (browserMode) {
+    await (browser.execute as (fn: (...a: unknown[]) => unknown, ...a: unknown[]) => Promise<unknown>)(
+      (...inner: unknown[]) => {
+        const [ev, p, t] = inner as [string, unknown, unknown];
+        // @ts-expect-error - window exists in browser context
+        const w = window as {
+          __wdio_emit_tauri_event__?: (e: string, p: unknown, t: unknown) => void;
+        };
+        if (!w.__wdio_emit_tauri_event__) {
+          throw new Error('Tauri event registry not initialised — is browser mode active?');
+        }
+        w.__wdio_emit_tauri_event__(ev, p, t);
+      },
+      eventName,
+      payload,
+      target,
+    );
+    return;
+  }
+
+  // A null target emits to everyone, as in browser mode
+  const [command, args] =
+    target == null
+      ? ['plugin:event|emit', { event: eventName, payload }]
+      : [
+          'plugin:event|emit_to',
+          {
+            target: typeof target === 'string' ? { kind: 'AnyLabel', label: target } : target,
+            event: eventName,
+            payload,
+          },
+        ];
+  // The raw IPC that @tauri-apps/api's emit() uses: unlike tauri.core.invoke it skips the
+  // user's mocks, so a spy on these commands can't swallow the test's own emit
+  await execute(
+    browser,
+    (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) => {
+      const internals = (
+        globalThis as unknown as {
+          __TAURI_INTERNALS__?: { invoke: (cmd: string, args: Record<string, unknown>) => Promise<unknown> };
+        }
+      ).__TAURI_INTERNALS__;
+      if (!internals) {
+        throw new Error('Tauri IPC is not available in this window');
+      }
+      return internals.invoke(cmd, cmdArgs);
+    },
+    command,
+    args,
+  );
+  // Tauri runs the listeners apart from the IPC reply; a round trip lets them run before mocks sync
+  await execute(browser, () => undefined);
 }
 
 function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateScheduler {
