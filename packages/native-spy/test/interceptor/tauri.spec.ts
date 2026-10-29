@@ -132,10 +132,5 @@ describe('TauriAdapter', () => {
       expect(script).toContain('async () =>');
       expect(script).toContain('callback');
     });
-
-    it('passes _tauri to callback only when defined (browser mode compat)', () => {
-      const script = adapter.buildWithImplementationScript('cmd', '() => {}', '() => {}');
-      expect(script).toContain('_tauri !== undefined ? callback(_tauri) : callback()');
-    });
   });
 });

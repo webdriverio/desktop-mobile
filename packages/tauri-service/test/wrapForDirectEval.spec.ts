@@ -34,6 +34,11 @@ describe('wrapScriptForDirectEval', () => {
       expect(result).toContain('await (x => x + 1)(__wdio_tauri');
     });
 
+    it('should wrap a bare identifier arrow function containing $', () => {
+      const result = wrapScriptForDirectEval('t$ => t$.core', '[]');
+      expect(result).toContain('await (t$ => t$.core)(__wdio_tauri');
+    });
+
     it('should include mock-routing invoke block', () => {
       const result = wrapScriptForDirectEval('(tauri) => 1', '[]');
       expect(result).toContain('window.__wdio_mocks__');

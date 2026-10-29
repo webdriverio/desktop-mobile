@@ -183,15 +183,13 @@ Tauri tests focus on:
 ```typescript
 describe('Tauri Commands', () => {
   it('should execute Rust commands', async () => {
-    const result = await browser.tauri.execute('get_platform_info');
-    expect(result.success).to.be.true;
-    expect(result.data).to.have.property('platform');
+    const info = await browser.tauri.execute(({ core }) => core.invoke('get_platform_info'));
+    expect(info).toHaveProperty('os');
   });
 
-  it('should manage windows', async () => {
-    const bounds = await browser.tauri.getWindowBounds();
-    expect(bounds.success).to.be.true;
-    expect(bounds.data).to.have.property('width');
+  it('should list windows', async () => {
+    const windows = await browser.tauri.listWindows();
+    expect(windows).toContain('main');
   });
 });
 ```

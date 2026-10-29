@@ -1,6 +1,6 @@
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { AbstractFn, TauriMock } from '@wdio/native-types';
+import type { AbstractFn, TauriAPIs, TauriMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 import { execute as tauriExecute } from './commands/execute.js';
 import mockStore from './mockStore.js';
@@ -188,7 +188,10 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
-  mock.withImplementation = async (implFn, callbackFn) => {
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (tauri: TauriAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
     const result = await tauriExecute<unknown>(
       browserToUse,
       interceptor.buildWithImplementationScript(
@@ -197,9 +200,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
         callbackFn as (...a: unknown[]) => unknown,
       ),
     );
-    // The wire result is the callback's (serialized) return value; TS can't connect an
-    // assigned arrow's body to the contextual generic, so assert it back.
-    return result as ReturnType<typeof callbackFn>;
+    return result as Awaited<ReturnValue>;
   };
 
   wrapperMock.mockImplementation = mock.mockImplementation.bind(mock);
@@ -362,7 +363,10 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     return mock;
   };
 
-  mock.withImplementation = async (implFn, callbackFn) => {
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (tauri: TauriAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
     const script = interceptor.buildWithImplementationScript(
       command,
       implFn as (...a: unknown[]) => unknown,
@@ -380,8 +384,7 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     if (result && typeof result === 'object' && '__wdioAsyncErr__' in result) {
       throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
     }
-    // See the withImplementation note above — the wire result is the callback's return.
-    return result as ReturnType<typeof callbackFn>;
+    return result as Awaited<ReturnValue>;
   };
 
   return mock;

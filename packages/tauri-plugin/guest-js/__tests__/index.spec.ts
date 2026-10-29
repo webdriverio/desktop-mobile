@@ -263,6 +263,13 @@ describe('execute', () => {
     );
   });
 
+  it('should call a single-parameter arrow function named with $', async () => {
+    await execute('$ => $.core.invoke("test")');
+
+    const pluginCalls = originalInvoke.mock.calls.filter((call: unknown[]) => call[0] === 'plugin:wdio|execute');
+    expect(pluginCalls[0][1].request.script).toContain('await ($ => $.core.invoke("test"))(__wdio_tauri');
+  });
+
   it('should route statement-style string scripts to statement path', async () => {
     await execute('return 42');
 

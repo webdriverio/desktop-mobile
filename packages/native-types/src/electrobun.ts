@@ -77,7 +77,10 @@ export interface ElectrobunMock<TArgs extends unknown[] = unknown[], TReturns = 
  * `mockAll`/class-mock are Electron-only (no enumerable main-process API).
  */
 export interface ElectrobunServiceAPI {
-  execute<R, A extends unknown[]>(script: string | ((eb: ElectrobunAPIs, ...a: A) => R), ...args: A): Promise<R>;
+  execute<R, A extends unknown[]>(
+    script: string | ((eb: ElectrobunAPIs, ...a: A) => R),
+    ...args: A
+  ): Promise<Awaited<R>>;
 
   mock(target: string): Promise<ElectrobunMock>;
   isMockFunction(target: string): boolean;

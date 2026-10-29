@@ -94,8 +94,8 @@ await browser.tauri.restoreAllMocks();
 The plugin exposes `window.wdioTauri` with the following API:
 
 ```typescript
-// Execute JavaScript with Tauri APIs
-const result = await window.wdioTauri.execute((tauri) => tauri.core.invoke('get_platform_info'));
+// Run a function's source in this window; browser.tauri.execute() calls this for you
+const result = await window.wdioTauri.execute("({ core }) => core.invoke('get_platform_info')");
 
 // Wait for plugin initialization
 await window.wdioTauri.waitForInit();
@@ -108,13 +108,14 @@ window.wdioTauri.cleanupAll();
 
 ### Frontend API (`window.wdioTauri`)
 
-#### `execute(script, ...args): Promise<unknown>`
+#### `execute(script, options?, argsJson?): Promise<unknown>`
 
-Execute JavaScript code in the frontend context. A function receives `{ core: { invoke } }` as its first parameter, and `core.invoke` goes through any mocks set up with `browser.tauri.mock()`.
+Execute JavaScript code in the frontend context. `browser.tauri.execute()` calls this.
 
 **Parameters:**
-- `script`: Function or string to execute
-- `...args`: Additional arguments to pass to the script
+- `script`: Source code as a string. A function's source is called with `{ core: { invoke } }` and then the arguments, and `core.invoke` goes through any mocks set up in that window with `browser.tauri.mock()`. Any other string runs as a function body, with the arguments in `arguments`.
+- `options.windowLabel`: The window to run the script in. Defaults to the window that calls `execute`.
+- `argsJson`: The arguments, as a JSON array string
 
 **Returns:** Promise resolving to the script's return value
 

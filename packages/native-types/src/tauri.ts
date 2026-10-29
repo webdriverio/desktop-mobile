@@ -20,11 +20,14 @@ import type {
 
 /**
  * The first argument of a `browser.tauri.execute()` script. Its `core.invoke` goes through any mocks
- * set up with `browser.tauri.mock()`.
+ * set up in that window with `browser.tauri.mock()`.
  */
 export interface TauriAPIs {
   core: {
-    invoke: (command: string, ...args: unknown[]) => Promise<unknown>;
+    invoke<T = unknown>(
+      command: string,
+      args?: Record<string, unknown> | number[] | ArrayBuffer | Uint8Array,
+    ): Promise<T>;
   };
 }
 
@@ -51,10 +54,10 @@ export interface TauriMockInstance extends Omit<Mock, MockOverride> {
   mockReset(): Promise<TauriMock>;
   mockRestore(): Promise<TauriMock>;
   mockReturnThis(): Promise<TauriMock>;
-  withImplementation<ReturnValue, InnerArguments extends unknown[]>(
+  withImplementation<ReturnValue>(
     implFn: AbstractFn,
-    callbackFn: (tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue,
-  ): Promise<ReturnValue>;
+    callbackFn: (tauri: TauriAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>>;
   mockName(name: string): TauriMock;
   getMockName(): string;
   getMockImplementation(): AbstractFn | undefined;
@@ -111,7 +114,7 @@ export interface TauriServiceAPI {
    * ```js
    * const result = await browser.tauri.execute(
    *   (tauri, name) => tauri.core.invoke('greet', { name }),
-   *   { windowLabel: 'popup' },
+   *   withExecuteOptions({ windowLabel: 'popup' }),
    *   'Alice'
    * );
    * ```
@@ -120,10 +123,10 @@ export interface TauriServiceAPI {
     script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     options: TauriExecuteOptions,
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
+  ): Promise<Awaited<ReturnValue>>;
 
   /**
-   * Execute JavaScript code in the Tauri frontend context with access to Tauri APIs.
+   * Execute JavaScript code in the Tauri frontend context.
    *
    * @example
    * ```js
@@ -136,7 +139,7 @@ export interface TauriServiceAPI {
   execute<ReturnValue, InnerArguments extends unknown[]>(
     script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
+  ): Promise<Awaited<ReturnValue>>;
 
   /**
    * Check if a value is a Tauri mock function or if a command is mocked.
@@ -337,7 +340,7 @@ export interface TauriServiceOptions extends BaseServiceOptions, DriverProviderC
    * Controls which webview window browser.tauri.execute() and other
    * Tauri-specific operations target by default.
    * Can be overridden at runtime with browser.tauri.switchWindow()
-   * or per-call with browser.tauri.execute(script, args, { windowLabel }).
+   * or per-call with browser.tauri.execute(script, withExecuteOptions({ windowLabel }), ...args).
    * @default 'main'
    */
   windowLabel?: string;

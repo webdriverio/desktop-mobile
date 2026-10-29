@@ -85,7 +85,7 @@ describe('Tauri API Access', () => {
   it('should execute with parameters', async () => {
     const username = 'test_user';
     const result = await browser.tauri.execute(
-      (args) => {
+      (_tauri, args) => {
         return { received: args.username };
       },
       { username },

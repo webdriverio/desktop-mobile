@@ -381,6 +381,24 @@ describe('Mock API', () => {
 
         expect(executeResults).toStrictEqual(['temporary name']);
       });
+
+      it('should keep the temporary implementation until an async callback settles', async () => {
+        const mock = await createMock('app', 'getName');
+        const electron = {
+          app: { getName: () => 'actual name' } as unknown as Omit<ElectronType['app'], 'on'>,
+        };
+        await processExecuteCalls(electron);
+        await mock.withImplementation(
+          () => 'temporary name',
+          async (electron) => {
+            await Promise.resolve();
+            return electron.app.getName();
+          },
+        );
+        const executeResults = await processExecuteCalls(electron);
+
+        expect(executeResults).toStrictEqual(['temporary name']);
+      });
     });
   });
 });

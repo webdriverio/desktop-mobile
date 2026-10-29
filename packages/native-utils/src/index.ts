@@ -31,7 +31,7 @@ export {
   unwrapOr,
   wrapAsync,
 } from './result.js';
-export { hasSemicolonOutsideQuotes, hasTopLevelArrow } from './script-detect.js';
+export { hasSemicolonOutsideQuotes, hasTopLevelArrow, isFunctionSource } from './script-detect.js';
 export { selectExecutable, validateBinaryPaths } from './selectExecutable.js';
 export {
   BENIGN_TEARDOWN_ERROR_PATTERNS,

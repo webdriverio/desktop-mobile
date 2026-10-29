@@ -1,5 +1,5 @@
 import type { Mock } from '@wdio/native-spy';
-import type { AbstractFn, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
+import type { AbstractFn, ElectronFunctionMock, ElectronType, ExecuteOpts } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'mock');
@@ -436,9 +436,10 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
     return mock;
   };
 
-  mock.withImplementation = async (implFn, callbackFn) => {
-    // The wire result is the callback's (serialized) return value; TS can't connect an
-    // assigned arrow's body to the contextual generic, so assert it back.
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (electron: ElectronType) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
     return (await browserToUse.electron.execute<unknown, [MockAccessor, string, string, ExecuteOpts]>(
       async (electron, accessor, implFnStr, callbackFnStr) => {
         let innerMock: { withImplementation?: (impl: unknown, cb: () => unknown) => unknown } | undefined;
@@ -454,20 +455,20 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
         }
         const impl = new Function(`return ${implFnStr}`)() as AbstractFn;
         const callback = new Function(`return ${callbackFnStr}`)() as AbstractFn;
-        let result: unknown | Promise<unknown>;
+        let result: unknown;
         if (innerMock?.withImplementation) {
-          innerMock.withImplementation(impl, () => {
-            result = callback(electron);
+          await innerMock.withImplementation(impl, async () => {
+            result = await callback(electron);
           });
         } else {
-          result = callback(electron);
+          result = await callback(electron);
         }
-        return (result as Promise<unknown>)?.then ? await result : result;
+        return result;
       },
       accessor,
       implFn.toString(),
       callbackFn.toString(),
       { internal: true },
-    )) as ReturnType<typeof callbackFn>;
+    )) as Awaited<ReturnValue>;
   };
 }

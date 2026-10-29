@@ -193,12 +193,15 @@ ${WDIO_MOCK_SETUP_SCRIPT}
 
   buildWithImplementationScript(mockName: string, implFnSource: string, callbackFnSource: string): string {
     const lookup = mockLookupExpr(mockName);
+    // Browser mode calls this with no argument, so build the same { core: { invoke } } from the
+    // mocked IPC
     return `async (_tauri) => {
   const impl = (${implFnSource});
   const callback = (${callbackFnSource});
+  const tauri = _tauri ?? { core: { invoke: (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args) } };
   let result;
   const mockObj = ${lookup};
-  await mockObj?.withImplementation?.(impl, async () => { result = await (_tauri !== undefined ? callback(_tauri) : callback()); });
+  await mockObj?.withImplementation?.(impl, async () => { result = await callback(tauri); });
   return result;
 }`;
   }

@@ -356,7 +356,10 @@ export async function createElectronBrowserModeMock(
     return mock;
   };
 
-  mock.withImplementation = async (implFn, callbackFn) => {
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (electron: ElectronType) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
     const script = browserInterceptor.buildWithImplementationScript(
       channel,
       implFn as (...a: unknown[]) => unknown,
@@ -375,9 +378,7 @@ export async function createElectronBrowserModeMock(
       throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
     }
     await mock.update();
-    // The wire result is the callback's (serialized) return value; TS can't connect an
-    // assigned arrow's body to the contextual generic, so assert it back.
-    return result as ReturnType<typeof callbackFn>;
+    return result as Awaited<ReturnValue>;
   };
 
   // Used by the re-registration path in service.ts to replay persistent implementation

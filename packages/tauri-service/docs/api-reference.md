@@ -8,29 +8,27 @@ The following methods are available on the `browser.tauri` object when connected
 
 ### `browser.tauri.execute(script, ...args)`
 
-Execute JavaScript code in the Tauri frontend context with access to Tauri APIs. Requires tauri-plugin-wdio to be installed and configured.
+Execute JavaScript code in the Tauri frontend context. Requires tauri-plugin-wdio to be installed and configured.
 
 **Parameters:**
-- `script` (Function | string) - JavaScript code to execute. If a function, it receives `{ core: { invoke } }` as the first parameter. `core.invoke` goes through any mocks set up with `browser.tauri.mock()`.
+- `script` (Function | string) - JavaScript code to execute. If a function, it receives `{ core: { invoke } }` as the first parameter. `core.invoke` goes through any mocks set up in that window with `browser.tauri.mock()`.
 - `...args` (any[]) - Additional arguments passed to the script
 
-**Returns:** `Promise<ReturnValue>`
+**Returns:** `Promise<Awaited<ReturnValue>>`
 
 **Example:**
 ```typescript
 // Call your app's commands
-const result = await browser.tauri.execute(({ core }) => {
-  return core.invoke('get_platform_info');
-});
+const info = await browser.tauri.execute(({ core }) => core.invoke<PlatformInfo>('get_platform_info'));
 
-// Tauri's built-in commands work too: @tauri-apps/api's getVersion() calls this one
-const version = await browser.tauri.execute(({ core }) => core.invoke('plugin:app|version'));
+// Tauri's built-in commands work too, if a capability for the window allows them. `core:default` allows this one
+const version = await browser.tauri.execute(({ core }) => core.invoke<string>('plugin:app|version'));
 
 // Execute with arguments
-const result = await browser.tauri.execute((tauri, name) => tauri.core.invoke('greet', { name }), 'World');
+const greeting = await browser.tauri.execute((tauri, name) => tauri.core.invoke('greet', { name }), 'World');
 
 // Execute string of code
-const result = await browser.tauri.execute('window.location.href');
+const href = await browser.tauri.execute('window.location.href');
 ```
 
 **Note:** Requires tauri-plugin-wdio to be installed. See [Plugin Setup](./plugin-setup.md).
@@ -440,23 +438,21 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 
 ### `withImplementation(implFn, callbackFn)`
 
-Temporarily use a different implementation for the duration of a callback.
+Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's frontend like an `execute()` script, and receives the same `{ core: { invoke } }`. The implementation is restored when the callback returns, or when its promise settles.
 
 **Example:**
 ```typescript
 const mock = await browser.tauri.mock('my_command');
 await mock.mockReturnValue('default');
 
-await mock.withImplementation(
+const result = await mock.withImplementation(
   () => 'temporary',
-  async () => {
-    const result = await browser.tauri.execute(({ core }) => core.invoke('my_command'));
-    console.log(result); // 'temporary'
-  },
+  ({ core }) => core.invoke('my_command'),
 );
+console.log(result); // 'temporary'
 
-const result = await browser.tauri.execute(({ core }) => core.invoke('my_command'));
-console.log(result); // 'default'
+const after = await browser.tauri.execute(({ core }) => core.invoke('my_command'));
+console.log(after); // 'default'
 ```
 
 ---

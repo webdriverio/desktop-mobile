@@ -145,7 +145,8 @@ export interface Mock<T extends (...args: unknown[]) => unknown = (...args: unkn
   mockReturnThis(): this;
 
   /**
-   * Run a function with a temporary implementation
+   * Run a callback with a temporary implementation, restored once the callback returns or its
+   * promise settles
    */
-  withImplementation(fn: T, callback: () => Awaited<ReturnType<T>>): Awaited<ReturnType<T>>;
+  withImplementation<R>(fn: T, callback: () => R): R;
 }
