@@ -278,96 +278,177 @@ impl Modifiers {
   }
 }
 
-/// Translate a W3C key value to its DOM `KeyboardEvent.key` name. WDIO sends special keys
-/// (`Key.Enter`, arrows, F-keys, modifiers) as Private-Use-Area codepoints (`\u{E0xx}`); forwarding
-/// the raw codepoint as `key` leaves `Key.*` broken, so map the ones the spec defines. Printable
-/// characters pass through unchanged. Mirrors the table in tauri-plugin-wdio-webdriver's executor.
-fn normalize_key(value: &str) -> &str {
-  match value {
-    "\u{E006}" | "\u{E007}" => "Enter",
-    "\u{E003}" => "Backspace",
-    "\u{E004}" => "Tab",
-    "\u{E00C}" => "Escape",
-    "\u{E00D}" => " ",
-    "\u{E012}" => "ArrowLeft",
-    "\u{E013}" => "ArrowUp",
-    "\u{E014}" => "ArrowRight",
-    "\u{E015}" => "ArrowDown",
-    "\u{E017}" => "Delete",
-    "\u{E031}" => "F1",
-    "\u{E032}" => "F2",
-    "\u{E033}" => "F3",
-    "\u{E034}" => "F4",
-    "\u{E035}" => "F5",
-    "\u{E036}" => "F6",
-    "\u{E037}" => "F7",
-    "\u{E038}" => "F8",
-    "\u{E039}" => "F9",
-    "\u{E03A}" => "F10",
-    "\u{E03B}" => "F11",
-    "\u{E03C}" => "F12",
-    "\u{E008}" | "\u{E050}" => "Shift",
-    "\u{E009}" | "\u{E051}" => "Control",
-    "\u{E00A}" | "\u{E052}" => "Alt",
-    "\u{E03D}" | "\u{E053}" => "Meta",
-    other => other,
-  }
-}
+// The key tables are copies of tauri-plugin-wdio-webdriver's, since a published crate can only
+// include its own files. test/scripts/key-tables.spec.ts checks the copies match.
 
-/// Best-effort DOM `KeyboardEvent.code` (the physical key) for a W3C key value — derivable for the
-/// special keys, ASCII letters (`KeyA`) and digits (`Digit1`) that keyboard shortcuts use. Returns
-/// `""` (the spec default for an undetermined code) for layout-dependent symbols. Left/right modifier
-/// codepoints map to their distinct `*Left`/`*Right` codes even though their `key` is shared.
-fn key_code(value: &str) -> String {
-  let special = match value {
-    "\u{E006}" | "\u{E007}" => "Enter",
-    "\u{E003}" => "Backspace",
-    "\u{E004}" => "Tab",
-    "\u{E00C}" => "Escape",
-    "\u{E00D}" => "Space",
-    "\u{E012}" => "ArrowLeft",
-    "\u{E013}" => "ArrowUp",
-    "\u{E014}" => "ArrowRight",
-    "\u{E015}" => "ArrowDown",
-    "\u{E017}" => "Delete",
-    "\u{E031}" => "F1",
-    "\u{E032}" => "F2",
-    "\u{E033}" => "F3",
-    "\u{E034}" => "F4",
-    "\u{E035}" => "F5",
-    "\u{E036}" => "F6",
-    "\u{E037}" => "F7",
-    "\u{E038}" => "F8",
-    "\u{E039}" => "F9",
-    "\u{E03A}" => "F10",
-    "\u{E03B}" => "F11",
-    "\u{E03C}" => "F12",
-    "\u{E008}" => "ShiftLeft",
-    "\u{E050}" => "ShiftRight",
-    "\u{E009}" => "ControlLeft",
-    "\u{E051}" => "ControlRight",
-    "\u{E00A}" => "AltLeft",
-    "\u{E052}" => "AltRight",
-    "\u{E03D}" => "MetaLeft",
-    "\u{E053}" => "MetaRight",
-    _ => "",
+/// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
+/// tables and a US keyboard, so no key event carries a raw code point. A newline and a backspace
+/// character are the Enter and Backspace keys, as chromedriver sends them.
+fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
+  let mapped = match single_char(key)? {
+    '\n' => ("Enter", "Enter", 13),
+    '\u{8}' => ("Backspace", "Backspace", 8),
+    '\u{E000}' => ("Unidentified", "", 0),
+    '\u{E001}' => ("Cancel", "", 3),
+    '\u{E002}' => ("Help", "Help", 47),
+    '\u{E003}' => ("Backspace", "Backspace", 8),
+    '\u{E004}' => ("Tab", "Tab", 9),
+    '\u{E005}' => ("Clear", "", 12),
+    // The spec's code table puts the main Enter key on U+E006 ("Return") and NumpadEnter on
+    // U+E007, but clients send U+E007 for Enter, so it keeps the main key's code.
+    '\u{E006}' => ("Enter", "NumpadEnter", 13),
+    '\u{E007}' => ("Enter", "Enter", 13),
+    '\u{E008}' => ("Shift", "ShiftLeft", 16),
+    '\u{E009}' => ("Control", "ControlLeft", 17),
+    '\u{E00A}' => ("Alt", "AltLeft", 18),
+    '\u{E00B}' => ("Pause", "Pause", 19),
+    '\u{E00C}' => ("Escape", "Escape", 27),
+    '\u{E00D}' => (" ", "Space", 32),
+    '\u{E00E}' => ("PageUp", "PageUp", 33),
+    '\u{E00F}' => ("PageDown", "PageDown", 34),
+    '\u{E010}' => ("End", "End", 35),
+    '\u{E011}' => ("Home", "Home", 36),
+    '\u{E012}' => ("ArrowLeft", "ArrowLeft", 37),
+    '\u{E013}' => ("ArrowUp", "ArrowUp", 38),
+    '\u{E014}' => ("ArrowRight", "ArrowRight", 39),
+    '\u{E015}' => ("ArrowDown", "ArrowDown", 40),
+    '\u{E016}' => ("Insert", "Insert", 45),
+    '\u{E017}' => ("Delete", "Delete", 46),
+    // The spec's code table has no row for U+E018; this is the US-layout `;` key.
+    '\u{E018}' => (";", "Semicolon", 186),
+    '\u{E019}' => ("=", "NumpadEqual", 187),
+    '\u{E01A}' => ("0", "Numpad0", 96),
+    '\u{E01B}' => ("1", "Numpad1", 97),
+    '\u{E01C}' => ("2", "Numpad2", 98),
+    '\u{E01D}' => ("3", "Numpad3", 99),
+    '\u{E01E}' => ("4", "Numpad4", 100),
+    '\u{E01F}' => ("5", "Numpad5", 101),
+    '\u{E020}' => ("6", "Numpad6", 102),
+    '\u{E021}' => ("7", "Numpad7", 103),
+    '\u{E022}' => ("8", "Numpad8", 104),
+    '\u{E023}' => ("9", "Numpad9", 105),
+    '\u{E024}' => ("*", "NumpadMultiply", 106),
+    '\u{E025}' => ("+", "NumpadAdd", 107),
+    '\u{E026}' => (",", "NumpadComma", 108),
+    '\u{E027}' => ("-", "NumpadSubtract", 109),
+    '\u{E028}' => (".", "NumpadDecimal", 110),
+    '\u{E029}' => ("/", "NumpadDivide", 111),
+    '\u{E031}' => ("F1", "F1", 112),
+    '\u{E032}' => ("F2", "F2", 113),
+    '\u{E033}' => ("F3", "F3", 114),
+    '\u{E034}' => ("F4", "F4", 115),
+    '\u{E035}' => ("F5", "F5", 116),
+    '\u{E036}' => ("F6", "F6", 117),
+    '\u{E037}' => ("F7", "F7", 118),
+    '\u{E038}' => ("F8", "F8", 119),
+    '\u{E039}' => ("F9", "F9", 120),
+    '\u{E03A}' => ("F10", "F10", 121),
+    '\u{E03B}' => ("F11", "F11", 122),
+    '\u{E03C}' => ("F12", "F12", 123),
+    '\u{E03D}' => ("Meta", "MetaLeft", 91),
+    '\u{E040}' => ("ZenkakuHankaku", "", 0),
+    '\u{E050}' => ("Shift", "ShiftRight", 16),
+    '\u{E051}' => ("Control", "ControlRight", 17),
+    '\u{E052}' => ("Alt", "AltRight", 18),
+    '\u{E053}' => ("Meta", "MetaRight", 92),
+    '\u{E054}' => ("PageUp", "Numpad9", 33),
+    '\u{E055}' => ("PageDown", "Numpad3", 34),
+    '\u{E056}' => ("End", "Numpad1", 35),
+    '\u{E057}' => ("Home", "Numpad7", 36),
+    '\u{E058}' => ("ArrowLeft", "Numpad4", 37),
+    '\u{E059}' => ("ArrowUp", "Numpad8", 38),
+    '\u{E05A}' => ("ArrowRight", "Numpad6", 39),
+    '\u{E05B}' => ("ArrowDown", "Numpad2", 40),
+    '\u{E05C}' => ("Insert", "Numpad0", 45),
+    '\u{E05D}' => ("Delete", "NumpadDecimal", 46),
+    // Code points the spec leaves unassigned still dispatch as a key rather than as text.
+    '\u{E000}'..='\u{E05D}' => ("Unidentified", "", 0),
+    _ => return None, // printable character
   };
-  if !special.is_empty() {
-    return special.to_string();
-  }
-  let mut chars = value.chars();
+  Some(mapped)
+}
+
+/// A printable character's US-keyboard key: its `code`, its legacy `keyCode` (65 for `a` and `A`)
+/// and whether it takes Shift, or `("", 0, false)` for a character the keyboard has no key for.
+fn regular_key(key: &str) -> (String, u32, bool) {
+  single_char(key).and_then(us_keyboard_key).unwrap_or_default()
+}
+
+/// Whether a key value presses no key: chromedriver skips a carriage return, so a `\r\n` line
+/// ending presses Enter once.
+fn is_skipped_key(key: &str) -> bool {
+  key == "\r"
+}
+
+fn single_char(key: &str) -> Option<char> {
+  let mut chars = key.chars();
   match (chars.next(), chars.next()) {
-    (Some(c), None) if c.is_ascii_alphabetic() => format!("Key{}", c.to_ascii_uppercase()),
-    (Some(c), None) if c.is_ascii_digit() => format!("Digit{c}"),
-    _ => String::new(),
+    (Some(ch), None) => Some(ch),
+    _ => None,
   }
 }
 
-/// JS for a `KeyboardEvent` of `event_type` for `value` on the active element. An uncanceled
-/// Enter keydown in an input commits its value, firing the `change` that Send Keys deferred.
+/// The `(code, keyCode, shifted)` of the US-keyboard key that types `ch`.
+fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
+  if ch.is_ascii_alphabetic() {
+    let upper = ch.to_ascii_uppercase();
+    return Some((format!("Key{upper}"), upper as u32, ch.is_ascii_uppercase()));
+  }
+  if ch.is_ascii_digit() {
+    return Some((format!("Digit{ch}"), ch as u32, false));
+  }
+  let (code, key_code, shifted) = match ch {
+    // Workaround for #889; drop once Tab moves focus
+    '\t' => ("Tab", 9, false),
+    ' ' => ("Space", 32, false),
+    ')' => ("Digit0", 48, true),
+    '!' => ("Digit1", 49, true),
+    '@' => ("Digit2", 50, true),
+    '#' => ("Digit3", 51, true),
+    '$' => ("Digit4", 52, true),
+    '%' => ("Digit5", 53, true),
+    '^' => ("Digit6", 54, true),
+    '&' => ("Digit7", 55, true),
+    '*' => ("Digit8", 56, true),
+    '(' => ("Digit9", 57, true),
+    ';' => ("Semicolon", 186, false),
+    ':' => ("Semicolon", 186, true),
+    '=' => ("Equal", 187, false),
+    '+' => ("Equal", 187, true),
+    ',' => ("Comma", 188, false),
+    '<' => ("Comma", 188, true),
+    '-' => ("Minus", 189, false),
+    '_' => ("Minus", 189, true),
+    '.' => ("Period", 190, false),
+    '>' => ("Period", 190, true),
+    '/' => ("Slash", 191, false),
+    '?' => ("Slash", 191, true),
+    '`' => ("Backquote", 192, false),
+    '~' => ("Backquote", 192, true),
+    '[' => ("BracketLeft", 219, false),
+    '{' => ("BracketLeft", 219, true),
+    '\\' => ("Backslash", 220, false),
+    '|' => ("Backslash", 220, true),
+    ']' => ("BracketRight", 221, false),
+    '}' => ("BracketRight", 221, true),
+    '\'' => ("Quote", 222, false),
+    '"' => ("Quote", 222, true),
+    _ => return None,
+  };
+  Some((code.to_string(), key_code, shifted))
+}
+
+/// JS for a `KeyboardEvent` of `event_type` for `value` on the active element, with the `key`,
+/// `code`, `keyCode` and Shift a browser sends. An uncanceled Enter keydown in an input commits its
+/// value, firing the `change` that Send Keys deferred.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
-  let key = normalize_key(value);
-  let code = key_code(value);
+  let (key, code, key_code, mods) = match map_special_key(value) {
+    Some((key, code, key_code)) => (key, code.to_string(), key_code, mods),
+    None => {
+      let (code, key_code, shifted) = regular_key(value);
+      (value, code, key_code, Modifiers { shift: mods.shift || shifted, ..mods })
+    }
+  };
   let modifiers = mods.js();
   let commit = if event_type == "keydown" && key == "Enter" && !(mods.ctrl || mods.meta || mods.alt)
   {
@@ -376,7 +457,7 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
     String::new()
   };
   format!(
-    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},{modifiers}}}); t.dispatchEvent(e); {commit}}})(); null"
+    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},keyCode:{key_code},which:{key_code},{modifiers}}}); t.dispatchEvent(e); {commit}}})(); null"
   )
 }
 
@@ -461,6 +542,8 @@ pub async fn perform(
         ActionSequence::Key { _id: _, actions } => {
           if let Some(action) = actions.get(tick) {
             match action {
+              KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
+                if is_skipped_key(value) => {}
               KeyAction::KeyDown { value } => {
                 {
                   let mut sessions = state.sessions.write().await;
@@ -927,16 +1010,124 @@ mod tests {
   }
 
   #[test]
-  fn key_code_derives_physical_codes() {
-    assert_eq!(key_code("a"), "KeyA");
-    assert_eq!(key_code("Z"), "KeyZ");
-    assert_eq!(key_code("3"), "Digit3");
-    assert_eq!(key_code("\u{E00D}"), "Space");
-    assert_eq!(key_code("\u{E053}"), "MetaRight");
-    assert_eq!(key_code("\u{E03D}"), "MetaLeft");
-    // Layout-dependent symbols and multi-char values can't be resolved → empty (the spec default).
-    assert_eq!(key_code("!"), "");
-    assert_eq!(key_code("ab"), "");
+  fn every_special_key_code_point_maps_to_a_named_key() {
+    let special_keys = '\u{E000}'..='\u{E05D}';
+    for ch in special_keys.clone() {
+      let (key, code, _) = map_special_key(&ch.to_string())
+        .unwrap_or_else(|| panic!("U+{:04X} has no mapping", ch as u32));
+      assert!(
+        !key.chars().chain(code.chars()).any(|c| special_keys.contains(&c)),
+        "U+{:04X} maps to a private-use value",
+        ch as u32
+      );
+    }
+  }
+
+  #[test]
+  fn map_special_key_sends_each_keys_code_and_key_code() {
+    for (value, expected) in [
+      ("\u{E00F}", ("PageDown", "PageDown", 34)),
+      ("\u{E011}", ("Home", "Home", 36)),
+      ("\u{E007}", ("Enter", "Enter", 13)),
+      ("\u{E006}", ("Enter", "NumpadEnter", 13)),
+      ("\u{E00D}", (" ", "Space", 32)),
+      ("\u{E01B}", ("1", "Numpad1", 97)),
+      ("\u{E031}", ("F1", "F1", 112)),
+      ("\u{E053}", ("Meta", "MetaRight", 92)),
+      ("\u{E05D}", ("Delete", "NumpadDecimal", 46)),
+      ("\u{E000}", ("Unidentified", "", 0)),
+      ("\u{E02A}", ("Unidentified", "", 0)),
+    ] {
+      assert_eq!(map_special_key(value), Some(expected), "{value:?}");
+    }
+    for value in ["a", "5", "", "\u{E05E}", "\u{E00F}\u{E00F}"] {
+      assert_eq!(map_special_key(value), None, "{value:?}");
+    }
+  }
+
+  #[test]
+  fn regular_keys_send_their_us_keyboard_key() {
+    for (key, (code, key_code, shifted)) in [
+      ("a", ("KeyA", 65, false)),
+      ("A", ("KeyA", 65, true)),
+      ("p", ("KeyP", 80, false)),
+      ("z", ("KeyZ", 90, false)),
+      ("0", ("Digit0", 48, false)),
+      ("5", ("Digit5", 53, false)),
+      ("%", ("Digit5", 53, true)),
+      ("!", ("Digit1", 49, true)),
+      (")", ("Digit0", 48, true)),
+      (" ", ("Space", 32, false)),
+      (";", ("Semicolon", 186, false)),
+      (":", ("Semicolon", 186, true)),
+      ("=", ("Equal", 187, false)),
+      ("+", ("Equal", 187, true)),
+      (",", ("Comma", 188, false)),
+      ("-", ("Minus", 189, false)),
+      (".", ("Period", 190, false)),
+      ("/", ("Slash", 191, false)),
+      ("?", ("Slash", 191, true)),
+      ("`", ("Backquote", 192, false)),
+      ("~", ("Backquote", 192, true)),
+      ("[", ("BracketLeft", 219, false)),
+      ("\\", ("Backslash", 220, false)),
+      ("\t", ("Tab", 9, false)),
+      ("]", ("BracketRight", 221, false)),
+      ("'", ("Quote", 222, false)),
+      ("\"", ("Quote", 222, true)),
+      ("é", ("", 0, false)),
+      ("ab", ("", 0, false)),
+    ] {
+      assert_eq!(regular_key(key), (code.to_string(), key_code, shifted), "{key:?}");
+    }
+  }
+
+  #[test]
+  fn letters_dont_share_numpad_or_function_key_codes() {
+    let special_codes: Vec<u32> = ('\u{E000}'..='\u{E05D}')
+      .filter_map(|ch| map_special_key(&ch.to_string()))
+      .map(|(_, _, key_code)| key_code)
+      .collect();
+    for ch in ('a'..='z').chain('A'..='Z') {
+      let (_, key_code, _) = regular_key(&ch.to_string());
+      assert!(
+        !special_codes.contains(&key_code),
+        "{ch} shares keyCode {key_code} with a special key"
+      );
+    }
+  }
+
+  #[test]
+  fn key_event_js_sends_the_key_code_and_shift_a_browser_sends() {
+    let m = Modifiers::default();
+    for (value, expected) in [
+      ("a", r#"key:"a",code:"KeyA",keyCode:65,which:65,ctrlKey:false,shiftKey:false"#),
+      ("A", r#"key:"A",code:"KeyA",keyCode:65,which:65,ctrlKey:false,shiftKey:true"#),
+      ("!", r#"key:"!",code:"Digit1",keyCode:49,which:49,ctrlKey:false,shiftKey:true"#),
+      ("é", r#"key:"é",code:"",keyCode:0,which:0,ctrlKey:false,shiftKey:false"#),
+      ("\u{E00F}", r#"key:"PageDown",code:"PageDown",keyCode:34,which:34,"#),
+      ("\u{E01B}", r#"key:"1",code:"Numpad1",keyCode:97,which:97,"#),
+    ] {
+      let js = key_event_js("keydown", value, m);
+      assert!(js.contains(expected), "{value:?}: {js}");
+    }
+    let ctrl = Modifiers { ctrl: true, ..m };
+    assert!(key_event_js("keydown", "!", ctrl).contains("ctrlKey:true,shiftKey:true"));
+  }
+
+  #[test]
+  fn control_characters_press_the_keys_chromedriver_sends() {
+    let m = Modifiers::default();
+    assert_eq!(map_special_key("\n"), map_special_key("\u{E007}"));
+    assert_eq!(map_special_key("\u{8}"), map_special_key("\u{E003}"));
+    assert!(is_skipped_key("\r") && map_special_key("\r").is_none());
+    let newline = key_event_js("keydown", "\n", m);
+    assert!(newline.contains(r#"key:"Enter",code:"Enter",keyCode:13,"#), "{newline}");
+    assert!(newline.contains("wdioCommitOnEnter(t);"));
+    let backspace = key_event_js("keydown", "\u{8}", m);
+    assert!(backspace.contains(r#"key:"Backspace",code:"Backspace",keyCode:8,"#), "{backspace}");
+    let tab = key_event_js("keydown", "\t", m);
+    assert!(tab.contains(r#"key:"\t",code:"Tab",keyCode:9,"#), "{tab}");
   }
 
   #[test]
