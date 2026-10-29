@@ -26,17 +26,23 @@ export function diagnosePlatform(): DiagnosticResult[] {
   ];
 }
 
+/** The display variables set in `env`, such as `DISPLAY=:99`, or `undefined` when neither is set. */
+export function describeDisplay(env: NodeJS.ProcessEnv = process.env): string | undefined {
+  const set = ['DISPLAY', 'WAYLAND_DISPLAY'].filter((name) => env[name]).map((name) => `${name}=${env[name]}`);
+  return set.length > 0 ? set.join(', ') : undefined;
+}
+
 export function diagnoseDisplay(): DiagnosticResult[] {
   if (process.platform !== 'linux') {
     return [];
   }
 
-  const display = process.env.DISPLAY || process.env.WAYLAND_DISPLAY;
+  const display = describeDisplay();
   return [
     {
       category: 'Display',
       status: display ? 'ok' : 'warn',
-      message: display || 'not set',
+      message: display ?? 'not set',
       details: display
         ? undefined
         : 'Neither DISPLAY nor WAYLAND_DISPLAY is set. GUI tests may fail. Consider using Xvfb or Weston for headless testing.',

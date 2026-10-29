@@ -11,7 +11,14 @@ import {
   probeDevServerReachable,
   startManagedDevServer,
 } from '@wdio/native-core';
-import { createLogger, errorMessage, formatDiagnosticResults, isErr, severeServiceError } from '@wdio/native-utils';
+import {
+  createLogger,
+  describeDisplay,
+  errorMessage,
+  formatDiagnosticResults,
+  isErr,
+  severeServiceError,
+} from '@wdio/native-utils';
 import type { Options } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { resolveAppBinaryPath } from './appBinaryResolver.js';
@@ -696,9 +703,8 @@ export default class TauriLaunchService {
       delete (cap as { browserName?: string }).browserName;
     }
 
-    // Log DISPLAY status
     if (process.platform === 'linux') {
-      log.debug(`Worker ${cid} DISPLAY: ${process.env.DISPLAY || 'not set'}`);
+      log.debug(`Worker ${cid} display: ${describeDisplay() ?? 'not set'}`);
     }
 
     if (!firstCap) {
@@ -1097,7 +1103,7 @@ export default class TauriLaunchService {
     );
 
     if (process.platform === 'linux') {
-      log.info(`Starting tauri-driver (DISPLAY from environment: ${process.env.DISPLAY || 'not set'})`);
+      log.info(`Starting tauri-driver (display from environment: ${describeDisplay() ?? 'not set'})`);
     }
 
     await this.driverPool.startDriver({

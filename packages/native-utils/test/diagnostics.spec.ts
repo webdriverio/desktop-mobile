@@ -2,7 +2,13 @@ import { execFileSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { diagnoseBinary, diagnoseDisplay, diagnoseLinuxDependencies, type LinuxLibrary } from '../src/diagnostics.js';
+import {
+  describeDisplay,
+  diagnoseBinary,
+  diagnoseDisplay,
+  diagnoseLinuxDependencies,
+  type LinuxLibrary,
+} from '../src/diagnostics.js';
 
 vi.mock('node:fs', async (importActual) => {
   const actual = await importActual<typeof import('node:fs')>();
@@ -150,11 +156,23 @@ describe('diagnoseLinuxDependencies', () => {
   });
 });
 
+describe('describeDisplay', () => {
+  it.each([
+    [{ DISPLAY: ':99' }, 'DISPLAY=:99'],
+    [{ WAYLAND_DISPLAY: 'wayland-0' }, 'WAYLAND_DISPLAY=wayland-0'],
+    [{ DISPLAY: ':0', WAYLAND_DISPLAY: 'wayland-0' }, 'DISPLAY=:0, WAYLAND_DISPLAY=wayland-0'],
+    [{ DISPLAY: '', WAYLAND_DISPLAY: '' }, undefined],
+    [{}, undefined],
+  ])('should describe %o as %s', (env, expected) => {
+    expect(describeDisplay(env)).toBe(expected);
+  });
+});
+
 describe('diagnoseDisplay', () => {
   beforeEach(() => {
     mockPlatform('linux');
-    vi.stubEnv('DISPLAY', '');
-    vi.stubEnv('WAYLAND_DISPLAY', '');
+    vi.stubEnv('DISPLAY', undefined);
+    vi.stubEnv('WAYLAND_DISPLAY', undefined);
   });
 
   afterEach(() => {
@@ -169,14 +187,22 @@ describe('diagnoseDisplay', () => {
 
   it('should report an X display', () => {
     vi.stubEnv('DISPLAY', ':99');
-    expect(diagnoseDisplay()).toEqual([{ category: 'Display', status: 'ok', message: ':99', details: undefined }]);
+    expect(diagnoseDisplay()).toEqual([
+      { category: 'Display', status: 'ok', message: 'DISPLAY=:99', details: undefined },
+    ]);
   });
 
   it('should report a Wayland display when no X display is set', () => {
     vi.stubEnv('WAYLAND_DISPLAY', 'wayland-0');
     expect(diagnoseDisplay()).toEqual([
-      { category: 'Display', status: 'ok', message: 'wayland-0', details: undefined },
+      { category: 'Display', status: 'ok', message: 'WAYLAND_DISPLAY=wayland-0', details: undefined },
     ]);
+  });
+
+  it('should report both displays when both are set', () => {
+    vi.stubEnv('DISPLAY', ':0');
+    vi.stubEnv('WAYLAND_DISPLAY', 'wayland-0');
+    expect(diagnoseDisplay()[0].message).toBe('DISPLAY=:0, WAYLAND_DISPLAY=wayland-0');
   });
 
   it('should warn when no display is set', () => {

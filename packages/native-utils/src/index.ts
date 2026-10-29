@@ -4,6 +4,7 @@ export { installMockSyncOverride } from './commandOverride.js';
 export { readConfig } from './config/read.js';
 export {
   type DiagnosticResult,
+  describeDisplay,
   diagnoseBinary,
   diagnoseDiskSpace,
   diagnoseDisplay,
