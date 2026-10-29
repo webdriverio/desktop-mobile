@@ -497,12 +497,8 @@ pub async fn take_screenshot(
   State(state): State<Arc<AppState>>,
   Path((session_id, _element_id)): Path<(String, String)>,
 ) -> WebDriverResult {
-  let sessions = state.sessions.read().await;
-  let _ = sessions.get(&session_id)?;
-  // Placeholder — same as the full-page screenshot.
-  Ok(WebDriverResponse::success(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==",
-  ))
+  state.sessions.read().await.get(&session_id)?;
+  Err(WebDriverErrorResponse::unsupported_operation(super::screenshot::UNSUPPORTED))
 }
 
 // ── helpers ──────────────────────────────────────────────────────────────────

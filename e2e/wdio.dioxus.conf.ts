@@ -55,6 +55,7 @@ switch (testType) {
       './test/dioxus/deeplink.spec.ts',
       // Embedded-only: wdio-dioxus-driver passes element commands to the platform's WebDriver server.
       './test/dioxus/element-events.embedded.spec.ts',
+      './test/dioxus/screenshot.embedded.spec.ts',
     ];
     break;
 }
