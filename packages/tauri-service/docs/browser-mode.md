@@ -338,17 +338,16 @@ The injection script runs after `browser.url()` resolves (document `readyState` 
 
 ## Limitations
 
-| Feature                                             | Browser Mode                                           |
-| --------------------------------------------------- | ------------------------------------------------------ |
-| `browser.tauri.execute()`                           | Throws — no Tauri backend or plugin bridge             |
-| `browser.tauri.triggerDeeplink()`                   | Throws — no Tauri process                              |
-| `browser.tauri.switchWindow()`                      | Throws — multi-window requires a native Tauri app      |
-| `browser.tauri.listWindows()`                       | Throws — same reason as `switchWindow()`               |
-| Backend log capture (`captureBackendLogs`)          | Not available — no Rust process                        |
-| Frontend log capture (`captureFrontendLogs`)        | Available — Chrome session, standard console capture   |
-| Automatic window focus management                   | Disabled — standard Chrome window switching applies    |
-| `window.__TAURI_INTERNALS__.invoke` event listeners | Not intercepted — fire-and-forget listeners are no-ops |
-| `mock.withImplementation()`                         | Serialised to browser page — see below                 |
+| Feature                                      | Browser Mode                                         |
+| -------------------------------------------- | ---------------------------------------------------- |
+| `browser.tauri.execute()`                    | Throws — no Tauri backend or plugin bridge           |
+| `browser.tauri.triggerDeeplink()`            | Throws — no Tauri process                            |
+| `browser.tauri.switchWindow()`               | Throws — multi-window requires a native Tauri app    |
+| `browser.tauri.listWindows()`                | Throws — same reason as `switchWindow()`             |
+| Backend log capture (`captureBackendLogs`)   | Not available — no Rust process                      |
+| Frontend log capture (`captureFrontendLogs`) | Available — Chrome session, standard console capture |
+| Automatic window focus management            | Disabled — standard Chrome window switching applies  |
+| `mock.withImplementation()`                  | Serialised to browser page — see below               |
 
 ### `withImplementation` in browser mode
 

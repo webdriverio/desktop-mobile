@@ -566,14 +566,17 @@ export default class TauriWorkerService {
         const failures = results.flatMap((result, i) =>
           result.status === 'rejected' ? [{ instance: instanceNames[i], error: result.reason as unknown }] : [],
         );
-        const sync = getMockUpdateScheduler(browser).schedule();
         if (failures.length === 0) {
-          await sync;
+          await getMockUpdateScheduler(browser).schedule();
           return;
         }
-        // Sync anyway so the other instances' calls are recorded, but throw the emit failures: a broken
-        // session fails the sync too
-        await sync.catch((error: unknown) => log.warn('Mock sync failed after a failed emitEvent:', error));
+        // Sync if some instances emitted, so their calls are recorded, but throw the emit failures: a
+        // broken session fails the sync too
+        if (failures.length < instanceNames.length) {
+          await getMockUpdateScheduler(browser)
+            .schedule()
+            .catch((error: unknown) => log.warn('Mock sync failed after a failed emitEvent:', error));
+        }
         // Reporters print only the message, not `cause` or `errors`, so the message names each failure
         const message = `emitEvent('${eventName}') failed on ${failures
           .map(({ instance, error }) => `${instance}: ${errorMessage(error)}`)

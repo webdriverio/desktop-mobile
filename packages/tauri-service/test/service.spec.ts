@@ -1,6 +1,6 @@
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { closeLogWriter, getLogWriter, isLogWriterInitialized } from '@wdio/native-core';
-import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
+import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseLogLines } from '../src/logParser.js';
 
@@ -988,7 +988,7 @@ describe('TauriWorkerService', () => {
           expect(mockStore.getMocks).toHaveBeenCalledTimes(1);
         });
 
-        it('should report every instance that failed', async () => {
+        it('should report every instance that failed, without syncing mocks when all did', async () => {
           const mrBrowser = await setUpRoot();
           vi.mocked(executeCommand)
             .mockRejectedValueOnce(new Error('a failed'))
@@ -998,13 +998,13 @@ describe('TauriWorkerService', () => {
             message: "emitEvent('foo') failed on browserA: a failed; browserB: b failed",
             errors: [{ message: 'a failed' }, { message: 'b failed' }],
           });
-          expect(mockStore.getMocks).toHaveBeenCalledTimes(1);
+          expect(mockStore.getMocks).not.toHaveBeenCalled();
         });
 
         it('should report the failed emit, not the mock sync, when both fail', async () => {
           const mrBrowser = await setUpRoot();
           const update = vi.fn().mockRejectedValue(new Error('sync failed'));
-          vi.mocked(mockStore.getMocks).mockReturnValueOnce([['tauri.cmd', { update } as any]]);
+          vi.mocked(mockStore.getMocks).mockReturnValueOnce([['tauri.cmd', { update } as unknown as TauriMock]]);
           vi.mocked(executeCommand).mockRejectedValueOnce(new Error('emit rejected'));
 
           await expect(tauriOf(mrBrowser).emitEvent('foo')).rejects.toMatchObject({

@@ -90,14 +90,14 @@ describe('Tauri API', () => {
   describe('emitEvent', () => {
     type EventTestGlobals = {
       __wdioEvents?: unknown[];
-      __wdioUnlisten?: () => void;
+      __wdioUnlisten?: () => Promise<void>;
       __TAURI__: {
         event: {
           listen: (
             event: string,
             handler: (event: { payload: unknown }) => void,
             options?: { target: { kind: string; label: string } },
-          ) => Promise<() => void>;
+          ) => Promise<() => Promise<void>>;
         };
       };
     };
@@ -107,7 +107,7 @@ describe('Tauri API', () => {
       browser.tauri.execute(
         async (_tauri, ev: string, t?: { kind: string; label: string }) => {
           const g = globalThis as unknown as EventTestGlobals;
-          g.__wdioUnlisten?.();
+          await g.__wdioUnlisten?.();
           g.__wdioEvents = [];
           g.__wdioUnlisten = await g.__TAURI__.event.listen(
             ev,
@@ -126,10 +126,11 @@ describe('Tauri API', () => {
 
     afterEach(async () => {
       try {
-        await browser.tauri.execute(() => {
+        await browser.tauri.execute(async () => {
           const g = globalThis as unknown as EventTestGlobals;
-          g.__wdioUnlisten?.();
+          const unlisten = g.__wdioUnlisten;
           g.__wdioUnlisten = undefined;
+          await unlisten?.();
         });
       } finally {
         await browser.tauri.restoreAllMocks('plugin:event|');

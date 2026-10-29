@@ -55,9 +55,11 @@ describe('Tauri APIs using Multiremote', () => {
   describe('emitEvent', () => {
     type EventTestGlobals = {
       __wdioEvents?: unknown[];
-      __wdioUnlisten?: () => void;
+      __wdioUnlisten?: () => Promise<void>;
       __TAURI__: {
-        event: { listen: (event: string, handler: (event: { payload: unknown }) => void) => Promise<() => void> };
+        event: {
+          listen: (event: string, handler: (event: { payload: unknown }) => void) => Promise<() => Promise<void>>;
+        };
       };
     };
 
@@ -69,10 +71,11 @@ describe('Tauri APIs using Multiremote', () => {
     afterEach(async () => {
       await Promise.all(
         instances().map((instance) =>
-          instance.tauri.execute(() => {
+          instance.tauri.execute(async () => {
             const g = globalThis as unknown as EventTestGlobals;
-            g.__wdioUnlisten?.();
+            const unlisten = g.__wdioUnlisten;
             g.__wdioUnlisten = undefined;
+            await unlisten?.();
           }),
         ),
       );
@@ -83,7 +86,7 @@ describe('Tauri APIs using Multiremote', () => {
         instances().map((instance) =>
           instance.tauri.execute(async () => {
             const g = globalThis as unknown as EventTestGlobals;
-            g.__wdioUnlisten?.();
+            await g.__wdioUnlisten?.();
             g.__wdioEvents = [];
             g.__wdioUnlisten = await g.__TAURI__.event.listen('wdio:test-emit-root', (e) => {
               g.__wdioEvents?.push(e.payload);
