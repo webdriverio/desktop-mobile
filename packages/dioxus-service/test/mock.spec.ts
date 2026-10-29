@@ -245,5 +245,21 @@ describe('createMock', () => {
 
       await expect(execute(browser, (dx) => dx.invoke('greet'))).resolves.toBe('default');
     });
+
+    it('should reject without running the callback when the window has no mock for the command', async () => {
+      const win = makeWebview();
+      const browser = makeWebviewBrowser(win);
+      const m = await createMock('greet', browser);
+      delete (win.__wdio_mocks__ as Record<string, unknown>).greet;
+
+      await expect(
+        m.withImplementation(
+          () => 'temporary',
+          () => {
+            throw new Error('callback ran');
+          },
+        ),
+      ).rejects.toMatchObject({ message: 'greet is not mocked in this window' });
+    });
   });
 });

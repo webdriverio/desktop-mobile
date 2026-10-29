@@ -361,7 +361,7 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 
 ### `withImplementation(implFn, callbackFn)`
 
-Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's webview like an `execute()` script, and receives the same `dx`. The implementation is restored when the callback returns, or when its promise settles.
+Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's webview like an `execute()` script, and receives the same `dx`. The implementation is restored when the callback returns, or when its promise settles. Mocks are per window, so this rejects if the command isn't mocked in the current window.
 
 **Returns:** `Promise` of the callback's result
 

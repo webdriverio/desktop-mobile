@@ -118,9 +118,12 @@ ${WDIO_MOCK_SETUP_SCRIPT}
     return `async (_dx) => {
   const impl = (${implFnSource});
   const callback = (${callbackFnSource});
-  let result;
   const mockObj = ${lookup};
-  await mockObj?.withImplementation?.(impl, async () => { result = await (_dx !== undefined ? callback(_dx) : callback()); });
+  if (typeof mockObj?.withImplementation !== 'function') {
+    throw new Error(${JSON.stringify(`${mockName} is not mocked in this window`)});
+  }
+  let result;
+  await mockObj.withImplementation(impl, async () => { result = await (_dx !== undefined ? callback(_dx) : callback()); });
   return result;
 }`;
   }
