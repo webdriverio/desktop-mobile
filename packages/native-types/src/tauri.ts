@@ -130,7 +130,7 @@ export interface TauriServiceAPI {
    * const result = await browser.tauri.execute(({ core }) => core.invoke('get_platform_info'));
    * ```
    *
-   * @param script - Function to execute (receives Tauri APIs as first parameter) or string
+   * @param script - Function to execute (receives `{ core: { invoke } }` as first parameter) or string
    * @param args - Additional arguments passed to the script
    */
   execute<ReturnValue, InnerArguments extends unknown[]>(

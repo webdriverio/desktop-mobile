@@ -110,10 +110,10 @@ window.wdioTauri.cleanupAll();
 
 #### `execute(script, ...args): Promise<unknown>`
 
-Execute JavaScript code in the frontend context. The script receives the Tauri APIs object as the first parameter.
+Execute JavaScript code in the frontend context. A function receives `{ core: { invoke } }` as its first parameter, and `core.invoke` goes through any mocks set up with `browser.tauri.mock()`.
 
 **Parameters:**
-- `script`: Function or string to execute (receives Tauri APIs as first parameter)
+- `script`: Function or string to execute
 - `...args`: Additional arguments to pass to the script
 
 **Returns:** Promise resolving to the script's return value
