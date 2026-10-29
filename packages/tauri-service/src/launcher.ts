@@ -337,7 +337,7 @@ export default class TauriLaunchService {
     // When maxInstances > 1, enable per-worker spawning for parallelism
     // When maxInstances === 1, use single shared driver for optimal performance
     const maxInstances = _config.maxInstances || 100; // WDIO default is 100
-    const isMultiremote = !Array.isArray(capabilities);
+    const isMultiremote = instances.some(({ name }) => name !== undefined);
     this.perWorkerMode = maxInstances > 1 && !isMultiremote;
 
     log.debug(
