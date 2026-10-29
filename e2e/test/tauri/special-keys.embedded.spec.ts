@@ -42,7 +42,7 @@ async function fieldEvents() {
   return (await browser.execute('return window.__fieldEvents || []')) as unknown as string[];
 }
 
-// A field which logs events alongside its value, next to a button for focus switching.
+// A field that logs its events with its value, and a button to move focus to.
 async function fillChangeScratch({ initialValue = '', inShadowHost = false } = {}) {
   await fillScratch(
     `scratch.innerHTML = '<div id="fresh-host"></div><button id="fresh-other">other</button>';
@@ -428,7 +428,7 @@ describe('special keys (embedded)', () => {
   });
 
   it("should not start a window drag when clicking in Tauri's drag region", async () => {
-    // Tauri's drag.js stops a mousedown it starts a drag for from reaching the window.
+    // Tauri's drag.js stops the mousedown of any drag it starts, so a mousedown reaching the window means no drag.
     await fillScratch(
       `scratch.innerHTML = '<div id="fresh-drag" data-tauri-drag-region>title</div>';
       window.__mousedownReachedWindow = false;

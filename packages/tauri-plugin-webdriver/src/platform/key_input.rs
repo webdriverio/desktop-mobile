@@ -601,7 +601,6 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
                     && focusTarget.parentElement.isContentEditable) {{
                     focusTarget = focusTarget.parentElement;
                 }}
-                // Typing appends, yet a select-on-focus handler still wins.
                 wdioCaretToEnd(el);
                 wdioFocus(focusTarget);
                 if (!wasFocused && el.isContentEditable) {{

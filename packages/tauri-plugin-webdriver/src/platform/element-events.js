@@ -1,8 +1,6 @@
 // biome-ignore-all lint/correctness/noUnusedVariables: the Rust drivers paste this file into page scripts that call its functions
 // Page-side helpers for the embedded drivers' element commands: the focus moves and form events
-// a user's input causes in a browser. A published crate can only include its own files, so
-// tauri-plugin-wdio-webdriver and wdio-dioxus-embedded-driver each keep an identical copy;
-// test/scripts/element-events.spec.ts tests it and checks the copies match.
+// a user's input causes in a browser. Tested in test/scripts/element-events.spec.ts.
 
 const WDIO_CLEARABLE_INPUT_TYPES = [
   'text',
@@ -55,10 +53,9 @@ function wdioRecordPendingChange(el, value) {
   window.__wdio_pending_change = { el, value, root, onBlur };
 }
 
-// Chromium (WebView2) skips `blur` on scripted focus moves while the window isn't focused, so the
-// driver calls this before and after it moves focus: a field that lost focus without a `blur`, to
-// the page or to the driver, then fires the `change` it owes. Workaround for #886; drop once the
-// drivers emulate focus.
+// WebView2 skips `blur` on scripted focus moves while its window isn't focused, so the driver
+// calls this around its own focus moves, and a field that lost focus without a `blur` fires the
+// `change` it owes. Workaround for #886; drop once the drivers emulate focus.
 function wdioFlushPendingChange() {
   const record = window.__wdio_pending_change;
   if (record && record.root.activeElement !== record.el) {
@@ -104,10 +101,9 @@ function wdioCommitOnEnter(el) {
   record.value = el.value;
 }
 
-// Element Click's press, as Chrome sends it: a cancelled pointerdown or mousedown keeps focus where it
-// is, as combobox lists and editor toolbars rely on, and a disabled control gets no mouse events. The
-// mouse events have detail 0, as synthetic events do: Tauri's drag regions start a native window drag
-// on a mousedown with detail 1, which with no button held wouldn't end.
+// Element Click's press, as Chrome sends it: a cancelled pointerdown or mousedown keeps focus where
+// it is, and a disabled control gets no mouse events. Mouse events have detail 0, because Tauri's
+// drag regions start a native window drag on detail 1, which would never end with no button held.
 function wdioPress(el) {
   const rect = el.getBoundingClientRect();
   const init = {
@@ -130,9 +126,7 @@ function wdioPress(el) {
   window.__wdio_press = { init, pressed };
 }
 
-// Element Click's release, which the driver runs in a later script than the press, as a real click's
-// comes in a later task, so the page's reactions to the press (a re-render, an effect) land first. The
-// press's blur can enable or disable the control, so each step checks.
+// Element Click's release. The press's blur can enable or disable the control, so each step checks.
 function wdioRelease(el) {
   const { init, pressed } = window.__wdio_press;
   window.__wdio_press = undefined;
@@ -159,9 +153,8 @@ function wdioDisabled(el) {
   return el.closest(':disabled:not(fieldset)');
 }
 
-// Returns whether the page left the mousedown uncancelled. WebKit acts on a synthetic mousedown, so a
-// range input's thumb jumps to it, where Chromium doesn't, so the driver cancels it once the page's
-// listeners have run.
+// Returns whether the page left the mousedown uncancelled. The driver cancels it after the page's
+// listeners, as WebKit, unlike Chromium, acts on a synthetic mousedown (a range thumb jumps to it).
 function wdioMouseDown(el, init) {
   let pageCanceled;
   const cancel = (event) => {
@@ -203,8 +196,8 @@ function wdioFocusForClick(el) {
     }
     wdioCaretToEnd(node);
     node.focus({ preventScroll: true });
-    // A component's focus() or a focus handler can send focus elsewhere, or back, and a component's
-    // focus() can keep it in a field of its own that already had it.
+    // Stop once focus has moved, even back to where it was, or a component's own focus() kept it inside
+    // the component.
     if (
       moved ||
       wdioDeepActiveElement() !== previous ||
