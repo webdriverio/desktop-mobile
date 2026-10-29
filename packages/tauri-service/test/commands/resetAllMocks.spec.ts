@@ -1,13 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { resetAllMocks } from '../../src/commands/mock.js';
 import mockStore from '../../src/mockStore.js';
-
-vi.mock('../../src/mockStore.js', () => ({
-  default: {
-    getMocks: vi.fn(),
-  },
-}));
+import { createFakeMultiremote } from './multiremoteFakes.js';
 
 describe('resetAllMocks Command', () => {
   let mockedGetPlatformInfo: any, mockedReadClipboard: any, mockedWriteClipboard: any;
@@ -29,14 +24,13 @@ describe('resetAllMocks Command', () => {
       getMockName: () => 'tauri.write_clipboard',
       mockReset: vi.fn(),
     };
-    (mockStore.getMocks as Mock).mockReturnValue([
-      ['tauri.get_platform_info', mockedGetPlatformInfo],
-      ['tauri.read_clipboard', mockedReadClipboard],
-      ['tauri.write_clipboard', mockedWriteClipboard],
-    ]);
+    mockStore.setMock(globalThis.browser, mockedGetPlatformInfo);
+    mockStore.setMock(globalThis.browser, mockedReadClipboard);
+    mockStore.setMock(globalThis.browser, mockedWriteClipboard);
   });
 
   afterEach(() => {
+    mockStore.clear();
     vi.resetAllMocks();
     delete (globalThis as any).browser;
   });
@@ -134,13 +128,37 @@ describe('resetAllMocks Command', () => {
     await expect(resetAllMocks.call({})).rejects.toThrow('resetAllMocks requires a valid browser context');
   });
 
-  it('should throw when browser is multiremote', async () => {
-    const multiremoteBrowser = {
-      isMultiremote: true,
-      execute: vi.fn(),
-    } as unknown as WebdriverIO.MultiRemoteBrowser;
-    globalThis.browser = multiremoteBrowser as any;
+  describe('in multiremote', () => {
+    let fakes: ReturnType<typeof createFakeMultiremote>;
+    let mockA: any, mockB: any;
 
-    await expect(resetAllMocks.call({})).rejects.toThrow('resetAllMocks requires a valid browser context');
+    beforeEach(() => {
+      mockStore.clear();
+      fakes = createFakeMultiremote();
+      globalThis.browser = fakes.root as any;
+      mockA = { getMockName: () => 'tauri.read_clipboard', mockReset: vi.fn() };
+      mockB = { getMockName: () => 'tauri.read_clipboard', mockReset: vi.fn() };
+      mockStore.setMock(fakes.browserA, mockA);
+      mockStore.setMock(fakes.browserB, mockB);
+    });
+
+    it("should reset only the calling instance's mocks, in its own app", async () => {
+      await resetAllMocks.call({ browser: fakes.browserB }, 'read');
+
+      expect(mockB.mockReset).toHaveBeenCalledOnce();
+      expect(fakes.browserB.execute).toHaveBeenCalledWith(expect.any(Function), 'read');
+      expect(mockA.mockReset).not.toHaveBeenCalled();
+      expect(fakes.browserA.execute).not.toHaveBeenCalled();
+    });
+
+    it("should reset every instance's mocks on the root, in each instance's app", async () => {
+      await resetAllMocks.call({});
+
+      expect(mockA.mockReset).toHaveBeenCalledOnce();
+      expect(mockB.mockReset).toHaveBeenCalledOnce();
+      expect(fakes.browserA.execute).toHaveBeenCalledWith(expect.any(Function), '');
+      expect(fakes.browserB.execute).toHaveBeenCalledWith(expect.any(Function), '');
+      expect(fakes.root.execute).not.toHaveBeenCalled();
+    });
   });
 });

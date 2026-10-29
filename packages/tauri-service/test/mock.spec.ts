@@ -196,22 +196,22 @@ describe('createMock', () => {
   });
 
   describe('mockRestore()', () => {
-    it('should call mockStore.deleteMock with the tauri-prefixed name', async () => {
+    it("should delete the tauri-prefixed name from the browser's mocks", async () => {
       const browser = makeBrowser();
       const mock = await createMock('my_cmd', browser);
 
       mockExecute.mockResolvedValueOnce(undefined);
       await mock.mockRestore();
 
-      expect(mockStore.deleteMock).toHaveBeenCalledWith('tauri.my_cmd');
+      expect(mockStore.deleteMock).toHaveBeenCalledWith(browser, 'tauri.my_cmd');
     });
   });
 
   describe('when the app call fails', () => {
-    async function mockWithOneCall() {
+    async function mockWithOneCall(browser = makeBrowser()) {
       const syncPayload = { calls: [['arg']], results: [{ type: 'return', value: 1 }], invocationCallOrder: [0] };
       mockExecute.mockResolvedValueOnce(undefined).mockResolvedValueOnce(syncPayload);
-      const mock = await createMock('my_cmd', makeBrowser());
+      const mock = await createMock('my_cmd', browser);
       await mock.update();
       expect(mock.mock.calls).toHaveLength(1);
       mockExecute.mockRejectedValueOnce(new Error('invalid session id'));
@@ -239,12 +239,13 @@ describe('createMock', () => {
     });
 
     it('should still clear the outer calls and drop the store entry on mockRestore', async () => {
-      const mock = await mockWithOneCall();
+      const browser = makeBrowser();
+      const mock = await mockWithOneCall(browser);
 
       await expect(mock.mockRestore()).rejects.toMatchObject({ message: 'invalid session id' });
 
       expect(mock.mock.calls).toHaveLength(0);
-      expect(mockStore.deleteMock).toHaveBeenCalledWith('tauri.my_cmd');
+      expect(mockStore.deleteMock).toHaveBeenCalledWith(browser, 'tauri.my_cmd');
     });
 
     it('should still drop the store entry on mockRestore in browser mode', async () => {
@@ -254,7 +255,7 @@ describe('createMock', () => {
 
       await expect(mock.mockRestore()).rejects.toMatchObject({ message: 'page closed' });
 
-      expect(mockStore.deleteMock).toHaveBeenCalledWith('tauri.my_cmd');
+      expect(mockStore.deleteMock).toHaveBeenCalledWith(browser, 'tauri.my_cmd');
     });
   });
 

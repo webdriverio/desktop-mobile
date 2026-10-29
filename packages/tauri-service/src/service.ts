@@ -1,5 +1,5 @@
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
+import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
 import {
   createLogger,
   errorMessage,
@@ -499,12 +499,7 @@ export default class TauriWorkerService {
 
       isMockFunction: ((commandOrFn: unknown) => {
         if (typeof commandOrFn === 'string') {
-          try {
-            mockStore.getMock(`tauri.${commandOrFn}`);
-            return true;
-          } catch {
-            return false;
-          }
+          return getMocksInScope(browser).some(([mockId]) => mockId === `tauri.${commandOrFn}`);
         }
         return isMockFunction(commandOrFn);
       }) as TauriServiceAPI['isMockFunction'],
@@ -735,8 +730,13 @@ const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateSchedule
  * leads to empty mock.calls assertions, which is harder to diagnose than an AggregateError.
  */
 class MockUpdateScheduler {
+  #browser: WebdriverIO.Browser;
   #running: Promise<void> | null = null;
   #queued: Promise<void> | null = null;
+
+  constructor(browser: WebdriverIO.Browser) {
+    this.#browser = browser;
+  }
 
   schedule(): Promise<void> {
     if (!this.#running) {
@@ -777,7 +777,7 @@ class MockUpdateScheduler {
   }
 
   async #runOnce(): Promise<void> {
-    const mocks = mockStore.getMocks();
+    const mocks = getMocksInScope(this.#browser);
     if (mocks.length === 0) {
       return;
     }
@@ -881,10 +881,15 @@ async function emitTauriEvent(
   );
 }
 
+// A multiremote root's commands fan out to every instance, so it sees every instance's mocks
+function getMocksInScope(browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser): [string, TauriMock][] {
+  return isMultiremote(browser) ? mockStore.getAllMocks() : mockStore.getMocks(browser);
+}
+
 function getMockUpdateScheduler(browser: WebdriverIO.Browser): MockUpdateScheduler {
   let scheduler = mockUpdateSchedulers.get(browser);
   if (!scheduler) {
-    scheduler = new MockUpdateScheduler();
+    scheduler = new MockUpdateScheduler(browser);
     mockUpdateSchedulers.set(browser, scheduler);
   }
   return scheduler;

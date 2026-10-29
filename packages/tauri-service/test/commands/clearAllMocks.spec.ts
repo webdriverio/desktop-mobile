@@ -1,18 +1,15 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { clearAllMocks } from '../../src/commands/mock.js';
 import mockStore from '../../src/mockStore.js';
-
-vi.mock('../../src/mockStore.js', () => ({
-  default: {
-    getMocks: vi.fn(),
-  },
-}));
+import { createFakeMultiremote } from './multiremoteFakes.js';
 
 describe('clearAllMocks Command', () => {
   let mockedGetPlatformInfo: any, mockedReadClipboard: any, mockedWriteClipboard: any;
 
   beforeEach(async () => {
+    globalThis.browser = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+
     mockedGetPlatformInfo = {
       getMockName: () => 'tauri.get_platform_info',
       mockClear: vi.fn(),
@@ -25,15 +22,15 @@ describe('clearAllMocks Command', () => {
       getMockName: () => 'tauri.write_clipboard',
       mockClear: vi.fn(),
     };
-    (mockStore.getMocks as Mock).mockReturnValue([
-      ['tauri.get_platform_info', mockedGetPlatformInfo],
-      ['tauri.read_clipboard', mockedReadClipboard],
-      ['tauri.write_clipboard', mockedWriteClipboard],
-    ]);
+    mockStore.setMock(globalThis.browser, mockedGetPlatformInfo);
+    mockStore.setMock(globalThis.browser, mockedReadClipboard);
+    mockStore.setMock(globalThis.browser, mockedWriteClipboard);
   });
 
   afterEach(() => {
+    mockStore.clear();
     vi.resetAllMocks();
+    delete (globalThis as any).browser;
   });
 
   it('should clear all mock functions when no prefix is provided', async () => {
@@ -76,6 +73,7 @@ describe('clearAllMocks Command', () => {
   });
 
   it('should escape regex metacharacters in prefix so dot is literal', async () => {
+    mockStore.clear();
     const mockedDotCommand = {
       getMockName: () => 'tauri.get_platform.info',
       mockClear: vi.fn(),
@@ -84,13 +82,47 @@ describe('clearAllMocks Command', () => {
       getMockName: () => 'tauri.get_platformXinfo',
       mockClear: vi.fn(),
     };
-    (mockStore.getMocks as Mock).mockReturnValue([
-      ['tauri.get_platform.info', mockedDotCommand],
-      ['tauri.get_platformXinfo', mockedNonDotCommand],
-    ]);
+    mockStore.setMock(globalThis.browser, mockedDotCommand as any);
+    mockStore.setMock(globalThis.browser, mockedNonDotCommand as any);
 
     await clearAllMocks('get_platform.info');
     expect(mockedDotCommand.mockClear).toHaveBeenCalled();
     expect(mockedNonDotCommand.mockClear).not.toHaveBeenCalled();
+  });
+
+  it('should throw when no browser context is available', async () => {
+    delete (globalThis as any).browser;
+    await expect(clearAllMocks.call({})).rejects.toThrow('clearAllMocks requires a valid browser context');
+  });
+
+  describe('in multiremote', () => {
+    it("should clear only the calling instance's mocks", async () => {
+      const { root, browserA, browserB } = createFakeMultiremote();
+      const mockA = { getMockName: () => 'tauri.read_clipboard', mockClear: vi.fn() };
+      const mockB = { getMockName: () => 'tauri.read_clipboard', mockClear: vi.fn() };
+      mockStore.setMock(browserA, mockA as any);
+      mockStore.setMock(browserB, mockB as any);
+      globalThis.browser = root as any;
+
+      await clearAllMocks.call({ browser: browserA });
+
+      expect(mockA.mockClear).toHaveBeenCalled();
+      expect(mockB.mockClear).not.toHaveBeenCalled();
+    });
+
+    it("should clear every instance's mocks, and the root's own, on the root", async () => {
+      const { root, browserA, browserB } = createFakeMultiremote();
+      const mocks = [browserA, browserB, root].map((owner) => {
+        const mock = { getMockName: () => 'tauri.read_clipboard', mockClear: vi.fn() };
+        mockStore.setMock(owner, mock as any);
+        return mock;
+      });
+
+      await clearAllMocks.call({ browser: root }, 'read');
+
+      for (const mock of mocks) {
+        expect(mock.mockClear).toHaveBeenCalledOnce();
+      }
+    });
   });
 });

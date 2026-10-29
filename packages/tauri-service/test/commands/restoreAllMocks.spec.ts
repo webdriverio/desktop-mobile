@@ -1,13 +1,8 @@
-import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { restoreAllMocks } from '../../src/commands/mock.js';
 import mockStore from '../../src/mockStore.js';
-
-vi.mock('../../src/mockStore.js', () => ({
-  default: {
-    getMocks: vi.fn(),
-  },
-}));
+import { createFakeMultiremote } from './multiremoteFakes.js';
 
 describe('restoreAllMocks Command', () => {
   let mockedGetPlatformInfo: any, mockedReadClipboard: any, mockedWriteClipboard: any;
@@ -29,14 +24,13 @@ describe('restoreAllMocks Command', () => {
       getMockName: () => 'tauri.write_clipboard',
       mockRestore: vi.fn(),
     };
-    (mockStore.getMocks as Mock).mockReturnValue([
-      ['tauri.get_platform_info', mockedGetPlatformInfo],
-      ['tauri.read_clipboard', mockedReadClipboard],
-      ['tauri.write_clipboard', mockedWriteClipboard],
-    ]);
+    mockStore.setMock(globalThis.browser, mockedGetPlatformInfo);
+    mockStore.setMock(globalThis.browser, mockedReadClipboard);
+    mockStore.setMock(globalThis.browser, mockedWriteClipboard);
   });
 
   afterEach(() => {
+    mockStore.clear();
     vi.resetAllMocks();
     delete (globalThis as any).browser;
   });
@@ -131,13 +125,88 @@ describe('restoreAllMocks Command', () => {
     await expect(restoreAllMocks.call({})).rejects.toThrow('restoreAllMocks requires a valid browser context');
   });
 
-  it('should throw when browser is multiremote', async () => {
-    const multiremoteBrowser = {
-      isMultiremote: true,
-      execute: vi.fn(),
-    } as unknown as WebdriverIO.MultiRemoteBrowser;
-    globalThis.browser = multiremoteBrowser as any;
+  describe('in multiremote', () => {
+    let fakes: ReturnType<typeof createFakeMultiremote>;
+    let mockA: any, mockB: any, rootMock: any;
 
-    await expect(restoreAllMocks.call({})).rejects.toThrow('restoreAllMocks requires a valid browser context');
+    beforeEach(() => {
+      mockStore.clear();
+      fakes = createFakeMultiremote();
+      globalThis.browser = fakes.root as any;
+      mockA = { getMockName: () => 'tauri.read_clipboard', mockRestore: vi.fn() };
+      mockB = { getMockName: () => 'tauri.read_clipboard', mockRestore: vi.fn() };
+      rootMock = { getMockName: () => 'tauri.read_clipboard', mockRestore: vi.fn() };
+      mockStore.setMock(fakes.browserA, mockA);
+      mockStore.setMock(fakes.browserB, mockB);
+      mockStore.setMock(fakes.root, rootMock);
+    });
+
+    it("should restore only the calling instance's mocks, in its own app", async () => {
+      await restoreAllMocks.call({ browser: fakes.browserA });
+
+      expect(mockA.mockRestore).toHaveBeenCalledOnce();
+      expect(fakes.browserA.execute).toHaveBeenCalledWith(expect.any(Function), '');
+      expect(mockB.mockRestore).not.toHaveBeenCalled();
+      expect(fakes.browserB.execute).not.toHaveBeenCalled();
+      expect(rootMock.mockRestore).not.toHaveBeenCalled();
+    });
+
+    it("should restore every instance's mocks, and the root's own, on the root", async () => {
+      await restoreAllMocks.call({ browser: fakes.root }, 'read');
+
+      for (const mock of [mockA, mockB, rootMock]) {
+        expect(mock.mockRestore).toHaveBeenCalledOnce();
+      }
+      expect(fakes.browserA.execute).toHaveBeenCalledWith(expect.any(Function), 'read');
+      expect(fakes.browserB.execute).toHaveBeenCalledWith(expect.any(Function), 'read');
+      expect(fakes.root.execute).not.toHaveBeenCalled();
+    });
+
+    it('should finish the other instances before reporting the one that failed', async () => {
+      const failure = new Error('script error');
+      vi.mocked(fakes.browserA.execute).mockRejectedValueOnce(failure);
+
+      await expect(restoreAllMocks.call({ browser: fakes.root })).rejects.toMatchObject({
+        message: 'restoreAllMocks failed on browserA: mockRestore failed: all mocks (in-app): script error',
+        cause: { errors: [failure] },
+      });
+
+      for (const mock of [mockA, mockB, rootMock]) {
+        expect(mock.mockRestore).toHaveBeenCalledOnce();
+      }
+      expect(fakes.browserB.execute).toHaveBeenCalled();
+    });
+
+    it('should keep restoring the other instances when getInstance throws for one', async () => {
+      const root = {
+        ...fakes.root,
+        getInstance: (name: string) => {
+          if (name === 'browserA') {
+            throw new Error('Multi-remote object has no instance named "browserA"');
+          }
+          return fakes.browserB;
+        },
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      mockStore.setMock(root, rootMock);
+
+      await expect(restoreAllMocks.call({ browser: root })).rejects.toMatchObject({
+        message: 'restoreAllMocks failed on browserA: Multi-remote object has no instance named "browserA"',
+      });
+
+      expect(mockB.mockRestore).toHaveBeenCalledOnce();
+      expect(rootMock.mockRestore).toHaveBeenCalledOnce();
+    });
+
+    it('should report every instance that failed', async () => {
+      vi.mocked(fakes.browserA.execute).mockRejectedValueOnce(new Error('a failed'));
+      rootMock.mockRestore.mockRejectedValueOnce(new Error('root failed'));
+
+      await expect(restoreAllMocks.call({ browser: fakes.root })).rejects.toMatchObject({
+        message:
+          'restoreAllMocks failed on browserA: mockRestore failed: all mocks (in-app): a failed; ' +
+          'the multiremote root: mockRestore failed: tauri.read_clipboard: root failed',
+        errors: [{ message: expect.stringContaining('a failed') }, { message: expect.stringContaining('root failed') }],
+      });
+    });
   });
 });

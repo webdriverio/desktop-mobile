@@ -116,6 +116,8 @@ expect(mockReadFile).toHaveBeenCalledTimes(1);
 
 See the [Browser Mode Guide](./browser-mode.md) for a full usage walkthrough.
 
+**Multiremote:** Each instance has its own mocks. `browser.app1.tauri.mock('read_file')` and `browser.app2.tauri.mock('read_file')` return different mocks, each registered in its own app. `clearAllMocks()`, `resetAllMocks()`, `restoreAllMocks()` and `isMockFunction('read_file')` on an instance only see that instance's mocks. On the multiremote root, they cover every instance.
+
 **See Also:**
 - [Browser Mode Guide](./browser-mode.md)
 
@@ -143,7 +145,7 @@ if (browser.tauri.isMockFunction(mock)) {
 
 ### `browser.tauri.clearAllMocks(commandPrefix?)`
 
-Clear all mock call history and reset results, but keep the mock implementations in place.
+Clear all mock call history and reset results, but keep the mock implementations in place. In multiremote, an instance clears only its own mocks, and the root clears every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with command names starting with this prefix will be cleared
@@ -163,7 +165,7 @@ await browser.tauri.clearAllMocks('clipboard');
 
 ### `browser.tauri.resetAllMocks(commandPrefix?)`
 
-Reset all mocks to their initial state (clears implementations and call history).
+Reset all mocks to their initial state (clears implementations and call history). In multiremote, an instance resets only its own mocks, and the root resets every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are reset
@@ -174,7 +176,7 @@ Reset all mocks to their initial state (clears implementations and call history)
 
 ### `browser.tauri.restoreAllMocks(commandPrefix?)`
 
-Remove all mocks and restore original command implementations.
+Remove all mocks and restore original command implementations. In multiremote, an instance restores only its own mocks, and the root restores every instance's.
 
 **Parameters:**
 - `commandPrefix` (string, optional) - If provided, only mocks with matching prefix are restored

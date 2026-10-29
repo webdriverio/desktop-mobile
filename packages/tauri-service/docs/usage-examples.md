@@ -307,12 +307,12 @@ describe('Multiremote - Multiple App Instances', () => {
     expect(text).toBe('Message from app1');
   });
 
-  it('should mock different commands per instance', async () => {
+  it('should mock a command separately on each instance', async () => {
     // Mock command on first app
     const mock1 = await browser.app1.tauri.mock('get_user');
     await mock1.mockReturnValue({ id: 1, name: 'User1' });
 
-    // Mock different value on second app
+    // Each instance gets its own mock, so this one only mocks the second app
     const mock2 = await browser.app2.tauri.mock('get_user');
     await mock2.mockReturnValue({ id: 2, name: 'User2' });
 
@@ -329,7 +329,7 @@ describe('Multiremote - Multiple App Instances', () => {
     expect(user2.id).toBe(2);
   });
 
-  it('should clear mocks independently', async () => {
+  it('should restore mocks independently', async () => {
     // Set up mocks on both instances
     const mock1 = await browser.app1.tauri.mock('get_config');
     await mock1.mockReturnValue({ version: '1.0.0' });
@@ -337,8 +337,8 @@ describe('Multiremote - Multiple App Instances', () => {
     const mock2 = await browser.app2.tauri.mock('get_config');
     await mock2.mockReturnValue({ version: '2.0.0' });
 
-    // Clear only app1's mocks
-    await browser.app1.tauri.clearAllMocks();
+    // Restore only app1's mocks
+    await browser.app1.tauri.restoreAllMocks();
 
     // app1 now calls real command, app2 still mocked
     const config2 = await browser.app2.tauri.execute(({ core }) => {
