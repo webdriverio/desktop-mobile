@@ -1,5 +1,6 @@
 import type { ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
+import { rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
@@ -48,7 +49,8 @@ function generateDataDirectory(instanceId: string): string {
   const baseTempDir = tmpdir();
   // Support both multiremote instances and worker IDs
   const prefix = instanceId.startsWith('worker-') ? 'tauri' : 'tauri-multiremote';
-  const dataDir = join(baseTempDir, `${prefix}-${instanceId}`);
+  // The pid keeps concurrent runs on one host from sharing, or removing, each other's directory.
+  const dataDir = join(baseTempDir, `${prefix}-${instanceId}-${process.pid}`);
 
   log.debug(`Generated data directory for ${instanceId}: ${dataDir}`);
   return dataDir;
@@ -96,6 +98,7 @@ export default class TauriLaunchService {
     new Map();
   private isEmbeddedMode: boolean = false;
   private workerBackends: Map<string, { proc: ChildProcess; port: number }> = new Map();
+  private dataDirectories: Map<string, string> = new Map();
   private cnCycleConfigs?: Array<{
     instanceId: string;
     backendPort: number;
@@ -430,7 +433,7 @@ export default class TauriLaunchService {
           const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
           this.instanceOptions.set(instanceId, instanceOptions);
 
-          const dataDir = generateDataDirectory(instanceId);
+          const dataDir = this.allocateDataDirectory(instanceId);
           const envVarName = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
           const env: NodeJS.ProcessEnv = { ...process.env, [envVarName]: dataDir };
 
@@ -470,7 +473,7 @@ export default class TauriLaunchService {
           this.cnCycleConfigs = instances.map(({ name, caps: cap }, i) => {
             const instanceId = name ?? String(i);
             const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
-            const dataDir = generateDataDirectory(instanceId);
+            const dataDir = this.allocateDataDirectory(instanceId);
             const envVarName = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
             const env: NodeJS.ProcessEnv = {
               ...process.env,
@@ -504,7 +507,7 @@ export default class TauriLaunchService {
           const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
           this.instanceOptions.set(instanceId, instanceOptions);
 
-          const dataDir = generateDataDirectory(instanceId);
+          const dataDir = this.allocateDataDirectory(instanceId);
           const envVarName = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
           const env = { ...process.env, [envVarName]: dataDir };
 
@@ -738,7 +741,7 @@ export default class TauriLaunchService {
       const { port, nativePort } = await this.allocateWorkerPorts(cid);
 
       // Generate isolated data directory
-      const dataDir = generateDataDirectory(`worker-${cid}`);
+      const dataDir = this.allocateDataDirectory(`worker-${cid}`);
 
       // Merge options (global + capability-specific)
       const workerOptions = mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']);
@@ -894,6 +897,28 @@ export default class TauriLaunchService {
     return { port, nativePort };
   }
 
+  private allocateDataDirectory(instanceId: string): string {
+    const dataDir = generateDataDirectory(instanceId);
+    this.dataDirectories.set(instanceId, dataDir);
+    return dataDir;
+  }
+
+  private async removeDataDirectories(instanceIds: string[]): Promise<void> {
+    for (const instanceId of instanceIds) {
+      const dataDir = this.dataDirectories.get(instanceId);
+      if (dataDir === undefined) {
+        continue;
+      }
+      this.dataDirectories.delete(instanceId);
+      try {
+        await rm(dataDir, { recursive: true, force: true, maxRetries: 3 });
+        log.debug(`Removed data directory for ${instanceId}: ${dataDir}`);
+      } catch (error) {
+        log.warn(`Failed to remove data directory ${dataDir}: ${errorMessage(error)}`);
+      }
+    }
+  }
+
   /**
    * Start tauri-driver for a specific worker
    */
@@ -938,6 +963,7 @@ export default class TauriLaunchService {
 
     if (this.perWorkerMode) {
       await this.driverPool.stopDriver(cid);
+      await this.removeDataDirectories([`worker-${cid}`]);
     }
 
     // CrabNebula (macOS): cycle backends + drivers between workers
@@ -1063,6 +1089,8 @@ export default class TauriLaunchService {
         this.portManager.clear();
         this.backendPortManager.clear();
       }
+
+      await this.removeDataDirectories([...this.dataDirectories.keys()]);
 
       if (driverCleanupErrors.length === 1) {
         throw driverCleanupErrors[0];

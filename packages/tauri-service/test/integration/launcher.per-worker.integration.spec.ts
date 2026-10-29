@@ -41,7 +41,13 @@ vi.mock('@wdio/native-utils', () => ({
   diagnoseDiskSpace: vi.fn(() => []),
   diagnoseLinuxDependencies: vi.fn(() => []),
   formatDiagnosticResults: vi.fn(),
+  errorMessage: vi.fn((error: unknown) => (error instanceof Error ? error.message : String(error))),
 }));
+
+vi.mock('node:fs/promises', async () => {
+  const actual = await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+  return { ...actual, rm: vi.fn(actual.rm) };
+});
 
 vi.mock('../../src/edgeDriverManager.js', () => ({
   ensureMsEdgeDriver: vi.fn().mockResolvedValue({
@@ -71,9 +77,25 @@ vi.mock('node:child_process', async () => {
   };
 });
 
+import { access, mkdir, rm, writeFile } from 'node:fs/promises';
+import { join } from 'node:path';
 import { ensureTauriDriver } from '../../src/driverManager.js';
 import TauriLaunchService from '../../src/launcher.js';
 import { mockSuccessPath } from '../mockPaths.js';
+
+const DATA_DIR_ENV = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
+
+// Spy on the driver pool and return the data directory each started driver was given.
+function captureDataDirs(launcher: TauriLaunchService): () => string[] {
+  const startDriver = vi.spyOn((launcher as any).driverPool, 'startDriver');
+  return () => startDriver.mock.calls.map(([config]) => (config as { env: NodeJS.ProcessEnv }).env[DATA_DIR_ENV] ?? '');
+}
+
+// Stand in for the data an app writes there.
+async function populate(dir: string): Promise<void> {
+  await mkdir(dir, { recursive: true });
+  await writeFile(join(dir, 'state.json'), '{}');
+}
 
 // Track all spawned processes for cleanup
 const spawnedProcesses: ReturnType<typeof spawn>[] = [];
@@ -319,6 +341,56 @@ describe('Per-Worker Mode - Integration', () => {
 
       // onComplete should clean up all workers without errors
       await expect((launcher as any).onComplete?.()).resolves.not.toThrow();
+    });
+
+    it("should remove a worker's data directory when the worker ends", async () => {
+      vi.mocked(ensureTauriDriver).mockResolvedValue({
+        ok: true,
+        value: { path: mockSuccessPath, method: 'found' },
+      });
+
+      launcher = new TauriLaunchService(
+        { tauriDriverPort: basePort, driverProvider: 'external' },
+        { browserName: 'tauri', 'tauri:options': { application: '/app' } },
+        { maxInstances: 2 },
+      );
+      await (launcher as any).onPrepare({}, [{ browserName: 'tauri', 'tauri:options': { application: '/app' } }]);
+      const dataDirs = captureDataDirs(launcher);
+
+      await (launcher as any).onWorkerStart('0-0', { browserName: 'tauri', 'tauri:options': { application: '/app' } });
+      await (launcher as any).onWorkerStart('0-1', { browserName: 'tauri', 'tauri:options': { application: '/app' } });
+      const [worker0Dir, worker1Dir] = dataDirs();
+      await populate(worker0Dir);
+      await populate(worker1Dir);
+
+      await (launcher as any).onWorkerEnd('0-0');
+
+      await expect(access(worker0Dir)).rejects.toMatchObject({ code: 'ENOENT' });
+      await expect(access(worker1Dir)).resolves.toBeUndefined();
+
+      await (launcher as any).onComplete();
+
+      await expect(access(worker1Dir)).rejects.toMatchObject({ code: 'ENOENT' });
+    });
+
+    it('should finish teardown when a data directory cannot be removed', async () => {
+      vi.mocked(ensureTauriDriver).mockResolvedValue({
+        ok: true,
+        value: { path: mockSuccessPath, method: 'found' },
+      });
+
+      launcher = new TauriLaunchService(
+        { tauriDriverPort: basePort, driverProvider: 'external' },
+        { browserName: 'tauri', 'tauri:options': { application: '/app' } },
+        { maxInstances: 2 },
+      );
+      await (launcher as any).onPrepare({}, [{ browserName: 'tauri', 'tauri:options': { application: '/app' } }]);
+      await (launcher as any).onWorkerStart('0-0', { browserName: 'tauri', 'tauri:options': { application: '/app' } });
+      vi.mocked(rm).mockRejectedValueOnce(new Error('EBUSY: resource busy or locked'));
+
+      await expect((launcher as any).onWorkerEnd('0-0')).resolves.toBeUndefined();
+      expect(rm).toHaveBeenCalledTimes(1);
+      expect((launcher as any).getTauriDriverStatus().running).toBe(false);
     });
 
     it('should handle worker start failures gracefully', async () => {
