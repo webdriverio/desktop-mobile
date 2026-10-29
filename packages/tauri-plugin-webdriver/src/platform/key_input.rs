@@ -8,12 +8,12 @@ use super::executor::ModifierState;
 pub const NULL_KEY: &str = "\u{E000}";
 
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
-/// tables and a US keyboard, so none is ever typed as text. Newline and tab are the Enter and Tab
-/// keys, as chromedriver sends them.
+/// tables and a US keyboard, so none is ever typed as text. A newline and a backspace character are
+/// the Enter and Backspace keys, as chromedriver sends them.
 pub fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
   let mapped = match single_char(key)? {
-    '\t' => ("Tab", "Tab", 9),
-    '\n' | '\r' => ("Enter", "Enter", 13),
+    '\n' => ("Enter", "Enter", 13),
+    '\u{8}' => ("Backspace", "Backspace", 8),
     '\u{E000}' => ("Unidentified", "", 0),
     '\u{E001}' => ("Cancel", "", 3),
     '\u{E002}' => ("Help", "Help", 47),
@@ -111,6 +111,12 @@ pub fn regular_key(key: &str) -> (String, u32, bool) {
   single_char(key).and_then(us_keyboard_key).unwrap_or_default()
 }
 
+/// Whether a key value presses no key: chromedriver skips a carriage return, so a `\r\n` line
+/// ending presses Enter once.
+pub fn is_skipped_key(key: &str) -> bool {
+  key == "\r"
+}
+
 fn single_char(key: &str) -> Option<char> {
   let mut chars = key.chars();
   match (chars.next(), chars.next()) {
@@ -119,42 +125,49 @@ fn single_char(key: &str) -> Option<char> {
   }
 }
 
-/// The characters a US keyboard types with Shift, besides capital letters.
-const US_SHIFTED: &str = ")!@#$%^&*(:+<_>?~{|}\"";
-
 /// The `(code, keyCode, shifted)` of the US-keyboard key that types `ch`.
 fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
-  let shifted = ch.is_ascii_uppercase() || US_SHIFTED.contains(ch);
   if ch.is_ascii_alphabetic() {
     let upper = ch.to_ascii_uppercase();
-    return Some((format!("Key{upper}"), upper as u32, shifted));
+    return Some((format!("Key{upper}"), upper as u32, ch.is_ascii_uppercase()));
   }
   if ch.is_ascii_digit() {
     return Some((format!("Digit{ch}"), ch as u32, false));
   }
-  let (code, key_code) = match ch {
-    ' ' => ("Space", 32),
-    ')' => ("Digit0", 48),
-    '!' => ("Digit1", 49),
-    '@' => ("Digit2", 50),
-    '#' => ("Digit3", 51),
-    '$' => ("Digit4", 52),
-    '%' => ("Digit5", 53),
-    '^' => ("Digit6", 54),
-    '&' => ("Digit7", 55),
-    '*' => ("Digit8", 56),
-    '(' => ("Digit9", 57),
-    ';' | ':' => ("Semicolon", 186),
-    '=' | '+' => ("Equal", 187),
-    ',' | '<' => ("Comma", 188),
-    '-' | '_' => ("Minus", 189),
-    '.' | '>' => ("Period", 190),
-    '/' | '?' => ("Slash", 191),
-    '`' | '~' => ("Backquote", 192),
-    '[' | '{' => ("BracketLeft", 219),
-    '\\' | '|' => ("Backslash", 220),
-    ']' | '}' => ("BracketRight", 221),
-    '\'' | '"' => ("Quote", 222),
+  let (code, key_code, shifted) = match ch {
+    ' ' => ("Space", 32, false),
+    ')' => ("Digit0", 48, true),
+    '!' => ("Digit1", 49, true),
+    '@' => ("Digit2", 50, true),
+    '#' => ("Digit3", 51, true),
+    '$' => ("Digit4", 52, true),
+    '%' => ("Digit5", 53, true),
+    '^' => ("Digit6", 54, true),
+    '&' => ("Digit7", 55, true),
+    '*' => ("Digit8", 56, true),
+    '(' => ("Digit9", 57, true),
+    ';' => ("Semicolon", 186, false),
+    ':' => ("Semicolon", 186, true),
+    '=' => ("Equal", 187, false),
+    '+' => ("Equal", 187, true),
+    ',' => ("Comma", 188, false),
+    '<' => ("Comma", 188, true),
+    '-' => ("Minus", 189, false),
+    '_' => ("Minus", 189, true),
+    '.' => ("Period", 190, false),
+    '>' => ("Period", 190, true),
+    '/' => ("Slash", 191, false),
+    '?' => ("Slash", 191, true),
+    '`' => ("Backquote", 192, false),
+    '~' => ("Backquote", 192, true),
+    '[' => ("BracketLeft", 219, false),
+    '{' => ("BracketLeft", 219, true),
+    '\\' => ("Backslash", 220, false),
+    '|' => ("Backslash", 220, true),
+    ']' => ("BracketRight", 221, false),
+    '}' => ("BracketRight", 221, true),
+    '\'' => ("Quote", 222, false),
+    '"' => ("Quote", 222, true),
     _ => return None,
   };
   Some((code.to_string(), key_code, shifted))
@@ -443,11 +456,15 @@ pub fn segment_send_keys(text: &str) -> Vec<KeySegment> {
   let mut segments = Vec::new();
   let mut run = String::new();
   for ch in text.chars() {
-    if map_special_key(&ch.to_string()).is_some() {
+    let key = ch.to_string();
+    if is_skipped_key(&key) {
+      continue;
+    }
+    if map_special_key(&key).is_some() {
       if !run.is_empty() {
         segments.push(KeySegment::Text(std::mem::take(&mut run)));
       }
-      segments.push(KeySegment::Special(ch.to_string()));
+      segments.push(KeySegment::Special(key));
     } else {
       run.push(ch);
     }
@@ -852,14 +869,24 @@ mod tests {
   }
 
   #[test]
-  fn newline_and_tab_are_the_enter_and_tab_keys() {
+  fn control_characters_press_the_keys_chromedriver_sends() {
     assert_eq!(map_special_key("\n"), map_special_key(ENTER));
-    assert_eq!(map_special_key("\r"), map_special_key(ENTER));
-    assert_eq!(map_special_key("\t"), map_special_key("\u{E004}"));
+    assert_eq!(map_special_key("\u{8}"), map_special_key(BACKSPACE));
+    assert!(is_skipped_key("\r") && map_special_key("\r").is_none());
+    // Typed as text until Tab moves focus.
+    assert_eq!(map_special_key("\t"), None);
     let none = mods(false, false, false, false);
     assert_eq!(
-      plan_send_keys("a\nb"),
-      vec![text("a"), key("\n", true, none), key("\n", false, none), text("b")]
+      plan_send_keys("a\r\nb\u{8}\tc"),
+      vec![
+        text("a"),
+        key("\n", true, none),
+        key("\n", false, none),
+        text("b"),
+        key("\u{8}", true, none),
+        key("\u{8}", false, none),
+        text("\tc"),
+      ]
     );
   }
 
@@ -984,9 +1011,11 @@ mod tests {
   #[test]
   fn key_text_is_spliced_as_escaped_literals() {
     let none = mods(false, false, false, false);
-    let newline = build_regular_key_script("\n", true, &none);
-    assert!(newline.contains(&format!("key: {}", js_string("\n"))));
-    assert!(newline.contains(&format!("var insertedText = {}", js_string("\n"))));
+    for key in ["\"", "\\"] {
+      let script = build_regular_key_script(key, true, &none);
+      assert!(script.contains(&format!("key: {}", js_string(key))), "{key}");
+      assert!(script.contains(&format!("var insertedText = {}", js_string(key))), "{key}");
+    }
     let run = build_insert_run_script("a`$\\b\n'");
     assert!(run.contains(&format!("var insertedText = {}", js_string("a`$\\b\n'"))));
   }

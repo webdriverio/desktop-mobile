@@ -1227,6 +1227,9 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
     is_down: bool,
     modifiers: &ModifierState,
   ) -> Result<(), WebDriverErrorResponse> {
+    if crate::platform::key_input::is_skipped_key(key) {
+      return Ok(());
+    }
     match crate::platform::key_input::map_special_key(key) {
       Some((js_key, js_code, key_code)) if crate::platform::key_input::is_printable_key(js_key) => {
         let script = crate::platform::key_input::build_printable_key_script(

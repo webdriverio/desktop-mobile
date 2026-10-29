@@ -320,14 +320,17 @@ describe('special keys (embedded)', () => {
     ]);
   });
 
-  it('should send newline and tab characters as the Enter and Tab keys', async () => {
+  it('should press Enter for a newline and Backspace for a backspace character, and skip a carriage return', async () => {
     await browser.$('#key-target').click();
     await browser.execute('window.__keyTargetEvents = [];');
-    await browser.keys(['\n', '\t']);
+    await browser.keys(['\n', '\r', '\b']);
     expect((await keyTargetEvents()).map(({ key, code, keyCode }) => ({ key, code, keyCode }))).toEqual([
       { key: 'Enter', code: 'Enter', keyCode: 13 },
-      { key: 'Tab', code: 'Tab', keyCode: 9 },
+      { key: 'Backspace', code: 'Backspace', keyCode: 8 },
     ]);
+    const input = browser.$('#keys-input');
+    await input.setValue('ab\b\r\nc');
+    expect(await input.getValue()).toBe('ac');
   });
 
   it('should fire input and change only when the value changes', async () => {
