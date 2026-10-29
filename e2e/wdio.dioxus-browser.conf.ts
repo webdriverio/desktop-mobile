@@ -1,7 +1,6 @@
 import { execSync } from 'node:child_process';
 import { dirname, join, resolve as resolvePath } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Options } from '@wdio/types';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -48,7 +47,7 @@ function assertNoDioxusDriverProcesses(): void {
   }
 }
 
-export const config: Options.Testrunner = {
+export const config: WebdriverIO.Config = {
   runner: 'local',
   specs: ['./test/dioxus-browser/*.spec.ts'],
   exclude: [],
@@ -62,7 +61,7 @@ export const config: Options.Testrunner = {
         devServer,
       },
     },
-  ] as unknown as Options.Testrunner['capabilities'],
+  ],
   logLevel: 'info',
   outputDir: join(__dirname, 'logs', 'dioxus-browser'),
   bail: 0,
