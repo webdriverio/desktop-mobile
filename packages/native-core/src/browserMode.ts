@@ -64,7 +64,6 @@ export async function probeDevServerReachable(
 const DEV_SERVER_READY_TIMEOUT_MS = 60_000;
 const DEV_SERVER_READY_POLL_MS = 500;
 
-// A session can't share a server another session started, because that session's cleanup stops it.
 const activeManagedServers = new Set<string>();
 
 function originOf(url: string): string {
