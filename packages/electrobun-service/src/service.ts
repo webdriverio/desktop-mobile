@@ -2,6 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
+import { forEachInstance } from '@wdio/native-core';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import { createLogger, errorMessage, isMultiremote, runBounded } from '@wdio/native-utils';
 
@@ -72,24 +73,12 @@ export default class ElectrobunWorkerService {
       return;
     }
 
+    await forEachInstance(browser, (instance, { caps }) => this.attachInstance(instance, caps), capabilities);
     if (isMultiremote(browser)) {
-      const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-      for (const instanceName of mrBrowser.instances) {
-        const instance = mrBrowser.getInstance(instanceName);
-        // Prefer the instance's own negotiated caps (which carry the launcher's per-instance
-        // debuggerAddress / webkitgtk binary) over the `before` capabilities argument — the sibling
-        // services (electron/tauri/dioxus) ignore that argument for multiremote. Fall back to it if
-        // the instance exposes no requestedCapabilities.
-        const caps = instanceCapabilities(instance) ?? capabilityFor(capabilities, instanceName);
-        await this.attachInstance(instance, caps);
-      }
       // Root fan-out isn't wired yet — install a guided-error stub so `browser.electrobun.*` on the
       // multiremote root fails with direction to per-instance access, not a raw TypeError.
-      installRootMultiremoteGuard(mrBrowser);
-      return;
+      installRootMultiremoteGuard(browser);
     }
-
-    await this.attachInstance(browser as WebdriverIO.Browser, capabilities);
   }
 
   private async attachInstance(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
@@ -229,30 +218,6 @@ export default class ElectrobunWorkerService {
     }
     this.mockStores = [];
   }
-}
-
-/** Resolve the per-instance capability from a multiremote capabilities map. */
-function capabilityFor(capabilities: unknown, instanceName: string): unknown {
-  if (capabilities && typeof capabilities === 'object' && instanceName in (capabilities as Record<string, unknown>)) {
-    const entry = (capabilities as Record<string, { capabilities?: unknown }>)[instanceName];
-    return entry?.capabilities ?? entry ?? capabilities;
-  }
-  return capabilities;
-}
-
-/**
- * The caps a multiremote instance's session was created with. Preferred over the `before` hook's
- * capabilities argument (which electron/tauri/dioxus ignore for multiremote) because it reflects the
- * launcher's per-instance mutations — the CDP `debuggerAddress`, or the WebKitGTK
- * `webkitgtk:browserOptions.binary`. Unwraps a W3C `alwaysMatch` envelope; returns undefined when the
- * instance exposes no requestedCapabilities so the caller can fall back.
- */
-function instanceCapabilities(instance: WebdriverIO.Browser): unknown {
-  const requested = (instance as { requestedCapabilities?: unknown }).requestedCapabilities;
-  if (requested && typeof requested === 'object' && 'alwaysMatch' in requested) {
-    return (requested as { alwaysMatch?: unknown }).alwaysMatch;
-  }
-  return requested;
 }
 
 /**

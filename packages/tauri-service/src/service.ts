@@ -1,3 +1,4 @@
+import { forEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriServiceAPI } from '@wdio/native-types';
 import {
@@ -106,58 +107,50 @@ export default class TauriWorkerService {
       }
 
       if (isMultiremote(browser)) {
-        const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-        log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
+        log.info(`Initializing ${browser.instances.length} multiremote instances`);
 
         // Add Tauri API to the root multiremote object first
         stage = 'addTauriApi:root';
         this.addTauriApi(browser as unknown as WebdriverIO.Browser);
-
-        // Add Tauri API to each instance and wait for readiness
-        for (const instanceName of mrBrowser.instances) {
-          const mrInstance = mrBrowser.getInstance(instanceName);
-          stage = `init:${instanceName}`;
-          log.info(`Initializing instance: ${instanceName}`);
-          this.addTauriApi(mrInstance);
-          this.patchBrowserExecute(mrInstance);
-          setCurrentWindowLabel(mrInstance, this.windowLabel);
-          setSessionProvider(mrInstance, this.driverProvider);
-          stage = `waitUntilWindowAvailable:${instanceName}`;
-          await waitUntilWindowAvailable(mrInstance);
-          log.info(`Instance ${instanceName} window available`);
-
-          // Wait for plugin initialization on this instance
-          // Skip for CrabNebula - browser.execute() not supported
-          if (this.driverProvider !== 'crabnebula') {
-            stage = `waitForPluginInit:${instanceName}`;
-            log.info(`Waiting for Tauri plugin initialization on ${instanceName}...`);
-            try {
-              await mrInstance.execute(async function checkMultiremotePluginInit() {
-                // @ts-expect-error - window exists in browser context
-                if (typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.waitForInit === 'function') {
-                  // @ts-expect-error - window exists in browser context
-                  await window.wdioTauri.waitForInit();
-                  return true;
-                }
-                return false;
-              });
-              log.info(`Tauri plugin initialization complete for ${instanceName}`);
-            } catch (error) {
-              log.warn(`Failed to wait for plugin initialization on ${instanceName}:`, error);
-            }
-          }
-        }
       } else {
         log.info('Initializing standard browser');
-        stage = 'addTauriApi:single';
-        this.addTauriApi(browser as WebdriverIO.Browser);
-        this.patchBrowserExecute(browser as WebdriverIO.Browser);
-        setCurrentWindowLabel(browser as WebdriverIO.Browser, this.windowLabel);
-        setSessionProvider(browser as WebdriverIO.Browser, this.driverProvider);
-        stage = 'waitUntilWindowAvailable:single';
-        await waitUntilWindowAvailable(browser as WebdriverIO.Browser);
-        log.info('Standard browser window available');
       }
+
+      // Add Tauri API to each instance and wait for readiness
+      await forEachInstance(browser, async (instance, { name }) => {
+        stage = `init:${name ?? 'single'}`;
+        if (name !== undefined) {
+          log.info(`Initializing instance: ${name}`);
+        }
+        this.addTauriApi(instance);
+        this.patchBrowserExecute(instance);
+        setCurrentWindowLabel(instance, this.windowLabel);
+        setSessionProvider(instance, this.driverProvider);
+        stage = `waitUntilWindowAvailable:${name ?? 'single'}`;
+        await waitUntilWindowAvailable(instance);
+        log.info(name === undefined ? 'Standard browser window available' : `Instance ${name} window available`);
+
+        // Wait for plugin initialization on each multiremote instance; a single session waits once, below.
+        // Skip for CrabNebula - browser.execute() not supported
+        if (name !== undefined && this.driverProvider !== 'crabnebula') {
+          stage = `waitForPluginInit:${name}`;
+          log.info(`Waiting for Tauri plugin initialization on ${name}...`);
+          try {
+            await instance.execute(async function checkMultiremotePluginInit() {
+              // @ts-expect-error - window exists in browser context
+              if (typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.waitForInit === 'function') {
+                // @ts-expect-error - window exists in browser context
+                await window.wdioTauri.waitForInit();
+                return true;
+              }
+              return false;
+            });
+            log.info(`Tauri plugin initialization complete for ${name}`);
+          } catch (error) {
+            log.warn(`Failed to wait for plugin initialization on ${name}:`, error);
+          }
+        }
+      });
 
       // Wait for the plugin to fully initialize (specifically attachConsole())
       // This ensures frontend console logs will be captured
@@ -189,27 +182,15 @@ export default class TauriWorkerService {
       if (this.driverProvider === 'embedded') {
         stage = 'clearStaleMocks';
         try {
-          if (isMultiremote(browser)) {
-            const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-            for (const instanceName of mrBrowser.instances) {
-              const mrInstance = mrBrowser.getInstance(instanceName);
-              await mrInstance.execute(function clearStaleMocks() {
-                // @ts-expect-error - window is available in browser context
-                if (window.__wdio_mocks__) {
-                  // @ts-expect-error - window is available in browser context
-                  window.__wdio_mocks__ = {};
-                }
-              });
-            }
-          } else {
-            await (browser as WebdriverIO.Browser).execute(function clearStaleMocks() {
+          await forEachInstance(browser, (instance) =>
+            instance.execute(function clearStaleMocks() {
               // @ts-expect-error - window is available in browser context
               if (window.__wdio_mocks__) {
                 // @ts-expect-error - window is available in browser context
                 window.__wdio_mocks__ = {};
               }
-            });
-          }
+            }),
+          );
           log.debug('Cleared stale mocks at session start');
         } catch (error) {
           log.warn('Failed to clear stale mocks at session start:', error);
@@ -356,17 +337,11 @@ export default class TauriWorkerService {
     // preloadActive is true only when the interceptor is already installed pre-navigation on
     // every relevant session, which decides whether the post-load execute() below is the
     // primary injection path or merely belt-and-suspenders.
-    let preloadActive: boolean;
-    if (isMultiremote(browser)) {
-      const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-      const registered: boolean[] = [];
-      for (const instanceName of mrBrowser.instances) {
-        registered.push(await this.registerBidiPreload(mrBrowser.getInstance(instanceName), injectionScript));
-      }
-      preloadActive = registered.length > 0 && registered.every(Boolean);
-    } else {
-      preloadActive = await this.registerBidiPreload(browser, injectionScript);
-    }
+    const registered: boolean[] = [];
+    await forEachInstance(browser, async (instance) => {
+      registered.push(await this.registerBidiPreload(instance, injectionScript));
+    });
+    const preloadActive = registered.length > 0 && registered.every(Boolean);
 
     await browser.url(this.devServerUrl);
     try {
