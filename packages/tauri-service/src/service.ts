@@ -551,23 +551,29 @@ export default class TauriWorkerService {
         payload?: T,
         target?: string | TauriEventTarget,
       ): Promise<void> => {
-        const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-        const instanceNames = isMultiremote(browser) ? mrBrowser.instances : undefined;
-        const sessions = instanceNames ? instanceNames.map((name) => mrBrowser.getInstance(name)) : [browser];
-        const results = await Promise.allSettled(
-          sessions.map((session) => emitTauriEvent(session, browserMode, eventName, payload, target)),
-        );
-        // Sync mocks before throwing, so calls from the emits that succeeded are still recorded
-        await getMockUpdateScheduler(browser).schedule();
-        const failures = results.flatMap((result, i) =>
-          result.status === 'rejected' ? [{ instance: instanceNames?.[i], error: result.reason as unknown }] : [],
-        );
-        if (failures.length === 0) {
+        if (!isMultiremote(browser)) {
+          await emitTauriEvent(browser, browserMode, eventName, payload, target);
+          await getMockUpdateScheduler(browser).schedule();
           return;
         }
-        if (!instanceNames) {
-          throw failures[0].error;
+        const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
+        const instanceNames = mrBrowser.instances;
+        const results = await Promise.allSettled(
+          instanceNames.map((name) =>
+            emitTauriEvent(mrBrowser.getInstance(name), browserMode, eventName, payload, target),
+          ),
+        );
+        const failures = results.flatMap((result, i) =>
+          result.status === 'rejected' ? [{ instance: instanceNames[i], error: result.reason as unknown }] : [],
+        );
+        const sync = getMockUpdateScheduler(browser).schedule();
+        if (failures.length === 0) {
+          await sync;
+          return;
         }
+        // Sync anyway so the other instances' calls are recorded, but throw the emit failures: a broken
+        // session fails the sync too
+        await sync.catch((error: unknown) => log.warn('Mock sync failed after a failed emitEvent:', error));
         // Reporters print only the message, not `cause` or `errors`, so the message names each failure
         const message = `emitEvent('${eventName}') failed on ${failures
           .map(({ instance, error }) => `${instance}: ${errorMessage(error)}`)

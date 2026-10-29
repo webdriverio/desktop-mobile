@@ -911,14 +911,16 @@ describe('TauriWorkerService', () => {
         expect(mockAwareInvoke).not.toHaveBeenCalled();
       });
 
-      it('should rethrow a failed emit unchanged outside multiremote', async () => {
+      it('should rethrow a failed emit unchanged, without syncing mocks, outside multiremote', async () => {
         const mockBrowser = createMockBrowser();
         const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
         await service.before({} as never, [], mockBrowser);
+        vi.mocked(mockStore.getMocks).mockClear();
         const failure = new Error('emit rejected');
         vi.mocked(executeCommand).mockRejectedValueOnce(failure);
 
         await expect(tauriOf(mockBrowser).emitEvent('foo')).rejects.toBe(failure);
+        expect(mockStore.getMocks).not.toHaveBeenCalled();
       });
 
       describe('on the multiremote root', () => {
@@ -997,6 +999,18 @@ describe('TauriWorkerService', () => {
             errors: [{ message: 'a failed' }, { message: 'b failed' }],
           });
           expect(mockStore.getMocks).toHaveBeenCalledTimes(1);
+        });
+
+        it('should report the failed emit, not the mock sync, when both fail', async () => {
+          const mrBrowser = await setUpRoot();
+          const update = vi.fn().mockRejectedValue(new Error('sync failed'));
+          vi.mocked(mockStore.getMocks).mockReturnValueOnce([['tauri.cmd', { update } as any]]);
+          vi.mocked(executeCommand).mockRejectedValueOnce(new Error('emit rejected'));
+
+          await expect(tauriOf(mrBrowser).emitEvent('foo')).rejects.toMatchObject({
+            message: "emitEvent('foo') failed on browserA: emit rejected",
+          });
+          expect(update).toHaveBeenCalled();
         });
       });
     });

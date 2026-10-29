@@ -125,12 +125,15 @@ describe('Tauri API', () => {
       browser.tauri.execute(() => (globalThis as unknown as EventTestGlobals).__wdioEvents ?? []);
 
     afterEach(async () => {
-      await browser.tauri.restoreAllMocks('plugin:event|');
-      await browser.tauri.execute(() => {
-        const g = globalThis as unknown as EventTestGlobals;
-        g.__wdioUnlisten?.();
-        g.__wdioUnlisten = undefined;
-      });
+      try {
+        await browser.tauri.execute(() => {
+          const g = globalThis as unknown as EventTestGlobals;
+          g.__wdioUnlisten?.();
+          g.__wdioUnlisten = undefined;
+        });
+      } finally {
+        await browser.tauri.restoreAllMocks('plugin:event|');
+      }
     });
 
     it("should reach listeners while plugin:event|emit is mocked, without the mock seeing the test's emit", async () => {
@@ -144,6 +147,12 @@ describe('Tauri API', () => {
       });
       expect(await receivedEvents()).toEqual([{ mocked: true }]);
       expect(emitMock).toHaveBeenCalledTimes(0);
+
+      // The mock records an emit made through the mock-aware invoke, so the zero above means emitEvent skipped it
+      await browser.tauri.execute((tauri) =>
+        tauri.core.invoke('plugin:event|emit', { event: 'wdio:test-emit-mocked', payload: { viaMock: true } }),
+      );
+      expect(emitMock).toHaveBeenCalledTimes(1);
     });
 
     it('should emit an event to listeners when target is omitted', async () => {
