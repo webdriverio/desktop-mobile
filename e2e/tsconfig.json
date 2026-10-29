@@ -22,7 +22,11 @@
     ]
   },
   "include": [
-    "./test/**/*.spec.ts"
+    "./config/**/*.ts",
+    "./lib/**/*.ts",
+    "./scripts/**/*.ts",
+    "./test/**/*.ts",
+    "./wdio*.conf.ts"
   ],
   "exclude": []
 }
