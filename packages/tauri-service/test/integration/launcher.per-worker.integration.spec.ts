@@ -33,6 +33,7 @@ vi.mock('@wdio/native-utils', () => ({
     { category: 'Node Version', status: 'ok', message: 'v20.0.0' },
   ]),
   diagnoseDisplay: vi.fn(() => []),
+  describeDisplay: vi.fn(() => undefined),
   diagnoseBinary: vi.fn(() => [
     { category: 'Binary Permissions', status: 'ok', message: '755' },
     { category: 'Binary Size', status: 'ok', message: '100.00 MB' },
