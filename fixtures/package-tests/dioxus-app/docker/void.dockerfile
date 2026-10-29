@@ -45,6 +45,10 @@ RUN xbps-install -yf util-linux util-linux-common libblkid libuuid libmount libf
 # distro's xdotool/libxdo devel packages. libayatana-appindicator is the
 # runtime tray library tray-icon dlopens (it probes the ayatana name first);
 # not needed at link time, installed for runtime parity with the other images.
+#
+# dejavu-fonts-ttf: nothing else here installs a font. Without one, GTK makes the
+# Dioxus menubar so tall that the webview gets a 1px viewport, where WebKitGTK
+# stops running requestAnimationFrame and Dioxus never applies its first render.
 RUN xbps-install -y \
         libwebkit2gtk41 \
         libwebkit2gtk41-devel \
@@ -52,6 +56,7 @@ RUN xbps-install -y \
         librsvg-devel \
         xdotool-devel \
         libayatana-appindicator \
+        dejavu-fonts-ttf \
         mesa-dri \
         wget \
         file && \
