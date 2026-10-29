@@ -80,8 +80,7 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
     return config;
   }
 
-  let port =
-    std::env::var(PORT_ENV_VAR).ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT);
+  let port = resolve_port();
 
   // Use a port-scoped temp directory so concurrent instances (multiremote)
   // each get their own WebView2/WebKit user data folder and don't conflict.
@@ -99,4 +98,41 @@ pub fn install_with_commands<F: FnOnce(&wdio_dioxus_bridge::CommandRegistry)>(
   server::start(port);
   tracing::info!(port, "wdio-dioxus-embedded-driver started");
   config
+}
+
+/// Returns the `<head>` `<script>` snippet that [`install`] injects when
+/// automation is active, or an empty string otherwise.
+#[must_use]
+pub fn custom_head() -> String {
+  if !automation::is_requested() {
+    return String::new();
+  }
+  custom_head_for_port(resolve_port())
+}
+
+/// Returns the `<head>` `<script>` snippet for an embedded server bound to
+/// `port`, including element-event helper setup.
+#[must_use]
+pub fn custom_head_for_port(port: u16) -> String {
+  wdio_dioxus_bridge::custom_head_with_embedded_port_and_page_js(
+    port,
+    server::handlers::install_element_events_js(),
+  )
+}
+
+fn resolve_port() -> u16 {
+  std::env::var(PORT_ENV_VAR).ok().and_then(|s| s.parse::<u16>().ok()).unwrap_or(DEFAULT_PORT)
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn custom_head_for_port_includes_port_and_page_script() {
+    let head = custom_head_for_port(4567);
+    assert!(head.contains("window.__WDIO_EMBEDDED_PORT=4567;"));
+    assert!(head.contains(server::handlers::install_element_events_js()));
+    assert!(head.contains("<script type=\"module\">"));
+  }
 }
