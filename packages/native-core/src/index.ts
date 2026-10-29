@@ -11,6 +11,7 @@ export * from './deeplink.js';
 export * from './devServerProcess.js';
 export * from './driverPool.js';
 export * from './driverProcess.js';
+export * from './instances.js';
 export * from './logCapture.js';
 export * from './logLevel.js';
 export * from './logWriter.js';
