@@ -64,8 +64,7 @@ export async function probeDevServerReachable(
 const DEV_SERVER_READY_TIMEOUT_MS = 60_000;
 const DEV_SERVER_READY_POLL_MS = 500;
 
-// Origins of the dev servers this process started and hasn't stopped. A second session can't share
-// one, because the first session's cleanup stops it.
+// A session can't share a server another session started, because that session's cleanup stops it.
 const activeManagedServers = new Set<string>();
 
 function originOf(url: string): string {

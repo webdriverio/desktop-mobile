@@ -15,8 +15,7 @@ function fakeChild() {
   const proc = new EventEmitter() as EventEmitter & Record<string, unknown>;
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
-  // No pid, so stop() calls the kill() below instead of signalling a real process with that pid.
-  // Like a real child, it then emits 'exit', which stop() waits for.
+  // No pid: with one, stop() would kill the real process with that pid instead of calling kill() below.
   proc.pid = undefined;
   proc.exitCode = null;
   proc.signalCode = null;
