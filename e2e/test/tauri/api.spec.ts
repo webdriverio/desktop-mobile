@@ -102,7 +102,7 @@ describe('Tauri API', () => {
       };
     };
 
-    // Drops any earlier listener first, so a retried script can't leave two behind
+    // execute() can rerun a script, so drop any earlier listener first or two could be left behind
     const listen = (event: string, target?: { kind: string; label: string }) =>
       browser.tauri.execute(
         async (_tauri, ev: string, t?: { kind: string; label: string }) => {

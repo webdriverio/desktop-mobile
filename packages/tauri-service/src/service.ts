@@ -557,7 +557,7 @@ export default class TauriWorkerService {
         const results = await Promise.allSettled(
           sessions.map((session) => emitTauriEvent(session, browserMode, eventName, payload, target)),
         );
-        // Sync the mocks the delivered emits triggered before reporting any that failed
+        // Sync mocks before throwing, so calls from the emits that succeeded are still recorded
         await getMockUpdateScheduler(browser).schedule();
         const failures = results.flatMap((result, i) =>
           result.status === 'rejected' ? [{ instance: instanceNames?.[i], error: result.reason as unknown }] : [],
@@ -568,7 +568,7 @@ export default class TauriWorkerService {
         if (!instanceNames) {
           throw failures[0].error;
         }
-        // Reporters print the message but not `cause` or `errors`, so it names each failure
+        // Reporters print only the message, not `cause` or `errors`, so the message names each failure
         const message = `emitEvent('${eventName}') failed on ${failures
           .map(({ instance, error }) => `${instance}: ${errorMessage(error)}`)
           .join('; ')}`;
@@ -857,8 +857,8 @@ async function emitTauriEvent(
             payload,
           },
         ];
-  // The raw IPC that @tauri-apps/api's emit() uses: unlike tauri.core.invoke it skips the
-  // user's mocks, so a spy on these commands can't swallow the test's own emit
+  // Mocks only wrap tauri.core.invoke, so calling __TAURI_INTERNALS__.invoke keeps a mock of these
+  // commands from swallowing the test's own emit
   await execute(
     browser,
     (_tauri: TauriAPIs, cmd: string, cmdArgs: Record<string, unknown>) =>
