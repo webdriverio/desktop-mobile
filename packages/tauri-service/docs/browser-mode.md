@@ -108,7 +108,8 @@ devServer: async () => {
 ```
 
 Notes:
-- `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode. In standalone mode, only one session per process can use a managed `devServer` at a time. To share one between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
+- `devServer` is a **service-level** option (one dev server per run) and only applies in browser mode.
+- In standalone mode, a dev server started from a command (the string or object form) belongs to the session that started it. Until that session's `cleanup()` stops it, another session in the same process can't use a command-form `devServer` at the same URL. To share a server between concurrent sessions, start it yourself and pass `devServerUrl` without `devServer`, or run the sessions in separate processes.
 - With `reuseExistingServer` (default off in CI, on locally), if `devServerUrl` is already reachable the spawn is skipped — handy when you already have `pnpm dev` running during local iteration.
 - The command form spawns in a shell and tears down the whole process tree (so `pnpm dev → vite → esbuild` grandchildren don't orphan); the function form avoids subprocesses entirely.
 - The same option is available on the Dioxus, Electron, and Electrobun services.

@@ -164,9 +164,12 @@ describe('startManagedDevServer', () => {
       probe: async () => true,
       isCI: true,
     });
-    expect(spawn).toHaveBeenCalledWith('pnpm dev', expect.objectContaining({ shell: true }));
-    expect(managed.url).toBe(url);
-    await managed.stop();
+    try {
+      expect(spawn).toHaveBeenCalledWith('pnpm dev', expect.objectContaining({ shell: true }));
+      expect(managed.url).toBe(url);
+    } finally {
+      await managed.stop();
+    }
   });
 
   it('should spawn even when reachable if reuseExistingServer is false (string/object form)', async () => {
@@ -181,8 +184,11 @@ describe('startManagedDevServer', () => {
         isCI: false,
       },
     );
-    expect(spawn).toHaveBeenCalled();
-    await managed.stop();
+    try {
+      expect(spawn).toHaveBeenCalled();
+    } finally {
+      await managed.stop();
+    }
   });
 
   it('should stop the spawned process and rethrow when it never becomes ready (no orphan)', async () => {
