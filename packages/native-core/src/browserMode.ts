@@ -117,6 +117,7 @@ export async function waitForDevServerReachable(
  *   (no subprocess spawn/kill involved). The returned `url` supplies/overrides `devServerUrl`.
  * - **string / object** — if `reuseExistingServer` (default `!CI`) and `devServerUrl` is already
  *   reachable, skip the spawn; otherwise spawn a {@link DevServerProcess} and poll `devServerUrl`.
+ *   Throws if a server this process started this way at the same origin is still running.
  *
  * The caller stores the returned `stop` and must call it in `onComplete` *and* on an `onPrepare`
  * failure (WDIO does not call `onComplete` after `onPrepare` throws). `stop` is idempotent.
@@ -151,7 +152,7 @@ export async function startManagedDevServer(
   const origin = originOf(devServerUrl);
   assertNotInUse(origin, devServerUrl);
   const reachable = reuseExisting && isOk(await probeDevServerReachable(devServerUrl));
-  // Again after the await: another session may have started a server here in the meantime.
+  // Check again: another session may have claimed this origin during the probe.
   assertNotInUse(origin, devServerUrl);
   if (reachable) {
     log.info(`Reusing dev server already reachable at ${devServerUrl}`);

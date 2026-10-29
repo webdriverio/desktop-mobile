@@ -15,8 +15,8 @@ function fakeChild() {
   const proc = new EventEmitter() as EventEmitter & Record<string, unknown>;
   proc.stdout = new EventEmitter();
   proc.stderr = new EventEmitter();
-  // pid undefined forces the direct-child kill branch so the test never signals a real process
-  // group; emit 'exit' so stop()'s teardown resolves.
+  // No pid, so stop() calls the kill() below instead of signalling a real process with that pid.
+  // Like a real child, it then emits 'exit', which stop() waits for.
   proc.pid = undefined;
   proc.exitCode = null;
   proc.signalCode = null;
