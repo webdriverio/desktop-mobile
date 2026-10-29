@@ -1,6 +1,7 @@
+import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { markAsEmbedded } from '../src/commands/execute.js';
+import { execute, markAsEmbedded } from '../src/commands/execute.js';
 import { createMock } from '../src/mock.js';
 import mockStore from '../src/mockStore.js';
 
@@ -188,5 +189,61 @@ describe('createMock', () => {
 
     await m.update();
     expect(m.mock.calls).toEqual([['c']]);
+  });
+
+  describe('withImplementation', () => {
+    type Webview = Record<string, unknown>;
+
+    function makeWebview(): Webview {
+      const win: Webview = { __WDIO_DIOXUS__: { invoke: async () => 'unmocked' } };
+      new Function('window', createIpcInterceptor('dioxus').buildBrowserIpcInjectionScript())(win);
+      return win;
+    }
+
+    // Runs scripts as the embedded driver does: awaits the result and sends it back as JSON.
+    function makeWebviewBrowser(win: Webview): WebdriverIO.Browser {
+      const browser = {
+        execute: vi.fn(async (script: string) => {
+          const result = await new Function('window', script)(win);
+          return JSON.parse(JSON.stringify(result ?? null));
+        }),
+      } as unknown as WebdriverIO.Browser;
+      markAsEmbedded(browser);
+      return browser;
+    }
+
+    it('should use the implementation until an async callback settles, then restore it', async () => {
+      const browser = makeWebviewBrowser(makeWebview());
+      const m = await createMock('greet', browser);
+      await m.mockReturnValue('default');
+
+      const result = await m.withImplementation(
+        () => 'temporary',
+        async (dx) => {
+          await Promise.resolve();
+          return dx.invoke('greet');
+        },
+      );
+
+      expect(result).toBe('temporary');
+      await expect(execute(browser, (dx) => dx.invoke('greet'))).resolves.toBe('default');
+    });
+
+    it('should reject with the callback error and restore the implementation', async () => {
+      const browser = makeWebviewBrowser(makeWebview());
+      const m = await createMock('greet', browser);
+      await m.mockReturnValue('default');
+
+      await expect(
+        m.withImplementation(
+          () => 'temporary',
+          async () => {
+            throw new Error('callback error');
+          },
+        ),
+      ).rejects.toMatchObject({ message: 'callback error' });
+
+      await expect(execute(browser, (dx) => dx.invoke('greet'))).resolves.toBe('default');
+    });
   });
 });

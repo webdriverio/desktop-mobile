@@ -361,23 +361,23 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 
 ### `withImplementation(implFn, callbackFn)`
 
-Temporarily use a different implementation for the duration of a callback.
+Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's webview like an `execute()` script, and receives the same `dx`. The implementation is restored when the callback returns, or when its promise settles.
+
+**Returns:** `Promise` of the callback's result
 
 **Example:**
 ```typescript
 const mock = await browser.dioxus.mock('my_command');
 await mock.mockReturnValue('default');
 
-await mock.withImplementation(
+const result = await mock.withImplementation(
   () => 'temporary',
-  async () => {
-    const result = await browser.dioxus.execute(({ invoke }) => invoke('my_command'));
-    console.log(result); // 'temporary'
-  },
+  ({ invoke }) => invoke('my_command'),
 );
+console.log(result); // 'temporary'
 
-const result = await browser.dioxus.execute(({ invoke }) => invoke('my_command'));
-console.log(result); // 'default'
+const after = await browser.dioxus.execute(({ invoke }) => invoke('my_command'));
+console.log(after); // 'default'
 ```
 
 ---

@@ -111,24 +111,26 @@ describe('execute command', () => {
 });
 
 describe('runInterceptorScript', () => {
-  it('should wrap the script as `return (script)()` on the external driver path', async () => {
+  it('should call the script with dx on the external driver path', async () => {
     const browser = browserStub('ok');
     const adapterScript = '(_dx) => { window.__wdio_mocks__.greet = 42; }';
 
     await runInterceptorScript(browser, adapterScript);
 
     const [actualScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
-    expect(actualScript).toBe(`return (${adapterScript})()`);
+    expect(actualScript).toBe(`return (${adapterScript})(window.__WDIO_DIOXUS__)`);
   });
 
-  it('should wrap the script with the __wdio_value__ envelope on the embedded driver path', async () => {
+  it('should put the settled result in the __wdio_value__ envelope on the embedded driver path', async () => {
     const browser = embeddedBrowserStub(undefined);
     const adapterScript = '(_dx) => {}';
 
     await runInterceptorScript(browser, adapterScript);
 
     const [actualScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
-    expect(actualScript).toBe(`return { __wdio_value__: (${adapterScript})() }`);
+    expect(actualScript).toBe(
+      `return Promise.resolve((${adapterScript})(window.__WDIO_DIOXUS__)).then(function (r) { return { __wdio_value__: r }; })`,
+    );
   });
 
   it('should return the value produced by browser.execute (embedded driver)', async () => {

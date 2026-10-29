@@ -11,9 +11,8 @@
 //
 //   - `runInterceptorScript`: the internal helper consumed by mock.ts. The
 //     DioxusAdapter scripts are arrow-function literals (e.g. `(_dx) => { ... }`)
-//     which must be *invoked*, not just defined. This helper wraps them as
-//     `return (${script})()` before passing to `browser.execute`, mirroring
-//     the Tauri analogue (packages/tauri-service/src/mock.ts).
+//     which must be *invoked*, not just defined. This helper calls them with
+//     `window.__WDIO_DIOXUS__` and awaits what they return.
 //
 // No per-call windowLabel option yet (#722): scripts run in the current window.
 
@@ -103,16 +102,19 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
 
 /**
  * Internal helper for invoking DioxusAdapter scripts. Each adapter-built
- * script is an arrow-function literal — wrapping with `return (${script})()`
- * is what actually invokes it. Without this wrap the function is defined
- * but never called and `window.__wdio_mocks__` is never populated.
+ * script is an arrow-function literal, so this calls it with
+ * `window.__WDIO_DIOXUS__` and resolves with its result once any returned
+ * promise settles.
  *
  * Not exported from the package's public surface — only consumed by mock.ts.
  */
 export async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
   const isEmbedded = embeddedBrowsers.has(browser);
-  // Interceptor scripts are synchronous; the envelope is safe without a Promise wrapper.
-  const wrapped = isEmbedded ? `return { __wdio_value__: (${script})() }` : `return (${script})()`;
+  const call = `(${script})(window.__WDIO_DIOXUS__)`;
+  // The envelope goes on the settled value; wrapping the promise itself would return it unawaited.
+  const wrapped = isEmbedded
+    ? `return Promise.resolve(${call}).then(function (r) { return { __wdio_value__: r }; })`
+    : `return ${call}`;
   const raw = await browser.execute(wrapped);
   return isEmbedded ? unwrapEmbeddedResult<T>(raw) : (raw as T);
 }

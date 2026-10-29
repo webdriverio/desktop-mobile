@@ -41,4 +41,21 @@ describe('Dioxus mocking', () => {
     const r = result as { os: string } | null | undefined;
     expect(r?.os).not.toBe('overridden');
   });
+
+  it('should use the withImplementation implementation until an async callback settles', async () => {
+    const mock = await browser.dioxus.mock('get_platform_info');
+    await mock.mockReturnValue({ os: 'default' });
+
+    const result = await mock.withImplementation(
+      () => ({ os: 'temporary' }),
+      async ({ invoke }) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return invoke('get_platform_info');
+      },
+    );
+
+    expect(result).toEqual({ os: 'temporary' });
+    const after = await browser.dioxus.execute(({ invoke }) => invoke('get_platform_info'));
+    expect(after).toEqual({ os: 'default' });
+  });
 });

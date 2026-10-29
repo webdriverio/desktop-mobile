@@ -13,7 +13,7 @@
 
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { AbstractFn, DioxusMock } from '@wdio/native-types';
+import type { AbstractFn, DioxusAPIs, DioxusMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 import { runInterceptorScript } from './commands/execute.js';
@@ -167,6 +167,15 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReturnThis'));
     return mock;
   };
+
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (dx: DioxusAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> =>
+    runInterceptorScript<Awaited<ReturnValue>>(
+      browserToUse,
+      interceptor.buildWithImplementationScript(command, implFn, callbackFn as (...a: unknown[]) => unknown),
+    );
 
   mockStore.setMock(mock);
   log.debug(`[${command}] Mock ready`);
