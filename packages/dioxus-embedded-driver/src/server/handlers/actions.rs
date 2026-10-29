@@ -439,7 +439,8 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
 }
 
 /// JS that dispatches a `KeyboardEvent` with the `key`, `code`, `keyCode` and Shift a browser sends
-/// to the active element. An uncanceled Enter keydown in an input also fires its pending `change`.
+/// to the active element. An uncanceled Enter keydown in an input also fires its pending `change`
+/// and submits its form.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let (key, code, key_code, mods) = match map_special_key(value) {
     Some((key, code, key_code)) => (key, code.to_string(), key_code, mods),
@@ -449,14 +450,16 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
     }
   };
   let modifiers = mods.js();
-  let commit = if event_type == "keydown" && key == "Enter" && !(mods.ctrl || mods.meta || mods.alt)
+  let enter = if event_type == "keydown" && key == "Enter" && !(mods.ctrl || mods.meta || mods.alt)
   {
-    format!("if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nwdioCommitOnEnter(t); }}")
+    format!(
+      "if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nwdioCommitOnEnter(t); wdioSubmitOnEnter(t); }}"
+    )
   } else {
     String::new()
   };
   format!(
-    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},keyCode:{key_code},which:{key_code},{modifiers}}}); t.dispatchEvent(e); {commit}}})(); null"
+    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},keyCode:{key_code},which:{key_code},{modifiers}}}); t.dispatchEvent(e); {enter}}})(); null"
   )
 }
 
@@ -962,22 +965,24 @@ mod tests {
   }
 
   #[test]
-  fn key_event_js_commits_an_inputs_change_on_an_uncanceled_enter_keydown() {
+  fn key_event_js_commits_an_inputs_change_then_submits_its_form_on_an_uncanceled_enter_keydown() {
     let m = Modifiers::default();
     let enter = key_event_js("keydown", "\u{E007}", m);
     let dispatch = enter.find("t.dispatchEvent(e);").unwrap();
     let canceled = enter.find("if(!e.defaultPrevented){").unwrap();
     let commit = enter.find("wdioCommitOnEnter(t);").unwrap();
-    assert!(dispatch < canceled && canceled < commit && enter.contains(ELEMENT_EVENTS_JS));
+    let submit = enter.find("wdioSubmitOnEnter(t);").unwrap();
+    assert!(dispatch < canceled && canceled < commit && commit < submit);
+    assert!(enter.contains(ELEMENT_EVENTS_JS));
     let shift = Modifiers { shift: true, ..m };
-    assert!(key_event_js("keydown", "\u{E006}", shift).contains("wdioCommitOnEnter(t);"));
+    assert!(key_event_js("keydown", "\u{E006}", shift).contains("wdioSubmitOnEnter(t);"));
     let ctrl = Modifiers { ctrl: true, ..m };
     for js in [
       key_event_js("keyup", "\u{E007}", m),
       key_event_js("keydown", "\u{E007}", ctrl),
       key_event_js("keydown", "a", m),
     ] {
-      assert!(!js.contains("wdioCommitOnEnter"), "{js}");
+      assert!(!js.contains("wdioCommitOnEnter") && !js.contains("wdioSubmitOnEnter"), "{js}");
     }
   }
 

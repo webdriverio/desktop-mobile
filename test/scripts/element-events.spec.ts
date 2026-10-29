@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 // jsdom has no delegatesFocus, so the E2E specs cover shadow hosts that keep focus.
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -14,6 +14,7 @@ type ElementEvents = {
   wdioRecordPendingChange(el: HTMLElement, value: string): void;
   wdioTakePendingChange(el?: HTMLElement): { el: HTMLElement; value: string } | undefined;
   wdioCommitOnEnter(el: HTMLElement): void;
+  wdioSubmitOnEnter(el: HTMLElement): void;
   wdioPress(el: HTMLElement): void;
   wdioRelease(el: HTMLElement): void;
   wdioFocusForClick(el: HTMLElement): void;
@@ -24,7 +25,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -37,7 +38,7 @@ function $(selector: string) {
 function render(html: string) {
   document.body.innerHTML = html;
   log = [];
-  for (const el of document.querySelectorAll<HTMLInputElement>('[id]')) {
+  for (const el of document.querySelectorAll<HTMLInputElement>('[id]:not(form)')) {
     for (const type of ['input', 'change', 'focus', 'blur']) {
       el.addEventListener(type, () => log.push(`${type} ${el.id}${el.value === undefined ? '' : `=${el.value}`}`));
     }
@@ -193,6 +194,127 @@ describe('wdioCommitOnEnter', () => {
     type($('#a'), '');
     events.wdioCommitOnEnter($('#a'));
     expect(log).toEqual([]);
+  });
+});
+
+describe('wdioSubmitOnEnter', () => {
+  const logClick = (event: Event) => log.push(`click ${(event.target as HTMLElement).id}`);
+  // Cancels the submit, as jsdom can't navigate.
+  const logSubmit = (event: Event) => {
+    const { submitter } = event as SubmitEvent;
+    log.push(`submit ${(event.target as HTMLElement).id}${submitter ? ` by ${submitter.id}` : ''}`);
+    event.preventDefault();
+  };
+  beforeAll(() => {
+    window.addEventListener('click', logClick, true);
+    window.addEventListener('submit', logSubmit, true);
+  });
+  afterAll(() => {
+    window.removeEventListener('click', logClick, true);
+    window.removeEventListener('submit', logSubmit, true);
+  });
+
+  function enter(html: string) {
+    render(html);
+    $('#i').focus();
+    log = [];
+    events.wdioSubmitOnEnter($('#i'));
+  }
+
+  it("should click the form's default button after the change the input commits", () => {
+    render('<form id="f"><input id="i"><button id="b">go</button></form>');
+    type($('#i'), 'x');
+    events.wdioCommitOnEnter($('#i'));
+    events.wdioSubmitOnEnter($('#i'));
+    expect(log).toEqual(['change i=x', 'click b', 'submit f by b']);
+  });
+
+  it.each([
+    ['a button or reset button', '<button type="button" id="x">x</button><button type="reset" id="r">r</button>'],
+    ['another text field', '<input id="j">'],
+  ])('should click the first submit button, after %s', (_, before) => {
+    enter(`<form id="f"><input id="i">${before}<input type="submit" id="b"><button id="b2">go</button></form>`);
+    expect(log).toEqual(['click b', 'submit f by b']);
+  });
+
+  it.each([
+    [
+      'a button outside the form, associated with it and before it',
+      '<button form="f" id="b">go</button><form id="f"><input id="i"><button id="b2">go</button></form>',
+    ],
+    ['an image input', '<form id="f"><input id="i"><input type="image" id="b" alt="go"></form>'],
+  ])('should click the default button when it is %s', (_, html) => {
+    enter(html);
+    expect(log).toEqual(['click b', 'submit f by b']);
+  });
+
+  it.each([
+    ['disabled', '<button id="b" disabled>go</button>'],
+    ['in a disabled fieldset', '<fieldset disabled><button id="b">go</button></fieldset>'],
+  ])('should submit nothing when the default button is %s, though a later one is enabled', (_, button) => {
+    enter(`<form id="f"><input id="i">${button}<button id="b2">go</button></form>`);
+    expect(log).toEqual([]);
+  });
+
+  it('should submit nothing when a click handler cancels the click', () => {
+    render('<form id="f"><input id="i"><button id="b">go</button></form>');
+    $('#b').addEventListener('click', (event) => event.preventDefault());
+    $('#i').focus();
+    log = [];
+    events.wdioSubmitOnEnter($('#i'));
+    expect(log).toEqual(['click b']);
+  });
+
+  it('should submit a form without a submit button whose other fields are not text fields', () => {
+    enter(
+      `<form id="f"><input id="i"><input type="checkbox" id="c"><input type="date" id="d"><input type="range" id="r">
+        <input type="hidden" id="h"><textarea id="t"></textarea><select id="s"></select></form>`,
+    );
+    expect(log).toEqual(['submit f']);
+  });
+
+  it.each([
+    ['text field', '<input id="j">'],
+    ['number input', '<input type="number" id="j">'],
+    ['read-only text field', '<input id="j" readonly>'],
+    ['disabled text field', '<input id="j" disabled>'],
+  ])('should submit nothing from a form without a submit button and with another %s', (_, other) => {
+    enter(`<form id="f"><input type="search" id="i">${other}</form>`);
+    expect(log).toEqual([]);
+  });
+
+  it('should click the first enabled submit button on Enter in any other input', () => {
+    enter(
+      '<form id="f"><input type="checkbox" id="i"><button id="b" disabled>go</button><button id="b2">go</button></form>',
+    );
+    expect(log).toEqual(['click b2', 'submit f by b2']);
+    enter('<form id="f"><input type="date" id="i"></form>');
+    expect(log).toEqual([]);
+  });
+
+  it.each(['submit', 'image', 'reset', 'button', 'color', 'file'])(
+    'should leave the form of a %s input alone',
+    (inputType) => {
+      enter(`<form id="f"><input type="${inputType}" id="i" alt="i"><button id="b">go</button></form>`);
+      expect(log).toEqual([]);
+    },
+  );
+
+  it('should submit nothing from an input outside a form, or a textarea', () => {
+    enter('<input id="i"><form id="f"><button id="b">go</button></form>');
+    expect(log).toEqual([]);
+    enter('<form id="f"><textarea id="i"></textarea><button id="b">go</button></form>');
+    expect(log).toEqual([]);
+  });
+
+  it('should find the default button of a form in a shadow root', () => {
+    render('<div id="host"></div>');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<form id="f"><input id="i"></form><button form="f" id="b">go</button>';
+    const form = root.querySelector('form') as HTMLFormElement;
+    form.addEventListener('submit', logSubmit);
+    events.wdioSubmitOnEnter(root.querySelector('#i') as HTMLInputElement);
+    expect(log).toEqual(['click host', 'submit f by b']);
   });
 });
 

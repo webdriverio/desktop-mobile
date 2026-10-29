@@ -123,6 +123,26 @@ describe('Dioxus element events (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input ', 'change ', 'blur ', 'input 2', 'change 2', 'blur 2']);
   });
 
+  it("should click the form's default button on Enter in an input, after its change, as Chrome does", async () => {
+    await fillChangeScratch();
+    await browser.execute(
+      `var form = document.createElement("form");
+      form.innerHTML = '<button id="fresh-submit">go</button>';
+      form.prepend(document.querySelector("#fresh-field"));
+      document.querySelector("#change-scratch").appendChild(form);
+      form.querySelector("#fresh-submit").addEventListener("click", function () {
+        window.__fieldEvents.push("click");
+      });
+      form.addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        window.__fieldEvents.push("submit " + ev.submitter.id);
+      });`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.keys(Key.Enter);
+    expect(await fieldEvents()).toEqual(['input x', 'change x', 'click', 'submit fresh-submit']);
+  });
+
   it('should set a date input at once, firing input and change', async () => {
     await fillChangeScratch();
     await addToScratch('<input id="fresh-date" type="date">');

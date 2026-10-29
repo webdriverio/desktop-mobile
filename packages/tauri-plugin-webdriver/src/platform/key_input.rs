@@ -373,7 +373,8 @@ fn radio_step_js(forward: bool) -> String {
 }
 
 /// JS for Enter: a line break in a textarea or contenteditable (Shift+Enter inserts a `<br>`
-/// rather than a new paragraph); in an input, the `change` the field owes.
+/// rather than a new paragraph); in an input, the `change` the field owes, then the submission of
+/// its form.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
@@ -385,6 +386,7 @@ fn enter_js(shift: bool) -> String {
                 }} else {{
                     {ELEMENT_EVENTS_JS}
                     wdioCommitOnEnter(activeEl);
+                    wdioSubmitOnEnter(activeEl);
                 }}"
   )
 }
@@ -1342,20 +1344,22 @@ mod tests {
   }
 
   #[test]
-  fn enter_commits_the_change_the_focused_field_owes() {
+  fn enter_commits_the_change_the_focused_field_owes_then_submits_its_form() {
     let none = mods(false, false, false, false);
     let shift = mods(false, true, false, false);
     for modifiers in [none, shift] {
       let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
       let dispatch = enter.find("if (!activeEl.dispatchEvent(keyEvent))").unwrap();
       let commit = enter.find("wdioCommitOnEnter(activeEl);").unwrap();
-      assert!(dispatch < commit && enter.contains(ELEMENT_EVENTS_JS));
+      let submit = enter.find("wdioSubmitOnEnter(activeEl);").unwrap();
+      assert!(dispatch < commit && commit < submit && enter.contains(ELEMENT_EVENTS_JS));
     }
     let enter_up = build_special_key_script("Enter", "Enter", 13, false, &none);
-    assert!(!enter_up.contains("wdioCommitOnEnter"));
     let ctrl_enter =
       build_special_key_script("Enter", "Enter", 13, true, &mods(true, false, false, false));
-    assert!(!ctrl_enter.contains("wdioCommitOnEnter"));
+    for script in [enter_up, ctrl_enter] {
+      assert!(!script.contains("wdioCommitOnEnter") && !script.contains("wdioSubmitOnEnter"));
+    }
   }
 
   #[test]

@@ -24,6 +24,13 @@ const WDIO_CLEARABLE_INPUT_TYPES = [
 
 const WDIO_VALUE_CONTROL_TYPES = ['color', 'date', 'datetime-local', 'month', 'range', 'time', 'week'];
 
+// The inputs Chromium counts for implicit submission: Enter in one submits a form without a submit
+// button only if the form has no other. The HTML spec also counts the date and time inputs.
+const WDIO_TEXT_FIELD_TYPES = ['text', 'search', 'url', 'tel', 'email', 'password', 'number'];
+
+// Enter on these inputs clicks them in a browser instead of submitting their form.
+const WDIO_CLICKED_ON_ENTER_TYPES = ['button', 'color', 'file', 'image', 'reset', 'submit'];
+
 const WDIO_CLICK_FOCUSABLE =
   'a[href], area[href], button, input, select, textarea, iframe, summary, audio[controls], video[controls], [tabindex]';
 
@@ -101,6 +108,30 @@ function wdioCommitOnEnter(el) {
   record.value = el.value;
   el.dispatchEvent(new Event('change', { bubbles: true }));
   record.value = el.value;
+}
+
+// Enter in an input submits its form, as Chromium's implicit submission does: from a text field, by
+// clicking the form's first submit button unless it's disabled, or with none, submitting a form with
+// no other text field; from any other input, by clicking the first enabled submit button.
+// click() fires the synthetic click a browser fires, with no pointer or mouse events.
+function wdioSubmitOnEnter(el) {
+  const form = el.tagName === 'INPUT' ? el.form : undefined;
+  if (!form || WDIO_CLICKED_ON_ENTER_TYPES.includes(el.type)) {
+    return;
+  }
+  const controls = Array.from(form.getRootNode().querySelectorAll('button, input')).filter(
+    (control) => control.form === form,
+  );
+  const buttons = controls.filter((control) => control.type === 'submit' || control.type === 'image');
+  if (!WDIO_TEXT_FIELD_TYPES.includes(el.type)) {
+    buttons.find((button) => !wdioDisabled(button))?.click();
+  } else if (buttons.length > 0) {
+    if (!wdioDisabled(buttons[0])) {
+      buttons[0].click();
+    }
+  } else if (controls.filter((control) => WDIO_TEXT_FIELD_TYPES.includes(control.type)).length === 1) {
+    form.requestSubmit();
+  }
 }
 
 // Element Click's press, as Chrome sends it: a cancelled pointerdown or mousedown keeps focus where
