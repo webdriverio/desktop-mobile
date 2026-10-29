@@ -6,7 +6,7 @@ use axum::Json;
 use serde::Deserialize;
 use tauri::Runtime;
 
-use crate::platform::key_input::HeldModifiers;
+use crate::platform::key_input::{is_skipped_key, HeldModifiers};
 use crate::platform::PointerEventType;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
@@ -217,6 +217,8 @@ async fn perform_actions<R: Runtime + 'static>(
         ActionSequence::Key { _id: _, actions } => {
           if let Some(action) = actions.get(tick) {
             match action {
+              KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
+                if is_skipped_key(value) => {}
               KeyAction::KeyDown { value } => {
                 held_modifiers.press(value);
                 executor.dispatch_key_event(value, true, &held_modifiers.state()).await?;

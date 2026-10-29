@@ -135,6 +135,7 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
     return Some((format!("Digit{ch}"), ch as u32, false));
   }
   let (code, key_code, shifted) = match ch {
+    '\t' => ("Tab", 9, false),
     ' ' => ("Space", 32, false),
     ')' => ("Digit0", 48, true),
     '!' => ("Digit1", 49, true),
@@ -858,6 +859,7 @@ mod tests {
       ("~", ("Backquote", 192, true)),
       ("[", ("BracketLeft", 219, false)),
       ("\\", ("Backslash", 220, false)),
+      ("\t", ("Tab", 9, false)),
       ("]", ("BracketRight", 221, false)),
       ("'", ("Quote", 222, false)),
       ("\"", ("Quote", 222, true)),
@@ -873,7 +875,7 @@ mod tests {
     assert_eq!(map_special_key("\n"), map_special_key(ENTER));
     assert_eq!(map_special_key("\u{8}"), map_special_key(BACKSPACE));
     assert!(is_skipped_key("\r") && map_special_key("\r").is_none());
-    // Typed as text until Tab moves focus.
+    // Typed as text until Tab moves focus (#889).
     assert_eq!(map_special_key("\t"), None);
     let none = mods(false, false, false, false);
     assert_eq!(
