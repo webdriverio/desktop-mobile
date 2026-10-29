@@ -73,7 +73,10 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   const executeOptions = { windowLabel, __wdioOptions__: true } as TauriExecuteOptions;
   const executeInMockWindow = <T>(script: string): Promise<T> =>
     tauriExecute<T, [TauriExecuteOptions]>(browserToUse, script, executeOptions);
-  // The mock's in-app half closes with its window, leaving nothing there to sync, clear or restore.
+  // Once the mock's window closes, its in-app half is gone with it. update, mockClear, mockReset and
+  // mockRestore then skip the app, since there's nothing left there to sync, clear or remove.
+  // The setters and withImplementation need to throw if the window doesn't exist, so they call
+  // executeInMockWindow directly.
   const executeUnlessWindowClosed = async <T>(script: string): Promise<T | typeof WINDOW_CLOSED> => {
     try {
       return await executeInMockWindow<T>(script);
