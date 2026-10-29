@@ -911,6 +911,16 @@ describe('TauriWorkerService', () => {
         expect(mockAwareInvoke).not.toHaveBeenCalled();
       });
 
+      it('should rethrow a failed emit unchanged outside multiremote', async () => {
+        const mockBrowser = createMockBrowser();
+        const service = new TauriWorkerService({}, { 'wdio:tauriServiceOptions': {} });
+        await service.before({} as never, [], mockBrowser);
+        const failure = new Error('emit rejected');
+        vi.mocked(executeCommand).mockRejectedValueOnce(failure);
+
+        await expect(tauriOf(mockBrowser).emitEvent('foo')).rejects.toBe(failure);
+      });
+
       describe('on the multiremote root', () => {
         const instances: Record<string, WebdriverIO.Browser> = {};
 
@@ -948,7 +958,7 @@ describe('TauriWorkerService', () => {
           expect(mockStore.getMocks).toHaveBeenCalledTimes(1);
         });
 
-        it('should finish the other instances and sync mocks before rethrowing one instance failing', async () => {
+        it('should finish the other instances and sync mocks before reporting the one that failed', async () => {
           const mrBrowser = await setUpRoot();
           const failure = new Error('emit rejected');
           let finishB: () => void = () => {};
@@ -969,7 +979,10 @@ describe('TauriWorkerService', () => {
           expect(settled).not.toHaveBeenCalled();
           finishB();
 
-          await expect(emitting).rejects.toBe(failure);
+          await expect(emitting).rejects.toMatchObject({
+            message: "emitEvent('foo') failed on browserA: emit rejected",
+            cause: failure,
+          });
           expect(mockStore.getMocks).toHaveBeenCalledTimes(1);
         });
 
@@ -980,7 +993,7 @@ describe('TauriWorkerService', () => {
             .mockRejectedValueOnce(new Error('b failed'));
 
           await expect(tauriOf(mrBrowser).emitEvent('foo')).rejects.toMatchObject({
-            message: "emitEvent('foo') failed on 2 instances",
+            message: "emitEvent('foo') failed on browserA: a failed; browserB: b failed",
             errors: [{ message: 'a failed' }, { message: 'b failed' }],
           });
           expect(mockStore.getMocks).toHaveBeenCalledTimes(1);

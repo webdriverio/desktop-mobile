@@ -552,20 +552,32 @@ export default class TauriWorkerService {
         target?: string | TauriEventTarget,
       ): Promise<void> => {
         const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
-        const sessions = isMultiremote(browser)
-          ? mrBrowser.instances.map((name) => mrBrowser.getInstance(name))
-          : [browser];
+        const instanceNames = isMultiremote(browser) ? mrBrowser.instances : undefined;
+        const sessions = instanceNames ? instanceNames.map((name) => mrBrowser.getInstance(name)) : [browser];
         const results = await Promise.allSettled(
           sessions.map((session) => emitTauriEvent(session, browserMode, eventName, payload, target)),
         );
         // Sync the mocks the delivered emits triggered before reporting any that failed
         await getMockUpdateScheduler(browser).schedule();
-        const failures = results.flatMap((result) => (result.status === 'rejected' ? [result.reason] : []));
-        if (failures.length > 0) {
-          throw failures.length === 1
-            ? failures[0]
-            : new AggregateError(failures, `emitEvent('${eventName}') failed on ${failures.length} instances`);
+        const failures = results.flatMap((result, i) =>
+          result.status === 'rejected' ? [{ instance: instanceNames?.[i], error: result.reason as unknown }] : [],
+        );
+        if (failures.length === 0) {
+          return;
         }
+        if (!instanceNames) {
+          throw failures[0].error;
+        }
+        // Reporters print the message but not `cause` or `errors`, so it names each failure
+        const message = `emitEvent('${eventName}') failed on ${failures
+          .map(({ instance, error }) => `${instance}: ${errorMessage(error)}`)
+          .join('; ')}`;
+        throw failures.length === 1
+          ? new Error(message, { cause: failures[0].error })
+          : new AggregateError(
+              failures.map(({ error }) => error),
+              message,
+            );
       },
     };
   }
