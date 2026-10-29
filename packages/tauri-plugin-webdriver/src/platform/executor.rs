@@ -1242,10 +1242,7 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
         self.evaluate_js(&script).await?;
         Ok(())
       }
-      None => {
-        let code = crate::platform::key_input::regular_key_code_for(key);
-        self.dispatch_regular_key(key, &code, is_down, modifiers).await
-      }
+      None => self.dispatch_regular_key(key, is_down, modifiers).await,
     }
   }
 
@@ -1253,12 +1250,10 @@ pub trait PlatformExecutor<R: Runtime>: Send + Sync {
   async fn dispatch_regular_key(
     &self,
     key: &str,
-    code: &str,
     is_down: bool,
     modifiers: &ModifierState,
   ) -> Result<(), WebDriverErrorResponse> {
-    let script =
-      crate::platform::key_input::build_regular_key_script(key, code, is_down, modifiers);
+    let script = crate::platform::key_input::build_regular_key_script(key, is_down, modifiers);
     self.evaluate_js(&script).await?;
     Ok(())
   }

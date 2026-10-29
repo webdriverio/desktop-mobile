@@ -304,7 +304,9 @@ before a requested size is applied, including moves between displays.
 
 ## Keyboard Events
 
-Keyboard events carry the `key`, `code` and `keyCode` a browser sends on a US keyboard: `a` and `A` are `code: 'KeyA'`, `keyCode: 65`, and `;` is `code: 'Semicolon'`, `keyCode: 186`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`.
+Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, and a tab is the Tab key.
+
+Key actions (`browser.keys()`) send keyboard events for every key. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it; it sends them for special keys, newlines and tabs, and for text typed while Control, Alt or Meta is held.
 
 One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 

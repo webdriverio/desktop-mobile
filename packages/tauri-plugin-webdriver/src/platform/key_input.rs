@@ -8,13 +8,12 @@ use super::executor::ModifierState;
 pub const NULL_KEY: &str = "\u{E000}";
 
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
-/// tables and a US keyboard, so none is ever typed as text.
+/// tables and a US keyboard, so none is ever typed as text. Newline and tab are the Enter and Tab
+/// keys, as chromedriver sends them.
 pub fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
-  let mut chars = key.chars();
-  let (Some(ch), None) = (chars.next(), chars.next()) else {
-    return None;
-  };
-  let mapped = match ch {
+  let mapped = match single_char(key)? {
+    '\t' => ("Tab", "Tab", 9),
+    '\n' | '\r' => ("Enter", "Enter", 13),
     '\u{E000}' => ("Unidentified", "", 0),
     '\u{E001}' => ("Cancel", "", 3),
     '\u{E002}' => ("Help", "Help", 47),
@@ -98,7 +97,7 @@ pub fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
 /// Whether a normalized key value types a character: Space, `;`, `=` and the numpad digits and
 /// operators.
 pub fn is_printable_key(js_key: &str) -> bool {
-  js_key.chars().count() == 1
+  single_char(js_key).is_some()
 }
 
 /// Whether a WebDriver key value is a left- or right-hand Shift/Control/Alt/Meta.
@@ -106,15 +105,10 @@ pub fn is_modifier_key(key: &str) -> bool {
   matches!(map_special_key(key), Some(("Shift" | "Control" | "Alt" | "Meta", _, _)))
 }
 
-/// The `KeyboardEvent.code` of a printable character's US-keyboard key, or `""` without one.
-pub fn regular_key_code_for(key: &str) -> String {
-  single_char(key).and_then(us_keyboard_key).map(|(code, _)| code).unwrap_or_default()
-}
-
-/// The legacy `keyCode` a browser sends for a printable character: its US-keyboard key's
-/// virtual-key code (65 for `a` and `A`), or 0 without one.
-pub fn regular_key_code_number(key: &str) -> u32 {
-  single_char(key).and_then(us_keyboard_key).map_or(0, |(_, key_code)| key_code)
+/// A printable character's US-keyboard key: its `code`, its legacy `keyCode` (65 for `a` and `A`)
+/// and whether it takes Shift, or `("", 0, false)` for a character the keyboard has no key for.
+pub fn regular_key(key: &str) -> (String, u32, bool) {
+  single_char(key).and_then(us_keyboard_key).unwrap_or_default()
 }
 
 fn single_char(key: &str) -> Option<char> {
@@ -125,19 +119,21 @@ fn single_char(key: &str) -> Option<char> {
   }
 }
 
-/// The `(code, keyCode)` of the US-keyboard key that types `ch`, shifted or not.
-fn us_keyboard_key(ch: char) -> Option<(String, u32)> {
+/// The characters a US keyboard types with Shift, besides capital letters.
+const US_SHIFTED: &str = ")!@#$%^&*(:+<_>?~{|}\"";
+
+/// The `(code, keyCode, shifted)` of the US-keyboard key that types `ch`.
+fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
+  let shifted = ch.is_ascii_uppercase() || US_SHIFTED.contains(ch);
   if ch.is_ascii_alphabetic() {
     let upper = ch.to_ascii_uppercase();
-    return Some((format!("Key{upper}"), upper as u32));
+    return Some((format!("Key{upper}"), upper as u32, shifted));
   }
   if ch.is_ascii_digit() {
-    return Some((format!("Digit{ch}"), ch as u32));
+    return Some((format!("Digit{ch}"), ch as u32, false));
   }
   let (code, key_code) = match ch {
     ' ' => ("Space", 32),
-    '\n' | '\r' => ("Enter", 13),
-    '\t' => ("Tab", 9),
     ')' => ("Digit0", 48),
     '!' => ("Digit1", 49),
     '@' => ("Digit2", 50),
@@ -161,7 +157,7 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32)> {
     '\'' | '"' => ("Quote", 222),
     _ => return None,
   };
-  Some((code.to_string(), key_code))
+  Some((code.to_string(), key_code, shifted))
 }
 
 /// A JS string literal for `text` that is safe to splice into a script.
@@ -216,13 +212,11 @@ pub fn build_special_key_script(
 
 /// JS dispatching a synthetic printable-character `KeyboardEvent` plus the insertion or Ctrl/Meta+A
 /// select-all an untrusted event can't drive itself, skipped when a handler cancels the keydown.
-pub fn build_regular_key_script(
-  key: &str,
-  code: &str,
-  is_down: bool,
-  modifiers: &ModifierState,
-) -> String {
-  build_printable_key_script(key, code, regular_key_code_number(key), is_down, modifiers)
+/// The event carries the character's US-keyboard key, with Shift held if that key needs it.
+pub fn build_regular_key_script(key: &str, is_down: bool, modifiers: &ModifierState) -> String {
+  let (code, key_code, shifted) = regular_key(key);
+  let modifiers = ModifierState { shift: modifiers.shift || shifted, ..*modifiers };
+  build_printable_key_script(key, &code, key_code, is_down, &modifiers)
 }
 
 /// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys that don't
@@ -822,56 +816,51 @@ mod tests {
   }
 
   #[test]
-  fn regular_keys_send_the_us_keyboard_code() {
-    for (key, code) in [
-      ("a", "KeyA"),
-      ("A", "KeyA"),
-      ("5", "Digit5"),
-      ("!", "Digit1"),
-      (")", "Digit0"),
-      (" ", "Space"),
-      (";", "Semicolon"),
-      (":", "Semicolon"),
-      ("'", "Quote"),
-      ("\"", "Quote"),
-      ("\\", "Backslash"),
-      ("~", "Backquote"),
-      ("\n", "Enter"),
-      ("\t", "Tab"),
-      ("é", ""),
-      ("ab", ""),
+  fn regular_keys_send_their_us_keyboard_key() {
+    for (key, (code, key_code, shifted)) in [
+      ("a", ("KeyA", 65, false)),
+      ("A", ("KeyA", 65, true)),
+      ("p", ("KeyP", 80, false)),
+      ("z", ("KeyZ", 90, false)),
+      ("0", ("Digit0", 48, false)),
+      ("5", ("Digit5", 53, false)),
+      ("%", ("Digit5", 53, true)),
+      ("!", ("Digit1", 49, true)),
+      (")", ("Digit0", 48, true)),
+      (" ", ("Space", 32, false)),
+      (";", ("Semicolon", 186, false)),
+      (":", ("Semicolon", 186, true)),
+      ("=", ("Equal", 187, false)),
+      ("+", ("Equal", 187, true)),
+      (",", ("Comma", 188, false)),
+      ("-", ("Minus", 189, false)),
+      (".", ("Period", 190, false)),
+      ("/", ("Slash", 191, false)),
+      ("?", ("Slash", 191, true)),
+      ("`", ("Backquote", 192, false)),
+      ("~", ("Backquote", 192, true)),
+      ("[", ("BracketLeft", 219, false)),
+      ("\\", ("Backslash", 220, false)),
+      ("]", ("BracketRight", 221, false)),
+      ("'", ("Quote", 222, false)),
+      ("\"", ("Quote", 222, true)),
+      ("é", ("", 0, false)),
+      ("ab", ("", 0, false)),
     ] {
-      assert_eq!(regular_key_code_for(key), code, "{key:?}");
+      assert_eq!(regular_key(key), (code.to_string(), key_code, shifted), "{key:?}");
     }
   }
 
   #[test]
-  fn regular_keys_send_the_browser_key_code() {
-    for (key, key_code) in [
-      ("a", 65),
-      ("A", 65),
-      ("p", 80),
-      ("z", 90),
-      ("0", 48),
-      ("5", 53),
-      ("%", 53),
-      (" ", 32),
-      (";", 186),
-      ("=", 187),
-      (",", 188),
-      ("-", 189),
-      (".", 190),
-      ("/", 191),
-      ("`", 192),
-      ("[", 219),
-      ("\\", 220),
-      ("]", 221),
-      ("'", 222),
-      ("\n", 13),
-      ("é", 0),
-    ] {
-      assert_eq!(regular_key_code_number(key), key_code, "{key:?}");
-    }
+  fn newline_and_tab_are_the_enter_and_tab_keys() {
+    assert_eq!(map_special_key("\n"), map_special_key(ENTER));
+    assert_eq!(map_special_key("\r"), map_special_key(ENTER));
+    assert_eq!(map_special_key("\t"), map_special_key("\u{E004}"));
+    let none = mods(false, false, false, false);
+    assert_eq!(
+      plan_send_keys("a\nb"),
+      vec![text("a"), key("\n", true, none), key("\n", false, none), text("b")]
+    );
   }
 
   #[test]
@@ -881,7 +870,7 @@ mod tests {
       .map(|(_, _, key_code)| key_code)
       .collect();
     for ch in ('a'..='z').chain('A'..='Z') {
-      let key_code = regular_key_code_number(&ch.to_string());
+      let (_, key_code, _) = regular_key(&ch.to_string());
       assert!(
         !special_codes.contains(&key_code),
         "{ch} shares keyCode {key_code} with a special key"
@@ -925,12 +914,16 @@ mod tests {
 
   #[test]
   fn build_regular_key_script_carries_modifiers_and_value_mutation() {
-    let script = build_regular_key_script("a", "KeyA", true, &mods(false, false, false, false));
+    let script = build_regular_key_script("a", true, &mods(false, false, false, false));
     assert!(script.contains("key: \"a\""));
+    assert!(script.contains("code: \"KeyA\""));
     assert!(script.contains("keyCode: 65"));
+    assert!(script.contains("shiftKey: false"));
+    let capital = build_regular_key_script("A", true, &mods(false, false, false, false));
+    assert!(capital.contains("keyCode: 65") && capital.contains("shiftKey: true"));
     assert!(script.contains("inputType: 'insertText'"));
 
-    let select_all = build_regular_key_script("a", "KeyA", true, &mods(true, false, false, false));
+    let select_all = build_regular_key_script("a", true, &mods(true, false, false, false));
     assert!(select_all.contains("activeEl.select()"));
     assert!(!select_all.contains("insertedText"));
   }
@@ -991,7 +984,7 @@ mod tests {
   #[test]
   fn key_text_is_spliced_as_escaped_literals() {
     let none = mods(false, false, false, false);
-    let newline = build_regular_key_script("\n", "\n", true, &none);
+    let newline = build_regular_key_script("\n", true, &none);
     assert!(newline.contains(&format!("key: {}", js_string("\n"))));
     assert!(newline.contains(&format!("var insertedText = {}", js_string("\n"))));
     let run = build_insert_run_script("a`$\\b\n'");
@@ -1018,8 +1011,8 @@ mod tests {
     let guard = "if (!activeEl.dispatchEvent(keyEvent)) {";
     for (script, side_effect) in [
       (build_printable_key_script(" ", "Space", 32, true, &none), "var insertedText"),
-      (build_regular_key_script("x", "KeyX", true, &none), "var insertedText"),
-      (build_regular_key_script("a", "KeyA", true, &ctrl), "activeEl.select()"),
+      (build_regular_key_script("x", true, &none), "var insertedText"),
+      (build_regular_key_script("a", true, &ctrl), "activeEl.select()"),
       (
         build_special_key_script("Backspace", "Backspace", 8, true, &none),
         "nativeInputValueSetter",
@@ -1366,7 +1359,7 @@ mod tests {
     let editable = is_editable_text_field_js("activeEl");
     assert!(editable.contains("!activeEl.readOnly && !activeEl.disabled"));
     for script in [
-      build_printable_key_script("x", "KeyX", 120, true, &none),
+      build_printable_key_script("x", "KeyX", 88, true, &none),
       build_special_key_script("Enter", "Enter", 13, true, &none),
       build_special_key_script("Backspace", "Backspace", 8, true, &none),
       build_special_key_script("Delete", "Delete", 46, true, &none),

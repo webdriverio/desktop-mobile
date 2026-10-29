@@ -297,19 +297,36 @@ describe('special keys (embedded)', () => {
     expect((await keyTargetEvents()).find((event) => event.key === 'PageDown')).toMatchObject({ shiftKey: true });
   });
 
-  it('should send the code and keyCode a browser sends for printable keys', async () => {
+  it('should send the code, keyCode and Shift a browser sends for printable keys', async () => {
     await browser.$('#key-target').click();
     await browser.execute('window.__keyTargetEvents = [];');
-    await browser.keys(['a', 'A', 'p', '5', '!', ';', "'", 'é']);
+    await browser.keys(['a', 'A', 'p', '5', '!', ';', ':', "'", 'é']);
+    const events = (await keyTargetEvents()).map(({ key, code, keyCode, shiftKey }) => ({
+      key,
+      code,
+      keyCode,
+      shiftKey,
+    }));
+    expect(events).toEqual([
+      { key: 'a', code: 'KeyA', keyCode: 65, shiftKey: false },
+      { key: 'A', code: 'KeyA', keyCode: 65, shiftKey: true },
+      { key: 'p', code: 'KeyP', keyCode: 80, shiftKey: false },
+      { key: '5', code: 'Digit5', keyCode: 53, shiftKey: false },
+      { key: '!', code: 'Digit1', keyCode: 49, shiftKey: true },
+      { key: ';', code: 'Semicolon', keyCode: 186, shiftKey: false },
+      { key: ':', code: 'Semicolon', keyCode: 186, shiftKey: true },
+      { key: "'", code: 'Quote', keyCode: 222, shiftKey: false },
+      { key: 'é', code: '', keyCode: 0, shiftKey: false },
+    ]);
+  });
+
+  it('should send newline and tab characters as the Enter and Tab keys', async () => {
+    await browser.$('#key-target').click();
+    await browser.execute('window.__keyTargetEvents = [];');
+    await browser.keys(['\n', '\t']);
     expect((await keyTargetEvents()).map(({ key, code, keyCode }) => ({ key, code, keyCode }))).toEqual([
-      { key: 'a', code: 'KeyA', keyCode: 65 },
-      { key: 'A', code: 'KeyA', keyCode: 65 },
-      { key: 'p', code: 'KeyP', keyCode: 80 },
-      { key: '5', code: 'Digit5', keyCode: 53 },
-      { key: '!', code: 'Digit1', keyCode: 49 },
-      { key: ';', code: 'Semicolon', keyCode: 186 },
-      { key: "'", code: 'Quote', keyCode: 222 },
-      { key: 'é', code: '', keyCode: 0 },
+      { key: 'Enter', code: 'Enter', keyCode: 13 },
+      { key: 'Tab', code: 'Tab', keyCode: 9 },
     ]);
   });
 
