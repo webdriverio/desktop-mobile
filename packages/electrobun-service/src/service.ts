@@ -225,7 +225,7 @@ export default class ElectrobunWorkerService {
  * instance, as electron/tauri/dioxus expose) isn't wired yet, so rather than leave
  * `browser.electrobun` undefined — a raw `TypeError` on first access — every method throws a guided
  * error pointing at per-instance access. Converging electrobun onto a real root API is tracked in
- * https://github.com/webdriverio/desktop-mobile/issues/656
+ * https://github.com/webdriverio/desktop-mobile/issues/877
  */
 function installRootMultiremoteGuard(mrBrowser: WebdriverIO.MultiRemoteBrowser): void {
   const methods: ReadonlyArray<keyof ElectrobunServiceAPI> = [
@@ -245,7 +245,7 @@ function installRootMultiremoteGuard(mrBrowser: WebdriverIO.MultiRemoteBrowser):
       throw new Error(
         `browser.electrobun.${method}() is not available on the multiremote root browser — address ` +
           `each instance individually, e.g. browser.getInstance('<name>').electrobun.${method}(...). ` +
-          'Root fan-out is tracked in https://github.com/webdriverio/desktop-mobile/issues/656.',
+          'Root fan-out is tracked in https://github.com/webdriverio/desktop-mobile/issues/877.',
       );
     };
   }

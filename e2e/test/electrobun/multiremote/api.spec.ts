@@ -5,7 +5,7 @@ import type { PageWindow } from '../../../lib/pageGlobals.js';
 // Two independent Electrobun instances in one worker. Run via `TEST_TYPE=multiremote`.
 //
 // Root fan-out (`browser.electrobun.*` across all instances) isn't wired yet:
-// https://github.com/webdriverio/desktop-mobile/issues/656
+// https://github.com/webdriverio/desktop-mobile/issues/877
 
 const readAppTitleId = () => (globalThis as unknown as PageWindow).document.getElementById('app-title')?.id;
 
