@@ -258,6 +258,41 @@ describe('createMock', () => {
     });
   });
 
+  describe('withImplementation()', () => {
+    const callData = { calls: [['arg']], results: [{ type: 'return', value: 'temporary' }], invocationCallOrder: [0] };
+
+    it('should resolve with the callback result and sync the calls made in it', async () => {
+      mockExecute.mockResolvedValueOnce(undefined).mockResolvedValueOnce('temporary').mockResolvedValueOnce(callData);
+      const mock = await createMock('my_cmd', makeBrowser());
+
+      const result = await mock.withImplementation(
+        () => 'temporary',
+        ({ core }) => core.invoke('my_cmd'),
+      );
+
+      expect(result).toBe('temporary');
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
+    });
+
+    it('should sync the calls made in the callback in browser mode', async () => {
+      const execute = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce('temporary')
+        .mockResolvedValueOnce(callData);
+      const browser = { isMultiremote: false, __wdioBrowserMode__: true, execute } as unknown as WebdriverIO.Browser;
+      const mock = await createMock('my_cmd', browser);
+
+      const result = await mock.withImplementation(
+        () => 'temporary',
+        ({ core }) => core.invoke('my_cmd'),
+      );
+
+      expect(result).toBe('temporary');
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
+    });
+  });
+
   describe('wrapperMock', () => {
     it('should return the outer mock state', async () => {
       const browser = makeBrowser();

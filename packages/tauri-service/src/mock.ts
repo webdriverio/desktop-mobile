@@ -200,6 +200,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
         callbackFn as (...a: unknown[]) => unknown,
       ),
     );
+    await mock.update();
     return result as Awaited<ReturnValue>;
   };
 
@@ -384,6 +385,7 @@ async function createBrowserModeMock(command: string, browser: WebdriverIO.Brows
     if (result && typeof result === 'object' && '__wdioAsyncErr__' in result) {
       throw new Error((result as { __wdioAsyncErr__: string }).__wdioAsyncErr__);
     }
+    await mock.update();
     return result as Awaited<ReturnValue>;
   };
 

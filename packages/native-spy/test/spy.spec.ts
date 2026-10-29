@@ -366,6 +366,19 @@ describe('native-spy', () => {
 
       expect(mock()).toBe('original');
     });
+
+    it('should use the temporary implementation over mockRejectedValue, then restore the rejection', () => {
+      const mock = fn();
+      mock.mockRejectedValue(new Error('rejected'));
+
+      const result = mock.withImplementation(
+        () => 'temporary',
+        () => mock(),
+      );
+
+      expect(result).toBe('temporary');
+      expect(() => mock()).toThrow('rejected');
+    });
   });
 
   describe('mockReturnThis', () => {

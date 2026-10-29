@@ -3,7 +3,7 @@
 ## Overview
 
 The `tauri-plugin-wdio` is a **required** Tauri plugin that enables WebdriverIO testing of Tauri applications. It provides:
-- **Execute API** - Run JavaScript code from tests with access to Tauri APIs
+- **Execute API** - Run JavaScript in the app's frontend from tests, and call its commands
 - **Mocking Support** - Mock Tauri backend commands for isolated testing
 - **Log Forwarding** - Capture console logs from both frontend and backend
 - **Invoke Interception** - Enable mocking without backend command modifications
@@ -48,7 +48,7 @@ Only basic WebDriver operations work without the plugin:
 ### What Requires the Plugin
 
 All advanced testing features require the plugin:
-- ✅ `browser.tauri.execute()` - Execute JavaScript with Tauri APIs
+- ✅ `browser.tauri.execute()` - Run JavaScript in the frontend and call commands
 - ✅ `browser.tauri.mock()` - Mock backend commands
 - ✅ All mocking operations
 - ✅ Console log capture

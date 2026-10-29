@@ -254,15 +254,18 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
     const originalImplementation = implementationFn;
     const originalQueue = [...implementationQueue];
     const originalReturnThis = returnThis;
+    const originalRejectedValue = defaultRejectedValue;
     const restore = () => {
       implementationFn = originalImplementation;
       implementationQueue.splice(0, implementationQueue.length, ...originalQueue);
       returnThis = originalReturnThis;
+      defaultRejectedValue = originalRejectedValue;
     };
 
     implementationFn = fn;
     implementationQueue.length = 0;
     returnThis = false;
+    defaultRejectedValue = undefined;
 
     let result: R;
     try {

@@ -440,7 +440,8 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
     implFn: AbstractFn,
     callbackFn: (electron: ElectronType) => ReturnValue,
   ): Promise<Awaited<ReturnValue>> => {
-    return (await browserToUse.electron.execute<unknown, [MockAccessor, string, string, ExecuteOpts]>(
+    // Not an internal command, unlike the setters, so the callback's errors reject and the mocks sync afterwards.
+    return (await browserToUse.electron.execute<unknown, [MockAccessor, string, string]>(
       async (electron, accessor, implFnStr, callbackFnStr) => {
         let innerMock: { withImplementation?: (impl: unknown, cb: () => unknown) => unknown } | undefined;
         if (accessor.kind === 'api') {
@@ -453,22 +454,24 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
           };
           innerMock = cls.prototype[accessor.methodName] as typeof innerMock;
         }
+        if (typeof innerMock?.withImplementation !== 'function') {
+          const name =
+            accessor.kind === 'api'
+              ? `${accessor.apiName}.${accessor.funcName}`
+              : `${accessor.className}.${accessor.methodName}`;
+          throw new Error(`${name} is not mocked`);
+        }
         const impl = new Function(`return ${implFnStr}`)() as AbstractFn;
         const callback = new Function(`return ${callbackFnStr}`)() as AbstractFn;
         let result: unknown;
-        if (innerMock?.withImplementation) {
-          await innerMock.withImplementation(impl, async () => {
-            result = await callback(electron);
-          });
-        } else {
+        await innerMock.withImplementation(impl, async () => {
           result = await callback(electron);
-        }
+        });
         return result;
       },
       accessor,
       implFn.toString(),
       callbackFn.toString(),
-      { internal: true },
     )) as Awaited<ReturnValue>;
   };
 }

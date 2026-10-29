@@ -199,5 +199,33 @@ describe('TauriAdapter integration (synthetic window)', () => {
       expect(result).toBe('temporary');
       expect(win.__wdio_mocks__.my_cmd.mock.calls).toEqual([[{ a: 1 }]]);
     });
+
+    it('should reject without running the callback when the command is not mocked in this window', async () => {
+      const win = makeSyntheticWindow();
+      let called = false;
+      const callback = () => {
+        called = true;
+      };
+      const script = interceptor.buildWithImplementationScript('my_cmd', () => 'temporary', callback);
+
+      await expect(evalScript(script, win)).rejects.toMatchObject({ message: 'my_cmd is not mocked in this window' });
+      expect(called).toBe(false);
+    });
+  });
+});
+
+describe('ElectronAdapter integration (synthetic window)', () => {
+  const interceptor = createIpcInterceptor('electron');
+
+  it('should reject withImplementation without running the callback when the channel is not mocked', async () => {
+    const win = makeSyntheticWindow();
+    let called = false;
+    const callback = () => {
+      called = true;
+    };
+    const script = interceptor.buildWithImplementationScript('my-channel', () => 'temporary', callback);
+
+    await expect(evalScript(script, win)).rejects.toMatchObject({ message: 'my-channel is not mocked in this window' });
+    expect(called).toBe(false);
   });
 });

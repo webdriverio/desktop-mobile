@@ -399,6 +399,33 @@ describe('Mock API', () => {
 
         expect(executeResults).toStrictEqual(['temporary name']);
       });
+
+      it('should run as a user script, so callback errors reject and the mocks sync', async () => {
+        const mock = await createMock('app', 'getName');
+        mockExecute.mockClear();
+
+        await mock.withImplementation(
+          () => 'temporary name',
+          () => undefined,
+        );
+
+        expect(mockExecute.mock.calls[0]).not.toContainEqual({ internal: true });
+      });
+
+      it('should throw when the function is no longer mocked', async () => {
+        const mock = await createMock('app', 'getName');
+        const app = { getName: () => 'actual name' };
+        const electron = { app: app as unknown as Omit<ElectronType['app'], 'on'> };
+        await processExecuteCalls(electron);
+        app.getName = () => 'actual name';
+
+        await mock.withImplementation(
+          () => 'temporary name',
+          (electron) => electron.app.getName(),
+        );
+
+        await expect(processExecuteCalls(electron)).rejects.toMatchObject({ message: 'app.getName is not mocked' });
+      });
     });
   });
 });

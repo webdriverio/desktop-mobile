@@ -199,9 +199,12 @@ ${WDIO_MOCK_SETUP_SCRIPT}
   const impl = (${implFnSource});
   const callback = (${callbackFnSource});
   const tauri = _tauri ?? { core: { invoke: (cmd, args) => window.__TAURI_INTERNALS__.invoke(cmd, args) } };
-  let result;
   const mockObj = ${lookup};
-  await mockObj?.withImplementation?.(impl, async () => { result = await callback(tauri); });
+  if (typeof mockObj?.withImplementation !== 'function') {
+    throw new Error(${JSON.stringify(`${mockName} is not mocked in this window`)});
+  }
+  let result;
+  await mockObj.withImplementation(impl, async () => { result = await callback(tauri); });
   return result;
 }`;
   }

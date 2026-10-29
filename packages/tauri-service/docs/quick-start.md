@@ -308,7 +308,7 @@ describe('My Tauri App', () => {
   });
 
   it('should execute Tauri commands', async () => {
-    // Execute JavaScript in the Tauri frontend context with access to Tauri APIs
+    // Run JavaScript in the Tauri frontend and call a command with core.invoke
     const result = await browser.tauri.execute(({ core }) => {
       return core.invoke('get_platform_info');
     });

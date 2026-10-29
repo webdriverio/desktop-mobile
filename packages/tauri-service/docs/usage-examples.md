@@ -49,14 +49,14 @@ describe('Tauri App Interactions', () => {
 });
 ```
 
-## Tauri API Access
+## Running Code in the App
 
 ### Execute JavaScript in App Context
 
-Use `browser.tauri.execute()` to run JavaScript with access to Tauri APIs:
+Use `browser.tauri.execute()` to run JavaScript in the app's frontend. A function receives `{ core }`, and `core.invoke` calls your app's commands:
 
 ```typescript
-describe('Tauri API Access', () => {
+describe('Running code in the app', () => {
   it('should access window location', async () => {
     const url = await browser.tauri.execute(() => {
       return window.location.href;
@@ -64,7 +64,7 @@ describe('Tauri API Access', () => {
     console.log('Current URL:', url);
   });
 
-  it('should access Tauri invoke API', async () => {
+  it('should call a command', async () => {
     const result = await browser.tauri.execute(({ core }) => {
       return core.invoke('get_config');
     });

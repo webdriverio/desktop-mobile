@@ -128,7 +128,7 @@ describe('TauriAdapter', () => {
     it('is async and awaits the callback', () => {
       const script = adapter.buildWithImplementationScript('cmd', '() => {}', '() => {}');
       expect(script.trim()).toMatch(/^async/);
-      expect(script).toContain('await mockObj?.withImplementation');
+      expect(script).toContain('await mockObj.withImplementation');
       expect(script).toContain('async () =>');
       expect(script).toContain('callback');
     });

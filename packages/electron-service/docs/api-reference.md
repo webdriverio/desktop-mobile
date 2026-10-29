@@ -1008,7 +1008,7 @@ expect(name).toBe(appName);
 
 ### `withImplementation()`
 
-Overrides the original mock implementation temporarily while the callback is being executed. The electron object is passed into the callback in the same way as for [`execute()`](#execute).
+Overrides the original mock implementation temporarily while the callback is being executed. The electron object is passed into the callback in the same way as for [`execute()`](#execute). It rejects if the callback throws, or if the function is no longer mocked.
 
 **Signature:**
 ```ts
