@@ -6,7 +6,7 @@ const TAURI_COPY = 'packages/tauri-plugin-webdriver/src/platform/key_input.rs';
 const DIOXUS_COPY = 'packages/dioxus-embedded-driver/src/server/handlers/actions.rs';
 const SHARED_FUNCTIONS = ['map_special_key', 'regular_key', 'is_skipped_key', 'single_char', 'us_keyboard_key'];
 
-// A top-level function from its `fn` to its closing brace, so the crates' visibility and doc comments can differ.
+// The copies may differ in visibility and doc comments, so compare from `fn` to the closing brace.
 function functionSource(path: string, name: string) {
   const source = readFileSync(new URL(path, REPO_ROOT), 'utf8');
   return source.match(new RegExp(`^(?:pub(?:\\([a-z]+\\))? )?(fn ${name}\\b[\\s\\S]*?^\\})$`, 'm'))?.[1];

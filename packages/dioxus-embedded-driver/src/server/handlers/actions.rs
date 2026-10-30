@@ -283,7 +283,7 @@ impl Modifiers {
 
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
 /// tables and a US keyboard, so no key event carries a raw code point. A newline and a backspace
-/// character are the Enter and Backspace keys, as chromedriver sends them.
+/// character also press the Enter and Backspace keys.
 fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
   let mapped = match single_char(key)? {
     '\n' => ("Enter", "Enter", 13),
@@ -438,9 +438,8 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
   Some((code.to_string(), key_code, shifted))
 }
 
-/// JS for a `KeyboardEvent` of `event_type` for `value` on the active element, with the `key`,
-/// `code`, `keyCode` and Shift a browser sends. An uncanceled Enter keydown in an input commits its
-/// value, firing the `change` that Send Keys deferred.
+/// JS that dispatches a `KeyboardEvent` with the `key`, `code`, `keyCode` and Shift a browser sends
+/// to the active element. An uncanceled Enter keydown in an input also fires its pending `change`.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let (key, code, key_code, mods) = match map_special_key(value) {
     Some((key, code, key_code)) => (key, code.to_string(), key_code, mods),

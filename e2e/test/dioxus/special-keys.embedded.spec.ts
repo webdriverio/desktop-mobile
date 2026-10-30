@@ -14,7 +14,6 @@ async function keyTargetEvents() {
 
 describe('Dioxus special keys (embedded)', () => {
   beforeEach(async () => {
-    // A focusable element that logs its keydowns.
     await browser.execute(
       `if (!document.querySelector("#key-target")) {
         var target = document.createElement("div");
@@ -62,7 +61,7 @@ describe('Dioxus special keys (embedded)', () => {
     ]);
   });
 
-  it('should press Enter for a newline and Backspace for a backspace character, skip a carriage return, and type a tab', async () => {
+  it('should press Enter for a newline and Backspace for a backspace character, skip a carriage return, and send a tab as a character', async () => {
     await browser.keys(['\n', '\r', '\b', '\t']);
     expect((await keyTargetEvents()).map(({ key, code, keyCode }) => ({ key, code, keyCode }))).toEqual([
       { key: 'Enter', code: 'Enter', keyCode: 13 },
