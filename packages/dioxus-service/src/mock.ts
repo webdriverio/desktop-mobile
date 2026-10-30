@@ -158,7 +158,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
       await runInterceptorScript<void>(browserToUse, interceptor.buildUnregistrationScript(command));
     } finally {
       outerMockClear();
-      mockStore.deleteMock(`dioxus.${command}`);
+      mockStore.deleteMock(browserToUse, `dioxus.${command}`);
     }
     return mock;
   };
@@ -168,7 +168,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     return mock;
   };
 
-  mockStore.setMock(mock);
+  mockStore.setMock(browserToUse, mock);
   log.debug(`[${command}] Mock ready`);
   return mock;
 }

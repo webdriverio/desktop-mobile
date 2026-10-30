@@ -1,13 +1,14 @@
 import { forEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, isMultiremote } from '@wdio/native-utils';
+import type { DioxusMock, DioxusServiceAPI, MockLifecycleConfig } from '@wdio/native-types';
+import { createLogger, errorMessage, isMultiremote } from '@wdio/native-utils';
 
 import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
-import mockStore from './mockStore.js';
+import mockStore, { type MockOwner } from './mockStore.js';
+import { mergeOptions } from './serviceConfig.js';
 import type { DioxusCapabilities, DioxusServiceOptions } from './types.js';
 import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
 
@@ -15,9 +16,11 @@ const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
 
 export default class DioxusWorkerService {
+  private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
   private browserMode: boolean;
   private isEmbedded: boolean;
+  private mockLifecycle: MockLifecycleConfig;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
@@ -32,6 +35,7 @@ export default class DioxusWorkerService {
     this.devServerUrl = browserModeOptions?.devServerUrl ?? _options.devServerUrl;
     this.browserMode = (browserModeOptions?.mode ?? _options.mode) === 'browser';
     this.isEmbedded = (capOptions?.driverProvider ?? _options.driverProvider ?? 'embedded') === 'embedded';
+    this.mockLifecycle = mergeOptions(_options, capOptions);
     log.debug('DioxusWorkerService initialised');
   }
 
@@ -45,6 +49,7 @@ export default class DioxusWorkerService {
         `multiremote=${isMultiremote(browser)} ` +
         `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
+    this.browser = browser;
 
     let stage = 'init';
     try {
@@ -83,6 +88,38 @@ export default class DioxusWorkerService {
     }
   }
 
+  async beforeTest(_test: unknown, _context: unknown): Promise<void> {
+    const browser = this.browser;
+    if (!browser) {
+      return;
+    }
+    const { clearMocks, clearMocksPrefix, resetMocks, resetMocksPrefix, restoreMocks, restoreMocksPrefix } =
+      this.mockLifecycle;
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    const attempt = async (op: () => Promise<void>) => {
+      try {
+        await op();
+      } catch (error) {
+        failures.push(error);
+      }
+    };
+    if (clearMocks) {
+      await attempt(() => clearAllMocks(browser, clearMocksPrefix));
+    }
+    if (resetMocks) {
+      await attempt(() => resetAllMocks(browser, resetMocksPrefix));
+    }
+    if (restoreMocks) {
+      await attempt(() => restoreAllMocks(browser, restoreMocksPrefix));
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
+    }
+  }
+
   async after(): Promise<void> {
     log.debug('DioxusWorkerService.after — clearing window cache');
     clearWindowState();
@@ -102,17 +139,12 @@ export default class DioxusWorkerService {
       execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
         execute<R, A>(browser, script, ...args),
       mock: (command: string) => mock(command, browser),
-      clearAllMocks,
-      resetAllMocks,
-      restoreAllMocks,
+      clearAllMocks: (prefix?: string) => clearAllMocks(browser, prefix),
+      resetAllMocks: (prefix?: string) => resetAllMocks(browser, prefix),
+      restoreAllMocks: (prefix?: string) => restoreAllMocks(browser, prefix),
       isMockFunction: ((commandOrFn: unknown) => {
         if (typeof commandOrFn === 'string') {
-          try {
-            mockStore.getMock(`dioxus.${commandOrFn}`);
-            return true;
-          } catch {
-            return false;
-          }
+          return getMocksInScope(browser).some(([mockId]) => mockId === `dioxus.${commandOrFn}`);
         }
         return isMockFunction(commandOrFn);
       }) as DioxusServiceAPI['isMockFunction'],
@@ -187,4 +219,9 @@ export default class DioxusWorkerService {
       log.warn('Failed to clear stale mocks at session start:', err);
     }
   }
+}
+
+// A multiremote root's commands reach every instance, so it sees every instance's mocks.
+function getMocksInScope(browser: MockOwner): Array<[string, DioxusMock]> {
+  return isMultiremote(browser) ? mockStore.getAllMocks() : mockStore.getMocks(browser);
 }

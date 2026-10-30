@@ -224,7 +224,7 @@ devServerUrl: 'http://localhost:8080';
 
 ### `clearMocks` (boolean, optional)
 
-If `true`, all mock call history is cleared before each test. Equivalent to calling `browser.dioxus.clearAllMocks()` in a `beforeEach`.
+If `true`, all mock call history is cleared before each test. Equivalent to calling `browser.dioxus.clearAllMocks()` in a `beforeEach`. In multiremote, it clears every instance's mocks.
 
 **Default:** `false`
 
@@ -240,7 +240,7 @@ If set, only mocks whose command name starts with this prefix are cleared. Only 
 
 ### `resetMocks` (boolean, optional)
 
-If `true`, all mocks are reset (implementation + history) before each test.
+If `true`, all mocks are reset (implementation + history) before each test. Equivalent to `browser.dioxus.resetAllMocks()` in a `beforeEach`. In multiremote, it resets every instance's mocks.
 
 **Default:** `false`
 
@@ -256,7 +256,7 @@ If set, only mocks whose command name starts with this prefix are reset. Only us
 
 ### `restoreMocks` (boolean, optional)
 
-If `true`, all mocks are restored to their original implementations before each test.
+If `true`, all mocks are restored to their original implementations before each test. Equivalent to `browser.dioxus.restoreAllMocks()` in a `beforeEach`. In multiremote, it restores every instance's mocks.
 
 **Default:** `false`
 

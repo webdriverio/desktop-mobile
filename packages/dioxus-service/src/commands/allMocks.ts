@@ -2,9 +2,10 @@
 // service has created. Each is filterable by `prefix` so multi-suite
 // runs can isolate to e.g. all `dioxus.fs.*` mocks.
 
-import { type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
+import { forEachInstance } from '@wdio/native-core';
+import { errorMessage, isMultiremote, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
 
-import mockStore from '../mockStore.js';
+import mockStore, { type MockOwner } from '../mockStore.js';
 
 function matchesPrefix(name: string, prefix?: string): boolean {
   if (!prefix) {
@@ -16,20 +17,54 @@ function matchesPrefix(name: string, prefix?: string): boolean {
   return name.startsWith(prefix) || stripped.startsWith(prefix);
 }
 
-async function forEachMock(prefix: string | undefined, op: MockLifecycleOp): Promise<void> {
-  await runBulkMockOp(mockStore.getMocks(), op, { matches: (name) => matchesPrefix(name, prefix) });
+async function runOnMocks(
+  commandName: string,
+  browser: MockOwner,
+  op: MockLifecycleOp,
+  prefix: string | undefined,
+): Promise<void> {
+  const runOn = (owner: MockOwner) =>
+    runBulkMockOp(mockStore.getMocks(owner), op, { matches: (name) => matchesPrefix(name, prefix) });
+
+  if (!isMultiremote(browser)) {
+    await runOn(browser);
+    return;
+  }
+
+  const failures: Array<{ name: string; error: unknown }> = [];
+  const attempt = async (name: string, owner: MockOwner) => {
+    try {
+      await runOn(owner);
+    } catch (error) {
+      failures.push({ name, error });
+    }
+  };
+  await forEachInstance(browser, (instance, { name }) => attempt(String(name), instance));
+  await attempt('the multiremote root', browser);
+  if (failures.length === 0) {
+    return;
+  }
+  const message = `${commandName} failed on ${failures
+    .map(({ name, error }) => `${name}: ${errorMessage(error)}`)
+    .join('; ')}`;
+  throw failures.length === 1
+    ? new Error(message, { cause: failures[0].error })
+    : new AggregateError(
+        failures.map(({ error }) => error),
+        message,
+      );
 }
 
-export async function clearAllMocks(prefix?: string): Promise<void> {
-  await forEachMock(prefix, 'mockClear');
+export async function clearAllMocks(browser: MockOwner, prefix?: string): Promise<void> {
+  await runOnMocks('clearAllMocks', browser, 'mockClear', prefix);
 }
 
-export async function resetAllMocks(prefix?: string): Promise<void> {
-  await forEachMock(prefix, 'mockReset');
+export async function resetAllMocks(browser: MockOwner, prefix?: string): Promise<void> {
+  await runOnMocks('resetAllMocks', browser, 'mockReset', prefix);
 }
 
-export async function restoreAllMocks(prefix?: string): Promise<void> {
-  await forEachMock(prefix, 'mockRestore');
+export async function restoreAllMocks(browser: MockOwner, prefix?: string): Promise<void> {
+  await runOnMocks('restoreAllMocks', browser, 'mockRestore', prefix);
 }
 
 /**

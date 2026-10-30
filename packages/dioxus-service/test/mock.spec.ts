@@ -3,6 +3,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { markAsEmbedded } from '../src/commands/execute.js';
 import { createMock } from '../src/mock.js';
 import mockStore from '../src/mockStore.js';
+import { createFakeMultiremote } from './commands/multiremoteFakes.js';
 
 function makeBrowser(): WebdriverIO.Browser {
   const browser = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
@@ -41,10 +42,10 @@ describe('createMock', () => {
     expect(firstScript).toContain('__wdio_spy__');
   });
 
-  it('should store the mock in the singleton mockStore', async () => {
+  it('should store the mock under the browser it was created on', async () => {
     const browser = makeBrowser();
     const m = await createMock('greet', browser);
-    expect(mockStore.getMock('dioxus.greet')).toBe(m);
+    expect(mockStore.getMock(browser, 'dioxus.greet')).toBe(m);
   });
 
   it('should expose async lifecycle methods', async () => {
@@ -108,10 +109,10 @@ describe('createMock', () => {
   it('should remove the mock from the store on mockRestore', async () => {
     const browser = makeBrowser();
     const m = await createMock('greet', browser);
-    expect(mockStore.getMocks()).toHaveLength(1);
+    expect(mockStore.getMocks(browser)).toHaveLength(1);
 
     await m.mockRestore();
-    expect(mockStore.getMocks()).toHaveLength(0);
+    expect(mockStore.getMocks(browser)).toHaveLength(0);
   });
 
   it('should still remove the mock from the store when the restore call fails', async () => {
@@ -121,7 +122,7 @@ describe('createMock', () => {
 
     await expect(m.mockRestore()).rejects.toMatchObject({ message: 'invalid session id' });
 
-    expect(mockStore.getMocks()).toHaveLength(0);
+    expect(mockStore.getMocks(browser)).toHaveLength(0);
   });
 
   it('should keep the outer calls and the name when the reset call fails', async () => {
@@ -188,5 +189,51 @@ describe('createMock', () => {
 
     await m.update();
     expect(m.mock.calls).toEqual([['c']]);
+  });
+
+  describe('in multiremote', () => {
+    let fakes: ReturnType<typeof createFakeMultiremote>;
+
+    beforeEach(() => {
+      fakes = createFakeMultiremote();
+      for (const instance of [fakes.browserA, fakes.browserB]) {
+        markAsEmbedded(instance);
+      }
+    });
+
+    it('should give each instance its own mock of the same command, registered in its own app', async () => {
+      const mockA = await createMock('greet', fakes.browserA);
+      const mockB = await createMock('greet', fakes.browserB);
+
+      expect(mockB).not.toBe(mockA);
+      expect(fakes.browserA.execute).toHaveBeenCalledOnce();
+      expect(fakes.browserB.execute).toHaveBeenCalledOnce();
+      expect(mockStore.getMock(fakes.browserA, 'dioxus.greet')).toBe(mockA);
+      expect(mockStore.getMock(fakes.browserB, 'dioxus.greet')).toBe(mockB);
+    });
+
+    it("should leave the other instance's mock when one mock restores", async () => {
+      const mockA = await createMock('greet', fakes.browserA);
+      const mockB = await createMock('greet', fakes.browserB);
+      vi.mocked(fakes.browserB.execute).mockClear();
+
+      await mockA.mockRestore();
+
+      expect(fakes.browserB.execute).not.toHaveBeenCalled();
+      expect(mockStore.getAllMocks()).toEqual([['dioxus.greet', mockB]]);
+
+      await mockB.mockRestore();
+
+      expect(mockStore.getAllMocks()).toEqual([]);
+    });
+
+    it("should keep a mock made on the root apart from the instances'", async () => {
+      const mockA = await createMock('greet', fakes.browserA);
+      const rootMock = await createMock('greet', fakes.root as unknown as WebdriverIO.Browser);
+
+      await rootMock.mockRestore();
+
+      expect(mockStore.getAllMocks()).toEqual([['dioxus.greet', mockA]]);
+    });
   });
 });
