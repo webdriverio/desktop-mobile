@@ -175,6 +175,8 @@ Calls .mockRestore() on all mocked APIs before each test. This will restore the 
 Type: `boolean`
 Default: `false`
 
+**Multiremote:** each instance applies its own `clearMocks`, `resetMocks` and `restoreMocks` from its `wdio:electronServiceOptions` to its own mocks. An instance that doesn't set an option uses the service-level value, which also applies to mocks created on the multiremote root.
+
 ### `cdpBridgeTimeout`:
 
 Timeout in milliseconds for the node debugger port to open, and for each request to the debugger.
