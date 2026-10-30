@@ -7,6 +7,14 @@ import type { Mock, MockMetadata, MockResult } from './types.js';
 
 let globalCallId = 0;
 
+function isThenable(value: unknown): value is PromiseLike<unknown> {
+  return (
+    (typeof value === 'object' || typeof value === 'function') &&
+    value !== null &&
+    typeof (value as PromiseLike<unknown>).then === 'function'
+  );
+}
+
 export interface FnOptions<T extends (...args: unknown[]) => unknown> {
   original?: T;
 }
@@ -242,23 +250,35 @@ export function fn<T extends (...args: unknown[]) => unknown = (...args: unknown
     return this;
   };
 
-  mockFn.withImplementation = function <R>(this: Mock<T>, fn: T, callback: () => R): Awaited<ReturnType<T>> {
+  mockFn.withImplementation = function <R>(this: Mock<T>, fn: T, callback: () => R): R {
     const originalImplementation = implementationFn;
     const originalQueue = [...implementationQueue];
     const originalReturnThis = returnThis;
+    const originalRejectedValue = defaultRejectedValue;
+    const restore = () => {
+      implementationFn = originalImplementation;
+      implementationQueue.splice(0, implementationQueue.length, ...originalQueue);
+      returnThis = originalReturnThis;
+      defaultRejectedValue = originalRejectedValue;
+    };
 
     implementationFn = fn;
     implementationQueue.length = 0;
     returnThis = false;
+    defaultRejectedValue = undefined;
 
+    let result: R;
     try {
-      const result = callback() as Awaited<ReturnType<T>>;
-      return result;
-    } finally {
-      implementationFn = originalImplementation;
-      implementationQueue.splice(0, implementationQueue.length, ...originalQueue);
-      returnThis = originalReturnThis;
+      result = callback();
+    } catch (error) {
+      restore();
+      throw error;
     }
+    if (isThenable(result)) {
+      return Promise.resolve(result).finally(restore) as R;
+    }
+    restore();
+    return result;
   };
 
   return mockFn;

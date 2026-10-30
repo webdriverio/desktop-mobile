@@ -42,19 +42,11 @@ function getOrCreateDirectEvalClient(browser: WebdriverIO.Browser, port: number)
   return client;
 }
 
-/**
- * Execute JavaScript code in the Tauri frontend context with access to Tauri APIs
- * Matches Electron's execute pattern: accepts functions or strings, passes Tauri APIs as first parameter
- *
- * Supports per-call options via TauriExecuteOptions:
- * - execute(browser, script, { windowLabel: 'settings' })
- * - execute(browser, script, { windowLabel: 'popup' }, arg1, arg2)
- */
 export async function execute<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   browser: WebdriverIO.Browser,
   script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
   ...args: InnerArguments
-): Promise<ReturnValue> {
+): Promise<Awaited<ReturnValue>> {
   if (!browser) {
     throw new Error('WDIO browser is not yet initialised');
   }
@@ -109,7 +101,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
       try {
         return (await client.eval(wrapped, {
           windowLabel: executeOptions.windowLabel,
-        })) as ReturnValue;
+        })) as Awaited<ReturnValue>;
       } catch (error) {
         lastError = error;
         const message = error instanceof Error ? error.message : String(error);
@@ -232,10 +224,10 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
         throw new Error(parsed.__wdio_error__);
       }
       if (parsed.__wdio_undefined__) {
-        return undefined as unknown as ReturnValue;
+        return undefined as unknown as Awaited<ReturnValue>;
       }
       if (parsed.__wdio_value__ !== undefined) {
-        return parsed.__wdio_value__ as ReturnValue;
+        return parsed.__wdio_value__ as Awaited<ReturnValue>;
       }
     }
   } catch (parseError) {
@@ -244,5 +236,5 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
     );
   }
 
-  return result as ReturnValue;
+  return result as Awaited<ReturnValue>;
 }

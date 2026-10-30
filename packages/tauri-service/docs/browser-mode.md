@@ -353,7 +353,7 @@ The injection script runs after `browser.url()` resolves (document `readyState` 
 ### `withImplementation` in browser mode
 
 `mock.withImplementation(implFn, callbackFn)` serialises **both** functions via `.toString()` and runs them inside the browser page. This means:
-- The `callbackFn` runs in the browser page, **not** in the Node.js test-runner process.
+- The `callbackFn` runs in the browser page, **not** in the Node.js test-runner process. It receives `{ core: { invoke } }`, as in native mode.
 - It cannot close over test-runner variables, call WebdriverIO commands (`browser.$()`, `browser.click()`, etc.), or use Node.js APIs (`fs`, `path`, etc.) — those symbols do not exist in the page context.
 - Only use `withImplementation` when both functions are fully self-contained browser-side snippets.
 

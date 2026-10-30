@@ -99,7 +99,7 @@ export default class DioxusWorkerService {
       markAsEmbedded(browser);
     }
     const dioxus: DioxusServiceAPI = {
-      execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
+      execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
         execute<R, A>(browser, script, ...args),
       mock: (command: string) => mock(command, browser),
       clearAllMocks,

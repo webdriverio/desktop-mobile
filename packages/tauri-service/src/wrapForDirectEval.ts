@@ -1,4 +1,4 @@
-import { hasSemicolonOutsideQuotes, hasTopLevelArrow } from '@wdio/native-utils';
+import { hasSemicolonOutsideQuotes, isFunctionSource } from '@wdio/native-utils';
 
 /**
  * Wrap a user script for execution via the direct eval channel.
@@ -15,13 +15,8 @@ import { hasSemicolonOutsideQuotes, hasTopLevelArrow } from '@wdio/native-utils'
  */
 export function wrapScriptForDirectEval(script: string, argsJson: string): string {
   const trimmed = script.trim();
-  const isFunctionLike =
-    (trimmed.startsWith('(') && hasTopLevelArrow(trimmed)) ||
-    /^function[\s(]/.test(trimmed) ||
-    (/^async[\s(]/.test(trimmed) && (/^async\s+function\b/.test(trimmed) || hasTopLevelArrow(trimmed))) ||
-    /^[a-zA-Z_$]\w*\s*=>/.test(trimmed);
 
-  if (isFunctionLike) {
+  if (isFunctionSource(trimmed)) {
     return `var __cb = arguments[arguments.length - 1];
 (async () => {
   try {

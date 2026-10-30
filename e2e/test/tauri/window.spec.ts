@@ -18,11 +18,11 @@ interface ViewportSize {
 const WINDOW_RECT_TOLERANCE = 1;
 
 async function getNativeWindowMetrics(): Promise<NativeWindowMetrics> {
-  return browser.tauri.execute(({ core }) => core.invoke('get_window_bounds')) as Promise<NativeWindowMetrics>;
+  return browser.tauri.execute(({ core }) => core.invoke<NativeWindowMetrics>('get_window_bounds'));
 }
 
 async function getViewportSize(): Promise<ViewportSize> {
-  return browser.execute<ViewportSize>(() => ({
+  return browser.execute<ViewportSize, []>(() => ({
     width: window.innerWidth,
     height: window.innerHeight,
   }));

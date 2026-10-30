@@ -14,7 +14,7 @@ Enables cross-platform E2E testing of Tauri apps via the extensive WebdriverIO e
 - 🔧 Automatic Edge WebDriver management on Windows
 - 📦 Automatic Tauri binary path detection
 - 🌐 Cross-platform support (Windows, Linux, macOS)
-- 🔗 Full Tauri API access via `browser.tauri.execute()`
+- 🔗 Call your app's commands from tests via `browser.tauri.execute()`
 - 🧩 Mocking support for Tauri's invoke API
 - 📊 Backend and frontend log capture
 - 🖥️ Multiremote testing support

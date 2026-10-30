@@ -38,7 +38,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   browser: WebdriverIO.Browser,
   script: string | ((dx: DioxusAPIs, ...args: InnerArguments) => ReturnValue),
   ...args: InnerArguments
-): Promise<ReturnValue> {
+): Promise<Awaited<ReturnValue>> {
   if (typeof script === 'function') {
     const fnSource = script.toString();
     // Inline the args as JSON literals rather than relying on `arguments`.
@@ -90,7 +90,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
       });
     `;
     const raw = await browser.execute(wrapped);
-    return isEmbedded ? unwrapEmbeddedResult<ReturnValue>(raw) : (raw as ReturnValue);
+    return isEmbedded ? unwrapEmbeddedResult<Awaited<ReturnValue>>(raw) : (raw as Awaited<ReturnValue>);
   }
 
   // String-form scripts are passed through without an envelope. The embedded
@@ -98,7 +98,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   // object result. String-form cannot distinguish undefined from null on the
   // embedded driver — use function-form if that matters.
   const raw = await browser.execute(script, ...args);
-  return raw as ReturnValue;
+  return raw as Awaited<ReturnValue>;
 }
 
 /**

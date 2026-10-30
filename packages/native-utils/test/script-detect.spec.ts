@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasSemicolonOutsideQuotes, hasTopLevelArrow } from '../src/script-detect.js';
+import { hasSemicolonOutsideQuotes, hasTopLevelArrow, isFunctionSource } from '../src/script-detect.js';
 
 describe('hasSemicolonOutsideQuotes', () => {
   it('should return false for an empty string', () => {
@@ -159,5 +159,38 @@ describe('hasTopLevelArrow', () => {
 
   it('should return true for a top-level arrow after a template literal', () => {
     expect(hasTopLevelArrow('(`template`) => 1')).toBe(true);
+  });
+});
+
+describe('isFunctionSource', () => {
+  it.each([
+    '(tauri) => tauri.core.invoke("cmd")',
+    '({ core }, name) => core.invoke("greet", { name })',
+    'tauri => tauri.core.invoke("cmd")',
+    '$ => $.core.invoke("cmd")',
+    't$ => t$.core.invoke("cmd")',
+    '_t => _t',
+    'function (tauri) { return 1; }',
+    'function named(tauri) { return 1; }',
+    'async (tauri) => tauri.core.invoke("cmd")',
+    'async tauri => tauri.core.invoke("cmd")',
+    'async function (tauri) { return 1; }',
+    '  (t) => t  ',
+  ])('should return true for %s', (script) => {
+    expect(isFunctionSource(script)).toBe(true);
+  });
+
+  it.each([
+    '1 + 2',
+    'window.location.href',
+    'return 42',
+    'const x = 1; return x',
+    '(1 + 2)',
+    'document.title === "x"',
+    'asyncValue',
+    'functionName()',
+    'x >= 1',
+  ])('should return false for %s', (script) => {
+    expect(isFunctionSource(script)).toBe(false);
   });
 });

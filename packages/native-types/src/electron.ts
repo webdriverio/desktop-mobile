@@ -67,7 +67,7 @@ export interface ElectronServiceAPI {
   execute<ReturnValue, InnerArguments extends unknown[]>(
     script: string | ((electron: typeof Electron, ...innerArgs: InnerArguments) => ReturnValue),
     ...args: InnerArguments
-  ): Promise<ReturnValue>;
+  ): Promise<Awaited<ReturnValue>>;
   /**
    * Clear mocked Electron API function(s).
    *
@@ -427,10 +427,10 @@ export interface ElectronMockInstance extends Omit<Mock, MockOverride> {
   mockReset(): Promise<ElectronFunctionMock>;
   mockRestore(): Promise<ElectronFunctionMock>;
   mockReturnThis(): Promise<ElectronFunctionMock>;
-  withImplementation<ReturnValue, InnerArguments extends unknown[]>(
+  withImplementation<ReturnValue>(
     implFn: AbstractFn,
-    callbackFn: (electron: typeof Electron, ...innerArgs: InnerArguments) => ReturnValue,
-  ): Promise<ReturnValue>;
+    callbackFn: (electron: typeof Electron) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>>;
   mockName(name: string): ElectronFunctionMock;
   getMockName(): string;
   getMockImplementation(): AbstractFn | undefined;

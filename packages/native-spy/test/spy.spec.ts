@@ -333,6 +333,52 @@ describe('native-spy', () => {
 
       expect(mock()).toBe('queued');
     });
+
+    it('should keep the temporary implementation until an async callback settles', async () => {
+      const mock = fn();
+      mock.mockReturnValue('original');
+
+      const result = await mock.withImplementation(
+        () => 'temporary',
+        async () => {
+          await Promise.resolve();
+          return mock();
+        },
+      );
+
+      expect(result).toBe('temporary');
+      expect(mock()).toBe('original');
+    });
+
+    it('should restore the implementation after an async callback rejects', async () => {
+      const mock = fn();
+      mock.mockReturnValue('original');
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          async () => {
+            await Promise.resolve();
+            throw new Error('callback error');
+          },
+        ),
+      ).rejects.toMatchObject({ message: 'callback error' });
+
+      expect(mock()).toBe('original');
+    });
+
+    it('should use the temporary implementation over mockRejectedValue, then restore the rejection', () => {
+      const mock = fn();
+      mock.mockRejectedValue(new Error('rejected'));
+
+      const result = mock.withImplementation(
+        () => 'temporary',
+        () => mock(),
+      );
+
+      expect(result).toBe('temporary');
+      expect(() => mock()).toThrow('rejected');
+    });
   });
 
   describe('mockReturnThis', () => {

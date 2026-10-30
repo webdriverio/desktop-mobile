@@ -452,7 +452,7 @@ export default class TauriWorkerService {
       execute: async <ReturnValue, InnerArguments extends unknown[]>(
         script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
         ...args: InnerArguments
-      ): Promise<ReturnValue> => {
+      ): Promise<Awaited<ReturnValue>> => {
         if (browserMode) {
           throw new Error(
             'browser.tauri.execute() is not supported in browser mode. Use browser.execute() for frontend code or browser.tauri.mock() to intercept Tauri commands.',

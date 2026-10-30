@@ -1,5 +1,5 @@
 import type { Mock } from '@wdio/native-spy';
-import type { AbstractFn, ElectronFunctionMock, ExecuteOpts } from '@wdio/native-types';
+import type { AbstractFn, ElectronFunctionMock, ElectronType, ExecuteOpts } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 const log = createLogger('electron-service', 'mock');
@@ -436,10 +436,13 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
     return mock;
   };
 
-  mock.withImplementation = async (implFn, callbackFn) => {
-    // The wire result is the callback's (serialized) return value; TS can't connect an
-    // assigned arrow's body to the contextual generic, so assert it back.
-    return (await browserToUse.electron.execute<unknown, [MockAccessor, string, string, ExecuteOpts]>(
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (electron: ElectronType) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
+    // Unlike the setters, this isn't an internal command, so the callback's errors reject and the
+    // mocks sync afterwards.
+    return (await browserToUse.electron.execute<unknown, [MockAccessor, string, string]>(
       async (electron, accessor, implFnStr, callbackFnStr) => {
         let innerMock: { withImplementation?: (impl: unknown, cb: () => unknown) => unknown } | undefined;
         if (accessor.kind === 'api') {
@@ -452,22 +455,24 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
           };
           innerMock = cls.prototype[accessor.methodName] as typeof innerMock;
         }
+        if (typeof innerMock?.withImplementation !== 'function') {
+          const name =
+            accessor.kind === 'api'
+              ? `${accessor.apiName}.${accessor.funcName}`
+              : `${accessor.className}.${accessor.methodName}`;
+          throw new Error(`${name} is not mocked`);
+        }
         const impl = new Function(`return ${implFnStr}`)() as AbstractFn;
         const callback = new Function(`return ${callbackFnStr}`)() as AbstractFn;
-        let result: unknown | Promise<unknown>;
-        if (innerMock?.withImplementation) {
-          innerMock.withImplementation(impl, () => {
-            result = callback(electron);
-          });
-        } else {
-          result = callback(electron);
-        }
-        return (result as Promise<unknown>)?.then ? await result : result;
+        let result: unknown;
+        await innerMock.withImplementation(impl, async () => {
+          result = await callback(electron);
+        });
+        return result;
       },
       accessor,
       implFn.toString(),
       callbackFn.toString(),
-      { internal: true },
-    )) as ReturnType<typeof callbackFn>;
+    )) as Awaited<ReturnValue>;
   };
 }

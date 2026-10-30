@@ -296,7 +296,7 @@ async function syncWebDriverWindow(browser: WebdriverIO.Browser, bridge: CdpBrid
  */
 function installApi(browser: WebdriverIO.Browser, bridge: CdpBridge, mockStore: ElectrobunMockStore): void {
   const electrobun: ElectrobunServiceAPI = {
-    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
+    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
       execute<R, A>(bridge, script, ...args),
     switchWindow: async (label: string) => {
       await bridge.switchTarget(label);
@@ -334,7 +334,7 @@ function installApiW3C(
   // Safe cast: execute/mock only call `send('Runtime.evaluate', …)`, which WebDriverEvalBridge implements.
   const bridge = evalBridge as unknown as CdpBridge;
   const electrobun: ElectrobunServiceAPI = {
-    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<R> =>
+    execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
       execute<R, A>(bridge, script, ...args),
     switchWindow: async (label: string) => {
       const index = w3cWindowIndex(label);

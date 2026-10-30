@@ -120,7 +120,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   bridge: CdpBridge,
   script: string | ((eb: ElectrobunAPIs, ...args: InnerArguments) => ReturnValue),
   ...args: InnerArguments
-): Promise<ReturnValue> {
+): Promise<Awaited<ReturnValue>> {
   const expression =
     typeof script === 'function'
       ? `(async () => {
@@ -130,5 +130,5 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
         })()`
       : wrapStringScript(script);
 
-  return evaluateInActiveTarget<ReturnValue>(bridge, expression);
+  return evaluateInActiveTarget<Awaited<ReturnValue>>(bridge, expression);
 }

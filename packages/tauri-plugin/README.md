@@ -7,11 +7,11 @@
 [![npm version](https://img.shields.io/npm/v/@wdio/tauri-plugin)](https://www.npmjs.com/package/@wdio/tauri-plugin)
 [![npm downloads](https://img.shields.io/npm/dw/@wdio/tauri-plugin)](https://www.npmjs.com/package/@wdio/tauri-plugin)
 
-A Tauri v2 plugin providing execute and mocking capabilities for WebDriverIO testing. This plugin enables E2E tests to execute JavaScript code in the frontend context with access to Tauri APIs and mock backend commands for isolated testing.
+A Tauri v2 plugin providing execute and mocking capabilities for WebDriverIO testing. This plugin lets E2E tests run JavaScript in the app's frontend, call the app's commands, and mock those commands for isolated testing.
 
 ## Features
 
-- **Execute JavaScript**: Run arbitrary JavaScript code in the frontend context with access to Tauri APIs
+- **Execute JavaScript**: Run JavaScript in the frontend context, and call your app's commands with `core.invoke`
 - **Command Mocking**: Intercept and mock Tauri backend commands for testing (via JS-side invoke interception)
 - **Log Forwarding**: Forward backend and frontend logs to WebdriverIO's logger
 - **Window Management**: Get active window label, list windows, get window states
@@ -70,7 +70,7 @@ import '@wdio/tauri-plugin';
 The `@wdio/tauri-service` automatically uses this plugin when available, providing a high-level API:
 
 ```typescript
-// Execute JavaScript with Tauri APIs
+// Call a command from the frontend
 const result = await browser.tauri.execute(({ core }) => {
   return core.invoke('get_platform_info');
 });
@@ -94,8 +94,8 @@ await browser.tauri.restoreAllMocks();
 The plugin exposes `window.wdioTauri` with the following API:
 
 ```typescript
-// Execute JavaScript with Tauri APIs
-const result = await window.wdioTauri.execute((tauri) => tauri.core.invoke('get_platform_info'));
+// Run a function's source in this window; browser.tauri.execute() calls this for you
+const result = await window.wdioTauri.execute("({ core }) => core.invoke('get_platform_info')");
 
 // Wait for plugin initialization
 await window.wdioTauri.waitForInit();
@@ -108,13 +108,14 @@ window.wdioTauri.cleanupAll();
 
 ### Frontend API (`window.wdioTauri`)
 
-#### `execute(script, ...args): Promise<unknown>`
+#### `execute(script, options?, argsJson?): Promise<unknown>`
 
-Execute JavaScript code in the frontend context. A function receives `{ core: { invoke } }` as its first parameter, and `core.invoke` goes through any mocks set up with `browser.tauri.mock()`.
+Execute JavaScript code in the frontend context. `browser.tauri.execute()` calls this.
 
 **Parameters:**
-- `script`: Function or string to execute
-- `...args`: Additional arguments to pass to the script
+- `script`: Source code as a string. A function's source is called with `{ core: { invoke } }` and then the arguments, and `core.invoke` goes through any mocks set up in that window with `browser.tauri.mock()`. Any other string runs as a function body, with the arguments in `arguments`. A single expression, with no `;` and no leading statement keyword, returns its value.
+- `options.windowLabel`: The window to run the script in. Defaults to the window that calls `execute`.
+- `argsJson`: The arguments, as a JSON array string
 
 **Returns:** Promise resolving to the script's return value
 
