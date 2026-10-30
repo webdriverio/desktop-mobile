@@ -52,7 +52,7 @@ jobs:
       # Pinned by its own tag, as in the package-app build. The containers can't run
       # actions, so test.sh mounts this binary into them.
       - name: Install cargo-binstall
-        uses: cargo-bins/cargo-binstall@v1.25.3
+        uses: cargo-bins/cargo-binstall@v1.26.1
         with:
           version: ${{ github.action_ref }}
 
