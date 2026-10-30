@@ -84,6 +84,7 @@ describe('element-events.js', () => {
 
 beforeEach(() => {
   events.wdioTakePendingChange();
+  Reflect.deleteProperty(window, '__wdio_space_down');
   (document.activeElement as HTMLElement | null)?.blur();
 });
 
@@ -437,6 +438,19 @@ describe('Enter and Space on a button', () => {
     type($('#i'), 'x');
     events.wdioEnterKey();
     expect(log).toEqual(['change i=x', 'click b', 'submit f by b']);
+  });
+
+  it.each([
+    ['submit', ['click b', 'submit f by b']],
+    ['image', ['click b', 'submit f by b']],
+    ['reset', ['click b', 'reset f']],
+    ['button', ['click b']],
+  ])('should click a focused %s input once on Enter, without implicit submission', (inputType, expected) => {
+    render(`<form id="f"><input type="${inputType}" id="b" alt="go"><button id="s">go</button></form>`);
+    $('#b').focus();
+    log = [];
+    events.wdioEnterKey();
+    expect(log).toEqual(expected);
   });
 
   it.each([
