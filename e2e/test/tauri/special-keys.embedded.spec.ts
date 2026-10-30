@@ -338,6 +338,24 @@ describe('special keys (embedded)', () => {
     ]);
   });
 
+  it('should send and type the shifted character while Shift is held, as Chrome does', async () => {
+    await browser.$('#key-target').click();
+    await browser.execute('window.__keyTargetEvents = [];');
+    await browser.keys([Key.Shift, 'a', '1', ';']);
+    expect((await keyTargetEvents()).filter((event) => event.key !== 'Shift')).toEqual([
+      { key: 'A', code: 'KeyA', keyCode: 65, ...noModifiers, shiftKey: true },
+      { key: '!', code: 'Digit1', keyCode: 49, ...noModifiers, shiftKey: true },
+      { key: ':', code: 'Semicolon', keyCode: 186, ...noModifiers, shiftKey: true },
+    ]);
+
+    const input = browser.$('#keys-input');
+    await input.click();
+    await browser.keys([Key.Shift, 'a', '1', ';']);
+    expect(await input.getValue()).toBe('A!:');
+    await input.addValue(`${Key.Shift}b2/`);
+    expect(await input.getValue()).toBe('A!:B@?');
+  });
+
   it('should press Enter for a newline and Backspace for a backspace character, skip a carriage return, and type a tab', async () => {
     await browser.$('#key-target').click();
     await browser.execute('window.__keyTargetEvents = [];');
