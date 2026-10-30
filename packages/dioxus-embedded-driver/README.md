@@ -90,6 +90,20 @@ Key actions (`browser.keys()`) send the `key`, `code`, `keyCode` and `shiftKey` 
 
 Key events go to the focused element, even one inside an open shadow root. Element Send Keys (`setValue()`, `addValue()`) sets the text without keyboard events, so `keydown` handlers don't see it.
 
+Unless a `keydown` handler cancels it, Enter in a key action acts as in Chrome, on whichever element has focus after the `keydown`:
+
+- In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form. From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button unless that button is disabled; in a form without one, it submits the form if it has no other input of those types. From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
+- On a button (a `<button>`, or a submit, image, reset or button input), it clicks the button, which then submits or resets its form.
+
+Space on a button clicks it after the `keyup`, as in Chrome, if the `keydown` and the `keyup` both went to the button and no handler cancelled either.
+
+Each click is a single `click` event, without pointer or mouse events, and a `submit` that no handler cancels navigates the page. Unlike in Chrome:
+
+- Enter doesn't break the line in a textarea or contenteditable, because key actions don't type text yet ([#906](https://github.com/webdriverio/desktop-mobile/issues/906)).
+- Enter on a colour or file input or a `<select>` sends only its key events.
+- With Control, Alt or Meta held, Enter and Space send only their key events.
+- The driver sends no `keypress` events, so a `keypress` handler can't cancel Enter.
+
 One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The W3C tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 
 ## See Also

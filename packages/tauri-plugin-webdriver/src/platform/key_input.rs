@@ -190,8 +190,6 @@ pub fn deep_active_element_js(var: &str) -> String {
   )
 }
 
-/// The input types that take typed text: the array `element-events.js` declares, for scripts that
-/// don't include that file.
 fn text_field_types_js() -> &'static str {
   const DECLARATION: &str = "const WDIO_TEXT_FIELD_TYPES = ";
   let start =
@@ -396,10 +394,8 @@ fn radio_step_js(forward: bool) -> String {
   )
 }
 
-/// JS for Enter, on the element focused after the keydown, as a browser's keypress goes there: a
-/// line break in a textarea or contenteditable (Shift+Enter inserts a `<br>` rather than a new
-/// paragraph); in an input, the `change` the field owes, then the submission of its form; on a
-/// button, a click.
+/// JS for Enter's default action, on the element focused after the keydown: a line break in a
+/// textarea or contenteditable, a click on a button, or an input's `change` and form submission.
 fn enter_js(shift: bool) -> String {
   let focused = deep_active_element_js("activeEl");
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
