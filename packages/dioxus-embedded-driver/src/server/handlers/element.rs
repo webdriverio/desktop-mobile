@@ -584,7 +584,7 @@ fn send_keys_script(js_var: &str, text: &str) -> String {
                   return 'unfocused';
               }}
               var textField = receiver.tagName === 'TEXTAREA' || (receiver.tagName === 'INPUT' &&
-                  ['text', 'search', 'url', 'tel', 'email', 'password', 'number'].indexOf(receiver.type) !== -1);
+                  WDIO_TEXT_FIELD_TYPES.includes(receiver.type));
               if (receiver.isContentEditable) {{
                   if (!wasFocused) {{
                       var range = document.createRange();

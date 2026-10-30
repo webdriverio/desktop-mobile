@@ -190,12 +190,23 @@ pub fn deep_active_element_js(var: &str) -> String {
   )
 }
 
+/// The input types that take typed text: the array `element-events.js` declares, for scripts that
+/// don't include that file.
+fn text_field_types_js() -> &'static str {
+  const DECLARATION: &str = "const WDIO_TEXT_FIELD_TYPES = ";
+  let start =
+    ELEMENT_EVENTS_JS.find(DECLARATION).expect("element-events.js declares WDIO_TEXT_FIELD_TYPES")
+      + DECLARATION.len();
+  let end = start + ELEMENT_EVENTS_JS[start..].find(';').expect("the declaration ends with a ;");
+  &ELEMENT_EVENTS_JS[start..end]
+}
+
 /// JS expression that is true when `el` takes typed text: a textarea or a text-like input.
 pub fn is_text_field_js(el: &str) -> String {
+  let types = text_field_types_js();
   format!(
-        "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && \
-         ['text', 'search', 'url', 'tel', 'email', 'password', 'number'].indexOf({el}.type) !== -1))"
-    )
+    "({el}.tagName === 'TEXTAREA' || ({el}.tagName === 'INPUT' && {types}.indexOf({el}.type) !== -1))"
+  )
 }
 
 /// JS expression that is true when typing may change `el`'s value: a text field that is neither

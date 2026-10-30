@@ -4,14 +4,12 @@
 // tauri-plugin-wdio-webdriver and wdio-dioxus-embedded-driver each keep an identical copy.
 // test/scripts/element-events.spec.ts tests it and checks the copies match.
 
+// The inputs that take typed text. Chromium counts only these for implicit submission, where the
+// HTML spec also counts the date and time inputs. Tauri's key_input.rs reads this declaration.
+const WDIO_TEXT_FIELD_TYPES = ['text', 'search', 'url', 'tel', 'email', 'password', 'number'];
+
 const WDIO_CLEARABLE_INPUT_TYPES = [
-  'text',
-  'search',
-  'url',
-  'tel',
-  'email',
-  'password',
-  'number',
+  ...WDIO_TEXT_FIELD_TYPES,
   'date',
   'datetime-local',
   'month',
@@ -23,10 +21,6 @@ const WDIO_CLEARABLE_INPUT_TYPES = [
 ];
 
 const WDIO_VALUE_CONTROL_TYPES = ['color', 'date', 'datetime-local', 'month', 'range', 'time', 'week'];
-
-// The inputs Chromium counts for implicit submission: Enter in one submits a form without a submit
-// button only if the form has no other. The HTML spec also counts the date and time inputs.
-const WDIO_TEXT_FIELD_TYPES = ['text', 'search', 'url', 'tel', 'email', 'password', 'number'];
 
 // Enter on these inputs clicks them in a browser instead of submitting their form.
 const WDIO_CLICKED_ON_ENTER_TYPES = ['button', 'color', 'file', 'image', 'reset', 'submit'];
