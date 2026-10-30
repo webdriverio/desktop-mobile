@@ -86,9 +86,9 @@ WDIO_EMBEDDED_PORT=4445 npx wdio run wdio.conf.ts
 
 ## Keyboard Events
 
-Key actions (`browser.keys()`) send the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. For a newline and a backspace character, chromedriver sends the same `key` but an empty `code`. A tab is sent as a character, with the Tab key's `code` and `keyCode`, because the Tab key doesn't move focus in this driver yet ([#889](https://github.com/webdriverio/desktop-mobile/issues/889)).
+Key actions (`browser.keys()`) send the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, a tab the Tab key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. For a newline, a tab and a backspace character, chromedriver sends the same `key` but an empty `code`.
 
-Key events go to the focused element, even one inside an open shadow root. Element Send Keys (`setValue()`, `addValue()`) sets the text without keyboard events, so `keydown` handlers don't see it. It writes special keys in the text, such as `Key.Enter`, into the element rather than pressing them ([#912](https://github.com/webdriverio/desktop-mobile/issues/912)).
+Key events go to the focused element, even one inside an open shadow root. Element Send Keys (`setValue()`, `addValue()`) sets the text without keyboard events, so `keydown` handlers don't see it. It writes special keys in the text, such as `Key.Enter` or a tab, into the element rather than pressing them ([#912](https://github.com/webdriverio/desktop-mobile/issues/912)).
 
 Unless a `keydown` handler cancels it, Enter in a key action acts as in Chrome, on whichever element has focus after the `keydown`:
 - In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form. From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button unless that button is disabled; in a form without one, it submits the form if it has no other input of those types. From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
@@ -103,6 +103,17 @@ Each click is a single `click` event, without pointer or mouse events, and a `su
 - Enter and Space send only their key events to a button inside a closed shadow root, which the driver can't reach.
 - With Control, Alt or Meta held, Enter and Space send only their key events.
 - The driver sends no `keypress` events, so a `keypress` handler can't cancel Enter.
+
+Unless a `keydown` handler cancels it, Tab in a key action moves focus to the next element, and Shift+Tab to the previous one, in Chrome's order: elements with a positive `tabindex`, lowest first, then in tree order those with `tabindex="0"` and those focusable by default, such as links, buttons and form fields. Tab skips disabled, `inert` and hidden elements, and everything outside an open modal `<dialog>`. It goes through open shadow roots and slots, and stops once on a radio group: on its checked radio, or if Tab can't stop on one, on the first radio it reaches. It starts from whichever element has focus after the `keydown`, and from an element it skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order. Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls, and the next Tab or Shift+Tab comes back in at the start or the end.
+
+Tab selects the value of a text, search, URL, telephone, email, password or number input it moves to. The field focus leaves fires any `change` that Element Send Keys left pending.
+
+Unlike in Chrome, Tab:
+- Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.
+- Stops once on an iframe, or on an audio or video element's controls, and doesn't move inside them.
+- Doesn't stop on a scrolling box with nothing focusable inside it, or on an image map's areas.
+- Starts from the focused element, never from where a click on text landed.
+- Sends only its key events with Control, Alt or Meta held. Chrome on macOS moves focus with Alt held.
 
 One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The W3C tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 

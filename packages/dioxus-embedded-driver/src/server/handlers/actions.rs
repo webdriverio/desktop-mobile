@@ -282,11 +282,12 @@ impl Modifiers {
 // include its own files. test/scripts/key-tables.spec.ts checks the copies match.
 
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
-/// tables and a US keyboard. A newline and a backspace character also press the Enter and
-/// Backspace keys.
+/// tables and a US keyboard. A newline, a tab and a backspace character also press the Enter, Tab
+/// and Backspace keys.
 fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
   let mapped = match single_char(key)? {
     '\n' => ("Enter", "Enter", 13),
+    '\t' => ("Tab", "Tab", 9),
     '\u{8}' => ("Backspace", "Backspace", 8),
     '\u{E000}' => ("Unidentified", "", 0),
     '\u{E001}' => ("Cancel", "", 3),
@@ -398,8 +399,6 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
     return Some((format!("Digit{ch}"), ch as u32, false));
   }
   let (code, key_code, shifted) = match ch {
-    // Workaround for #889; drop once Tab moves focus
-    '\t' => ("Tab", 9, false),
     ' ' => ("Space", 32, false),
     ')' => ("Digit0", 48, true),
     '!' => ("Digit1", 49, true),
@@ -438,7 +437,7 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
   Some((code.to_string(), key_code, shifted))
 }
 
-/// JS that dispatches a `KeyboardEvent` to the focused element, then runs Enter's or Space's
+/// JS that dispatches a `KeyboardEvent` to the focused element, then runs Enter's, Space's or Tab's
 /// default action, as a browser would.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let (key, code, key_code, mods) = match map_special_key(value) {
@@ -458,6 +457,7 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
       let call = if event_type == "keydown" { "wdioSpaceDown" } else { "wdioSpaceUp" };
       format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(t, e.defaultPrevented || {held}); }}")
     }
+    ("keydown", "Tab") => format!("{{\n{ELEMENT_EVENTS_JS}\nwdioTabKey(e); }}"),
     _ => String::new(),
   };
   format!(
@@ -1013,6 +1013,21 @@ mod tests {
   }
 
   #[test]
+  fn key_event_js_runs_the_shared_tab_key_action_after_a_tab_keydown() {
+    let m = Modifiers::default();
+    for mods in [m, Modifiers { shift: true, ..m }, Modifiers { ctrl: true, ..m }] {
+      let js = key_event_js("keydown", "\u{E004}", mods);
+      let dispatch = js.find("t.dispatchEvent(e);").unwrap();
+      let tab = js.find("wdioTabKey(e);").unwrap();
+      assert!(dispatch < tab, "{js}");
+      assert!(js.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\nwdioTabKey(")), "{js}");
+    }
+    for js in [key_event_js("keyup", "\u{E004}", m), key_event_js("keydown", "\u{E007}", m)] {
+      assert!(!js.contains("wdioTabKey(e)"), "{js}");
+    }
+  }
+
+  #[test]
   fn key_event_js_translates_special_key_codepoints() {
     // WDIO sends Key.Enter as the PUA codepoint \u{E007}; the DOM key must be "Enter", not the raw char.
     let m = Modifiers::default();
@@ -1101,7 +1116,6 @@ mod tests {
       ("~", ("Backquote", 192, true)),
       ("[", ("BracketLeft", 219, false)),
       ("\\", ("Backslash", 220, false)),
-      ("\t", ("Tab", 9, false)),
       ("]", ("BracketRight", 221, false)),
       ("'", ("Quote", 222, false)),
       ("\"", ("Quote", 222, true)),
@@ -1156,8 +1170,10 @@ mod tests {
     assert!(newline.contains("wdioEnterKey();"));
     let backspace = key_event_js("keydown", "\u{8}", m);
     assert!(backspace.contains(r#"key:"Backspace",code:"Backspace",keyCode:8,"#), "{backspace}");
+    assert_eq!(map_special_key("\t"), map_special_key("\u{E004}"));
     let tab = key_event_js("keydown", "\t", m);
-    assert!(tab.contains(r#"key:"\t",code:"Tab",keyCode:9,"#), "{tab}");
+    assert!(tab.contains(r#"key:"Tab",code:"Tab",keyCode:9,"#), "{tab}");
+    assert!(tab.contains("wdioTabKey(e);"), "{tab}");
   }
 
   #[test]
