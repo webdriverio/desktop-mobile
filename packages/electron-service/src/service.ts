@@ -1,4 +1,5 @@
 import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
+import { requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
@@ -441,7 +442,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         let rootBridge = NO_BRIDGE;
 
         for (const instanceName of mrBrowser.instances) {
-          const mrInstance = mrBrowser.getInstance(instanceName);
+          const mrInstance = requireInstance(mrBrowser, instanceName);
           const caps =
             (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
             (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
@@ -456,7 +457,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         mrBrowser.electron = getElectronAPI.call(this, mrBrowser as unknown as WebdriverIO.Browser, rootBridge);
 
         for (const instance of mrBrowser.instances) {
-          const mrInstance = mrBrowser.getInstance(instance);
+          const mrInstance = requireInstance(mrBrowser, instance);
           const caps =
             (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
             (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
@@ -590,7 +591,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       (browser as unknown as Record<string, boolean>).__wdioElectronBrowserMode__ = true;
 
       for (const instanceName of mrBrowser.instances) {
-        const instance = mrBrowser.getInstance(instanceName);
+        const instance = requireInstance(mrBrowser, instanceName);
         const caps =
           (instance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
           (instance.requestedCapabilities as WebdriverIO.Capabilities);
