@@ -54,6 +54,10 @@ export interface TauriMockInstance extends Omit<Mock, MockOverride> {
   mockReset(): Promise<TauriMock>;
   mockRestore(): Promise<TauriMock>;
   mockReturnThis(): Promise<TauriMock>;
+  /**
+   * Runs `callbackFn` in the app's webview with `implFn` in place, then restores the previous implementation.
+   * Resolves with the callback's result once it settles.
+   */
   withImplementation<ReturnValue>(
     implFn: AbstractFn,
     callbackFn: (tauri: TauriAPIs) => ReturnValue,
