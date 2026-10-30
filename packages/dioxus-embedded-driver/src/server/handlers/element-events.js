@@ -4,8 +4,7 @@
 // tauri-plugin-wdio-webdriver and wdio-dioxus-embedded-driver each keep an identical copy.
 // test/scripts/element-events.spec.ts tests it and checks the copies match.
 
-// Chromium's implicit submission counts only these, where the HTML spec also counts the date and
-// time inputs. Tauri's key_input.rs reads this declaration.
+// Tauri's key_input.rs reads this declaration.
 const WDIO_TEXT_FIELD_TYPES = ['text', 'search', 'url', 'tel', 'email', 'password', 'number'];
 
 const WDIO_CLEARABLE_INPUT_TYPES = [
@@ -25,8 +24,7 @@ const WDIO_VALUE_CONTROL_TYPES = ['color', 'date', 'datetime-local', 'month', 'r
 // The buttons Enter and Space click in a browser.
 const WDIO_KEY_ACTIVATED_INPUT_TYPES = ['button', 'image', 'reset', 'submit'];
 
-// Enter on these inputs clicks them in a browser instead of submitting their form. The drivers
-// click only the buttons, since clicking a colour or file input opens a picker.
+// The drivers click only the buttons, as clicking a colour or file input opens a picker.
 const WDIO_CLICKED_ON_ENTER_TYPES = [...WDIO_KEY_ACTIVATED_INPUT_TYPES, 'color', 'file'];
 
 const WDIO_CLICK_FOCUSABLE =
@@ -109,7 +107,7 @@ function wdioCommitOnEnter(el) {
 }
 
 // Implicit submission, as Chromium runs it. From a text field, a disabled default button blocks
-// it, even with an enabled button after it. `click()` sends a lone `click` event, as Chrome does.
+// it, even with an enabled button after it.
 function wdioSubmitOnEnter(el) {
   const form = el.tagName === 'INPUT' ? el.form : undefined;
   if (!form || WDIO_CLICKED_ON_ENTER_TYPES.includes(el.type)) {

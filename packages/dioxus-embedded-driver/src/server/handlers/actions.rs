@@ -438,11 +438,8 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
   Some((code.to_string(), key_code, shifted))
 }
 
-/// JS that dispatches a `KeyboardEvent` with the `key`, `code`, `keyCode` and Shift a browser sends
-/// to the focused element, looking through open shadow roots. An uncanceled Enter keydown acts on
-/// the element focused after it, as a browser's keypress goes there: in an input, it fires its
-/// pending `change` and submits its form; on a button, it clicks it. Space clicks a button after
-/// the keyup, if neither key event was canceled and both went to it.
+/// JS that dispatches a `KeyboardEvent` to the focused element, then runs the default action a
+/// browser would. Enter's goes to the element focused after the keydown, as a keypress does.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let (key, code, key_code, mods) = match map_special_key(value) {
     Some((key, code, key_code)) => (key, code.to_string(), key_code, mods),

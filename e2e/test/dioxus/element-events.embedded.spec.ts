@@ -35,8 +35,7 @@ async function fillChangeScratch(initialValue = '') {
   );
 }
 
-// A form holding `fields` that logs its key, change, click and submit events, and cancels its
-// submit so the page stays.
+// Cancels the form's submit so the page doesn't navigate.
 async function fillFormScratch(fields: string) {
   await fillChangeScratch();
   await browser.execute(
