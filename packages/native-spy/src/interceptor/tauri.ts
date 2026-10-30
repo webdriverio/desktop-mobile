@@ -193,8 +193,7 @@ ${WDIO_MOCK_SETUP_SCRIPT}
 
   buildWithImplementationScript(mockName: string, implFnSource: string, callbackFnSource: string): string {
     const lookup = mockLookupExpr(mockName);
-    // Browser mode calls this with no argument, so build the same { core: { invoke } } from the
-    // mocked IPC
+    // Browser mode passes no argument, so build the same `{ core: { invoke } }` from the mocked IPC.
     return `async (_tauri) => {
   const impl = (${implFnSource});
   const callback = (${callbackFnSource});

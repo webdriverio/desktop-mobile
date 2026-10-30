@@ -440,7 +440,8 @@ export async function buildMockMethods(mock: ElectronFunctionMock, opts: BuildMo
     implFn: AbstractFn,
     callbackFn: (electron: ElectronType) => ReturnValue,
   ): Promise<Awaited<ReturnValue>> => {
-    // Not an internal command, unlike the setters, so the callback's errors reject and the mocks sync afterwards.
+    // Unlike the setters, this isn't an internal command, so the callback's errors reject and the
+    // mocks sync afterwards.
     return (await browserToUse.electron.execute<unknown, [MockAccessor, string, string]>(
       async (electron, accessor, implFnStr, callbackFnStr) => {
         let innerMock: { withImplementation?: (impl: unknown, cb: () => unknown) => unknown } | undefined;

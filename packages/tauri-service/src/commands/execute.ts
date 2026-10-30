@@ -42,14 +42,6 @@ function getOrCreateDirectEvalClient(browser: WebdriverIO.Browser, port: number)
   return client;
 }
 
-/**
- * Execute JavaScript code in the Tauri frontend context
- * Matches Electron's execute pattern: accepts functions or strings, passes `{ core: { invoke } }` as first parameter
- *
- * Supports per-call options via TauriExecuteOptions:
- * - execute(browser, script, withExecuteOptions({ windowLabel: 'settings' }))
- * - execute(browser, script, withExecuteOptions({ windowLabel: 'popup' }), arg1, arg2)
- */
 export async function execute<ReturnValue, InnerArguments extends unknown[] = unknown[]>(
   browser: WebdriverIO.Browser,
   script: string | ((tauri: TauriAPIs, ...innerArgs: InnerArguments) => ReturnValue),
