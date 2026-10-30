@@ -9,26 +9,16 @@
 //     the standard WDIO behaviour where the body is wrapped as
 //     `function() { ${body} }` and `arguments` is bound to the spread args.
 //
-//   - `runInterceptorScript`: the internal helper consumed by mock.ts. The
-//     DioxusAdapter scripts are arrow-function literals (e.g. `(_dx) => { ... }`)
-//     which must be *invoked*, not just defined. This helper calls them with
-//     `window.__WDIO_DIOXUS__` and awaits what they return.
+//   - `runInterceptorScript`: runs DioxusAdapter's mock scripts, which are
+//     function literals, so it calls them with `window.__WDIO_DIOXUS__`.
 //
 // No per-call windowLabel option yet (#722): scripts run in the current window.
 
 import type { DioxusAPIs } from '@wdio/native-types';
 
-// Tracks which browser instances are using the embedded driver so that
-// unwrapEmbeddedResult is only applied on that path. External WebDriver
-// results are raw JS values and must not be treated as envelopes.
+// Sessions on the embedded driver, where function-form execute() results come back in the envelope.
 const embeddedBrowsers = new WeakSet<WebdriverIO.Browser>();
 
-/**
- * Mark a browser session as using the embedded driver. Called by the worker
- * service during `before()` when `driverProvider === 'embedded'`. Once
- * marked, execute() unwraps the __wdio_value__ envelope from function-form
- * results. runInterceptorScript() always uses the envelope.
- */
 export function markAsEmbedded(browser: WebdriverIO.Browser): void {
   embeddedBrowsers.add(browser);
 }
@@ -89,7 +79,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
       });
     `;
     const raw = await browser.execute(wrapped);
-    return isEmbedded ? unwrapEmbeddedResult<Awaited<ReturnValue>>(raw) : (raw as Awaited<ReturnValue>);
+    return isEmbedded ? unwrapEnvelope<Awaited<ReturnValue>>(raw) : (raw as Awaited<ReturnValue>);
   }
 
   // String-form scripts are passed through without an envelope. The embedded
@@ -115,22 +105,16 @@ export async function runInterceptorScript<T>(browser: WebdriverIO.Browser, scri
       throw new Error(String(envelope.__wdio_error__));
     }
   }
-  return (Array.isArray(raw) ? raw.map((r) => unwrapEmbeddedResult(r)) : unwrapEmbeddedResult(raw)) as T;
+  return (Array.isArray(raw) ? raw.map((r) => unwrapEnvelope(r)) : unwrapEnvelope(raw)) as T;
 }
 
-// The embedded polling loop wraps results in { __wdio_value__: result } so
-// undefined can be distinguished from null across the JSON boundary.
-// JSON.stringify omits undefined object properties, so:
-//   undefined result → { __wdio_value__: undefined } → "{}" (key absent)
-//   null result     → { __wdio_value__: null }      → '{"__wdio_value__":null}' (key present)
-// This mirrors the pattern in @wdio/tauri-service.
-function unwrapEmbeddedResult<T>(raw: unknown): T {
+// The envelope tells undefined from null: JSON drops an undefined property, so `{}` means undefined.
+function unwrapEnvelope<T>(raw: unknown): T {
   if (raw !== null && typeof raw === 'object' && !Array.isArray(raw)) {
     const envelope = raw as Record<string, unknown>;
     if ('__wdio_value__' in envelope) {
       return envelope.__wdio_value__ as T;
     }
-    // Key absent: JSON.stringify omitted it because the JS result was undefined
     return undefined as unknown as T;
   }
   return raw as T;

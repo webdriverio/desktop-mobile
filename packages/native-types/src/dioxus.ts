@@ -64,8 +64,8 @@ export interface DioxusMockInstance extends Omit<Mock, MockOverride> {
   mockRestore(): Promise<DioxusMock>;
   mockReturnThis(): Promise<DioxusMock>;
   /**
-   * Use `implFn` while `callbackFn` runs in the app's webview, then restore the previous implementation.
-   * Resolves with the callback's result, after any promise it returns settles.
+   * Runs `callbackFn` in the app's webview with `implFn` in place, then restores the previous implementation.
+   * Resolves with the callback's result once it settles.
    */
   withImplementation<ReturnValue>(
     implFn: AbstractFn,

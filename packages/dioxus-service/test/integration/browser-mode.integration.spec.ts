@@ -17,8 +17,7 @@ vi.mock('@wdio/native-utils', async (importOriginal) => ({
 
 const DEV_SERVER = 'http://localhost:8080';
 
-// Only the IPC injection script saves the app's invoke before patching it. Every
-// mock script references __WDIO_DIOXUS__, since that's what it's called with.
+// Only the IPC injection script saves the app's invoke before patching it.
 function isInjectionScript(arg: unknown): boolean {
   return typeof arg === 'string' && arg.includes('__wdio_original_invoke__');
 }

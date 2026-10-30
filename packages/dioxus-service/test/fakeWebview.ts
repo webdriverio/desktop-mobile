@@ -12,8 +12,8 @@ export function makeWebview(): Webview {
   return win;
 }
 
-// Runs scripts as the embedded driver does: awaits the result and sends it back as JSON.
-// A script that rejects comes back as the `name: message` string guest-js reports.
+// Mimics the embedded driver: awaits each script, returns its result through JSON,
+// and reports a throw as guest-js does (`name: message`).
 export function makeWebviewBrowser(win: Webview): WebdriverIO.Browser {
   const browser = {
     execute: vi.fn(async (script: string) => {
