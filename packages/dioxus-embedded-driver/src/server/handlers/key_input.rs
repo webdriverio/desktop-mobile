@@ -1,7 +1,11 @@
 //! Key events and their default actions. Synthetic key events have none, so after an uncanceled
 //! keydown the driver types, deletes or breaks the line itself.
 
-use super::actions::{map_special_key, regular_key, single_char, Modifiers as ModifierState};
+use std::collections::BTreeSet;
+
+use super::actions::{
+  is_skipped_key, map_special_key, regular_key, single_char, Modifiers as ModifierState,
+};
 use super::element::ELEMENT_EVENTS_JS;
 
 // The non-test functions below `key_script` are copies of tauri-plugin-wdio-webdriver's
@@ -10,7 +14,7 @@ use super::element::ELEMENT_EVENTS_JS;
 
 /// JS dispatching one keydown or keyup of a WebDriver key value and running its default action,
 /// picking the script as the Tauri driver's `dispatch_key_event` does.
-pub(super) fn key_script(key: &str, is_down: bool, modifiers: &ModifierState) -> String {
+pub fn key_script(key: &str, is_down: bool, modifiers: &ModifierState) -> String {
   match map_special_key(key) {
     Some((js_key, js_code, key_code)) if is_printable_key(js_key) => {
       build_printable_key_script(js_key, js_code, key_code, is_down, modifiers)
@@ -29,7 +33,7 @@ fn is_printable_key(js_key: &str) -> bool {
 }
 
 /// A JS string literal for `text` that is safe to splice into a script.
-pub(super) fn js_string(text: &str) -> String {
+fn js_string(text: &str) -> String {
   serde_json::Value::from(text).to_string()
 }
 
@@ -331,6 +335,254 @@ fn insert_text_js(el: &str, text_js: &str) -> String {
   )
 }
 
+/// The WebDriver null key; in Element Send Keys it releases every held modifier.
+const NULL_KEY: &str = "\u{E000}";
+
+/// Whether a WebDriver key value is a left- or right-hand Shift/Control/Alt/Meta.
+fn is_modifier_key(key: &str) -> bool {
+  matches!(map_special_key(key), Some(("Shift" | "Control" | "Alt" | "Meta", _, _)))
+}
+
+/// One segment of an element send-keys request: a run of printable text, or a single special key.
+#[derive(Debug, Clone, PartialEq, Eq)]
+enum KeySegment {
+  Text(String),
+  Special(String),
+}
+
+/// Split send-keys text into printable runs and individual special keys, preserving order.
+fn segment_send_keys(text: &str) -> Vec<KeySegment> {
+  let mut segments = Vec::new();
+  let mut run = String::new();
+  for ch in text.chars() {
+    let key = ch.to_string();
+    if is_skipped_key(&key) {
+      continue;
+    }
+    if map_special_key(&key).is_some() {
+      if !run.is_empty() {
+        segments.push(KeySegment::Text(std::mem::take(&mut run)));
+      }
+      segments.push(KeySegment::Special(key));
+    } else {
+      run.push(ch);
+    }
+  }
+  if !run.is_empty() {
+    segments.push(KeySegment::Text(run));
+  }
+  segments
+}
+
+/// The modifier keys held down. Each key is tracked on its own, so releasing right Control leaves
+/// Control set while left Control is still held.
+#[derive(Debug, Clone, Default)]
+struct HeldModifiers {
+  keys: BTreeSet<String>,
+}
+
+impl HeldModifiers {
+  /// Record a key press; returns whether it newly held a modifier.
+  fn press(&mut self, key: &str) -> bool {
+    is_modifier_key(key) && self.keys.insert(key.to_string())
+  }
+
+  /// Record a key release; returns whether it released a held modifier.
+  fn release(&mut self, key: &str) -> bool {
+    self.keys.remove(key)
+  }
+
+  /// The modifier flags for the keys still held.
+  fn state(&self) -> ModifierState {
+    let mut state = ModifierState::default();
+    for key in &self.keys {
+      match map_special_key(key) {
+        Some(("Control", _, _)) => state.ctrl = true,
+        Some(("Shift", _, _)) => state.shift = true,
+        Some(("Alt", _, _)) => state.alt = true,
+        Some(("Meta", _, _)) => state.meta = true,
+        _ => {}
+      }
+    }
+    state
+  }
+
+  /// The held modifier keys in code-point order.
+  fn keys(&self) -> Vec<String> {
+    self.keys.iter().cloned().collect()
+  }
+}
+
+/// One step of an element send-keys request.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum SendKeysStep {
+  /// Printable text inserted into the element.
+  Text(String),
+  /// A key event for the focused element, dispatched as the actions path dispatches it.
+  Key { value: String, is_down: bool, modifiers: ModifierState },
+}
+
+/// Send-keys text as ordered steps: a modifier stays held until it's pressed again, the null key or
+/// the end, and text typed under Control, Alt or Meta is pressed key by key as shortcuts.
+pub fn plan_send_keys(text: &str) -> Vec<SendKeysStep> {
+  let mut steps = Vec::new();
+  let mut held = HeldModifiers::default();
+
+  for segment in segment_send_keys(text) {
+    let modifiers = held.state();
+    match segment {
+      KeySegment::Text(run) if modifiers.ctrl || modifiers.alt || modifiers.meta => {
+        for ch in run.chars() {
+          push_key_press(&mut steps, &ch.to_string(), modifiers);
+        }
+      }
+      KeySegment::Text(run) => push_text(&mut steps, &run),
+      KeySegment::Special(key) if key == NULL_KEY => {
+        release_held_modifiers(&mut steps, &mut held);
+      }
+      KeySegment::Special(key) if is_modifier_key(&key) => {
+        let is_down = held.press(&key);
+        if !is_down {
+          held.release(&key);
+        }
+        steps.push(SendKeysStep::Key { value: key, is_down, modifiers: held.state() });
+      }
+      KeySegment::Special(key) => push_key_press(&mut steps, &key, modifiers),
+    }
+  }
+  release_held_modifiers(&mut steps, &mut held);
+  steps
+}
+
+/// The text a plan types, without its key presses: what a non-typeable form control's value is set to.
+pub fn typed_text(steps: &[SendKeysStep]) -> String {
+  steps
+    .iter()
+    .filter_map(|step| match step {
+      SendKeysStep::Text(run) => Some(run.as_str()),
+      SendKeysStep::Key { .. } => None,
+    })
+    .collect()
+}
+
+fn push_text(steps: &mut Vec<SendKeysStep>, run: &str) {
+  if let Some(SendKeysStep::Text(last)) = steps.last_mut() {
+    last.push_str(run);
+  } else {
+    steps.push(SendKeysStep::Text(run.to_string()));
+  }
+}
+
+fn push_key_press(steps: &mut Vec<SendKeysStep>, value: &str, modifiers: ModifierState) {
+  for is_down in [true, false] {
+    steps.push(SendKeysStep::Key { value: value.to_string(), is_down, modifiers });
+  }
+}
+
+/// Key-up every held modifier in code-point order, as the spec's "clear the modifier key state"
+/// releases them. Each key-up carries the flags left after its own release.
+fn release_held_modifiers(steps: &mut Vec<SendKeysStep>, held: &mut HeldModifiers) {
+  for key in held.keys() {
+    held.release(&key);
+    steps.push(SendKeysStep::Key { value: key, is_down: false, modifiers: held.state() });
+  }
+}
+
+/// The text to type when a plan presses no keys, so the whole request fits in one script.
+pub fn plain_text(steps: &[SendKeysStep]) -> Option<&str> {
+  match steps {
+    [] => Some(""),
+    [SendKeysStep::Text(text)] => Some(text),
+    _ => None,
+  }
+}
+
+/// JS starting send keys: sets a value control's value to `typed`, or focuses the element once,
+/// records that a text field owes a `change`, and types `plain` if given. Returns `{ status }` and
+/// never throws.
+pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&str>) -> String {
+  let active_element = deep_active_element_js("activeEl");
+  let receiver_editable = is_editable_text_field_js("receiver");
+  let typed = js_string(typed);
+  let finish = match plain {
+    None => "return { status: 'focused' };".to_string(),
+    Some(text) => {
+      let insert_text =
+        if text.is_empty() { String::new() } else { insert_text_js("receiver", &js_string(text)) };
+      format!(
+        r"{insert_text}
+                return {{ status: 'done' }};"
+      )
+    }
+  };
+  format!(
+    r"(function() {{
+                {ELEMENT_EVENTS_JS}
+                var el = window.{js_var};
+                if (!el || !el.isConnected) {{
+                    return {{ status: 'stale' }};
+                }}
+                if (el.tagName === 'INPUT' && el.type === 'file') {{
+                    return {{ status: 'file' }};
+                }}
+                var valueControlStatus = wdioSetValueControl(el, {typed});
+                if (valueControlStatus) {{
+                    return {{ status: valueControlStatus }};
+                }}
+                {active_element}
+                var wasFocused = activeEl === el;
+                // Text inside a contenteditable is focused through its editing host.
+                var focusTarget = el;
+                while (focusTarget.isContentEditable && focusTarget.parentElement
+                    && focusTarget.parentElement.isContentEditable) {{
+                    focusTarget = focusTarget.parentElement;
+                }}
+                wdioCaretToEnd(el);
+                wdioFocus(focusTarget);
+                if (!wasFocused && el.isContentEditable) {{
+                    try {{
+                        var range = document.createRange();
+                        range.selectNodeContents(el);
+                        range.collapse(false);
+                        var selection = window.getSelection();
+                        selection.removeAllRanges();
+                        selection.addRange(range);
+                    }} catch (e) {{}}
+                }}
+                {active_element}
+                // The body, focus-delegating hosts and an editing host holding the element count as focus.
+                var focused = el === document.body || el === document.documentElement || activeEl === focusTarget
+                    || wdioContains(el, activeEl);
+                if (!focused) {{
+                    return {{ status: 'unfocused' }};
+                }}
+                var receiver = activeEl;
+                if ({receiver_editable}) {{
+                    // A field that focus was delegated to is only known now, so its caret moves after focus.
+                    if (receiver !== el) {{
+                        wdioCaretToEnd(receiver);
+                    }}
+                    wdioRecordPendingChange(receiver, receiver.value);
+                }}
+                {finish}
+            }})()"
+  )
+}
+
+/// JS inserting a printable run at the focused element's selection, as typing does, so text follows
+/// focus when a key moves it.
+pub fn build_insert_run_script(run: &str) -> String {
+  let active_element = deep_active_element_js("activeEl");
+  let insert_text = insert_text_js("activeEl", &js_string(run));
+  format!(
+    r"(function() {{
+                {active_element}
+                {insert_text}
+                return true;
+            }})()"
+  )
+}
+
 #[cfg(test)]
 mod tests {
   use super::*;
@@ -536,5 +788,167 @@ mod tests {
     let literal = js_string("a'\"\\\n");
     assert!(!literal.contains('\n'));
     assert_eq!(serde_json::from_str::<String>(&literal).unwrap(), "a'\"\\\n");
+  }
+
+  const ENTER_KEY: &str = "\u{E007}";
+  const SPACE_KEY: &str = "\u{E00D}";
+  const BACKSPACE_KEY: &str = "\u{E003}";
+  const PAGE_DOWN_KEY: &str = "\u{E00F}";
+  const SHIFT_KEY: &str = "\u{E008}";
+  const CONTROL_KEY: &str = "\u{E009}";
+  const CONTROL_RIGHT_KEY: &str = "\u{E051}";
+  const ALT_KEY: &str = "\u{E00A}";
+
+  fn key(value: &str, is_down: bool, modifiers: ModifierState) -> SendKeysStep {
+    SendKeysStep::Key { value: value.to_string(), is_down, modifiers }
+  }
+
+  fn text(run: &str) -> SendKeysStep {
+    SendKeysStep::Text(run.to_string())
+  }
+
+  /// The script after the shared helpers, so a test can't match their definitions.
+  fn after_helpers(script: &str) -> &str {
+    &script[script.find(ELEMENT_EVENTS_JS).unwrap() + ELEMENT_EVENTS_JS.len()..]
+  }
+
+  #[test]
+  fn send_keys_types_plain_text_in_one_step() {
+    assert_eq!(plan_send_keys("hello"), vec![text("hello")]);
+    assert_eq!(plan_send_keys(""), vec![]);
+    assert_eq!(plain_text(&plan_send_keys("hello")), Some("hello"));
+    assert_eq!(plain_text(&plan_send_keys("")), Some(""));
+  }
+
+  #[test]
+  fn send_keys_presses_special_keys_newlines_and_backspaces_between_text_runs() {
+    let steps = plan_send_keys(&format!("x{ENTER_KEY}a\r\nb\u{8}{SPACE_KEY}c{PAGE_DOWN_KEY}"));
+    assert_eq!(
+      steps,
+      vec![
+        text("x"),
+        key(ENTER_KEY, true, NONE),
+        key(ENTER_KEY, false, NONE),
+        text("a"),
+        key("\n", true, NONE),
+        key("\n", false, NONE),
+        text("b"),
+        key("\u{8}", true, NONE),
+        key("\u{8}", false, NONE),
+        key(SPACE_KEY, true, NONE),
+        key(SPACE_KEY, false, NONE),
+        text("c"),
+        key(PAGE_DOWN_KEY, true, NONE),
+        key(PAGE_DOWN_KEY, false, NONE),
+      ]
+    );
+    assert_eq!(plain_text(&steps), None);
+    assert_eq!(typed_text(&steps), "xabc");
+  }
+
+  #[test]
+  fn send_keys_never_types_a_special_key() {
+    let everything: String = ('\u{E000}'..='\u{E05D}').flat_map(|ch| ['x', ch]).collect();
+    for step in plan_send_keys(&everything) {
+      if let SendKeysStep::Text(run) = step {
+        assert!(run.chars().all(|ch| ch == 'x'), "{run:?}");
+      }
+    }
+  }
+
+  #[test]
+  fn send_keys_holds_modifiers_until_the_end() {
+    assert_eq!(
+      plan_send_keys(&format!("{SHIFT_KEY}ab{ENTER_KEY}")),
+      vec![
+        key(SHIFT_KEY, true, SHIFT),
+        text("ab"),
+        key(ENTER_KEY, true, SHIFT),
+        key(ENTER_KEY, false, SHIFT),
+        key(SHIFT_KEY, false, NONE),
+      ]
+    );
+  }
+
+  #[test]
+  fn send_keys_presses_text_typed_under_control_as_shortcuts_until_the_null_key() {
+    assert_eq!(
+      plan_send_keys(&format!("{CONTROL_KEY}a{BACKSPACE_KEY}{NULL_KEY}b")),
+      vec![
+        key(CONTROL_KEY, true, CTRL),
+        key("a", true, CTRL),
+        key("a", false, CTRL),
+        key(BACKSPACE_KEY, true, CTRL),
+        key(BACKSPACE_KEY, false, CTRL),
+        key(CONTROL_KEY, false, NONE),
+        text("b"),
+      ]
+    );
+    assert_eq!(plan_send_keys(&format!("a{NULL_KEY}b")), vec![text("ab")]);
+    assert_eq!(plan_send_keys(NULL_KEY), vec![]);
+  }
+
+  #[test]
+  fn send_keys_toggles_a_repeated_modifier_and_releases_in_code_point_order() {
+    let alt_shift = ModifierState { alt: true, ..SHIFT };
+    let ctrl_shift = ModifierState { ctrl: true, ..SHIFT };
+    assert_eq!(
+      plan_send_keys(&format!("{ALT_KEY}{SHIFT_KEY}{ALT_KEY}{CONTROL_KEY}")),
+      vec![
+        key(ALT_KEY, true, ALT),
+        key(SHIFT_KEY, true, alt_shift),
+        key(ALT_KEY, false, SHIFT),
+        key(CONTROL_KEY, true, ctrl_shift),
+        key(SHIFT_KEY, false, CTRL),
+        key(CONTROL_KEY, false, NONE),
+      ]
+    );
+  }
+
+  #[test]
+  fn send_keys_keeps_control_while_the_other_hand_holds_it() {
+    let steps = plan_send_keys(&format!("{CONTROL_KEY}{CONTROL_RIGHT_KEY}a"));
+    assert_eq!(steps[2], key("a", true, CTRL));
+    assert_eq!(steps[4..], [key(CONTROL_KEY, false, CTRL), key(CONTROL_RIGHT_KEY, false, NONE)]);
+  }
+
+  #[test]
+  fn send_keys_start_script_sets_a_value_control_before_focusing() {
+    let script = build_send_keys_start_script("__wdio_elem_abc", "2026-10-21", Some("2026-10-21"));
+    let body = after_helpers(&script);
+    let stale = body.find("return { status: 'stale' };").unwrap();
+    let file = body.find("el.type === 'file'").unwrap();
+    let set = body.find(&format!("wdioSetValueControl(el, {});", js_string("2026-10-21"))).unwrap();
+    let focus = body.find("wdioFocus(focusTarget);").unwrap();
+    assert!(stale < file && file < set && set < focus, "{body}");
+    assert!(!body.contains("throw"));
+  }
+
+  #[test]
+  fn send_keys_start_script_types_only_into_an_editable_text_field_or_editor() {
+    let script = build_send_keys_start_script("__wdio_elem_abc", "x", Some("x"));
+    let body = after_helpers(&script);
+    let focus = body.find("wdioFocus(focusTarget);").unwrap();
+    let unfocused = body.find("return { status: 'unfocused' };").unwrap();
+    let record = body.find("wdioRecordPendingChange(receiver, receiver.value);").unwrap();
+    let insert = body.find("var insertedText = \"x\";").unwrap();
+    assert!(focus < unfocused && unfocused < record && record < insert, "{body}");
+    let typed = &body[insert..];
+    assert!(typed.contains(&format!("if ({}) {{", is_editable_text_field_js("receiver"))));
+    assert!(typed.contains("} else if (receiver.isContentEditable) {"));
+    assert!(!body.contains("new Event('change'"));
+    assert!(body.contains("return { status: 'done' };"));
+  }
+
+  #[test]
+  fn send_keys_start_script_leaves_the_steps_for_later_scripts_when_it_presses_keys() {
+    let script = build_send_keys_start_script("__wdio_elem_abc", "x", None);
+    let body = after_helpers(&script);
+    assert!(body.contains("return { status: 'focused' };"));
+    assert!(!body.contains("insertedText"));
+    let run = build_insert_run_script("x");
+    assert!(run.contains("var activeEl = document.activeElement || document.body;"));
+    assert!(run.contains(&format!("if ({}) {{", is_editable_text_field_js("activeEl"))));
+    assert!(run.contains("inputType: 'insertText'"));
   }
 }
