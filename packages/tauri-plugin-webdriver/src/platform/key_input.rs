@@ -190,8 +190,7 @@ pub fn deep_active_element_js(var: &str) -> String {
   )
 }
 
-/// The input types that take typed text: the array `element-events.js` declares, for scripts that
-/// don't include that file.
+/// `WDIO_TEXT_FIELD_TYPES` from `element-events.js`, for scripts that don't include the file.
 fn text_field_types_js() -> &'static str {
   const DECLARATION: &str = "const WDIO_TEXT_FIELD_TYPES = ";
   let start =
