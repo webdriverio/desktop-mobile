@@ -143,6 +143,31 @@ describe('per-call windowLabel option', () => {
   });
 });
 
+describe('mocks across windows', () => {
+  it('should send mock calls to the window the mock was registered in', async function () {
+    if (isMultiremote(browser) || !(await browser.tauri.listWindows()).includes('splash')) {
+      this.skip();
+    }
+
+    await browser.tauri.switchWindow('main');
+    const mock = await browser.tauri.mock('get_platform_info');
+    try {
+      await browser.tauri.switchWindow('splash');
+      await mock.mockReturnValue('from main');
+      const result = await browser.tauri.execute(
+        ({ core }) => core.invoke('get_platform_info'),
+        withExecuteOptions({ windowLabel: 'main' }),
+      );
+      expect(result).toBe('from main');
+      await mock.update();
+      expect(mock).toHaveBeenCalledTimes(1);
+    } finally {
+      await mock.mockRestore();
+      await browser.tauri.switchWindow('main');
+    }
+  });
+});
+
 describe('application window tests', () => {
   before(async () => {
     const windows = await browser.tauri.listWindows();

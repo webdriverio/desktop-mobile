@@ -99,6 +99,8 @@ const content = await browser.tauri.execute(({ core }) => core.invoke('read_file
 expect(content).toBe('mocked file content');
 ```
 
+**Note:** A mock stays in the window that was selected when `mock()` created it, even after `switchWindow()`. Each command has one mock, so `mock()` on a command that's already mocked returns that mock, in its original window. To mock the command in another window instead, call `mockRestore()`, switch windows and call `mock()` again.
+
 **Browser Mode:** Works in browser mode — this is the primary testing API in browser mode. The `command` argument is the Tauri command name (matching what the frontend passes to `invoke()`). Trigger the command via a UI interaction or `browser.execute(() => window.__TAURI_INTERNALS__.invoke('command-name'))`, then call `update()` and assert.
 
 ```typescript
@@ -220,7 +222,7 @@ See [Deeplink Testing](./deeplink-testing.md) for full usage guide.
 
 ### `browser.tauri.switchWindow(label)`
 
-Switch the active Tauri window for subsequent operations. Changes the window that `browser.tauri.execute()` and other Tauri-specific operations target.
+Switch the active Tauri window for subsequent operations. Changes the window that `browser.tauri.execute()` and other Tauri-specific operations target. Existing mocks stay in the window they were created in.
 
 **Parameters:**
 - `label` (string) - The window label to switch to (e.g., `'main'`, `'settings'`)

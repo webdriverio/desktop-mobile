@@ -40,6 +40,15 @@ describe('TauriAdapter integration (synthetic window)', () => {
       evalScript(script, win);
       expect(win.__wdio_mocks__.my_cmd.mock.calls).toHaveLength(0);
     });
+
+    it('should return the label of the window it ran in', () => {
+      const win = {
+        ...makeSyntheticWindow(),
+        __TAURI_INTERNALS__: { metadata: { currentWindow: { label: 'settings' } } },
+      };
+      const script = interceptor.buildRegistrationScript('my_cmd');
+      expect(evalScript(script, win)).toBe('settings');
+    });
   });
 
   describe('buildCallDataReadScript', () => {

@@ -35,6 +35,11 @@ describe('TauriAdapter', () => {
       const script = adapter.buildRegistrationScript('cmd');
       expect(script).toContain('__wdio_spy__');
     });
+
+    it('returns the current window label', () => {
+      const script = adapter.buildRegistrationScript('cmd');
+      expect(script).toContain('currentWindow?.label');
+    });
   });
 
   describe('buildCallDataReadScript', () => {

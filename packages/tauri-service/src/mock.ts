@@ -1,12 +1,14 @@
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { AbstractFn, TauriMock } from '@wdio/native-types';
+import type { AbstractFn, TauriExecuteOptions, TauriMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 import { execute as tauriExecute } from './commands/execute.js';
 import mockStore from './mockStore.js';
+import { getCurrentWindowLabel } from './window.js';
 
 const log = createLogger('tauri-service', 'mock');
 const interceptor = createIpcInterceptor('tauri');
+const WINDOW_CLOSED = Symbol('window closed');
 
 function isBrowserMode(browser: WebdriverIO.Browser): boolean {
   return !!(browser as unknown as Record<string, unknown>).__wdioBrowserMode__;
@@ -60,10 +62,37 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
     },
   });
 
-  await tauriExecute<void>(browserToUse, interceptor.buildRegistrationScript(command));
+  const registeredWindowLabel = await tauriExecute<string | undefined>(
+    browserToUse,
+    interceptor.buildRegistrationScript(command),
+  );
+  const windowLabel =
+    typeof registeredWindowLabel === 'string' && registeredWindowLabel.length > 0
+      ? registeredWindowLabel
+      : getCurrentWindowLabel(browserToUse);
+  const executeOptions = { windowLabel, __wdioOptions__: true } as TauriExecuteOptions;
+  const executeInMockWindow = <T>(script: string): Promise<T> =>
+    tauriExecute<T, [TauriExecuteOptions]>(browserToUse, script, executeOptions);
+  // Once the mock's window closes, its in-app half is gone with it. update, mockClear, mockReset and
+  // mockRestore then skip the app, since there's nothing left there to sync, clear or remove.
+  // The setters and withImplementation need to throw if the window doesn't exist, so they call
+  // executeInMockWindow directly.
+  const executeUnlessWindowClosed = async <T>(script: string): Promise<T | typeof WINDOW_CLOSED> => {
+    try {
+      return await executeInMockWindow<T>(script);
+    } catch (error) {
+      if (error instanceof Error && error.message.includes(`'${windowLabel}' not found`)) {
+        return WINDOW_CLOSED;
+      }
+      throw error;
+    }
+  };
 
   mock.update = async () => {
-    const raw = await tauriExecute<unknown>(browserToUse, interceptor.buildCallDataReadScript(command));
+    const raw = await executeUnlessWindowClosed<unknown>(interceptor.buildCallDataReadScript(command));
+    if (raw === WINDOW_CLOSED) {
+      return mock;
+    }
     const syncData = interceptor.parseCallData(raw);
 
     const existingCount = originalMock.calls.length;
@@ -105,50 +134,50 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
 
   mock.mockImplementation = async (implFn: AbstractFn) => {
     const s = interceptor.serializeHandler(implFn);
-    await tauriExecute<void>(browserToUse, interceptor.buildSetImplementationScript(command, s));
+    await executeInMockWindow<void>(interceptor.buildSetImplementationScript(command, s));
     outerMockImplementation(implFn);
     return mock;
   };
 
   mock.mockImplementationOnce = async (implFn: AbstractFn) => {
     const s = interceptor.serializeHandler(implFn);
-    await tauriExecute<void>(browserToUse, interceptor.buildSetImplementationScript(command, s, true));
+    await executeInMockWindow<void>(interceptor.buildSetImplementationScript(command, s, true));
     outerMockImplementationOnce(implFn);
     return mock;
   };
 
   mock.mockReturnValue = async (value: unknown) => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockReturnValue', value));
+    await executeInMockWindow<void>(interceptor.buildInnerSetterScript(command, 'mockReturnValue', value));
     return mock;
   };
 
   mock.mockReturnValueOnce = async (value: unknown) => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockReturnValueOnce', value));
+    await executeInMockWindow<void>(interceptor.buildInnerSetterScript(command, 'mockReturnValueOnce', value));
     return mock;
   };
 
   mock.mockResolvedValue = async (value: unknown) => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockResolvedValue', value));
+    await executeInMockWindow<void>(interceptor.buildInnerSetterScript(command, 'mockResolvedValue', value));
     return mock;
   };
 
   mock.mockResolvedValueOnce = async (value: unknown) => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockResolvedValueOnce', value));
+    await executeInMockWindow<void>(interceptor.buildInnerSetterScript(command, 'mockResolvedValueOnce', value));
     return mock;
   };
 
   mock.mockRejectedValue = async (value: unknown) => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockRejectedValue', value));
+    await executeInMockWindow<void>(interceptor.buildInnerSetterScript(command, 'mockRejectedValue', value));
     return mock;
   };
 
   mock.mockRejectedValueOnce = async (value: unknown) => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerSetterScript(command, 'mockRejectedValueOnce', value));
+    await executeInMockWindow<void>(interceptor.buildInnerSetterScript(command, 'mockRejectedValueOnce', value));
     return mock;
   };
 
   mock.mockClear = async () => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockClear'));
+    await executeUnlessWindowClosed<void>(interceptor.buildInnerInvocationScript(command, 'mockClear'));
     outerMockClear();
     return mock;
   };
@@ -156,7 +185,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   mock.mockReset = async () => {
     const currentName = outerMock.getMockName();
 
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReset'));
+    await executeUnlessWindowClosed<void>(interceptor.buildInnerInvocationScript(command, 'mockReset'));
 
     // Temporarily restore the sync mockClear so outerMockReset's internal mockFn.mockClear()
     // call doesn't fire the async override, which would defer outerMockClear() and race
@@ -175,7 +204,7 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
 
   mock.mockRestore = async () => {
     try {
-      await tauriExecute<void>(browserToUse, interceptor.buildUnregistrationScript(command));
+      await executeUnlessWindowClosed<void>(interceptor.buildUnregistrationScript(command));
     } finally {
       outerMockClear();
       mockStore.deleteMock(browserToUse, `tauri.${command}`);
@@ -184,13 +213,12 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   };
 
   mock.mockReturnThis = async () => {
-    await tauriExecute<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReturnThis'));
+    await executeInMockWindow<void>(interceptor.buildInnerInvocationScript(command, 'mockReturnThis'));
     return mock;
   };
 
   mock.withImplementation = async (implFn, callbackFn) => {
-    const result = await tauriExecute<unknown>(
-      browserToUse,
+    const result = await executeInMockWindow<unknown>(
       interceptor.buildWithImplementationScript(
         command,
         implFn as (...a: unknown[]) => unknown,
