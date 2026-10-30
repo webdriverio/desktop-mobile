@@ -15,6 +15,7 @@ use serde_json::{json, Value};
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
+use super::key_input::js_string;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::element::ELEMENT_KEY;
@@ -505,11 +506,6 @@ pub async fn take_screenshot(
 
 /// Page-side helpers for focus moves and form events.
 pub(crate) const ELEMENT_EVENTS_JS: &str = include_str!("element-events.js");
-
-/// A JS string literal for `text` that is safe to splice into a script.
-fn js_string(text: &str) -> String {
-  Value::from(text).to_string()
-}
 
 fn click_press_script(js_var: &str) -> String {
   format!(
