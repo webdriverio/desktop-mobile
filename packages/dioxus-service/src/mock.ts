@@ -14,28 +14,13 @@
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { AbstractFn, DioxusAPIs, DioxusMock } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, runThenSync } from '@wdio/native-utils';
 
 import { runInterceptorScript } from './commands/execute.js';
 import mockStore from './mockStore.js';
 
 const log = createLogger('dioxus-service', 'mock');
 const interceptor = createIpcInterceptor('dioxus');
-
-// Syncs even when `run` rejects, so the mock records the calls made before the failure.
-async function runThenSync<T>(mock: DioxusMock, run: () => Promise<T>): Promise<T> {
-  let result: T;
-  try {
-    result = await run();
-  } catch (error) {
-    await mock
-      .update()
-      .catch((syncError: unknown) => log.warn('Mock sync failed after withImplementation rejected:', syncError));
-    throw error;
-  }
-  await mock.update();
-  return result;
-}
 
 /**
  * Create a mock for a Dioxus wdio:// command. Registers the inner mock in
