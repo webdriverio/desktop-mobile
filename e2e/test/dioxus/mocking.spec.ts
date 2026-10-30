@@ -55,7 +55,22 @@ describe('Dioxus mocking', () => {
     );
 
     expect(result).toEqual({ os: 'temporary' });
+    expect(mock.mock.calls.length).toBeGreaterThan(0);
     const after = await browser.dioxus.execute(({ invoke }) => invoke('get_platform_info'));
     expect(after).toEqual({ os: 'default' });
+  });
+
+  it('should reject withImplementation with a plain error once the command is no longer mocked', async () => {
+    const mock = await browser.dioxus.mock('get_platform_info');
+    await mock.mockRestore();
+
+    const error = await mock
+      .withImplementation(
+        () => ({ os: 'temporary' }),
+        () => undefined,
+      )
+      .catch((e: unknown) => e);
+
+    expect((error as Error).message).toBe('get_platform_info is not mocked in this window');
   });
 });

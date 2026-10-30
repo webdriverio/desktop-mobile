@@ -26,8 +26,8 @@ const embeddedBrowsers = new WeakSet<WebdriverIO.Browser>();
 /**
  * Mark a browser session as using the embedded driver. Called by the worker
  * service during `before()` when `driverProvider === 'embedded'`. Once
- * marked, execute() and runInterceptorScript() unwrap the __wdio_value__
- * envelope that the embedded polling loop adds to every result.
+ * marked, execute() unwraps the __wdio_value__ envelope from function-form
+ * results. runInterceptorScript() always uses the envelope.
  */
 export function markAsEmbedded(browser: WebdriverIO.Browser): void {
   embeddedBrowsers.add(browser);
@@ -100,23 +100,22 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   return raw as Awaited<ReturnValue>;
 }
 
-/**
- * Internal helper for invoking DioxusAdapter scripts. Each adapter-built
- * script is an arrow-function literal, so this calls it with
- * `window.__WDIO_DIOXUS__` and resolves with its result once any returned
- * promise settles.
- *
- * Not exported from the package's public surface — only consumed by mock.ts.
- */
+// Errors come back in the envelope too: a script that rejected would surface as a
+// WebDriver error whose message quotes the whole script.
 export async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
-  const isEmbedded = embeddedBrowsers.has(browser);
-  const call = `(${script})(window.__WDIO_DIOXUS__)`;
-  // The envelope goes on the settled value; wrapping the promise itself would return it unawaited.
-  const wrapped = isEmbedded
-    ? `return Promise.resolve(${call}).then(function (r) { return { __wdio_value__: r }; })`
-    : `return ${call}`;
-  const raw = await browser.execute(wrapped);
-  return isEmbedded ? unwrapEmbeddedResult<T>(raw) : (raw as T);
+  const raw = await browser.execute(
+    `return Promise.resolve().then(function () { return (${script})(window.__WDIO_DIOXUS__); }).then(` +
+      'function (r) { return { __wdio_value__: r }; }, ' +
+      'function (e) { return { __wdio_error__: e instanceof Error ? e.message : String(e) }; })',
+  );
+  // The multiremote root runs the script in every instance and returns one envelope each.
+  const envelopes: unknown[] = Array.isArray(raw) ? raw : [raw];
+  for (const envelope of envelopes) {
+    if (envelope !== null && typeof envelope === 'object' && '__wdio_error__' in envelope) {
+      throw new Error(String(envelope.__wdio_error__));
+    }
+  }
+  return (Array.isArray(raw) ? raw.map((r) => unwrapEmbeddedResult(r)) : unwrapEmbeddedResult(raw)) as T;
 }
 
 // The embedded polling loop wraps results in { __wdio_value__: result } so
