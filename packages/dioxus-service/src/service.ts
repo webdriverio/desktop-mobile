@@ -1,3 +1,4 @@
+import { forEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusServiceAPI } from '@wdio/native-types';
 import { createLogger, isMultiremote } from '@wdio/native-utils';
@@ -58,24 +59,19 @@ export default class DioxusWorkerService {
       }
 
       if (isMultiremote(browser)) {
-        const mrBrowser = browser as WebdriverIO.MultiRemoteBrowser;
-        log.info(`Initializing ${mrBrowser.instances.length} multiremote instances`);
+        log.info(`Initializing ${browser.instances.length} multiremote instances`);
         stage = 'addDioxusApi:root';
         this.addDioxusApi(browser as unknown as WebdriverIO.Browser);
-        for (const instanceName of mrBrowser.instances) {
-          const mrInstance = mrBrowser.getInstance(instanceName);
-          stage = `injectSpy:${instanceName}`;
-          log.info(`Injecting spy + installing dioxus API on instance: ${instanceName}`);
-          await this.injectSpy(mrInstance);
-          stage = `addDioxusApi:${instanceName}`;
-          this.addDioxusApi(mrInstance);
-        }
-      } else {
-        stage = 'injectSpy:single';
-        await this.injectSpy(browser as WebdriverIO.Browser);
-        stage = 'addDioxusApi:single';
-        this.addDioxusApi(browser as WebdriverIO.Browser);
       }
+      await forEachInstance(browser, async (instance, { name }) => {
+        if (name !== undefined) {
+          log.info(`Injecting spy + installing dioxus API on instance: ${name}`);
+        }
+        stage = `injectSpy:${name ?? 'single'}`;
+        await this.injectSpy(instance);
+        stage = `addDioxusApi:${name ?? 'single'}`;
+        this.addDioxusApi(instance);
+      });
       log.info('before() complete');
     } catch (error) {
       log.error(

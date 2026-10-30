@@ -1,4 +1,5 @@
 import type { spawn } from 'node:child_process';
+import { access, mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
@@ -333,6 +334,43 @@ describe('Multiremote Mode - Integration', () => {
 
       // onComplete should clean up all instances without errors
       await expect((launcher as any).onComplete?.()).resolves.not.toThrow();
+    });
+
+    it("should remove each instance's data directory in onComplete", async () => {
+      vi.mocked(ensureTauriDriver).mockResolvedValue({
+        ok: true,
+        value: { path: mockSuccessPath, method: 'found' },
+      });
+
+      launcher = new TauriLaunchService(
+        { driverProvider: 'external' },
+        { browserName: 'tauri', 'tauri:options': { application: '/app' } },
+        { maxInstances: 1 },
+      );
+      const startDriver = vi.spyOn((launcher as any).driverPool, 'startDriver');
+      const dataDirEnv = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
+
+      const capabilities = {
+        browserA: { capabilities: { browserName: 'tauri', 'tauri:options': { application: '/app' } } },
+        browserB: { capabilities: { browserName: 'tauri', 'tauri:options': { application: '/app' } } },
+      };
+
+      await (launcher as any).onPrepare({}, capabilities);
+      const dataDirs = startDriver.mock.calls.map(
+        ([config]) => (config as { env: NodeJS.ProcessEnv }).env[dataDirEnv] ?? '',
+      );
+      expect(new Set(dataDirs).size).toBe(2);
+      for (const dir of dataDirs) {
+        // Fake app data, for teardown to remove.
+        await mkdir(dir, { recursive: true });
+        await writeFile(path.join(dir, 'state.json'), '{}');
+      }
+
+      await (launcher as any).onComplete();
+
+      for (const dir of dataDirs) {
+        await expect(access(dir)).rejects.toMatchObject({ code: 'ENOENT' });
+      }
     });
 
     it('should handle instance start failures gracefully', async () => {

@@ -36,3 +36,4 @@ Not all methods may be feasible for every framework. Unsupported methods should 
 
 - Inject API on both root multiremote browser and each individual instance
 - Each instance gets its own API context (e.g. own CDP bridge for Electron)
+- Run the per-instance setup with `forEachInstance` from `@wdio/native-core`, which covers a single session and each multiremote instance and resolves each instance's caps
