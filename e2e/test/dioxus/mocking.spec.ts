@@ -64,13 +64,11 @@ describe('Dioxus mocking', () => {
     const mock = await browser.dioxus.mock('get_platform_info');
     await mock.mockRestore();
 
-    const error = await mock
-      .withImplementation(
+    await expect(
+      mock.withImplementation(
         () => ({ os: 'temporary' }),
         () => undefined,
-      )
-      .catch((e: unknown) => e);
-
-    expect((error as Error).message).toBe('get_platform_info is not mocked in this window');
+      ),
+    ).rejects.toThrow(/^get_platform_info is not mocked in this window$/);
   });
 });
