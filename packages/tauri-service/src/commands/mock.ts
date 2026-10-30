@@ -31,7 +31,6 @@ function shouldProcessMock(mockName: string, commandPrefix?: string): boolean {
 }
 
 function getMockBrowser(context: TauriServiceContext | undefined): WebdriverIO.Browser | undefined {
-  // Prefer this.browser if it has tauri capabilities
   if (
     context?.browser &&
     !isMultiremote(context.browser) &&
@@ -75,10 +74,6 @@ export async function mock(this: TauriServiceContext | undefined, command: strin
 
 type BulkAppCall = (browser: WebdriverIO.Browser) => Promise<unknown>;
 
-/**
- * Runs `op` on the calling browser's mocks. On a multiremote root, that's every instance's mocks
- * and the root's own.
- */
 async function runOnMocks(
   commandName: string,
   context: TauriServiceContext | undefined,
@@ -141,7 +136,6 @@ export async function clearAllMocks(this: TauriServiceContext | undefined, comma
 }
 
 export async function resetAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
-  // Reset mocks in the injection script (with prefix filtering if provided)
   await runOnMocks('resetAllMocks', this, 'mockReset', commandPrefix, (browser) =>
     browser.execute<void, [string]>((prefix) => {
       // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
@@ -163,7 +157,6 @@ export async function resetAllMocks(this: TauriServiceContext | undefined, comma
 }
 
 export async function restoreAllMocks(this: TauriServiceContext | undefined, commandPrefix?: string): Promise<void> {
-  // Restore mocks in the injection script (with prefix filtering if provided)
   await runOnMocks('restoreAllMocks', this, 'mockRestore', commandPrefix, (browser) =>
     browser.execute<void, [string]>((prefix) => {
       // @ts-expect-error - window.__wdio_mocks__ is defined by injection script

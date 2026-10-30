@@ -2,7 +2,7 @@ import type { TauriMock } from '@wdio/native-types';
 
 type MockOwner = WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
 
-// Keyed by the browser that created each mock, so each multiremote instance has its own
+// Keyed by browser, so each multiremote instance has its own mocks.
 export class TauriServiceMockStore {
   #mocksByOwner: Map<MockOwner, Map<string, TauriMock>>;
 

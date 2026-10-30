@@ -296,32 +296,38 @@ Test interactions between multiple Tauri app instances:
 ```typescript
 describe('Multiremote - Multiple App Instances', () => {
   it('should interact with both app instances', async () => {
+    const app1 = browser.getInstance('app1');
+    const app2 = browser.getInstance('app2');
+
     // Access first app instance
-    const app1Button = await browser.app1.$('button[data-testid="send"]');
+    const app1Button = await app1.$('button[data-testid="send"]');
     await app1Button.click();
 
     // Access second app instance
-    const app2Input = await browser.app2.$('input[data-testid="message"]');
+    const app2Input = await app2.$('input[data-testid="message"]');
     const text = await app2Input.getValue();
 
     expect(text).toBe('Message from app1');
   });
 
   it('should mock a command separately on each instance', async () => {
+    const app1 = browser.getInstance('app1');
+    const app2 = browser.getInstance('app2');
+
     // Mock command on first app
-    const mock1 = await browser.app1.tauri.mock('get_user');
+    const mock1 = await app1.tauri.mock('get_user');
     await mock1.mockReturnValue({ id: 1, name: 'User1' });
 
-    // Each instance gets its own mock, so this one only mocks the second app
-    const mock2 = await browser.app2.tauri.mock('get_user');
+    // A separate mock in the second app
+    const mock2 = await app2.tauri.mock('get_user');
     await mock2.mockReturnValue({ id: 2, name: 'User2' });
 
     // Verify each app gets its mocked value
-    const user1 = await browser.app1.tauri.execute(({ core }) => {
+    const user1 = await app1.tauri.execute(({ core }) => {
       return core.invoke('get_user');
     });
 
-    const user2 = await browser.app2.tauri.execute(({ core }) => {
+    const user2 = await app2.tauri.execute(({ core }) => {
       return core.invoke('get_user');
     });
 
@@ -330,18 +336,21 @@ describe('Multiremote - Multiple App Instances', () => {
   });
 
   it('should restore mocks independently', async () => {
+    const app1 = browser.getInstance('app1');
+    const app2 = browser.getInstance('app2');
+
     // Set up mocks on both instances
-    const mock1 = await browser.app1.tauri.mock('get_config');
+    const mock1 = await app1.tauri.mock('get_config');
     await mock1.mockReturnValue({ version: '1.0.0' });
 
-    const mock2 = await browser.app2.tauri.mock('get_config');
+    const mock2 = await app2.tauri.mock('get_config');
     await mock2.mockReturnValue({ version: '2.0.0' });
 
     // Restore only app1's mocks
-    await browser.app1.tauri.restoreAllMocks();
+    await app1.tauri.restoreAllMocks();
 
     // app1 now calls real command, app2 still mocked
-    const config2 = await browser.app2.tauri.execute(({ core }) => {
+    const config2 = await app2.tauri.execute(({ core }) => {
       return core.invoke('get_config');
     });
 
