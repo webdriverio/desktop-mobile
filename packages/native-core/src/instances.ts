@@ -73,10 +73,18 @@ export async function forEachInstance(
     return;
   }
   for (const name of browser.instances) {
-    // v9 types getInstance as possibly undefined; a name from `instances` always resolves.
-    const instance = browser.getInstance(name) as WebdriverIO.Browser;
+    const instance = requireInstance(browser, name);
     await callback(instance, { name, caps: requestedCapabilities(instance) ?? capabilitiesEntry(capabilities, name) });
   }
+}
+
+/** Get the multiremote instance named `name`, throwing if the browser has none by that name. */
+export function requireInstance(browser: WebdriverIO.MultiRemoteBrowser, name: string): WebdriverIO.Browser {
+  const instance = browser.getInstance(name);
+  if (!instance) {
+    throw new Error(`Multiremote browser has no instance named "${name}"`);
+  }
+  return instance;
 }
 
 function requestedCapabilities(instance: WebdriverIO.Browser): WebdriverIO.Capabilities | undefined {
