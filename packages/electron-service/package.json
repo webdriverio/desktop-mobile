@@ -78,7 +78,7 @@
     "debug": "^4.4.3",
     "deepmerge-ts": "^8.0.2",
     "electron-to-chromium": "^1.5.464",
-    "fast-copy": "^4.2.0",
+    "fast-copy": "^4.3.0",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
     "puppeteer-core": "^25.16.0",
