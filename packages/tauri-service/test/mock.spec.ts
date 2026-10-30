@@ -462,7 +462,7 @@ describe('createMock', () => {
         expect(mock.mock.calls).toEqual([]);
         await mock.mockReset();
         await mock.mockRestore();
-        expect(mockStore.deleteMock).toHaveBeenCalledWith('tauri.read_clipboard');
+        expect(mockStore.deleteMock).toHaveBeenCalledWith(expect.anything(), 'tauri.read_clipboard');
       });
 
       it('should still reject a setter', async () => {
