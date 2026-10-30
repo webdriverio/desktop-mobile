@@ -69,7 +69,7 @@ async function fillFormScratch(fields: string) {
       form.addEventListener(type, function (ev) {
         var detail = ev.type === "change" ? ev.target.value
           : ev.type === "submit" ? (ev.submitter ? ev.submitter.id : "without submitter")
-          : ev.key || ev.target.id;
+          : ev.code || ev.target.id;
         window.__fieldEvents.push(ev.type + " " + detail);
       });
     }
@@ -604,6 +604,26 @@ describe('special keys (embedded)', () => {
     );
     await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
     expect(await fieldEvents()).toEqual(['keydown Enter', 'keyup Enter']);
+  });
+
+  it('should click a button on Enter before the keyup, and on Space after it, as Chrome does', async () => {
+    await fillFormScratch('<input id="fresh-field"><button id="fresh-submit">go</button>');
+    await browser.$('#fresh-submit').addValue(Key.Enter);
+    expect(await fieldEvents()).toEqual(['keydown Enter', 'click fresh-submit', 'submit fresh-submit', 'keyup Enter']);
+    await browser.execute('window.__fieldEvents = [];');
+    await browser.keys(Key.Space);
+    expect(await fieldEvents()).toEqual(['keydown Space', 'keyup Space', 'click fresh-submit', 'submit fresh-submit']);
+  });
+
+  it('should not click a button on Space when a keyup handler cancels it', async () => {
+    await fillFormScratch('<button id="fresh-submit">go</button>');
+    await browser.execute(
+      `var button = document.querySelector("#fresh-submit");
+      button.addEventListener("keyup", function (ev) { ev.preventDefault(); });
+      button.focus();`,
+    );
+    await browser.keys(Key.Space);
+    expect(await fieldEvents()).toEqual(['keydown Space', 'keyup Space']);
   });
 
   it('should not fire change when a click on the shadow host leaves the field focused', async () => {

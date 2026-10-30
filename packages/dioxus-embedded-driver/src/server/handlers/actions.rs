@@ -439,8 +439,10 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
 }
 
 /// JS that dispatches a `KeyboardEvent` with the `key`, `code`, `keyCode` and Shift a browser sends
-/// to the focused element, looking through open shadow roots. An uncanceled Enter keydown in an
-/// input also fires its pending `change` and submits its form.
+/// to the focused element, looking through open shadow roots. An uncanceled Enter keydown acts on
+/// the element focused after it, as a browser's keypress goes there: in an input, it fires its
+/// pending `change` and submits its form; on a button, it clicks it. Space clicks a button after
+/// the keyup, if neither key event was canceled and both went to it.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let (key, code, key_code, mods) = match map_special_key(value) {
     Some((key, code, key_code)) => (key, code.to_string(), key_code, mods),
@@ -450,16 +452,19 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
     }
   };
   let modifiers = mods.js();
-  let enter = if event_type == "keydown" && key == "Enter" && !(mods.ctrl || mods.meta || mods.alt)
-  {
-    format!(
-      "if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nwdioCommitOnEnter(t); wdioSubmitOnEnter(t); }}"
-    )
-  } else {
-    String::new()
+  let held = mods.ctrl || mods.meta || mods.alt;
+  let default_action = match (event_type, key) {
+    ("keydown", "Enter") if !held => format!(
+      "if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nt=wdioDeepActiveElement(); wdioCommitOnEnter(t); wdioSubmitOnEnter(t); wdioClickOnEnter(t); }}"
+    ),
+    ("keydown", " ") => {
+      format!("\n{ELEMENT_EVENTS_JS}\nwdioSpaceDown(t, e.defaultPrevented || {held});")
+    }
+    ("keyup", " ") => format!("\n{ELEMENT_EVENTS_JS}\nwdioSpaceUp(t, e.defaultPrevented || {held});"),
+    _ => String::new(),
   };
   format!(
-    "(function(){{ var t=document.activeElement||document.body; if(!t) return; while(t.shadowRoot&&t.shadowRoot.activeElement){{t=t.shadowRoot.activeElement;}} var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},keyCode:{key_code},which:{key_code},{modifiers}}}); t.dispatchEvent(e); {enter}}})(); null"
+    "(function(){{ var t=document.activeElement||document.body; if(!t) return; while(t.shadowRoot&&t.shadowRoot.activeElement){{t=t.shadowRoot.activeElement;}} var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},keyCode:{key_code},which:{key_code},{modifiers}}}); t.dispatchEvent(e); {default_action}}})(); null"
   )
 }
 
@@ -974,8 +979,11 @@ mod tests {
     let dispatch = enter.find("t.dispatchEvent(e);").unwrap();
     let canceled = enter.find("if(!e.defaultPrevented){").unwrap();
     let commit = enter.find("wdioCommitOnEnter(t);").unwrap();
+    let refocus = enter.find("t=wdioDeepActiveElement();").unwrap();
     let submit = enter.find("wdioSubmitOnEnter(t);").unwrap();
-    assert!(dispatch < canceled && canceled < commit && commit < submit);
+    let click = enter.find("wdioClickOnEnter(t);").unwrap();
+    assert!(dispatch < canceled && canceled < refocus && refocus < commit);
+    assert!(commit < submit && submit < click);
     assert!(enter.contains(ELEMENT_EVENTS_JS));
     let shift = Modifiers { shift: true, ..m };
     let shift_enter = key_event_js("keydown", "\u{E006}", shift);
@@ -988,7 +996,24 @@ mod tests {
       key_event_js("keydown", "a", m),
     ] {
       assert!(!js.contains("wdioCommitOnEnter") && !js.contains("wdioSubmitOnEnter"), "{js}");
+      assert!(!js.contains("wdioClickOnEnter"), "{js}");
     }
+  }
+
+  #[test]
+  fn key_event_js_presses_and_releases_a_button_on_space_whether_or_not_the_event_was_canceled() {
+    let m = Modifiers::default();
+    for (event_type, call) in [("keydown", "wdioSpaceDown"), ("keyup", "wdioSpaceUp")] {
+      for value in ["\u{E00D}", " "] {
+        let js = key_event_js(event_type, value, Modifiers { shift: true, ..m });
+        let dispatch = js.find("t.dispatchEvent(e);").unwrap();
+        let space = js.find(&format!("{call}(t, e.defaultPrevented || false);")).unwrap();
+        assert!(dispatch < space && js.contains(ELEMENT_EVENTS_JS), "{js}");
+      }
+      let ctrl = key_event_js(event_type, " ", Modifiers { ctrl: true, ..m });
+      assert!(ctrl.contains(&format!("{call}(t, e.defaultPrevented || true);")), "{ctrl}");
+    }
+    assert!(!key_event_js("keydown", "a", m).contains("wdioSpace"));
   }
 
   #[test]
