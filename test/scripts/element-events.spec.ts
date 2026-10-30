@@ -273,6 +273,31 @@ describe('wdioSubmitOnEnter', () => {
     expect(log).toEqual(['submit f']);
   });
 
+  it('should submit a form whose controls are named after its methods', () => {
+    render('<form id="f"><input id="i" name="requestSubmit"><input type="checkbox" id="c" name="getRootNode"></form>');
+    // Browsers make named controls properties of the form, hiding its methods. jsdom doesn't.
+    const form = document.querySelector('form') as HTMLFormElement;
+    for (const name of ['requestSubmit', 'getRootNode']) {
+      Object.defineProperty(form, name, { value: form.elements.namedItem(name) });
+    }
+    $('#i').focus();
+    log = [];
+    events.wdioSubmitOnEnter($('#i'));
+    expect(log).toEqual(['submit f']);
+  });
+
+  it('should submit nothing, rather than throw, where forms have no requestSubmit', () => {
+    const proto = HTMLFormElement.prototype;
+    const descriptor = Object.getOwnPropertyDescriptor(proto, 'requestSubmit') as PropertyDescriptor;
+    Reflect.deleteProperty(proto, 'requestSubmit');
+    try {
+      enter('<form id="f"><input id="i"></form>');
+      expect(log).toEqual([]);
+    } finally {
+      Object.defineProperty(proto, 'requestSubmit', descriptor);
+    }
+  });
+
   it.each([
     ['text field', '<input id="j">'],
     ['number input', '<input type="number" id="j">'],

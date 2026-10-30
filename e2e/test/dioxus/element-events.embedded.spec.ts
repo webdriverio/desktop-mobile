@@ -143,6 +143,27 @@ describe('Dioxus element events (embedded)', () => {
     expect(await fieldEvents()).toEqual(['input x', 'change x', 'click', 'submit fresh-submit']);
   });
 
+  it('should submit a form in a shadow root on Enter in its input', async () => {
+    await fillChangeScratch();
+    await browser.execute(
+      `var host = document.createElement("div");
+      host.id = "fresh-host";
+      document.querySelector("#change-scratch").appendChild(host);
+      var root = host.attachShadow({ mode: "open", delegatesFocus: true });
+      root.innerHTML = '<form><input id="inner"><button id="inner-submit">go</button></form>';
+      root.querySelector("#inner").addEventListener("change", function (ev) {
+        window.__fieldEvents.push("change inner " + ev.target.value);
+      });
+      root.querySelector("form").addEventListener("submit", function (ev) {
+        ev.preventDefault();
+        window.__fieldEvents.push("submit " + ev.submitter.id);
+      });`,
+    );
+    await browser.$('#fresh-host').addValue('x');
+    await browser.keys(Key.Enter);
+    expect(await fieldEvents()).toEqual(['change inner x', 'submit inner-submit']);
+  });
+
   it('should set a date input at once, firing input and change', async () => {
     await fillChangeScratch();
     await addToScratch('<input id="fresh-date" type="date">');

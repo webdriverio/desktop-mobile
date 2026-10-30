@@ -110,16 +110,15 @@ function wdioCommitOnEnter(el) {
   record.value = el.value;
 }
 
-// Enter in an input submits its form, as Chromium's implicit submission does: from a text field, by
-// clicking the form's first submit button unless it's disabled, or with none, submitting a form with
-// no other text field; from any other input, by clicking the first enabled submit button.
-// click() fires the synthetic click a browser fires, with no pointer or mouse events.
+// Implicit submission, as Chromium runs it. A disabled default button blocks it, even with an enabled
+// button after it. click() fires the lone synthetic click Chrome fires, with no pointer or mouse events.
 function wdioSubmitOnEnter(el) {
   const form = el.tagName === 'INPUT' ? el.form : undefined;
   if (!form || WDIO_CLICKED_ON_ENTER_TYPES.includes(el.type)) {
     return;
   }
-  const controls = Array.from(form.getRootNode().querySelectorAll('button, input')).filter(
+  // The prototypes' methods, because a control named after a form method hides it.
+  const controls = Array.from(Node.prototype.getRootNode.call(form).querySelectorAll('button, input')).filter(
     (control) => control.form === form,
   );
   const buttons = controls.filter((control) => control.type === 'submit' || control.type === 'image');
@@ -130,7 +129,8 @@ function wdioSubmitOnEnter(el) {
       buttons[0].click();
     }
   } else if (controls.filter((control) => WDIO_TEXT_FIELD_TYPES.includes(control.type)).length === 1) {
-    form.requestSubmit();
+    // Safari before 16 has no requestSubmit.
+    HTMLFormElement.prototype.requestSubmit?.call(form);
   }
 }
 

@@ -439,8 +439,8 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
 }
 
 /// JS that dispatches a `KeyboardEvent` with the `key`, `code`, `keyCode` and Shift a browser sends
-/// to the active element. An uncanceled Enter keydown in an input also fires its pending `change`
-/// and submits its form.
+/// to the focused element, looking through open shadow roots. An uncanceled Enter keydown in an
+/// input also fires its pending `change` and submits its form.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let (key, code, key_code, mods) = match map_special_key(value) {
     Some((key, code, key_code)) => (key, code.to_string(), key_code, mods),
@@ -459,7 +459,7 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
     String::new()
   };
   format!(
-    "(function(){{ var t=document.activeElement||document.body; if(!t) return; var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},keyCode:{key_code},which:{key_code},{modifiers}}}); t.dispatchEvent(e); {enter}}})(); null"
+    "(function(){{ var t=document.activeElement||document.body; if(!t) return; while(t.shadowRoot&&t.shadowRoot.activeElement){{t=t.shadowRoot.activeElement;}} var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},keyCode:{key_code},which:{key_code},{modifiers}}}); t.dispatchEvent(e); {enter}}})(); null"
   )
 }
 
@@ -957,9 +957,12 @@ mod tests {
   }
 
   #[test]
-  fn key_event_js_uses_active_element() {
+  fn key_event_js_uses_the_deep_active_element() {
     let js = key_event_js("keydown", "Enter", Modifiers::default());
-    assert!(js.contains("document.activeElement"));
+    let active = js.find("var t=document.activeElement").unwrap();
+    let deep = js.find("t=t.shadowRoot.activeElement;").unwrap();
+    let dispatch = js.find("t.dispatchEvent(e);").unwrap();
+    assert!(active < deep && deep < dispatch);
     assert!(js.contains("KeyboardEvent(\"keydown\""));
     assert!(js.contains("key:\"Enter\""));
   }
@@ -975,7 +978,9 @@ mod tests {
     assert!(dispatch < canceled && canceled < commit && commit < submit);
     assert!(enter.contains(ELEMENT_EVENTS_JS));
     let shift = Modifiers { shift: true, ..m };
-    assert!(key_event_js("keydown", "\u{E006}", shift).contains("wdioSubmitOnEnter(t);"));
+    let shift_enter = key_event_js("keydown", "\u{E006}", shift);
+    assert!(shift_enter.contains("wdioCommitOnEnter(t);"));
+    assert!(shift_enter.contains("wdioSubmitOnEnter(t);"));
     let ctrl = Modifiers { ctrl: true, ..m };
     for js in [
       key_event_js("keyup", "\u{E007}", m),
