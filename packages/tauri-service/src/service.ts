@@ -116,7 +116,6 @@ export default class TauriWorkerService {
         log.info('Initializing standard browser');
       }
 
-      // Add Tauri API to each instance and wait for readiness
       await forEachInstance(browser, async (instance, { name }) => {
         stage = `init:${name ?? 'single'}`;
         if (name !== undefined) {
@@ -130,7 +129,7 @@ export default class TauriWorkerService {
         await waitUntilWindowAvailable(instance);
         log.info(name === undefined ? 'Standard browser window available' : `Instance ${name} window available`);
 
-        // Wait for plugin initialization on each multiremote instance; a single session waits once, below.
+        // A single session waits for the plugin once, below.
         // Skip for CrabNebula - browser.execute() not supported
         if (name !== undefined && this.driverProvider !== 'crabnebula') {
           stage = `waitForPluginInit:${name}`;

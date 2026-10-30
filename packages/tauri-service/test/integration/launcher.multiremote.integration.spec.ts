@@ -361,7 +361,7 @@ describe('Multiremote Mode - Integration', () => {
       );
       expect(new Set(dataDirs).size).toBe(2);
       for (const dir of dataDirs) {
-        // Stand in for the data each app writes there.
+        // Fake app data, for teardown to remove.
         await mkdir(dir, { recursive: true });
         await writeFile(path.join(dir, 'state.json'), '{}');
       }

@@ -85,13 +85,12 @@ import { mockSuccessPath } from '../mockPaths.js';
 
 const DATA_DIR_ENV = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
 
-// Spy on the driver pool and return the data directory each started driver was given.
 function captureDataDirs(launcher: TauriLaunchService): () => string[] {
   const startDriver = vi.spyOn((launcher as any).driverPool, 'startDriver');
   return () => startDriver.mock.calls.map(([config]) => (config as { env: NodeJS.ProcessEnv }).env[DATA_DIR_ENV] ?? '');
 }
 
-// Stand in for the data an app writes there.
+// Fake app data, for teardown to remove.
 async function populate(dir: string): Promise<void> {
   await mkdir(dir, { recursive: true });
   await writeFile(join(dir, 'state.json'), '{}');

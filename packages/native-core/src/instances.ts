@@ -13,7 +13,7 @@ export interface ConnectionTarget {
 export interface InstanceCaps<C> {
   /** The multiremote instance name; undefined outside multiremote. */
   name?: string;
-  /** The instance's capabilities. Capability keys go here. */
+  /** The instance's capabilities. */
   caps: C;
   /** Where to set `hostname` and `port` so WebdriverIO connects this instance to a server the launcher started. */
   connectionTarget: ConnectionTarget;

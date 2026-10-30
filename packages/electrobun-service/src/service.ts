@@ -220,13 +220,8 @@ export default class ElectrobunWorkerService {
   }
 }
 
-/**
- * Install a root-browser `electrobun` stub for a multiremote run. Root fan-out (one call → every
- * instance, as electron/tauri/dioxus expose) isn't wired yet, so rather than leave
- * `browser.electrobun` undefined — a raw `TypeError` on first access — every method throws a guided
- * error pointing at per-instance access. Converging electrobun onto a real root API is tracked in
- * https://github.com/webdriverio/desktop-mobile/issues/877
- */
+// Workaround for #877; drop once the multiremote root fans out to every instance. Until
+// then, each root method throws an error that points at per-instance access.
 function installRootMultiremoteGuard(mrBrowser: WebdriverIO.MultiRemoteBrowser): void {
   const methods: ReadonlyArray<keyof ElectrobunServiceAPI> = [
     'execute',

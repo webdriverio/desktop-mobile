@@ -198,7 +198,6 @@ export default class DioxusLaunchService extends BaseLauncher {
         const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, instanceId);
         this.embeddedProcesses.set(instanceId, driverInfo);
 
-        // Standalone session.ts removes these from the cloned capabilities before remote().
         connectionTarget.port = embeddedPort;
         connectionTarget.hostname = hostname;
         applyWindowLabel(cap, instanceOptions);
