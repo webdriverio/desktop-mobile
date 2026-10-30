@@ -86,16 +86,18 @@ WDIO_EMBEDDED_PORT=4445 npx wdio run wdio.conf.ts
 
 ## Keyboard Events
 
-Key actions (`browser.keys()`) send the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. For a newline and a backspace character, chromedriver sends the same `key` but an empty `code`. A tab is typed as a character, with the Tab key's `code` and `keyCode`, because the Tab key doesn't move focus in this driver yet ([#889](https://github.com/webdriverio/desktop-mobile/issues/889)).
+Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. In key actions, chromedriver sends a newline and a backspace character with the same `key` but an empty `code`. A tab is typed as a character, with the Tab key's `code` and `keyCode`, because the Tab key doesn't move focus in this driver yet ([#889](https://github.com/webdriverio/desktop-mobile/issues/889)).
 
 Key events go to the focused element, even one inside an open shadow root. Unless a `keydown` handler cancels it, a key types its character into a text field or contenteditable, and Backspace and Delete delete, as in Chrome. Each edit fires `input`, but no `beforeinput`. Control+A or Meta+A selects all, and the arrow keys move between radio buttons. With Control, Alt or Meta held, a key types nothing, and a read-only or disabled field keeps its value. As in Chrome, a key types or deletes text in whichever element has focus after its `keydown`, so a `keydown` handler that moves focus sends the key to the new element.
 
-Element Send Keys (`setValue()`, `addValue()`) sets the text without keyboard events, so `keydown` handlers don't see it. It writes special keys in the text, such as `Key.Enter`, into the element rather than pressing them ([#912](https://github.com/webdriverio/desktop-mobile/issues/912)).
+Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it; it sends them for special keys, newlines and backspace characters, and for text typed while Control, Alt or Meta is held. So `addValue('x' + Key.Enter)` types `x`, then presses Enter. Element Send Keys types only into a text field or contenteditable, and refuses a file input.
 
-Unless a `keydown` handler cancels it, Enter in a key action acts as in Chrome, on whichever element has focus after the `keydown`:
+Unless a `keydown` handler cancels it, Enter acts as in Chrome, on whichever element has focus after the `keydown`:
 - In a textarea or contenteditable, it breaks the line.
 - In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form. From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button unless that button is disabled; in a form without one, it submits the form if it has no other input of those types. From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
 - On a button (a `<button>`, or a submit, image, reset or button input), it clicks the button, which then submits or resets its form.
+
+Element Send Keys sets a date, time or range input's value without pressing any keys, so in those inputs only key actions press Enter.
 
 Space on a button clicks it after the `keyup`, as in Chrome, if the `keydown` and the `keyup` both went to the button and no handler cancelled either.
 

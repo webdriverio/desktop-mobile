@@ -247,7 +247,7 @@ fn pointer_event_js(
 /// surface as the matching flag on every synthesized pointer and key event (e.g. a Ctrl+click's
 /// `click` carries `ctrlKey: true`). Interleaving a modifier across sources *within one*
 /// performActions still needs tick processing — tracked in webdriverio/desktop-mobile#491.
-#[derive(Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(super) struct Modifiers {
   pub(super) ctrl: bool,
   pub(super) shift: bool,
@@ -376,7 +376,7 @@ pub(super) fn regular_key(key: &str) -> (String, u32, bool) {
 
 /// Whether a key value presses no key: chromedriver skips a carriage return, so a `\r\n` line
 /// ending presses Enter once.
-fn is_skipped_key(key: &str) -> bool {
+pub(super) fn is_skipped_key(key: &str) -> bool {
   key == "\r"
 }
 
