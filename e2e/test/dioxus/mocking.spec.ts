@@ -55,7 +55,7 @@ describe('Dioxus mocking', () => {
     );
 
     expect(result).toEqual({ os: 'temporary' });
-    expect(mock.mock.calls.length).toBeGreaterThan(0);
+    expect(mock.mock.calls).toHaveLength(1);
     const after = await browser.dioxus.execute(({ invoke }) => invoke('get_platform_info'));
     expect(after).toEqual({ os: 'default' });
   });

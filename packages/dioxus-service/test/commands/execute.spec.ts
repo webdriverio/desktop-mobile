@@ -148,14 +148,14 @@ describe('runInterceptorScript', () => {
     await expect(runInterceptorScript(browser, '() => "a"')).rejects.toMatchObject({ message: 'boom' });
   });
 
-  it('should return the value produced by browser.execute (embedded driver)', async () => {
-    const browser = embeddedBrowserStub({ __wdio_value__: { calls: [['a']], results: [], invocationCallOrder: [1] } });
+  it("should resolve with the envelope's value", async () => {
+    const browser = browserStub({ __wdio_value__: { calls: [['a']], results: [], invocationCallOrder: [1] } });
     const result = await runInterceptorScript(browser, '(_dx) => ({ calls: [["a"]] })');
     expect(result).toEqual({ calls: [['a']], results: [], invocationCallOrder: [1] });
   });
 
-  it('should return undefined when the embedded driver returns the empty envelope', async () => {
-    const browser = embeddedBrowserStub({});
+  it('should resolve with undefined when the envelope is empty', async () => {
+    const browser = browserStub({});
     await expect(runInterceptorScript(browser, '() => undefined')).resolves.toBeUndefined();
   });
 });
