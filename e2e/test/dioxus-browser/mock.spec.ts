@@ -34,4 +34,24 @@ describe('Dioxus browser-mode E2E', () => {
     expect(mock).toHaveBeenCalledTimes(1);
     expect(mock.mock.calls[0][0]).toEqual({ name: 'WDIO' });
   });
+
+  it('should run a withImplementation callback in the page, then restore the implementation', async () => {
+    const mock = await browser.dioxus.mock('greet');
+    await mock.mockResolvedValue('Hello, default');
+
+    const result = await mock.withImplementation(
+      () => 'Hello, temporary',
+      ({ invoke }) => invoke('greet', { name: 'callback' }),
+    );
+
+    expect(result).toBe('Hello, temporary');
+    expect(mock.mock.calls).toEqual([[{ name: 'callback' }]]);
+
+    await $('[data-testid="send-greeting"]').click();
+
+    await browser.waitUntil(async () => (await $('[data-testid="greeting-output"]').getText()) === 'Hello, default', {
+      timeout: 5000,
+      timeoutMsg: 'expected the default implementation after withImplementation',
+    });
+  });
 });
