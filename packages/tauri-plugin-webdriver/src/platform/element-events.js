@@ -170,6 +170,175 @@ function wdioSpaceUp(el, blocked) {
   }
 }
 
+// Tab's default action, which Control, Alt or Meta blocks. Chrome selects the text field Tab moves to,
+// and past either end of the order hands focus to the browser's own controls.
+function wdioTabKey(event) {
+  if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey) {
+    return;
+  }
+  const next = wdioNextTabStop(event.shiftKey);
+  if (!next) {
+    wdioFlushPendingChange();
+    wdioDeepActiveElement()?.blur();
+    wdioFlushPendingChange();
+    return;
+  }
+  wdioFocus(next);
+  if (wdioDeepActiveElement() === next && next.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(next.type)) {
+    next.select();
+  }
+}
+
+// From an element Tab skips, Tab goes to the nearest stop after it in tree order, or before it with
+// Shift, and Chrome wraps round to the other end of the order when there's none.
+function wdioNextTabStop(backward) {
+  const current = wdioDeepActiveElement();
+  const { stops, treeOrder } = wdioTabStops(current);
+  const at = stops.indexOf(current);
+  if (at !== -1) {
+    return stops[backward ? at - 1 : at + 1];
+  }
+  const position = current === document.body ? undefined : treeOrder.get(current);
+  const nearer =
+    position === undefined
+      ? []
+      : stops
+          .filter((stop) => (backward ? treeOrder.get(stop) < position : treeOrder.get(stop) > position))
+          .sort((a, b) => treeOrder.get(a) - treeOrder.get(b));
+  const candidates = nearer.length > 0 ? nearer : stops;
+  return backward ? candidates[candidates.length - 1] : candidates[0];
+}
+
+// The elements Tab stops on, in order, and each visited element's position in the rendered tree. The
+// document, each shadow tree and each slot order their own stops, positive tabindex first; a host's
+// or slot's stops take its place, and a negative tabindex on it skips them.
+function wdioTabStops(current) {
+  const treeOrder = new Map();
+  let modal;
+  const scopeStops = (elements) => {
+    const entries = [];
+    const visit = (el) => {
+      treeOrder.set(el, treeOrder.size);
+      if (el.hasAttribute('inert') || getComputedStyle(el).display === 'none') {
+        return;
+      }
+      if (wdioModal(el)) {
+        modal = el;
+      }
+      const tabIndex = wdioTabIndex(el);
+      const isStop = tabIndex >= 0 && wdioVisible(el);
+      const scope = el.shadowRoot ? el.shadowRoot.children : el.localName === 'slot' ? wdioSlotted(el) : undefined;
+      if (!scope) {
+        if (isStop) {
+          entries.push({ index: tabIndex, stops: [el] });
+        }
+        for (const child of wdioRenderedChildren(el)) {
+          visit(child);
+        }
+        return;
+      }
+      // A host or slot without a valid tabindex takes its place in tree order.
+      const parsed = Number.parseInt(el.getAttribute('tabindex'), 10);
+      const index = Number.isNaN(parsed) ? 0 : parsed;
+      if (index >= 0) {
+        const host = isStop && el.shadowRoot && !el.shadowRoot.delegatesFocus ? [el] : [];
+        entries.push({ index, stops: [...host, ...scopeStops(scope)] });
+      }
+    };
+    for (const el of elements) {
+      visit(el);
+    }
+    const positive = entries.filter((entry) => entry.index > 0).sort((a, b) => a.index - b.index);
+    return [...positive, ...entries.filter((entry) => entry.index === 0)].flatMap((entry) => entry.stops);
+  };
+  const root = document.documentElement;
+  let stops = root ? scopeStops([root]) : [];
+  // A modal dialog makes the rest of the page inert.
+  if (modal) {
+    stops = stops.filter((stop) => wdioContains(modal, stop));
+  }
+  return { stops: stops.filter((stop) => wdioRadioStop(stop, current, stops)), treeOrder };
+}
+
+// The element's tabindex value, or -1 if it can't take focus.
+function wdioTabIndex(el) {
+  if (el.matches(':disabled')) {
+    return -1;
+  }
+  if (el.hasAttribute('tabindex')) {
+    return el.tabIndex ?? -1;
+  }
+  switch (el.localName) {
+    case 'a':
+      return el.hasAttribute('href') ? 0 : -1;
+    case 'input':
+      return el.type === 'hidden' ? -1 : 0;
+    case 'button':
+    case 'select':
+    case 'textarea':
+    case 'iframe':
+      return 0;
+    case 'audio':
+    case 'video':
+      return el.hasAttribute('controls') ? 0 : -1;
+    case 'summary':
+      return el.parentElement?.localName === 'details' && wdioSummary(el.parentElement) === el ? 0 : -1;
+    default:
+      return el.isContentEditable && !el.parentElement?.isContentEditable ? 0 : -1;
+  }
+}
+
+function wdioVisible(el) {
+  return getComputedStyle(el).visibility === 'visible';
+}
+
+// `:modal` is a syntax error in engines that don't support it.
+function wdioModal(el) {
+  try {
+    return el.localName === 'dialog' && el.matches(':modal');
+  } catch {
+    return false;
+  }
+}
+
+// A closed <details> shows only its summary.
+function wdioRenderedChildren(el) {
+  if (el.localName === 'details' && !el.hasAttribute('open')) {
+    const summary = wdioSummary(el);
+    return summary ? [summary] : [];
+  }
+  return el.children;
+}
+
+function wdioSummary(details) {
+  return Array.from(details.children).find((child) => child.localName === 'summary');
+}
+
+// A slot shows the nodes assigned to it, or its own children when none are.
+function wdioSlotted(slot) {
+  const assigned = slot.assignedNodes();
+  return assigned.length > 0 ? assigned.filter((node) => node.nodeType === Node.ELEMENT_NODE) : slot.children;
+}
+
+// A radio group is one stop: its checked radio, or if Tab can't stop on that, whichever radio Tab
+// reaches first. Tab doesn't stop on another radio of the group that has focus.
+function wdioRadioStop(el, current, stops) {
+  if (el === current || !wdioNamedRadio(el)) {
+    return true;
+  }
+  const root = el.getRootNode();
+  const inGroup = (other) =>
+    wdioNamedRadio(other) && other.name === el.name && other.form === el.form && other.getRootNode() === root;
+  if (current && inGroup(current)) {
+    return false;
+  }
+  return el.checked || !stops.some((stop) => stop.checked && inGroup(stop));
+}
+
+function wdioNamedRadio(el) {
+  return el.localName === 'input' && el.type === 'radio' && el.name !== '';
+}
+
 // Element Click's press, as Chrome sends it: a cancelled pointerdown or mousedown keeps focus where
 // it is, and a disabled control gets no mouse events. Mouse events have detail 0, because Tauri's
 // drag regions start a native window drag on detail 1, which would never end with no button held.

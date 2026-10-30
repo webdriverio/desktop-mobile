@@ -19,6 +19,7 @@ type ElementEvents = {
   wdioEnterKey(): void;
   wdioSpaceDown(el: HTMLElement, blocked: boolean): void;
   wdioSpaceUp(el: HTMLElement, blocked: boolean): void;
+  wdioTabKey(event: KeyboardEvent): void;
   wdioPress(el: HTMLElement): void;
   wdioRelease(el: HTMLElement): void;
   wdioFocusForClick(el: HTMLElement): void;
@@ -29,7 +30,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioClickOnEnter, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioClickOnEnter, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioTabKey, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -461,6 +462,159 @@ describe('Enter and Space on a button', () => {
     root.remove();
     try {
       expect(() => events.wdioEnterKey()).not.toThrow();
+    } finally {
+      document.appendChild(root);
+    }
+  });
+});
+
+describe('Tab', () => {
+  function focused() {
+    let el = document.activeElement;
+    while (el?.shadowRoot?.activeElement) {
+      el = el.shadowRoot.activeElement;
+    }
+    return el;
+  }
+
+  // Tab as the drivers press it: the keydown goes to the focused element, then its default action runs.
+  function tab(init: KeyboardEventInit = {}) {
+    const event = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true, ...init });
+    focused()?.dispatchEvent(event);
+    events.wdioTabKey(event);
+    const el = focused();
+    return el?.id || el?.localName;
+  }
+
+  function tabs(count: number, init: KeyboardEventInit = {}) {
+    return Array.from({ length: count }, () => tab(init));
+  }
+
+  it('should visit positive tabindex ascending, then tabindex 0 and natural stops in tree order, then leave the page', () => {
+    render(`<input id="a"><button id="b">b</button><a id="l" href="#">l</a><a id="nohref">x</a>
+      <span id="s" tabindex="0">s</span><div id="n" tabindex="-1">n</div><input id="p2" tabindex="2">
+      <input id="p1" tabindex="1"><input type="hidden" id="h"><input id="p1b" tabindex="1"><select id="sel"></select>
+      <textarea id="t"></textarea><iframe id="f"></iframe><audio id="silent"></audio>
+      <details><summary id="sum">sum</summary></details>`);
+    expect(tabs(13)).toEqual(['p1', 'p1b', 'p2', 'a', 'b', 'l', 's', 'sel', 't', 'f', 'sum', 'body', 'p1']);
+  });
+
+  it('should go back through the same stops with Shift', () => {
+    render('<input id="a"><input id="p1" tabindex="1"><button id="b">b</button>');
+    expect(tabs(5, { shiftKey: true })).toEqual(['b', 'a', 'p1', 'body', 'b']);
+  });
+
+  it('should skip disabled, inert and unrendered elements', () => {
+    render(`<input id="a"><input id="d" disabled><fieldset disabled><input id="fd"></fieldset>
+      <div inert><input id="i"></div><input id="hidden" hidden><div style="display: none"><input id="none"></div>
+      <div style="visibility: hidden"><input id="vh"><input id="vv" style="visibility: visible"></div>
+      <details><summary id="sum">sum</summary><input id="closed"></details>
+      <details open><summary id="sum2">sum</summary><input id="open"></details><input id="z">`);
+    $('#a').focus();
+    expect(tabs(5)).toEqual(['vv', 'sum', 'sum2', 'open', 'z']);
+  });
+
+  it('should go through open shadow roots and slots, with focus-delegating hosts no stop themselves', () => {
+    render(`<input id="a"><div id="h1"><input id="h1-slotted"></div><div id="h2" tabindex="0"></div>
+      <div id="h3" tabindex="-1"></div><div id="h4" tabindex="0"></div><input id="z">`);
+    const shadow = (host: string, html: string) => {
+      const root = $(host).attachShadow({ mode: 'open' });
+      root.innerHTML = html;
+      return root;
+    };
+    shadow('#h1', '<input id="h1-a"><slot></slot><input id="h1-b" tabindex="1">');
+    shadow('#h2', '<input id="h2-a">');
+    shadow('#h3', '<input id="h3-a">');
+    // jsdom has no delegatesFocus.
+    Object.defineProperty(shadow('#h4', '<input id="h4-a">'), 'delegatesFocus', { value: true });
+    $('#a').focus();
+    expect(tabs(7)).toEqual(['h1-b', 'h1-a', 'h1-slotted', 'h2', 'h2-a', 'h4-a', 'z']);
+    expect(tabs(7, { shiftKey: true })).toEqual(['h4-a', 'h2-a', 'h2', 'h1-slotted', 'h1-a', 'h1-b', 'a']);
+  });
+
+  it.each([
+    ['none checked', '', ['r1', 'z'], ['r3', 'a']],
+    ['one checked', 'r2', ['r2', 'z'], ['r2', 'a']],
+    ['a disabled one checked', 'r1', ['r2', 'z'], ['r3', 'a']],
+  ])('should stop once on a radio group with %s', (_, checked, forward, backward) => {
+    render(`<input id="a"><input type="radio" name="r" id="r1"><input type="radio" name="r" id="r2">
+      <input type="radio" name="r" id="r3"><input id="z">`);
+    if (checked) {
+      $(`#${checked}`).checked = true;
+    }
+    $('#r1').disabled = checked === 'r1';
+    $('#a').focus();
+    expect(tabs(2)).toEqual(forward);
+    $('#z').focus();
+    expect(tabs(2, { shiftKey: true })).toEqual(backward);
+  });
+
+  it('should stop on each unnamed radio, and on radios with the same name in other forms', () => {
+    render(`<input id="a"><input type="radio" id="u1"><input type="radio" id="u2">
+      <form><input type="radio" name="r" id="f1"></form><form><input type="radio" name="r" id="f2"></form>`);
+    $('#a').focus();
+    expect(tabs(4)).toEqual(['u1', 'u2', 'f1', 'f2']);
+  });
+
+  it('should leave focus alone when a handler cancels the keydown, or Control, Alt or Meta is held', () => {
+    render('<input id="a"><input id="b">');
+    $('#a').addEventListener('keydown', (event) => event.preventDefault(), { once: true });
+    $('#a').focus();
+    const presses = [{}, { ctrlKey: true }, { altKey: true }, { metaKey: true }];
+    expect(presses.map((init) => tab(init))).toEqual(['a', 'a', 'a', 'a']);
+  });
+
+  it("should fire the field's change before blur, and select the next text field's value", () => {
+    render('<input id="a"><input id="b" value="old"><textarea id="t">text</textarea>');
+    type($('#a'), 'x');
+    tab();
+    expect(log).toEqual(['change a=x', 'blur a=x', 'focus b=old']);
+    expect([$('#b').selectionStart, $('#b').selectionEnd]).toEqual([0, 3]);
+    tab();
+    expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
+  });
+
+  it.each([
+    ['moving focus', '<input id="a"><input id="b">'],
+    ['leaving the page', '<input id="a">'],
+  ])("should fire the field's change when %s skips the blur", (_, html) => {
+    render(html);
+    type($('#a'), 'x');
+    withoutBlur(() => tab());
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
+
+  it('should go from an element Tab skips to the nearest stop in tree order, or round to the other end', () => {
+    render(`<div id="t1" tabindex="-1">t</div><input id="a"><div id="t2" tabindex="-1">t</div><input id="b">
+      <div id="t3" tabindex="-1">t</div>`);
+    const from = (id: string, init: KeyboardEventInit = {}) => {
+      $(`#${id}`).focus();
+      return tab(init);
+    };
+    expect([from('t2'), from('t2', { shiftKey: true }), from('t3'), from('t1', { shiftKey: true })]).toEqual([
+      'b',
+      'a',
+      'a',
+      'b',
+    ]);
+  });
+
+  it('should keep focus within a modal dialog', () => {
+    render('<input id="a"><dialog id="d" open><input id="d1"><input id="d2"></dialog><input id="z">');
+    // jsdom has no showModal.
+    const dialog = $('#d');
+    Object.defineProperty(dialog, 'matches', {
+      value: (selector: string) => selector === ':modal' || Element.prototype.matches.call(dialog, selector),
+    });
+    $('#d1').focus();
+    expect(tabs(4)).toEqual(['d2', 'body', 'd1', 'd2']);
+  });
+
+  it('should do nothing in an empty document', () => {
+    const root = document.documentElement;
+    root.remove();
+    try {
+      expect(() => tab()).not.toThrow();
     } finally {
       document.appendChild(root);
     }
