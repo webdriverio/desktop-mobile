@@ -308,6 +308,8 @@ Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser send
 
 Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it; it sends them for special keys, newlines and backspace characters, and for text typed while Control, Alt or Meta is held. As in Chrome, a key types or deletes text in whichever element has focus after its `keydown`, so a `keydown` handler that moves focus sends the key to the new element.
 
+While Shift is held, a key sends and types the character Shift gives it on a US keyboard, as in Chrome: `browser.keys([Key.Shift, 'a', '1', ';'])` sends `key: 'A'`, `'!'` and `':'` and types `A!:`, and `addValue(Key.Shift + 'a1;')` types `A!:` too. Letters become capitals, the digits `)!@#$%^&*(`, and `` -=[]\;',./` `` become `_+{}|:"<>?~`. The `code` and `keyCode` stay those of the key, and the numpad keys don't change.
+
 Unless a `keydown` handler cancels it, Enter acts as in Chrome, on whichever element has focus after the `keydown`:
 - In a textarea or contenteditable, it breaks the line.
 - In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form. From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button unless that button is disabled; in a form without one, it submits the form if it has no other input of those types. From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
