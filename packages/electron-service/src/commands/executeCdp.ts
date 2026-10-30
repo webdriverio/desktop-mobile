@@ -91,7 +91,7 @@ export async function execute<ReturnValue, InnerArguments extends unknown[]>(
     executionError = new Error(message);
   }
 
-  await syncMockStatus(args);
+  await syncMockStatus(browser, args);
 
   if (executionError) {
     throw executionError;
@@ -123,8 +123,8 @@ function wrapStringScriptForCdp(script: string): string {
   }
 }
 
-async function syncMockStatus(args: unknown[]) {
-  const mocks = mockStore.getMocks();
+async function syncMockStatus(browser: WebdriverIO.Browser, args: unknown[]) {
+  const mocks = mockStore.getMocks(browser);
   if (mocks.length > 0 && !isInternalCommand(args)) {
     await Promise.all(mocks.map(async ([_mockId, mock]) => mock.update()));
   }

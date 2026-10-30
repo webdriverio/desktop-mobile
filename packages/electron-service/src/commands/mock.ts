@@ -3,11 +3,33 @@ import { createLogger, isMultiremote } from '@wdio/native-utils';
 import { createClassMock } from '../classMock.js';
 import { createMock } from '../mock.js';
 import mockStore from '../mockStore.js';
+import type { ElectronServiceContext } from './forEachMock.js';
 
 const log = createLogger('electron-service', 'mock');
 
-interface ElectronServiceContext {
-  browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
+export function getMockBrowser(context: ElectronServiceContext | undefined): WebdriverIO.Browser | undefined {
+  if (
+    context?.browser &&
+    !isMultiremote(context.browser) &&
+    context.browser.electron &&
+    typeof context.browser.electron.execute === 'function'
+  ) {
+    return context.browser;
+  }
+  if (
+    globalThis.browser &&
+    (globalThis.browser as WebdriverIO.Browser).electron &&
+    typeof (globalThis.browser as WebdriverIO.Browser).electron.execute === 'function'
+  ) {
+    return globalThis.browser as WebdriverIO.Browser;
+  }
+  if (globalThis.browser && !isMultiremote(globalThis.browser)) {
+    return globalThis.browser as WebdriverIO.Browser;
+  }
+  if (context?.browser && !isMultiremote(context.browser)) {
+    return context.browser;
+  }
+  return undefined;
 }
 
 /**
@@ -25,30 +47,17 @@ interface ElectronServiceContext {
  * const mockTray = await browser.electron.mock('Tray');
  * expect(mockTray.setImage).toHaveBeenCalled();
  */
-export async function mock(this: ElectronServiceContext, apiName: string, funcName?: string): Promise<ElectronMock> {
+export async function mock(
+  this: ElectronServiceContext | undefined,
+  apiName: string,
+  funcName?: string,
+): Promise<ElectronMock> {
   const mockTarget = funcName ? `${apiName}.${funcName}` : apiName;
   log.debug(`[${mockTarget}] mock command called`);
 
-  // Determine browser context
-  let browserContext: WebdriverIO.Browser | undefined;
-  if (
-    this &&
-    this.browser &&
-    !isMultiremote(this.browser) &&
-    this.browser.electron &&
-    typeof this.browser.electron.execute === 'function'
-  ) {
-    browserContext = this.browser as WebdriverIO.Browser;
-  } else if (
-    globalThis.browser &&
-    (globalThis.browser as WebdriverIO.Browser).electron &&
-    typeof (globalThis.browser as WebdriverIO.Browser).electron.execute === 'function'
-  ) {
-    browserContext = globalThis.browser as WebdriverIO.Browser;
-  } else if (globalThis.browser && !isMultiremote(globalThis.browser)) {
-    browserContext = globalThis.browser as WebdriverIO.Browser;
-  } else if (this?.browser && !isMultiremote(this.browser)) {
-    browserContext = this.browser as WebdriverIO.Browser;
+  const browserContext = getMockBrowser(this);
+  if (!browserContext) {
+    throw new Error('mock requires a valid browser context');
   }
 
   // If no funcName, treat as class mock
@@ -62,7 +71,7 @@ export async function mock(this: ElectronServiceContext, apiName: string, funcNa
   // Method mocking (existing behavior)
   try {
     // retrieve an existing mock from the store
-    const existingMock = mockStore.getMock(`electron.${apiName}.${funcName}`);
+    const existingMock = mockStore.getMock(browserContext, `electron.${apiName}.${funcName}`);
     log.debug(`[${apiName}.${funcName}] Found existing mock, resetting`);
     await existingMock.mockReset();
     return existingMock;
@@ -70,7 +79,7 @@ export async function mock(this: ElectronServiceContext, apiName: string, funcNa
     // No existing mock, create a new one
     log.debug(`[${apiName}.${funcName}] No existing mock found, creating new mock`);
     const newMock = await createMock(apiName, funcName, browserContext);
-    mockStore.setMock(newMock);
+    mockStore.setMock(browserContext, newMock);
     return newMock;
   }
 }

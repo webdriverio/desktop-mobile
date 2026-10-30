@@ -3,6 +3,8 @@ import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
 import type { ElectronServiceGlobalOptions } from '@wdio/native-types';
 import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 
+export type MockOptionName = 'clearMocks' | 'resetMocks' | 'restoreMocks';
+
 export abstract class ServiceConfig {
   #globalOptions: ElectronServiceGlobalOptions;
   #cdpOptions: CdpBridgeOptions;
@@ -89,6 +91,16 @@ export abstract class ServiceConfig {
 
   protected get restoreMocks() {
     return this.#restoreMocks;
+  }
+
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  protected mockOptions(instanceCaps?: WebdriverIO.Capabilities): Record<MockOptionName, boolean> {
+    const instanceOptions = instanceCaps?.[CUSTOM_CAPABILITY_NAME];
+    return {
+      clearMocks: instanceOptions?.clearMocks ?? this.clearMocks,
+      resetMocks: instanceOptions?.resetMocks ?? this.resetMocks,
+      restoreMocks: instanceOptions?.restoreMocks ?? this.restoreMocks,
+    };
   }
 
   /**
