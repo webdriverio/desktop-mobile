@@ -47,7 +47,7 @@ async function fillFormScratch(fields: string) {
       form.addEventListener(type, function (ev) {
         var detail = ev.type === "change" ? ev.target.value
           : ev.type === "submit" ? (ev.submitter ? ev.submitter.id : "without submitter")
-          : ev.key || ev.target.id;
+          : ev.code || ev.target.id;
         window.__fieldEvents.push(ev.type + " " + detail);
       });
     }
@@ -204,6 +204,27 @@ describe('Dioxus element events (embedded)', () => {
     await browser.$('#fresh-field').addValue('x');
     await browser.keys(Key.Enter);
     expect(await fieldEvents()).toEqual(['keydown Enter', 'keyup Enter']);
+  });
+
+  it('should click a focused button on Enter before the keyup, and on Space after it, as Chrome does', async () => {
+    await fillFormScratch('<input id="fresh-field"><button id="fresh-submit">go</button>');
+    const press = async (key: string) => {
+      await browser.execute('document.querySelector("#fresh-submit").focus(); window.__fieldEvents = [];');
+      await browser.keys(key);
+      return fieldEvents();
+    };
+    expect(await press(Key.Enter)).toEqual([
+      'keydown Enter',
+      'click fresh-submit',
+      'submit fresh-submit',
+      'keyup Enter',
+    ]);
+    expect(await press(Key.Space)).toEqual([
+      'keydown Space',
+      'keyup Space',
+      'click fresh-submit',
+      'submit fresh-submit',
+    ]);
   });
 
   it('should set a date input at once, firing input and change', async () => {
