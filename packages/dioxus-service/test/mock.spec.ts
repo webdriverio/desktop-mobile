@@ -1,8 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-import { markAsEmbedded } from '../src/commands/execute.js';
+import { execute, markAsEmbedded } from '../src/commands/execute.js';
 import { createMock } from '../src/mock.js';
 import mockStore from '../src/mockStore.js';
+import { makeWebview, makeWebviewBrowser } from './fakeWebview.js';
 
 function makeBrowser(): WebdriverIO.Browser {
   const browser = { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
@@ -188,5 +189,86 @@ describe('createMock', () => {
 
     await m.update();
     expect(m.mock.calls).toEqual([['c']]);
+  });
+
+  describe('withImplementation', () => {
+    it('should use the implementation until an async callback settles, then restore it', async () => {
+      const browser = makeWebviewBrowser(makeWebview());
+      const m = await createMock('greet', browser);
+      await m.mockReturnValue('default');
+
+      const result = await m.withImplementation(
+        () => 'temporary',
+        async (dx) => {
+          await Promise.resolve();
+          return dx.invoke('greet');
+        },
+      );
+
+      expect(result).toBe('temporary');
+      await expect(execute(browser, (dx) => dx.invoke('greet'))).resolves.toBe('default');
+    });
+
+    it('should sync the calls made in the callback', async () => {
+      const browser = makeWebviewBrowser(makeWebview());
+      const m = await createMock('greet', browser);
+
+      await m.withImplementation(
+        () => 'temporary',
+        (dx) => dx.invoke('greet', { name: 'a' }),
+      );
+
+      expect(m.mock.calls).toEqual([[{ name: 'a' }]]);
+    });
+
+    it('should reject with the callback error, restore the implementation and sync the calls', async () => {
+      const browser = makeWebviewBrowser(makeWebview());
+      const m = await createMock('greet', browser);
+      await m.mockReturnValue('default');
+
+      await expect(
+        m.withImplementation(
+          () => 'temporary',
+          async (dx) => {
+            await dx.invoke('greet', { name: 'a' });
+            throw new Error('callback error');
+          },
+        ),
+      ).rejects.toMatchObject({ message: 'callback error' });
+
+      expect(m.mock.calls).toEqual([[{ name: 'a' }]]);
+      await expect(execute(browser, (dx) => dx.invoke('greet'))).resolves.toBe('default');
+    });
+
+    it('should reject with the callback error when the sync fails too', async () => {
+      const browser = makeWebviewBrowser(makeWebview());
+      const m = await createMock('greet', browser);
+      vi.spyOn(m, 'update').mockRejectedValue(new Error('page closed'));
+
+      await expect(
+        m.withImplementation(
+          () => 'temporary',
+          async () => {
+            throw new Error('callback error');
+          },
+        ),
+      ).rejects.toMatchObject({ message: 'callback error' });
+    });
+
+    it('should reject without running the callback when the window has no mock for the command', async () => {
+      const win = makeWebview();
+      const browser = makeWebviewBrowser(win);
+      const m = await createMock('greet', browser);
+      delete (win.__wdio_mocks__ as Record<string, unknown>).greet;
+
+      await expect(
+        m.withImplementation(
+          () => 'temporary',
+          () => {
+            throw new Error('callback ran');
+          },
+        ),
+      ).rejects.toMatchObject({ message: 'greet is not mocked in this window' });
+    });
   });
 });

@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 
 import { execute, markAsEmbedded, runInterceptorScript } from '../../src/commands/execute.js';
+import { makeWebviewBrowser } from '../fakeWebview.js';
 
 function browserStub(returnValue: unknown = undefined): WebdriverIO.Browser {
   const execute = vi.fn().mockResolvedValue(returnValue);
@@ -111,34 +112,50 @@ describe('execute command', () => {
 });
 
 describe('runInterceptorScript', () => {
-  it('should wrap the script as `return (script)()` on the external driver path', async () => {
-    const browser = browserStub('ok');
-    const adapterScript = '(_dx) => { window.__wdio_mocks__.greet = 42; }';
+  it('should call the script with dx and resolve with its settled result', async () => {
+    const browser = makeWebviewBrowser({ __WDIO_DIOXUS__: { platform: 'test' } });
 
-    await runInterceptorScript(browser, adapterScript);
-
-    const [actualScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
-    expect(actualScript).toBe(`return (${adapterScript})()`);
+    await expect(
+      runInterceptorScript(browser, 'async (dx) => { await Promise.resolve(); return dx.platform; }'),
+    ).resolves.toBe('test');
   });
 
-  it('should wrap the script with the __wdio_value__ envelope on the embedded driver path', async () => {
-    const browser = embeddedBrowserStub(undefined);
-    const adapterScript = '(_dx) => {}';
+  it("should reject with the script's error message when it rejects", async () => {
+    const browser = makeWebviewBrowser({});
 
-    await runInterceptorScript(browser, adapterScript);
-
-    const [actualScript] = vi.mocked(browser.execute).mock.calls[0] as [string];
-    expect(actualScript).toBe(`return { __wdio_value__: (${adapterScript})() }`);
+    await expect(runInterceptorScript(browser, 'async () => { throw new Error("boom"); }')).rejects.toMatchObject({
+      message: 'boom',
+    });
   });
 
-  it('should return the value produced by browser.execute (embedded driver)', async () => {
-    const browser = embeddedBrowserStub({ __wdio_value__: { calls: [['a']], results: [], invocationCallOrder: [1] } });
+  it("should reject with the script's error message when it throws synchronously", async () => {
+    const browser = makeWebviewBrowser({});
+
+    await expect(runInterceptorScript(browser, '() => { throw new Error("boom"); }')).rejects.toMatchObject({
+      message: 'boom',
+    });
+  });
+
+  it('should resolve with one result per instance on the multiremote root', async () => {
+    const browser = browserStub([{ __wdio_value__: 'a' }, {}]);
+
+    await expect(runInterceptorScript(browser, '() => "a"')).resolves.toEqual(['a', undefined]);
+  });
+
+  it('should reject when the script rejects in any instance on the multiremote root', async () => {
+    const browser = browserStub([{ __wdio_value__: 'a' }, { __wdio_error__: 'boom' }]);
+
+    await expect(runInterceptorScript(browser, '() => "a"')).rejects.toMatchObject({ message: 'boom' });
+  });
+
+  it("should resolve with the envelope's value", async () => {
+    const browser = browserStub({ __wdio_value__: { calls: [['a']], results: [], invocationCallOrder: [1] } });
     const result = await runInterceptorScript(browser, '(_dx) => ({ calls: [["a"]] })');
     expect(result).toEqual({ calls: [['a']], results: [], invocationCallOrder: [1] });
   });
 
-  it('should return undefined when the embedded driver returns the empty envelope', async () => {
-    const browser = embeddedBrowserStub({});
+  it('should resolve with undefined when the envelope is empty', async () => {
+    const browser = browserStub({});
     await expect(runInterceptorScript(browser, '() => undefined')).resolves.toBeUndefined();
   });
 });
