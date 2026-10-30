@@ -397,7 +397,6 @@ pub async fn release<R: Runtime + 'static>(
   // Release everything even if one fails; the state is cleared, so nothing could retry it.
   let mut first_error = None;
 
-  // Release all pressed keys (keyUp events)
   for key in &pressed_keys {
     held_modifiers.release(key);
     if let Err(error) = executor.dispatch_key_event(key, false, &held_modifiers.state()).await {

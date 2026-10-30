@@ -454,11 +454,9 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
     ("keydown", "Enter") if !held => {
       format!("if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nwdioEnterKey(); }}")
     }
-    ("keydown", " ") => {
-      format!("{{\n{ELEMENT_EVENTS_JS}\nwdioSpaceDown(t, e.defaultPrevented || {held}); }}")
-    }
-    ("keyup", " ") => {
-      format!("{{\n{ELEMENT_EVENTS_JS}\nwdioSpaceUp(t, e.defaultPrevented || {held}); }}")
+    (_, " ") => {
+      let call = if event_type == "keydown" { "wdioSpaceDown" } else { "wdioSpaceUp" };
+      format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(t, e.defaultPrevented || {held}); }}")
     }
     _ => String::new(),
   };
@@ -784,12 +782,17 @@ pub async fn release(
     (session.timeouts.script_ms, pressed_keys, pressed_buttons, pointer_pos)
   };
 
+  // Release everything even if one fails; the state is cleared, so nothing could retry it.
+  let mut first_error = None;
+
   // Release held keys; each keyup reflects the modifiers still held *after* it is released
   // (e.g. releasing Shift while Ctrl is still down → shiftKey:false, ctrlKey:true). The mouseups
   // below run once every key is up, so their default (empty) modifiers are correct.
   for (i, key) in pressed_keys.iter().enumerate() {
     let mods = Modifiers::from_keys(&pressed_keys[i + 1..]);
-    eval(key_event_js("keyup", key, mods), timeout_ms).await?;
+    if let Err(error) = eval(key_event_js("keyup", key, mods), timeout_ms).await {
+      first_error.get_or_insert(error);
+    }
   }
   let mut held_mask = pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
   // Release every held button. `pressed_buttons` drains from a HashMap of HashSets (both unordered);
@@ -799,21 +802,20 @@ pub async fn release(
   buttons_to_release.sort_unstable();
   for button in buttons_to_release {
     held_mask &= !button_to_mask(button);
-    eval(
-      pointer_event_js(
-        "mouseup",
-        pointer_pos.0,
-        pointer_pos.1,
-        button,
-        held_mask,
-        Modifiers::default(),
-      ),
-      timeout_ms,
-    )
-    .await?;
+    let mouseup = pointer_event_js(
+      "mouseup",
+      pointer_pos.0,
+      pointer_pos.1,
+      button,
+      held_mask,
+      Modifiers::default(),
+    );
+    if let Err(error) = eval(mouseup, timeout_ms).await {
+      first_error.get_or_insert(error);
+    }
   }
 
-  Ok(WebDriverResponse::null())
+  first_error.map_or_else(|| Ok(WebDriverResponse::null()), Err)
 }
 
 #[cfg(test)]

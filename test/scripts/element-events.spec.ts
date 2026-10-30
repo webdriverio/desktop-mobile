@@ -416,6 +416,14 @@ describe('Enter and Space on a button', () => {
     expect(log).toEqual([]);
   });
 
+  it('should click on Space when a handler cancels only a repeat keydown', () => {
+    render('<button id="b">go</button>');
+    events.wdioSpaceDown($('#b'), false);
+    events.wdioSpaceDown($('#b'), true);
+    events.wdioSpaceUp($('#b'), false);
+    expect(log).toEqual(['click b']);
+  });
+
   it('should not click on Space when the keyup goes to another element, nor on a later keyup', () => {
     render('<button id="b">go</button><button id="c">go</button>');
     events.wdioSpaceDown($('#b'), false);

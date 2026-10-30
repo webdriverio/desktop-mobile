@@ -230,8 +230,9 @@ describe('Dioxus element events (embedded)', () => {
     await fillFormScratch(
       '<input id="fresh-field"><button type="button" id="fresh-other">other</button><button id="fresh-submit">go</button>',
     );
+    // Registered after the form's logger, so the log is the same whether or not the focus move fires blur.
     await browser.execute(
-      `document.querySelector("#fresh-field").addEventListener("keydown", function (ev) {
+      `document.querySelector("#fresh-form").addEventListener("keydown", function (ev) {
         if (ev.key === "Enter") { document.querySelector("#fresh-other").focus(); }
       });`,
     );
@@ -243,8 +244,11 @@ describe('Dioxus element events (embedded)', () => {
   it('should release held keys in reverse press order, so Space clicks once Control is up', async () => {
     await fillFormScratch('<button id="fresh-submit">go</button>');
     await browser.execute('document.querySelector("#fresh-submit").focus();');
-    await browser.action('key').down(' ').down(Key.Control).perform(true);
-    await browser.releaseActions();
+    try {
+      await browser.action('key').down(' ').down(Key.Control).perform(true);
+    } finally {
+      await browser.releaseActions();
+    }
     expect(await fieldEvents()).toEqual([
       'keydown Space',
       'keydown ControlLeft',

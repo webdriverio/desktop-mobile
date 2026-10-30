@@ -37,11 +37,11 @@ pub struct ActionState {
 }
 
 impl ActionState {
-  /// Records a key press. A key pressed again keeps its place in the press order.
+  /// Records a key press. A key pressed again while held moves to the end, as W3C releases its
+  /// latest press first.
   pub fn press_key(&mut self, key: &str) {
-    if !self.pressed_keys.iter().any(|held| held == key) {
-      self.pressed_keys.push(key.to_string());
-    }
+    self.release_key(key);
+    self.pressed_keys.push(key.to_string());
   }
 
   pub fn release_key(&mut self, key: &str) {
@@ -126,8 +126,8 @@ mod tests {
       state.press_key(key);
     }
     state.release_key("a");
-    assert_eq!(state.pressed_keys(), [" ", "\u{E009}"]);
-    assert_eq!(state.take_keys_to_release(), ["\u{E009}", " "]);
+    assert_eq!(state.pressed_keys(), ["\u{E009}", " "]);
+    assert_eq!(state.take_keys_to_release(), [" ", "\u{E009}"]);
     assert!(state.pressed_keys().is_empty());
   }
 

@@ -154,9 +154,12 @@ function wdioEnterKey() {
 }
 
 // Space clicks a button on the keyup rather than the keydown, and only if the keydown went to it.
-// `blocked` is true when a handler cancelled the key event, or Control, Alt or Meta is held.
+// `blocked` is true when a handler cancelled the key event, or Control, Alt or Meta is held. A
+// blocked repeat keydown leaves the press it repeats, as in Chrome.
 function wdioSpaceDown(el, blocked) {
-  window.__wdio_space_down = blocked ? undefined : el;
+  if (!blocked) {
+    window.__wdio_space_down = el;
+  }
 }
 
 function wdioSpaceUp(el, blocked) {
