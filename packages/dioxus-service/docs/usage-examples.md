@@ -268,23 +268,48 @@ describe('Deeplink Tests', () => {
 
 ```typescript
 describe('Multiremote — Multiple App Instances', () => {
-  it('should mock different commands per instance', async () => {
-    const mock1 = await browser.app1.dioxus.mock('get_user');
+  it('should mock a command separately on each instance', async () => {
+    const app1 = browser.getInstance('app1');
+    const app2 = browser.getInstance('app2');
+
+    const mock1 = await app1.dioxus.mock('get_user');
     await mock1.mockReturnValue({ id: 1, name: 'User1' });
 
-    const mock2 = await browser.app2.dioxus.mock('get_user');
+    // A separate mock in the second app
+    const mock2 = await app2.dioxus.mock('get_user');
     await mock2.mockReturnValue({ id: 2, name: 'User2' });
 
-    const user1 = await browser.app1.dioxus.execute(({ invoke }) => {
+    const user1 = await app1.dioxus.execute(({ invoke }) => {
       return invoke('get_user');
     });
 
-    const user2 = await browser.app2.dioxus.execute(({ invoke }) => {
+    const user2 = await app2.dioxus.execute(({ invoke }) => {
       return invoke('get_user');
     });
 
     expect(user1.id).toBe(1);
     expect(user2.id).toBe(2);
+  });
+
+  it('should restore mocks independently', async () => {
+    const app1 = browser.getInstance('app1');
+    const app2 = browser.getInstance('app2');
+
+    const mock1 = await app1.dioxus.mock('get_config');
+    await mock1.mockReturnValue({ version: '1.0.0' });
+
+    const mock2 = await app2.dioxus.mock('get_config');
+    await mock2.mockReturnValue({ version: '2.0.0' });
+
+    // Restore only app1's mocks
+    await app1.dioxus.restoreAllMocks();
+
+    // app1 now calls the real command, app2 is still mocked
+    const config2 = await app2.dioxus.execute(({ invoke }) => {
+      return invoke('get_config');
+    });
+
+    expect(config2.version).toBe('2.0.0');
   });
 });
 ```

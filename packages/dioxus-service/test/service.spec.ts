@@ -1,9 +1,21 @@
+import type { DioxusMock } from '@wdio/native-types';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../src/mockStore.js';
 import DioxusWorkerService from '../src/service.js';
+import type { DioxusServiceOptions } from '../src/types.js';
+import { createFakeMultiremote } from './commands/multiremoteFakes.js';
 
 function makeBrowser(): WebdriverIO.Browser {
   return { execute: vi.fn().mockResolvedValue(undefined) } as unknown as WebdriverIO.Browser;
+}
+
+function fakeMock(name: string) {
+  return {
+    getMockName: () => name,
+    mockClear: vi.fn().mockResolvedValue(undefined),
+    mockReset: vi.fn().mockResolvedValue(undefined),
+    mockRestore: vi.fn().mockResolvedValue(undefined),
+  } as unknown as DioxusMock & Record<'mockClear' | 'mockReset' | 'mockRestore', ReturnType<typeof vi.fn>>;
 }
 
 // Mock browser whose overwriteCommand mirrors webdriverio: it wires the override onto the
@@ -147,14 +159,138 @@ describe('DioxusWorkerService', () => {
   });
 
   it('should clear the mockStore in afterSession() without restoring mocks in the app', async () => {
-    const fakeMock = { getMockName: () => 'dioxus.greet', mockRestore: vi.fn().mockResolvedValue(undefined) };
-    mockStore.setMock(fakeMock as any);
+    const greet = fakeMock('dioxus.greet');
+    mockStore.setMock(makeBrowser(), greet);
 
     const service = new DioxusWorkerService({}, {});
     await service.afterSession();
 
-    expect(fakeMock.mockRestore).not.toHaveBeenCalled();
-    expect(mockStore.getMocks()).toHaveLength(0);
+    expect(greet.mockRestore).not.toHaveBeenCalled();
+    expect(mockStore.getAllMocks()).toHaveLength(0);
+  });
+
+  describe('beforeTest()', () => {
+    async function setUp(options: DioxusServiceOptions, capabilities: unknown = {}) {
+      const browser = makeBrowser();
+      const service = new DioxusWorkerService(options, capabilities);
+      await service.before({}, [], browser);
+      const fsRead = fakeMock('dioxus.fs_read');
+      const netFetch = fakeMock('dioxus.net_fetch');
+      mockStore.setMock(browser, fsRead);
+      mockStore.setMock(browser, netFetch);
+      return { service, fsRead, netFetch };
+    }
+
+    it('should leave the mocks alone when no mock option is set', async () => {
+      const { service, fsRead } = await setUp({});
+
+      await service.beforeTest({}, {});
+
+      expect(fsRead.mockClear).not.toHaveBeenCalled();
+      expect(fsRead.mockReset).not.toHaveBeenCalled();
+      expect(fsRead.mockRestore).not.toHaveBeenCalled();
+    });
+
+    it.each([
+      { option: 'clearMocks', method: 'mockClear' },
+      { option: 'resetMocks', method: 'mockReset' },
+      { option: 'restoreMocks', method: 'mockRestore' },
+    ] as const)('should run $method on the mocks matching the prefix with $option', async ({ option, method }) => {
+      const { service, fsRead, netFetch } = await setUp({ [option]: true, [`${option}Prefix`]: 'fs' });
+
+      await service.beforeTest({}, {});
+
+      expect(fsRead[method]).toHaveBeenCalledOnce();
+      expect(netFetch[method]).not.toHaveBeenCalled();
+    });
+
+    it('should read the options from wdio:dioxusServiceOptions', async () => {
+      const { service, fsRead } = await setUp({}, { 'wdio:dioxusServiceOptions': { clearMocks: true } });
+
+      await service.beforeTest({}, {});
+
+      expect(fsRead.mockClear).toHaveBeenCalledOnce();
+    });
+
+    it('should run every configured op and then report each failure', async () => {
+      const { service, fsRead } = await setUp({ clearMocks: true, resetMocks: true, restoreMocks: true });
+      fsRead.mockClear.mockRejectedValueOnce(new Error('clear failed'));
+      fsRead.mockRestore.mockRejectedValueOnce(new Error('restore failed'));
+
+      await expect(service.beforeTest({}, {})).rejects.toMatchObject({
+        message: 'mockClear failed: dioxus.fs_read: clear failed; mockRestore failed: dioxus.fs_read: restore failed',
+        errors: [
+          { message: expect.stringContaining('clear failed') },
+          { message: expect.stringContaining('restore failed') },
+        ],
+      });
+      expect(fsRead.mockReset).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe('in multiremote', () => {
+    type InstanceApi = Installed['dioxus'];
+
+    async function setUp(options: DioxusServiceOptions = {}) {
+      const fakes = createFakeMultiremote();
+      const service = new DioxusWorkerService(options, {
+        browserA: { capabilities: {} },
+        browserB: { capabilities: {} },
+      });
+      await service.before({}, [], fakes.root);
+      const dioxusOf = (browser: unknown) => (browser as Installed).dioxus as InstanceApi;
+      const mocks = [fakes.browserA, fakes.browserB, fakes.root].map((owner) => {
+        const mock = fakeMock('dioxus.greet');
+        mockStore.setMock(owner, mock);
+        return mock;
+      });
+      return { service, fakes, dioxusOf, mocks };
+    }
+
+    it("should bind each instance's bulk ops to that instance's mocks", async () => {
+      const { fakes, dioxusOf, mocks } = await setUp();
+      const [mockA, mockB, rootMock] = mocks;
+
+      await dioxusOf(fakes.browserA).restoreAllMocks();
+      await dioxusOf(fakes.browserB).clearAllMocks();
+
+      expect(mockA.mockRestore).toHaveBeenCalledOnce();
+      expect(mockB.mockRestore).not.toHaveBeenCalled();
+      expect(mockB.mockClear).toHaveBeenCalledOnce();
+      expect(mockA.mockClear).not.toHaveBeenCalled();
+      expect(rootMock.mockRestore).not.toHaveBeenCalled();
+      expect(rootMock.mockClear).not.toHaveBeenCalled();
+    });
+
+    it("should cover every instance's mocks from the root's bulk ops", async () => {
+      const { fakes, dioxusOf, mocks } = await setUp();
+
+      await dioxusOf(fakes.root).resetAllMocks();
+
+      for (const mock of mocks) {
+        expect(mock.mockReset).toHaveBeenCalledOnce();
+      }
+    });
+
+    it("should check only the instance's own mocks in isMockFunction(command), and every instance's on the root", async () => {
+      const { fakes, dioxusOf } = await setUp();
+      mockStore.setMock(fakes.browserB, fakeMock('dioxus.only_b'));
+
+      expect(dioxusOf(fakes.browserA).isMockFunction('greet')).toBe(true);
+      expect(dioxusOf(fakes.browserA).isMockFunction('only_b')).toBe(false);
+      expect(dioxusOf(fakes.browserB).isMockFunction('only_b')).toBe(true);
+      expect(dioxusOf(fakes.root).isMockFunction('only_b')).toBe(true);
+    });
+
+    it("should run the configured ops on every instance's mocks before each test", async () => {
+      const { service, mocks } = await setUp({ restoreMocks: true });
+
+      await service.beforeTest({}, {});
+
+      for (const mock of mocks) {
+        expect(mock.mockRestore).toHaveBeenCalledOnce();
+      }
+    });
   });
 
   describe('afterSession()', () => {

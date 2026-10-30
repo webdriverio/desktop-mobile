@@ -1,8 +1,10 @@
-import type { DioxusMock } from '@wdio/native-types';
+import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
+import type { DioxusServiceAPI } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../../src/mockStore.js';
 import DioxusWorkerService from '../../src/service.js';
-import { createFakeBrowser, type FakeBrowser } from './helpers.js';
+import type { DioxusServiceOptions } from '../../src/types.js';
+import { createFakeBrowser, createFakeMultiremoteBrowser, type FakeBrowser } from './helpers.js';
 
 vi.mock('@wdio/native-utils', async (importOriginal) => ({
   ...(await importOriginal<typeof import('@wdio/native-utils')>()),
@@ -157,8 +159,8 @@ describe('browser mode — mock lifecycle', () => {
     mockStore.clear();
   });
 
-  function dioxusApi(): { mock: (c: string) => Promise<DioxusMock> } {
-    return (browser as unknown as { dioxus: { mock: (c: string) => Promise<DioxusMock> } }).dioxus;
+  function dioxusApi(): Pick<DioxusServiceAPI, 'mock' | 'isMockFunction'> {
+    return (browser as unknown as { dioxus: DioxusServiceAPI }).dioxus;
   }
 
   it('should register the inner mock in the single shared context', async () => {
@@ -168,12 +170,10 @@ describe('browser mode — mock lifecycle', () => {
     expect(registrationCalls).toHaveLength(1);
   });
 
-  it('should track the created mock in the shared store', async () => {
+  it('should track the created mock in the store under its browser', async () => {
     const mock = await dioxusApi().mock('read_file');
 
-    // Dioxus keys mocks globally (`dioxus.<command>`) in one shared store —
-    // there is no per-browser keying like Electron.
-    expect(mockStore.getMock('dioxus.read_file')).toBe(mock);
+    expect(mockStore.getMock(browser as unknown as WebdriverIO.Browser, 'dioxus.read_file')).toBe(mock);
   });
 
   it('should sync call data from the inner mock on update()', async () => {
@@ -196,7 +196,7 @@ describe('browser mode — mock lifecycle', () => {
 
   it('should drop the inner mock entry and the store entry on mockRestore()', async () => {
     const mock = await dioxusApi().mock('read_file');
-    expect(() => mockStore.getMock('dioxus.read_file')).not.toThrow();
+    expect(dioxusApi().isMockFunction('read_file')).toBe(true);
 
     await mock.mockRestore();
 
@@ -204,7 +204,7 @@ describe('browser mode — mock lifecycle', () => {
       (c) => typeof c[0] === 'string' && c[0].includes('delete window.__wdio_mocks__["read_file"]'),
     );
     expect(unregistration).toBeDefined();
-    expect(() => mockStore.getMock('dioxus.read_file')).toThrow();
+    expect(dioxusApi().isMockFunction('read_file')).toBe(false);
   });
 
   it('should recover a mock after navigation via mockRestore() then mock()', async () => {
@@ -220,6 +220,104 @@ describe('browser mode — mock lifecycle', () => {
     const recovered = await dioxusApi().mock('read_file');
 
     expect(browser.execute.mock.calls.filter((c) => isRegistrationScript(c[0], 'read_file'))).toHaveLength(1);
-    expect(mockStore.getMock('dioxus.read_file')).toBe(recovered);
+    expect(mockStore.getAllMocks()).toEqual([['dioxus.read_file', recovered]]);
+  });
+});
+
+describe('browser mode — multiremote mocks', () => {
+  const interceptor = createIpcInterceptor('dioxus');
+  let root: FakeBrowser;
+  let instances: Map<string, FakeBrowser>;
+
+  async function setUp(options: DioxusServiceOptions = {}): Promise<DioxusWorkerService> {
+    ({ root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB']));
+    const service = new DioxusWorkerService(options, {
+      browserA: { capabilities: { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } } },
+      browserB: { capabilities: { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } } },
+    });
+    await service.before({}, [], root as unknown as WebdriverIO.Browser);
+    return service;
+  }
+
+  const instance = (name: string) => instances.get(name) as FakeBrowser;
+  const dioxusOf = (name: string) => instance(name).dioxus as unknown as DioxusServiceAPI;
+  const ranInApp = (name: string, script: string) =>
+    instance(name).execute.mock.calls.some((c) => typeof c[0] === 'string' && c[0].includes(script));
+  const clearExecuteCalls = () => {
+    for (const fake of instances.values()) {
+      fake.execute.mockClear();
+    }
+  };
+
+  beforeEach(() => mockStore.clear());
+  afterEach(() => mockStore.clear());
+
+  it('should give each instance its own mock of a command, registered in its own app', async () => {
+    await setUp();
+
+    const mockA = await dioxusOf('browserA').mock('greet');
+    const mockB = await dioxusOf('browserB').mock('greet');
+
+    expect(mockB).not.toBe(mockA);
+    for (const name of ['browserA', 'browserB']) {
+      expect(ranInApp(name, interceptor.buildRegistrationScript('greet'))).toBe(true);
+    }
+    expect(mockStore.getAllMocks()).toEqual([
+      ['dioxus.greet', mockA],
+      ['dioxus.greet', mockB],
+    ]);
+  });
+
+  it("should keep the other instance's mock when one mock restores", async () => {
+    await setUp();
+    const mockA = await dioxusOf('browserA').mock('greet');
+    const mockB = await dioxusOf('browserB').mock('greet');
+    clearExecuteCalls();
+
+    await mockA.mockRestore();
+
+    expect(instance('browserB').execute).not.toHaveBeenCalled();
+    expect(dioxusOf('browserB').isMockFunction('greet')).toBe(true);
+    expect(mockStore.getAllMocks()).toEqual([['dioxus.greet', mockB]]);
+  });
+
+  it("should leave the other instance's mocks alone when one instance restores", async () => {
+    await setUp();
+    await dioxusOf('browserA').mock('greet');
+    const mockB = await dioxusOf('browserB').mock('greet');
+    clearExecuteCalls();
+
+    await dioxusOf('browserA').restoreAllMocks();
+
+    expect(ranInApp('browserA', interceptor.buildUnregistrationScript('greet'))).toBe(true);
+    expect(instance('browserB').execute).not.toHaveBeenCalled();
+    expect(mockStore.getAllMocks()).toEqual([['dioxus.greet', mockB]]);
+    expect(dioxusOf('browserA').isMockFunction('greet')).toBe(false);
+    expect(dioxusOf('browserB').isMockFunction('greet')).toBe(true);
+  });
+
+  it.each([
+    { option: 'clearMocks', script: interceptor.buildInnerInvocationScript('greet', 'mockClear'), kept: true },
+    { option: 'resetMocks', script: interceptor.buildInnerInvocationScript('greet', 'mockReset'), kept: true },
+    { option: 'restoreMocks', script: interceptor.buildUnregistrationScript('greet'), kept: false },
+  ] as const)("should apply $option to every instance's mocks before each test", async ({ option, script, kept }) => {
+    const service = await setUp({ [option]: true });
+    const mockA = await dioxusOf('browserA').mock('greet');
+    const mockB = await dioxusOf('browserB').mock('greet');
+    clearExecuteCalls();
+
+    await expect(service.beforeTest({}, {})).resolves.toBeUndefined();
+
+    for (const name of ['browserA', 'browserB']) {
+      expect(ranInApp(name, script)).toBe(true);
+    }
+    expect(mockStore.getAllMocks()).toEqual(
+      kept
+        ? [
+            ['dioxus.greet', mockA],
+            ['dioxus.greet', mockB],
+          ]
+        : [],
+    );
   });
 });
