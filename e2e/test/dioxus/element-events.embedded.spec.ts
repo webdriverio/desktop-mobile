@@ -16,6 +16,12 @@ async function fieldEvents() {
   return (await browser.execute('return window.__fieldEvents || []')) as unknown as string[];
 }
 
+async function focusedId() {
+  return browser.execute(
+    'var el = document.activeElement; while (el && el.shadowRoot && el.shadowRoot.activeElement) { el = el.shadowRoot.activeElement; } return el ? el.id : null;',
+  );
+}
+
 // A field that logs input, change and blur with its value, next to a button to move focus to.
 async function fillChangeScratch(initialValue = '') {
   await browser.execute(
@@ -297,6 +303,43 @@ describe('Dioxus element events (embedded)', () => {
       'click fresh-submit',
       'submit fresh-submit',
     ]);
+  });
+
+  it('should move focus on Tab and back on Shift+Tab, firing the change Send Keys left pending, as Chrome does', async () => {
+    await fillFormScratch('<input id="fresh-a"><input id="fresh-b">');
+    await browser.$('#fresh-a').addValue('a');
+    await browser.keys(Key.Tab);
+    expect(await focusedId()).toBe('fresh-b');
+    expect(await fieldEvents()).toEqual(['keydown Tab', 'change a', 'keyup Tab']);
+    await browser.keys([Key.Shift, Key.Tab]);
+    expect(await focusedId()).toBe('fresh-a');
+  });
+
+  it('should move focus into and out of a shadow root on Tab', async () => {
+    await fillChangeScratch();
+    await browser.execute(
+      `var host = document.createElement("div");
+      document.querySelector("#change-scratch").prepend(host);
+      host.attachShadow({ mode: "open", delegatesFocus: true }).innerHTML = '<input id="inner">';
+      document.querySelector("#fresh-field").focus();`,
+    );
+    await browser.keys([Key.Shift, Key.Tab]);
+    expect(await focusedId()).toBe('inner');
+    await browser.keys(Key.Tab);
+    expect(await focusedId()).toBe('fresh-field');
+  });
+
+  it('should leave focus where it is when a keydown handler cancels Tab', async () => {
+    await fillFormScratch('<input id="fresh-a"><input id="fresh-b">');
+    await browser.execute(
+      `var field = document.querySelector("#fresh-a");
+      field.addEventListener("keydown", function (ev) {
+        if (ev.key === "Tab") { ev.preventDefault(); }
+      });
+      field.focus();`,
+    );
+    await browser.keys(Key.Tab);
+    expect(await focusedId()).toBe('fresh-a');
   });
 
   it('should set a date input at once, firing input and change', async () => {

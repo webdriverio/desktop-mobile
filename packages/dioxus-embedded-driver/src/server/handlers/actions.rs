@@ -282,11 +282,12 @@ impl Modifiers {
 // include its own files. test/scripts/key-tables.spec.ts checks the copies match.
 
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
-/// tables and a US keyboard. A newline and a backspace character also press the Enter and
-/// Backspace keys.
+/// tables and a US keyboard. A newline, a tab and a backspace character also press the Enter, Tab
+/// and Backspace keys.
 pub(super) fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
   let mapped = match single_char(key)? {
     '\n' => ("Enter", "Enter", 13),
+    '\t' => ("Tab", "Tab", 9),
     '\u{8}' => ("Backspace", "Backspace", 8),
     '\u{E000}' => ("Unidentified", "", 0),
     '\u{E001}' => ("Cancel", "", 3),
@@ -398,8 +399,6 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
     return Some((format!("Digit{ch}"), ch as u32, false));
   }
   let (code, key_code, shifted) = match ch {
-    // Workaround for #889; drop once Tab moves focus
-    '\t' => ("Tab", 9, false),
     ' ' => ("Space", 32, false),
     ')' => ("Digit0", 48, true),
     '!' => ("Digit1", 49, true),
@@ -1036,7 +1035,6 @@ mod tests {
       ("~", ("Backquote", 192, true)),
       ("[", ("BracketLeft", 219, false)),
       ("\\", ("Backslash", 220, false)),
-      ("\t", ("Tab", 9, false)),
       ("]", ("BracketRight", 221, false)),
       ("'", ("Quote", 222, false)),
       ("\"", ("Quote", 222, true)),
@@ -1107,8 +1105,9 @@ mod tests {
       event_init(&backspace).starts_with(r#"key: "Backspace", code: "Backspace", keyCode: 8,"#)
     );
     assert!(backspace.contains("deleteContentBackward"));
+    assert_eq!(map_special_key("\t"), map_special_key("\u{E004}"));
     let tab = key_script("\t", true, &m);
-    assert!(event_init(&tab).starts_with(r#"key: "\t", code: "Tab", keyCode: 9,"#), "{tab}");
+    assert!(event_init(&tab).starts_with(r#"key: "Tab", code: "Tab", keyCode: 9,"#), "{tab}");
   }
 
   #[test]

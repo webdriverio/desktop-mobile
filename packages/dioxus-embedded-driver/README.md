@@ -86,7 +86,7 @@ WDIO_EMBEDDED_PORT=4445 npx wdio run wdio.conf.ts
 
 ## Keyboard Events
 
-Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. In key actions, chromedriver sends a newline and a backspace character with the same `key` but an empty `code`. A tab is typed as a character, with the Tab key's `code` and `keyCode`, because the Tab key doesn't move focus in this driver yet ([#889](https://github.com/webdriverio/desktop-mobile/issues/889)).
+Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, a tab the Tab key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. In key actions, chromedriver sends a newline, a tab and a backspace character with the same `key` but an empty `code`.
 
 Key events go to the focused element, even one inside an open shadow root. Unless a `keydown` handler cancels it, a key types its character into a text field or contenteditable, Backspace and Delete delete in a text field, Control+A or Meta+A selects all, and the arrow keys check the next or previous radio button in a group. With Control, Alt or Meta held, a key types nothing. A read-only or disabled field keeps its value. Edits in a text field fire `input` but no `beforeinput`. [#927](https://github.com/webdriverio/desktop-mobile/issues/927) lists where typing still differs from Chrome, such as not deleting in a contenteditable and no `change` on blur.
 
@@ -111,6 +111,17 @@ Unlike in Chrome, Enter and Space send only their key events in these cases:
 - Either key with Control, Alt or Meta held.
 
 The driver also sends no `keypress` events, so a `keypress` handler can't cancel a key's default action.
+
+Unless a `keydown` handler cancels it, Tab in a key action moves focus to the next element, and Shift+Tab to the previous one, in Chrome's order: elements with a positive `tabindex`, lowest first, then in tree order those with `tabindex="0"` and those focusable by default, such as links, buttons and form fields. Tab skips disabled, `inert` and hidden elements, and everything outside an open modal `<dialog>`. It goes through open shadow roots and slots, and stops once on a radio group: on its checked radio, or if Tab can't stop on one, on the first radio it reaches. It starts from the element focused after the `keydown`, and from an element it skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order. Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls, and the next Tab or Shift+Tab comes back in at the start or the end.
+
+Tab selects the value of a text, search, URL, telephone, email, password or number input it moves to. The field focus leaves fires any `change` that Element Send Keys left pending.
+
+Unlike in Chrome, Tab:
+- Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.
+- Stops once on an iframe, or on an audio or video element's controls, and doesn't move inside them.
+- Doesn't stop on a scrolling box with nothing focusable inside it, or on an image map's areas.
+- Starts from the focused element, never from where a click on text landed.
+- Sends only its key events with Control, Alt or Meta held. Chrome on macOS moves focus with Alt held.
 
 One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The W3C tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 
