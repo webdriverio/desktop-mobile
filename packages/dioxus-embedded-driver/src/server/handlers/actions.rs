@@ -282,8 +282,8 @@ impl Modifiers {
 // include its own files. test/scripts/key-tables.spec.ts checks the copies match.
 
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
-/// tables and a US keyboard, so no key event carries a raw code point. A newline and a backspace
-/// character also press the Enter and Backspace keys.
+/// tables and a US keyboard. A newline and a backspace character also press the Enter and
+/// Backspace keys.
 fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
   let mapped = match single_char(key)? {
     '\n' => ("Enter", "Enter", 13),
