@@ -6,7 +6,7 @@ Get up and running with WebdriverIO and Dioxus E2E testing in minutes.
 
 ### Required Software
 
-1. **Node.js 22.19+** - Download from [nodejs.org](https://nodejs.org)
+1. **Node.js 22 (22.23.4+), 24 (24.22.1+) or 26 (26.12.1+)** - Download from [nodejs.org](https://nodejs.org)
 
 2. **Rust Toolchain** - Required for building Dioxus apps
 
