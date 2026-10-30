@@ -363,6 +363,8 @@ Sync mock call data from the inner mock (app context) to the outer mock (test pr
 
 Temporarily use a different implementation while a callback runs, and return the callback's result. The callback runs in the app's webview like an `execute()` script, and receives the same `dx`. The implementation is restored when the callback returns, or when its promise settles. Mocks are per window, so this rejects if the command isn't mocked in the current window.
 
+> **Note:** The callback has to settle within the script timeout, which is 30 seconds unless you change it with `browser.setTimeout({ script })`. With the embedded driver, a callback that never settles blocks every later command until the app restarts ([#913](https://github.com/webdriverio/desktop-mobile/issues/913)). Don't wait in it for something the test does next, such as a click.
+
 **Returns:** `Promise` of the callback's result
 
 **Example:**
