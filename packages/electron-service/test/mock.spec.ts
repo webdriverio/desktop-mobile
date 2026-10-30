@@ -719,6 +719,22 @@ describe('createElectronBrowserModeMock()', () => {
         ),
       ).rejects.toThrow('boom');
     });
+
+    it('should sync the calls made before the browser-side callback failed', async () => {
+      const mock = await createElectronBrowserModeMock('err-channel', mockBrowser as unknown as WebdriverIO.Browser);
+
+      mockBrowser.execute
+        .mockResolvedValueOnce({ __wdioAsyncErr__: 'boom' })
+        .mockResolvedValueOnce(makeCallData([['arg']], [{ type: 'return', value: undefined }], [1]));
+
+      await expect(
+        mock.withImplementation(
+          () => undefined,
+          () => undefined,
+        ),
+      ).rejects.toMatchObject({ message: 'boom' });
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
+    });
   });
 
   describe('mockRestore()', () => {

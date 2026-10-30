@@ -291,6 +291,55 @@ describe('createMock', () => {
       expect(result).toBe('temporary');
       expect(mock.mock.calls).toStrictEqual([['arg']]);
     });
+
+    it('should sync the calls made before the callback rejected', async () => {
+      mockExecute
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockResolvedValueOnce(callData);
+      const mock = await createMock('my_cmd', makeBrowser());
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          ({ core }) => core.invoke('my_cmd'),
+        ),
+      ).rejects.toMatchObject({ message: 'boom' });
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
+    });
+
+    it("should reject with the callback's error when the sync fails too", async () => {
+      mockExecute
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error('boom'))
+        .mockRejectedValueOnce(new Error('page closed'));
+      const mock = await createMock('my_cmd', makeBrowser());
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          ({ core }) => core.invoke('my_cmd'),
+        ),
+      ).rejects.toMatchObject({ message: 'boom' });
+    });
+
+    it('should sync the calls made before the callback rejected in browser mode', async () => {
+      const execute = vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockResolvedValueOnce({ __wdioAsyncErr__: 'boom' })
+        .mockResolvedValueOnce(callData);
+      const browser = { isMultiremote: false, __wdioBrowserMode__: true, execute } as unknown as WebdriverIO.Browser;
+      const mock = await createMock('my_cmd', browser);
+
+      await expect(
+        mock.withImplementation(
+          () => 'temporary',
+          ({ core }) => core.invoke('my_cmd'),
+        ),
+      ).rejects.toMatchObject({ message: 'boom' });
+      expect(mock.mock.calls).toStrictEqual([['arg']]);
+    });
   });
 
   describe('wrapperMock', () => {
