@@ -30,10 +30,10 @@ const WDIO_CLICKED_ON_ENTER_TYPES = [...WDIO_KEY_ACTIVATED_INPUT_TYPES, 'color',
 const WDIO_CLICK_FOCUSABLE =
   'a[href], area[href], button, input, select, textarea, iframe, summary, audio[controls], video[controls], [tabindex]';
 
-// The focused element, looking through open shadow roots.
+// The focused element, looking through open shadow roots, or null in an empty document.
 function wdioDeepActiveElement() {
   let el = document.activeElement || document.body;
-  while (el.shadowRoot?.activeElement) {
+  while (el?.shadowRoot?.activeElement) {
     el = el.shadowRoot.activeElement;
   }
   return el;
@@ -138,6 +138,19 @@ function wdioClickOnEnter(el) {
   if (wdioKeyActivated(el)) {
     el.click();
   }
+}
+
+// Enter's default action. It goes to the element focused after the keydown, as a browser's keypress
+// does, after any `change` owed by a field that a keydown handler moved focus from.
+function wdioEnterKey() {
+  wdioFlushPendingChange();
+  const el = wdioDeepActiveElement();
+  if (!el) {
+    return;
+  }
+  wdioCommitOnEnter(el);
+  wdioSubmitOnEnter(el);
+  wdioClickOnEnter(el);
 }
 
 // Space clicks a button on the keyup rather than the keydown, and only if the keydown went to it.

@@ -438,8 +438,8 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
   Some((code.to_string(), key_code, shifted))
 }
 
-/// JS that dispatches a `KeyboardEvent` to the focused element, then runs the default action a
-/// browser would. Enter's goes to the element focused after the keydown, as a keypress does.
+/// JS that dispatches a `KeyboardEvent` to the focused element, then runs Enter's or Space's
+/// default action, as a browser would.
 fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let (key, code, key_code, mods) = match map_special_key(value) {
     Some((key, code, key_code)) => (key, code.to_string(), key_code, mods),
@@ -451,13 +451,15 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let modifiers = mods.js();
   let held = mods.ctrl || mods.meta || mods.alt;
   let default_action = match (event_type, key) {
-    ("keydown", "Enter") if !held => format!(
-      "if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nt=wdioDeepActiveElement(); wdioCommitOnEnter(t); wdioSubmitOnEnter(t); wdioClickOnEnter(t); }}"
-    ),
-    ("keydown", " ") => {
-      format!("\n{ELEMENT_EVENTS_JS}\nwdioSpaceDown(t, e.defaultPrevented || {held});")
+    ("keydown", "Enter") if !held => {
+      format!("if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nwdioEnterKey(); }}")
     }
-    ("keyup", " ") => format!("\n{ELEMENT_EVENTS_JS}\nwdioSpaceUp(t, e.defaultPrevented || {held});"),
+    ("keydown", " ") => {
+      format!("{{\n{ELEMENT_EVENTS_JS}\nwdioSpaceDown(t, e.defaultPrevented || {held}); }}")
+    }
+    ("keyup", " ") => {
+      format!("{{\n{ELEMENT_EVENTS_JS}\nwdioSpaceUp(t, e.defaultPrevented || {held}); }}")
+    }
     _ => String::new(),
   };
   format!(
@@ -513,7 +515,7 @@ pub async fn perform(
       .values()
       .flatten()
       .fold(0u32, |m, b| m | button_to_mask(*b));
-    let mods = Modifiers::from_keys(&session.action_state.pressed_keys);
+    let mods = Modifiers::from_keys(session.action_state.pressed_keys());
     (session.timeouts.script_ms, session.action_state.pointer_position, mask, mods)
   };
 
@@ -552,8 +554,8 @@ pub async fn perform(
                 {
                   let mut sessions = state.sessions.write().await;
                   if let Ok(session) = sessions.get_mut(&session_id) {
-                    session.action_state.pressed_keys.insert(value.clone());
-                    modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
+                    session.action_state.press_key(value);
+                    modifiers = Modifiers::from_keys(session.action_state.pressed_keys());
                   }
                 }
                 // Recompute before dispatch so a modifier key's own keydown carries its flag.
@@ -563,8 +565,8 @@ pub async fn perform(
                 {
                   let mut sessions = state.sessions.write().await;
                   if let Ok(session) = sessions.get_mut(&session_id) {
-                    session.action_state.pressed_keys.remove(value);
-                    modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
+                    session.action_state.release_key(value);
+                    modifiers = Modifiers::from_keys(session.action_state.pressed_keys());
                   }
                 }
                 eval(key_event_js("keyup", value, modifiers), timeout_ms).await?;
@@ -775,9 +777,7 @@ pub async fn release(
   let (timeout_ms, pressed_keys, pressed_buttons, pointer_pos) = {
     let mut sessions = state.sessions.write().await;
     let session = sessions.get_mut(&session_id)?;
-    let mut pressed_keys: Vec<String> = session.action_state.pressed_keys.drain().collect();
-    // `pressed_keys` drains from a HashSet (unordered); sort so keyup dispatch order is stable.
-    pressed_keys.sort();
+    let pressed_keys = session.action_state.take_keys_to_release();
     let pressed_buttons = std::mem::take(&mut session.action_state.pressed_buttons);
     let pointer_pos = session.action_state.pointer_position;
     session.action_state.pointer_position = (0, 0);
@@ -970,30 +970,25 @@ mod tests {
   }
 
   #[test]
-  fn key_event_js_commits_an_inputs_change_then_submits_its_form_on_an_uncanceled_enter_keydown() {
+  fn key_event_js_runs_the_shared_enter_key_action_on_an_uncanceled_enter_keydown() {
     let m = Modifiers::default();
-    let enter = key_event_js("keydown", "\u{E007}", m);
-    let dispatch = enter.find("t.dispatchEvent(e);").unwrap();
-    let canceled = enter.find("if(!e.defaultPrevented){").unwrap();
-    let commit = enter.find("wdioCommitOnEnter(t);").unwrap();
-    let refocus = enter.find("t=wdioDeepActiveElement();").unwrap();
-    let submit = enter.find("wdioSubmitOnEnter(t);").unwrap();
-    let click = enter.find("wdioClickOnEnter(t);").unwrap();
-    assert!(dispatch < canceled && canceled < refocus && refocus < commit);
-    assert!(commit < submit && submit < click);
-    assert!(enter.contains(ELEMENT_EVENTS_JS));
     let shift = Modifiers { shift: true, ..m };
-    let shift_enter = key_event_js("keydown", "\u{E006}", shift);
-    assert!(shift_enter.contains("wdioCommitOnEnter(t);"));
-    assert!(shift_enter.contains("wdioSubmitOnEnter(t);"));
+    for enter in
+      [key_event_js("keydown", "\u{E007}", m), key_event_js("keydown", "\u{E006}", shift)]
+    {
+      let dispatch = enter.find("t.dispatchEvent(e);").unwrap();
+      let canceled = enter.find("if(!e.defaultPrevented){").unwrap();
+      let helpers = enter.find(ELEMENT_EVENTS_JS).unwrap();
+      let enter_key = enter.find("wdioEnterKey();").unwrap();
+      assert!(dispatch < canceled && canceled < helpers && helpers < enter_key, "{enter}");
+    }
     let ctrl = Modifiers { ctrl: true, ..m };
     for js in [
       key_event_js("keyup", "\u{E007}", m),
       key_event_js("keydown", "\u{E007}", ctrl),
       key_event_js("keydown", "a", m),
     ] {
-      assert!(!js.contains("wdioCommitOnEnter") && !js.contains("wdioSubmitOnEnter"), "{js}");
-      assert!(!js.contains("wdioClickOnEnter"), "{js}");
+      assert!(!js.contains("wdioEnterKey"), "{js}");
     }
   }
 
@@ -1005,7 +1000,9 @@ mod tests {
         let js = key_event_js(event_type, value, Modifiers { shift: true, ..m });
         let dispatch = js.find("t.dispatchEvent(e);").unwrap();
         let space = js.find(&format!("{call}(t, e.defaultPrevented || false);")).unwrap();
-        assert!(dispatch < space && js.contains(ELEMENT_EVENTS_JS), "{js}");
+        assert!(dispatch < space, "{js}");
+        // A block keeps the helpers' declarations out of the script's own scope.
+        assert!(js.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(")), "{js}");
       }
       let ctrl = key_event_js(event_type, " ", Modifiers { ctrl: true, ..m });
       assert!(ctrl.contains(&format!("{call}(t, e.defaultPrevented || true);")), "{ctrl}");
@@ -1154,7 +1151,7 @@ mod tests {
     assert!(is_skipped_key("\r") && map_special_key("\r").is_none());
     let newline = key_event_js("keydown", "\n", m);
     assert!(newline.contains(r#"key:"Enter",code:"Enter",keyCode:13,"#), "{newline}");
-    assert!(newline.contains("wdioCommitOnEnter(t);"));
+    assert!(newline.contains("wdioEnterKey();"));
     let backspace = key_event_js("keydown", "\u{8}", m);
     assert!(backspace.contains(r#"key:"Backspace",code:"Backspace",keyCode:8,"#), "{backspace}");
     let tab = key_event_js("keydown", "\t", m);

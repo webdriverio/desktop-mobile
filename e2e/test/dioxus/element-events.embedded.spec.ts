@@ -226,6 +226,35 @@ describe('Dioxus element events (embedded)', () => {
     ]);
   });
 
+  it('should press Enter on the button a keydown handler moves focus to, after the change, as Chrome does', async () => {
+    await fillFormScratch(
+      '<input id="fresh-field"><button type="button" id="fresh-other">other</button><button id="fresh-submit">go</button>',
+    );
+    await browser.execute(
+      `document.querySelector("#fresh-field").addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") { document.querySelector("#fresh-other").focus(); }
+      });`,
+    );
+    await browser.$('#fresh-field').addValue('x');
+    await browser.keys(Key.Enter);
+    expect(await fieldEvents()).toEqual(['keydown Enter', 'change x', 'click fresh-other', 'keyup Enter']);
+  });
+
+  it('should release held keys in reverse press order, so Space clicks once Control is up', async () => {
+    await fillFormScratch('<button id="fresh-submit">go</button>');
+    await browser.execute('document.querySelector("#fresh-submit").focus();');
+    await browser.action('key').down(' ').down(Key.Control).perform(true);
+    await browser.releaseActions();
+    expect(await fieldEvents()).toEqual([
+      'keydown Space',
+      'keydown ControlLeft',
+      'keyup ControlLeft',
+      'keyup Space',
+      'click fresh-submit',
+      'submit fresh-submit',
+    ]);
+  });
+
   it('should set a date input at once, firing input and change', async () => {
     await fillChangeScratch();
     await addToScratch('<input id="fresh-date" type="date">');

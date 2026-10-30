@@ -16,6 +16,7 @@ type ElementEvents = {
   wdioCommitOnEnter(el: HTMLElement): void;
   wdioSubmitOnEnter(el: HTMLElement): void;
   wdioClickOnEnter(el: HTMLElement): void;
+  wdioEnterKey(): void;
   wdioSpaceDown(el: HTMLElement, blocked: boolean): void;
   wdioSpaceUp(el: HTMLElement, blocked: boolean): void;
   wdioPress(el: HTMLElement): void;
@@ -28,7 +29,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioClickOnEnter, wdioSpaceDown, wdioSpaceUp, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioClickOnEnter, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -421,6 +422,40 @@ describe('Enter and Space on a button', () => {
     events.wdioSpaceUp($('#c'), false);
     events.wdioSpaceUp($('#b'), false);
     expect(log).toEqual([]);
+  });
+
+  it('should commit and submit from the focused field on Enter', () => {
+    render('<form id="f"><input id="i"><button id="b">go</button></form>');
+    type($('#i'), 'x');
+    events.wdioEnterKey();
+    expect(log).toEqual(['change i=x', 'click b', 'submit f by b']);
+  });
+
+  it.each([
+    ['', ['change i=x', 'blur i=x', 'focus b=', 'click b']],
+    // WebView2 skips the blur while its window isn't focused.
+    [' without a blur', ['focus b=', 'change i=x', 'click b']],
+  ])("should click the button a keydown handler moved focus to%s, after the field's change", (blur, expected) => {
+    render('<form id="f"><input id="i"><button type="button" id="b">go</button><button id="s">go</button></form>');
+    type($('#i'), 'x');
+    const keydownHandler = () => $('#b').focus();
+    if (blur) {
+      withoutBlur(keydownHandler);
+    } else {
+      keydownHandler();
+    }
+    events.wdioEnterKey();
+    expect(log).toEqual(expected);
+  });
+
+  it('should do nothing on Enter in an empty document', () => {
+    const root = document.documentElement;
+    root.remove();
+    try {
+      expect(() => events.wdioEnterKey()).not.toThrow();
+    } finally {
+      document.appendChild(root);
+    }
   });
 });
 

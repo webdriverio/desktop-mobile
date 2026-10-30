@@ -30,9 +30,35 @@ impl Default for Timeouts {
 #[derive(Debug, Default)]
 pub struct ActionState {
   pub pointer_position: (i32, i32),
-  pub pressed_keys: HashSet<String>,
+  /// Pressed keys in the order they were pressed.
+  pressed_keys: Vec<String>,
   /// Pressed pointer buttons keyed by the action source's `id`.
   pub pressed_buttons: HashMap<String, HashSet<u32>>,
+}
+
+impl ActionState {
+  /// Records a key press. A key pressed again keeps its place in the press order.
+  pub fn press_key(&mut self, key: &str) {
+    if !self.pressed_keys.iter().any(|held| held == key) {
+      self.pressed_keys.push(key.to_string());
+    }
+  }
+
+  pub fn release_key(&mut self, key: &str) {
+    self.pressed_keys.retain(|held| held != key);
+  }
+
+  pub fn pressed_keys(&self) -> &[String] {
+    &self.pressed_keys
+  }
+
+  /// Empties the pressed keys, returning them in the order Release Actions releases them: the
+  /// reverse of the order they were pressed (W3C).
+  pub fn take_keys_to_release(&mut self) -> Vec<String> {
+    let mut keys = std::mem::take(&mut self.pressed_keys);
+    keys.reverse();
+    keys
+  }
 }
 
 /// A WebDriver session.
@@ -92,6 +118,18 @@ impl SessionManager {
 #[cfg(test)]
 mod tests {
   use super::*;
+
+  #[test]
+  fn release_actions_releases_keys_in_reverse_press_order() {
+    let mut state = ActionState::default();
+    for key in [" ", "\u{E009}", "a", " "] {
+      state.press_key(key);
+    }
+    state.release_key("a");
+    assert_eq!(state.pressed_keys(), [" ", "\u{E009}"]);
+    assert_eq!(state.take_keys_to_release(), ["\u{E009}", " "]);
+    assert!(state.pressed_keys().is_empty());
+  }
 
   #[test]
   fn should_create_sessions_with_unique_ids() {
