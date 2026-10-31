@@ -368,7 +368,6 @@ describe('Enter and Space on a button', () => {
     }
   });
 
-  // Space as the drivers press it: a keydown, then a keyup, either of which a handler may cancel.
   function space(el: HTMLElement, { downCanceled = false, upCanceled = false } = {}) {
     events.wdioSpaceDown(el, downCanceled);
     events.wdioSpaceUp(el, upCanceled);

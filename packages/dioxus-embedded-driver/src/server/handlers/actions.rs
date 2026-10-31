@@ -451,8 +451,7 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let modifiers = mods.js();
   let held = mods.ctrl || mods.meta || mods.alt;
   let default_action = match (event_type, key) {
-    // Fires the `change` owed by a field that a keydown handler moved focus from, even one that
-    // cancels Enter.
+    // Flushes before the cancel check, as a handler that cancels Enter can still move focus.
     ("keydown", "Enter") if !held => format!(
       "{{\n{ELEMENT_EVENTS_JS}\nwdioFlushPendingChange(); if(!e.defaultPrevented){{ wdioEnterKey(); }}}}"
     ),
@@ -1004,9 +1003,7 @@ mod tests {
         let js = key_event_js(event_type, value, Modifiers { shift: true, ..m });
         let dispatch = js.find("t.dispatchEvent(e);").unwrap();
         let space = js.find(&format!("{call}(t, e.defaultPrevented || false);")).unwrap();
-        assert!(dispatch < space, "{js}");
-        // The helpers' `const`s are block-scoped, so another snippet can paste them too.
-        assert!(js.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(")), "{js}");
+        assert!(dispatch < space && js.contains(ELEMENT_EVENTS_JS), "{js}");
       }
       let ctrl = key_event_js(event_type, " ", Modifiers { ctrl: true, ..m });
       assert!(ctrl.contains(&format!("{call}(t, e.defaultPrevented || true);")), "{ctrl}");

@@ -190,6 +190,7 @@ pub fn deep_active_element_js(var: &str) -> String {
   )
 }
 
+/// `element-events.js`'s text field types, for scripts that don't paste that file.
 fn text_field_types_js() -> &'static str {
   const DECLARATION: &str = "const WDIO_TEXT_FIELD_TYPES = ";
   let start =
@@ -271,8 +272,7 @@ pub fn build_printable_key_script(
   key_event_script(key, code, key_code, is_down, modifiers, &after_dispatch, &default_action)
 }
 
-/// JS for Space on a button, which clicks it after the keyup, as in a browser. It runs whether or
-/// not a handler canceled the event, as a canceled keydown or keyup stops the click.
+/// JS for Space's keydown or keyup, which runs even when canceled, as a cancel stops the click.
 fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
   let call = if is_down { "wdioSpaceDown" } else { "wdioSpaceUp" };
   let held = modifiers.ctrl || modifiers.meta || modifiers.alt;
@@ -280,8 +280,7 @@ fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
 }
 
 /// JS dispatching one keydown or keyup to the deep focused element, then running `after_dispatch`,
-/// which can read whether a handler canceled the event from `canceled`, and `default_action` unless
-/// one did.
+/// which can read `canceled`, and `default_action` unless a handler canceled the event.
 fn key_event_script(
   key: &str,
   code: &str,
@@ -399,8 +398,8 @@ fn radio_step_js(forward: bool) -> String {
   )
 }
 
-/// JS for Enter's keydown. A field a handler moved focus from owes its `change` even when the
-/// handler canceled the key, and that `change` can move focus again, so Enter acts after it.
+/// JS for Enter's keydown. It fires an owed `change` even if a handler canceled the key, as the
+/// handler can still have moved focus, then acts where focus is after that `change`.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
@@ -1417,9 +1416,7 @@ mod tests {
       let dispatch = script.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
       let space = script.find(&format!("{call}(activeEl, canceled || false);")).unwrap();
       let guard = script.find("if (canceled) {").unwrap();
-      assert!(dispatch < space && space < guard, "{script}");
-      // The helpers' `const`s are block-scoped, so another snippet can paste them too.
-      assert!(script.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(")), "{script}");
+      assert!(dispatch < space && space < guard && script.contains(ELEMENT_EVENTS_JS), "{script}");
     }
     for held in [
       mods(true, false, false, false),

@@ -37,8 +37,7 @@ pub struct ActionState {
 }
 
 impl ActionState {
-  /// Records a key press. A key pressed again while held moves to the end, as W3C releases its
-  /// latest press first.
+  /// A key pressed again while held moves to the end, as W3C releases its latest press first.
   pub fn press_key(&mut self, key: &str) {
     self.release_key(key);
     self.pressed_keys.push(key.to_string());
@@ -52,8 +51,7 @@ impl ActionState {
     &self.pressed_keys
   }
 
-  /// Empties the pressed keys, returning them in the order Release Actions releases them: the
-  /// reverse of the order they were pressed (W3C).
+  /// Empties the pressed keys, returning them in W3C's release order: last pressed first.
   pub fn take_keys_to_release(&mut self) -> Vec<String> {
     let mut keys = std::mem::take(&mut self.pressed_keys);
     keys.reverse();
