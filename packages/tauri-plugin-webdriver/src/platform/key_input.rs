@@ -419,7 +419,8 @@ fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
   format!(
-    r"{ELEMENT_EVENTS_JS}
+    r"{{
+                {ELEMENT_EVENTS_JS}
                 wdioFlushPendingChange();
                 activeEl = wdioDeepActiveElement();
                 if (!activeEl) {{
@@ -431,6 +432,7 @@ fn enter_js(shift: bool) -> String {
                     document.execCommand('{command}', false, null);
                 }} else {{
                     wdioEnterKey();
+                }}
                 }}"
   )
 }
@@ -1125,8 +1127,9 @@ mod tests {
       let guard = script.find("if (canceled) {").unwrap();
       let target = script.find("var keyTarget = activeEl;").unwrap();
       let refocus = script.rfind("var activeEl = document.activeElement").unwrap();
-      let none_focused = script.rfind("if (!activeEl) {").unwrap();
-      assert!(guard < target && target < refocus && refocus < none_focused, "{script}");
+      let none_focused = refocus + script[refocus..].find("if (!activeEl) {").unwrap();
+      assert!(guard < target && target < refocus, "{script}");
+      assert!(!script[refocus..none_focused].contains("wdio"), "{script}");
     }
     let page_down = build_special_key_script("PageDown", "PageDown", 34, true, &none);
     assert_eq!(page_down.matches("var activeEl = ").count(), 1, "{page_down}");
@@ -1421,7 +1424,7 @@ mod tests {
     for modifiers in [none, shift] {
       let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
       let guard = enter.find("if (canceled) {").unwrap();
-      let helpers = enter.find(ELEMENT_EVENTS_JS).unwrap();
+      let helpers = enter.find(&format!("{{\n                {ELEMENT_EVENTS_JS}")).unwrap();
       let action = &enter[helpers + ELEMENT_EVENTS_JS.len()..];
       let flush = action.find("wdioFlushPendingChange();").unwrap();
       let refocus = action.find("activeEl = wdioDeepActiveElement();").unwrap();

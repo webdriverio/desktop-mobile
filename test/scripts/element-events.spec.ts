@@ -425,6 +425,28 @@ describe('Enter and Space on a button', () => {
     expect(log).toEqual(['click b']);
   });
 
+  it.each([
+    ['keydown', true, ['focus b=', 'change i=x', 'keyup', 'click b', 'submit f by b']],
+    ['keyup', false, ['focus b=', 'keyup', 'change i=x', 'click b', 'submit f by b']],
+  ])(
+    "should fire the change a field owes on Space's %s, when focus left it without a blur",
+    (_, focusFirst, expected) => {
+      render('<form id="f"><input id="i"><button id="b">go</button></form>');
+      type($('#i'), 'x');
+      const moveFocus = () => withoutBlur(() => $('#b').focus());
+      if (focusFirst) {
+        moveFocus();
+      }
+      events.wdioSpaceDown($('#b'), false);
+      if (!focusFirst) {
+        moveFocus();
+      }
+      log.push('keyup');
+      events.wdioSpaceUp($('#b'), false);
+      expect(log).toEqual(expected);
+    },
+  );
+
   it('should not click on Space when the keyup goes to another element, nor on a later keyup', () => {
     render('<button id="b">go</button><button id="c">go</button>');
     events.wdioSpaceDown($('#b'), false);

@@ -548,16 +548,18 @@ pub async fn perform(
             match action {
               KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
                 if is_skipped_key(value) => {}
+              // WDIO skips Release Actions after a failed perform, so a key counts as held only
+              // once its keydown succeeds, and as released before its keyup is sent.
               KeyAction::KeyDown { value } => {
-                {
-                  let mut sessions = state.sessions.write().await;
-                  if let Ok(session) = sessions.get_mut(&session_id) {
-                    session.action_state.press_key(value);
-                    modifiers = Modifiers::from_keys(session.action_state.pressed_keys());
-                  }
+                // Includes the key, so a modifier key's own keydown carries its flag.
+                if let Ok(session) = state.sessions.read().await.get(&session_id) {
+                  modifiers =
+                    Modifiers::from_keys(session.action_state.pressed_keys().iter().chain([value]));
                 }
-                // Recompute before dispatch so a modifier key's own keydown carries its flag.
                 eval(key_event_js("keydown", value, modifiers), timeout_ms).await?;
+                if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+                  session.action_state.press_key(value);
+                }
               }
               KeyAction::KeyUp { value } => {
                 {
