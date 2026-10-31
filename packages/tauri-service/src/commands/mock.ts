@@ -1,3 +1,4 @@
+import { requireInstance } from '@wdio/native-core';
 import type { TauriMock } from '@wdio/native-types';
 import { createLogger, errorMessage, isMultiremote, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-utils';
 import { createMock } from '../mock.js';
@@ -107,7 +108,7 @@ async function runOnMocks(
     ...browserContext.instances.map((name) => ({
       name,
       run: async () => {
-        const instance = browserContext.getInstance(name);
+        const instance = requireInstance(browserContext, name);
         await runOn(instance, instance);
       },
     })),

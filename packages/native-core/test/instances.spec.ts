@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { forEachInstance, type InstanceContext, normaliseInstanceCaps } from '../src/instances.js';
+import { forEachInstance, type InstanceContext, normaliseInstanceCaps, requireInstance } from '../src/instances.js';
 
 type Caps = { browserName?: string; 'app:options'?: { binary: string } };
 
@@ -199,5 +199,31 @@ describe('forEachInstance', () => {
       ),
     ).rejects.toBe(error);
     expect(callback).toHaveBeenCalledTimes(1);
+  });
+
+  it('should reject, naming the instance, when a listed instance does not resolve', async () => {
+    const browser = {
+      isMultiRemote: true,
+      instances: ['instanceA'],
+      getInstance: () => undefined,
+    } as unknown as WebdriverIO.MultiRemoteBrowser;
+    const callback = vi.fn();
+
+    await expect(forEachInstance(browser, callback)).rejects.toThrow(/no instance named "instanceA"/);
+    expect(callback).not.toHaveBeenCalled();
+  });
+});
+
+describe('requireInstance', () => {
+  it('should return the named instance', () => {
+    const instanceA = {} as WebdriverIO.Browser;
+
+    expect(requireInstance(multiremoteBrowser({ instanceA }), 'instanceA')).toBe(instanceA);
+  });
+
+  it('should throw, naming the instance, when the browser has none by that name', () => {
+    expect(() => requireInstance(multiremoteBrowser({}), 'missing')).toThrow(
+      'Multiremote browser has no instance named "missing"',
+    );
   });
 });
