@@ -99,7 +99,7 @@ Space on a button clicks it after the `keyup`, as in Chrome, if the `keydown` an
 Each click is a single `click` event, without pointer or mouse events, and a `submit` that no handler cancels navigates the page. Unlike in Chrome:
 - Enter doesn't break the line in a textarea or contenteditable, because key actions don't type text yet ([#906](https://github.com/webdriverio/desktop-mobile/issues/906)).
 - Enter on a link, a `<summary>`, a colour or file input or a `<select>` sends only its key events.
-- Space on a checkbox, a radio button or a `<summary>` sends only its key events.
+- Space on a checkbox, a radio button, a `<summary>`, a colour or file input or a `<select>` sends only its key events.
 - Enter and Space send only their key events to a button inside a closed shadow root, which the driver can't reach.
 - With Control, Alt or Meta held, Enter and Space send only their key events.
 - The driver sends no `keypress` events, so a `keypress` handler can't cancel Enter.

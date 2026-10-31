@@ -441,12 +441,15 @@ describe('Enter and Space on a button', () => {
   });
 
   it.each([
-    ['submit', ['click b', 'submit f by b']],
-    ['image', ['click b', 'submit f by b']],
-    ['reset', ['click b', 'reset f']],
-    ['button', ['click b']],
-  ])('should click a focused %s input once on Enter, without implicit submission', (inputType, expected) => {
-    render(`<form id="f"><input type="${inputType}" id="b" alt="go"><button id="s">go</button></form>`);
+    ['submit input', '<input type="submit" id="b">', ['click b', 'submit f by b']],
+    ['image input', '<input type="image" id="b" alt="go">', ['click b', 'submit f by b']],
+    ['reset input', '<input type="reset" id="b">', ['click b', 'reset f']],
+    ['button input', '<input type="button" id="b">', ['click b']],
+    ['submit button', '<button id="b">go</button>', ['click b', 'submit f by b']],
+    ['reset button', '<button type="reset" id="b">go</button>', ['click b', 'reset f']],
+    ['plain button', '<button type="button" id="b">go</button>', ['click b']],
+  ])('should click a focused %s once on Enter, without implicit submission', (_, button, expected) => {
+    render(`<form id="f">${button}<button id="s">go</button></form>`);
     $('#b').focus();
     log = [];
     events.wdioEnterKey();

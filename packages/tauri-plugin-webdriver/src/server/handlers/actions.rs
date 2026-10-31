@@ -219,14 +219,14 @@ async fn perform_actions<R: Runtime + 'static>(
             match action {
               KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
                 if is_skipped_key(value) => {}
-              // The session records a press or release before dispatching it, as W3C does, so
-              // a failed keyup, such as one during Enter's navigation, isn't sent again on release.
+              // WDIO skips Release Actions after a failed perform, so a key counts as held only
+              // once its keydown succeeds, and as released before its keyup is sent.
               KeyAction::KeyDown { value } => {
                 held_modifiers.press(value);
+                executor.dispatch_key_event(value, true, &held_modifiers.state()).await?;
                 if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
                   session.action_state.press_key(value);
                 }
-                executor.dispatch_key_event(value, true, &held_modifiers.state()).await?;
               }
               KeyAction::KeyUp { value } => {
                 held_modifiers.release(value);

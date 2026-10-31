@@ -412,14 +412,19 @@ fn radio_step_js(forward: bool) -> String {
 }
 
 /// JS for Enter's default action: a line break in a textarea or contenteditable, a click on a
-/// button, or an input's `change` and form submission. Each comes after any `change` owed by a
-/// field that a keydown handler moved focus from, as in the Dioxus driver.
+/// button, or an input's `change` and form submission. It first fires any `change` owed by a field
+/// that a keydown handler moved focus from, then acts on the element focused after that, as the
+/// `change` handler can move focus too.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
   format!(
     r"{ELEMENT_EVENTS_JS}
                 wdioFlushPendingChange();
+                activeEl = wdioDeepActiveElement();
+                if (!activeEl) {{
+                    return true;
+                }}
                 if (activeEl.tagName === 'TEXTAREA') {{
                     {insert_newline}
                 }} else if (activeEl.isContentEditable) {{
@@ -1410,7 +1415,7 @@ mod tests {
   }
 
   #[test]
-  fn enter_fires_an_owed_change_then_runs_the_shared_enter_key_action_outside_an_editor() {
+  fn enter_fires_an_owed_change_then_acts_on_the_element_focused_after_it() {
     let none = mods(false, false, false, false);
     let shift = mods(false, true, false, false);
     for modifiers in [none, shift] {
@@ -1419,11 +1424,13 @@ mod tests {
       let helpers = enter.find(ELEMENT_EVENTS_JS).unwrap();
       let action = &enter[helpers + ELEMENT_EVENTS_JS.len()..];
       let flush = action.find("wdioFlushPendingChange();").unwrap();
+      let refocus = action.find("activeEl = wdioDeepActiveElement();").unwrap();
       let textarea = action.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
       let editor = action.find("} else if (activeEl.isContentEditable) {").unwrap();
       let enter_key = action.find("wdioEnterKey();").unwrap();
       assert!(guard < helpers, "{enter}");
-      assert!(flush < textarea && textarea < editor && editor < enter_key, "{enter}");
+      assert!(flush < refocus && refocus < textarea, "{enter}");
+      assert!(textarea < editor && editor < enter_key, "{enter}");
     }
     let enter_up = build_special_key_script("Enter", "Enter", 13, false, &none);
     let ctrl_enter =
@@ -1443,7 +1450,7 @@ mod tests {
       let space = script.find(&format!("{call}(activeEl, canceled || false);")).unwrap();
       let guard = script.find("if (canceled) {").unwrap();
       assert!(dispatch < space && space < guard, "{script}");
-      // A block keeps the helpers' declarations out of the default action's scope.
+      // The helpers' `const`s are block-scoped, so another snippet can paste them too.
       assert!(script.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(")), "{script}");
     }
     for held in [

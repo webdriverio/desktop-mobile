@@ -1003,7 +1003,7 @@ mod tests {
         let dispatch = js.find("t.dispatchEvent(e);").unwrap();
         let space = js.find(&format!("{call}(t, e.defaultPrevented || false);")).unwrap();
         assert!(dispatch < space, "{js}");
-        // A block keeps the helpers' declarations out of the script's own scope.
+        // The helpers' `const`s are block-scoped, so another snippet can paste them too.
         assert!(js.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(")), "{js}");
       }
       let ctrl = key_event_js(event_type, " ", Modifiers { ctrl: true, ..m });
