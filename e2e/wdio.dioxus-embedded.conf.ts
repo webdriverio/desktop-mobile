@@ -45,12 +45,7 @@ switch (testType) {
   default:
     specs = ['./test/dioxus/*.spec.ts'];
     maxInstances = 1;
-    exclude = [
-      './test/dioxus/window.spec.ts',
-      './test/dioxus/deeplink.spec.ts',
-      // The embedded driver refuses screenshots until #741; screenshot.embedded.spec.ts checks that.
-      './test/dioxus/visual.spec.ts',
-    ];
+    exclude = ['./test/dioxus/window.spec.ts', './test/dioxus/deeplink.spec.ts'];
     break;
 }
 
