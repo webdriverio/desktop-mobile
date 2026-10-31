@@ -577,6 +577,19 @@ describe('Tab', () => {
     expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
   });
 
+  it("should fire the field's change when a handler cancels Tab and moves focus without a blur", () => {
+    render('<input id="a"><input id="b"><input id="c">');
+    type($('#a'), 'x');
+    // A focus trap's handler.
+    const trap = (event: Event) => {
+      event.preventDefault();
+      withoutBlur(() => $('#c').focus());
+    };
+    $('#a').addEventListener('keydown', trap, { once: true });
+    expect(tab()).toBe('c');
+    expect(log.filter((entry) => entry.startsWith('change'))).toEqual(['change a=x']);
+  });
+
   it('should go from an element Tab skips to the nearest stop in tree order, or round to the other end', () => {
     render(`<div id="t1" tabindex="-1">t</div><input id="a"><div id="t2" tabindex="-1">t</div><input id="b">
       <div id="t3" tabindex="-1">t</div>`);

@@ -165,12 +165,16 @@ function wdioSpaceUp(el, blocked) {
 // Tab's default action, which Control, Alt or Meta blocks. Chrome selects the text field Tab moves to,
 // and past either end of the order hands focus to the browser's own controls.
 function wdioTabKey(event) {
-  if (event.defaultPrevented || event.ctrlKey || event.altKey || event.metaKey) {
+  if (event.ctrlKey || event.altKey || event.metaKey) {
+    return;
+  }
+  // Before the cancel check, as a handler that cancels Tab, such as a focus trap's, can still move focus.
+  wdioFlushPendingChange();
+  if (event.defaultPrevented) {
     return;
   }
   const next = wdioNextTabStop(event.shiftKey);
   if (!next) {
-    wdioFlushPendingChange();
     wdioDeepActiveElement().blur();
     wdioFlushPendingChange();
     return;
