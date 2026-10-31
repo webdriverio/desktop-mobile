@@ -229,10 +229,11 @@ pub fn build_special_key_script(
     "Backspace" | "Delete" => delete_js(js_key == "Backspace"),
     "ArrowDown" | "ArrowRight" => radio_step_js(true),
     "ArrowUp" | "ArrowLeft" => radio_step_js(false),
-    "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => enter_js(modifiers.shift),
     _ => String::new(),
   };
-  key_event_script(js_key, js_code, key_code, is_down, modifiers, "", &default_action)
+  let after_dispatch =
+    if js_key == "Enter" && is_down { enter_js(modifiers) } else { String::new() };
+  key_event_script(js_key, js_code, key_code, is_down, modifiers, &after_dispatch, &default_action)
 }
 
 /// JS dispatching a synthetic printable-character `KeyboardEvent` plus the insertion or Ctrl/Meta+A
@@ -411,28 +412,38 @@ fn radio_step_js(forward: bool) -> String {
   )
 }
 
-/// JS for Enter's default action: a line break in a textarea or contenteditable, a click on a
-/// button, or an input's `change` and form submission. It first fires any `change` owed by a field
-/// that a keydown handler moved focus from, then acts on the element focused after that, as the
-/// `change` handler can move focus too.
-fn enter_js(shift: bool) -> String {
-  let insert_newline = insert_text_js("activeEl", &js_string("\n"));
-  let command = if shift { "insertLineBreak" } else { "insertParagraph" };
+/// JS for Enter's keydown. Whether or not a handler canceled it, it fires any `change` owed by a
+/// field that a keydown handler moved focus from. Unless a handler canceled it or Control, Alt or
+/// Meta is held, it then acts on the element focused after that, as the `change` handler can move
+/// focus too: a line break in a textarea or contenteditable, a click on a button, or an input's
+/// `change` and form submission.
+fn enter_js(modifiers: &ModifierState) -> String {
+  let action = if modifiers.ctrl || modifiers.meta || modifiers.alt {
+    String::new()
+  } else {
+    let insert_newline = insert_text_js("activeEl", &js_string("\n"));
+    let command = if modifiers.shift { "insertLineBreak" } else { "insertParagraph" };
+    format!(
+      r"if (!canceled) {{
+                    activeEl = wdioDeepActiveElement();
+                    if (!activeEl) {{
+                        return true;
+                    }}
+                    if (activeEl.tagName === 'TEXTAREA') {{
+                        {insert_newline}
+                    }} else if (activeEl.isContentEditable) {{
+                        document.execCommand('{command}', false, null);
+                    }} else {{
+                        wdioEnterKey();
+                    }}
+                }}"
+    )
+  };
   format!(
     r"{{
                 {ELEMENT_EVENTS_JS}
                 wdioFlushPendingChange();
-                activeEl = wdioDeepActiveElement();
-                if (!activeEl) {{
-                    return true;
-                }}
-                if (activeEl.tagName === 'TEXTAREA') {{
-                    {insert_newline}
-                }} else if (activeEl.isContentEditable) {{
-                    document.execCommand('{command}', false, null);
-                }} else {{
-                    wdioEnterKey();
-                }}
+                {action}
                 }}"
   )
 }
@@ -1100,7 +1111,6 @@ mod tests {
       ),
       (build_special_key_script("Delete", "Delete", 46, true, &none), "nativeInputValueSetter"),
       (build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none), "nextRadio.checked"),
-      (build_special_key_script("Enter", "Enter", 13, true, &none), "insertParagraph"),
     ] {
       let dispatch_at = script.find(dispatch).unwrap_or_else(|| panic!("no dispatch in {script}"));
       let guard_at = script.find(guard).unwrap_or_else(|| panic!("no guard in {script}"));
@@ -1121,7 +1131,6 @@ mod tests {
       build_regular_key_script("a", true, &ctrl),
       build_special_key_script("Backspace", "Backspace", 8, true, &none),
       build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none),
-      build_special_key_script("Enter", "Enter", 13, true, &none),
     ] {
       let script = script.replacen(ELEMENT_EVENTS_JS, "", 1);
       let guard = script.find("if (canceled) {").unwrap();
@@ -1423,24 +1432,33 @@ mod tests {
     let shift = mods(false, true, false, false);
     for modifiers in [none, shift] {
       let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
-      let guard = enter.find("if (canceled) {").unwrap();
+      let dispatch = enter.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
       let helpers = enter.find(&format!("{{\n                {ELEMENT_EVENTS_JS}")).unwrap();
       let action = &enter[helpers + ELEMENT_EVENTS_JS.len()..];
       let flush = action.find("wdioFlushPendingChange();").unwrap();
+      let uncanceled = action.find("if (!canceled) {").unwrap();
       let refocus = action.find("activeEl = wdioDeepActiveElement();").unwrap();
       let textarea = action.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
       let editor = action.find("} else if (activeEl.isContentEditable) {").unwrap();
       let enter_key = action.find("wdioEnterKey();").unwrap();
-      assert!(guard < helpers, "{enter}");
-      assert!(flush < refocus && refocus < textarea, "{enter}");
-      assert!(textarea < editor && editor < enter_key, "{enter}");
+      let guard = action.find("if (canceled) {").unwrap();
+      assert!(dispatch < helpers, "{enter}");
+      assert!(flush < uncanceled && uncanceled < refocus && refocus < textarea, "{enter}");
+      assert!(textarea < editor && editor < enter_key && enter_key < guard, "{enter}");
+    }
+    for held in [
+      mods(true, false, false, false),
+      mods(false, false, true, false),
+      mods(false, false, false, true),
+    ] {
+      let enter = build_special_key_script("Enter", "Enter", 13, true, &held);
+      let action = after_helpers(&enter);
+      let flush = action.find("wdioFlushPendingChange();").unwrap();
+      assert!(flush < action.find("if (canceled) {").unwrap(), "{enter}");
+      assert!(!action.contains("if (!canceled)") && !action.contains("wdioEnterKey"), "{enter}");
     }
     let enter_up = build_special_key_script("Enter", "Enter", 13, false, &none);
-    let ctrl_enter =
-      build_special_key_script("Enter", "Enter", 13, true, &mods(true, false, false, false));
-    for script in [enter_up, ctrl_enter] {
-      assert!(!script.contains("wdioEnterKey"), "{script}");
-    }
+    assert!(!enter_up.contains("wdio"), "{enter_up}");
   }
 
   #[test]

@@ -451,8 +451,11 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let modifiers = mods.js();
   let held = mods.ctrl || mods.meta || mods.alt;
   let default_action = match (event_type, key) {
-    ("keydown", "Enter") if !held => {
-      format!("if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nwdioEnterKey(); }}")
+    // Fires the `change` owed by a field that a keydown handler moved focus from, even one that
+    // cancels Enter.
+    ("keydown", "Enter") => {
+      let action = if held { "" } else { "if(!e.defaultPrevented){ wdioEnterKey(); }" };
+      format!("{{\n{ELEMENT_EVENTS_JS}\nwdioFlushPendingChange(); {action}}}")
     }
     (_, " ") => {
       let call = if event_type == "keydown" { "wdioSpaceDown" } else { "wdioSpaceUp" };
@@ -974,25 +977,30 @@ mod tests {
   }
 
   #[test]
-  fn key_event_js_runs_the_shared_enter_key_action_on_an_uncanceled_enter_keydown() {
+  fn key_event_js_fires_an_owed_change_on_enter_then_runs_its_action_unless_canceled() {
     let m = Modifiers::default();
     let shift = Modifiers { shift: true, ..m };
     for enter in
       [key_event_js("keydown", "\u{E007}", m), key_event_js("keydown", "\u{E006}", shift)]
     {
       let dispatch = enter.find("t.dispatchEvent(e);").unwrap();
-      let canceled = enter.find("if(!e.defaultPrevented){").unwrap();
-      let helpers = enter.find(ELEMENT_EVENTS_JS).unwrap();
-      let enter_key = enter.find("wdioEnterKey();").unwrap();
-      assert!(dispatch < canceled && canceled < helpers && helpers < enter_key, "{enter}");
+      let helpers = enter.find(&format!("{{\n{ELEMENT_EVENTS_JS}")).unwrap();
+      let action = &enter[helpers + ELEMENT_EVENTS_JS.len()..];
+      let flush = action.find("wdioFlushPendingChange();").unwrap();
+      let canceled = action.find("if(!e.defaultPrevented){").unwrap();
+      let enter_key = action.find("wdioEnterKey();").unwrap();
+      assert!(dispatch < helpers, "{enter}");
+      assert!(flush < canceled && canceled < enter_key, "{enter}");
     }
-    let ctrl = Modifiers { ctrl: true, ..m };
-    for js in [
-      key_event_js("keyup", "\u{E007}", m),
-      key_event_js("keydown", "\u{E007}", ctrl),
-      key_event_js("keydown", "a", m),
-    ] {
-      assert!(!js.contains("wdioEnterKey"), "{js}");
+    for held in
+      [Modifiers { ctrl: true, ..m }, Modifiers { alt: true, ..m }, Modifiers { meta: true, ..m }]
+    {
+      let enter = key_event_js("keydown", "\u{E007}", held);
+      assert!(enter.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\nwdioFlushPendingChange();")));
+      assert!(!enter.contains("wdioEnterKey();"), "{enter}");
+    }
+    for js in [key_event_js("keyup", "\u{E007}", m), key_event_js("keydown", "a", m)] {
+      assert!(!js.contains("wdio"), "{js}");
     }
   }
 
