@@ -94,7 +94,7 @@ Unless a `keydown` handler cancels it, Enter in a key action acts as in Chrome, 
 - In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form. From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button unless that button is disabled; in a form without one, it submits the form if it has no other input of those types. From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
 - On a button (a `<button>`, or a submit, image, reset or button input), it clicks the button, which then submits or resets its form.
 
-Space on a button clicks it after the `keyup`, as in Chrome, if the `keydown` and the `keyup` both went to the button and no handler cancelled either.
+Space on a button clicks it after the `keyup`, as in Chrome, if the `keydown` and the `keyup` both went to the button and no handler cancelled either. If Space repeats, one uncancelled `keydown` is enough.
 
 Each click is a single `click` event, without pointer or mouse events, and a `submit` that no handler cancels navigates the page. Unlike in Chrome:
 - Enter doesn't break the line in a textarea or contenteditable, because key actions don't type text yet ([#906](https://github.com/webdriverio/desktop-mobile/issues/906)).

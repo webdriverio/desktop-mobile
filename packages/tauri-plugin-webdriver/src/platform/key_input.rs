@@ -412,17 +412,19 @@ fn radio_step_js(forward: bool) -> String {
 }
 
 /// JS for Enter's default action: a line break in a textarea or contenteditable, a click on a
-/// button, or an input's `change` and form submission.
+/// button, or an input's `change` and form submission. Each comes after any `change` owed by a
+/// field that a keydown handler moved focus from, as in the Dioxus driver.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
   format!(
-    r"if (activeEl.tagName === 'TEXTAREA') {{
+    r"{ELEMENT_EVENTS_JS}
+                wdioFlushPendingChange();
+                if (activeEl.tagName === 'TEXTAREA') {{
                     {insert_newline}
                 }} else if (activeEl.isContentEditable) {{
                     document.execCommand('{command}', false, null);
                 }} else {{
-                    {ELEMENT_EVENTS_JS}
                     wdioEnterKey();
                 }}"
   )
@@ -1408,16 +1410,20 @@ mod tests {
   }
 
   #[test]
-  fn enter_outside_a_textarea_or_editor_runs_the_shared_enter_key_action() {
+  fn enter_fires_an_owed_change_then_runs_the_shared_enter_key_action_outside_an_editor() {
     let none = mods(false, false, false, false);
     let shift = mods(false, true, false, false);
     for modifiers in [none, shift] {
       let enter = build_special_key_script("Enter", "Enter", 13, true, &modifiers);
       let guard = enter.find("if (canceled) {").unwrap();
-      let editor = enter.find("} else if (activeEl.isContentEditable) {").unwrap();
       let helpers = enter.find(ELEMENT_EVENTS_JS).unwrap();
-      let enter_key = enter.find("wdioEnterKey();").unwrap();
-      assert!(guard < editor && editor < helpers && helpers < enter_key, "{enter}");
+      let action = &enter[helpers + ELEMENT_EVENTS_JS.len()..];
+      let flush = action.find("wdioFlushPendingChange();").unwrap();
+      let textarea = action.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
+      let editor = action.find("} else if (activeEl.isContentEditable) {").unwrap();
+      let enter_key = action.find("wdioEnterKey();").unwrap();
+      assert!(guard < helpers, "{enter}");
+      assert!(flush < textarea && textarea < editor && editor < enter_key, "{enter}");
     }
     let enter_up = build_special_key_script("Enter", "Enter", 13, false, &none);
     let ctrl_enter =

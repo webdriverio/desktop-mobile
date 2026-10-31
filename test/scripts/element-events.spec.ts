@@ -457,11 +457,11 @@ describe('Enter and Space on a button', () => {
     ['', ['change i=x', 'blur i=x', 'focus b=', 'click b']],
     // WebView2 skips the blur while its window isn't focused.
     [' without a blur', ['focus b=', 'change i=x', 'click b']],
-  ])("should click the button a keydown handler moved focus to%s, after the field's change", (blur, expected) => {
+  ])("should click the button a keydown handler moved focus to%s, after the field's change", (noBlur, expected) => {
     render('<form id="f"><input id="i"><button type="button" id="b">go</button><button id="s">go</button></form>');
     type($('#i'), 'x');
     const keydownHandler = () => $('#b').focus();
-    if (blur) {
+    if (noBlur) {
       withoutBlur(keydownHandler);
     } else {
       keydownHandler();
