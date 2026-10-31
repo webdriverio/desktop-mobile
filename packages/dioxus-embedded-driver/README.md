@@ -88,7 +88,25 @@ WDIO_EMBEDDED_PORT=4445 npx wdio run wdio.conf.ts
 
 Key actions (`browser.keys()`) send the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key and a backspace character the Backspace key, and a carriage return is skipped, so a `\r\n` line ending presses Enter once. For a newline and a backspace character, chromedriver sends the same `key` but an empty `code`. A tab is sent as a character, with the Tab key's `code` and `keyCode`, because the Tab key doesn't move focus in this driver yet ([#889](https://github.com/webdriverio/desktop-mobile/issues/889)).
 
-Key events go to the focused element, even one inside an open shadow root. Element Send Keys (`setValue()`, `addValue()`) sets the text without keyboard events, so `keydown` handlers don't see it.
+Key events go to the focused element, even one inside an open shadow root. Element Send Keys (`setValue()`, `addValue()`) sets the text without keyboard events, so `keydown` handlers don't see it. It writes special keys in the text, such as `Key.Enter`, into the element rather than pressing them ([#912](https://github.com/webdriverio/desktop-mobile/issues/912)).
+
+Unless a `keydown` handler cancels it, Enter in a key action acts as in Chrome, on the element focused after the `keydown`:
+- In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form:
+  - From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button, unless that button is disabled. A form without a submit button is submitted if it has no other input of those types.
+  - From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
+- On a button (a `<button>`, or a submit, image, reset or button input), it clicks the button.
+
+In a key action, Space on a focused button clicks it on the `keyup`, as in Chrome. It doesn't click if a handler cancels the `keydown` or the `keyup`, or if focus moves between them.
+
+Each click is a single `click` event, without pointer or mouse events. A `submit` that no handler cancels navigates the page.
+
+Unlike in Chrome, Enter and Space send only their key events in these cases:
+- Enter in a textarea or contenteditable, as key actions don't type text yet ([#906](https://github.com/webdriverio/desktop-mobile/issues/906)).
+- Enter on a link, a `<summary>`, a colour or file input or a `<select>`.
+- Space on a checkbox, a radio button, a `<summary>`, a colour or file input or a `<select>`.
+- Either key with Control, Alt or Meta held.
+
+The driver also sends no `keypress` events, so a `keypress` handler can't cancel Enter.
 
 One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The W3C tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 

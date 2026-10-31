@@ -58,8 +58,7 @@ async function fillChangeScratch({ initialValue = '', inShadowHost = false } = {
   );
 }
 
-// A form holding `fields` that logs its key, change, click and submit events, and cancels its
-// submit so the page stays.
+// Cancels the form's submit so the page doesn't navigate.
 async function fillFormScratch(fields: string) {
   await fillScratch(
     `scratch.innerHTML = '<form id="fresh-form">${fields}</form>';
@@ -69,7 +68,7 @@ async function fillFormScratch(fields: string) {
       form.addEventListener(type, function (ev) {
         var detail = ev.type === "change" ? ev.target.value
           : ev.type === "submit" ? (ev.submitter ? ev.submitter.id : "without submitter")
-          : ev.key || ev.target.id;
+          : ev.code || ev.target.id;
         window.__fieldEvents.push(ev.type + " " + detail);
       });
     }
@@ -604,6 +603,58 @@ describe('special keys (embedded)', () => {
     );
     await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
     expect(await fieldEvents()).toEqual(['keydown Enter', 'keyup Enter']);
+  });
+
+  it('should click a button on Enter before the keyup, and on Space after it, as Chrome does', async () => {
+    await fillFormScratch('<input id="fresh-field"><button id="fresh-submit">go</button>');
+    await browser.$('#fresh-submit').addValue(Key.Enter);
+    expect(await fieldEvents()).toEqual(['keydown Enter', 'click fresh-submit', 'submit fresh-submit', 'keyup Enter']);
+    await browser.execute('window.__fieldEvents = [];');
+    await browser.keys(Key.Space);
+    expect(await fieldEvents()).toEqual(['keydown Space', 'keyup Space', 'click fresh-submit', 'submit fresh-submit']);
+  });
+
+  it('should not click a button on Space when a keyup handler cancels it', async () => {
+    await fillFormScratch('<button id="fresh-submit">go</button>');
+    await browser.execute(
+      `var button = document.querySelector("#fresh-submit");
+      button.addEventListener("keyup", function (ev) { ev.preventDefault(); });
+      button.focus();`,
+    );
+    await browser.keys(Key.Space);
+    expect(await fieldEvents()).toEqual(['keydown Space', 'keyup Space']);
+  });
+
+  it('should press Enter on the button a keydown handler moves focus to, after the change, as Chrome does', async () => {
+    await fillFormScratch(
+      '<input id="fresh-field"><button type="button" id="fresh-other">other</button><button id="fresh-submit">go</button>',
+    );
+    // Registered after the form's logger, so the log is the same whether or not the focus move fires blur.
+    await browser.execute(
+      `document.querySelector("#fresh-form").addEventListener("keydown", function (ev) {
+        if (ev.key === "Enter") { document.querySelector("#fresh-other").focus(); }
+      });`,
+    );
+    await browser.$('#fresh-field').addValue(`x${Key.Enter}`);
+    expect(await fieldEvents()).toEqual(['keydown Enter', 'change x', 'click fresh-other', 'keyup Enter']);
+  });
+
+  it('should release held keys in reverse press order, so Space clicks once Control is up', async () => {
+    await fillFormScratch('<button id="fresh-submit">go</button>');
+    await browser.execute('document.querySelector("#fresh-submit").focus();');
+    try {
+      await browser.action('key').down(' ').down(Key.Control).perform(true);
+    } finally {
+      await browser.releaseActions();
+    }
+    expect(await fieldEvents()).toEqual([
+      'keydown Space',
+      'keydown ControlLeft',
+      'keyup ControlLeft',
+      'keyup Space',
+      'click fresh-submit',
+      'submit fresh-submit',
+    ]);
   });
 
   it('should not fire change when a click on the shadow host leaves the field focused', async () => {
