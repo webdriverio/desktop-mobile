@@ -453,10 +453,9 @@ fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
   let default_action = match (event_type, key) {
     // Fires the `change` owed by a field that a keydown handler moved focus from, even one that
     // cancels Enter.
-    ("keydown", "Enter") => {
-      let action = if held { "" } else { "if(!e.defaultPrevented){ wdioEnterKey(); }" };
-      format!("{{\n{ELEMENT_EVENTS_JS}\nwdioFlushPendingChange(); {action}}}")
-    }
+    ("keydown", "Enter") if !held => format!(
+      "{{\n{ELEMENT_EVENTS_JS}\nwdioFlushPendingChange(); if(!e.defaultPrevented){{ wdioEnterKey(); }}}}"
+    ),
     (_, " ") => {
       let call = if event_type == "keydown" { "wdioSpaceDown" } else { "wdioSpaceUp" };
       format!("{{\n{ELEMENT_EVENTS_JS}\n{call}(t, e.defaultPrevented || {held}); }}")
@@ -551,18 +550,16 @@ pub async fn perform(
             match action {
               KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
                 if is_skipped_key(value) => {}
-              // WDIO skips Release Actions after a failed perform, so a key counts as held only
-              // once its keydown succeeds, and as released before its keyup is sent.
               KeyAction::KeyDown { value } => {
-                // Includes the key, so a modifier key's own keydown carries its flag.
-                if let Ok(session) = state.sessions.read().await.get(&session_id) {
-                  modifiers =
-                    Modifiers::from_keys(session.action_state.pressed_keys().iter().chain([value]));
+                {
+                  let mut sessions = state.sessions.write().await;
+                  if let Ok(session) = sessions.get_mut(&session_id) {
+                    session.action_state.press_key(value);
+                    modifiers = Modifiers::from_keys(session.action_state.pressed_keys());
+                  }
                 }
+                // Recompute before dispatch so a modifier key's own keydown carries its flag.
                 eval(key_event_js("keydown", value, modifiers), timeout_ms).await?;
-                if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
-                  session.action_state.press_key(value);
-                }
               }
               KeyAction::KeyUp { value } => {
                 {
@@ -992,8 +989,7 @@ mod tests {
       [Modifiers { ctrl: true, ..m }, Modifiers { alt: true, ..m }, Modifiers { meta: true, ..m }]
     {
       let enter = key_event_js("keydown", "\u{E007}", held);
-      assert!(enter.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\nwdioFlushPendingChange();")));
-      assert!(!enter.contains("wdioEnterKey();"), "{enter}");
+      assert!(!enter.contains("wdio"), "{enter}");
     }
     for js in [key_event_js("keyup", "\u{E007}", m), key_event_js("keydown", "a", m)] {
       assert!(!js.contains("wdio"), "{js}");

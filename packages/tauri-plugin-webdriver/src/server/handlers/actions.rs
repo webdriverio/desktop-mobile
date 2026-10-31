@@ -219,21 +219,23 @@ async fn perform_actions<R: Runtime + 'static>(
             match action {
               KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
                 if is_skipped_key(value) => {}
-              // WDIO skips Release Actions after a failed perform, so a key counts as held only
-              // once its keydown succeeds, and as released before its keyup is sent.
               KeyAction::KeyDown { value } => {
                 held_modifiers.press(value);
                 executor.dispatch_key_event(value, true, &held_modifiers.state()).await?;
-                if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+                // Track pressed key
+                let mut sessions = state.sessions.write().await;
+                if let Ok(session) = sessions.get_mut(&session_id) {
                   session.action_state.press_key(value);
                 }
               }
               KeyAction::KeyUp { value } => {
                 held_modifiers.release(value);
-                if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+                executor.dispatch_key_event(value, false, &held_modifiers.state()).await?;
+                // Remove from tracked keys
+                let mut sessions = state.sessions.write().await;
+                if let Ok(session) = sessions.get_mut(&session_id) {
                   session.action_state.release_key(value);
                 }
-                executor.dispatch_key_event(value, false, &held_modifiers.state()).await?;
               }
               KeyAction::Pause { .. } => {}
             }

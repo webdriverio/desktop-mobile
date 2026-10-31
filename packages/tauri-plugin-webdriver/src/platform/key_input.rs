@@ -231,7 +231,11 @@ pub fn build_special_key_script(
     _ => String::new(),
   };
   let after_dispatch =
-    if js_key == "Enter" && is_down { enter_js(modifiers) } else { String::new() };
+    if js_key == "Enter" && is_down && !(modifiers.ctrl || modifiers.meta || modifiers.alt) {
+      enter_js(modifiers.shift)
+    } else {
+      String::new()
+    };
   key_event_script(js_key, js_code, key_code, is_down, modifiers, &after_dispatch, &default_action)
 }
 
@@ -277,8 +281,7 @@ fn space_js(is_down: bool, modifiers: &ModifierState) -> String {
 
 /// JS dispatching one keydown or keyup to the deep focused element, then running `after_dispatch`,
 /// which can read whether a handler canceled the event from `canceled`, and `default_action` unless
-/// one did. A handler can move focus, and as a browser types where focus went, `default_action`
-/// gets the element focused after the dispatch as `activeEl` and the event's target as `keyTarget`.
+/// one did.
 fn key_event_script(
   key: &str,
   code: &str,
@@ -293,15 +296,6 @@ fn key_event_script(
   let key = js_string(key);
   let code = js_string(code);
   let ModifierState { ctrl, shift, alt, meta } = *modifiers;
-  let default_action = if default_action.is_empty() {
-    String::new()
-  } else {
-    format!(
-      r"var keyTarget = activeEl;
-                {active_element}
-                {default_action}"
-    )
-  };
   format!(
     r"(function() {{
                 {active_element}
@@ -383,15 +377,15 @@ fn delete_js(backward: bool) -> String {
   )
 }
 
-/// JS moving the checked radio to the next (`forward`) or previous button in the group of the radio
-/// the keydown went to, which a browser steps even if a handler moved focus. Fires `change`.
+/// JS moving the checked radio to the next (`forward`) or previous button of the focused radio's
+/// group, firing `change`.
 fn radio_step_js(forward: bool) -> String {
   format!(
-    r#"if (keyTarget.tagName === 'INPUT' && keyTarget.type === 'radio' && keyTarget.name) {{
-                    var radios = Array.from(keyTarget.getRootNode().querySelectorAll(
-                        'input[type="radio"][name="' + CSS.escape(keyTarget.name) + '"]'
+    r#"if (activeEl.tagName === 'INPUT' && activeEl.type === 'radio' && activeEl.name) {{
+                    var radios = Array.from(activeEl.getRootNode().querySelectorAll(
+                        'input[type="radio"][name="' + CSS.escape(activeEl.name) + '"]'
                     ));
-                    var currentIndex = radios.indexOf(keyTarget);
+                    var currentIndex = radios.indexOf(activeEl);
                     if (currentIndex !== -1 && radios.length > 1) {{
                         var nextIndex = {forward}
                             ? (currentIndex + 1) % radios.length
@@ -407,14 +401,14 @@ fn radio_step_js(forward: bool) -> String {
 
 /// JS for Enter's keydown. A field a handler moved focus from owes its `change` even when the
 /// handler canceled the key, and that `change` can move focus again, so Enter acts after it.
-fn enter_js(modifiers: &ModifierState) -> String {
-  let action = if modifiers.ctrl || modifiers.meta || modifiers.alt {
-    String::new()
-  } else {
-    let insert_newline = insert_text_js("activeEl", &js_string("\n"));
-    let command = if modifiers.shift { "insertLineBreak" } else { "insertParagraph" };
-    format!(
-      r"if (!canceled) {{
+fn enter_js(shift: bool) -> String {
+  let insert_newline = insert_text_js("activeEl", &js_string("\n"));
+  let command = if shift { "insertLineBreak" } else { "insertParagraph" };
+  format!(
+    r"{{
+                {ELEMENT_EVENTS_JS}
+                wdioFlushPendingChange();
+                if (!canceled) {{
                     activeEl = wdioDeepActiveElement();
                     if (activeEl.tagName === 'TEXTAREA') {{
                         {insert_newline}
@@ -423,14 +417,7 @@ fn enter_js(modifiers: &ModifierState) -> String {
                     }} else {{
                         wdioEnterKey();
                     }}
-                }}"
-    )
-  };
-  format!(
-    r"{{
-                {ELEMENT_EVENTS_JS}
-                wdioFlushPendingChange();
-                {action}
+                }}
                 }}"
   )
 }
@@ -1109,28 +1096,6 @@ mod tests {
   }
 
   #[test]
-  fn default_actions_go_to_the_element_focused_after_the_keydown() {
-    let none = mods(false, false, false, false);
-    let ctrl = mods(true, false, false, false);
-    for script in [
-      build_printable_key_script(" ", "Space", 32, true, &none),
-      build_regular_key_script("x", true, &none),
-      build_regular_key_script("a", true, &ctrl),
-      build_special_key_script("Backspace", "Backspace", 8, true, &none),
-      build_special_key_script("ArrowDown", "ArrowDown", 40, true, &none),
-    ] {
-      let script = script.replacen(ELEMENT_EVENTS_JS, "", 1);
-      let guard = script.find("if (canceled) {").unwrap();
-      let target = script.find("var keyTarget = activeEl;").unwrap();
-      let refocus = script.rfind("var activeEl = document.activeElement").unwrap();
-      assert!(guard < target && target < refocus, "{script}");
-    }
-    let page_down = build_special_key_script("PageDown", "PageDown", 34, true, &none);
-    assert_eq!(page_down.matches("var activeEl = ").count(), 1, "{page_down}");
-    assert!(!page_down.contains("keyTarget"));
-  }
-
-  #[test]
   fn enter_breaks_lines_in_textareas_and_editors_only() {
     let none = mods(false, false, false, false);
     let shift = mods(false, true, false, false);
@@ -1174,8 +1139,8 @@ mod tests {
       true,
       &mods(false, false, false, false),
     );
-    assert!(script.contains("CSS.escape(keyTarget.name)"));
-    assert!(script.contains("keyTarget.getRootNode().querySelectorAll("));
+    assert!(script.contains("CSS.escape(activeEl.name)"));
+    assert!(script.contains("activeEl.getRootNode().querySelectorAll("));
   }
 
   #[test]
@@ -1437,10 +1402,7 @@ mod tests {
       mods(false, false, false, true),
     ] {
       let enter = build_special_key_script("Enter", "Enter", 13, true, &held);
-      let action = after_helpers(&enter);
-      let flush = action.find("wdioFlushPendingChange();").unwrap();
-      assert!(flush < action.find("if (canceled) {").unwrap(), "{enter}");
-      assert!(!action.contains("if (!canceled)") && !action.contains("wdioEnterKey"), "{enter}");
+      assert!(!enter.contains("wdio"), "{enter}");
     }
     let enter_up = build_special_key_script("Enter", "Enter", 13, false, &none);
     assert!(!enter_up.contains("wdio"), "{enter_up}");
