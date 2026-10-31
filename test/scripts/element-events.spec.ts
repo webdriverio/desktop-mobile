@@ -15,7 +15,7 @@ type ElementEvents = {
   wdioTakePendingChange(el?: HTMLElement): { el: HTMLElement; value: string } | undefined;
   wdioCommitOnEnter(el: HTMLElement): void;
   wdioSubmitOnEnter(el: HTMLElement): void;
-  wdioClickOnEnter(el: HTMLElement): void;
+  wdioKeyClick(el: HTMLElement): void;
   wdioEnterKey(): void;
   wdioSpaceDown(el: HTMLElement, blocked: boolean): void;
   wdioSpaceUp(el: HTMLElement, blocked: boolean): void;
@@ -29,7 +29,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioClickOnEnter, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -381,7 +381,7 @@ describe('Enter and Space on a button', () => {
     ['a plain button', '<button type="button" id="b">go</button>', ['click b']],
   ])('should click %s on Enter, and after Space', (_, button, expected) => {
     render(`<form id="f">${button}</form>`);
-    events.wdioClickOnEnter($('#b'));
+    events.wdioKeyClick($('#b'));
     expect(log).toEqual(expected);
     log = [];
     space($('#b'));
@@ -398,14 +398,14 @@ describe('Enter and Space on a button', () => {
 
   it('should click a button outside a form', () => {
     render('<button id="b">go</button>');
-    events.wdioClickOnEnter($('#b'));
+    events.wdioKeyClick($('#b'));
     space($('#b'));
     expect(log).toEqual(['click b', 'click b']);
   });
 
   it.each(['text', 'checkbox', 'color', 'file'])('should not click a %s input', (inputType) => {
     render(`<form id="f"><input type="${inputType}" id="b"></form>`);
-    events.wdioClickOnEnter($('#b'));
+    events.wdioKeyClick($('#b'));
     space($('#b'));
     expect(log).toEqual([]);
   });

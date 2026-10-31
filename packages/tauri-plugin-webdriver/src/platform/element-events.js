@@ -132,12 +132,8 @@ function wdioSubmitOnEnter(el) {
   }
 }
 
-function wdioKeyActivated(el) {
-  return el.tagName === 'BUTTON' || (el.tagName === 'INPUT' && WDIO_KEY_ACTIVATED_INPUT_TYPES.includes(el.type));
-}
-
-function wdioClickOnEnter(el) {
-  if (wdioKeyActivated(el)) {
+function wdioKeyClick(el) {
+  if (el.tagName === 'BUTTON' || (el.tagName === 'INPUT' && WDIO_KEY_ACTIVATED_INPUT_TYPES.includes(el.type))) {
     el.click();
   }
 }
@@ -152,7 +148,7 @@ function wdioEnterKey() {
   }
   wdioCommitOnEnter(el);
   wdioSubmitOnEnter(el);
-  wdioClickOnEnter(el);
+  wdioKeyClick(el);
 }
 
 // Space clicks a button on the keyup rather than the keydown, and only if the keydown went to it.
@@ -170,8 +166,8 @@ function wdioSpaceUp(el, blocked) {
   wdioFlushPendingChange();
   const pressed = window.__wdio_space_down;
   window.__wdio_space_down = undefined;
-  if (!blocked && pressed === el && wdioKeyActivated(el)) {
-    el.click();
+  if (!blocked && pressed === el) {
+    wdioKeyClick(el);
   }
 }
 

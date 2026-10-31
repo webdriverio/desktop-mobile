@@ -412,11 +412,8 @@ fn radio_step_js(forward: bool) -> String {
   )
 }
 
-/// JS for Enter's keydown. Whether or not a handler canceled it, it fires any `change` owed by a
-/// field that a keydown handler moved focus from. Unless a handler canceled it or Control, Alt or
-/// Meta is held, it then acts on the element focused after that, as the `change` handler can move
-/// focus too: a line break in a textarea or contenteditable, a click on a button, or an input's
-/// `change` and form submission.
+/// JS for Enter's keydown. A field a handler moved focus from owes its `change` even when the
+/// handler canceled the key, and that `change` can move focus again, so Enter acts after it.
 fn enter_js(modifiers: &ModifierState) -> String {
   let action = if modifiers.ctrl || modifiers.meta || modifiers.alt {
     String::new()
