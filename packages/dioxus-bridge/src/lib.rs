@@ -6,9 +6,11 @@
 //! helper ([`deeplink`]).
 //!
 //! [`install`] registers each window from a [`Config::with_on_window`]
-//! callback. Dioxus keeps only one, so a later `with_on_window` call replaces
-//! the bridge's; an app that needs its own callback must call
-//! `wdio_dioxus::on_window` from it.
+//! callback and injects the guest-js bundle via [`Config::with_custom_head`].
+//! Dioxus keeps only one of each, so a later call replaces the bridge's;
+//! an app that needs its own callback or custom head must call
+//! `wdio_dioxus::on_window` or append `wdio_dioxus::custom_head` (see
+//! [`custom_head`] and [`custom_head_with_embedded_port`]).
 //!
 //! [`@wdio/dioxus-service`]: https://www.npmjs.com/package/@wdio/dioxus-service
 //! [`wdio-dioxus`]: https://docs.rs/wdio-dioxus
@@ -35,6 +37,40 @@ const EMBEDDED_PORT_ENV_VAR: &str = "WDIO_EMBEDDED_PORT";
 /// committed so crates.io and git builds have it; rebuild it with
 /// `pnpm --filter @wdio/dioxus-bridge build` after editing `guest-js/`.
 const GUEST_JS_BUNDLE: &str = include_str!(concat!(env!("OUT_DIR"), "/guest_js_bundle.js"));
+
+/// Returns the `<head>` `<script>` snippet that [`install`] injects into the
+/// webview so apps that call [`Config::with_custom_head`] after [`install`]
+/// can append it to their own head HTML.
+#[must_use]
+pub fn custom_head() -> String {
+  build_custom_head(None)
+}
+
+/// Like [`custom_head`], but includes `window.__WDIO_EMBEDDED_PORT` for the
+/// embedded WebDriver polling loop used by [`install_with_embedded_port`].
+#[must_use]
+pub fn custom_head_with_embedded_port(port: u16) -> String {
+  build_custom_head(Some(port))
+}
+
+fn build_custom_head(embedded_port: Option<u16>) -> String {
+  // On Windows, Wry serves custom protocols as `http://{scheme}.*`, and
+  // WebView2 rejects a `fetch('wdio://invoke')`, so guest-js reads the URL
+  // from `window.__WDIO_BRIDGE_URL__`.
+  let bridge_url =
+    if cfg!(target_os = "windows") { "http://wdio.invoke/" } else { "wdio://invoke" };
+
+  // If the embedded driver is active, inject the port signal before the
+  // module script so the polling loop starts up automatically.
+  match embedded_port {
+    Some(port) => format!(
+      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};window.__WDIO_EMBEDDED_PORT={port};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
+    ),
+    None => format!(
+      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
+    ),
+  }
+}
 
 /// Installs the bridge into a Dioxus [`Config`]: registers the `wdio://`
 /// protocol, the built-in commands and the window hook, and injects the
@@ -90,23 +126,7 @@ fn install_with_registry_and_config(
   }
 
   let registry_for_handler = registry;
-
-  // On Windows, Wry serves custom protocols as `http://{scheme}.*`, and
-  // WebView2 rejects a `fetch('wdio://invoke')`, so guest-js reads the URL
-  // from `window.__WDIO_BRIDGE_URL__`.
-  let bridge_url =
-    if cfg!(target_os = "windows") { "http://wdio.invoke/" } else { "wdio://invoke" };
-
-  // If the embedded driver is active, inject the port signal before the
-  // module script so the polling loop starts up automatically.
-  let head = match embedded_port {
-    Some(port) => format!(
-      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};window.__WDIO_EMBEDDED_PORT={port};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
-    ),
-    None => format!(
-      "<script>window.__WDIO_BRIDGE_URL__={bridge_url:?};</script><script type=\"module\">{GUEST_JS_BUNDLE}</script>"
-    ),
-  };
+  let head = build_custom_head(embedded_port);
 
   config
     .with_custom_protocol("wdio".to_string(), move |_webview_id, request| {
@@ -142,4 +162,25 @@ fn register_embedded_commands(registry: &CommandRegistry) {
     embedded::resolve(&id, result);
     Ok(Value::Null)
   });
+}
+
+#[cfg(test)]
+mod tests {
+  use super::*;
+
+  #[test]
+  fn custom_head_contains_bridge_url_and_guest_bundle() {
+    let head = custom_head();
+    assert!(head.contains("window.__WDIO_BRIDGE_URL__="));
+    assert!(!head.contains("window.__WDIO_EMBEDDED_PORT="));
+    assert!(head.contains("<script type=\"module\">"));
+  }
+
+  #[test]
+  fn custom_head_with_embedded_port_includes_port_signal() {
+    let head = custom_head_with_embedded_port(4567);
+    assert!(head.contains("window.__WDIO_BRIDGE_URL__="));
+    assert!(head.contains("window.__WDIO_EMBEDDED_PORT=4567;"));
+    assert!(head.contains("<script type=\"module\">"));
+  }
 }

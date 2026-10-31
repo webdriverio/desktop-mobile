@@ -26,7 +26,7 @@ Call `install()` last in your `Config` chain: a later `with_on_window` or `with_
 
 See the [App Setup guide](https://github.com/webdriverio/desktop-mobile/blob/main/packages/dioxus-service/docs/app-setup.md) for building and verifying the app.
 
-### Apps With Their Own `with_on_window`
+### Apps With Their Own `with_on_window` or `with_custom_head`
 
 `install()` registers each window from a `with_on_window` callback. If your app sets its own, set it after `install()` and call `wdio_dioxus::on_window` from it:
 
@@ -38,7 +38,14 @@ config = config.with_on_window(|window, dom| {
 });
 ```
 
-There's no equivalent for `with_custom_head`: under test, `install()` replaces a head your app sets, so stylesheets or scripts loaded there are missing. Normal runs aren't affected. See [#718](https://github.com/webdriverio/desktop-mobile/issues/718).
+`install()` also injects the bridge `<script>` into the page `<head>` with `with_custom_head`. Prefer loading stylesheets and links from components with `document::Stylesheet` or `document::Link`, which don't use `with_custom_head`. If your app must call `with_custom_head`, call it after `install()` and append `wdio_dioxus::custom_head()` (which returns an empty string outside WDIO test runs):
+
+```rust,ignore
+let mut head = r#"<link rel="stylesheet" href="/assets/main.css">"#.to_string();
+#[cfg(debug_assertions)]
+head.push_str(&wdio_dioxus::custom_head());
+config = config.with_custom_head(head);
+```
 
 ## What `install()` Does
 
