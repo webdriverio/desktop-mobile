@@ -946,12 +946,11 @@ mod tests {
       ("\u{E007}", "Enter"),
       ("\u{E004}", "Tab"),
       ("\u{E015}", "ArrowDown"),
+      ("a", "a"),
       // Right-hand modifier variants normalize to the same DOM key name as the left/generic ones.
       ("\u{E050}", "Shift"),
       ("\u{E051}", "Control"),
       ("\u{E053}", "Meta"),
-      // Printable characters pass through unchanged.
-      ("a", "a"),
     ] {
       let init = event_init(&key_script(value, true, &m));
       assert!(init.starts_with(&format!("key: {key:?},")), "{value:?}: {init}");

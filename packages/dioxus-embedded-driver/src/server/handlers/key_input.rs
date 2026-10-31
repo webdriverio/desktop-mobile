@@ -1,13 +1,12 @@
-//! Key events and the default actions a browser runs for them. Synthetic key events have no
-//! default action, so after an uncancelled keydown the driver types, deletes or breaks the line
-//! itself, as the Tauri embedded driver does.
+//! Key events and their default actions. Synthetic key events have none, so after an uncanceled
+//! keydown the driver types, deletes or breaks the line itself.
 
 use super::actions::{map_special_key, regular_key, single_char, Modifiers as ModifierState};
 use super::element::ELEMENT_EVENTS_JS;
 
-// The functions below `key_script` are copies of tauri-plugin-wdio-webdriver's key_input.rs, since
-// a published crate can only include its own files. test/scripts/key-tables.spec.ts checks the
-// copies match.
+// The non-test functions below `key_script` are copies of tauri-plugin-wdio-webdriver's
+// key_input.rs, since a published crate can only include its own files.
+// test/scripts/key-tables.spec.ts checks the copies match.
 
 /// JS dispatching one keydown or keyup of a WebDriver key value and running its default action,
 /// picking the script as the Tauri driver's `dispatch_key_event` does.
