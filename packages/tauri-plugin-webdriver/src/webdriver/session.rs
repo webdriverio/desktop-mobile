@@ -10,8 +10,8 @@ use crate::server::response::WebDriverErrorResponse;
 /// Tracks currently pressed keys and pointer buttons for action state
 #[derive(Debug, Default, Clone)]
 pub struct ActionState {
-  /// Currently pressed keyboard keys (`WebDriver` key codes)
-  pub pressed_keys: HashSet<String>,
+  /// Currently pressed keyboard keys (`WebDriver` key codes), in the order they were pressed
+  pressed_keys: Vec<String>,
   /// Currently pressed pointer buttons by source ID
   pub pressed_buttons: HashMap<String, HashSet<u32>>,
   /// Pointer sources whose `pointerdown` was canceled; their compatibility mouse
@@ -24,6 +24,29 @@ pub struct ActionState {
 }
 
 impl ActionState {
+  /// Records a key press. A key pressed again while held moves to the end, as W3C releases its
+  /// latest press first.
+  pub fn press_key(&mut self, key: &str) {
+    self.release_key(key);
+    self.pressed_keys.push(key.to_string());
+  }
+
+  pub fn release_key(&mut self, key: &str) {
+    self.pressed_keys.retain(|held| held != key);
+  }
+
+  pub fn pressed_keys(&self) -> &[String] {
+    &self.pressed_keys
+  }
+
+  /// Empties the pressed keys, returning them in the order Release Actions releases them: the
+  /// reverse of the order they were pressed (W3C).
+  pub fn take_keys_to_release(&mut self) -> Vec<String> {
+    let mut keys = std::mem::take(&mut self.pressed_keys);
+    keys.reverse();
+    keys
+  }
+
   /// `None` when the button is already held, which W3C makes a no-op.
   pub fn press_pointer_button(
     &mut self,
@@ -233,6 +256,18 @@ mod tests {
 
   fn clicking(state: PointerInputState) -> PointerInputState {
     PointerInputState { clicks: true, ..state }
+  }
+
+  #[test]
+  fn release_actions_releases_keys_in_reverse_press_order() {
+    let mut state = ActionState::default();
+    for key in [" ", "\u{E009}", "a", " "] {
+      state.press_key(key);
+    }
+    state.release_key("a");
+    assert_eq!(state.pressed_keys(), ["\u{E009}", " "]);
+    assert_eq!(state.take_keys_to_release(), [" ", "\u{E009}"]);
+    assert!(state.pressed_keys().is_empty());
   }
 
   #[test]

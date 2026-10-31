@@ -22,16 +22,20 @@ const WDIO_CLEARABLE_INPUT_TYPES = [
 
 const WDIO_VALUE_CONTROL_TYPES = ['color', 'date', 'datetime-local', 'month', 'range', 'time', 'week'];
 
-// Enter on these inputs clicks them in a browser instead of submitting their form.
-const WDIO_CLICKED_ON_ENTER_TYPES = ['button', 'color', 'file', 'image', 'reset', 'submit'];
+// The buttons Enter and Space click in a browser.
+const WDIO_KEY_ACTIVATED_INPUT_TYPES = ['button', 'image', 'reset', 'submit'];
+
+// Enter on these inputs clicks them in a browser instead of submitting their form. The drivers
+// click only the buttons, as clicking a colour or file input opens a picker.
+const WDIO_CLICKED_ON_ENTER_TYPES = [...WDIO_KEY_ACTIVATED_INPUT_TYPES, 'color', 'file'];
 
 const WDIO_CLICK_FOCUSABLE =
   'a[href], area[href], button, input, select, textarea, iframe, summary, audio[controls], video[controls], [tabindex]';
 
-// The focused element, looking through open shadow roots.
+// The focused element, looking through open shadow roots, or null in an empty document.
 function wdioDeepActiveElement() {
   let el = document.activeElement || document.body;
-  while (el.shadowRoot?.activeElement) {
+  while (el?.shadowRoot?.activeElement) {
     el = el.shadowRoot.activeElement;
   }
   return el;
@@ -104,14 +108,14 @@ function wdioCommitOnEnter(el) {
   record.value = el.value;
 }
 
-// Implicit submission, as Chromium runs it. A disabled default button blocks it, even with an enabled
-// button after it. click() fires the lone synthetic click Chrome fires, with no pointer or mouse events.
+// Implicit submission, as Chromium runs it. From a text field, a disabled default button blocks
+// it, even with an enabled button after it.
 function wdioSubmitOnEnter(el) {
   const form = el.tagName === 'INPUT' ? el.form : undefined;
   if (!form || WDIO_CLICKED_ON_ENTER_TYPES.includes(el.type)) {
     return;
   }
-  // The prototypes' methods, because a control named after a form method hides it.
+  // Called through the prototypes, as a control named after a form method hides it.
   const controls = Array.from(Node.prototype.getRootNode.call(form).querySelectorAll('button, input')).filter(
     (control) => control.form === form,
   );
@@ -125,6 +129,49 @@ function wdioSubmitOnEnter(el) {
   } else if (controls.filter((control) => WDIO_TEXT_FIELD_TYPES.includes(control.type)).length === 1) {
     // Safari before 16 has no requestSubmit.
     HTMLFormElement.prototype.requestSubmit?.call(form);
+  }
+}
+
+function wdioKeyActivated(el) {
+  return el.tagName === 'BUTTON' || (el.tagName === 'INPUT' && WDIO_KEY_ACTIVATED_INPUT_TYPES.includes(el.type));
+}
+
+function wdioClickOnEnter(el) {
+  if (wdioKeyActivated(el)) {
+    el.click();
+  }
+}
+
+// Enter's default action. It goes to the element focused after the keydown, as a browser's keypress
+// does, after any `change` owed by a field that a keydown handler moved focus from.
+function wdioEnterKey() {
+  wdioFlushPendingChange();
+  const el = wdioDeepActiveElement();
+  if (!el) {
+    return;
+  }
+  wdioCommitOnEnter(el);
+  wdioSubmitOnEnter(el);
+  wdioClickOnEnter(el);
+}
+
+// Space clicks a button on the keyup rather than the keydown, and only if the keydown went to it.
+// Like Enter, each event first fires any `change` owed by a field that focus left. `blocked` is
+// true when a handler cancelled the key event, or Control, Alt or Meta is held. A blocked repeat
+// keydown leaves the press it repeats, as in Chrome.
+function wdioSpaceDown(el, blocked) {
+  wdioFlushPendingChange();
+  if (!blocked) {
+    window.__wdio_space_down = el;
+  }
+}
+
+function wdioSpaceUp(el, blocked) {
+  wdioFlushPendingChange();
+  const pressed = window.__wdio_space_down;
+  window.__wdio_space_down = undefined;
+  if (!blocked && pressed === el && wdioKeyActivated(el)) {
+    el.click();
   }
 }
 

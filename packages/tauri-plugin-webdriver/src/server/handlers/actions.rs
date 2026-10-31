@@ -199,7 +199,7 @@ async fn perform_actions<R: Runtime + 'static>(
   let mut pointer_state = PointerState { x: pointer_position.0, y: pointer_position.1 };
   let mut held_modifiers = {
     let sessions = state.sessions.read().await;
-    HeldModifiers::from_keys(&sessions.get(&session_id)?.action_state.pressed_keys)
+    HeldModifiers::from_keys(sessions.get(&session_id)?.action_state.pressed_keys())
   };
 
   // Process actions tick-by-tick across sources (W3C): the action at index N from every source runs
@@ -219,23 +219,21 @@ async fn perform_actions<R: Runtime + 'static>(
             match action {
               KeyAction::KeyDown { value } | KeyAction::KeyUp { value }
                 if is_skipped_key(value) => {}
+              // WDIO skips Release Actions after a failed perform, so a key counts as held only
+              // once its keydown succeeds, and as released before its keyup is sent.
               KeyAction::KeyDown { value } => {
                 held_modifiers.press(value);
                 executor.dispatch_key_event(value, true, &held_modifiers.state()).await?;
-                // Track pressed key
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.pressed_keys.insert(value.clone());
+                if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+                  session.action_state.press_key(value);
                 }
               }
               KeyAction::KeyUp { value } => {
                 held_modifiers.release(value);
-                executor.dispatch_key_event(value, false, &held_modifiers.state()).await?;
-                // Remove from tracked keys
-                let mut sessions = state.sessions.write().await;
-                if let Ok(session) = sessions.get_mut(&session_id) {
-                  session.action_state.pressed_keys.remove(value);
+                if let Ok(session) = state.sessions.write().await.get_mut(&session_id) {
+                  session.action_state.release_key(value);
                 }
+                executor.dispatch_key_event(value, false, &held_modifiers.state()).await?;
               }
               KeyAction::Pause { .. } => {}
             }
@@ -391,14 +389,12 @@ pub async fn release<R: Runtime + 'static>(
   };
 
   let executor = state.get_executor_for_window(&current_window, timeouts, frame_context)?;
-  let mut pressed_keys: Vec<String> = taken.pressed_keys.drain().collect();
-  pressed_keys.sort();
+  let pressed_keys = taken.take_keys_to_release();
   let mut held_modifiers = HeldModifiers::from_keys(&pressed_keys);
 
   // Release everything even if one fails; the state is cleared, so nothing could retry it.
   let mut first_error = None;
 
-  // Release all pressed keys (keyUp events), in a fixed order so each keyup's flags are stable
   for key in &pressed_keys {
     held_modifiers.release(key);
     if let Err(error) = executor.dispatch_key_event(key, false, &held_modifiers.state()).await {
