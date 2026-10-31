@@ -315,7 +315,7 @@ Unless a `keydown` handler cancels it, Enter acts as in Chrome, on whichever ele
 
 Element Send Keys sets a date, time or range input's value without pressing any keys, so in those inputs only key actions press Enter.
 
-Space on a button clicks it after the `keyup`, as in Chrome, if the `keydown` and the `keyup` both went to the button and no handler cancelled either. If Space repeats, one uncancelled `keydown` is enough.
+Space on a button clicks it after the `keyup`, as in Chrome, if the `keydown` and the `keyup` both went to the button and no handler cancelled either.
 
 Each click is a single `click` event, without pointer or mouse events, and a `submit` that no handler cancels navigates the page. Unlike in Chrome:
 - Enter on a link, a `<summary>`, a colour or file input or a `<select>` sends only its key events.

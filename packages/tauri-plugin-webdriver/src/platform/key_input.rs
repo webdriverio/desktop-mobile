@@ -180,12 +180,11 @@ pub fn js_string(text: &str) -> String {
   serde_json::Value::from(text).to_string()
 }
 
-/// JS binding `var` to the focused element, looking through open shadow roots, or to null in an
-/// empty document.
+/// JS binding `var` to the focused element, looking through open shadow roots.
 pub fn deep_active_element_js(var: &str) -> String {
   format!(
     r"var {var} = document.activeElement || document.body;
-                while ({var} && {var}.shadowRoot && {var}.shadowRoot.activeElement) {{
+                while ({var}.shadowRoot && {var}.shadowRoot.activeElement) {{
                     {var} = {var}.shadowRoot.activeElement;
                 }}"
   )
@@ -300,18 +299,12 @@ fn key_event_script(
     format!(
       r"var keyTarget = activeEl;
                 {active_element}
-                if (!activeEl) {{
-                    return true;
-                }}
                 {default_action}"
     )
   };
   format!(
     r"(function() {{
                 {active_element}
-                if (!activeEl) {{
-                    return true;
-                }}
                 var keyEvent = new KeyboardEvent('{event_type}', {{
                     key: {key},
                     code: {code},
@@ -423,9 +416,6 @@ fn enter_js(modifiers: &ModifierState) -> String {
     format!(
       r"if (!canceled) {{
                     activeEl = wdioDeepActiveElement();
-                    if (!activeEl) {{
-                        return true;
-                    }}
                     if (activeEl.tagName === 'TEXTAREA') {{
                         {insert_newline}
                     }} else if (activeEl.isContentEditable) {{
@@ -1133,9 +1123,7 @@ mod tests {
       let guard = script.find("if (canceled) {").unwrap();
       let target = script.find("var keyTarget = activeEl;").unwrap();
       let refocus = script.rfind("var activeEl = document.activeElement").unwrap();
-      let none_focused = refocus + script[refocus..].find("if (!activeEl) {").unwrap();
       assert!(guard < target && target < refocus, "{script}");
-      assert!(!script[refocus..none_focused].contains("wdio"), "{script}");
     }
     let page_down = build_special_key_script("PageDown", "PageDown", 34, true, &none);
     assert_eq!(page_down.matches("var activeEl = ").count(), 1, "{page_down}");

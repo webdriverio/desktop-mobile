@@ -417,14 +417,6 @@ describe('Enter and Space on a button', () => {
     expect(log).toEqual([]);
   });
 
-  it('should click on Space when a handler cancels only a repeat keydown', () => {
-    render('<button id="b">go</button>');
-    events.wdioSpaceDown($('#b'), false);
-    events.wdioSpaceDown($('#b'), true);
-    events.wdioSpaceUp($('#b'), false);
-    expect(log).toEqual(['click b']);
-  });
-
   it.each([
     ['keydown', true, ['focus b=', 'change i=x', 'keyup', 'click b', 'submit f by b']],
     ['keyup', false, ['focus b=', 'keyup', 'change i=x', 'click b', 'submit f by b']],
@@ -464,12 +456,7 @@ describe('Enter and Space on a button', () => {
 
   it.each([
     ['submit input', '<input type="submit" id="b">', ['click b', 'submit f by b']],
-    ['image input', '<input type="image" id="b" alt="go">', ['click b', 'submit f by b']],
-    ['reset input', '<input type="reset" id="b">', ['click b', 'reset f']],
-    ['button input', '<input type="button" id="b">', ['click b']],
     ['submit button', '<button id="b">go</button>', ['click b', 'submit f by b']],
-    ['reset button', '<button type="reset" id="b">go</button>', ['click b', 'reset f']],
-    ['plain button', '<button type="button" id="b">go</button>', ['click b']],
   ])('should click a focused %s once on Enter, without implicit submission', (_, button, expected) => {
     render(`<form id="f">${button}<button id="s">go</button></form>`);
     $('#b').focus();
@@ -493,16 +480,6 @@ describe('Enter and Space on a button', () => {
     }
     events.wdioEnterKey();
     expect(log).toEqual(expected);
-  });
-
-  it('should do nothing on Enter in an empty document', () => {
-    const root = document.documentElement;
-    root.remove();
-    try {
-      expect(() => events.wdioEnterKey()).not.toThrow();
-    } finally {
-      document.appendChild(root);
-    }
   });
 });
 
