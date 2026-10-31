@@ -304,27 +304,31 @@ before a requested size is applied, including moves between displays.
 
 ## Keyboard Events
 
-Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key and a backspace character the Backspace key, and a carriage return is skipped, as in chromedriver, so a `\r\n` line ending presses Enter once. In key actions, chromedriver sends a newline and a backspace character with the same `key` but an empty `code`. A tab is typed as a character, with the Tab key's `code` and `keyCode`, because the Tab key doesn't move focus in this driver yet ([#889](https://github.com/webdriverio/desktop-mobile/issues/889)).
+Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key and a backspace character the Backspace key, as in chromedriver, which skips a carriage return, so a `\r\n` line ending presses Enter once. A tab is typed as a character, with the Tab key's `code` and `keyCode`, because the Tab key doesn't move focus in this driver yet ([#889](https://github.com/webdriverio/desktop-mobile/issues/889)).
 
 Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it; it sends them for special keys, newlines and backspace characters, and for text typed while Control, Alt or Meta is held.
 
-Unless a `keydown` handler cancels it, Enter acts as in Chrome, on whichever element has focus after the `keydown`:
+Unless a `keydown` handler cancels it, Enter acts as in Chrome, on the element focused after the `keydown`:
 - In a textarea or contenteditable, it breaks the line.
-- In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form. From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button unless that button is disabled; in a form without one, it submits the form if it has no other input of those types. From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
-- On a button (a `<button>`, or a submit, image, reset or button input), it clicks the button, which then submits or resets its form.
+- In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form:
+  - From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button, unless that button is disabled. A form without a submit button is submitted if it has no other input of those types.
+  - From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
+- On a button (a `<button>`, or a submit, image, reset or button input), it clicks the button.
 
 Element Send Keys sets a date, time or range input's value without pressing any keys, so in those inputs only key actions press Enter.
 
-Space on a button clicks it after the `keyup`, as in Chrome, if the `keydown` and the `keyup` both went to the button and no handler cancelled either.
+Space on a focused button clicks it on the `keyup`, as in Chrome. It doesn't click if a handler cancels the `keydown` or the `keyup`, or if focus moves between them.
 
-Each click is a single `click` event, without pointer or mouse events, and a `submit` that no handler cancels navigates the page. Unlike in Chrome:
-- Enter on a link, a `<summary>`, a colour or file input or a `<select>` sends only its key events.
-- Space on a checkbox, a radio button, a `<summary>`, a colour or file input or a `<select>` sends only its key events.
-- Enter and Space send only their key events to a button inside a closed shadow root, which the driver can't reach.
-- With Control, Alt or Meta held, Enter and Space send only their key events.
-- The driver sends no `keypress` events, so a `keypress` handler can't cancel Enter.
+Each click is a single `click` event, without pointer or mouse events. A `submit` that no handler cancels navigates the page.
 
-One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The W3C tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
+Unlike in Chrome, Enter and Space send only their key events in these cases:
+- Enter on a link, a `<summary>`, a colour or file input or a `<select>`.
+- Space on a checkbox, a radio button, a `<summary>`, a colour or file input or a `<select>`.
+- Either key with Control, Alt or Meta held.
+
+The driver also sends no `keypress` events, so a `keypress` handler can't cancel Enter.
+
+One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 
 ## See Also
 
