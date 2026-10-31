@@ -39,10 +39,10 @@ on:
         description: "JSON map of service → boolean. New services appear here automatically; consume via fromJSON without adding static outputs."
         value: ${{ jobs.detect.outputs.runs }}
       has_shared_changes:
-        description: "Whether shared packages changed (affects all services)"
+        description: "Whether a shared package other than a types-only one changed"
         value: ${{ jobs.detect.outputs.has_shared_changes }}
       run_lint_only:
-        description: "Whether to run only lint (no service-affecting changes detected)"
+        description: "Whether to run only lint (no build, unit or service pipeline needed)"
         value: ${{ jobs.detect.outputs.run_lint_only }}
 
 jobs:
