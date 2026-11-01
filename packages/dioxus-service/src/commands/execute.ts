@@ -9,8 +9,8 @@
 //     the standard WDIO behaviour where the body is wrapped as
 //     `function() { ${body} }` and `arguments` is bound to the spread args.
 //
-//   - `runInterceptorScript`: runs DioxusAdapter's mock scripts, which are
-//     function literals, so it calls them with `window.__WDIO_DIOXUS__`.
+//   - `runInterceptorScript`: calls DioxusAdapter's mock scripts, which are
+//     function literals, with `window.__WDIO_DIOXUS__` as `dx`.
 //
 // No per-call windowLabel option yet (#722): scripts run in the current window.
 
@@ -90,8 +90,8 @@ export async function execute<ReturnValue, InnerArguments extends unknown[] = un
   return raw as Awaited<ReturnValue>;
 }
 
-// Errors come back in the envelope too: a script that rejected would surface as a
-// WebDriver error whose message quotes the whole script.
+// Errors come back in the envelope too, or a rejected script would surface as a
+// WebDriver error quoting the whole script.
 export async function runInterceptorScript<T>(browser: WebdriverIO.Browser, script: string): Promise<T> {
   const raw = await browser.execute(
     `return Promise.resolve().then(function () { return (${script})(window.__WDIO_DIOXUS__); }).then(` +

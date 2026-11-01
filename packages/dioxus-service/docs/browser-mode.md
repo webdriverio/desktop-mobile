@@ -206,21 +206,7 @@ describe('File panel', () => {
 | `browser.dioxus.listWindows()`               | Throws — same reason as `switchWindow()`             |
 | Backend log capture (`captureBackendLogs`)   | Not available — no Rust process                      |
 | Frontend log capture (`captureFrontendLogs`) | Available — Chrome session, standard console capture |
-| `mock.withImplementation()`                  | Runs its callback in the page — see below            |
-
-### `withImplementation` in browser mode
-
-`mock.withImplementation(implFn, callbackFn)` serialises both functions with `.toString()` and runs them in the page, as in native mode. The callback receives `dx`, whose `invoke` answers only mocked commands. It can't use the test's variables or call WebdriverIO commands such as `browser.$()`.
-
-To use a temporary implementation for a UI action, set a one-off value before the action instead:
-
-```ts
-const mock = await browser.dioxus.mock('read_file');
-await mock.mockResolvedValue('default content');
-await mock.mockResolvedValueOnce('temporary content');
-
-await $('button#load-file').click(); // gets 'temporary content'
-```
+| `mock.withImplementation()`                  | Its callback's `invoke` answers only mocked commands |
 
 ## Multiremote
 
