@@ -206,7 +206,8 @@ function wdioTabCandidates(backward, current) {
   if (at !== -1) {
     return order.slice(at + 1);
   }
-  const position = current === document.body ? undefined : treeOrder.get(current);
+  // A body the page focused matches :focus, and Tab goes on from it as from an element it skips.
+  const position = current === document.body && !current.matches(':focus') ? undefined : treeOrder.get(current);
   if (position === undefined) {
     return order;
   }

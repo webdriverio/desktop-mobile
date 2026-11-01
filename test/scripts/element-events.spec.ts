@@ -605,6 +605,17 @@ describe('Tab', () => {
     ]);
   });
 
+  it('should tab from a body the page focused as from an element Tab skips', () => {
+    render('<input id="a"><input id="p" tabindex="1">');
+    document.body.tabIndex = -1;
+    document.body.focus();
+    const forward = tab();
+    document.body.focus();
+    const backward = tab({ shiftKey: true });
+    document.body.removeAttribute('tabindex');
+    expect([forward, backward]).toEqual(['a', 'body']);
+  });
+
   it('should keep focus within a modal dialog', () => {
     render('<input id="a"><dialog id="d" open><input id="d1"><input id="d2"></dialog><input id="z">');
     // jsdom has no showModal.
