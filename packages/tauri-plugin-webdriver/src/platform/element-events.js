@@ -76,8 +76,8 @@ function wdioFocus(el, focus = el.focus) {
   wdioFlushPendingChange();
 }
 
-// The element's built-in focus(), such as HTMLElement's or SVGElement's, past any that a component or
-// the element itself defines, which a native Tab never calls.
+// The built-in focus() for `el`, such as HTMLElement's or SVGElement's. A native Tab never calls a
+// focus() a component overrides, so neither does the drivers' Tab.
 function wdioNativeFocus(el) {
   let focus;
   for (let proto = Object.getPrototypeOf(el); proto; proto = Object.getPrototypeOf(proto)) {
@@ -172,20 +172,21 @@ function wdioSpaceUp(el, blocked) {
   }
 }
 
-// Tab's default action. Past either end of the order, the field blurs, as Chrome hands focus to the
-// browser's own controls.
+// Tab's default action. After the last stop, or before the first with Shift, focus leaves the page,
+// as Chrome moves it to the browser's own controls.
 function wdioTabKey(event) {
   if (event.ctrlKey || event.altKey || event.metaKey) {
     return;
   }
-  // Before the cancel check, as a handler that cancels Tab, such as a focus trap's, can still move focus.
+  // Fire the owed change even if a handler cancelled Tab, as a focus trap that cancels it may have
+  // moved focus itself.
   wdioFlushPendingChange();
   if (event.defaultPrevented) {
     return;
   }
   const start = wdioDeepActiveElement();
-  // A blur or change handler that sends focus back to the field Tab leaves blocks the move, which ends
-  // Tab, as in Chrome. A stop that won't take focus never blurs the field.
+  // When a blur or change handler sends focus back to the field Tab is leaving, the move is cancelled
+  // and Tab ends there, as in Chrome. The field's blur tells this apart from a stop refusing focus.
   let left = false;
   const onBlur = () => {
     left = true;
@@ -194,11 +195,10 @@ function wdioTabKey(event) {
   // The engine won't focus some stops, such as a link with an invalid tabindex, so Tab tries each in
   // turn until one takes focus, even if a focus trap then sends it straight back.
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
-    // Chrome selects a text field's value as Tab focuses it: after the field focus leaves fires its
-    // events, which may set the value, and before the field's own focus handlers, which may move the
-    // caret.
+    // Like Chrome, select a text field's value as it takes focus: after the old field's blur and change
+    // handlers, which may set the value, and before its own focus handlers, which may move the caret.
     const isTextField = candidate.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(candidate.type);
-    // Only while the field has focus, as select() focuses it again in Chromium.
+    // Only while the field still has focus: in Chromium, select() would focus it again.
     const select = () => {
       if (wdioDeepActiveElement() === candidate) {
         HTMLInputElement.prototype.select.call(candidate);
@@ -214,7 +214,7 @@ function wdioTabKey(event) {
     candidate.addEventListener('focus', onFocus, true);
     wdioFocus(candidate, wdioNativeFocus(candidate));
     candidate.removeEventListener('focus', onFocus, true);
-    // A window without focus may fire no focus event, so the field is selected once it has focus.
+    // In a window without focus, no focus event fires, so select here instead.
     if (isTextField && !focused) {
       select();
     }
@@ -227,9 +227,9 @@ function wdioTabKey(event) {
   }
 }
 
-// The stops Tab tries from `current`, in turn: from a stop, those after it, or before it with Shift.
-// From an element Tab skips, Tab goes to the nearest stop after it in tree order, or before it with
-// Shift, and leaves the page when there's none.
+// The stops Tab tries from `current`, in order: those after it, or before it with Shift. If `current`
+// isn't a stop, such as an element with tabindex -1, they start from the nearest stop after it in tree
+// order, or before it with Shift, and there are none if no stop lies that way.
 function wdioTabCandidates(backward, current) {
   const { stops, treeOrder } = wdioTabStops(current);
   const order = backward ? [...stops].reverse() : stops;
@@ -254,8 +254,8 @@ function wdioTabCandidates(backward, current) {
 }
 
 // The elements Tab stops on, in order, and each visited element's position in the rendered tree. The
-// document, each shadow tree and each slot order their own stops, positive tabindex first; a host's
-// or slot's stops take its place, and a negative tabindex on it skips them.
+// document, each shadow tree and each slot sort their own stops, positive tabindex first, and a host's
+// or slot's stops go where the host or slot is. A negative tabindex on a host or slot leaves them out.
 function wdioTabStops(current) {
   const treeOrder = new Map();
   let modal;
@@ -352,8 +352,8 @@ function wdioRenderedChildren(el) {
   return wdioChildren(el);
 }
 
-// Through Element.prototype, as a form's named controls hide its own properties: a control named
-// "children" is `form.children`.
+// Read through Element.prototype, because a form's named controls hide its own properties: with a
+// control named "children", `form.children` is that control.
 function wdioChildren(el) {
   return Object.getOwnPropertyDescriptor(Element.prototype, 'children').get.call(el);
 }

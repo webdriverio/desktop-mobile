@@ -602,8 +602,8 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
 }
 
 /// JS inserting a printable run at the focused element's selection, as typing does, so text follows
-/// focus when a key moves it. The field the text goes to owes a `change`, as the field Send Keys
-/// focused does.
+/// focus when a key moves it. Like the field Send Keys focused, the field the text goes into fires
+/// `change` when focus leaves it.
 pub fn build_insert_run_script(run: &str) -> String {
   let active_element = deep_active_element_js("activeEl");
   let editable = is_editable_text_field_js("activeEl");

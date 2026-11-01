@@ -534,7 +534,7 @@ describe('Tab', () => {
 
   it('should go through a form whose controls hide its own properties', () => {
     render('<input id="a"><form id="f"><input id="kids" name="children"><input id="e"></form><input id="z">');
-    // Browsers make named controls properties of the form, hiding its own. jsdom doesn't.
+    // In browsers, a named control hides the form's own property of that name. jsdom doesn't.
     for (const name of ['children', 'matches']) {
       Object.defineProperty($('#f'), name, { value: $('#kids') });
     }
@@ -764,8 +764,8 @@ describe('Tab', () => {
 
   it('should stay on a field whose blur or change handler sends focus back to it', () => {
     render('<input id="qty"><input id="name"><input id="email">');
-    // jsdom doesn't block a focus move that a blur handler undoes. Chrome and WebKit do: the field blurs,
-    // its handler refocuses it, and focus stays.
+    // In Chrome and WebKit, a blur handler that refocuses the field cancels the move, so focus stays.
+    // jsdom moves focus anyway, so this fakes the engine.
     const focus = HTMLElement.prototype.focus;
     vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
       if (this.id === 'name') {
