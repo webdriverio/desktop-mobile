@@ -77,7 +77,8 @@ export default class TauriWorkerService {
     this.driverProvider = launcherOptions.driverProvider ?? 'embedded';
     this.windowLabel = merged.windowLabel || getDefaultWindowLabel();
     this.mode = launcherOptions.mode;
-    this.devServerUrl = launcherOptions.devServerUrl;
+    // A fallback for an instance whose own capabilities carry no devServerUrl.
+    this.devServerUrl = merged.devServerUrl;
     log.debug('TauriWorkerService initialized');
   }
 
@@ -85,7 +86,7 @@ export default class TauriWorkerService {
    * Initialize the service
    */
   async before(
-    _capabilities: TauriCapabilities,
+    capabilities: TauriCapabilities,
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
@@ -100,7 +101,7 @@ export default class TauriWorkerService {
     try {
       if (this.mode === 'browser') {
         stage = 'initBrowserMode';
-        await this.initBrowserMode(browser as WebdriverIO.Browser);
+        await this.initBrowserMode(browser as WebdriverIO.Browser, capabilities);
         log.info('before() complete (browser mode)');
         return;
       }
@@ -320,36 +321,47 @@ export default class TauriWorkerService {
    * mode forces browserName: 'chrome', for which WDIO enables BiDi by default, so the
    * preload path is the norm.
    */
-  private async initBrowserMode(browser: WebdriverIO.Browser): Promise<void> {
+  private async initBrowserMode(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
     log.debug('Initializing browser-only mode');
-    if (!this.devServerUrl) {
-      throw new Error('devServerUrl is required for browser mode but was not set');
-    }
+    const targets: Array<{ instance: WebdriverIO.Browser; devServerUrl: string }> = [];
+    await forEachInstance(
+      browser,
+      (instance, { name, caps }) => {
+        const devServerUrl =
+          (caps as TauriCapabilities | undefined)?.['wdio:tauriServiceOptions']?.devServerUrl ?? this.devServerUrl;
+        if (!devServerUrl) {
+          throw new Error(
+            `devServerUrl is required for browser mode but was not set${name === undefined ? '' : ` for multiremote instance "${name}"`}`,
+          );
+        }
+        targets.push({ instance, devServerUrl });
+      },
+      capabilities,
+    );
     const injectionScript = browserInterceptor.buildBrowserIpcInjectionScript();
 
-    // Register the preload before the first navigation. browser.url() on a multiremote
-    // fans out to every instance, so each instance's own BiDi session must be primed first.
-    // preloadActive is true only when the interceptor is already installed pre-navigation on
-    // every relevant session, which decides whether the post-load execute() below is the
-    // primary injection path or merely belt-and-suspenders.
-    const registered: boolean[] = [];
-    await forEachInstance(browser, async (instance) => {
-      registered.push(await this.registerBidiPreload(instance, injectionScript));
-    });
-    const preloadActive = registered.length > 0 && registered.every(Boolean);
+    // Register every instance's preload before any navigation. Where an instance's preload is
+    // installed, its post-load execute() below is merely belt-and-suspenders; elsewhere it is the
+    // primary injection path.
+    const preloaded: boolean[] = [];
+    for (const { instance } of targets) {
+      preloaded.push(await this.registerBidiPreload(instance, injectionScript));
+    }
 
-    await browser.url(this.devServerUrl);
-    try {
-      await browser.execute(injectionScript);
-    } catch (error) {
-      // When the preload already injected before page scripts, this post-load re-inject is
-      // redundant — don't fail init for a transient hiccup. When no preload is active (classic
-      // session, or preload registration failed) this is the only injection path, so a failure
-      // is fatal, exactly as before.
-      if (!preloadActive) {
-        throw error;
+    for (const [index, { instance, devServerUrl }] of targets.entries()) {
+      await instance.url(devServerUrl);
+      try {
+        await instance.execute(injectionScript);
+      } catch (error) {
+        // When the preload already injected before page scripts, this post-load re-inject is
+        // redundant — don't fail init for a transient hiccup. When no preload is active (classic
+        // session, or preload registration failed) this is the only injection path, so a failure
+        // is fatal.
+        if (!preloaded[index]) {
+          throw error;
+        }
+        log.warn('Post-load IPC re-inject failed; preload already covered injection on this session:', error);
       }
-      log.warn('Post-load IPC re-inject failed; preload already covered injection on this session:', error);
     }
     (browser as unknown as Record<string, boolean>).__wdioBrowserMode__ = true;
     if (isMultiremote(browser)) {

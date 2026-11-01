@@ -74,6 +74,7 @@ import TauriLaunchService from '../src/launcher.js';
 import type { TauriCapabilities } from '../src/types.js';
 
 const DEV_SERVER = 'http://localhost:1420';
+const OTHER_DEV_SERVER = 'http://localhost:1421';
 
 function createLauncher(globalOpts: Record<string, unknown> = {}): TauriLaunchService {
   return new TauriLaunchService(globalOpts as any, {} as any, { maxInstances: 1 } as any);
@@ -172,6 +173,59 @@ describe('TauriLaunchService — browser mode', () => {
       const caps: any[] = [{ 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } }];
       await expect(launcher.onPrepare({} as any, caps)).rejects.toThrow('Dev server not reachable');
     });
+
+    it('should reject a browser-mode capability after a native first capability', async () => {
+      const launcher = createLauncher();
+      const capabilities: TauriCapabilities[] = [
+        { 'tauri:options': { application: '/app/my-app' } },
+        { 'wdio:tauriServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } },
+      ];
+
+      await expect(launcher.onPrepare({} as Options.Testrunner, capabilities)).rejects.toMatchObject({
+        message: expect.stringContaining('found mixed modes: native, browser'),
+      });
+      expect(ensureTauriDriver).not.toHaveBeenCalled();
+      expect(capabilities[0]['tauri:options']).toEqual({ application: '/app/my-app' });
+    });
+
+    it("should keep each capability's own devServerUrl over the global one and probe each", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response(null, { status: 200 }));
+      vi.stubGlobal('fetch', fetchMock);
+      const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+      const capabilities: TauriCapabilities[] = [
+        { 'wdio:tauriServiceOptions': { devServerUrl: OTHER_DEV_SERVER } },
+        {},
+      ];
+
+      await launcher.onPrepare({} as Options.Testrunner, capabilities);
+
+      expect(capabilities.map((cap) => cap['wdio:tauriServiceOptions']?.devServerUrl)).toEqual([
+        OTHER_DEV_SERVER,
+        DEV_SERVER,
+      ]);
+      expect(fetchMock.mock.calls.map(([url]) => url)).toEqual([OTHER_DEV_SERVER, DEV_SERVER]);
+    });
+
+    it('should name the unreachable dev server of a later capability', async () => {
+      vi.stubGlobal(
+        'fetch',
+        vi.fn(async (url: string) => {
+          if (url === OTHER_DEV_SERVER) {
+            throw new Error('ECONNREFUSED');
+          }
+          return new Response(null, { status: 200 });
+        }),
+      );
+      const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+      const capabilities: TauriCapabilities[] = [
+        {},
+        { 'wdio:tauriServiceOptions': { devServerUrl: OTHER_DEV_SERVER } },
+      ];
+
+      await expect(launcher.onPrepare({} as Options.Testrunner, capabilities)).rejects.toMatchObject({
+        message: expect.stringContaining(`Dev server not reachable at ${OTHER_DEV_SERVER}`),
+      });
+    });
   });
 
   describe('onWorkerStart', () => {
@@ -255,6 +309,25 @@ describe('TauriLaunchService — devServer management', () => {
     const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
     await launcher.onPrepare({} as any, [{}] as any);
     expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should ignore a devServer set on a capability', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER });
+    const capabilities = [{ 'wdio:tauriServiceOptions': { devServer: 'pnpm dev' } }];
+
+    await launcher.onPrepare({} as Options.Testrunner, capabilities as never);
+
+    expect(startManagedDevServer).not.toHaveBeenCalled();
+  });
+
+  it('should give every capability the managed dev server URL over its own devServerUrl', async () => {
+    const launcher = createLauncher({ mode: 'browser', devServerUrl: DEV_SERVER, devServer: 'pnpm dev' });
+    const capabilities: TauriCapabilities[] = [{ 'wdio:tauriServiceOptions': { devServerUrl: OTHER_DEV_SERVER } }, {}];
+
+    await launcher.onPrepare({} as Options.Testrunner, capabilities);
+
+    expect(startManagedDevServer).toHaveBeenCalledOnce();
+    expect(capabilities.map((cap) => cap['wdio:tauriServiceOptions']?.devServerUrl)).toEqual([DEV_SERVER, DEV_SERVER]);
   });
 
   it('should fail fast (no spawn) when devServer is a command but devServerUrl is unset', async () => {

@@ -11,7 +11,7 @@ import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks, runOnMoc
 import { execute } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
-import { DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
+import { CUSTOM_CAPABILITY_NAME, DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
 import { ElectrobunMockStore } from './mockStore.js';
 import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
 import type { ElectrobunCapabilities, ElectrobunServiceOptions } from './types.js';
@@ -83,6 +83,11 @@ export default class ElectrobunWorkerService {
     // mode: 'browser' must not skip the attach while the launcher spawns natively.
     if (this.options.mode === 'browser') {
       log.info('Browser mode — skipping CDP bridge attach');
+      await forEachInstance(
+        browser,
+        (instance, { name, caps }) => this.openDevServer(instance, name, caps),
+        capabilities,
+      );
       return;
     }
 
@@ -92,6 +97,23 @@ export default class ElectrobunWorkerService {
       // multiremote root fails with direction to per-instance access, not a raw TypeError.
       installRootMultiremoteGuard(browser);
     }
+  }
+
+  private async openDevServer(
+    browser: WebdriverIO.Browser,
+    name: string | undefined,
+    capabilities: unknown,
+  ): Promise<void> {
+    const devServerUrl =
+      (capabilities as ElectrobunCapabilities | undefined)?.[CUSTOM_CAPABILITY_NAME]?.devServerUrl ??
+      this.options.devServerUrl;
+    if (!devServerUrl) {
+      throw new Error(
+        `devServerUrl is required for browser mode but was not set${name === undefined ? '' : ` for multiremote instance "${name}"`}`,
+      );
+    }
+    log.debug(`Browser mode: navigating to ${devServerUrl}`);
+    await browser.url(devServerUrl);
   }
 
   private async attachInstance(browser: WebdriverIO.Browser, context: InstanceContext): Promise<void> {

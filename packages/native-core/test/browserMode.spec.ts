@@ -1,8 +1,10 @@
 import { EventEmitter } from 'node:events';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
+  mixedModesError,
   nonChromeBrowserNameError,
   probeDevServerReachable,
+  resolveDevServerUrls,
   startManagedDevServer,
   waitForDevServerReachable,
 } from '../src/browserMode.js';
@@ -52,6 +54,90 @@ describe('nonChromeBrowserNameError', () => {
     const message = nonChromeBrowserNameError('firefox', ['chrome', 'electron']);
     expect(message).toContain("got 'firefox'");
     expect(message).toContain("'chrome'");
+  });
+});
+
+describe('mixedModesError', () => {
+  it('should return undefined when every capability uses the same mode', () => {
+    expect(mixedModesError(['browser', 'browser'], 'Tauri', 'wdio:tauriServiceOptions')).toBeUndefined();
+  });
+
+  it('should return undefined when there are no capabilities', () => {
+    expect(mixedModesError([], 'Tauri', 'wdio:tauriServiceOptions')).toBeUndefined();
+  });
+
+  it('should count a capability with no mode as native', () => {
+    expect(mixedModesError([undefined, 'native'], 'Tauri', 'wdio:tauriServiceOptions')).toBeUndefined();
+  });
+
+  it('should name the service, the modes found and the options key when the modes differ', () => {
+    expect(mixedModesError(['browser', undefined], 'Dioxus', 'wdio:dioxusServiceOptions')).toBe(
+      'All Dioxus capabilities must use the same mode, but found mixed modes: browser, native. ' +
+        "Set mode consistently across all 'wdio:dioxusServiceOptions' entries.",
+    );
+  });
+});
+
+describe('resolveDevServerUrls', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('should give each capability its own URL and probe each distinct URL once', async () => {
+    const fetchMock = reachable();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await resolveDevServerUrls([
+      'http://localhost:1420',
+      'http://localhost:1421',
+      'http://localhost:1420',
+    ]);
+
+    expect(result).toEqual({
+      ok: true,
+      value: ['http://localhost:1420', 'http://localhost:1421', 'http://localhost:1420'],
+    });
+    expect(fetchMock.mock.calls.map(([url]) => url)).toEqual(['http://localhost:1420', 'http://localhost:1421']);
+  });
+
+  it('should give every capability the managed URL without probing it', async () => {
+    const fetchMock = reachable();
+    vi.stubGlobal('fetch', fetchMock);
+
+    const result = await resolveDevServerUrls(['http://localhost:1420', undefined], 'http://localhost:5173');
+
+    expect(result).toEqual({ ok: true, value: ['http://localhost:5173', 'http://localhost:5173'] });
+    expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  it('should fail when a capability has no URL', async () => {
+    vi.stubGlobal('fetch', reachable());
+
+    const result = await resolveDevServerUrls(['http://localhost:1420', undefined]);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining('devServerUrl is required') },
+    });
+  });
+
+  it('should fail when a URL is invalid', async () => {
+    vi.stubGlobal('fetch', reachable());
+
+    const result = await resolveDevServerUrls(['not-a-url']);
+
+    expect(result).toMatchObject({ ok: false, error: { message: 'devServerUrl is not a valid URL: not-a-url' } });
+  });
+
+  it('should fail when a dev server is unreachable', async () => {
+    vi.stubGlobal('fetch', unreachable());
+
+    const result = await resolveDevServerUrls(['http://localhost:1420']);
+
+    expect(result).toMatchObject({
+      ok: false,
+      error: { message: expect.stringContaining('Dev server not reachable at http://localhost:1420') },
+    });
   });
 });
 

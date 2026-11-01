@@ -5,9 +5,10 @@ import {
   closeLogWriter,
   getLogWriter,
   isLogWriterInitialized,
+  mixedModesError,
   nonChromeBrowserNameError,
   normaliseInstanceCaps,
-  probeDevServerReachable,
+  resolveDevServerUrls,
   startManagedDevServer,
 } from '@wdio/native-core';
 import { createLogger, errorMessage, isErr, severeServiceError } from '@wdio/native-utils';
@@ -60,12 +61,16 @@ export default class DioxusLaunchService extends BaseLauncher {
     capabilities: DioxusCapabilities[] | Record<string, { capabilities: DioxusCapabilities }>,
   ): Promise<void> {
     const capsList = normaliseInstanceCaps(capabilities).map(({ caps }) => caps);
-    // Use the first capability with mode='browser' as the options source so that
-    // browser mode is detected even when set on a non-first capability.
-    const primaryCap =
-      capsList.find((cap) => mergeOptions(this.options, cap['wdio:dioxusServiceOptions']).mode === 'browser') ??
-      capsList[0];
-    const mergedOptions = mergeOptions(this.options, primaryCap?.['wdio:dioxusServiceOptions']);
+    const capOptionsList = capsList.map((cap) => mergeOptions(this.options, cap['wdio:dioxusServiceOptions']));
+    const modesError = mixedModesError(
+      capOptionsList.map(({ mode }) => mode),
+      'Dioxus',
+      'wdio:dioxusServiceOptions',
+    );
+    if (modesError) {
+      throw new SevereServiceError(modesError);
+    }
+    const mergedOptions = capOptionsList[0] ?? mergeOptions(this.options);
 
     // Browser mode: skip all binary/driver setup — test runs against a Vite dev server
     if (mergedOptions.mode === 'browser') {
@@ -80,44 +85,35 @@ export default class DioxusLaunchService extends BaseLauncher {
           throw new SevereServiceError(browserNameError);
         }
       }
-      let devServerUrl = mergedOptions.devServerUrl;
+      const { devServer, devServerUrl } = this.options;
       // Everything from the dev-server start onward runs in one guard: any failure after the server
       // is up must stop it, because WDIO does not call onComplete after an onPrepare throw.
       try {
-        // Auto-manage the dev server if requested; the managed readiness wait supersedes the
-        // one-shot preflight below, and a devServer function may supply the URL.
-        if (mergedOptions.devServer) {
+        // Auto-manage the dev server once for the run if requested; the managed readiness wait
+        // supersedes the per-cap preflight, and a devServer function may supply the URL.
+        let managedUrl: string | undefined;
+        if (devServer) {
           // Only a devServer *function* can supply the URL; a string/object form needs devServerUrl
           // as its readiness target. Require it up front so a missing one fails fast instead of
           // polling an empty URL for the whole readiness timeout.
-          if (typeof mergedOptions.devServer !== 'function' && !devServerUrl) {
+          if (typeof devServer !== 'function' && !devServerUrl) {
             throw new SevereServiceError(
               'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
             );
           }
-          const managed = await startManagedDevServer(mergedOptions.devServer, devServerUrl ?? '');
+          const managed = await startManagedDevServer(devServer, devServerUrl ?? '');
           this.#stopDevServer = managed.stop;
-          devServerUrl = managed.url || devServerUrl;
+          managedUrl = managed.url;
         }
-        if (!devServerUrl) {
-          throw new SevereServiceError(
-            'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
-          );
-        }
-        try {
-          new URL(devServerUrl);
-        } catch {
-          throw new SevereServiceError(`devServerUrl is not a valid URL: ${devServerUrl}`);
-        }
-        if (!mergedOptions.devServer) {
-          // Unmanaged: preflight the user-started server before workers navigate to it.
-          const reachable = await probeDevServerReachable(devServerUrl);
-          if (isErr(reachable)) {
-            throw severeServiceError(reachable.error);
-          }
+        const devServerUrls = await resolveDevServerUrls(
+          capOptionsList.map((capOptions) => capOptions.devServerUrl),
+          managedUrl,
+        );
+        if (isErr(devServerUrls)) {
+          throw severeServiceError(devServerUrls.error);
         }
         this.#browserMode = true;
-        for (const cap of capsList) {
+        capsList.forEach((cap, index) => {
           (cap as { browserName?: string }).browserName = 'chrome';
           delete (cap as { 'dioxus:options'?: unknown })['dioxus:options'];
           // The worker reads mode and devServerUrl from here; a devServer function may have changed the URL.
@@ -125,9 +121,9 @@ export default class DioxusLaunchService extends BaseLauncher {
           capRecord['wdio:dioxusServiceOptions'] = {
             ...(capRecord['wdio:dioxusServiceOptions'] as Record<string, unknown> | undefined),
             mode: 'browser',
-            devServerUrl,
+            devServerUrl: devServerUrls.value[index],
           };
-        }
+        });
       } catch (error) {
         // Guard the teardown so a stop() rejection can't mask the original onPrepare failure.
         await this.#stopDevServer?.().catch(() => {});

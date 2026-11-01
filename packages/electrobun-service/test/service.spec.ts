@@ -65,6 +65,7 @@ function makeBrowser(
       current = handle;
     }),
     getUrl: vi.fn(async () => windows.find((w) => w.handle === current)?.url ?? ''),
+    url: vi.fn().mockResolvedValue(undefined),
   } as unknown as WebdriverIO.Browser;
 }
 
@@ -177,6 +178,54 @@ describe('ElectrobunWorkerService', () => {
       await service.before(nativeCap(), [], browser);
 
       expect(cdpBridgeCtor).not.toHaveBeenCalled();
+    });
+
+    it('should navigate to the devServerUrl from the capability options', async () => {
+      const browser = makeBrowser();
+      const capabilities = {
+        'wdio:electrobunServiceOptions': { mode: 'browser' as const, devServerUrl: 'http://localhost:4000' },
+      };
+      const service = new ElectrobunWorkerService({ devServerUrl: 'http://localhost:3000' }, capabilities);
+
+      await service.before(capabilities, [], browser);
+
+      expect(browser.url).toHaveBeenCalledExactlyOnceWith('http://localhost:4000');
+    });
+
+    it('should navigate each multiremote instance to its own devServerUrl', async () => {
+      const instanceA = makeBrowser();
+      const instanceB = makeBrowser();
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+        url: vi.fn(),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const caps = {
+        browserA: { capabilities: { 'wdio:electrobunServiceOptions': { devServerUrl: 'http://localhost:4000' } } },
+        browserB: { capabilities: {} },
+      };
+      const service = new ElectrobunWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:3000' }, caps);
+
+      await service.before(caps, [], mrBrowser);
+
+      expect(instanceA.url).toHaveBeenCalledExactlyOnceWith('http://localhost:4000');
+      expect(instanceB.url).toHaveBeenCalledExactlyOnceWith('http://localhost:3000');
+      expect(mrBrowser.url).not.toHaveBeenCalled();
+    });
+
+    it('should name the multiremote instance that has no devServerUrl', async () => {
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA'],
+        getInstance: () => makeBrowser(),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const caps = { browserA: { capabilities: {} } };
+      const service = new ElectrobunWorkerService({ mode: 'browser' }, caps);
+
+      await expect(service.before(caps, [], mrBrowser)).rejects.toMatchObject({
+        message: 'devServerUrl is required for browser mode but was not set for multiremote instance "browserA"',
+      });
     });
 
     it('should NOT skip the attach for a stray devServerUrl without mode: browser', async () => {
@@ -498,7 +547,10 @@ describe('ElectrobunWorkerService', () => {
     });
 
     it('should do nothing in browser mode', async () => {
-      const service = new ElectrobunWorkerService({ mode: 'browser', restoreMocks: true }, {});
+      const service = new ElectrobunWorkerService(
+        { mode: 'browser', devServerUrl: 'http://localhost:3000', restoreMocks: true },
+        {},
+      );
       await service.before({}, [], makeBrowser());
 
       await expect(service.beforeTest()).resolves.toBeUndefined();

@@ -41,6 +41,28 @@ export function nonChromeBrowserNameError(
 }
 
 /**
+ * Check that every capability resolves to the same run mode.
+ *
+ * Returns an error message naming the modes found when they differ, and `undefined` when they
+ * match. A capability with no mode counts as `'native'`. Each launcher throws its own
+ * `SevereServiceError` with the message, as with {@link nonChromeBrowserNameError}.
+ */
+export function mixedModesError(
+  modes: readonly (string | undefined)[],
+  service: string,
+  optionsKey: string,
+): string | undefined {
+  const uniqueModes = [...new Set(modes.map((mode) => mode ?? 'native'))];
+  if (uniqueModes.length <= 1) {
+    return undefined;
+  }
+  return (
+    `All ${service} capabilities must use the same mode, but found mixed modes: ${uniqueModes.join(', ')}. ` +
+    `Set mode consistently across all '${optionsKey}' entries.`
+  );
+}
+
+/**
  * Preflight the dev server before the worker navigates to it.
  *
  * A HEAD request with a short timeout. Any non-network response (even 404/405)
@@ -59,6 +81,47 @@ export async function probeDevServerReachable(
     const detail = error instanceof Error ? error.message : String(error);
     return Err(new Error(`Dev server not reachable at ${url} — is it running? (${detail})`));
   }
+}
+
+/**
+ * Resolve the dev server URL each browser-mode capability opens, in the order given.
+ *
+ * `managedUrl`, the URL of the dev server the launcher started, applies to every capability, since
+ * one server runs per run. Without it, each capability opens its own URL (the caller merges a
+ * capability's `devServerUrl` over the service-level one), and each distinct URL is preflighted
+ * once with {@link probeDevServerReachable}. Fails when a capability has no URL or an invalid one,
+ * or when a dev server is unreachable.
+ */
+export async function resolveDevServerUrls(
+  capabilityUrls: readonly (string | undefined)[],
+  managedUrl?: string,
+): Promise<Result<string[], Error>> {
+  const probedUrls = new Set<string>();
+  const urls: string[] = [];
+  for (const capabilityUrl of capabilityUrls) {
+    const url = managedUrl ?? capabilityUrl;
+    if (!url) {
+      return Err(
+        new Error(
+          'devServerUrl is required when mode is "browser" (set it, or return a url from a devServer function)',
+        ),
+      );
+    }
+    try {
+      new URL(url);
+    } catch {
+      return Err(new Error(`devServerUrl is not a valid URL: ${url}`));
+    }
+    if (managedUrl === undefined && !probedUrls.has(url)) {
+      const reachable = await probeDevServerReachable(url);
+      if (isErr(reachable)) {
+        return reachable;
+      }
+      probedUrls.add(url);
+    }
+    urls.push(url);
+  }
+  return Ok(urls);
 }
 
 const DEV_SERVER_READY_TIMEOUT_MS = 60_000;
