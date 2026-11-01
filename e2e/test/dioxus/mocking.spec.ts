@@ -41,4 +41,34 @@ describe('Dioxus mocking', () => {
     const r = result as { os: string } | null | undefined;
     expect(r?.os).not.toBe('overridden');
   });
+
+  it('should use the withImplementation implementation until an async callback settles', async () => {
+    const mock = await browser.dioxus.mock('get_platform_info');
+    await mock.mockReturnValue({ os: 'default' });
+
+    const result = await mock.withImplementation(
+      () => ({ os: 'temporary' }),
+      async ({ invoke }) => {
+        await new Promise((resolve) => setTimeout(resolve, 10));
+        return invoke('get_platform_info');
+      },
+    );
+
+    expect(result).toEqual({ os: 'temporary' });
+    expect(mock.mock.calls).toHaveLength(1);
+    const after = await browser.dioxus.execute(({ invoke }) => invoke('get_platform_info'));
+    expect(after).toEqual({ os: 'default' });
+  });
+
+  it('should reject withImplementation with a plain error once the command is no longer mocked', async () => {
+    const mock = await browser.dioxus.mock('get_platform_info');
+    await mock.mockRestore();
+
+    await expect(
+      mock.withImplementation(
+        () => ({ os: 'temporary' }),
+        () => undefined,
+      ),
+    ).rejects.toThrow(/^get_platform_info is not mocked in this window$/);
+  });
 });

@@ -81,6 +81,22 @@ describe('Dioxus special keys (embedded)', () => {
     ]);
   });
 
+  it('should send and type the shifted character while Shift is held, as Chrome does', async () => {
+    await browser.keys([Key.Shift, 'a', '1', ';']);
+    expect((await keyTargetEvents()).filter((event) => event.key !== 'Shift')).toEqual([
+      { key: 'A', code: 'KeyA', keyCode: 65, shiftKey: true },
+      { key: '!', code: 'Digit1', keyCode: 49, shiftKey: true },
+      { key: ':', code: 'Semicolon', keyCode: 186, shiftKey: true },
+    ]);
+
+    await fillScratch('<input id="fresh-input">');
+    await browser.$('#fresh-input').click();
+    await browser.keys([Key.Shift, 'a', '1', ';']);
+    expect(await fieldValue('#fresh-input')).toBe('A!:');
+    await browser.$('#fresh-input').addValue(`${Key.Shift}b2/`);
+    expect(await fieldValue('#fresh-input')).toBe('A!:B@?');
+  });
+
   it('should press Enter for a newline, Backspace for a backspace character and Tab for a tab, and skip a carriage return', async () => {
     await browser.keys(['\n', '\r', '\b', '\t']);
     expect((await keyTargetEvents()).map(({ key, code, keyCode }) => ({ key, code, keyCode }))).toEqual([

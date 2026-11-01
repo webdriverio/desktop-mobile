@@ -174,6 +174,25 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
   Some((code.to_string(), key_code, shifted))
 }
 
+/// `text` as a US keyboard types it with Shift held: `a1;` is `A!:`.
+fn shift_text(text: &str) -> String {
+  text.chars().map(shifted_char).collect()
+}
+
+/// What `ch`'s key types with Shift on a US keyboard: the shifted row with the same `code`, or `ch`
+/// itself if it already takes Shift, Shift doesn't change it (Space) or it has no key (`é`). The
+/// search covers printable ASCII, where every shifted row is.
+fn shifted_char(ch: char) -> char {
+  let Some((code, _, false)) = us_keyboard_key(ch) else {
+    return ch;
+  };
+  (' '..='~')
+    .find(|&other| {
+      us_keyboard_key(other).is_some_and(|(other_code, _, shifted)| shifted && other_code == code)
+    })
+    .unwrap_or(ch)
+}
+
 /// A JS string literal for `text` that is safe to splice into a script.
 pub fn js_string(text: &str) -> String {
   serde_json::Value::from(text).to_string()
@@ -254,7 +273,9 @@ pub fn build_regular_key_script(key: &str, is_down: bool, modifiers: &ModifierSt
 }
 
 /// [`build_regular_key_script`] with an explicit `keyCode`, for printable special keys that don't
-/// share the main key's (Numpad5 is 101, not 53).
+/// share the main key's (Numpad5 is 101, not 53). With Shift held, a key with its main-keyboard
+/// `keyCode` sends and types its shifted character, as chromedriver does (`A` for `a`, `+` for
+/// `Key.Equals`). A numpad key keeps its own character.
 pub fn build_printable_key_script(
   key: &str,
   code: &str,
@@ -262,6 +283,9 @@ pub fn build_printable_key_script(
   is_down: bool,
   modifiers: &ModifierState,
 ) -> String {
+  let main_keyboard = key_code != 0 && regular_key(key).1 == key_code;
+  let key = if modifiers.shift && main_keyboard { shift_text(key) } else { key.to_string() };
+  let key = key.as_str();
   let is_select_all = matches!(key, "a" | "A") && (modifiers.ctrl || modifiers.meta);
   let default_action = if !is_down {
     String::new()
@@ -571,7 +595,8 @@ pub enum SendKeysStep {
 }
 
 /// Send-keys text as ordered steps: a modifier stays held until it's pressed again, the null key or
-/// the end, and text typed under Control, Alt or Meta is pressed key by key as shortcuts.
+/// the end, text typed under Shift alone goes in shifted, and text typed under Control, Alt or Meta
+/// is pressed key by key as shortcuts.
 pub fn plan_send_keys(text: &str) -> Vec<SendKeysStep> {
   let mut steps = Vec::new();
   let mut held = HeldModifiers::default();
@@ -584,6 +609,7 @@ pub fn plan_send_keys(text: &str) -> Vec<SendKeysStep> {
           push_key_press(&mut steps, &ch.to_string(), modifiers);
         }
       }
+      KeySegment::Text(run) if modifiers.shift => push_text(&mut steps, &shift_text(&run)),
       KeySegment::Text(run) => push_text(&mut steps, &run),
       KeySegment::Special(key) if key == NULL_KEY => {
         release_held_modifiers(&mut steps, &mut held);
@@ -911,6 +937,87 @@ mod tests {
     ] {
       assert_eq!(regular_key(key), (code.to_string(), key_code, shifted), "{key:?}");
     }
+  }
+
+  #[test]
+  fn shift_text_types_what_a_us_keyboard_types_with_shift() {
+    assert_eq!(shift_text("abcxyz"), "ABCXYZ");
+    assert_eq!(shift_text("0123456789"), ")!@#$%^&*(");
+    assert_eq!(shift_text("-=[]\\;',./`"), "_+{}|:\"<>?~");
+    assert_eq!(shift_text("A!:~"), "A!:~");
+    assert_eq!(shift_text(" \té"), " \té");
+  }
+
+  #[test]
+  fn every_unshifted_us_key_shifts_to_a_character_on_the_same_key() {
+    for ch in ' '..='~' {
+      let (code, key_code, shifted) = regular_key(&ch.to_string());
+      if shifted || code == "Space" {
+        assert_eq!(shifted_char(ch), ch, "{ch:?}");
+        continue;
+      }
+      let shifted_ch = shifted_char(ch);
+      assert_ne!(shifted_ch, ch, "{ch:?} has no shifted character");
+      assert_eq!(regular_key(&shifted_ch.to_string()), (code, key_code, true), "{ch:?}");
+    }
+  }
+
+  #[test]
+  fn key_actions_send_the_shifted_character_while_shift_is_held() {
+    let mut held = HeldModifiers::default();
+    held.press(SHIFT);
+    for (key, (shifted, code, key_code)) in
+      [("a", ("A", "KeyA", 65)), ("1", ("!", "Digit1", 49)), (";", (":", "Semicolon", 186))]
+    {
+      let down = build_regular_key_script(key, true, &held.state());
+      assert!(down.contains(&format!("key: {}", js_string(shifted))), "{down}");
+      assert!(down.contains(&format!("code: \"{code}\"")), "{down}");
+      assert!(down.contains(&format!("keyCode: {key_code}")), "{down}");
+      assert!(down.contains("shiftKey: true"), "{down}");
+      assert!(down.contains(&format!("var insertedText = {}", js_string(shifted))), "{down}");
+    }
+    held.release(SHIFT);
+    let up = build_regular_key_script("a", false, &held.state());
+    assert!(up.contains("key: \"a\"") && up.contains("shiftKey: false"), "{up}");
+  }
+
+  #[test]
+  fn shift_keeps_control_shortcuts_and_shifts_only_main_keyboard_keys() {
+    let ctrl_shift = mods(true, true, false, false);
+    let select_all = build_regular_key_script("a", true, &ctrl_shift);
+    assert!(select_all.contains("key: \"A\"") && select_all.contains("activeEl.select()"));
+
+    let shift = mods(false, true, false, false);
+    for (key, code, key_code, shifted) in
+      [(";", "Semicolon", 186, ":"), ("=", "NumpadEqual", 187, "+")]
+    {
+      let script = build_printable_key_script(key, code, key_code, true, &shift);
+      assert!(script.contains(&format!("key: {}", js_string(shifted))), "{script}");
+      assert!(script.contains(&format!("var insertedText = {}", js_string(shifted))), "{script}");
+    }
+    for (key, code, key_code) in [("5", "Numpad5", 101), (" ", "Space", 32), ("e\u{301}", "", 0)] {
+      let script = build_printable_key_script(key, code, key_code, true, &shift);
+      assert!(script.contains(&format!("key: {}", js_string(key))), "{script}");
+      assert!(script.contains(&format!("var insertedText = {}", js_string(key))), "{script}");
+    }
+  }
+
+  #[test]
+  fn send_keys_types_shifted_text_until_shift_is_released() {
+    let none = ModifierState::default();
+    let shift = mods(false, true, false, false);
+    let steps = plan_send_keys(&format!("{SHIFT}a1;{NULL_KEY}a1;"));
+    assert_eq!(
+      steps,
+      vec![key(SHIFT, true, shift), text("A!:"), key(SHIFT, false, none), text("a1;")]
+    );
+    assert_eq!(typed_text(&steps), "A!:a1;");
+
+    let ctrl_shift = mods(true, true, false, false);
+    assert_eq!(
+      plan_send_keys(&format!("{SHIFT}{CONTROL}a"))[2..4],
+      [key("a", true, ctrl_shift), key("a", false, ctrl_shift)]
+    );
   }
 
   #[test]
@@ -1257,7 +1364,7 @@ mod tests {
       plan_send_keys(&format!("{SHIFT}ab{ENTER}")),
       vec![
         key(SHIFT, true, shift),
-        text("ab"),
+        text("AB"),
         key(ENTER, true, shift),
         key(ENTER, false, shift),
         key(SHIFT, false, none),
@@ -1526,7 +1633,7 @@ mod tests {
 
   #[test]
   fn typed_text_keeps_only_the_text_runs() {
-    let steps = plan_send_keys(&format!("20{BACKSPACE}26-10{SHIFT}-21"));
+    let steps = plan_send_keys(&format!("20{BACKSPACE}26-10-21{SHIFT}"));
     assert_eq!(typed_text(&steps), "2026-10-21");
     assert_eq!(typed_text(&plan_send_keys(NULL_KEY)), "");
   }
