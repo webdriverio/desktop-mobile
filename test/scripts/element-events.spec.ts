@@ -615,6 +615,26 @@ describe('Tab', () => {
     $('#d1').focus();
     expect(tabs(4)).toEqual(['d2', 'body', 'd1', 'd2']);
   });
+
+  it("should keep focus within a shadow root's modal dialog, including the fields slotted into it", () => {
+    render('<input id="a"><div id="host"><input id="s1"><input id="s2"></div><input id="z">');
+    const root = $('#host').attachShadow({ mode: 'open' });
+    root.innerHTML = '<dialog open><slot></slot></dialog>';
+    const dialog = root.querySelector('dialog') as HTMLDialogElement;
+    Object.defineProperty(dialog, 'matches', {
+      value: (selector: string) => selector === ':modal' || Element.prototype.matches.call(dialog, selector),
+    });
+    $('#s1').focus();
+    expect(tabs(4)).toEqual(['s2', 'body', 's1', 's2']);
+  });
+
+  it("should pass Tab on from a stop the page won't focus", () => {
+    render('<input id="x"><a id="bad" tabindex="foo">bad</a><input id="y">');
+    $('#x').focus();
+    expect(tabs(2)).toEqual(['y', 'body']);
+    $('#y').focus();
+    expect(tab({ shiftKey: true })).toBe('x');
+  });
 });
 
 describe('wdioPress and wdioRelease', () => {

@@ -173,13 +173,21 @@ function wdioTabKey(event) {
   if (event.defaultPrevented) {
     return;
   }
-  const next = wdioNextTabStop(event.shiftKey);
+  // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on to the next.
+  const start = wdioDeepActiveElement();
+  let next = wdioNextTabStop(event.shiftKey, start);
+  while (next) {
+    wdioFocus(next);
+    if (wdioDeepActiveElement() !== start) {
+      break;
+    }
+    next = wdioNextTabStop(event.shiftKey, next);
+  }
   if (!next) {
     wdioDeepActiveElement().blur();
     wdioFlushPendingChange();
     return;
   }
-  wdioFocus(next);
   if (wdioDeepActiveElement() === next && next.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(next.type)) {
     next.select();
   }
@@ -187,8 +195,7 @@ function wdioTabKey(event) {
 
 // From an element Tab skips, Tab goes to the nearest stop after it in tree order, or before it with
 // Shift, and wraps round to the other end of the order when there's none, as Chrome does.
-function wdioNextTabStop(backward) {
-  const current = wdioDeepActiveElement();
+function wdioNextTabStop(backward, current) {
   const { stops, treeOrder } = wdioTabStops(current);
   const at = stops.indexOf(current);
   if (at !== -1) {
@@ -250,7 +257,7 @@ function wdioTabStops(current) {
   let stops = scopeStops([document.documentElement]);
   // A modal dialog makes the rest of the page inert.
   if (modal) {
-    stops = stops.filter((stop) => wdioContains(modal, stop));
+    stops = stops.filter((stop) => wdioRendersInside(modal, stop));
   }
   return { stops: stops.filter((stop) => wdioRadioStop(stop, current, stops)), treeOrder };
 }
@@ -475,6 +482,16 @@ function wdioCaretToEnd(el) {
 // Whether `node` overrides a built-in method, as components do to pass focus or a click inward.
 function wdioOwnMethod(node, name) {
   return node instanceof HTMLElement && node[name] !== HTMLElement.prototype[name];
+}
+
+// Whether `el` renders inside `node`, as slotted content does inside the slot's shadow tree.
+function wdioRendersInside(node, el) {
+  for (let current = el; current; current = current.assignedSlot || current.parentNode || current.host) {
+    if (current === node) {
+      return true;
+    }
+  }
+  return false;
 }
 
 // Whether `el` is `node` or inside it, looking through shadow roots.
