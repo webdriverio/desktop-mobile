@@ -171,17 +171,18 @@ export async function restoreAllMocks(this: TauriServiceContext | undefined, com
   await runOnMocks('restoreAllMocks', this, commandPrefix);
 }
 
+interface InAppMocks {
+  __wdio_mocks__?: Record<string, { mockReset?: () => void } | undefined>;
+}
+
 function resetMocksInApp(browser: WebdriverIO.Browser, commandPrefix: string): Promise<unknown> {
   return browser.execute<void, [string]>((prefix) => {
-    // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-    if (window.__wdio_mocks__) {
-      // @ts-expect-error - Reset each mock
-      for (const [commandName, mock] of Object.entries(window.__wdio_mocks__)) {
-        // Filter by prefix if provided
+    // @ts-expect-error - window exists in browser context
+    const mocks = (window as InAppMocks).__wdio_mocks__;
+    if (mocks) {
+      for (const [commandName, mock] of Object.entries(mocks)) {
         if (!prefix || commandName.startsWith(prefix)) {
-          // @ts-expect-error - mock has mockReset method
           if (mock && typeof mock.mockReset === 'function') {
-            // @ts-expect-error - mock has mockReset method
             mock.mockReset();
           }
         }
@@ -192,19 +193,15 @@ function resetMocksInApp(browser: WebdriverIO.Browser, commandPrefix: string): P
 
 function restoreMocksInApp(browser: WebdriverIO.Browser, commandPrefix: string): Promise<unknown> {
   return browser.execute<void, [string]>((prefix) => {
-    // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-    if (window.__wdio_mocks__) {
+    // @ts-expect-error - window exists in browser context
+    const app = window as InAppMocks;
+    if (app.__wdio_mocks__) {
       if (!prefix) {
-        // No prefix: clear all mocks
-        // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-        window.__wdio_mocks__ = {};
+        app.__wdio_mocks__ = {};
       } else {
-        // With prefix: selectively delete matching mocks
-        // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-        for (const commandName of Object.keys(window.__wdio_mocks__)) {
+        for (const commandName of Object.keys(app.__wdio_mocks__)) {
           if (commandName.startsWith(prefix)) {
-            // @ts-expect-error - window.__wdio_mocks__ is defined by injection script
-            delete window.__wdio_mocks__[commandName];
+            delete app.__wdio_mocks__[commandName];
           }
         }
       }
