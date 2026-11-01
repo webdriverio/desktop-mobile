@@ -385,20 +385,25 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     _specs: string[],
     instance: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
-    const electronInstances = isMultiremote(instance) ? await this.getElectronInstances(instance, capabilities) : [];
-    // The launcher rejects mixed modes, so the first instance's mode is every instance's
-    if (electronInstances.length > 0) {
-      this.#mode = electronInstances[0].options.mode;
-    }
-    log.info(
-      `before() start — mode=${this.#mode ?? 'binary'} ` +
-        `multiremote=${isMultiremote(instance)} ` +
-        `instances=${isMultiremote(instance) ? (instance as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
-    );
     this.browser = instance as WebdriverIO.Browser;
 
     let stage = 'init';
     try {
+      let electronInstances: ElectronInstance[] = [];
+      if (isMultiremote(instance)) {
+        stage = 'getElectronInstances';
+        electronInstances = await this.getElectronInstances(instance, capabilities);
+      }
+      // The launcher rejects mixed modes, so the first instance's mode is every instance's
+      if (electronInstances.length > 0) {
+        this.#mode = electronInstances[0].options.mode;
+      }
+      log.info(
+        `before() start — mode=${this.#mode ?? 'binary'} ` +
+          `multiremote=${isMultiremote(instance)} ` +
+          `instances=${isMultiremote(instance) ? instance.instances.join(',') : 'n/a'}`,
+      );
+
       if (this.#mode === 'browser') {
         stage = 'initBrowserMode';
         await this.initBrowserMode(instance, electronInstances);
