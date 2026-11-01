@@ -428,15 +428,14 @@ fn radio_step_js(forward: bool) -> String {
   )
 }
 
-/// JS for Enter's keydown. It fires an owed `change` even if a handler canceled the key, as the
-/// handler can still have moved focus, then acts where focus is after that `change`.
+/// JS for Enter's keydown. Unless a handler canceled the key, it acts where focus is after the
+/// keydown's handlers.
 fn enter_js(shift: bool) -> String {
   let insert_newline = insert_text_js("activeEl", &js_string("\n"));
   let command = if shift { "insertLineBreak" } else { "insertParagraph" };
   format!(
     r"{{
                 {ELEMENT_EVENTS_JS}
-                wdioFlushPendingChange();
                 if (!canceled) {{
                     activeEl = wdioDeepActiveElement();
                     if (activeEl.tagName === 'TEXTAREA') {{
@@ -1513,7 +1512,7 @@ mod tests {
   }
 
   #[test]
-  fn enter_fires_an_owed_change_then_acts_on_the_element_focused_after_it() {
+  fn enter_acts_on_the_element_focused_after_its_keydown() {
     let none = mods(false, false, false, false);
     let shift = mods(false, true, false, false);
     for modifiers in [none, shift] {
@@ -1521,7 +1520,6 @@ mod tests {
       let dispatch = enter.find("var canceled = !activeEl.dispatchEvent(keyEvent);").unwrap();
       let helpers = enter.find(&format!("{{\n                {ELEMENT_EVENTS_JS}")).unwrap();
       let action = &enter[helpers + ELEMENT_EVENTS_JS.len()..];
-      let flush = action.find("wdioFlushPendingChange();").unwrap();
       let uncanceled = action.find("if (!canceled) {").unwrap();
       let refocus = action.find("activeEl = wdioDeepActiveElement();").unwrap();
       let textarea = action.find("if (activeEl.tagName === 'TEXTAREA') {").unwrap();
@@ -1529,7 +1527,7 @@ mod tests {
       let enter_key = action.find("wdioEnterKey();").unwrap();
       let guard = action.find("if (canceled) {").unwrap();
       assert!(dispatch < helpers, "{enter}");
-      assert!(flush < uncanceled && uncanceled < refocus && refocus < textarea, "{enter}");
+      assert!(uncanceled < refocus && refocus < textarea, "{enter}");
       assert!(textarea < editor && editor < enter_key && enter_key < guard, "{enter}");
     }
     for held in [
