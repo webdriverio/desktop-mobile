@@ -991,7 +991,9 @@ mod tests {
     assert!(!body.contains("insertedText"));
     let run = build_insert_run_script("x");
     assert!(run.contains("var activeEl = document.activeElement || document.body;"));
-    assert!(run.contains(&format!("if ({}) {{", is_editable_text_field_js("activeEl"))));
+    let insert = insert_text_js("activeEl", &js_string("x"));
+    assert!(insert.contains(&format!("if ({}) {{", is_editable_text_field_js("activeEl"))));
+    assert!(run.contains(&insert));
     assert!(run.contains("inputType: 'insertText'"));
   }
 

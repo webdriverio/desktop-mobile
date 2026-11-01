@@ -1146,8 +1146,10 @@ mod tests {
     assert!(field.contains(
       "['text', 'search', 'url', 'tel', 'email', 'password', 'number'].indexOf(el.type)"
     ));
+    let insert = insert_text_js("activeEl", &js_string("x"));
+    assert!(insert.contains(&format!("if ({})", is_editable_text_field_js("activeEl"))));
     let script = build_insert_run_script("x");
-    assert!(script.contains(&format!("if ({})", is_editable_text_field_js("activeEl"))));
+    assert!(script.contains(&insert));
     assert!(is_editable_text_field_js("el").contains(&field));
     assert!(!script.contains("el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'"));
   }
@@ -1611,8 +1613,9 @@ mod tests {
     ] {
       assert!(script.contains(&format!("if ({editable})")), "{script}");
     }
-    assert!(build_insert_run_script("x")
-      .contains(&format!("if ({})", is_editable_text_field_js("activeEl"))));
+    let insert = insert_text_js("activeEl", &js_string("x"));
+    assert!(insert.contains(&format!("if ({editable})")));
+    assert!(build_insert_run_script("x").contains(&insert));
   }
 
   #[test]
