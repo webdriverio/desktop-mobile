@@ -77,7 +77,7 @@ function wdioFocus(el, focus = el.focus) {
 }
 
 // The element's built-in focus(), such as HTMLElement's or SVGElement's, past any that a component or
-// the element itself defines.
+// the element itself defines, which a native Tab never calls.
 function wdioNativeFocus(el) {
   let focus;
   for (let proto = Object.getPrototypeOf(el); proto; proto = Object.getPrototypeOf(proto)) {
@@ -172,8 +172,8 @@ function wdioSpaceUp(el, blocked) {
   }
 }
 
-// Tab's default action. Chrome selects the text field Tab moves to, and past either end of the order
-// hands focus to the browser's own controls.
+// Tab's default action. Past either end of the order, the field blurs, as Chrome hands focus to the
+// browser's own controls.
 function wdioTabKey(event) {
   if (event.ctrlKey || event.altKey || event.metaKey) {
     return;
@@ -183,21 +183,21 @@ function wdioTabKey(event) {
   if (event.defaultPrevented) {
     return;
   }
-  // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on to the next.
-  // A focus event on the stop counts as taking focus, even when a handler, like a focus trap's, sends
-  // it back. As in a browser, Tab never calls a focus() the page defines.
   const start = wdioDeepActiveElement();
-  // A blur or change handler that sends focus back to the field Tab leaves makes the engine block the
-  // move, and Tab is done, as in Chrome. A stop that won't take focus never blurs the field.
+  // A blur or change handler that sends focus back to the field Tab leaves blocks the move, which ends
+  // Tab, as in Chrome. A stop that won't take focus never blurs the field.
   let left = false;
   const onBlur = () => {
     left = true;
   };
   start.addEventListener('blur', onBlur, true);
+  // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on to the next.
+  // A focus event on the stop counts as taking focus, even when a handler, like a focus trap's, sends
+  // it back.
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
     // Chrome selects a text field's value as Tab focuses it: after the field focus leaves fires its
-    // events, which may change the value, and before the field's own focus handlers, which may place
-    // the caret.
+    // events, which may set the value, and before the field's own focus handlers, which may move the
+    // caret.
     const isTextField = candidate.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(candidate.type);
     // Only while the field has focus, as select() focuses it again in Chromium.
     const select = () => {

@@ -119,17 +119,16 @@ Unless a `keydown` handler cancels it, Tab moves focus to the next element and S
 - Tab skips disabled, `inert` and hidden elements, and everything outside an open modal `<dialog>`.
 - Tab goes through open shadow roots and slots.
 - A radio group is one stop: its checked radio, or if Tab can't stop on that, the first radio Tab reaches.
-- Tab starts from the element focused after the `keydown`. From an element Tab skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order.
+- Tab starts from the element focused after the `keydown`. From an element Tab skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order, or leaves the page if there's none.
 - Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls. The next Tab comes back in at the start, and Shift+Tab at the end.
 
-Tab selects the value of a text, search, URL, telephone, email, password or number input it moves to, so text typed next replaces it, except in an email or number input, or with a separate `addValue()`, where it goes at the end ([#927](https://github.com/webdriverio/desktop-mobile/issues/927)). The field focus leaves fires the `change` it owes, though text typed by key actions owes none yet. So `setValue('user\tpass')` fills two fields and fires the first one's `change`, and the second owes one until focus leaves it.
+Tab selects the text of a single-line text input it moves to, so key actions, and the rest of the same Element Send Keys, replace it. In an email or number input, or with a later `addValue()`, the text goes at the end instead ([#927](https://github.com/webdriverio/desktop-mobile/issues/927)). The field Tab leaves fires `change` if Element Send Keys changed it, though not yet if key actions did. So `setValue('user\tpass')` fills two fields and fires `change` on the first, and the second fires its `change` when focus leaves it.
 
 Unlike in Chrome, Tab:
 - Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.
 - Stops once on an iframe, `<object>` or `<embed>`, or on an audio or video element's controls, and doesn't move inside them.
 - Doesn't stop on a scrolling box with nothing focusable inside it, or on an image map's areas.
 - Starts from the focused element, never from where a click on text landed.
-- Enters a radio group with none checked at its first radio, or its last with Shift+Tab. Chrome sometimes enters at the radio that last had focus.
 - Sends only its key events with Control, Alt or Meta held. Chrome on macOS moves focus with Alt held.
 - Stops once on a date or time input. Chrome stops on each of its fields.
 - Differs in the cases [#929](https://github.com/webdriverio/desktop-mobile/issues/929) tracks, such as from inside a host with `tabindex="-1"`, or with two modal dialogs open.

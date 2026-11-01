@@ -646,7 +646,6 @@ describe('Tab', () => {
   it("should fire the field's change when a handler cancels Tab and moves focus without a blur", () => {
     render('<input id="a"><input id="b"><input id="c">');
     type($('#a'), 'x');
-    // A focus trap's handler.
     const trap = (event: Event) => {
       event.preventDefault();
       withoutBlur(() => $('#c').focus());
