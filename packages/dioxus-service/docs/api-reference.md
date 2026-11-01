@@ -433,10 +433,6 @@ interface DioxusCapabilities extends WebdriverIO.Capabilities {
   'dioxus:options'?: {
     application: string;
     args?: string[];
-    webviewOptions?: {
-      width?: number;
-      height?: number;
-    };
   };
   'wdio:dioxusServiceOptions'?: DioxusServiceOptions;
 }

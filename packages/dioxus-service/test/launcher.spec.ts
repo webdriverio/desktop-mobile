@@ -279,6 +279,74 @@ describe('DioxusLaunchService', () => {
     });
   });
 
+  describe('app args', () => {
+    beforeEach(() => {
+      mockPlatform('linux');
+      vi.mocked(startEmbeddedDriver).mockClear();
+    });
+
+    function makeLauncher(options: DioxusServiceGlobalOptions) {
+      return new DioxusLaunchService(
+        { appBinaryPath: '/app/dioxus-app', ...options },
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+    }
+
+    function launchedArgs() {
+      return vi.mocked(startEmbeddedDriver).mock.calls.map(([, , options]) => options.appArgs);
+    }
+
+    it("should launch the app with 'dioxus:options'.args in place of appArgs", async () => {
+      const caps: DioxusCapabilities[] = [
+        {
+          'dioxus:options': { application: '/app/dioxus-app', args: ['--debug'] },
+          'wdio:dioxusServiceOptions': { appArgs: ['--capability'] },
+        } as DioxusCapabilities,
+      ];
+
+      await makeLauncher({ appArgs: ['--service'] }).onPrepare(baseConfig, caps);
+
+      expect(launchedArgs()).toEqual([['--debug']]);
+    });
+
+    it("should keep an empty 'dioxus:options'.args over appArgs", async () => {
+      const caps: DioxusCapabilities[] = [
+        { 'dioxus:options': { application: '/app/dioxus-app', args: [] } } as DioxusCapabilities,
+      ];
+
+      await makeLauncher({ appArgs: ['--service'] }).onPrepare(baseConfig, caps);
+
+      expect(launchedArgs()).toEqual([[]]);
+    });
+
+    it("should launch the app with appArgs when 'dioxus:options'.args is unset", async () => {
+      const caps: DioxusCapabilities[] = [
+        { 'wdio:dioxusServiceOptions': { appArgs: ['--capability'] } } as DioxusCapabilities,
+        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
+      ];
+
+      await makeLauncher({ appArgs: ['--service'] }).onPrepare(baseConfig, caps);
+
+      expect(launchedArgs()).toEqual([['--capability'], ['--service']]);
+    });
+
+    it('should resolve the args for each multiremote instance', async () => {
+      const caps = {
+        appA: {
+          capabilities: {
+            'dioxus:options': { application: '/app/dioxus-app', args: ['--browser=A'] },
+          } as DioxusCapabilities,
+        },
+        appB: { capabilities: {} as DioxusCapabilities },
+      };
+
+      await makeLauncher({ appArgs: ['--service'] }).onPrepare(baseConfig, caps);
+
+      expect(launchedArgs()).toEqual([['--browser=A'], ['--service']]);
+    });
+  });
+
   describe('browser mode', () => {
     beforeEach(() => {
       vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(null, { status: 200 })));
