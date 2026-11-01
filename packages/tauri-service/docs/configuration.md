@@ -296,7 +296,7 @@ See [Browser Mode](./browser-mode.md) for setup, mocking, and limitations.
 
 ### `clearMocks` (boolean, optional)
 
-If `true`, all mock call history is cleared before each test. Equivalent to calling `browser.tauri.clearAllMocks()` in a `beforeEach`. In multiremote, it clears every instance's mocks.
+If `true`, all mock call history is cleared before each test. Equivalent to calling `browser.tauri.clearAllMocks()` in a `beforeEach`.
 
 **Example:**
 ```typescript
@@ -323,7 +323,7 @@ clearMocksPrefix: 'clipboard'  // Only clears clipboard.* mocks
 
 ### `resetMocks` (boolean, optional)
 
-If `true`, all mocks are reset (implementation + history) before each test. Equivalent to `browser.tauri.resetAllMocks()` in a `beforeEach`. In multiremote, it resets every instance's mocks.
+If `true`, all mocks are reset (implementation + history) before each test. Equivalent to `browser.tauri.resetAllMocks()` in a `beforeEach`.
 
 **Example:**
 ```typescript
@@ -344,7 +344,7 @@ If set, only mocks whose command name starts with this prefix are reset. Only us
 
 ### `restoreMocks` (boolean, optional)
 
-If `true`, all mocks are restored to their original implementations before each test. Equivalent to `browser.tauri.restoreAllMocks()` in a `beforeEach`. In multiremote, it restores every instance's mocks.
+If `true`, all mocks are restored to their original implementations before each test. Equivalent to `browser.tauri.restoreAllMocks()` in a `beforeEach`.
 
 **Example:**
 ```typescript
@@ -360,6 +360,8 @@ restoreMocks: true;
 If set, only mocks whose command name starts with this prefix are restored. Only used when `restoreMocks: true`.
 
 **Default:** `undefined`
+
+**Multiremote:** each instance applies the `clearMocks`, `resetMocks` and `restoreMocks` options, and their prefixes, from its own `wdio:tauriServiceOptions` to its own mocks. An instance that doesn't set an option uses the service-level value, which also applies to mocks created on the multiremote root.
 
 ---
 
