@@ -102,5 +102,8 @@ describe('resolveAppArgs', () => {
       `appArgs and 'tauri:options'.args must be arrays of strings, e.g. ['--debug'], but got "--debug"`,
     );
     expect(() => resolveAppArgs({}, { args: '--debug' as unknown as string[] })).toThrow(/must be arrays of strings/);
+    expect(() => resolveAppArgs({ appArgs: ['--port', 8080] as unknown as string[] }, undefined)).toThrow(
+      /must be arrays of strings/,
+    );
   });
 });

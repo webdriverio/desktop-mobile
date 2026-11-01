@@ -60,7 +60,7 @@ export function resolveAppArgs(
   tauriOptions: { args?: string[] } | undefined,
 ): string[] {
   const args: unknown = tauriOptions?.args ?? options.appArgs ?? [];
-  if (!Array.isArray(args)) {
+  if (!Array.isArray(args) || !args.every((arg) => typeof arg === 'string')) {
     throw new Error(
       `appArgs and 'tauri:options'.args must be arrays of strings, e.g. ['--debug'], but got ${JSON.stringify(args)}`,
     );

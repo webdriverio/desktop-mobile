@@ -265,10 +265,10 @@ describe('Per-Worker Mode - Integration', () => {
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 2 },
       );
-      await (launcher as any).onPrepare({}, [{ browserName: 'tauri', 'tauri:options': { application: '/app' } }]);
+      await launcher.onPrepare({}, [{ browserName: 'tauri', 'tauri:options': { application: '/app' } }]);
       const dataDirs = captureDataDirs(launcher);
 
-      await (launcher as any).onWorkerStart('0-0', { browserName: 'tauri', 'tauri:options': { application: '/app' } });
+      await launcher.onWorkerStart('0-0', { browserName: 'tauri', 'tauri:options': { application: '/app' } });
 
       const driverEnv = JSON.parse(await readFile(envFile, 'utf8'));
       expect(driverEnv.WDIO_APP_FLAG).toBe('on');

@@ -359,7 +359,7 @@ describe('Multiremote Mode - Integration', () => {
         { browserName: 'tauri', 'tauri:options': { application: '/app' } },
         { maxInstances: 1 },
       );
-      await (launcher as any).onPrepare({}, { browserA: instanceCaps('a'), browserB: instanceCaps('b') });
+      await launcher.onPrepare({}, { browserA: instanceCaps('a'), browserB: instanceCaps('b') });
 
       for (const name of ['a', 'b']) {
         const driverEnv = JSON.parse(await readFile(path.join(envDir, `${name}.json`), 'utf8'));

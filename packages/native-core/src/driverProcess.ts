@@ -30,6 +30,11 @@ import { createLogCapture } from './logCapture.js';
 
 const log = createLogger('native-core', 'launcher');
 
+// spawn's shell mode hands cmd.exe the command and arguments unquoted, so a path with a space would split
+export function quoteForCmd(arg: string): string {
+  return /[\s"&()<>^|]/.test(arg) ? `"${arg.replace(/"/g, '""')}"` : arg;
+}
+
 export interface DriverStartOptions {
   mode: 'single' | 'worker' | 'multiremote';
   identifier: string;
@@ -153,11 +158,13 @@ export class DriverProcess {
       try {
         const spawnEnv = env ? { ...process.env, ...env } : process.env;
 
-        this._proc = spawn(driverPath, args, {
+        // A shell on Windows, so a driver installed as a .cmd shim starts
+        const useShell = process.platform === 'win32';
+        this._proc = spawn(useShell ? quoteForCmd(driverPath) : driverPath, useShell ? args.map(quoteForCmd) : args, {
           stdio: ['ignore', 'pipe', 'pipe'],
           detached: false,
           env: spawnEnv,
-          shell: process.platform === 'win32',
+          shell: useShell,
         });
 
         log.info(`[${identifier}] Spawned process with PID: ${this._proc.pid ?? 'unknown'}`);

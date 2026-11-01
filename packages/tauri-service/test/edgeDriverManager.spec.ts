@@ -1,4 +1,5 @@
 import assert from 'node:assert';
+import { join } from 'node:path';
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { EdgeDriverResult, ResolvedEdgeVersion, ResolveEdgeVersionOptions } from '../src/edgeDriverManager.js';
@@ -581,6 +582,35 @@ describe('Edge Driver Manager', () => {
       assert(result.ok);
       expect(result.value.method).toBe('downloaded');
       expect(result.value.driverVersion).toBe('149.0.4022.150');
+    });
+
+    it('should put a downloaded driver on PATH, so a later check in the process finds it', async () => {
+      const { exec, execFile } = await import('node:child_process');
+      const { existsSync } = await import('node:fs');
+      vi.mocked(exec as any).mockImplementation(((_cmd: string, _opts: any, callback: any) => {
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        callback?.(new Error('Not found'), '', '');
+        return {} as any;
+      }) as any);
+      vi.mocked(execFile as any).mockImplementation(((_cmd: string, _args: string[], _opts: any, callback: any) => {
+        if (typeof _opts === 'function') {
+          callback = _opts;
+        }
+        callback?.(null, 'SUCCESS', '');
+        return {} as any;
+      }) as any);
+      vi.mocked(existsSync).mockReturnValue(true);
+      vi.stubEnv('PATH', 'C:\\Windows');
+
+      try {
+        const result = await ensureMsEdgeDriver(undefined, true, { edgeDriverVersion: '149.0.4022.150' });
+        assert(result.ok && result.value.driverPath);
+        expect(process.env.PATH).toBe(`${join(result.value.driverPath, '..')};C:\\Windows`);
+      } finally {
+        vi.unstubAllEnvs();
+      }
     });
 
     it('should reuse an on-PATH driver that already matches the exact pin', async () => {

@@ -67,6 +67,7 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
 }));
 
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
+import { SevereServiceError } from 'webdriverio';
 import { startTestRunnerBackend } from '../src/crabnebulaBackend.js';
 import { ensureMsEdgeDriver } from '../src/edgeDriverManager.js';
 import { checkEmbeddedServerAlive, startEmbeddedDriver } from '../src/embeddedProvider.js';
@@ -78,7 +79,7 @@ const APP = '/app/my-app';
 type DriverStart = { identifier: string; options?: { env?: NodeJS.ProcessEnv }; env?: NodeJS.ProcessEnv };
 
 function createLauncher(options: TauriServiceGlobalOptions, maxInstances = 1) {
-  return new TauriLaunchService(options, {}, { capabilities: [], maxInstances });
+  return new TauriLaunchService(options, {}, { maxInstances });
 }
 
 function driverPool(launcher: TauriLaunchService) {
@@ -117,7 +118,7 @@ describe('app args', () => {
     const caps = [appCap({ appArgs: ['--cap'] }), appCap()];
     const launcher = createLauncher({ driverProvider: 'external', appArgs: ['--service'] }, 2);
 
-    await launcher.onPrepare({ capabilities: [], maxInstances: 2 }, caps);
+    await launcher.onPrepare({ maxInstances: 2 }, caps);
 
     expect(caps.map((cap) => cap['tauri:options'].args)).toEqual([['--cap'], ['--service']]);
   });
@@ -126,7 +127,7 @@ describe('app args', () => {
     const caps = [appCap({ appArgs: ['--cap'] }, ['--from-options']), appCap({ appArgs: ['--cap'] }, [])];
     const launcher = createLauncher({ driverProvider: 'external' });
 
-    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, caps);
+    await launcher.onPrepare({ maxInstances: 1 }, caps);
 
     expect(caps.map((cap) => cap['tauri:options'].args)).toEqual([['--from-options'], []]);
   });
@@ -137,20 +138,26 @@ describe('app args', () => {
     const capB: TauriCapabilities = { 'tauri:options': shared, 'wdio:tauriServiceOptions': { appArgs: ['--b'] } };
     const launcher = createLauncher({ driverProvider: 'external' });
 
-    await launcher.onPrepare(
-      { capabilities: [], maxInstances: 1 },
-      { a: { capabilities: capA }, b: { capabilities: capB } },
-    );
+    await launcher.onPrepare({ maxInstances: 1 }, { a: { capabilities: capA }, b: { capabilities: capB } });
 
     expect([capA, capB].map((cap) => cap['tauri:options']?.args)).toEqual([['--a'], ['--b']]);
     expect(shared).toEqual({ application: APP });
+  });
+
+  it('should stop the run with a SevereServiceError for args that are not an array of strings', async () => {
+    const launcher = createLauncher({ driverProvider: 'external' });
+
+    const prepared = launcher.onPrepare({ maxInstances: 1 }, [appCap({ appArgs: '--debug' as unknown as string[] })]);
+
+    await expect(prepared).rejects.toBeInstanceOf(SevereServiceError);
+    await expect(prepared).rejects.toMatchObject({ message: expect.stringContaining('must be arrays of strings') });
   });
 
   it('should launch each embedded app with its resolved args', async () => {
     const caps = [appCap({ appArgs: ['--cap'] }, ['--from-options']), appCap()];
     const launcher = createLauncher({ appArgs: ['--service'] });
 
-    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, caps);
+    await launcher.onPrepare({ maxInstances: 1 }, caps);
 
     expect(vi.mocked(startEmbeddedDriver).mock.calls.map(([, args]) => args)).toEqual([
       ['--from-options'],
@@ -164,7 +171,7 @@ describe('app args', () => {
       b: { capabilities: appCap({ appArgs: ['--b'] }) },
     };
     const launcher = createLauncher({});
-    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, capabilities);
+    await launcher.onPrepare({ maxInstances: 1 }, capabilities);
     vi.mocked(checkEmbeddedServerAlive).mockImplementation(async (port) => port !== 4445);
 
     await (launcher as unknown as { ensureEmbeddedServersHealthy(): Promise<void> }).ensureEmbeddedServersHealthy();
@@ -184,7 +191,7 @@ describe('app env', () => {
       { driverProvider: 'external', env: { WDIO_936_FLAG: 'service', XDG_DATA_HOME: '/user/data' } },
       2,
     );
-    await launcher.onPrepare({ capabilities: [], maxInstances: 2 }, [cap]);
+    await launcher.onPrepare({ maxInstances: 2 }, [cap]);
 
     await launcher.onWorkerStart('0-0', cap);
 
@@ -196,7 +203,7 @@ describe('app env', () => {
   it("should give a worker's driver the capability's env in place of the service-level one", async () => {
     const cap = appCap({ env: { WDIO_936_CAP: 'cap' } });
     const launcher = createLauncher({ driverProvider: 'external', env: { WDIO_936_SERVICE: 'service' } }, 2);
-    await launcher.onPrepare({ capabilities: [], maxInstances: 2 }, [cap]);
+    await launcher.onPrepare({ maxInstances: 2 }, [cap]);
 
     await launcher.onWorkerStart('0-0', cap);
 
@@ -214,7 +221,7 @@ describe('app env', () => {
       };
       const launcher = createLauncher({ driverProvider });
 
-      await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, capabilities);
+      await launcher.onPrepare({ maxInstances: 1 }, capabilities);
 
       expect(driverStarts(launcher).map((start) => [start.identifier, driverEnv(start).WDIO_936_INSTANCE])).toEqual([
         ['a', 'a'],
@@ -233,7 +240,7 @@ describe('app env', () => {
     it('should keep the env when it restarts the shared driver between workers', async () => {
       const cap = appCap();
       const launcher = createLauncher({ driverProvider: 'crabnebula', env: { WDIO_936_FLAG: 'service' } });
-      await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, [cap]);
+      await launcher.onPrepare({ maxInstances: 1 }, [cap]);
 
       await launcher.onWorkerEnd('0-0');
 
@@ -245,10 +252,26 @@ describe('app env', () => {
       });
     });
 
+    it('should point the shared driver at the backend it started, over a REMOTE_WEBDRIVER_URL in env', async () => {
+      const cap = appCap();
+      const launcher = createLauncher({
+        driverProvider: 'crabnebula',
+        env: { REMOTE_WEBDRIVER_URL: 'http://user:9999' },
+      });
+      await launcher.onPrepare({ maxInstances: 1 }, [cap]);
+
+      await launcher.onWorkerEnd('0-0');
+
+      expect(driverStarts(launcher).map((start) => driverEnv(start).REMOTE_WEBDRIVER_URL)).toEqual([
+        'http://127.0.0.1:3000',
+        'http://127.0.0.1:3000',
+      ]);
+    });
+
     it("should give a worker's backend, which launches the app, the same data directory as its driver", async () => {
       const cap = appCap();
       const launcher = createLauncher({ driverProvider: 'crabnebula' }, 2);
-      await launcher.onPrepare({ capabilities: [], maxInstances: 2 }, [cap]);
+      await launcher.onPrepare({ maxInstances: 2 }, [cap]);
 
       await launcher.onWorkerStart('0-0', cap);
 
@@ -260,7 +283,7 @@ describe('app env', () => {
     it("should give each multiremote instance's backend its driver's data directory, and keep it across a restart", async () => {
       const capabilities = { a: { capabilities: appCap() }, b: { capabilities: appCap() } };
       const launcher = createLauncher({ driverProvider: 'crabnebula' });
-      await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, capabilities);
+      await launcher.onPrepare({ maxInstances: 1 }, capabilities);
 
       await launcher.onWorkerEnd('0-0');
 
@@ -282,7 +305,7 @@ describe('app env', () => {
         b: { capabilities: appCap({ env: { WDIO_936_INSTANCE: 'b' } }) },
       };
       const launcher = createLauncher({ driverProvider: 'crabnebula' });
-      await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, capabilities);
+      await launcher.onPrepare({ maxInstances: 1 }, capabilities);
 
       await launcher.onWorkerEnd('0-0');
 
@@ -309,7 +332,7 @@ describe('app env', () => {
     } as never);
     const launcher = createLauncher({ driverProvider: 'external', env: { PATH: 'C:\\app' } });
 
-    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, [appCap()]);
+    await launcher.onPrepare({ maxInstances: 1 }, [appCap()]);
 
     expect(driverPool(launcher).useNativeDriver).toHaveBeenCalledWith('C:\\drivers\\msedgedriver.exe');
   });
@@ -319,7 +342,7 @@ describe('app env', () => {
     vi.mocked(ensureMsEdgeDriver).mockResolvedValueOnce({ ok: true, value: { method: 'skipped' } } as never);
     const launcher = createLauncher({ driverProvider: 'external' });
 
-    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, [appCap()]);
+    await launcher.onPrepare({ maxInstances: 1 }, [appCap()]);
 
     expect(driverPool(launcher).useNativeDriver).not.toHaveBeenCalled();
   });
@@ -333,7 +356,7 @@ describe('app env', () => {
     const second = appCap({ env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\other' } });
     const launcher = createLauncher({ driverProvider: 'external', edgeDriverVersion: '149.0.4022.98' });
 
-    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, [first, second]);
+    await launcher.onPrepare({ maxInstances: 1 }, [first, second]);
 
     expect(ensureMsEdgeDriver).toHaveBeenCalledWith(APP, true, {
       edgeDriverVersion: '149.0.4022.98',
