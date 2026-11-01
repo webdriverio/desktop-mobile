@@ -7,9 +7,7 @@ import { errorMessage, type MockLifecycleOp, runBulkMockOp } from '@wdio/native-
 
 import type { ElectrobunMockStore } from '../mockStore.js';
 
-/** One instance's mock store, with the prefix to limit an operation to. */
 export interface MockStoreTarget {
-  /** The multiremote instance name; undefined outside multiremote. */
   name?: string;
   store: ElectrobunMockStore;
   prefix?: string;
@@ -44,7 +42,6 @@ export async function restoreAllMocks(store: ElectrobunMockStore, prefix?: strin
   await forEachMock(store, prefix, 'mockRestore');
 }
 
-/** Run `op` on every target's mocks, then report the instances that failed. */
 export async function runOnMockStores(
   commandName: string,
   targets: MockStoreTarget[],
