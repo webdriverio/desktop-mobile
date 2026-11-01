@@ -306,7 +306,7 @@ before a requested size is applied, including moves between displays.
 
 Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser sends on a US keyboard: `a` is `code: 'KeyA'`, `keyCode: 65`, `A` is the same key with `shiftKey: true`, and `!` is `code: 'Digit1'`, `keyCode: 49` with `shiftKey: true`. A character with no key on a US keyboard gets `code: ''` and `keyCode: 0`. A newline is the Enter key, a tab the Tab key and a backspace character the Backspace key, as in chromedriver, which skips a carriage return, so a `\r\n` line ending presses Enter once.
 
-Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it; it sends them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held.
+Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines, tabs and backspace characters, and for text typed while Control, Alt or Meta is held.
 
 Unless a `keydown` handler cancels it, Enter acts as in Chrome, on the element focused after the `keydown`:
 - In a textarea or contenteditable, it breaks the line.
