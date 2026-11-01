@@ -1,13 +1,14 @@
 import type { ElectronMock, ExecuteOpts } from '@wdio/native-types';
-import { mock } from './mock.js';
+import type { ElectronServiceContext } from './forEachMock.js';
+import { getMockBrowser, mock } from './mock.js';
 
-interface ElectronServiceContext {
-  browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
-}
-
-export async function mockAll(this: ElectronServiceContext, apiName: string) {
+export async function mockAll(this: ElectronServiceContext | undefined, apiName: string) {
+  const browserContext = getMockBrowser(this);
+  if (!browserContext) {
+    throw new Error('mockAll requires a valid browser context');
+  }
   const apiFnNames = (
-    await browser.electron.execute<string, [string, ExecuteOpts]>(
+    await browserContext.electron.execute<string, [string, ExecuteOpts]>(
       (electron, apiName) => Object.keys(electron[apiName as keyof typeof electron]).toString(),
       apiName,
       { internal: true },
@@ -20,7 +21,7 @@ export async function mockAll(this: ElectronServiceContext, apiName: string) {
   });
 
   for (const funcName in mockedApis) {
-    mockedApis[funcName] = (await mock.call(this, apiName, funcName)) as ElectronMock;
+    mockedApis[funcName] = (await mock.call({ browser: browserContext }, apiName, funcName)) as ElectronMock;
   }
 
   return mockedApis;
