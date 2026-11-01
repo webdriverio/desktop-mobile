@@ -1151,7 +1151,7 @@ mod tests {
     let script = build_insert_run_script("x");
     assert!(script.contains(&insert));
     assert!(is_editable_text_field_js("el").contains(&field));
-    assert!(!script.contains("el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'"));
+    assert!(!after_helpers(&script).contains("el.tagName === 'INPUT' || el.tagName === 'TEXTAREA'"));
   }
 
   #[test]
