@@ -44,9 +44,10 @@ export interface TauriServiceOptions extends BaseTauriServiceOptions {
 }
 
 /**
- * Extended Tauri service global options with implementation-specific fields
+ * Extended Tauri service global options with implementation-specific fields, including every
+ * per-capability option
  */
-export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions {
+export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions, TauriServiceOptions {
   /**
    * Environment variables for the app. See {@link TauriServiceOptions.env}.
    */

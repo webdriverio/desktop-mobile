@@ -54,15 +54,12 @@ export function resolveAppBinaryPath(
   );
 }
 
-/**
- * Resolve the arguments to launch the app with, with the binary's precedence:
- * `tauri:options.args` when it's set, even to `[]`, otherwise `appArgs`.
- */
+// The binary's precedence: tauri:options.args when it's set, even to [], otherwise appArgs
 export function resolveAppArgs(
   options: Pick<TauriServiceOptions, 'appArgs'>,
   tauriOptions: { args?: string[] } | undefined,
 ): string[] {
-  return tauriOptions?.args ?? options.appArgs ?? [];
+  return [...(tauriOptions?.args ?? options.appArgs ?? [])];
 }
 
 /**

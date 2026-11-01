@@ -15,6 +15,8 @@ export interface BackendProcessInfo {
 export interface StartBackendOptions {
   port: number;
   serviceOptions?: TauriServiceOptions;
+  // Set over the app's `env` from `serviceOptions`, e.g. the instance's data directory
+  env?: NodeJS.ProcessEnv;
   instanceId?: string;
 }
 
@@ -105,6 +107,7 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
       env: {
         ...process.env,
         ...serviceOptions?.env,
+        ...options.env,
         PORT: port.toString(),
       },
     });

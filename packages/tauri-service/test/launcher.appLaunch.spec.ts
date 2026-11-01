@@ -29,6 +29,7 @@ vi.mock('../src/driverPool.js', () => ({
     stopAll = vi.fn().mockResolvedValue(undefined);
     getStatus = vi.fn().mockReturnValue({ count: 0, running: false });
     getRunningPids = vi.fn().mockReturnValue([]);
+    useNativeDriver = vi.fn();
   },
 }));
 
@@ -74,15 +75,23 @@ import type { TauriCapabilities, TauriServiceGlobalOptions } from '../src/types.
 
 const APP = '/app/my-app';
 
-type DriverStart = { identifier: string; env?: NodeJS.ProcessEnv };
+type DriverStart = { identifier: string; options?: { env?: NodeJS.ProcessEnv }; env?: NodeJS.ProcessEnv };
 
-function createLauncher(options: TauriServiceGlobalOptions & { appArgs?: string[] }, maxInstances = 1) {
+function createLauncher(options: TauriServiceGlobalOptions, maxInstances = 1) {
   return new TauriLaunchService(options, {}, { capabilities: [], maxInstances });
 }
 
+function driverPool(launcher: TauriLaunchService) {
+  return (launcher as unknown as { driverPool: { startDriver: Mock; useNativeDriver: Mock } }).driverPool;
+}
+
 function driverStarts(launcher: TauriLaunchService): DriverStart[] {
-  const { startDriver } = (launcher as unknown as { driverPool: { startDriver: Mock } }).driverPool;
-  return startDriver.mock.calls.map(([config]) => config as DriverStart);
+  return driverPool(launcher).startDriver.mock.calls.map(([config]) => config as DriverStart);
+}
+
+// What DriverPool gives the driver over process.env: the app's env from its options, under the launcher's own
+function driverEnv({ options, env }: DriverStart): NodeJS.ProcessEnv {
+  return { ...options?.env, ...env };
 }
 
 function appCap(serviceOptions: TauriCapabilities['wdio:tauriServiceOptions'] = {}, args?: string[]) {
@@ -122,6 +131,21 @@ describe('app args', () => {
     expect(caps.map((cap) => cap['tauri:options'].args)).toEqual([['--from-options'], []]);
   });
 
+  it("should give each capability its own tauri:options, so a shared one doesn't pass its args on", async () => {
+    const shared = { application: APP };
+    const capA: TauriCapabilities = { 'tauri:options': shared, 'wdio:tauriServiceOptions': { appArgs: ['--a'] } };
+    const capB: TauriCapabilities = { 'tauri:options': shared, 'wdio:tauriServiceOptions': { appArgs: ['--b'] } };
+    const launcher = createLauncher({ driverProvider: 'external' });
+
+    await launcher.onPrepare(
+      { capabilities: [], maxInstances: 1 },
+      { a: { capabilities: capA }, b: { capabilities: capB } },
+    );
+
+    expect([capA, capB].map((cap) => cap['tauri:options']?.args)).toEqual([['--a'], ['--b']]);
+    expect(shared).toEqual({ application: APP });
+  });
+
   it('should launch each embedded app with its resolved args', async () => {
     const caps = [appCap({ appArgs: ['--cap'] }, ['--from-options']), appCap()];
     const launcher = createLauncher({ appArgs: ['--service'] });
@@ -154,9 +178,7 @@ describe('app args', () => {
 });
 
 describe('app env', () => {
-  it("should give a worker's driver the service-level env over process.env, with the data directory winning", async () => {
-    vi.stubEnv('WDIO_936_KEPT', 'process');
-    vi.stubEnv('WDIO_936_FLAG', 'process');
+  it("should give a worker's driver the service-level env, with the data directory winning", async () => {
     const cap = appCap();
     const launcher = createLauncher(
       { driverProvider: 'external', env: { WDIO_936_FLAG: 'service', XDG_DATA_HOME: '/user/data' } },
@@ -166,9 +188,9 @@ describe('app env', () => {
 
     await launcher.onWorkerStart('0-0', cap);
 
-    const [{ env }] = driverStarts(launcher);
-    expect(env).toMatchObject({ WDIO_936_KEPT: 'process', WDIO_936_FLAG: 'service' });
-    expect(env?.XDG_DATA_HOME).toMatch(/tauri-worker-0-0-/);
+    const env = driverEnv(driverStarts(launcher)[0]);
+    expect(env).toMatchObject({ WDIO_936_FLAG: 'service' });
+    expect(env.XDG_DATA_HOME).toMatch(/tauri-worker-0-0-/);
   });
 
   it("should give a worker's driver the capability's env in place of the service-level one", async () => {
@@ -178,7 +200,7 @@ describe('app env', () => {
 
     await launcher.onWorkerStart('0-0', cap);
 
-    const [{ env }] = driverStarts(launcher);
+    const env = driverEnv(driverStarts(launcher)[0]);
     expect(env).toMatchObject({ WDIO_936_CAP: 'cap' });
     expect(env).not.toHaveProperty('WDIO_936_SERVICE');
   });
@@ -194,7 +216,7 @@ describe('app env', () => {
 
       await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, capabilities);
 
-      expect(driverStarts(launcher).map(({ identifier, env }) => [identifier, env?.WDIO_936_INSTANCE])).toEqual([
+      expect(driverStarts(launcher).map((start) => [start.identifier, driverEnv(start).WDIO_936_INSTANCE])).toEqual([
         ['a', 'a'],
         ['b', 'b'],
       ]);
@@ -217,10 +239,41 @@ describe('app env', () => {
 
       const starts = driverStarts(launcher);
       expect(starts).toHaveLength(2);
-      expect(starts.at(-1)?.env).toMatchObject({ WDIO_936_FLAG: 'service' });
+      expect(driverEnv(starts[1])).toMatchObject({ WDIO_936_FLAG: 'service' });
       expect(vi.mocked(startTestRunnerBackend).mock.calls.at(-1)?.[0].serviceOptions?.env).toEqual({
         WDIO_936_FLAG: 'service',
       });
+    });
+
+    it("should give a worker's backend, which launches the app, the same data directory as its driver", async () => {
+      const cap = appCap();
+      const launcher = createLauncher({ driverProvider: 'crabnebula' }, 2);
+      await launcher.onPrepare({ capabilities: [], maxInstances: 2 }, [cap]);
+
+      await launcher.onWorkerStart('0-0', cap);
+
+      const backendDataDir = vi.mocked(startTestRunnerBackend).mock.calls.at(-1)?.[0].env?.TAURI_DATA_DIR;
+      expect(backendDataDir).toMatch(/tauri-worker-0-0-/);
+      expect(driverEnv(driverStarts(launcher)[0]).TAURI_DATA_DIR).toBe(backendDataDir);
+    });
+
+    it("should give each multiremote instance's backend its driver's data directory, and keep it across a restart", async () => {
+      const capabilities = { a: { capabilities: appCap() }, b: { capabilities: appCap() } };
+      const launcher = createLauncher({ driverProvider: 'crabnebula' });
+      await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, capabilities);
+
+      await launcher.onWorkerEnd('0-0');
+
+      const backendDataDirs = vi
+        .mocked(startTestRunnerBackend)
+        .mock.calls.map(([options]) => options.env?.TAURI_DATA_DIR);
+      expect(backendDataDirs).toEqual(driverStarts(launcher).map((start) => driverEnv(start).TAURI_DATA_DIR));
+      expect(backendDataDirs).toEqual([
+        expect.stringMatching(/tauri-multiremote-a-/),
+        expect.stringMatching(/tauri-multiremote-b-/),
+        backendDataDirs[0],
+        backendDataDirs[1],
+      ]);
     });
 
     it("should give each multiremote instance's driver its env and backend URL, before and after a restart", async () => {
@@ -234,10 +287,10 @@ describe('app env', () => {
       await launcher.onWorkerEnd('0-0');
 
       expect(
-        driverStarts(launcher).map(({ identifier, env }) => [
-          identifier,
-          env?.WDIO_936_INSTANCE,
-          env?.REMOTE_WEBDRIVER_URL,
+        driverStarts(launcher).map((start) => [
+          start.identifier,
+          driverEnv(start).WDIO_936_INSTANCE,
+          driverEnv(start).REMOTE_WEBDRIVER_URL,
         ]),
       ).toEqual([
         ['a', 'a', 'http://127.0.0.1:3000'],
@@ -246,6 +299,29 @@ describe('app env', () => {
         ['b', 'b', 'http://127.0.0.1:3002'],
       ]);
     });
+  });
+
+  it('should hand tauri-driver the msedgedriver it checked by path, which a PATH in env cannot hide', async () => {
+    mockPlatform('win32');
+    vi.mocked(ensureMsEdgeDriver).mockResolvedValueOnce({
+      ok: true,
+      value: { method: 'downloaded', driverPath: 'C:\\drivers\\msedgedriver.exe', driverVersion: '149' },
+    } as never);
+    const launcher = createLauncher({ driverProvider: 'external', env: { PATH: 'C:\\app' } });
+
+    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, [appCap()]);
+
+    expect(driverPool(launcher).useNativeDriver).toHaveBeenCalledWith('C:\\drivers\\msedgedriver.exe');
+  });
+
+  it('should leave the native driver alone when the msedgedriver check was skipped', async () => {
+    mockPlatform('win32');
+    vi.mocked(ensureMsEdgeDriver).mockResolvedValueOnce({ ok: true, value: { method: 'skipped' } } as never);
+    const launcher = createLauncher({ driverProvider: 'external' });
+
+    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, [appCap()]);
+
+    expect(driverPool(launcher).useNativeDriver).not.toHaveBeenCalled();
   });
 
   it("should match msedgedriver to the first capability's env, which the app gets", async () => {

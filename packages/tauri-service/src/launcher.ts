@@ -56,10 +56,19 @@ function generateDataDirectory(instanceId: string): string {
   return dataDir;
 }
 
-// The app's env goes over process.env, and the instance's data directory wins over both.
-function isolatedDriverEnv(options: TauriServiceOptions, dataDir: string): NodeJS.ProcessEnv {
-  const dataDirEnvVar = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
-  return { ...process.env, ...options.env, [dataDirEnvVar]: dataDir };
+function dataDirEnv(dataDir: string): NodeJS.ProcessEnv {
+  return { [process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR']: dataDir };
+}
+
+// A CrabNebula backend and tauri-driver to restart between workers, with the env they were started with
+interface CnCycleConfig {
+  instanceId: string;
+  backendPort: number;
+  driverPort: number;
+  driverNativePort: number;
+  env: NodeJS.ProcessEnv;
+  dataDir?: string;
+  options: TauriServiceOptions;
 }
 
 interface EmbeddedLaunchConfig {
@@ -111,14 +120,7 @@ export default class TauriLaunchService {
   private isEmbeddedMode: boolean = false;
   private workerBackends: Map<string, { proc: ChildProcess; port: number }> = new Map();
   private dataDirectories: Map<string, string> = new Map();
-  private cnCycleConfigs?: Array<{
-    instanceId: string;
-    backendPort: number;
-    driverPort: number;
-    driverNativePort: number;
-    env: NodeJS.ProcessEnv;
-    options: TauriServiceOptions;
-  }>;
+  private cnCycleConfigs?: CnCycleConfig[];
 
   constructor(
     private options: TauriServiceGlobalOptions,
@@ -259,20 +261,17 @@ export default class TauriLaunchService {
       // artefact, trust it (supports Cargo workspace layouts and release
       // builds the legacy resolver doesn't understand). See appBinaryResolver.ts.
       const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
-      if (!cap['tauri:options']) {
-        cap['tauri:options'] = { application: '' };
-      }
       const tauriOptions = cap['tauri:options'];
       const appBinaryPath = resolveAppBinaryPath(instanceOptions, tauriOptions);
       log.debug(`App binary: ${appBinaryPath}`);
-
-      tauriOptions.application = appBinaryPath;
       firstResolved ??= { binaryPath: appBinaryPath, env: instanceOptions.env };
 
-      // tauri-driver launches the app from tauri:options, so the resolved args go there.
-      tauriOptions.args = resolveAppArgs(instanceOptions, tauriOptions);
-      if (tauriOptions.args.length > 0) {
-        log.debug(`App args: ${JSON.stringify(tauriOptions.args)}`);
+      // tauri-driver launches the app from tauri:options, so the resolved binary and args go there, in a
+      // copy: capabilities can share one tauri:options object, and each needs its own values.
+      const args = resolveAppArgs(instanceOptions, tauriOptions);
+      cap['tauri:options'] = { ...tauriOptions, application: appBinaryPath, args };
+      if (args.length > 0) {
+        log.debug(`App args: ${JSON.stringify(args)}`);
       }
     }
 
@@ -303,12 +302,18 @@ export default class TauriLaunchService {
         } else {
           log.warn(`${errorMsg} - continuing anyway, test may fail with version mismatch`);
         }
-      } else if (edgeDriverResult.value.method === 'downloaded') {
-        log.info(
-          `✅ Downloaded msedgedriver ${edgeDriverResult.value.driverVersion} for WebView2 ${edgeDriverResult.value.edgeVersion}`,
-        );
-      } else if (edgeDriverResult.value.method === 'found') {
-        log.info(`✅ Using existing msedgedriver ${edgeDriverResult.value.driverVersion}`);
+      } else {
+        if (edgeDriverResult.value.method === 'downloaded') {
+          log.info(
+            `✅ Downloaded msedgedriver ${edgeDriverResult.value.driverVersion} for WebView2 ${edgeDriverResult.value.edgeVersion}`,
+          );
+        } else if (edgeDriverResult.value.method === 'found') {
+          log.info(`✅ Using existing msedgedriver ${edgeDriverResult.value.driverVersion}`);
+        }
+        // Passed by path rather than through PATH, which a PATH in the app's env would hide from tauri-driver
+        if (edgeDriverResult.value.driverPath) {
+          this.driverPool.useNativeDriver(edgeDriverResult.value.driverPath);
+        }
       }
     }
 
@@ -449,13 +454,16 @@ export default class TauriLaunchService {
 
         log.info(`Starting ${instances.length} CrabNebula tauri-driver instance(s) for multiremote`);
 
+        const cycleConfigs: CnCycleConfig[] = [];
         for (let i = 0; i < instances.length; i++) {
           const { name, caps: cap, connectionTarget } = instances[i];
           const instanceId = name ?? String(i);
           const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
           this.instanceOptions.set(instanceId, instanceOptions);
 
-          const env = isolatedDriverEnv(instanceOptions, this.allocateDataDirectory(instanceId));
+          const dataDir = this.allocateDataDirectory(instanceId);
+          const env = dataDirEnv(dataDir);
+          const { port: driverPort, nativePort: driverNativePort } = driverPortPairs[i];
 
           // On macOS, start backend and set REMOTE_WEBDRIVER_URL for tauri-driver
           if (isMacOS) {
@@ -465,15 +473,24 @@ export default class TauriLaunchService {
             const { proc } = await startTestRunnerBackend({
               port: backendPort,
               serviceOptions: instanceOptions,
+              env: dataDirEnv(dataDir),
               instanceId,
             });
             await waitTestRunnerBackendReady(hostname, backendPort, 30000);
 
             this.workerBackends.set(instanceId, { proc, port: backendPort });
             env.REMOTE_WEBDRIVER_URL = `http://${hostname}:${backendPort}`;
+            // Kept for cycling between workers (backend state degrades across sessions)
+            cycleConfigs.push({
+              instanceId,
+              backendPort,
+              driverPort,
+              driverNativePort,
+              env,
+              dataDir,
+              options: instanceOptions,
+            });
           }
-
-          const { port: driverPort, nativePort: driverNativePort } = driverPortPairs[i];
 
           log.debug(
             `Starting tauri-driver for ${instanceId} on ${hostname}:${driverPort} ` +
@@ -488,24 +505,8 @@ export default class TauriLaunchService {
           log.debug(`Set CrabNebula connection for ${instanceId}: ${hostname}:${driverPort}`);
         }
 
-        // Store configs for cycling between workers (backend state degrades across sessions)
         if (isMacOS) {
-          this.cnCycleConfigs = instances.map(({ name, caps: cap }, i) => {
-            const instanceId = name ?? String(i);
-            const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
-            const env: NodeJS.ProcessEnv = {
-              ...isolatedDriverEnv(instanceOptions, this.allocateDataDirectory(instanceId)),
-              REMOTE_WEBDRIVER_URL: `http://${hostname}:${backendPorts[i]}`,
-            };
-            return {
-              instanceId,
-              backendPort: backendPorts[i],
-              driverPort: driverPortPairs[i].port,
-              driverNativePort: driverPortPairs[i].nativePort,
-              env,
-              options: instanceOptions,
-            };
-          });
+          this.cnCycleConfigs = cycleConfigs;
         }
       } else {
         log.info(`Starting ${instances.length} tauri-driver instance(s) for multiremote`);
@@ -524,7 +525,7 @@ export default class TauriLaunchService {
           const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
           this.instanceOptions.set(instanceId, instanceOptions);
 
-          const env = isolatedDriverEnv(instanceOptions, this.allocateDataDirectory(instanceId));
+          const env = dataDirEnv(this.allocateDataDirectory(instanceId));
 
           const { port: instancePort, nativePort: instanceNativePort } = portPairs[i];
           const instanceHost = '127.0.0.1';
@@ -640,7 +641,7 @@ export default class TauriLaunchService {
               backendPort,
               driverPort: port,
               driverNativePort: nativePort,
-              env: { ...process.env, ...mergedOptions.env },
+              env: {},
               options: mergedOptions,
             },
           ];
@@ -765,7 +766,8 @@ export default class TauriLaunchService {
       // Merge options (global + capability-specific)
       const workerOptions = mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']);
 
-      const workerEnv = isolatedDriverEnv(workerOptions, this.allocateDataDirectory(`worker-${cid}`));
+      const workerDataDir = this.allocateDataDirectory(`worker-${cid}`);
+      const workerEnv = dataDirEnv(workerDataDir);
 
       // CrabNebula on macOS: spawn dedicated test-runner-backend per worker
       if (process.platform === 'darwin' && workerOptions.driverProvider === 'crabnebula') {
@@ -779,6 +781,7 @@ export default class TauriLaunchService {
             const { proc } = await startTestRunnerBackend({
               port: backendPort,
               serviceOptions: workerOptions,
+              env: dataDirEnv(workerDataDir),
               instanceId: cid,
             });
             await waitTestRunnerBackendReady('127.0.0.1', backendPort, 30000);
@@ -943,19 +946,16 @@ export default class TauriLaunchService {
     workerId: string,
     port: number,
     nativePort: number,
-    options?: TauriServiceOptions,
-    env?: NodeJS.ProcessEnv,
+    options: TauriServiceOptions,
+    env: NodeJS.ProcessEnv,
   ): Promise<void> {
-    const workerOptions = options ?? mergeOptions(this.options, undefined);
-    const envVarName = process.platform === 'linux' ? 'XDG_DATA_HOME' : 'TAURI_DATA_DIR';
-
     await this.driverPool.startDriver({
       mode: 'worker',
       identifier: workerId,
       port,
       nativePort,
-      options: workerOptions,
-      env: env ?? { ...process.env, [envVarName]: process.env[envVarName] },
+      options,
+      env,
       instanceId: workerId,
     });
   }
@@ -1027,6 +1027,7 @@ export default class TauriLaunchService {
       const { proc } = await startTestRunnerBackend({
         port: config.backendPort,
         serviceOptions: config.options,
+        env: config.dataDir ? dataDirEnv(config.dataDir) : undefined,
         instanceId: config.instanceId,
       });
       await waitTestRunnerBackendReady(hostname, config.backendPort, 30000);
@@ -1150,7 +1151,6 @@ export default class TauriLaunchService {
       port,
       nativePort,
       options,
-      env: options.env,
     });
   }
 

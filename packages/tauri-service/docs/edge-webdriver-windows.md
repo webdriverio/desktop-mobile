@@ -19,7 +19,7 @@ The tauri-service automatically:
 1. **Detects** your Edge browser version from Windows registry
 2. **Checks** if a matching msedgedriver.exe exists
 3. **Downloads** the correct version if needed (enabled by default)
-4. **Configures** PATH to use the downloaded driver
+4. **Passes** the matching driver to tauri-driver by path, unless you set `nativeDriverPath`
 
 ## Configuration
 
@@ -81,7 +81,7 @@ Checks if msedgedriver.exe in PATH matches the detected Edge version (major vers
 If mismatch detected:
 - Downloads msedgedriver from `https://msedgedriver.azureedge.net/{version}/`
 - Caches in temp directory: `%TEMP%\msedgedriver\{majorVersion}\`
-- Adds to process PATH for test execution
+- Passes it to tauri-driver by path, so a `PATH` in the app's `env` can't hide it. A `nativeDriverPath` you set takes precedence.
 
 ## Fixed-version WebView2 runtimes
 
@@ -153,13 +153,9 @@ services: [
 
 ### "Version mismatch" even after download
 
-**Cause**: Another msedgedriver.exe earlier in PATH is being used
+**Cause**: `nativeDriverPath` points at a different msedgedriver.exe. The service uses it over the driver it checked.
 
-**Solution**: Check PATH order:
-```powershell
-where msedgedriver.exe
-```
-Ensure the correct version appears first
+**Solution**: Remove `nativeDriverPath`, or point it at a driver that matches your WebView2 version
 
 ### CI/GitHub Actions Issues
 

@@ -347,10 +347,10 @@ export interface TauriServiceOptions extends BaseServiceOptions, DriverProviderC
 }
 
 /**
- * Tauri service global options
- * Extends base global options with Tauri-specific configuration
+ * Tauri service global options: every per-capability option, which a capability's
+ * `wdio:tauriServiceOptions` overrides, plus the options only the service level takes.
  */
-export interface TauriServiceGlobalOptions extends BaseServiceGlobalOptions, DriverProviderConfig {
+export interface TauriServiceGlobalOptions extends TauriServiceOptions, BaseServiceGlobalOptions {
   mode?: 'native' | 'browser';
   devServerUrl?: string;
   logLevel?: LogLevel;
