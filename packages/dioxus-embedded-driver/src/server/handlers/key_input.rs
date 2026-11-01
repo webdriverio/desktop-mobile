@@ -1,5 +1,5 @@
 //! Key events and their default actions. Synthetic key events have none, so after an uncanceled
-//! keydown the driver types, deletes or breaks the line itself.
+//! keydown the driver types, deletes, breaks the line or moves focus itself.
 
 use std::collections::BTreeSet;
 
@@ -103,18 +103,25 @@ fn build_special_key_script(
 ) -> String {
   let default_action = match js_key {
     _ if !is_down => String::new(),
-    "Backspace" | "Delete" => delete_js(js_key == "Backspace"),
+    "Backspace" | "Delete" => {
+      format!("{}\n{}", record_change_js(), delete_js(js_key == "Backspace"))
+    }
     "ArrowDown" | "ArrowRight" => radio_step_js(true),
     "ArrowUp" | "ArrowLeft" => radio_step_js(false),
     _ => String::new(),
   };
-  let after_dispatch =
-    if js_key == "Enter" && is_down && !(modifiers.ctrl || modifiers.meta || modifiers.alt) {
-      enter_js(modifiers.shift)
-    } else {
-      String::new()
-    };
+  let after_dispatch = match js_key {
+    _ if !is_down => String::new(),
+    "Enter" if !(modifiers.ctrl || modifiers.meta || modifiers.alt) => enter_js(modifiers.shift),
+    "Tab" => tab_js(),
+    _ => String::new(),
+  };
   key_event_script(js_key, js_code, key_code, is_down, modifiers, &after_dispatch, &default_action)
+}
+
+/// JS for Tab's default action. `wdioTabKey` reads the keydown's cancellation and modifiers itself.
+fn tab_js() -> String {
+  format!("{{\n{ELEMENT_EVENTS_JS}\nwdioTabKey(keyEvent);\n}}")
 }
 
 /// JS dispatching a synthetic printable-character `KeyboardEvent` plus the insertion or Ctrl/Meta+A
@@ -148,7 +155,7 @@ fn build_printable_key_script(
   } else if modifiers.ctrl || modifiers.meta || modifiers.alt {
     String::new()
   } else {
-    insert_text_js("activeEl", &js_string(key))
+    format!("{}\n{}", record_change_js(), insert_text_js("activeEl", &js_string(key)))
   };
   let after_dispatch = if key == " " { space_js(is_down, modifiers) } else { String::new() };
   key_event_script(key, code, key_code, is_down, modifiers, &after_dispatch, &default_action)
@@ -292,12 +299,27 @@ fn enter_js(shift: bool) -> String {
                 if (!canceled) {{
                     activeEl = wdioDeepActiveElement();
                     if (activeEl.tagName === 'TEXTAREA') {{
+                        wdioRecordPendingChange(activeEl, activeEl.value);
                         {insert_newline}
                     }} else if (activeEl.isContentEditable) {{
                         document.execCommand('{command}', false, null);
                     }} else {{
                         wdioEnterKey();
                     }}
+                }}
+                }}"
+  )
+}
+
+/// JS recording the `change` the focused text field owes before a key edits it, so the field fires
+/// `change` when focus leaves it, as in Chrome.
+fn record_change_js() -> String {
+  let editable = is_editable_text_field_js("activeEl");
+  format!(
+    r"{{
+                {ELEMENT_EVENTS_JS}
+                if ({editable}) {{
+                    wdioRecordPendingChange(activeEl, activeEl.value);
                 }}
                 }}"
   )
@@ -597,13 +619,16 @@ pub fn build_send_keys_start_script(js_var: &str, typed: &str, plain: Option<&st
 }
 
 /// JS inserting a printable run at the focused element's selection, as typing does, so text follows
-/// focus when a key moves it.
+/// focus when a key moves it. Like the field Send Keys focused, the field the text goes into fires
+/// `change` when focus leaves it.
 pub fn build_insert_run_script(run: &str) -> String {
   let active_element = deep_active_element_js("activeEl");
+  let record_change = record_change_js();
   let insert_text = insert_text_js("activeEl", &js_string(run));
   format!(
     r"(function() {{
                 {active_element}
+                {record_change}
                 {insert_text}
                 return true;
             }})()"
@@ -763,7 +788,7 @@ mod tests {
         assert!(script.contains(&format!("{call}(activeEl, canceled || true);")), "{script}");
       }
     }
-    assert!(!down("x", NONE).contains("wdioSpace"));
+    assert!(!down("x", NONE).contains("wdioSpaceDown(activeEl"));
   }
 
   #[test]
@@ -788,7 +813,7 @@ mod tests {
   fn key_and_input_events_go_to_the_deep_focused_element_and_cross_shadow_boundaries() {
     for script in [down("\u{E003}", NONE), down("x", NONE), down(" ", NONE)] {
       assert!(script.contains("activeEl.shadowRoot.activeElement"), "{script}");
-      let script = script.replacen(ELEMENT_EVENTS_JS, "", 1);
+      let script = script.replace(ELEMENT_EVENTS_JS, "");
       let keyboard = script.find("new KeyboardEvent(").unwrap();
       let input = script.find("new InputEvent('input'").unwrap();
       assert!(script[keyboard..].contains("composed: true"));
@@ -980,7 +1005,68 @@ mod tests {
     assert!(!body.contains("insertedText"));
     let run = build_insert_run_script("x");
     assert!(run.contains("var activeEl = document.activeElement || document.body;"));
-    assert!(run.contains(&format!("if ({}) {{", is_editable_text_field_js("activeEl"))));
+    let insert = insert_text_js("activeEl", &js_string("x"));
+    assert!(insert.contains(&format!("if ({}) {{", is_editable_text_field_js("activeEl"))));
+    assert!(run.contains(&insert));
     assert!(run.contains("inputType: 'insertText'"));
+  }
+
+  #[test]
+  fn tab_runs_the_shared_tab_key_action_after_its_keydown() {
+    for value in ["\u{E004}", "\t"] {
+      for modifiers in [NONE, SHIFT, CTRL] {
+        let script = down(value, modifiers);
+        let dispatch = script.find(DISPATCH).unwrap();
+        let tab = script.find("wdioTabKey(keyEvent);").unwrap();
+        let guard = script.find(GUARD).unwrap();
+        assert!(dispatch < tab && tab < guard, "{script}");
+        assert!(script.contains(&format!("{{\n{ELEMENT_EVENTS_JS}\nwdioTabKey(")), "{script}");
+      }
+    }
+    for script in [key_script("\u{E004}", false, &NONE), down(ENTER_KEY, NONE)] {
+      assert!(!script.contains("wdioTabKey(keyEvent)"), "{script}");
+    }
+  }
+
+  #[test]
+  fn send_keys_presses_tab_between_text_runs() {
+    assert_eq!(
+      plan_send_keys("a\tb"),
+      vec![text("a"), key("\t", true, NONE), key("\t", false, NONE), text("b")]
+    );
+  }
+
+  #[test]
+  fn send_keys_text_run_records_the_change_its_field_owes_before_typing() {
+    let script = build_insert_run_script("hi");
+    let focused = script.find("var activeEl = document.activeElement || document.body;").unwrap();
+    let record = script.find(&record_change_js()).unwrap();
+    let insert = script.find("var insertedText = \"hi\"").unwrap();
+    assert!(focused < record && record < insert, "{script}");
+  }
+
+  #[test]
+  fn key_actions_record_the_change_a_field_owes_before_editing_it() {
+    let record = record_change_js();
+    assert!(record.contains(&format!("if ({})", is_editable_text_field_js("activeEl"))));
+    assert!(record.contains("wdioRecordPendingChange(activeEl, activeEl.value);"));
+    for (key, edit) in [
+      ("x", "var insertedText"),
+      ("\u{E003}", "var currentValue"),
+      ("\u{E017}", "var currentValue"),
+    ] {
+      let script = down(key, NONE);
+      let guard = script.find(GUARD).unwrap();
+      let recorded = script.find(&record).unwrap();
+      assert!(guard < recorded && script[recorded + record.len()..].contains(edit), "{script}");
+    }
+    let enter = down("\u{E007}", NONE);
+    let textarea =
+      after_helpers(&enter).split("if (activeEl.tagName === 'TEXTAREA') {").nth(1).unwrap();
+    let newline = textarea.find("var insertedText").unwrap();
+    assert!(textarea[..newline].contains("wdioRecordPendingChange(activeEl, activeEl.value);"));
+    for script in [key_script("x", false, &NONE), down("x", CTRL), down("a", CTRL)] {
+      assert!(!script.contains(&record), "{script}");
+    }
   }
 }
