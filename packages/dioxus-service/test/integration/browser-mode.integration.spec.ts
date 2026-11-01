@@ -227,11 +227,17 @@ describe('browser mode — multiremote mocks', () => {
   let root: FakeBrowser;
   let instances: Map<string, FakeBrowser>;
 
-  async function setUp(options: DioxusServiceOptions = {}): Promise<DioxusWorkerService> {
+  async function setUp(
+    options: DioxusServiceOptions = {},
+    instanceOptions: Partial<Record<'browserA' | 'browserB', DioxusServiceOptions>> = {},
+  ): Promise<DioxusWorkerService> {
     ({ root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB']));
+    const capabilitiesOf = (name: 'browserA' | 'browserB') => ({
+      'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER, ...instanceOptions[name] },
+    });
     const service = new DioxusWorkerService(options, {
-      browserA: { capabilities: { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } } },
-      browserB: { capabilities: { 'wdio:dioxusServiceOptions': { mode: 'browser', devServerUrl: DEV_SERVER } } },
+      browserA: { capabilities: capabilitiesOf('browserA') },
+      browserB: { capabilities: capabilitiesOf('browserB') },
     });
     await service.before({}, [], root as unknown as WebdriverIO.Browser);
     return service;
@@ -317,5 +323,18 @@ describe('browser mode — multiremote mocks', () => {
           ]
         : [],
     );
+  });
+
+  it("should apply an instance's own restoreMocks to that instance's mocks only", async () => {
+    const service = await setUp({}, { browserA: { restoreMocks: true } });
+    await dioxusOf('browserA').mock('greet');
+    const mockB = await dioxusOf('browserB').mock('greet');
+    clearExecuteCalls();
+
+    await expect(service.beforeTest({}, {})).resolves.toBeUndefined();
+
+    expect(ranInApp('browserA', interceptor.buildUnregistrationScript('greet'))).toBe(true);
+    expect(instance('browserB').execute).not.toHaveBeenCalled();
+    expect(mockStore.getAllMocks()).toEqual([['dioxus.greet', mockB]]);
   });
 });

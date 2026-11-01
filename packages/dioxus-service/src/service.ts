@@ -1,9 +1,16 @@
 import { forEachInstance, requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { DioxusMock, DioxusServiceAPI, MockLifecycleConfig } from '@wdio/native-types';
+import type { DioxusMock, DioxusServiceAPI } from '@wdio/native-types';
 import { createLogger, errorMessage, isMultiremote } from '@wdio/native-utils';
 
-import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
+import {
+  clearAllMocks,
+  getMockOwners,
+  isMockFunction,
+  resetAllMocks,
+  restoreAllMocks,
+  runOnMockOwners,
+} from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
@@ -15,12 +22,19 @@ import { clearWindowState, listWindowLabels, switchWindowByLabel } from './windo
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
 
+const MOCK_OPTION_OPS = [
+  ['clearMocks', 'clearMocksPrefix', 'clearAllMocks', 'mockClear'],
+  ['resetMocks', 'resetMocksPrefix', 'resetAllMocks', 'mockReset'],
+  ['restoreMocks', 'restoreMocksPrefix', 'restoreAllMocks', 'mockRestore'],
+] as const;
+
 export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
   private browserMode: boolean;
   private isEmbedded: boolean;
-  private mockLifecycle: MockLifecycleConfig;
+  private capabilities: unknown;
+  private mockLifecycle: DioxusServiceOptions;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
@@ -35,6 +49,7 @@ export default class DioxusWorkerService {
     this.devServerUrl = browserModeOptions?.devServerUrl ?? _options.devServerUrl;
     this.browserMode = (browserModeOptions?.mode ?? _options.mode) === 'browser';
     this.isEmbedded = (capOptions?.driverProvider ?? _options.driverProvider ?? 'embedded') === 'embedded';
+    this.capabilities = _capabilities;
     this.mockLifecycle = mergeOptions(_options, capOptions);
     log.debug('DioxusWorkerService initialised');
   }
@@ -89,35 +104,39 @@ export default class DioxusWorkerService {
   }
 
   async beforeTest(_test: unknown, _context: unknown): Promise<void> {
-    const browser = this.browser;
-    if (!browser) {
+    if (!this.browser) {
       return;
     }
-    const { clearMocks, clearMocksPrefix, resetMocks, resetMocksPrefix, restoreMocks, restoreMocksPrefix } =
-      this.mockLifecycle;
+    const targets = await getMockOwners(this.browser, this.capabilities);
     // Run every configured op so one failure can't skip the others, then report them together.
     const failures: unknown[] = [];
-    const attempt = async (op: () => Promise<void>) => {
+    for (const [option, prefixOption, commandName, op] of MOCK_OPTION_OPS) {
+      const enabled = targets.flatMap((target) => {
+        const options = this.mockOptions(target.caps);
+        return options[option] ? [{ ...target, prefix: options[prefixOption] }] : [];
+      });
+      if (enabled.length === 0) {
+        continue;
+      }
       try {
-        await op();
+        await runOnMockOwners(commandName, enabled, op);
       } catch (error) {
         failures.push(error);
       }
-    };
-    if (clearMocks) {
-      await attempt(() => clearAllMocks(browser, clearMocksPrefix));
-    }
-    if (resetMocks) {
-      await attempt(() => resetAllMocks(browser, resetMocksPrefix));
-    }
-    if (restoreMocks) {
-      await attempt(() => restoreAllMocks(browser, restoreMocksPrefix));
     }
     if (failures.length > 0) {
       throw failures.length === 1
         ? failures[0]
         : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
     }
+  }
+
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  private mockOptions(instanceCaps?: WebdriverIO.Capabilities): DioxusServiceOptions {
+    return mergeOptions(
+      this.mockLifecycle,
+      (instanceCaps as DioxusCapabilities | undefined)?.['wdio:dioxusServiceOptions'],
+    );
   }
 
   async after(): Promise<void> {

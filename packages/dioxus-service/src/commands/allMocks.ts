@@ -17,32 +17,47 @@ function matchesPrefix(name: string, prefix?: string): boolean {
   return name.startsWith(prefix) || stripped.startsWith(prefix);
 }
 
-async function runOnMocks(
-  commandName: string,
-  browser: MockOwner,
-  op: MockLifecycleOp,
-  prefix: string | undefined,
-): Promise<void> {
-  const runOn = (owner: MockOwner) =>
-    runBulkMockOp(mockStore.getMocks(owner), op, { matches: (name) => matchesPrefix(name, prefix) });
+export interface MockOwnerTarget {
+  name?: string;
+  owner: MockOwner;
+  caps?: WebdriverIO.Capabilities;
+}
 
+// A multiremote root covers every instance's mocks, then the mocks created on the root itself.
+export async function getMockOwners(browser: MockOwner, capabilities?: unknown): Promise<MockOwnerTarget[]> {
   if (!isMultiremote(browser)) {
-    await runOn(browser);
-    return;
+    return [{ owner: browser }];
   }
+  const targets: MockOwnerTarget[] = [];
+  await forEachInstance(
+    browser,
+    (instance, { name, caps }) => {
+      targets.push({ name, owner: instance, caps });
+    },
+    capabilities,
+  );
+  return [...targets, { name: 'the multiremote root', owner: browser }];
+}
 
-  const failures: Array<{ name: string; error: unknown }> = [];
-  const attempt = async (name: string, owner: MockOwner) => {
+export async function runOnMockOwners(
+  commandName: string,
+  targets: Array<MockOwnerTarget & { prefix?: string }>,
+  op: MockLifecycleOp,
+): Promise<void> {
+  const failures: Array<{ name?: string; error: unknown }> = [];
+  for (const { name, owner, prefix } of targets) {
     try {
-      await runOn(owner);
+      await runBulkMockOp(mockStore.getMocks(owner), op, { matches: (mockName) => matchesPrefix(mockName, prefix) });
     } catch (error) {
       failures.push({ name, error });
     }
-  };
-  await forEachInstance(browser, (instance, { name }) => attempt(String(name), instance));
-  await attempt('the multiremote root', browser);
+  }
   if (failures.length === 0) {
     return;
+  }
+  // A single session has no instance name to add
+  if (failures.length === 1 && failures[0].name === undefined) {
+    throw failures[0].error;
   }
   const message = `${commandName} failed on ${failures
     .map(({ name, error }) => `${name}: ${errorMessage(error)}`)
@@ -53,6 +68,20 @@ async function runOnMocks(
         failures.map(({ error }) => error),
         message,
       );
+}
+
+async function runOnMocks(
+  commandName: string,
+  browser: MockOwner,
+  op: MockLifecycleOp,
+  prefix: string | undefined,
+): Promise<void> {
+  const targets = await getMockOwners(browser);
+  await runOnMockOwners(
+    commandName,
+    targets.map((target) => ({ ...target, prefix })),
+    op,
+  );
 }
 
 export async function clearAllMocks(browser: MockOwner, prefix?: string): Promise<void> {

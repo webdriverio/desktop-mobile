@@ -268,6 +268,8 @@ If set, only mocks whose command name starts with this prefix are restored. Only
 
 **Default:** `undefined`
 
+**Multiremote:** each instance applies the `clearMocks`, `resetMocks` and `restoreMocks` options, and their prefixes, from its own `wdio:dioxusServiceOptions` to its own mocks. An instance that doesn't set an option uses the service-level value, which also applies to mocks created on the multiremote root.
+
 ---
 
 ## Capabilities Configuration

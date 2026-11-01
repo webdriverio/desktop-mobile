@@ -231,11 +231,16 @@ describe('DioxusWorkerService', () => {
   describe('in multiremote', () => {
     type InstanceApi = Installed['dioxus'];
 
-    async function setUp(options: DioxusServiceOptions = {}) {
+    async function setUp(
+      options: DioxusServiceOptions = {},
+      instanceOptions: Partial<Record<'browserA' | 'browserB', DioxusServiceOptions>> = {},
+    ) {
       const fakes = createFakeMultiremote();
+      const capabilitiesOf = (name: 'browserA' | 'browserB') =>
+        instanceOptions[name] ? { 'wdio:dioxusServiceOptions': instanceOptions[name] } : {};
       const service = new DioxusWorkerService(options, {
-        browserA: { capabilities: {} },
-        browserB: { capabilities: {} },
+        browserA: { capabilities: capabilitiesOf('browserA') },
+        browserB: { capabilities: capabilitiesOf('browserB') },
       });
       await service.before({}, [], fakes.root);
       const dioxusOf = (browser: unknown) => (browser as Installed).dioxus as InstanceApi;
@@ -290,6 +295,67 @@ describe('DioxusWorkerService', () => {
       for (const mock of mocks) {
         expect(mock.mockRestore).toHaveBeenCalledOnce();
       }
+    });
+
+    it("should apply an instance's own options to that instance's mocks only", async () => {
+      const { service, mocks } = await setUp({}, { browserA: { restoreMocks: true } });
+      const [mockA, mockB, rootMock] = mocks;
+
+      await service.beforeTest({}, {});
+
+      expect(mockA.mockRestore).toHaveBeenCalledOnce();
+      expect(mockB.mockRestore).not.toHaveBeenCalled();
+      expect(rootMock.mockRestore).not.toHaveBeenCalled();
+    });
+
+    it("should let an instance's false override the service's true", async () => {
+      const { service, mocks } = await setUp({ resetMocks: true }, { browserB: { resetMocks: false } });
+      const [mockA, mockB, rootMock] = mocks;
+
+      await service.beforeTest({}, {});
+
+      expect(mockA.mockReset).toHaveBeenCalledOnce();
+      expect(mockB.mockReset).not.toHaveBeenCalled();
+      expect(rootMock.mockReset).toHaveBeenCalledOnce();
+    });
+
+    it("should use an instance's own prefix, and the service's where the instance sets none", async () => {
+      const { service, mocks } = await setUp(
+        { clearMocks: true, clearMocksPrefix: 'fs' },
+        { browserA: { clearMocksPrefix: 'gr' }, browserB: { clearMocks: true } },
+      );
+      const [mockA, mockB, rootMock] = mocks;
+
+      await service.beforeTest({}, {});
+
+      expect(mockA.mockClear).toHaveBeenCalledOnce();
+      expect(mockB.mockClear).not.toHaveBeenCalled();
+      expect(rootMock.mockClear).not.toHaveBeenCalled();
+    });
+
+    it("should read an instance's options from the capabilities its session requested", async () => {
+      const { service, fakes, mocks } = await setUp();
+      (fakes.browserB as unknown as { requestedCapabilities: unknown }).requestedCapabilities = {
+        alwaysMatch: { 'wdio:dioxusServiceOptions': { restoreMocks: true } },
+      };
+      const [mockA, mockB] = mocks;
+
+      await service.beforeTest({}, {});
+
+      expect(mockB.mockRestore).toHaveBeenCalledOnce();
+      expect(mockA.mockRestore).not.toHaveBeenCalled();
+    });
+
+    it('should name each instance whose mocks failed, after running the others', async () => {
+      const { service, mocks } = await setUp({ restoreMocks: true });
+      const [mockA, mockB, rootMock] = mocks;
+      mockA.mockRestore.mockRejectedValueOnce(new Error('restore failed'));
+
+      await expect(service.beforeTest({}, {})).rejects.toMatchObject({
+        message: 'restoreAllMocks failed on browserA: mockRestore failed: dioxus.greet: restore failed',
+      });
+      expect(mockB.mockRestore).toHaveBeenCalledOnce();
+      expect(rootMock.mockRestore).toHaveBeenCalledOnce();
     });
   });
 
