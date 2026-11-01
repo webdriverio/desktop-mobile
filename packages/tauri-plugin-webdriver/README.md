@@ -328,7 +328,13 @@ Unlike in Chrome, Enter and Space send only their key events in these cases:
 
 The driver also sends no `keypress` events, so a `keypress` handler can't cancel Enter.
 
-Unless a `keydown` handler cancels it, Tab moves focus to the next element, and Shift+Tab to the previous one, in Chrome's order: elements with a positive `tabindex`, lowest first, then in tree order those with `tabindex="0"` and those focusable by default, such as links, buttons and form fields. Tab skips disabled, `inert` and hidden elements, and everything outside an open modal `<dialog>`. It goes through open shadow roots and slots, and stops once on a radio group: on its checked radio, or if Tab can't stop on one, on the first radio it reaches. It starts from the element focused after the `keydown`, and from an element it skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order. Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls, and the next Tab or Shift+Tab comes back in at the start or the end.
+Unless a `keydown` handler cancels it, Tab moves focus to the next element and Shift+Tab to the previous one, as in Chrome:
+- Elements with a positive `tabindex` come first, in ascending order, then those with `tabindex="0"` and those focusable by default, such as links, buttons and form fields, in tree order.
+- Tab skips disabled, `inert` and hidden elements, and everything outside an open modal `<dialog>`.
+- Tab goes through open shadow roots and slots.
+- A radio group is one stop: its checked radio, or if Tab can't stop on that, the first radio Tab reaches.
+- Tab starts from the element focused after the `keydown`. From an element Tab skips, such as one with `tabindex="-1"`, it goes to the nearest stop in tree order.
+- Past the last element or before the first, focus leaves the page, as Chrome hands it to the browser's own controls. The next Tab comes back in at the start, and Shift+Tab at the end.
 
 Tab selects the value of a text, search, URL, telephone, email, password or number input it moves to, so text typed next replaces it. The field focus leaves fires the `change` it owes, and a field that Element Send Keys types into after a Tab owes one too, so `setValue('user\tpass')` fills two fields and fires the first one's `change`.
 
@@ -337,6 +343,7 @@ Unlike in Chrome, Tab:
 - Stops once on an iframe, or on an audio or video element's controls, and doesn't move inside them.
 - Doesn't stop on a scrolling box with nothing focusable inside it, or on an image map's areas.
 - Starts from the focused element, never from where a click on text landed.
+- Enters a radio group with none checked at its first radio, or its last with Shift+Tab. Chrome sometimes enters at the radio that last had focus.
 - Sends only its key events with Control, Alt or Meta held. Chrome on macOS moves focus with Alt held.
 
 One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
