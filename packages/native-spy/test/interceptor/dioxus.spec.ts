@@ -119,6 +119,44 @@ describe('DioxusAdapter', () => {
     });
   });
 
+  describe('buildWithImplementationScript', () => {
+    type Webview = { __WDIO_DIOXUS__: unknown; __wdio_mocks__: Record<string, unknown> };
+
+    function makeWebview(): Webview {
+      const win = { __WDIO_DIOXUS__: { invoke: async () => 'unmocked' } } as unknown as Webview;
+      new Function('window', adapter.buildBrowserIpcInjectionScript())(win);
+      new Function('window', `return (${adapter.buildRegistrationScript('cmd')})()`)(win);
+      return win;
+    }
+
+    function run(script: string, win: Webview): Promise<unknown> {
+      return new Function('window', `return (${script})(window.__WDIO_DIOXUS__)`)(win);
+    }
+
+    it('should pass dx to the callback and resolve with its result once it settles', async () => {
+      const win = makeWebview();
+      const script = adapter.buildWithImplementationScript(
+        'cmd',
+        '() => "temporary"',
+        'async (dx) => { await Promise.resolve(); return dx.invoke("cmd"); }',
+      );
+
+      await expect(run(script, win)).resolves.toBe('temporary');
+    });
+
+    it('should reject without running the callback when the command is not mocked', async () => {
+      const win = makeWebview();
+      delete win.__wdio_mocks__.cmd;
+      const script = adapter.buildWithImplementationScript(
+        'cmd',
+        '() => "temporary"',
+        '() => { throw new Error("callback ran"); }',
+      );
+
+      await expect(run(script, win)).rejects.toMatchObject({ message: 'cmd is not mocked in this window' });
+    });
+  });
+
   describe('createIpcInterceptor', () => {
     it('should return a DioxusAdapter when framework is dioxus', async () => {
       const { createIpcInterceptor } = await import('../../src/interceptor/index.js');
