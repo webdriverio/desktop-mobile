@@ -16,6 +16,7 @@ name = "wdio_dioxus_bridge"
 path = "src/lib.rs"
 
 [dependencies]
+dioxus-core = "0.7"
 dioxus-desktop = "0.7"
 serde_json = "1"
 tracing = "0.1"
@@ -27,6 +28,11 @@ features = [ "derive" ]
 [dependencies.tokio]
 version = "1"
 features = [ "sync" ]
+
+# The versions wry uses, so the WebView2 types match its controller's.
+[target.'cfg(target_os = "windows")'.dependencies]
+webview2-com = "0.38"
+windows-core = "0.61"
 
 [dev-dependencies.tokio]
 version = "1"

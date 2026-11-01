@@ -8,6 +8,7 @@ use serde_json::Value;
 use tauri::webview::PlatformWebview;
 use tauri::{Manager, Runtime, WebviewWindow};
 use tokio::sync::oneshot;
+use webview2_com::CallDevToolsProtocolMethodCompletedHandler;
 use webview2_com::Microsoft::Web::WebView2::Win32::{
   ICoreWebView2, ICoreWebView2CapturePreviewCompletedHandler, ICoreWebView2Controller,
   ICoreWebView2Environment6, ICoreWebView2ExecuteScriptCompletedHandler,
@@ -211,6 +212,8 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
     let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
 
     if let Ok(webview2) = rebind_controller(&webview).CoreWebView2() {
+      emulate_page_focus(&webview2);
+
       // Disable default script dialogs so ScriptDialogOpening event fires
       if let Ok(settings) = webview2.Settings() {
         if let Err(e) = settings.SetAreDefaultScriptDialogsEnabled(false) {
@@ -236,6 +239,24 @@ pub fn register_webview_handlers<R: Runtime>(webview: &tauri::Webview<R>) {
       std::mem::forget(handler);
     }
   });
+}
+
+/// Makes `WebView2` treat the page as focused even while its window is in the background, where
+/// scripted focus moves otherwise fire no `focus` or `blur`. Playwright does the same for Chromium.
+unsafe fn emulate_page_focus(webview2: &ICoreWebView2) {
+  let handler = CallDevToolsProtocolMethodCompletedHandler::create(Box::new(|result, _| {
+    if let Err(e) = result {
+      tracing::error!("Failed to turn on focus emulation: {e:?}");
+    }
+    Ok(())
+  }));
+  let method = HSTRING::from("Emulation.setFocusEmulationEnabled");
+  let params = HSTRING::from(r#"{"enabled":true}"#);
+  if let Err(e) =
+    webview2.CallDevToolsProtocolMethod(PCWSTR(method.as_ptr()), PCWSTR(params.as_ptr()), &handler)
+  {
+    tracing::error!("Failed to turn on focus emulation: {e:?}");
+  }
 }
 
 #[async_trait]

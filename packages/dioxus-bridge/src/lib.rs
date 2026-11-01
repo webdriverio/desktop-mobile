@@ -17,6 +17,7 @@
 pub mod automation;
 pub mod deeplink;
 pub mod embedded;
+pub mod focus;
 pub mod invoke;
 pub mod log_bridge;
 pub mod window_state;
@@ -90,6 +91,7 @@ fn install_with_registry_and_config(
   }
 
   let registry_for_handler = registry;
+  let embedded = embedded_port.is_some();
 
   // On Windows, Wry serves custom protocols as `http://{scheme}.*`, and
   // WebView2 rejects a `fetch('wdio://invoke')`, so guest-js reads the URL
@@ -113,9 +115,12 @@ fn install_with_registry_and_config(
       invoke::handle_invoke_request(&registry_for_handler, &request)
     })
     .with_custom_head(head)
-    .with_on_window(|window, _dom| {
+    .with_on_window(move |window, dom| {
       let label = window_state::register_window(&window);
       tracing::debug!(label = %label, "wdio-dioxus-bridge: registered window");
+      if embedded {
+        focus::emulate_page_focus(dom);
+      }
     })
 }
 
