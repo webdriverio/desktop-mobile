@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
 // jsdom has no delegatesFocus, so the E2E specs cover shadow hosts that keep focus.
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -466,6 +466,7 @@ describe('Tab', () => {
   afterEach(() => {
     document.body.removeAttribute('tabindex');
     Reflect.deleteProperty(document.body, 'matches');
+    vi.restoreAllMocks();
   });
 
   function focused() {
@@ -515,14 +516,22 @@ describe('Tab', () => {
 
   it('should stop on an editing host, media with controls and slot fallback content, but not in a slot with tabindex -1', () => {
     render(`<div id="ed" contenteditable="true"><p id="ed-p">x</p></div><audio id="au" controls></audio>
-      <video id="vid"></video><div id="h1"></div><div id="h2"><input id="h2-slotted"></div>`);
+      <video id="vid"></video><object id="ob"></object><embed id="em"><div id="h1"></div>
+      <div id="h2"><input id="h2-slotted"></div>`);
     // jsdom has no isContentEditable.
     for (const id of ['ed', 'ed-p']) {
       Object.defineProperty($(`#${id}`), 'isContentEditable', { value: true });
     }
     $('#h1').attachShadow({ mode: 'open' }).innerHTML = '<slot><input id="fallback"></slot>';
     $('#h2').attachShadow({ mode: 'open' }).innerHTML = '<input id="h2-a"><slot tabindex="-1"></slot>';
-    expect(events.wdioTabStops(document.body).stops.map((stop) => stop.id)).toEqual(['ed', 'au', 'fallback', 'h2-a']);
+    expect(events.wdioTabStops(document.body).stops.map((stop) => stop.id)).toEqual([
+      'ed',
+      'au',
+      'ob',
+      'em',
+      'fallback',
+      'h2-a',
+    ]);
   });
 
   it('should go through a form whose controls hide its own properties', () => {
@@ -593,6 +602,19 @@ describe('Tab', () => {
     expect([$('#b').selectionStart, $('#b').selectionEnd]).toEqual([0, 3]);
     tab();
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
+  });
+
+  it('should focus a text field once, though select() focuses it in Chromium', () => {
+    const select = HTMLInputElement.prototype.select;
+    vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
+      select.call(this);
+      this.focus();
+    });
+    render('<input id="a"><input id="guard" value="g"><input id="z">');
+    $('#guard').addEventListener('focus', () => $('#z').focus(), { once: true });
+    $('#a').focus();
+    expect(tab()).toBe('z');
+    expect(log.filter((entry) => entry.startsWith('focus'))).toEqual(['focus a=', 'focus guard=g', 'focus z=']);
   });
 
   it('should leave the caret where the focus handler of the text field Tab moves to puts it', () => {

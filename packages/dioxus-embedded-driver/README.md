@@ -126,7 +126,7 @@ Tab selects the value of a text, search, URL, telephone, email, password or numb
 
 Unlike in Chrome, Tab:
 - Skips the contents of a closed shadow root, which the driver can't reach, and stops on its host only if the host takes focus itself.
-- Stops once on an iframe, or on an audio or video element's controls, and doesn't move inside them.
+- Stops once on an iframe, `<object>` or `<embed>`, or on an audio or video element's controls, and doesn't move inside them.
 - Doesn't stop on a scrolling box with nothing focusable inside it, or on an image map's areas.
 - Starts from the focused element, never from where a click on text landed.
 - Enters a radio group with none checked at its first radio, or its last with Shift+Tab. Chrome sometimes enters at the radio that last had focus.

@@ -187,10 +187,14 @@ function wdioTabKey(event) {
   // A focus event on the stop counts as taking focus, even when a handler, like a focus trap's, sends
   // it back. As in a browser, Tab never calls a focus() the page defines.
   const start = wdioDeepActiveElement();
+  const isTextField = (el) => el.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(el.type);
+  // Email and number inputs have no selection API.
+  const hasSelectionApi = (el) => el.type !== 'email' && el.type !== 'number';
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
-    // Chrome selects a text field's value as Tab focuses it, so a focus handler can still place the caret.
-    if (candidate.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(candidate.type)) {
-      candidate.select();
+    // Chrome selects a text field's value as Tab focuses it, so a focus handler can still place the
+    // caret. The selection is set before focusing, as select() itself focuses the field in Chromium.
+    if (isTextField(candidate) && hasSelectionApi(candidate)) {
+      HTMLInputElement.prototype.setSelectionRange.call(candidate, 0, candidate.value.length);
     }
     let focused = false;
     const onFocus = () => {
@@ -204,6 +208,10 @@ function wdioTabKey(event) {
   if (!next) {
     wdioDeepActiveElement().blur();
     wdioFlushPendingChange();
+    return;
+  }
+  if (wdioDeepActiveElement() === next && isTextField(next) && !hasSelectionApi(next)) {
+    HTMLInputElement.prototype.select.call(next);
   }
 }
 
@@ -302,6 +310,8 @@ function wdioTabIndex(el) {
     case 'select':
     case 'textarea':
     case 'iframe':
+    case 'object':
+    case 'embed':
       return 0;
     case 'audio':
     case 'video':
