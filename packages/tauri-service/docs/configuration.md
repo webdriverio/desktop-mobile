@@ -78,8 +78,8 @@ services: [['@wdio/tauri-service', { env: { ENABLE_SINGLE_INSTANCE: 'true' } }]]
 
 **Note:**
 - Set it in a capability's `wdio:tauriServiceOptions` to give that capability or multiremote instance its own. A capability's `env` replaces the service-level one rather than merging with it.
-- With `maxInstances: 1` and the `'external'` or `'crabnebula'` provider, every capability shares one tauri-driver, which gets the first capability's `env`.
-- With the `'external'` and `'crabnebula'` providers, the service sets `XDG_DATA_HOME` on Linux, or `TAURI_DATA_DIR` elsewhere, to a separate data directory for each worker and multiremote instance. That value wins over `env`.
+- Outside multiremote, with `maxInstances: 1` and the `'external'` or `'crabnebula'` provider, every capability shares one tauri-driver, which gets the first capability's `env`. Multiremote starts a tauri-driver for each instance, with that instance's `env`.
+- With the `'external'` and `'crabnebula'` providers, the service sets `XDG_DATA_HOME` on Linux, or `TAURI_DATA_DIR` elsewhere, to a separate data directory for each worker when `maxInstances` is above 1, and for each multiremote instance. That value wins over `env`. A tauri-driver shared by every capability gets no separate data directory.
 
 ---
 

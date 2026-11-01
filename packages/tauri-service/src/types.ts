@@ -49,15 +49,6 @@ export interface TauriServiceOptions extends BaseTauriServiceOptions {
  */
 export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions, TauriServiceOptions {
   /**
-   * Environment variables for the app. See {@link TauriServiceOptions.env}.
-   */
-  env?: Record<string, string>;
-  /**
-   * Automatically install tauri-driver if not found
-   * @default false
-   */
-  autoInstallTauriDriver?: boolean;
-  /**
    * Automatically download and configure matching msedgedriver on Windows
    * Detects Edge version and ensures WebDriver matches to prevent version mismatch errors
    * Only applies on Windows platform, ignored on Linux/macOS
@@ -74,11 +65,6 @@ export interface TauriServiceGlobalOptions extends BaseTauriServiceGlobalOptions
    * Service-level only, since msedgedriver is machine-wide.
    */
   edgeDriverVersion?: string;
-  /**
-   * Log directory for standalone mode. A capability-level value takes precedence.
-   * See {@link TauriServiceOptions.logDir}.
-   */
-  logDir?: string;
 }
 
 /**

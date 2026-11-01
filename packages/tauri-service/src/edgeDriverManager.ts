@@ -496,9 +496,7 @@ export async function ensureMsEdgeDriver(
       log.info(`Attempting to download msedgedriver ${edgeVersion}...`);
       const downloaded = await downloadMsEdgeDriver(edgeVersion, source === 'override');
 
-      process.env.PATH = `${join(downloaded.path, '..')}${process.platform === 'win32' ? ';' : ':'}${process.env.PATH}`;
-
-      log.info(`✅ Downloaded and configured msedgedriver ${downloaded.version}`);
+      log.info(`✅ Downloaded msedgedriver ${downloaded.version}`);
       return Ok({
         driverPath: downloaded.path,
         driverVersion: downloaded.version,

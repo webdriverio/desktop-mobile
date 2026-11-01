@@ -3,6 +3,7 @@ import { createLogger, errorMessage } from '@wdio/native-utils';
 import { findTestRunnerBackend } from './driverManager.js';
 import { createLogCapture } from './logCapture.js';
 import { signalAndWaitForExit } from './processExit.js';
+import { appEnv } from './serviceConfig.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service');
@@ -104,12 +105,7 @@ export async function startTestRunnerBackend(options: StartBackendOptions): Prom
     // On macOS the backend, not tauri-driver, launches the app, so it needs the app's env.
     const proc = spawn(backendPath, args, {
       stdio: ['ignore', 'pipe', 'pipe'],
-      env: {
-        ...process.env,
-        ...serviceOptions?.env,
-        ...options.env,
-        PORT: port.toString(),
-      },
+      env: { ...appEnv(serviceOptions, options.env), PORT: port.toString() },
     });
 
     let settled = false;

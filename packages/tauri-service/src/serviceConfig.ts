@@ -23,6 +23,14 @@ export function mergeServiceOptions(
   };
 }
 
+// The app's environment: its configured env over process.env, and what the service sets for the instance over both
+export function appEnv(
+  options: Pick<TauriServiceOptions, 'env'> | undefined,
+  serviceEnv?: NodeJS.ProcessEnv,
+): NodeJS.ProcessEnv {
+  return { ...process.env, ...options?.env, ...serviceEnv };
+}
+
 const EMBEDDED_START_TIMEOUT = 60_000;
 
 // Takes merged options. Only the embedded provider waits for the app to start.

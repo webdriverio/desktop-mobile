@@ -67,7 +67,7 @@ interface CnCycleConfig {
   driverPort: number;
   driverNativePort: number;
   env: NodeJS.ProcessEnv;
-  dataDir?: string;
+  backendEnv?: NodeJS.ProcessEnv;
   options: TauriServiceOptions;
 }
 
@@ -244,6 +244,8 @@ export default class TauriLaunchService {
 
     // Validate capabilities and resolve each one's app binary and args.
     let firstResolved: { binaryPath: string; env?: Record<string, string> } | undefined;
+    // Resolved per capability, in the order of `instances`
+    const apps: Array<{ appBinaryPath: string; appArgs: string[] }> = [];
     for (const cap of capsList) {
       // Validate that browserName is either not set, 'tauri', or 'wry'
       if (cap.browserName && cap.browserName !== 'tauri' && cap.browserName !== 'wry') {
@@ -270,6 +272,7 @@ export default class TauriLaunchService {
       // copy: capabilities can share one tauri:options object, and each needs its own values.
       const args = resolveAppArgs(instanceOptions, tauriOptions);
       cap['tauri:options'] = { ...tauriOptions, application: appBinaryPath, args };
+      apps.push({ appBinaryPath, appArgs: args });
       if (args.length > 0) {
         log.debug(`App args: ${JSON.stringify(args)}`);
       }
@@ -395,12 +398,7 @@ export default class TauriLaunchService {
           this.instanceOptions.set(instanceId, instanceOptions);
 
           const embeddedPort = await this.allocateEmbeddedPort(cap, instanceOptions, i);
-          const appBinaryPath = cap['tauri:options']?.application;
-          const appArgs = cap['tauri:options']?.args ?? [];
-
-          if (!appBinaryPath) {
-            throw new Error(`Tauri application path not specified for multiremote instance: ${instanceId}`);
-          }
+          const { appBinaryPath, appArgs } = apps[i];
 
           log.debug(`Starting embedded WebDriver for ${instanceId} on port ${embeddedPort}`);
 
@@ -461,8 +459,8 @@ export default class TauriLaunchService {
           const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
           this.instanceOptions.set(instanceId, instanceOptions);
 
-          const dataDir = this.allocateDataDirectory(instanceId);
-          const env = dataDirEnv(dataDir);
+          const instanceEnv = dataDirEnv(this.allocateDataDirectory(instanceId));
+          let env = instanceEnv;
           const { port: driverPort, nativePort: driverNativePort } = driverPortPairs[i];
 
           // On macOS, start backend and set REMOTE_WEBDRIVER_URL for tauri-driver
@@ -473,13 +471,13 @@ export default class TauriLaunchService {
             const { proc } = await startTestRunnerBackend({
               port: backendPort,
               serviceOptions: instanceOptions,
-              env: dataDirEnv(dataDir),
+              env: instanceEnv,
               instanceId,
             });
             await waitTestRunnerBackendReady(hostname, backendPort, 30000);
 
             this.workerBackends.set(instanceId, { proc, port: backendPort });
-            env.REMOTE_WEBDRIVER_URL = `http://${hostname}:${backendPort}`;
+            env = { ...instanceEnv, REMOTE_WEBDRIVER_URL: `http://${hostname}:${backendPort}` };
             // Kept for cycling between workers (backend state degrades across sessions)
             cycleConfigs.push({
               instanceId,
@@ -487,7 +485,7 @@ export default class TauriLaunchService {
               driverPort,
               driverNativePort,
               env,
-              dataDir,
+              backendEnv: instanceEnv,
               options: instanceOptions,
             });
           }
@@ -572,12 +570,7 @@ export default class TauriLaunchService {
         const { caps: cap, connectionTarget } = instances[i];
         const instanceOptions = mergeOptions(this.options, cap['wdio:tauriServiceOptions']);
         const embeddedPort = await this.allocateEmbeddedPort(cap, instanceOptions, i);
-        const appBinaryPath = cap['tauri:options']?.application;
-        const appArgs = cap['tauri:options']?.args ?? [];
-
-        if (!appBinaryPath) {
-          throw new Error('Tauri application path not specified in tauri:options.application');
-        }
+        const { appBinaryPath, appArgs } = apps[i];
 
         log.debug(`Starting embedded WebDriver for instance ${i} on port ${embeddedPort}`);
 
@@ -766,8 +759,8 @@ export default class TauriLaunchService {
       // Merge options (global + capability-specific)
       const workerOptions = mergeOptions(this.options, firstCap['wdio:tauriServiceOptions']);
 
-      const workerDataDir = this.allocateDataDirectory(`worker-${cid}`);
-      const workerEnv = dataDirEnv(workerDataDir);
+      const workerEnv = dataDirEnv(this.allocateDataDirectory(`worker-${cid}`));
+      let driverEnv = workerEnv;
 
       // CrabNebula on macOS: spawn dedicated test-runner-backend per worker
       if (process.platform === 'darwin' && workerOptions.driverProvider === 'crabnebula') {
@@ -781,12 +774,12 @@ export default class TauriLaunchService {
             const { proc } = await startTestRunnerBackend({
               port: backendPort,
               serviceOptions: workerOptions,
-              env: dataDirEnv(workerDataDir),
+              env: workerEnv,
               instanceId: cid,
             });
             await waitTestRunnerBackendReady('127.0.0.1', backendPort, 30000);
             this.workerBackends.set(cid, { proc, port: backendPort });
-            workerEnv.REMOTE_WEBDRIVER_URL = `http://127.0.0.1:${backendPort}`;
+            driverEnv = { ...workerEnv, REMOTE_WEBDRIVER_URL: `http://127.0.0.1:${backendPort}` };
             log.debug(`Worker ${cid} backend ready on port ${backendPort}`);
           } catch (error) {
             log.error(`Failed to start test-runner-backend for worker ${cid}: ${error}`);
@@ -795,8 +788,15 @@ export default class TauriLaunchService {
         }
       }
 
-      // Spawn tauri-driver for this worker with updated env
-      await this.startTauriDriverForWorker(cid, port, nativePort, workerOptions, workerEnv);
+      await this.driverPool.startDriver({
+        mode: 'worker',
+        identifier: cid,
+        port,
+        nativePort,
+        options: workerOptions,
+        env: driverEnv,
+        instanceId: cid,
+      });
 
       // Update capabilities with allocated port so WDIO connects to correct port
       // This is critical - the worker needs to know which port to connect to
@@ -940,27 +940,6 @@ export default class TauriLaunchService {
   }
 
   /**
-   * Start tauri-driver for a specific worker
-   */
-  private async startTauriDriverForWorker(
-    workerId: string,
-    port: number,
-    nativePort: number,
-    options: TauriServiceOptions,
-    env: NodeJS.ProcessEnv,
-  ): Promise<void> {
-    await this.driverPool.startDriver({
-      mode: 'worker',
-      identifier: workerId,
-      port,
-      nativePort,
-      options,
-      env,
-      instanceId: workerId,
-    });
-  }
-
-  /**
    * End worker session
    */
   async onWorkerEnd(cid: string): Promise<void> {
@@ -1027,7 +1006,7 @@ export default class TauriLaunchService {
       const { proc } = await startTestRunnerBackend({
         port: config.backendPort,
         serviceOptions: config.options,
-        env: config.dataDir ? dataDirEnv(config.dataDir) : undefined,
+        env: config.backendEnv,
         instanceId: config.instanceId,
       });
       await waitTestRunnerBackendReady(hostname, config.backendPort, 30000);
@@ -1162,16 +1141,14 @@ export default class TauriLaunchService {
     port: number,
     nativePort: number,
     env: NodeJS.ProcessEnv,
-    options?: TauriServiceOptions,
+    options: TauriServiceOptions,
   ): Promise<void> {
-    const instanceOptions = options ?? mergeOptions(this.options, undefined);
-
     await this.driverPool.startDriver({
       mode: 'multiremote',
       identifier: instanceId,
       port,
       nativePort,
-      options: instanceOptions,
+      options,
       env,
       instanceId,
     });

@@ -12,6 +12,7 @@ import { isErr } from '@wdio/native-utils';
 import { ensureTauriDriver } from './driverManager.js';
 import { forwardDriverLine } from './logForwarder.js';
 import { getWebKitWebDriverPath } from './pathResolver.js';
+import { appEnv } from './serviceConfig.js';
 import type { TauriServiceOptions } from './types.js';
 
 export type { DriverInfo };
@@ -63,7 +64,7 @@ export class DriverPool {
       driverPath: tauriDriverPath,
       nativeDriverPath: this.nativeDriverPath,
       // The driver passes its environment on to the app
-      env: { ...serviceOptions.env, ...config.env },
+      env: appEnv(serviceOptions, config.env),
       instanceId: config.instanceId,
       driverName: 'tauri-driver',
       startupMarkers: TAURI_STARTUP_MARKERS,

@@ -351,38 +351,12 @@ export interface TauriServiceOptions extends BaseServiceOptions, DriverProviderC
  * `wdio:tauriServiceOptions` overrides, plus the options only the service level takes.
  */
 export interface TauriServiceGlobalOptions extends TauriServiceOptions, BaseServiceGlobalOptions {
-  mode?: 'native' | 'browser';
-  devServerUrl?: string;
-  logLevel?: LogLevel;
   /**
    * The port for tauri-driver to listen on. Service-level only: one setting covers every driver the service starts.
    * @default 4444
    */
   tauriDriverPort?: number;
   nativeDriverPath?: string;
-  /**
-   * Path to @crabnebula/tauri-driver executable
-   * If not provided, will be auto-detected from node_modules
-   */
-  crabnebulaDriverPath?: string;
-  /**
-   * Auto-manage test-runner-backend process (macOS only)
-   * Required for macOS testing with CrabNebula
-   * @default true when driverProvider is 'crabnebula' and platform is darwin
-   */
-  crabnebulaManageBackend?: boolean;
-  /**
-   * Port for test-runner-backend (macOS only)
-   * @default 3000
-   */
-  crabnebulaBackendPort?: number;
-  /**
-   * Default window label for Tauri operations.
-   * @default 'main'
-   */
-  windowLabel?: string;
-  /** Timeout for app startup in ms. A capability-level value takes precedence. */
-  startTimeout?: number;
 }
 
 /**

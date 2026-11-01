@@ -237,7 +237,7 @@ describe('DriverPool', () => {
         env: { XDG_DATA_HOME: '/isolated' },
       });
 
-      expect(coreStartConfigs.at(-1)?.env).toEqual({ APP_FLAG: 'on', XDG_DATA_HOME: '/isolated' });
+      expect(coreStartConfigs.at(-1)?.env).toMatchObject({ APP_FLAG: 'on', XDG_DATA_HOME: '/isolated' });
     });
 
     it("should take the app's env from the pool's options when the driver has none", async () => {
@@ -246,7 +246,7 @@ describe('DriverPool', () => {
 
       await servicePool.startDriver({ mode: 'single', identifier: 'tauri-driver', port: 4444, nativePort: 4445 });
 
-      expect(coreStartConfigs.at(-1)?.env).toEqual({ APP_FLAG: 'service' });
+      expect(coreStartConfigs.at(-1)?.env).toMatchObject({ APP_FLAG: 'service' });
     });
   });
 

@@ -5,7 +5,7 @@ import { createLogger } from '@wdio/native-utils';
 import { throwIfAborted } from './errors.js';
 import { createLogCapture } from './logCapture.js';
 import { signalAndWaitForExit } from './processExit.js';
-import { resolveStartTimeout } from './serviceConfig.js';
+import { appEnv, resolveStartTimeout } from './serviceConfig.js';
 import type { TauriServiceOptions } from './types.js';
 
 const log = createLogger('tauri-service', 'launcher');
@@ -82,12 +82,7 @@ export async function startEmbeddedDriver(
 ): Promise<EmbeddedDriverInfo> {
   // Set TAURI_WEBDRIVER_PORT env var to configure the embedded server port
   // Set WDIO_EMBEDDED_SERVER to signal the app to load tauri-plugin-wdio-server
-  const env = {
-    ...process.env,
-    ...options.env,
-    TAURI_WEBDRIVER_PORT: String(port),
-    WDIO_EMBEDDED_SERVER: 'true',
-  };
+  const env = appEnv(options, { TAURI_WEBDRIVER_PORT: String(port), WDIO_EMBEDDED_SERVER: 'true' });
 
   // Spawn the app directly
   const child = spawnTauriApp(appBinaryPath, appArgs, env);

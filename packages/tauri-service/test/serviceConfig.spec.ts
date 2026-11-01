@@ -1,5 +1,5 @@
-import { describe, expect, it } from 'vitest';
-import { mergeServiceOptions, resolveStartTimeout } from '../src/serviceConfig.js';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import { appEnv, mergeServiceOptions, resolveStartTimeout } from '../src/serviceConfig.js';
 
 describe('mergeServiceOptions', () => {
   it('should let capability options override global options', () => {
@@ -54,5 +54,25 @@ describe('resolveStartTimeout', () => {
 
   it('should prefer an explicit startTimeout', () => {
     expect(resolveStartTimeout({ startTimeout: 45000 })).toBe(45000);
+  });
+});
+
+describe('appEnv', () => {
+  afterEach(() => {
+    vi.unstubAllEnvs();
+  });
+
+  it("should set the app's env over process.env, and the service's own vars over both", () => {
+    vi.stubEnv('WDIO_APP_ENV_KEPT', 'process');
+    vi.stubEnv('WDIO_APP_ENV_FLAG', 'process');
+    vi.stubEnv('WDIO_APP_ENV_DIR', 'process');
+
+    const env = appEnv({ env: { WDIO_APP_ENV_FLAG: 'app', WDIO_APP_ENV_DIR: 'app' } }, { WDIO_APP_ENV_DIR: 'service' });
+
+    expect(env).toMatchObject({ WDIO_APP_ENV_KEPT: 'process', WDIO_APP_ENV_FLAG: 'app', WDIO_APP_ENV_DIR: 'service' });
+  });
+
+  it('should return process.env as is without an app env or service vars', () => {
+    expect(appEnv(undefined)).toEqual({ ...process.env });
   });
 });
