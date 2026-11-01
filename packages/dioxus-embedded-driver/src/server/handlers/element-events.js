@@ -191,9 +191,8 @@ function wdioTabKey(event) {
     left = true;
   };
   start.addEventListener('blur', onBlur, true);
-  // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on to the next.
-  // A focus event on the stop counts as taking focus, even when a handler, like a focus trap's, sends
-  // it back.
+  // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on. A focus event
+  // on the stop counts as taking focus, even if a handler, like a focus trap's, sends it back.
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
     // Chrome selects a text field's value as Tab focuses it: after the field focus leaves fires its
     // events, which may set the value, and before the field's own focus handlers, which may move the
