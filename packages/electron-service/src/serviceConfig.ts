@@ -71,7 +71,10 @@ export abstract class ServiceConfig {
 
   // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
   protected instanceOptions(instanceCaps?: WebdriverIO.Capabilities): ElectronServiceGlobalOptions {
-    return { ...this.#globalOptions, ...instanceCaps?.[CUSTOM_CAPABILITY_NAME] };
+    const instanceOptions = Object.fromEntries(
+      Object.entries(instanceCaps?.[CUSTOM_CAPABILITY_NAME] ?? {}).filter(([, value]) => value !== undefined),
+    );
+    return { ...this.#globalOptions, ...instanceOptions };
   }
 
   get browser(): WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser | undefined {

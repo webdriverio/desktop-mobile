@@ -88,6 +88,14 @@ describe('ServiceConfig', () => {
       expect(config.instanceOptions({ browserName: 'chrome' })).toStrictEqual({ captureMainProcessLogs: true });
       expect(config.instanceOptions()).toStrictEqual({ captureMainProcessLogs: true });
     });
+
+    it('should keep the service-level value for an option an instance sets to undefined', () => {
+      const config = new MockServiceConfig({ mode: 'browser', restoreMocks: true }, {});
+
+      expect(
+        config.instanceOptions({ 'wdio:electronServiceOptions': { mode: undefined, restoreMocks: undefined } }),
+      ).toStrictEqual({ mode: 'browser', restoreMocks: true });
+    });
   });
 
   describe('userDataDir extraction', () => {
