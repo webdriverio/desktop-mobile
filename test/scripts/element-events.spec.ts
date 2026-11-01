@@ -617,6 +617,17 @@ describe('Tab', () => {
     expect(log.filter((entry) => entry.startsWith('focus'))).toEqual(['focus a=', 'focus guard=g', 'focus z=']);
   });
 
+  it('should select an email or number input once Tab has focused it, as they have no selection API', () => {
+    render('<input id="a"><input id="e" type="email" value="a@b.c"><input id="n" type="number" value="42">');
+    const selected: string[] = [];
+    vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
+      selected.push(`${this.id} focused=${document.activeElement === this}`);
+    });
+    $('#a').focus();
+    tabs(2);
+    expect(selected).toEqual(['e focused=true', 'n focused=true']);
+  });
+
   it('should leave the caret where the focus handler of the text field Tab moves to puts it', () => {
     render('<input id="a"><input id="ph" value="+1 ">');
     $('#ph').addEventListener('focus', () => $('#ph').setSelectionRange(3, 3));
