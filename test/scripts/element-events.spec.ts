@@ -3,7 +3,7 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
 
 // jsdom has no delegatesFocus, so the E2E specs cover shadow hosts that keep focus.
 const REPO_ROOT = join(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -463,6 +463,11 @@ describe('Enter and Space on a button', () => {
 });
 
 describe('Tab', () => {
+  afterEach(() => {
+    document.body.removeAttribute('tabindex');
+    Reflect.deleteProperty(document.body, 'matches');
+  });
+
   function focused() {
     let el = document.activeElement;
     while (el?.shadowRoot?.activeElement) {
@@ -518,6 +523,16 @@ describe('Tab', () => {
     $('#h1').attachShadow({ mode: 'open' }).innerHTML = '<slot><input id="fallback"></slot>';
     $('#h2').attachShadow({ mode: 'open' }).innerHTML = '<input id="h2-a"><slot tabindex="-1"></slot>';
     expect(events.wdioTabStops(document.body).stops.map((stop) => stop.id)).toEqual(['ed', 'au', 'fallback', 'h2-a']);
+  });
+
+  it('should go through a form whose controls hide its own properties', () => {
+    render('<input id="a"><form id="f"><input id="kids" name="children"><input id="e"></form><input id="z">');
+    // Browsers make named controls properties of the form, hiding its own. jsdom doesn't.
+    for (const name of ['children', 'matches', 'hasAttribute']) {
+      Object.defineProperty($('#f'), name, { value: $('#kids') });
+    }
+    $('#a').focus();
+    expect(tabs(3)).toEqual(['kids', 'e', 'z']);
   });
 
   it('should go through open shadow roots and slots, with focus-delegating hosts no stop themselves', () => {
@@ -580,6 +595,14 @@ describe('Tab', () => {
     expect([$('#t').selectionStart, $('#t').selectionEnd]).toEqual([0, 0]);
   });
 
+  it('should leave the caret where the focus handler of the text field Tab moves to puts it', () => {
+    render('<input id="a"><input id="ph" value="+1 ">');
+    $('#ph').addEventListener('focus', () => $('#ph').setSelectionRange(3, 3));
+    $('#a').focus();
+    tab();
+    expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
+  });
+
   it.each([
     ['moving focus', '<input id="a"><input id="b">'],
     ['leaving the page', '<input id="a">'],
@@ -624,9 +647,7 @@ describe('Tab', () => {
     document.body.focus();
     const forward = tab();
     document.body.focus();
-    const backward = tab({ shiftKey: true });
-    document.body.removeAttribute('tabindex');
-    expect([forward, backward]).toEqual(['a', 'body']);
+    expect([forward, tab({ shiftKey: true })]).toEqual(['a', 'body']);
   });
 
   it('should start at the first stop with nothing focused, even when the body is a stop', () => {
@@ -639,10 +660,7 @@ describe('Tab', () => {
     });
     const forward = tab();
     $('#p').blur();
-    const backward = tab({ shiftKey: true });
-    Reflect.deleteProperty(document.body, 'matches');
-    document.body.removeAttribute('tabindex');
-    expect([forward, backward]).toEqual(['p', 'b']);
+    expect([forward, tab({ shiftKey: true })]).toEqual(['p', 'b']);
   });
 
   it('should keep focus within a modal dialog', () => {
@@ -706,6 +724,9 @@ describe('Tab', () => {
     expect(tabs(2)).toEqual(['y', 'body']);
     $('#y').focus();
     expect(tab({ shiftKey: true })).toBe('x');
+    $('#y').remove();
+    $('#x').focus();
+    expect(tab()).toBe('body');
   });
 });
 

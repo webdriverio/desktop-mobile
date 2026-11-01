@@ -76,8 +76,8 @@ function wdioFocus(el, focus = el.focus) {
   wdioFlushPendingChange();
 }
 
-// The browser's own focus() for `el`: the one furthest up its prototype chain, past any that a page or
-// component defines.
+// The focus() of the element's built-in prototype, such as HTMLElement's or SVGElement's, past any that
+// a component or the element itself defines.
 function wdioNativeFocus(el) {
   let focus;
   for (let proto = Object.getPrototypeOf(el); proto; proto = Object.getPrototypeOf(proto)) {
@@ -188,6 +188,10 @@ function wdioTabKey(event) {
   // it back. As in a browser, Tab never calls a focus() the page defines.
   const start = wdioDeepActiveElement();
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
+    // Chrome selects a text field's value as Tab focuses it, so a focus handler can still place the caret.
+    if (candidate.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(candidate.type)) {
+      candidate.select();
+    }
     let focused = false;
     const onFocus = () => {
       focused = true;
@@ -200,10 +204,6 @@ function wdioTabKey(event) {
   if (!next) {
     wdioDeepActiveElement().blur();
     wdioFlushPendingChange();
-    return;
-  }
-  if (wdioDeepActiveElement() === next && next.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(next.type)) {
-    next.select();
   }
 }
 
@@ -245,7 +245,7 @@ function wdioTabStops(current) {
     const visit = (el) => {
       treeOrder.set(el, treeOrder.size);
       const style = getComputedStyle(el);
-      if (el.hasAttribute('inert') || style.display === 'none') {
+      if (wdioHasAttribute(el, 'inert') || style.display === 'none') {
         return;
       }
       if (wdioModal(el)) {
@@ -287,10 +287,10 @@ function wdioTabStops(current) {
 
 // The element's tabindex value, or -1 if it can't take focus.
 function wdioTabIndex(el) {
-  if (el.matches(':disabled')) {
+  if (Element.prototype.matches.call(el, ':disabled')) {
     return -1;
   }
-  if (el.hasAttribute('tabindex')) {
+  if (wdioHasAttribute(el, 'tabindex')) {
     return el.tabIndex ?? -1;
   }
   switch (el.localName) {
@@ -328,7 +328,17 @@ function wdioRenderedChildren(el) {
     const summary = wdioSummary(el);
     return summary ? [summary] : [];
   }
-  return el.children;
+  return wdioChildren(el);
+}
+
+// The Tab walk reads elements through Element.prototype, as a form's named controls hide its own
+// properties: a control named "children" is `form.children`.
+function wdioChildren(el) {
+  return Object.getOwnPropertyDescriptor(Element.prototype, 'children').get.call(el);
+}
+
+function wdioHasAttribute(el, name) {
+  return Element.prototype.hasAttribute.call(el, name);
 }
 
 function wdioSummary(details) {
