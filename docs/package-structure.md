@@ -146,7 +146,7 @@ The `wdio-` prefix is used rather than `dioxus-` to leave the `dioxus-*` namespa
     }
   },
   "engines": {
-    "node": ">=22.19.0"
+    "node": ">=22.23.4 <23 || >=24.22.1 <25 || >=26.12.1"
   },
   "scripts": {
     "build": "pnpm build:esm && pnpm build:cjs",

@@ -18,6 +18,8 @@ runs:
       uses: actions/setup-node@v6
       with:
         node-version: ${{ inputs.node-version }}
+        # The runner's cached Node can predate the packages' engines floor.
+        check-latest: true
         # Store cache keyed on the lockfile. Safe w.r.t. the @wdio/utils `file:` tarball
         # override: it is applied only by test-package.ts, inside its isolated sandbox
         # install, so the root lockfile never references the mutable tarball and this

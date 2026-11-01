@@ -63,6 +63,8 @@ jobs:
         uses: actions/setup-node@v7
         with:
           node-version-file: ".nvmrc"
+          # The runner's cached Node can predate the packages' engines floor.
+          check-latest: true
           cache: "pnpm"
       - name: Install workspace deps
         run: pnpm install --frozen-lockfile --filter @wdio/dioxus-bridge

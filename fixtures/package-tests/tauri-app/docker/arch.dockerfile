@@ -21,7 +21,7 @@ RUN pacman -Syu --noconfirm && \
     pacman -Scc --noconfirm
 
 # Install Node.js 24 LTS from official binaries (pinned for repeatable builds)
-RUN NODE_VERSION="24.11.0" && \
+RUN NODE_VERSION="24.22.1" && \
     curl -fsSL "https://nodejs.org/dist/v${NODE_VERSION}/node-v${NODE_VERSION}-linux-x64.tar.xz" \
         -o /tmp/node.tar.xz && \
     tar -xJf /tmp/node.tar.xz -C /usr/local --strip-components=1 && \
