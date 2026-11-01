@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import { dirname } from 'node:path';
 
 import { MultiTargetCdpBridge as CdpBridge } from '@wdio/native-cdp-bridge';
-import { forEachInstance } from '@wdio/native-core';
+import { forEachInstance, type InstanceContext } from '@wdio/native-core';
 import type { ElectrobunServiceAPI } from '@wdio/native-types';
 import { createLogger, errorMessage, isMultiremote, runBounded } from '@wdio/native-utils';
 
@@ -13,7 +13,8 @@ import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import { DEFAULT_REMOTE_DEBUGGING_PORT, SERVICE_NAME } from './constants.js';
 import { ElectrobunMockStore } from './mockStore.js';
-import type { ElectrobunServiceOptions } from './types.js';
+import { getServiceOptionsFromCapability, mergeServiceOptions } from './serviceConfig.js';
+import type { ElectrobunCapabilities, ElectrobunServiceOptions } from './types.js';
 import { createWebDriverEvalBridge, installConsoleShim, type WebDriverEvalBridge } from './webdriverEval.js';
 
 const log = createLogger(SERVICE_NAME, 'service');
@@ -52,36 +53,51 @@ export default class ElectrobunWorkerService {
     log.debug('ElectrobunWorkerService initialised');
   }
 
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  private instanceOptions({ caps }: InstanceContext): ElectrobunServiceOptions {
+    return mergeServiceOptions(
+      this.options,
+      getServiceOptionsFromCapability(caps as ElectrobunCapabilities | undefined),
+    );
+  }
+
   async before(
     capabilities: unknown,
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
     log.info(
-      `before() — mode=${this.options.mode === 'browser' ? 'browser' : 'native'} ` +
-        `multiremote=${isMultiremote(browser)} ` +
+      `before() — multiremote=${isMultiremote(browser)} ` +
         `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
 
-    // Browser mode: the frontend runs in a plain Chrome session against a dev
-    // server — no CEF, no CDP side-channel. The electrobun surface is not
-    // installed (execute/mock have no in-app target to drive). Keyed on `mode`,
-    // the same criterion the launcher uses — a stray devServerUrl without
-    // mode: 'browser' must not skip the attach while the launcher spawns natively.
-    if (this.options.mode === 'browser') {
-      log.info('Browser mode — skipping CDP bridge attach');
-      return;
-    }
-
-    await forEachInstance(browser, (instance, { caps }) => this.attachInstance(instance, caps), capabilities);
-    if (isMultiremote(browser)) {
+    let attached = false;
+    await forEachInstance(
+      browser,
+      (instance, context) => {
+        // Browser mode: the frontend runs in a plain Chrome session against a dev
+        // server — no CEF, no CDP side-channel. The electrobun surface is not
+        // installed (execute/mock have no in-app target to drive). Keyed on `mode`,
+        // the same criterion the launcher uses — a stray devServerUrl without
+        // mode: 'browser' must not skip the attach while the launcher spawns natively.
+        if (this.instanceOptions(context).mode === 'browser') {
+          log.info('Browser mode — skipping CDP bridge attach');
+          return;
+        }
+        attached = true;
+        return this.attachInstance(instance, context);
+      },
+      capabilities,
+    );
+    if (attached && isMultiremote(browser)) {
       // Root fan-out isn't wired yet — install a guided-error stub so `browser.electrobun.*` on the
       // multiremote root fails with direction to per-instance access, not a raw TypeError.
       installRootMultiremoteGuard(browser);
     }
   }
 
-  private async attachInstance(browser: WebdriverIO.Browser, capabilities: unknown): Promise<void> {
+  private async attachInstance(browser: WebdriverIO.Browser, context: InstanceContext): Promise<void> {
+    const capabilities = context.caps;
     // Linux/W3C: no CDP side-channel — the WDIO session IS the WebKitWebDriver session, flagged
     // by the launcher's `webkitgtk:browserOptions` cap.
     const w3cOptions = (capabilities as { 'webkitgtk:browserOptions'?: { binary?: string } } | undefined)?.[
@@ -113,12 +129,13 @@ export default class ElectrobunWorkerService {
     const { host, port } = parseDebuggerAddress(debuggerAddress);
     log.info(`Attaching CDP bridge to ${host}:${port}`);
 
+    const options = this.instanceOptions(context);
     const bridge = new CdpBridge({
       host,
       port,
-      timeout: this.options.cdpConnectionTimeout,
-      waitInterval: this.options.cdpConnectionRetryInterval,
-      connectionRetryCount: this.options.cdpConnectionRetryCount,
+      timeout: options.cdpConnectionTimeout,
+      waitInterval: options.cdpConnectionRetryInterval,
+      connectionRetryCount: options.cdpConnectionRetryCount,
       classifyTarget,
     });
     try {
