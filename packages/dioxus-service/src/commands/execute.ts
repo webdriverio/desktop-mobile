@@ -99,13 +99,14 @@ export async function runInterceptorScript<T>(browser: WebdriverIO.Browser, scri
       'function (e) { return { __wdio_error__: e instanceof Error ? e.message : String(e) }; })',
   );
   // The multiremote root runs the script in every instance and returns one envelope each.
-  const envelopes: unknown[] = Array.isArray(raw) ? raw : [raw];
-  for (const envelope of envelopes) {
-    if (envelope !== null && typeof envelope === 'object' && '__wdio_error__' in envelope) {
-      throw new Error(String(envelope.__wdio_error__));
-    }
+  return (Array.isArray(raw) ? raw.map(unwrapOrThrow) : unwrapOrThrow(raw)) as T;
+}
+
+function unwrapOrThrow(envelope: unknown): unknown {
+  if (envelope !== null && typeof envelope === 'object' && '__wdio_error__' in envelope) {
+    throw new Error(String(envelope.__wdio_error__));
   }
-  return (Array.isArray(raw) ? raw.map((r) => unwrapEnvelope(r)) : unwrapEnvelope(raw)) as T;
+  return unwrapEnvelope(envelope);
 }
 
 // The envelope tells undefined from null: JSON drops an undefined property, so `{}` means undefined.
