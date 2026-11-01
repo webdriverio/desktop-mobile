@@ -14,7 +14,7 @@ use super::element::ELEMENT_EVENTS_JS;
 
 /// JS dispatching one keydown or keyup of a WebDriver key value and running its default action,
 /// picking the script as the Tauri driver's `dispatch_key_event` does.
-pub fn key_script(key: &str, is_down: bool, modifiers: &ModifierState) -> String {
+pub(super) fn key_script(key: &str, is_down: bool, modifiers: &ModifierState) -> String {
   match map_special_key(key) {
     Some((js_key, js_code, key_code)) if is_printable_key(js_key) => {
       build_printable_key_script(js_key, js_code, key_code, is_down, modifiers)
