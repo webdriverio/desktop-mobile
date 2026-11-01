@@ -806,6 +806,22 @@ describe('Tab', () => {
     });
   });
 
+  it('should stay on a field whose blur or change handler sends focus back to it', () => {
+    render('<input id="qty"><input id="name"><input id="email">');
+    // jsdom doesn't block a focus move that a blur handler undoes. Chrome and WebKit do: the field blurs,
+    // its handler refocuses it, and focus stays.
+    const focus = HTMLElement.prototype.focus;
+    vi.spyOn(HTMLElement.prototype, 'focus').mockImplementation(function (this: HTMLElement) {
+      if (this.id === 'name') {
+        $('#qty').dispatchEvent(new FocusEvent('blur'));
+      } else {
+        focus.call(this);
+      }
+    });
+    $('#qty').focus();
+    expect(tab()).toBe('qty');
+  });
+
   it('should leave the page through the built-in blur(), never one the page defines', () => {
     render('<input id="a"><input id="z">');
     $('#z').blur = () => {};

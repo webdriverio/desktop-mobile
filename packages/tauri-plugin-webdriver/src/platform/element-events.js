@@ -187,6 +187,13 @@ function wdioTabKey(event) {
   // A focus event on the stop counts as taking focus, even when a handler, like a focus trap's, sends
   // it back. As in a browser, Tab never calls a focus() or blur() the page defines.
   const start = wdioDeepActiveElement();
+  // A blur or change handler that sends focus back to the field Tab leaves makes the engine block the
+  // move, and Tab is done, as in Chrome. A stop that won't take focus never blurs the field.
+  let left = false;
+  const onBlur = () => {
+    left = true;
+  };
+  start.addEventListener('blur', onBlur, true);
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
     // Chrome selects a text field's value as Tab focuses it: after the field focus leaves fires its
     // events, which may change the value, and before any focus listener, which may place the caret or
@@ -217,8 +224,9 @@ function wdioTabKey(event) {
     if (isTextField && !focused) {
       select();
     }
-    return focused || wdioDeepActiveElement() !== start;
+    return focused || left || wdioDeepActiveElement() !== start;
   });
+  start.removeEventListener('blur', onBlur, true);
   if (!next) {
     const active = wdioDeepActiveElement();
     wdioNativeMethod(active, 'blur').call(active);
