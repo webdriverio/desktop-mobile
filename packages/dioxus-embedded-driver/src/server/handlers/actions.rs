@@ -389,7 +389,7 @@ pub(super) fn single_char(key: &str) -> Option<char> {
 }
 
 /// The `(code, keyCode, shifted)` of the US-keyboard key that types `ch`.
-fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
+pub(super) fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
   if ch.is_ascii_alphabetic() {
     let upper = ch.to_ascii_uppercase();
     return Some((format!("Key{upper}"), upper as u32, ch.is_ascii_uppercase()));

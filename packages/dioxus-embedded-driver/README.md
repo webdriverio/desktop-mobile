@@ -92,6 +92,8 @@ Key events go to the focused element, even one inside an open shadow root. Unles
 
 Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it. It does send them for special keys, newlines and backspace characters, and for text typed while Control, Alt or Meta is held, so `addValue('x' + Key.Enter)` types `x`, then presses Enter. Element Send Keys types only into a text field or contenteditable, and refuses a file input.
 
+While Shift is held, a key sends and types the character Shift gives it on a US keyboard, as in Chrome: `browser.keys([Key.Shift, 'a', '1', ';'])` sends `key: 'A'`, `'!'` and `':'` and types `A!:`, and `addValue(Key.Shift + 'a1;')` types `A!:` too. The `code` and `keyCode` stay those of the key, and the numpad keys don't change.
+
 Unless a `keydown` handler cancels it, Enter acts as in Chrome, on the element focused after the `keydown`:
 - In a textarea or contenteditable, it breaks the line.
 - In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form:

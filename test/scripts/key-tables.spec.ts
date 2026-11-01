@@ -13,6 +13,8 @@ const DIOXUS_COPIES = {
   ],
   'packages/dioxus-embedded-driver/src/server/handlers/key_input.rs': [
     'fn is_printable_key',
+    'fn shift_text',
+    'fn shifted_char',
     'fn js_string',
     'fn deep_active_element_js',
     'fn text_field_types_js',
