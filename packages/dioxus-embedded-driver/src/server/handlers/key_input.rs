@@ -1,5 +1,5 @@
 //! Key events and their default actions. Synthetic key events have none, so after an uncanceled
-//! keydown the driver types, deletes or breaks the line itself.
+//! keydown the driver types, deletes, breaks the line or moves focus itself.
 
 use std::collections::BTreeSet;
 
