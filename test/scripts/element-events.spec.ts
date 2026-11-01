@@ -617,7 +617,7 @@ describe('Tab', () => {
     expect(log.filter((entry) => entry.startsWith('focus'))).toEqual(['focus a=', 'focus guard=g', 'focus z=']);
   });
 
-  it('should select an email or number input once Tab has focused it, as they have no selection API', () => {
+  it('should select email and number inputs too, though they have no selection API', () => {
     render('<input id="a"><input id="e" type="email" value="a@b.c"><input id="n" type="number" value="42">');
     const selected: string[] = [];
     vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
@@ -626,6 +626,16 @@ describe('Tab', () => {
     $('#a').focus();
     tabs(2);
     expect(selected).toEqual(['e focused=true', 'n focused=true']);
+  });
+
+  it("should select the next text field's value after the field focus leaves fires its change", () => {
+    render('<input id="zip"><input id="city">');
+    $('#zip').addEventListener('change', () => {
+      $('#city').value = 'Shelbyville';
+    });
+    type($('#zip'), '1');
+    tab();
+    expect([$('#city').selectionStart, $('#city').selectionEnd]).toEqual([0, 11]);
   });
 
   it('should leave the caret where the focus handler of the text field Tab moves to puts it', () => {
@@ -749,6 +759,13 @@ describe('Tab', () => {
     $('#host').focus = () => (root.querySelector('#inner') as HTMLElement).focus();
     $('#a').focus();
     expect(tabs(3)).toEqual(['host', 'inner', 'z']);
+  });
+
+  it('should leave the page through the built-in blur(), never one the page defines', () => {
+    render('<input id="a"><input id="z">');
+    $('#z').blur = () => {};
+    $('#z').focus();
+    expect(tab()).toBe('body');
   });
 
   it("should pass Tab on from a stop the page won't focus", () => {

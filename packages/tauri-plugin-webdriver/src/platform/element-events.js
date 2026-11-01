@@ -76,14 +76,14 @@ function wdioFocus(el, focus = el.focus) {
   wdioFlushPendingChange();
 }
 
-// The focus() of the element's built-in prototype, such as HTMLElement's or SVGElement's, past any that
-// a component or the element itself defines.
-function wdioNativeFocus(el) {
-  let focus;
+// The element's built-in method, such as HTMLElement's or SVGElement's focus(), past any that a
+// component or the element itself defines.
+function wdioNativeMethod(el, name) {
+  let method;
   for (let proto = Object.getPrototypeOf(el); proto; proto = Object.getPrototypeOf(proto)) {
-    focus = Object.getOwnPropertyDescriptor(proto, 'focus')?.value ?? focus;
+    method = Object.getOwnPropertyDescriptor(proto, name)?.value ?? method;
   }
-  return focus;
+  return method;
 }
 
 // A field the page has removed fires nothing, as its component may be gone.
@@ -185,33 +185,34 @@ function wdioTabKey(event) {
   }
   // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on to the next.
   // A focus event on the stop counts as taking focus, even when a handler, like a focus trap's, sends
-  // it back. As in a browser, Tab never calls a focus() the page defines.
+  // it back. As in a browser, Tab never calls a focus() or blur() the page defines.
   const start = wdioDeepActiveElement();
-  const isTextField = (el) => el.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(el.type);
-  // Email and number inputs have no selection API.
-  const hasSelectionApi = (el) => el.type !== 'email' && el.type !== 'number';
   const next = wdioTabCandidates(event.shiftKey, start).find((candidate) => {
-    // Chrome selects a text field's value as Tab focuses it, so a focus handler can still place the
-    // caret. The selection is set before focusing, as select() itself focuses the field in Chromium.
-    if (isTextField(candidate) && hasSelectionApi(candidate)) {
-      HTMLInputElement.prototype.setSelectionRange.call(candidate, 0, candidate.value.length);
-    }
+    // Chrome selects a text field's value as Tab focuses it: after the field focus leaves fires its
+    // events, which may change the value, and before the new field's focus handlers, which may place
+    // the caret. Once the field has focus, select() doesn't focus it again.
+    const isTextField = candidate.tagName === 'INPUT' && WDIO_TEXT_FIELD_TYPES.includes(candidate.type);
+    const select = () => HTMLInputElement.prototype.select.call(candidate);
     let focused = false;
     const onFocus = () => {
       focused = true;
+      if (isTextField) {
+        select();
+      }
     };
     candidate.addEventListener('focus', onFocus, true);
-    wdioFocus(candidate, wdioNativeFocus(candidate));
+    wdioFocus(candidate, wdioNativeMethod(candidate, 'focus'));
     candidate.removeEventListener('focus', onFocus, true);
+    // A window without focus may fire no focus event, so the field is selected once it has focus.
+    if (isTextField && !focused && wdioDeepActiveElement() === candidate) {
+      select();
+    }
     return focused || wdioDeepActiveElement() !== start;
   });
   if (!next) {
-    wdioDeepActiveElement().blur();
+    const active = wdioDeepActiveElement();
+    wdioNativeMethod(active, 'blur').call(active);
     wdioFlushPendingChange();
-    return;
-  }
-  if (wdioDeepActiveElement() === next && isTextField(next) && !hasSelectionApi(next)) {
-    HTMLInputElement.prototype.select.call(next);
   }
 }
 
