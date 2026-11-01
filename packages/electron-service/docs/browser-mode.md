@@ -339,7 +339,7 @@ await mock.mockRestore();
 
 ## Multiremote
 
-Each named multiremote instance gets its own isolated mock registry. Mocking the same channel on two instances is safe; they do not share `window.__wdio_mocks__`. `clearAllMocks()`, `resetAllMocks()` and `restoreAllMocks()` on an instance only touch that instance's mocks; on the root they cover every instance. Each instance's `clearMocks`, `resetMocks` and `restoreMocks` apply to its own mocks.
+Each named multiremote instance gets its own isolated mock registry. Mocking the same channel on two instances is safe; they do not share `window.__wdio_mocks__`.
 
 _`wdio.conf.ts`_
 

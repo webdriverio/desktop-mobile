@@ -276,9 +276,9 @@ async function batchUpdateNativeMocks(
  * round-trip against window.__wdio_mocks__. Each channel's read script is
  * built by the interceptor (same serialisation contract as per-mock update()),
  * then the batch wrapper invokes them inside one round-trip. Ids and scripts
- * are passed as WebDriver args so mock names don't ride a
- * source-string boundary. Raw payloads run through parseCallData() per mock
- * to reconstruct Error markers, then go to __applyCalls.
+ * are passed as WebDriver args, not spliced into the script source. Raw
+ * payloads run through parseCallData() per mock to reconstruct Error markers,
+ * then go to __applyCalls.
  */
 async function batchUpdateBrowserModeMocks(
   browser: WebdriverIO.Browser,
