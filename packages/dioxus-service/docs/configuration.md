@@ -34,7 +34,7 @@ appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',    // debug build (d
 appBinaryPath: './target/dx/my_app/release/linux/app/my_app',  // release build (driver and bridge inactive)
 ```
 
-**Default:** Auto-detected from `dioxus:options.application` capability if not provided.
+**Default:** none. A capability's `'dioxus:options'.application` takes precedence over it, and one of the two must be set.
 
 **Note:** For testing, always use a debug build (`dx build --desktop` without `--release`) so the driver and bridge are compiled in. See [Finding Your Binary Path](#finding-your-binary-path) for the location on each platform. Other examples on this page use `./target/debug/my_app` for brevity; that's where `cargo build` puts the binary, which only works for apps that don't load files with `asset!()`.
 
@@ -44,7 +44,7 @@ appBinaryPath: './target/dx/my_app/release/linux/app/my_app',  // release build 
 
 Command-line arguments to pass to the Dioxus application when launching. Each array element is a separate argument — no shell parsing is applied.
 
-A capability's `'dioxus:options'.args` replaces this list for that capability. The two lists are not merged.
+A capability's `'dioxus:options'.args` replaces this list, even when it's empty.
 
 **Example:**
 ```typescript
