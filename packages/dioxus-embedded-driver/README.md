@@ -134,8 +134,6 @@ Unlike in Chrome, Tab:
 - Stops once on a date or time input. Chrome stops on each of its fields.
 - Differs in the cases [#929](https://github.com/webdriverio/desktop-mobile/issues/929) tracks, such as from inside a host with `tabindex="-1"`, or with two modal dialogs open.
 
-The driver uses Chrome's order on every platform. On macOS, the app's own webview skips links on Tab, and skips buttons and other controls unless Keyboard navigation is on in System Settings, so a user's Tab can stop on fewer elements.
-
 One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The W3C tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 
 ## See Also

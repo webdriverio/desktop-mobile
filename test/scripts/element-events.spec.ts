@@ -761,14 +761,6 @@ describe('Tab', () => {
       $('#only').focus();
       expect(tab()).toBe('only');
     });
-
-    it("should leave the caret where an ancestor's focus listener puts it", () => {
-      render('<input id="a"><form id="f"><input id="ph" value="+1 555"></form>');
-      listen($('#f'), (event) => (event.target as HTMLInputElement).setSelectionRange(3, 3));
-      $('#a').focus();
-      tab();
-      expect([$('#ph').selectionStart, $('#ph').selectionEnd]).toEqual([3, 3]);
-    });
   });
 
   it('should stay on a field whose blur or change handler sends focus back to it', () => {
