@@ -233,6 +233,10 @@ export interface ElectronServiceGlobalOptions
     | 'restoreMocksPrefix'
   > {
   /**
+   * Root directory of the project
+   */
+  rootDir?: string;
+  /**
    * The path to the electron binary of the app for testing.
    */
   appBinaryPath?: string;
