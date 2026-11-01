@@ -538,12 +538,22 @@ interface TauriCapabilities extends WebdriverIO.Capabilities {
   'tauri:options'?: {
     application: string;
     args?: string[];
-    webviewOptions?: {
-      width?: number;
-      height?: number;
-    };
+    webviewOptions?: TauriWebviewOptions;
   };
   'wdio:tauriServiceOptions'?: TauriServiceOptions;
+}
+```
+
+### `TauriWebviewOptions`
+
+WebView2 environment options, used only with the `'external'` provider on Windows. See [`webviewOptions`](./configuration.md#webviewoptions-windows-external-provider).
+
+```typescript
+interface TauriWebviewOptions {
+  browserExecutableFolder?: string;
+  userDataFolder?: string;
+  additionalBrowserArguments?: string[];
+  releaseChannelPreference?: 'stable' | 'canary';
 }
 ```
 
