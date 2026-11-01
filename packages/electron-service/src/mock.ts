@@ -8,26 +8,11 @@ import type {
   ElectronType,
   ExecuteOpts,
 } from '@wdio/native-types';
-import { createLogger } from '@wdio/native-utils';
+import { createLogger, runThenSync } from '@wdio/native-utils';
 import { buildMockMethods, type MockApplyData, type MockReadAccessor } from './mockFactory.js';
 
 const log = createLogger('electron-service', 'mock');
 const browserInterceptor = createIpcInterceptor('electron');
-
-// Syncs even when `run` rejects, so the mock records the calls made before the failure.
-async function runThenSync<T>(mock: ElectronFunctionMock, run: () => Promise<T>): Promise<T> {
-  let result: T;
-  try {
-    result = await run();
-  } catch (error) {
-    await mock
-      .update()
-      .catch((syncError: unknown) => log.warn('Mock sync failed after withImplementation rejected:', syncError));
-    throw error;
-  }
-  await mock.update();
-  return result;
-}
 
 export async function createMock(
   apiName: string,
