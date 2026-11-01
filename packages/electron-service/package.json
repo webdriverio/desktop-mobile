@@ -67,7 +67,7 @@
     }
   },
   "dependencies": {
-    "@babel/parser": "^8.0.8",
+    "@babel/parser": "^8.0.10",
     "@electron/fuses": "^2.1.3",
     "@electron/packager": "^20.3.0",
     "@wdio/native-cdp-bridge": "workspace:*",
@@ -77,8 +77,8 @@
     "compare-versions": "^6.1.1",
     "debug": "^4.4.3",
     "deepmerge-ts": "^8.0.2",
-    "electron-to-chromium": "^1.5.464",
-    "fast-copy": "^4.2.0",
+    "electron-to-chromium": "^1.5.467",
+    "fast-copy": "^4.3.1",
     "find-versions": "^6.0.0",
     "get-port": "^7.1.0",
     "puppeteer-core": "^25.16.0",
