@@ -1,3 +1,4 @@
+import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { ElectronMock } from '@wdio/native-types';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import mockStore from '../../src/mockStore.js';
@@ -415,5 +416,48 @@ describe('browser mode — navigation lifecycle', () => {
     } finally {
       process.off('unhandledRejection', onRejection);
     }
+  });
+});
+
+describe('browser mode — set per multiremote instance', () => {
+  afterEach(() => {
+    mockStore.clear();
+  });
+
+  function createInstance(devServerUrl: string) {
+    const caps = { browserName: 'chrome', 'wdio:electronServiceOptions': { mode: 'browser' as const, devServerUrl } };
+    return Object.assign(createFakeBrowser(), { requestedCapabilities: caps });
+  }
+
+  it('should navigate each instance to its dev server and intercept its IPC', async () => {
+    const browserA = createInstance('http://localhost:5173');
+    const browserB = createInstance('http://localhost:5174');
+    const instances = { browserA, browserB };
+    const root = Object.assign(createFakeBrowser(), {
+      isMultiremote: true,
+      instances: Object.keys(instances),
+      getInstance: (name: keyof typeof instances) => instances[name],
+    });
+    const capabilities = {
+      browserA: { capabilities: browserA.requestedCapabilities },
+      browserB: { capabilities: browserB.requestedCapabilities },
+    } as unknown as WebdriverIO.Capabilities;
+    const service = new ElectronWorkerService({}, capabilities);
+
+    await service.before(capabilities, [], root as unknown as WebdriverIO.MultiRemoteBrowser);
+
+    const injectionScript = createIpcInterceptor('electron').buildBrowserIpcInjectionScript();
+    expect(browserA.url).toHaveBeenCalledWith('http://localhost:5173');
+    expect(browserB.url).toHaveBeenCalledWith('http://localhost:5174');
+    expect(browserA.execute).toHaveBeenCalledWith(injectionScript);
+    expect(browserB.execute).toHaveBeenCalledWith(injectionScript);
+
+    browserA.execute.mockClear();
+    browserB.execute.mockClear();
+    const mock = await (browserA as unknown as WebdriverIO.Browser).electron.mock('appInfo:get');
+
+    expect(mock.getMockName()).toBe('electron.appInfo:get');
+    expect(browserA.execute).toHaveBeenCalled();
+    expect(browserB.execute).not.toHaveBeenCalled();
   });
 });

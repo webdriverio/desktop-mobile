@@ -43,7 +43,7 @@ export abstract class ServiceConfig {
    * @param capabilities - WebDriver capabilities
    * @returns The user data directory path, or undefined if not found
    */
-  private extractUserDataDir(capabilities: WebdriverIO.Capabilities): string | undefined {
+  protected extractUserDataDir(capabilities: WebdriverIO.Capabilities): string | undefined {
     const chromeOptions = capabilities['goog:chromeOptions'];
     if (!chromeOptions || typeof chromeOptions !== 'object') {
       return undefined;
@@ -65,6 +65,11 @@ export abstract class ServiceConfig {
 
   get globalOptions(): ElectronServiceGlobalOptions {
     return this.#globalOptions;
+  }
+
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  protected instanceOptions(instanceCaps?: WebdriverIO.Capabilities): ElectronServiceGlobalOptions {
+    return { ...this.#globalOptions, ...instanceCaps?.[CUSTOM_CAPABILITY_NAME] };
   }
 
   get browser(): WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser | undefined {

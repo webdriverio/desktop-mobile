@@ -393,6 +393,8 @@ Output:
 [Electron:MainProcess:app2] App 2 started
 ```
 
+Each instance's `captureMainProcessLogs`, `captureRendererLogs`, `mainProcessLogLevel` and `rendererLogLevel` override the service-level values one at a time. An option an instance doesn't set comes from the service level, so service-level capture applies to every instance. For example, with `rendererLogLevel: 'warn'` at the service level and `captureRendererLogs: true` in `app1`'s options, `app1` captures renderer logs at `warn` and above.
+
 ## Log Capture Requirements
 
 **Main Process Logs:**
