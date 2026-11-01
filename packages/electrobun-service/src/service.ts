@@ -65,36 +65,41 @@ export default class ElectrobunWorkerService {
     log.debug('ElectrobunWorkerService initialised');
   }
 
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  private instanceOptions({ caps }: InstanceContext): ElectrobunServiceOptions {
+    return mergeServiceOptions(
+      this.options,
+      getServiceOptionsFromCapability(caps as ElectrobunCapabilities | undefined),
+    );
+  }
+
   async before(
     capabilities: unknown,
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
     log.info(
-      `before() — mode=${this.options.mode === 'browser' ? 'browser' : 'native'} ` +
-        `multiremote=${isMultiremote(browser)} ` +
+      `before() — multiremote=${isMultiremote(browser)} ` +
         `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
 
-    // Browser mode: the frontend runs in a plain Chrome session against a dev
-    // server — no CEF, no CDP side-channel. The electrobun surface is not
-    // installed (execute/mock have no in-app target to drive). Keyed on `mode`,
-    // the same criterion the launcher uses — a stray devServerUrl without
-    // mode: 'browser' must not skip the attach while the launcher spawns natively.
-    if (this.options.mode === 'browser') {
-      log.info('Browser mode — skipping CDP bridge attach');
-      await forEachInstance(
-        browser,
-        (instance, { name, caps }) => this.openDevServer(instance, name, caps),
-        capabilities,
-      );
-      return;
-    }
-
-    await forEachInstance(browser, (instance, context) => this.attachInstance(instance, context), capabilities);
-    if (isMultiremote(browser)) {
-      // Root fan-out isn't wired yet — install a guided-error stub so `browser.electrobun.*` on the
-      // multiremote root fails with direction to per-instance access, not a raw TypeError.
+    let attached = false;
+    await forEachInstance(
+      browser,
+      (instance, context) => {
+        // Browser mode runs the frontend in plain Chrome, with no CDP side-channel or in-app target to attach to.
+        // Keyed on `mode`, as the launcher is, so a stray devServerUrl can't skip a native launch's attach.
+        if (this.instanceOptions(context).mode === 'browser') {
+          log.info('Browser mode — skipping CDP bridge attach');
+          return this.openDevServer(instance, context.name, context.caps);
+        }
+        attached = true;
+        return this.attachInstance(instance, context);
+      },
+      capabilities,
+    );
+    if (attached && isMultiremote(browser)) {
+      // In browser mode no instance attached, so there's no per-instance API for the root's stub to point at
       installRootMultiremoteGuard(browser);
     }
   }
@@ -149,12 +154,13 @@ export default class ElectrobunWorkerService {
     const { host, port } = parseDebuggerAddress(debuggerAddress);
     log.info(`Attaching CDP bridge to ${host}:${port}`);
 
+    const options = this.instanceOptions(context);
     const bridge = new CdpBridge({
       host,
       port,
-      timeout: this.options.cdpConnectionTimeout,
-      waitInterval: this.options.cdpConnectionRetryInterval,
-      connectionRetryCount: this.options.cdpConnectionRetryCount,
+      timeout: options.cdpConnectionTimeout,
+      waitInterval: options.cdpConnectionRetryInterval,
+      connectionRetryCount: options.cdpConnectionRetryCount,
       classifyTarget,
     });
     try {
@@ -189,14 +195,9 @@ export default class ElectrobunWorkerService {
     installApiW3C(browser, evalBridge, mockStore);
   }
 
-  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
-  private addMockStore({ name, caps }: InstanceContext): ElectrobunMockStore {
+  private addMockStore(context: InstanceContext): ElectrobunMockStore {
     const store = new ElectrobunMockStore();
-    const options = mergeServiceOptions(
-      this.options,
-      getServiceOptionsFromCapability(caps as ElectrobunCapabilities | undefined),
-    );
-    this.mockOwners.push({ name, store, options });
+    this.mockOwners.push({ name: context.name, store, options: this.instanceOptions(context) });
     return store;
   }
 

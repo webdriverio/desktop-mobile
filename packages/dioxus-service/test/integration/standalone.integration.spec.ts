@@ -21,7 +21,7 @@ vi.mock('@wdio/native-utils', async (importOriginal) => ({
 
 import { SevereServiceError } from 'webdriverio';
 import { startEmbeddedDriver } from '../../src/providers/embedded.js';
-import { cleanup, init } from '../../src/session.js';
+import { cleanup, createDioxusCapabilities, init } from '../../src/session.js';
 import type { DioxusCapabilities } from '../../src/types.js';
 
 const DEV_SERVER = 'http://localhost:8080';
@@ -138,6 +138,27 @@ describe('standalone init()', () => {
         'wdio:dioxusServiceOptions': { windowLabel: 'window-1' },
       });
       expect(capabilities).not.toHaveProperty('wdio:dioxusServiceOptions');
+    });
+
+    it("should launch the app with 'dioxus:options'.args in place of the global appArgs", async () => {
+      remoteMock.mockResolvedValue(createSessionBrowser());
+      const capabilities = {
+        'dioxus:options': { application: '/app/dioxus-app', args: ['--debug'] },
+      } as DioxusCapabilities;
+
+      const browser = await init(capabilities, { appArgs: ['--service'] });
+      await cleanup(browser);
+
+      expect(vi.mocked(startEmbeddedDriver).mock.calls[0][2]).toMatchObject({ appArgs: ['--debug'] });
+    });
+
+    it('should launch the app with the args from createDioxusCapabilities once', async () => {
+      remoteMock.mockResolvedValue(createSessionBrowser());
+
+      const browser = await init(createDioxusCapabilities('/app/dioxus-app', { appArgs: ['--dev'] }));
+      await cleanup(browser);
+
+      expect(vi.mocked(startEmbeddedDriver).mock.calls[0][2]).toMatchObject({ appArgs: ['--dev'] });
     });
   });
 

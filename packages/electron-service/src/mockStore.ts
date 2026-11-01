@@ -1,25 +1,27 @@
 import type { ElectronFunctionMock } from '@wdio/native-types';
 
+export type MockOwner = WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
+
+// Keyed by browser, so each multiremote instance has its own mocks.
 export class ElectronServiceMockStore {
-  #mockFns: Map<string, ElectronFunctionMock>;
+  #mocksByOwner: Map<MockOwner, Map<string, ElectronFunctionMock>>;
 
   constructor() {
-    this.#mockFns = new Map<string, ElectronFunctionMock>();
+    this.#mocksByOwner = new Map<MockOwner, Map<string, ElectronFunctionMock>>();
   }
 
-  setMock(mock: ElectronFunctionMock): ElectronFunctionMock {
-    const mockName = mock.getMockName();
-    this.#mockFns.set(mockName, mock);
+  setMock(owner: MockOwner, mock: ElectronFunctionMock): ElectronFunctionMock {
+    let mocks = this.#mocksByOwner.get(owner);
+    if (!mocks) {
+      mocks = new Map<string, ElectronFunctionMock>();
+      this.#mocksByOwner.set(owner, mocks);
+    }
+    mocks.set(mock.getMockName(), mock);
     return mock;
   }
 
-  setMockWithKey(key: string, mock: ElectronFunctionMock): ElectronFunctionMock {
-    this.#mockFns.set(key, mock);
-    return mock;
-  }
-
-  getMock(mockId: string): ElectronFunctionMock {
-    const mock = this.#mockFns.get(mockId);
+  getMock(owner: MockOwner, mockId: string): ElectronFunctionMock {
+    const mock = this.#mocksByOwner.get(owner)?.get(mockId);
     if (!mock) {
       throw new Error(`No mock registered for "${mockId}"`);
     }
@@ -27,25 +29,23 @@ export class ElectronServiceMockStore {
     return mock;
   }
 
-  getMocks() {
-    return Array.from(this.#mockFns.entries());
+  getMocks(owner: MockOwner): [string, ElectronFunctionMock][] {
+    return Array.from(this.#mocksByOwner.get(owner)?.entries() ?? []);
   }
 
-  deleteMock(mockId: string): boolean {
-    return this.#mockFns.delete(mockId);
-  }
-
-  deleteMockByRef(mock: ElectronFunctionMock): boolean {
-    for (const [key, m] of this.#mockFns) {
-      if (m === mock) {
-        return this.#mockFns.delete(key);
-      }
+  deleteMock(owner: MockOwner, mockId: string): boolean {
+    const mocks = this.#mocksByOwner.get(owner);
+    if (!mocks?.delete(mockId)) {
+      return false;
     }
-    return false;
+    if (mocks.size === 0) {
+      this.#mocksByOwner.delete(owner);
+    }
+    return true;
   }
 
   clear(): void {
-    this.#mockFns.clear();
+    this.#mocksByOwner.clear();
   }
 }
 

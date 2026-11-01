@@ -10,6 +10,7 @@ import {
   safeDeleteSession,
   standaloneRequestTimeout,
 } from '@wdio/native-utils';
+import type { Options } from '@wdio/types';
 import { remote } from 'webdriverio';
 import TauriLaunchService from './launcher.js';
 import TauriWorkerService from './service.js';
@@ -112,9 +113,7 @@ export async function init(
     }
   }
 
-  const testRunnerOpts = globalOptions?.rootDir
-    ? { rootDir: globalOptions.rootDir, capabilities: [] }
-    : { capabilities: [] };
+  const testRunnerOpts = { capabilities: [] } as unknown as Options.Testrunner;
   const launcher = new TauriLaunchService(globalOptions || {}, capabilities, testRunnerOpts);
 
   let browser: WebdriverIO.Browser | undefined;

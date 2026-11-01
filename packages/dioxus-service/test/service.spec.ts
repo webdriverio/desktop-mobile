@@ -35,7 +35,7 @@ function makeBrowserModeBrowser(): WebdriverIO.Browser & { url: ReturnType<typeo
 
 type Installed = {
   dioxus: {
-    execute: (s: string) => Promise<unknown>;
+    execute: (s: string | (() => unknown)) => Promise<unknown>;
     mock: (command: string) => Promise<unknown>;
     clearAllMocks: (prefix?: string) => Promise<void>;
     resetAllMocks: (prefix?: string) => Promise<void>;
@@ -356,6 +356,38 @@ describe('DioxusWorkerService', () => {
       });
       expect(mockB.mockRestore).toHaveBeenCalledOnce();
       expect(rootMock.mockRestore).toHaveBeenCalledOnce();
+    });
+
+    describe('driverProvider', () => {
+      const ranStaleMockReset = (browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser) =>
+        vi
+          .mocked(browser.execute)
+          .mock.calls.some(([script]) => typeof script === 'function' && script.name === 'clearStaleMocks');
+
+      async function usesEnvelope(browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser) {
+        await (browser as unknown as Installed).dioxus.execute(() => 1);
+        const [script] = vi.mocked(browser.execute).mock.lastCall ?? [];
+        return String(script).includes('__wdio_value__');
+      }
+
+      it('should use the envelope and stale-mock reset only on the instances on the embedded driver', async () => {
+        const { fakes } = await setUp({}, { browserB: { driverProvider: 'external' } });
+
+        expect(ranStaleMockReset(fakes.browserA)).toBe(true);
+        expect(ranStaleMockReset(fakes.browserB)).toBe(false);
+        expect(await usesEnvelope(fakes.browserA)).toBe(true);
+        expect(await usesEnvelope(fakes.browserB)).toBe(false);
+      });
+
+      it("should let an instance override a service-level 'external', which the root keeps", async () => {
+        const { fakes } = await setUp({ driverProvider: 'external' }, { browserA: { driverProvider: 'embedded' } });
+
+        expect(ranStaleMockReset(fakes.browserA)).toBe(true);
+        expect(ranStaleMockReset(fakes.browserB)).toBe(false);
+        expect(await usesEnvelope(fakes.browserA)).toBe(true);
+        expect(await usesEnvelope(fakes.browserB)).toBe(false);
+        expect(await usesEnvelope(fakes.root)).toBe(false);
+      });
     });
   });
 

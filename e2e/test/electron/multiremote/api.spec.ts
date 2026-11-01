@@ -55,4 +55,30 @@ describe('Electron APIs using Multiremote', () => {
     expect(await browserB.electron.execute(() => process.argv.includes('--browser=A'))).toBe(false);
     expect(await browserB.electron.execute(() => process.argv.includes('--browser=B'))).toBe(true);
   });
+
+  it('should mock an API only in the instance that mocked it', async () => {
+    const multi = multiRemoteBrowser as WebdriverIO.MultiRemoteBrowser;
+    const browserA = multi.getInstance('browserA');
+    const browserB = multi.getInstance('browserB');
+
+    const mockGetNameA = await browserA.electron.mock('app', 'getName');
+    await mockGetNameA.mockReturnValue('mocked in A');
+
+    expect(await browserA.electron.execute((electron) => electron.app.getName())).toBe('mocked in A');
+    expect(await browserB.electron.execute((electron) => electron.app.getName())).toBe(getExpectedAppName());
+
+    const mockGetNameB = await browserB.electron.mock('app', 'getName');
+    await mockGetNameB.mockReturnValue('mocked in B');
+
+    expect(mockGetNameB).not.toBe(mockGetNameA);
+    expect(await browserB.electron.execute((electron) => electron.app.getName())).toBe('mocked in B');
+    expect(await browserA.electron.execute((electron) => electron.app.getName())).toBe('mocked in A');
+    expect(mockGetNameA).toHaveBeenCalledTimes(2);
+    expect(mockGetNameB).toHaveBeenCalledTimes(1);
+
+    await browserA.electron.restoreAllMocks();
+
+    expect(await browserA.electron.execute((electron) => electron.app.getName())).toBe(getExpectedAppName());
+    expect(await browserB.electron.execute((electron) => electron.app.getName())).toBe('mocked in B');
+  });
 });

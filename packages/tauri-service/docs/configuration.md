@@ -153,7 +153,7 @@ windowLabel: 'settings'; // Target the settings window by default
 **Default:** `'main'`
 
 **Note:**
-- Each browser instance (including multiremote) can have its own default windowLabel
+- Each capability or multiremote instance can set its own `windowLabel` in `wdio:tauriServiceOptions`. An instance that doesn't set one uses the service-level value.
 - Override at runtime with `browser.tauri.switchWindow(label)`
 - Per-call override with `browser.tauri.execute(fn, withExecuteOptions({ windowLabel: 'x' }))` is supported
 
@@ -296,7 +296,7 @@ See [Browser Mode](./browser-mode.md) for setup, mocking, and limitations.
 
 ### `clearMocks` (boolean, optional)
 
-If `true`, all mock call history is cleared before each test. Equivalent to calling `browser.tauri.clearAllMocks()` in a `beforeEach`. In multiremote, it clears every instance's mocks.
+If `true`, all mock call history is cleared before each test. Equivalent to calling `browser.tauri.clearAllMocks()` in a `beforeEach`.
 
 **Example:**
 ```typescript
@@ -323,7 +323,7 @@ clearMocksPrefix: 'clipboard'  // Only clears clipboard.* mocks
 
 ### `resetMocks` (boolean, optional)
 
-If `true`, all mocks are reset (implementation + history) before each test. Equivalent to `browser.tauri.resetAllMocks()` in a `beforeEach`. In multiremote, it resets every instance's mocks.
+If `true`, all mocks are reset (implementation + history) before each test. Equivalent to `browser.tauri.resetAllMocks()` in a `beforeEach`.
 
 **Example:**
 ```typescript
@@ -344,7 +344,7 @@ If set, only mocks whose command name starts with this prefix are reset. Only us
 
 ### `restoreMocks` (boolean, optional)
 
-If `true`, all mocks are restored to their original implementations before each test. Equivalent to `browser.tauri.restoreAllMocks()` in a `beforeEach`. In multiremote, it restores every instance's mocks.
+If `true`, all mocks are restored to their original implementations before each test. Equivalent to `browser.tauri.restoreAllMocks()` in a `beforeEach`.
 
 **Example:**
 ```typescript
@@ -361,6 +361,8 @@ If set, only mocks whose command name starts with this prefix are restored. Only
 
 **Default:** `undefined`
 
+**Multiremote:** each instance applies the `clearMocks`, `resetMocks` and `restoreMocks` options, and their prefixes, from its own `wdio:tauriServiceOptions` to its own mocks. An instance that doesn't set an option uses the service-level value, which also applies to mocks created on the multiremote root.
+
 ---
 
 ### `driverProvider` ('embedded' | 'external' | 'crabnebula', optional)
@@ -370,7 +372,9 @@ Select which driver provider to use for WebDriver communication.
 - `'external'`: Use the cargo-installed tauri-driver (supports Windows/Linux)
 - `'crabnebula'`: Use @crabnebula/tauri-driver from npm (supports Windows/Linux/macOS; CN_API_KEY required for macOS only)
 
-**Default:** `'embedded'` on every platform when `driverProvider` is unset. The embedded provider requires `tauri-plugin-wdio-webdriver` in your app — if the plugin is missing, the embedded server never comes up and the session times out, so add the plugin or select another provider explicitly.
+**Default:** `'embedded'` on every platform when `driverProvider` is unset. The embedded provider requires [`tauri-plugin-wdio-webdriver`](./plugin-setup.md) in your app — if the plugin is missing, the embedded server never comes up and the session times out, so add the plugin or select another provider explicitly.
+
+Every capability and multiremote instance in a run must end up with the same `driverProvider`: its own, else the service-level one, else `'embedded'`. Mixing them throws a `SevereServiceError` at startup.
 
 **Example:**
 ```typescript
@@ -383,8 +387,6 @@ driverProvider: 'crabnebula';
 // Drive the external tauri-driver instead of the embedded server
 driverProvider: 'external';
 ```
-
-**Note:** Install `tauri-plugin-wdio-webdriver` in your Tauri app to use the embedded provider. See [Plugin Setup](./plugin-setup.md) for details.
 
 ---
 

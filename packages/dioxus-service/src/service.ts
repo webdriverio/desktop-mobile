@@ -32,9 +32,8 @@ export default class DioxusWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
   private browserMode: boolean;
-  private isEmbedded: boolean;
   private capabilities: unknown;
-  private mockLifecycle: DioxusServiceOptions;
+  private options: DioxusServiceOptions;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
@@ -48,9 +47,8 @@ export default class DioxusWorkerService {
         .find((instanceOptions) => instanceOptions?.mode === 'browser');
     this.devServerUrl = capOptions?.devServerUrl ?? _options.devServerUrl;
     this.browserMode = (browserModeOptions?.mode ?? _options.mode) === 'browser';
-    this.isEmbedded = (capOptions?.driverProvider ?? _options.driverProvider ?? 'embedded') === 'embedded';
     this.capabilities = _capabilities;
-    this.mockLifecycle = mergeOptions(_options, capOptions);
+    this.options = mergeOptions(_options, capOptions);
     log.debug('DioxusWorkerService initialised');
   }
 
@@ -80,15 +78,20 @@ export default class DioxusWorkerService {
         stage = 'addDioxusApi:root';
         this.addDioxusApi(browser as unknown as WebdriverIO.Browser);
       }
-      await forEachInstance(browser, async (instance, { name }) => {
-        if (name !== undefined) {
-          log.info(`Injecting spy + installing dioxus API on instance: ${name}`);
-        }
-        stage = `injectSpy:${name ?? 'single'}`;
-        await this.injectSpy(instance);
-        stage = `addDioxusApi:${name ?? 'single'}`;
-        this.addDioxusApi(instance);
-      });
+      await forEachInstance(
+        browser,
+        async (instance, { name, caps }) => {
+          if (name !== undefined) {
+            log.info(`Injecting spy + installing dioxus API on instance: ${name}`);
+          }
+          const embedded = this.isEmbedded(caps);
+          stage = `injectSpy:${name ?? 'single'}`;
+          await this.injectSpy(instance, embedded);
+          stage = `addDioxusApi:${name ?? 'single'}`;
+          this.addDioxusApi(instance, embedded);
+        },
+        this.capabilities,
+      );
       log.info('before() complete');
     } catch (error) {
       log.error(
@@ -109,7 +112,7 @@ export default class DioxusWorkerService {
     const failures: unknown[] = [];
     for (const [option, prefixOption, commandName, op] of MOCK_OPTION_OPS) {
       const enabled = targets.flatMap((target) => {
-        const options = this.mockOptions(target.caps);
+        const options = this.instanceOptions(target.caps);
         return options[option] ? [{ ...target, prefix: options[prefixOption] }] : [];
       });
       if (enabled.length === 0) {
@@ -129,11 +132,12 @@ export default class DioxusWorkerService {
   }
 
   // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
-  private mockOptions(instanceCaps?: WebdriverIO.Capabilities): DioxusServiceOptions {
-    return mergeOptions(
-      this.mockLifecycle,
-      (instanceCaps as DioxusCapabilities | undefined)?.['wdio:dioxusServiceOptions'],
-    );
+  private instanceOptions(instanceCaps?: WebdriverIO.Capabilities): DioxusServiceOptions {
+    return mergeOptions(this.options, (instanceCaps as DioxusCapabilities | undefined)?.['wdio:dioxusServiceOptions']);
+  }
+
+  private isEmbedded(instanceCaps?: WebdriverIO.Capabilities): boolean {
+    return (this.instanceOptions(instanceCaps).driverProvider ?? 'embedded') === 'embedded';
   }
 
   async after(): Promise<void> {
@@ -147,8 +151,8 @@ export default class DioxusWorkerService {
     clearWindowState();
   }
 
-  private addDioxusApi(browser: WebdriverIO.Browser): void {
-    if (this.isEmbedded) {
+  private addDioxusApi(browser: WebdriverIO.Browser, embedded = this.isEmbedded()): void {
+    if (embedded) {
       markAsEmbedded(browser);
     }
     const dioxus: DioxusServiceAPI = {
@@ -221,7 +225,7 @@ export default class DioxusWorkerService {
     }
   }
 
-  private async injectSpy(browser: WebdriverIO.Browser): Promise<void> {
+  private async injectSpy(browser: WebdriverIO.Browser, embedded = this.isEmbedded()): Promise<void> {
     try {
       await browser.execute(interceptor.buildBrowserIpcInjectionScript());
       log.debug('Injected @wdio/native-spy setup + wdio:// invoke patch');
@@ -232,7 +236,7 @@ export default class DioxusWorkerService {
         err,
       );
     }
-    if (this.isEmbedded) {
+    if (embedded) {
       await this.clearStaleMocks(browser);
     }
   }

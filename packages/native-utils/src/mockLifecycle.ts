@@ -1,4 +1,7 @@
 import { errorMessage } from './errors.js';
+import { createLogger } from './log.js';
+
+const log = createLogger('native-utils', 'mock');
 
 export type MockLifecycleOp = 'mockClear' | 'mockReset' | 'mockRestore';
 
@@ -48,4 +51,19 @@ export async function runBulkMockOp(
     );
   }
   return processed;
+}
+
+/** Runs `run`, then syncs `mock`, also when `run` rejects, so the mock records the calls made before the failure. */
+export async function runThenSync<T>(mock: { update(): Promise<unknown> }, run: () => Promise<T>): Promise<T> {
+  let result: T;
+  try {
+    result = await run();
+  } catch (error) {
+    await mock
+      .update()
+      .catch((syncError: unknown) => log.warn('Mock sync failed; rethrowing the original error:', syncError));
+    throw error;
+  }
+  await mock.update();
+  return result;
 }

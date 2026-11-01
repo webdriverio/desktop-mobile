@@ -355,11 +355,17 @@ describe('browser mode — multiremote mocks', () => {
   let root: FakeBrowser;
   let instances: Map<string, FakeBrowser>;
 
-  async function setUp(options: Partial<TauriServiceOptions> = {}): Promise<TauriWorkerService> {
+  async function setUp(
+    options: Partial<TauriServiceOptions> = {},
+    instanceOptions: Partial<Record<'browserA' | 'browserB', TauriServiceOptions>> = {},
+  ): Promise<TauriWorkerService> {
     ({ root, instances } = createFakeMultiremoteBrowser(['browserA', 'browserB']));
+    const capabilitiesOf = (name: 'browserA' | 'browserB') => ({
+      capabilities: instanceOptions[name] ? { 'wdio:tauriServiceOptions': instanceOptions[name] } : {},
+    });
     const service = new TauriWorkerService({ mode: 'browser', devServerUrl: DEV_SERVER, ...options }, {
-      browserA: { capabilities: {} },
-      browserB: { capabilities: {} },
+      browserA: capabilitiesOf('browserA'),
+      browserB: capabilitiesOf('browserB'),
     } as never);
     await service.before({} as never, [], root as unknown as WebdriverIO.Browser);
     globalThis.browser = root as unknown as WebdriverIO.Browser;
@@ -442,6 +448,30 @@ describe('browser mode — multiremote mocks', () => {
       ['tauri.greet', mockA],
       ['tauri.greet', mockB],
     ]);
+  });
+
+  it("should restore only an instance's mocks before each test when it sets restoreMocks", async () => {
+    const service = await setUp({}, { browserA: { restoreMocks: true } });
+    await tauriOf('browserA').mock('greet');
+    const mockB = await tauriOf('browserB').mock('greet');
+    clearExecuteCalls();
+
+    await expect(service.beforeTest({}, {})).resolves.toBeUndefined();
+
+    expect(instance('browserA').execute).toHaveBeenCalledWith(expect.any(Function), '');
+    expect(instance('browserA').execute).toHaveBeenCalledWith(inApp(interceptor.buildUnregistrationScript('greet')));
+    expect(instance('browserB').execute).not.toHaveBeenCalled();
+    expect(mockStore.getAllMocks()).toEqual([['tauri.greet', mockB]]);
+  });
+
+  it("should pass an instance's own prefix to the in-app bulk call", async () => {
+    const service = await setUp({ restoreMocks: true }, { browserB: { restoreMocksPrefix: 'gr' } });
+    clearExecuteCalls();
+
+    await expect(service.beforeTest({}, {})).resolves.toBeUndefined();
+
+    expect(instance('browserA').execute).toHaveBeenCalledWith(expect.any(Function), '');
+    expect(instance('browserB').execute).toHaveBeenCalledWith(expect.any(Function), 'gr');
   });
 
   it("should sync only an instance's mocks after it emits, and every instance's after a click", async () => {

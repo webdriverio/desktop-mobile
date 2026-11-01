@@ -465,6 +465,65 @@ describe('ElectrobunWorkerService', () => {
       // The instances themselves still get a real, working API.
       expect((instanceA as unknown as Partial<Installed>).electrobun).toBeDefined();
     });
+
+    it("should connect each instance's bridge with its own CDP options over the service-level ones", async () => {
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: () => ({}),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      const caps = {
+        browserA: {
+          capabilities: {
+            ...nativeCap(9401),
+            'wdio:electrobunServiceOptions': { cdpConnectionTimeout: 30_000, cdpConnectionRetryCount: 7 },
+          },
+        },
+        browserB: { capabilities: nativeCap(9402) },
+      };
+      const service = new ElectrobunWorkerService(
+        { cdpConnectionTimeout: 5_000, cdpConnectionRetryCount: 2, cdpConnectionRetryInterval: 250 },
+        caps,
+      );
+
+      await service.before(caps, [], mrBrowser);
+
+      expect(cdpBridgeCtor).toHaveBeenCalledWith(
+        expect.objectContaining({ port: 9401, timeout: 30_000, connectionRetryCount: 7, waitInterval: 250 }),
+      );
+      expect(cdpBridgeCtor).toHaveBeenCalledWith(
+        expect.objectContaining({ port: 9402, timeout: 5_000, connectionRetryCount: 2, waitInterval: 250 }),
+      );
+    });
+
+    it("should open each instance's dev server, without the attach or the root stub, when the instances' own options set browser mode", async () => {
+      const instanceA = { url: vi.fn() } as unknown as WebdriverIO.Browser;
+      const instanceB = { url: vi.fn() } as unknown as WebdriverIO.Browser;
+      const mrBrowser = {
+        isMultiremote: true,
+        instances: ['browserA', 'browserB'],
+        getInstance: (name: string) => (name === 'browserA' ? instanceA : instanceB),
+      } as unknown as WebdriverIO.MultiRemoteBrowser;
+      // The debuggerAddress would make a native-mode instance attach
+      const browserModeCap = (port: number, devServerUrl: string) => ({
+        ...nativeCap(port),
+        'wdio:electrobunServiceOptions': { mode: 'browser', devServerUrl },
+      });
+      const caps = {
+        browserA: { capabilities: browserModeCap(9411, 'http://localhost:3000') },
+        browserB: { capabilities: browserModeCap(9412, 'http://localhost:3001') },
+      };
+      const service = new ElectrobunWorkerService({}, caps);
+
+      await service.before(caps, [], mrBrowser);
+
+      expect(cdpBridgeCtor).not.toHaveBeenCalled();
+      expect(instanceA.url).toHaveBeenCalledWith('http://localhost:3000');
+      expect(instanceB.url).toHaveBeenCalledWith('http://localhost:3001');
+      expect((instanceA as unknown as Partial<Installed>).electrobun).toBeUndefined();
+      expect((instanceB as unknown as Partial<Installed>).electrobun).toBeUndefined();
+      expect((mrBrowser as unknown as Partial<Installed>).electrobun).toBeUndefined();
+    });
   });
 
   describe('beforeTest mock options', () => {

@@ -170,7 +170,7 @@ export async function createClassMock(
   for (const methodName of methodNames) {
     const methodMock = await createPrototypeMock(className, methodName, browserToUse);
     stubInstance[methodName] = methodMock;
-    mockStore.setMock(methodMock);
+    mockStore.setMock(browserToUse, methodMock);
   }
 
   const constructorMock = vitestFn() as unknown as ElectronFunctionMock;
@@ -312,7 +312,7 @@ export async function createClassMock(
   };
 
   stubInstance.__constructor = constructorMock;
-  mockStore.setMock(constructorMock);
+  mockStore.setMock(browserToUse, constructorMock);
 
   stubInstance.mockRestore = async () => {
     const mocks = [
