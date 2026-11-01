@@ -1,4 +1,4 @@
-import { forEachInstance } from '@wdio/native-core';
+import { forEachInstance, requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { DioxusMock, DioxusServiceAPI, MockLifecycleConfig } from '@wdio/native-types';
 import { createLogger, errorMessage, isMultiremote } from '@wdio/native-utils';
@@ -184,7 +184,7 @@ export default class DioxusWorkerService {
     if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
-        this.addDioxusApi(mrBrowser.getInstance(instanceName));
+        this.addDioxusApi(requireInstance(mrBrowser, instanceName));
       }
     }
   }

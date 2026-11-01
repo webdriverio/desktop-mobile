@@ -15,6 +15,10 @@ type ElementEvents = {
   wdioTakePendingChange(el?: HTMLElement): { el: HTMLElement; value: string } | undefined;
   wdioCommitOnEnter(el: HTMLElement): void;
   wdioSubmitOnEnter(el: HTMLElement): void;
+  wdioKeyClick(el: HTMLElement): void;
+  wdioEnterKey(): void;
+  wdioSpaceDown(el: HTMLElement, blocked: boolean): void;
+  wdioSpaceUp(el: HTMLElement, blocked: boolean): void;
   wdioPress(el: HTMLElement): void;
   wdioRelease(el: HTMLElement): void;
   wdioFocusForClick(el: HTMLElement): void;
@@ -25,7 +29,7 @@ type ElementEvents = {
 const source = readFileSync(join(REPO_ROOT, TAURI_COPY), 'utf8');
 const events = new Function(
   `${source}
-  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
+  return { wdioRecordPendingChange, wdioTakePendingChange, wdioCommitOnEnter, wdioSubmitOnEnter, wdioKeyClick, wdioEnterKey, wdioSpaceDown, wdioSpaceUp, wdioPress, wdioRelease, wdioFocusForClick, wdioClearElement, wdioSetValueControl };`,
 )() as ElementEvents;
 
 let log: string[];
@@ -80,6 +84,7 @@ describe('element-events.js', () => {
 
 beforeEach(() => {
   events.wdioTakePendingChange();
+  Reflect.deleteProperty(window, '__wdio_space_down');
   (document.activeElement as HTMLElement | null)?.blur();
 });
 
@@ -340,6 +345,118 @@ describe('wdioSubmitOnEnter', () => {
     form.addEventListener('submit', logSubmit);
     events.wdioSubmitOnEnter(root.querySelector('#i') as HTMLInputElement);
     expect(log).toEqual(['click host', 'submit f by b']);
+  });
+});
+
+describe('Enter and Space on a button', () => {
+  // Cancels the submit, as jsdom can't navigate.
+  const logEvent = (event: Event) => {
+    const { submitter } = event as SubmitEvent;
+    log.push(`${event.type} ${(event.target as HTMLElement).id}${submitter ? ` by ${submitter.id}` : ''}`);
+    if (event.type === 'submit') {
+      event.preventDefault();
+    }
+  };
+  beforeAll(() => {
+    for (const type of ['click', 'submit', 'reset']) {
+      window.addEventListener(type, logEvent, true);
+    }
+  });
+  afterAll(() => {
+    for (const type of ['click', 'submit', 'reset']) {
+      window.removeEventListener(type, logEvent, true);
+    }
+  });
+
+  function space(el: HTMLElement, { downCanceled = false, upCanceled = false } = {}) {
+    events.wdioSpaceDown(el, downCanceled);
+    events.wdioSpaceUp(el, upCanceled);
+  }
+
+  it.each([
+    ['a button', '<button id="b">go</button>', ['click b', 'submit f by b']],
+    ['a submit input', '<input type="submit" id="b">', ['click b', 'submit f by b']],
+    ['an image input', '<input type="image" id="b" alt="go">', ['click b', 'submit f by b']],
+    ['a plain button', '<button type="button" id="b">go</button>', ['click b']],
+  ])('should click %s on Enter, and after Space', (_, button, expected) => {
+    render(`<form id="f">${button}</form>`);
+    events.wdioKeyClick($('#b'));
+    expect(log).toEqual(expected);
+    log = [];
+    space($('#b'));
+    expect(log).toEqual(expected);
+  });
+
+  it('should reset the form from a reset button', () => {
+    render('<form id="f"><input id="i" value="v"><input type="reset" id="b"></form>');
+    $('#i').value = 'changed';
+    space($('#b'));
+    expect(log).toEqual(['click b', 'reset f']);
+    expect($('#i').value).toBe('v');
+  });
+
+  it('should click a button outside a form', () => {
+    render('<button id="b">go</button>');
+    events.wdioKeyClick($('#b'));
+    space($('#b'));
+    expect(log).toEqual(['click b', 'click b']);
+  });
+
+  it.each(['text', 'checkbox', 'color', 'file'])('should not click a %s input', (inputType) => {
+    render(`<form id="f"><input type="${inputType}" id="b"></form>`);
+    events.wdioKeyClick($('#b'));
+    space($('#b'));
+    expect(log).toEqual([]);
+  });
+
+  it('should not click on Space when a handler cancels the keydown or the keyup', () => {
+    render('<button id="b">go</button>');
+    space($('#b'), { downCanceled: true });
+    space($('#b'), { upCanceled: true });
+    expect(log).toEqual([]);
+  });
+
+  it('should not click on Space when the keyup goes to another element, nor on a later keyup', () => {
+    render('<button id="b">go</button><button id="c">go</button>');
+    events.wdioSpaceDown($('#b'), false);
+    events.wdioSpaceUp($('#c'), false);
+    events.wdioSpaceUp($('#b'), false);
+    expect(log).toEqual([]);
+  });
+
+  it('should commit and submit from the focused field on Enter', () => {
+    render('<form id="f"><input id="i"><button id="b">go</button></form>');
+    type($('#i'), 'x');
+    events.wdioEnterKey();
+    expect(log).toEqual(['change i=x', 'click b', 'submit f by b']);
+  });
+
+  it.each([
+    ['submit input', '<input type="submit" id="b">', ['click b', 'submit f by b']],
+    ['submit button', '<button id="b">go</button>', ['click b', 'submit f by b']],
+  ])('should click a focused %s once on Enter, without implicit submission', (_, button, expected) => {
+    render(`<form id="f">${button}<button id="s">go</button></form>`);
+    $('#b').focus();
+    log = [];
+    events.wdioEnterKey();
+    expect(log).toEqual(expected);
+  });
+
+  it.each([
+    ['', ['change i=x', 'blur i=x', 'focus b=', 'click b']],
+    // WebView2 skips the blur while its window isn't focused.
+    [' without a blur', ['focus b=', 'change i=x', 'click b']],
+  ])("should click the button a keydown handler moved focus to%s, after the field's change", (noBlur, expected) => {
+    render('<form id="f"><input id="i"><button type="button" id="b">go</button><button id="s">go</button></form>');
+    type($('#i'), 'x');
+    const keydownHandler = () => $('#b').focus();
+    if (noBlur) {
+      withoutBlur(keydownHandler);
+    } else {
+      keydownHandler();
+    }
+    events.wdioEnterKey();
+    expect(log).toEqual(expected);
   });
 });
 

@@ -1,4 +1,4 @@
-import { forEachInstance } from '@wdio/native-core';
+import { forEachInstance, requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type { TauriAPIs, TauriEventTarget, TauriMock, TauriServiceAPI } from '@wdio/native-types';
 import {
@@ -298,7 +298,7 @@ export default class TauriWorkerService {
       const mrBrowser = this.browser as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
         try {
-          const instance = mrBrowser.getInstance(instanceName);
+          const instance = requireInstance(mrBrowser, instanceName);
           clearWindowState(instance.sessionId);
         } catch (error) {
           log.warn(`Failed to clean up instance ${instanceName}:`, error);
@@ -355,7 +355,7 @@ export default class TauriWorkerService {
     if (isMultiremote(browser)) {
       const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       for (const instanceName of mrBrowser.instances) {
-        const instance = mrBrowser.getInstance(instanceName);
+        const instance = requireInstance(mrBrowser, instanceName);
         (instance as unknown as Record<string, boolean>).__wdioBrowserMode__ = true;
         this.addTauriApi(instance, true);
       }
@@ -524,8 +524,8 @@ export default class TauriWorkerService {
         const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
         const instanceNames = mrBrowser.instances;
         const results = await Promise.allSettled(
-          instanceNames.map((name) =>
-            emitTauriEvent(mrBrowser.getInstance(name), browserMode, eventName, payload, target),
+          instanceNames.map(async (name) =>
+            emitTauriEvent(requireInstance(mrBrowser, name), browserMode, eventName, payload, target),
           ),
         );
         const failures = results.flatMap((result, i) =>

@@ -10,6 +10,7 @@ pub mod actions;
 pub mod cookie;
 pub mod document;
 pub mod element;
+mod key_input;
 pub mod navigation;
 pub mod screenshot;
 pub mod script;

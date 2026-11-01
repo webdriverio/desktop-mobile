@@ -22,7 +22,7 @@ use serde_json::Value;
 use tokio::sync::oneshot;
 use uuid::Uuid;
 
-use super::element::ELEMENT_EVENTS_JS;
+use super::key_input::key_script;
 use crate::server::response::{WebDriverErrorResponse, WebDriverResponse, WebDriverResult};
 use crate::server::AppState;
 use crate::webdriver::element::ELEMENT_KEY;
@@ -247,12 +247,12 @@ fn pointer_event_js(
 /// surface as the matching flag on every synthesized pointer and key event (e.g. a Ctrl+click's
 /// `click` carries `ctrlKey: true`). Interleaving a modifier across sources *within one*
 /// performActions still needs tick processing — tracked in webdriverio/desktop-mobile#491.
-#[derive(Clone, Copy, Default)]
-struct Modifiers {
-  ctrl: bool,
-  shift: bool,
-  alt: bool,
-  meta: bool,
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub(super) struct Modifiers {
+  pub(super) ctrl: bool,
+  pub(super) shift: bool,
+  pub(super) alt: bool,
+  pub(super) meta: bool,
 }
 
 impl Modifiers {
@@ -284,7 +284,7 @@ impl Modifiers {
 /// Maps every WebDriver special-key value (U+E000–U+E05D) to `(key, code, keyCode)` per the W3C
 /// tables and a US keyboard. A newline and a backspace character also press the Enter and
 /// Backspace keys.
-fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
+pub(super) fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
   let mapped = match single_char(key)? {
     '\n' => ("Enter", "Enter", 13),
     '\u{8}' => ("Backspace", "Backspace", 8),
@@ -370,17 +370,17 @@ fn map_special_key(key: &str) -> Option<(&'static str, &'static str, u32)> {
 
 /// A printable character's US-keyboard key: its `code`, its legacy `keyCode` (65 for `a` and `A`)
 /// and whether it takes Shift, or `("", 0, false)` for a character the keyboard has no key for.
-fn regular_key(key: &str) -> (String, u32, bool) {
+pub(super) fn regular_key(key: &str) -> (String, u32, bool) {
   single_char(key).and_then(us_keyboard_key).unwrap_or_default()
 }
 
 /// Whether a key value presses no key: chromedriver skips a carriage return, so a `\r\n` line
 /// ending presses Enter once.
-fn is_skipped_key(key: &str) -> bool {
+pub(super) fn is_skipped_key(key: &str) -> bool {
   key == "\r"
 }
 
-fn single_char(key: &str) -> Option<char> {
+pub(super) fn single_char(key: &str) -> Option<char> {
   let mut chars = key.chars();
   match (chars.next(), chars.next()) {
     (Some(ch), None) => Some(ch),
@@ -438,31 +438,6 @@ fn us_keyboard_key(ch: char) -> Option<(String, u32, bool)> {
   Some((code.to_string(), key_code, shifted))
 }
 
-/// JS that dispatches a `KeyboardEvent` with the `key`, `code`, `keyCode` and Shift a browser sends
-/// to the focused element, looking through open shadow roots. An uncanceled Enter keydown in an
-/// input also fires its pending `change` and submits its form.
-fn key_event_js(event_type: &str, value: &str, mods: Modifiers) -> String {
-  let (key, code, key_code, mods) = match map_special_key(value) {
-    Some((key, code, key_code)) => (key, code.to_string(), key_code, mods),
-    None => {
-      let (code, key_code, shifted) = regular_key(value);
-      (value, code, key_code, Modifiers { shift: mods.shift || shifted, ..mods })
-    }
-  };
-  let modifiers = mods.js();
-  let enter = if event_type == "keydown" && key == "Enter" && !(mods.ctrl || mods.meta || mods.alt)
-  {
-    format!(
-      "if(!e.defaultPrevented){{\n{ELEMENT_EVENTS_JS}\nwdioCommitOnEnter(t); wdioSubmitOnEnter(t); }}"
-    )
-  } else {
-    String::new()
-  };
-  format!(
-    "(function(){{ var t=document.activeElement||document.body; if(!t) return; while(t.shadowRoot&&t.shadowRoot.activeElement){{t=t.shadowRoot.activeElement;}} var e=new KeyboardEvent({event_type:?},{{bubbles:true,cancelable:true,composed:true,key:{key:?},code:{code:?},keyCode:{key_code},which:{key_code},{modifiers}}}); t.dispatchEvent(e); {enter}}})(); null"
-  )
-}
-
 /// JS that synthesizes a `WheelEvent` at viewport `(x, y)` with the given deltas.
 fn wheel_event_js(x: i32, y: i32, delta_x: i32, delta_y: i32) -> String {
   format!(
@@ -511,7 +486,7 @@ pub async fn perform(
       .values()
       .flatten()
       .fold(0u32, |m, b| m | button_to_mask(*b));
-    let mods = Modifiers::from_keys(&session.action_state.pressed_keys);
+    let mods = Modifiers::from_keys(session.action_state.pressed_keys());
     (session.timeouts.script_ms, session.action_state.pointer_position, mask, mods)
   };
 
@@ -550,22 +525,22 @@ pub async fn perform(
                 {
                   let mut sessions = state.sessions.write().await;
                   if let Ok(session) = sessions.get_mut(&session_id) {
-                    session.action_state.pressed_keys.insert(value.clone());
-                    modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
+                    session.action_state.press_key(value);
+                    modifiers = Modifiers::from_keys(session.action_state.pressed_keys());
                   }
                 }
                 // Recompute before dispatch so a modifier key's own keydown carries its flag.
-                eval(key_event_js("keydown", value, modifiers), timeout_ms).await?;
+                eval(key_script(value, true, &modifiers), timeout_ms).await?;
               }
               KeyAction::KeyUp { value } => {
                 {
                   let mut sessions = state.sessions.write().await;
                   if let Ok(session) = sessions.get_mut(&session_id) {
-                    session.action_state.pressed_keys.remove(value);
-                    modifiers = Modifiers::from_keys(&session.action_state.pressed_keys);
+                    session.action_state.release_key(value);
+                    modifiers = Modifiers::from_keys(session.action_state.pressed_keys());
                   }
                 }
-                eval(key_event_js("keyup", value, modifiers), timeout_ms).await?;
+                eval(key_script(value, false, &modifiers), timeout_ms).await?;
               }
               KeyAction::Pause { .. } => {}
             }
@@ -773,9 +748,7 @@ pub async fn release(
   let (timeout_ms, pressed_keys, pressed_buttons, pointer_pos) = {
     let mut sessions = state.sessions.write().await;
     let session = sessions.get_mut(&session_id)?;
-    let mut pressed_keys: Vec<String> = session.action_state.pressed_keys.drain().collect();
-    // `pressed_keys` drains from a HashSet (unordered); sort so keyup dispatch order is stable.
-    pressed_keys.sort();
+    let pressed_keys = session.action_state.take_keys_to_release();
     let pressed_buttons = std::mem::take(&mut session.action_state.pressed_buttons);
     let pointer_pos = session.action_state.pointer_position;
     session.action_state.pointer_position = (0, 0);
@@ -787,7 +760,7 @@ pub async fn release(
   // below run once every key is up, so their default (empty) modifiers are correct.
   for (i, key) in pressed_keys.iter().enumerate() {
     let mods = Modifiers::from_keys(&pressed_keys[i + 1..]);
-    eval(key_event_js("keyup", key, mods), timeout_ms).await?;
+    eval(key_script(key, false, &mods), timeout_ms).await?;
   }
   let mut held_mask = pressed_buttons.values().flatten().fold(0u32, |m, b| m | button_to_mask(*b));
   // Release every held button. `pressed_buttons` drains from a HashMap of HashSets (both unordered);
@@ -956,66 +929,49 @@ mod tests {
     assert!(dbl.contains("buttons:0"));
   }
 
-  #[test]
-  fn key_event_js_uses_the_deep_active_element() {
-    let js = key_event_js("keydown", "Enter", Modifiers::default());
-    let active = js.find("var t=document.activeElement").unwrap();
-    let deep = js.find("t=t.shadowRoot.activeElement;").unwrap();
-    let dispatch = js.find("t.dispatchEvent(e);").unwrap();
-    assert!(active < deep && deep < dispatch);
-    assert!(js.contains("KeyboardEvent(\"keydown\""));
-    assert!(js.contains("key:\"Enter\""));
+  /// The `name: value` fields of the `KeyboardEvent` a key script dispatches.
+  fn event_init(js: &str) -> String {
+    let start = js.find("new KeyboardEvent(").unwrap();
+    let end = start + js[start..].find("});").unwrap();
+    let fields: Vec<&str> =
+      js[start..end].lines().skip(1).map(|line| line.trim().trim_end_matches(',')).collect();
+    fields.join(", ")
   }
 
   #[test]
-  fn key_event_js_commits_an_inputs_change_then_submits_its_form_on_an_uncanceled_enter_keydown() {
+  fn key_script_translates_special_key_codepoints() {
+    // WDIO sends Key.Enter as the PUA codepoint \u{E007}; the DOM key must be "Enter", not the raw char.
     let m = Modifiers::default();
-    let enter = key_event_js("keydown", "\u{E007}", m);
-    let dispatch = enter.find("t.dispatchEvent(e);").unwrap();
-    let canceled = enter.find("if(!e.defaultPrevented){").unwrap();
-    let commit = enter.find("wdioCommitOnEnter(t);").unwrap();
-    let submit = enter.find("wdioSubmitOnEnter(t);").unwrap();
-    assert!(dispatch < canceled && canceled < commit && commit < submit);
-    assert!(enter.contains(ELEMENT_EVENTS_JS));
-    let shift = Modifiers { shift: true, ..m };
-    let shift_enter = key_event_js("keydown", "\u{E006}", shift);
-    assert!(shift_enter.contains("wdioCommitOnEnter(t);"));
-    assert!(shift_enter.contains("wdioSubmitOnEnter(t);"));
-    let ctrl = Modifiers { ctrl: true, ..m };
-    for js in [
-      key_event_js("keyup", "\u{E007}", m),
-      key_event_js("keydown", "\u{E007}", ctrl),
-      key_event_js("keydown", "a", m),
+    for (value, key) in [
+      ("\u{E007}", "Enter"),
+      ("\u{E004}", "Tab"),
+      ("\u{E015}", "ArrowDown"),
+      ("a", "a"),
+      // Right-hand modifier variants normalize to the same DOM key name as the left/generic ones.
+      ("\u{E050}", "Shift"),
+      ("\u{E051}", "Control"),
+      ("\u{E053}", "Meta"),
     ] {
-      assert!(!js.contains("wdioCommitOnEnter") && !js.contains("wdioSubmitOnEnter"), "{js}");
+      let init = event_init(&key_script(value, true, &m));
+      assert!(init.starts_with(&format!("key: {key:?},")), "{value:?}: {init}");
     }
   }
 
   #[test]
-  fn key_event_js_translates_special_key_codepoints() {
-    // WDIO sends Key.Enter as the PUA codepoint \u{E007}; the DOM key must be "Enter", not the raw char.
-    let m = Modifiers::default();
-    assert!(key_event_js("keydown", "\u{E007}", m).contains("key:\"Enter\""));
-    assert!(key_event_js("keyup", "\u{E004}", m).contains("key:\"Tab\""));
-    assert!(key_event_js("keydown", "\u{E015}", m).contains("key:\"ArrowDown\""));
-    // Right-hand modifier variants normalize to the same DOM key name as the left/generic ones.
-    assert!(key_event_js("keydown", "\u{E050}", m).contains("key:\"Shift\""));
-    assert!(key_event_js("keydown", "\u{E051}", m).contains("key:\"Control\""));
-    assert!(key_event_js("keydown", "\u{E053}", m).contains("key:\"Meta\""));
-    // Printable characters pass through unchanged.
-    assert!(key_event_js("keydown", "a", m).contains("key:\"a\""));
-  }
-
-  #[test]
-  fn key_event_js_carries_physical_code() {
+  fn key_script_carries_physical_code() {
     let m = Modifiers::default();
     // Special keys and printable chars both get a `code` so apps reading event.code (shortcuts) work.
-    assert!(key_event_js("keydown", "\u{E007}", m).contains("code:\"Enter\""));
-    assert!(key_event_js("keydown", "a", m).contains("code:\"KeyA\""));
-    assert!(key_event_js("keydown", "7", m).contains("code:\"Digit7\""));
-    // Left/right modifier variants share a `key` but get distinct `code`s.
-    assert!(key_event_js("keydown", "\u{E008}", m).contains("code:\"ShiftLeft\""));
-    assert!(key_event_js("keydown", "\u{E050}", m).contains("code:\"ShiftRight\""));
+    for (value, code) in [
+      ("\u{E007}", "Enter"),
+      ("a", "KeyA"),
+      ("7", "Digit7"),
+      // Left/right modifier variants share a `key` but get distinct `code`s.
+      ("\u{E008}", "ShiftLeft"),
+      ("\u{E050}", "ShiftRight"),
+    ] {
+      let init = event_init(&key_script(value, true, &m));
+      assert!(init.contains(&format!(", code: {code:?},")), "{value:?}: {init}");
+    }
   }
 
   #[test]
@@ -1107,21 +1063,34 @@ mod tests {
   }
 
   #[test]
-  fn key_event_js_sends_the_key_code_and_shift_a_browser_sends() {
+  fn key_script_sends_the_key_code_and_shift_a_browser_sends() {
     let m = Modifiers::default();
     for (value, expected) in [
-      ("a", r#"key:"a",code:"KeyA",keyCode:65,which:65,ctrlKey:false,shiftKey:false"#),
-      ("A", r#"key:"A",code:"KeyA",keyCode:65,which:65,ctrlKey:false,shiftKey:true"#),
-      ("!", r#"key:"!",code:"Digit1",keyCode:49,which:49,ctrlKey:false,shiftKey:true"#),
-      ("é", r#"key:"é",code:"",keyCode:0,which:0,ctrlKey:false,shiftKey:false"#),
-      ("\u{E00F}", r#"key:"PageDown",code:"PageDown",keyCode:34,which:34,"#),
-      ("\u{E01B}", r#"key:"1",code:"Numpad1",keyCode:97,which:97,"#),
+      (
+        "a",
+        r#"key: "a", code: "KeyA", keyCode: 65, which: 65, ctrlKey: false, metaKey: false, shiftKey: false"#,
+      ),
+      (
+        "A",
+        r#"key: "A", code: "KeyA", keyCode: 65, which: 65, ctrlKey: false, metaKey: false, shiftKey: true"#,
+      ),
+      (
+        "!",
+        r#"key: "!", code: "Digit1", keyCode: 49, which: 49, ctrlKey: false, metaKey: false, shiftKey: true"#,
+      ),
+      (
+        "é",
+        r#"key: "é", code: "", keyCode: 0, which: 0, ctrlKey: false, metaKey: false, shiftKey: false"#,
+      ),
+      ("\u{E00F}", r#"key: "PageDown", code: "PageDown", keyCode: 34, which: 34,"#),
+      ("\u{E01B}", r#"key: "1", code: "Numpad1", keyCode: 97, which: 97,"#),
     ] {
-      let js = key_event_js("keydown", value, m);
-      assert!(js.contains(expected), "{value:?}: {js}");
+      let init = event_init(&key_script(value, true, &m));
+      assert!(init.starts_with(expected), "{value:?}: {init}");
     }
     let ctrl = Modifiers { ctrl: true, ..m };
-    assert!(key_event_js("keydown", "!", ctrl).contains("ctrlKey:true,shiftKey:true"));
+    let init = event_init(&key_script("!", true, &ctrl));
+    assert!(init.contains("ctrlKey: true, metaKey: false, shiftKey: true"), "{init}");
   }
 
   #[test]
@@ -1130,13 +1099,16 @@ mod tests {
     assert_eq!(map_special_key("\n"), map_special_key("\u{E007}"));
     assert_eq!(map_special_key("\u{8}"), map_special_key("\u{E003}"));
     assert!(is_skipped_key("\r") && map_special_key("\r").is_none());
-    let newline = key_event_js("keydown", "\n", m);
-    assert!(newline.contains(r#"key:"Enter",code:"Enter",keyCode:13,"#), "{newline}");
-    assert!(newline.contains("wdioCommitOnEnter(t);"));
-    let backspace = key_event_js("keydown", "\u{8}", m);
-    assert!(backspace.contains(r#"key:"Backspace",code:"Backspace",keyCode:8,"#), "{backspace}");
-    let tab = key_event_js("keydown", "\t", m);
-    assert!(tab.contains(r#"key:"\t",code:"Tab",keyCode:9,"#), "{tab}");
+    let newline = key_script("\n", true, &m);
+    assert!(event_init(&newline).starts_with(r#"key: "Enter", code: "Enter", keyCode: 13,"#));
+    assert!(newline.contains("wdioEnterKey();"));
+    let backspace = key_script("\u{8}", true, &m);
+    assert!(
+      event_init(&backspace).starts_with(r#"key: "Backspace", code: "Backspace", keyCode: 8,"#)
+    );
+    assert!(backspace.contains("deleteContentBackward"));
+    let tab = key_script("\t", true, &m);
+    assert!(event_init(&tab).starts_with(r#"key: "\t", code: "Tab", keyCode: 9,"#), "{tab}");
   }
 
   #[test]
@@ -1147,16 +1119,15 @@ mod tests {
     assert!(click.contains("ctrlKey:true"));
     assert!(click.contains("shiftKey:true"));
     assert!(click.contains("altKey:false"));
-    assert!(key_event_js("keydown", "a", held).contains("ctrlKey:true"));
+    assert!(event_init(&key_script("a", true, &held)).contains("ctrlKey: true"));
     // No modifier held → all flags false.
     assert!(pointer_event_js("click", 1, 2, 0, 0, Modifiers::default()).contains("ctrlKey:false"));
 
     // The release path computes each keyup's modifiers from the keys still held after it — so a
     // Shift keyup while Control remains down reports shiftKey:false, ctrlKey:true.
     let after_shift_released = Modifiers::from_keys(&["\u{E009}".to_string()]);
-    let shift_up = key_event_js("keyup", "\u{E008}", after_shift_released);
-    assert!(shift_up.contains("shiftKey:false"));
-    assert!(shift_up.contains("ctrlKey:true"));
+    let shift_up = event_init(&key_script("\u{E008}", false, &after_shift_released));
+    assert!(shift_up.contains("ctrlKey: true, metaKey: false, shiftKey: false"), "{shift_up}");
   }
 
   #[test]

@@ -308,7 +308,25 @@ Keyboard events carry the `key`, `code`, `keyCode` and `shiftKey` a browser send
 
 Key actions (`browser.keys()`) send keyboard events for every key but a carriage return. Element Send Keys (`setValue()`, `addValue()`) types plain text without them, so `keydown` handlers don't see it; it sends them for special keys, newlines and backspace characters, and for text typed while Control, Alt or Meta is held.
 
-Unless a `keydown` handler cancels it, Enter acts as it does in Chrome. It breaks the line in a textarea or contenteditable. In an input, it fires the `change` the field owes, then submits the input's form. From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button, unless that button is disabled, or in a form without one, submits the form if it has no other input of those types. From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button. Element Send Keys sets a date, time or range input's value without pressing any keys, so in those inputs only key actions (`browser.keys()`) press Enter. The click is a single `click` event, without pointer or mouse events, and a `submit` that no handler cancels navigates the page. Unlike in Chrome, Enter on a button, a colour or file input or a `<select>`, or with Control, Alt or Meta held, sends only its key events, and as the driver sends no `keypress` events, a `keypress` handler can't cancel Enter.
+Unless a `keydown` handler cancels it, Enter acts as in Chrome, on the element focused after the `keydown`:
+- In a textarea or contenteditable, it breaks the line.
+- In an input, it fires any `change` that Element Send Keys left pending, then submits the input's form:
+  - From a text, search, URL, telephone, email, password or number input, it clicks the form's first submit button, unless that button is disabled. A form without a submit button is submitted if it has no other input of those types.
+  - From any other input, such as a checkbox or a date input, it clicks the form's first enabled submit button.
+- On a button (a `<button>`, or a submit, image, reset or button input), it clicks the button.
+
+Element Send Keys sets a date, time or range input's value without pressing any keys, so in those inputs only key actions press Enter.
+
+Space on a focused button clicks it on the `keyup`, as in Chrome. It doesn't click if a handler cancels the `keydown` or the `keyup`, or if focus moves between them.
+
+Each click is a single `click` event, without pointer or mouse events. A `submit` that no handler cancels navigates the page.
+
+Unlike in Chrome, Enter and Space send only their key events in these cases:
+- Enter on a link, a `<summary>`, a colour or file input or a `<select>`.
+- Space on a checkbox, a radio button, a `<summary>`, a colour or file input or a `<select>`.
+- Either key with Control, Alt or Meta held.
+
+The driver also sends no `keypress` events, so a `keypress` handler can't cancel Enter.
 
 One difference from the W3C key tables: `\uE007` (WebdriverIO's `Key.Enter`) sends `code: 'Enter'`, and `\uE006` (Return) sends `code: 'NumpadEnter'`. The tables assign them the other way round, but clients send `\uE007` for the Enter key, so a handler that checks `code === 'Enter'` matches it.
 

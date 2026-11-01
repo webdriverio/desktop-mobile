@@ -19,11 +19,9 @@ vi.mock('@wdio/native-utils', async (importOriginal) => ({
 
 const DEV_SERVER = 'http://localhost:8080';
 
-// The Dioxus browser-mode IPC injection script is the only one that installs the
-// __WDIO_DIOXUS__ invoke shim. Registration scripts touch __wdio_mocks__ but never
-// reference __WDIO_DIOXUS__, so this distinguishes the two.
+// Only the IPC injection script saves the app's invoke before patching it.
 function isInjectionScript(arg: unknown): boolean {
-  return typeof arg === 'string' && arg.includes('__WDIO_DIOXUS__') && arg.includes('window.__wdio_spy__');
+  return typeof arg === 'string' && arg.includes('__wdio_original_invoke__');
 }
 
 function isRegistrationScript(arg: unknown, command: string): boolean {

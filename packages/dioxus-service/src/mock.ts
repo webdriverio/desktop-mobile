@@ -13,7 +13,7 @@
 
 import { fn as vitestFn } from '@wdio/native-spy';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { AbstractFn, DioxusMock } from '@wdio/native-types';
+import type { AbstractFn, DioxusAPIs, DioxusMock } from '@wdio/native-types';
 import { createLogger } from '@wdio/native-utils';
 
 import { runInterceptorScript } from './commands/execute.js';
@@ -21,6 +21,21 @@ import mockStore from './mockStore.js';
 
 const log = createLogger('dioxus-service', 'mock');
 const interceptor = createIpcInterceptor('dioxus');
+
+// Syncs even when `run` rejects, so the mock records the calls made before the failure.
+async function runThenSync<T>(mock: DioxusMock, run: () => Promise<T>): Promise<T> {
+  let result: T;
+  try {
+    result = await run();
+  } catch (error) {
+    await mock
+      .update()
+      .catch((syncError: unknown) => log.warn('Mock sync failed after withImplementation rejected:', syncError));
+    throw error;
+  }
+  await mock.update();
+  return result;
+}
 
 /**
  * Create a mock for a Dioxus wdio:// command. Registers the inner mock in
@@ -166,6 +181,18 @@ export async function createMock(command: string, browserContext?: WebdriverIO.B
   mock.mockReturnThis = async () => {
     await runInterceptorScript<void>(browserToUse, interceptor.buildInnerInvocationScript(command, 'mockReturnThis'));
     return mock;
+  };
+
+  mock.withImplementation = async <ReturnValue>(
+    implFn: AbstractFn,
+    callbackFn: (dx: DioxusAPIs) => ReturnValue,
+  ): Promise<Awaited<ReturnValue>> => {
+    const script = interceptor.buildWithImplementationScript(
+      command,
+      implFn,
+      callbackFn as (...a: unknown[]) => unknown,
+    );
+    return runThenSync(mock, () => runInterceptorScript<Awaited<ReturnValue>>(browserToUse, script));
   };
 
   mockStore.setMock(browserToUse, mock);
