@@ -75,6 +75,19 @@ function mergeOptions(
   return mergeServiceOptions(globalOptions, capabilityOptions);
 }
 
+function assertSingleDriverProvider(globalOptions: TauriServiceGlobalOptions, capsList: TauriCapabilities[]): void {
+  const providers = new Set(
+    capsList.map((cap) => mergeOptions(globalOptions, cap['wdio:tauriServiceOptions']).driverProvider ?? 'embedded'),
+  );
+  if (providers.size > 1) {
+    throw new SevereServiceError(
+      `All Tauri capabilities must use the same driverProvider, but found mixed providers: ${[...providers].join(', ')}. ` +
+        "Set driverProvider in the service options, or to the same value in every 'wdio:tauriServiceOptions' entry. " +
+        "An unset driverProvider is 'embedded'.",
+    );
+  }
+}
+
 /**
  * Options for setting up readline-based log handling
  */
@@ -138,6 +151,7 @@ export default class TauriLaunchService {
 
     const instances = normaliseInstanceCaps(capabilities);
     const capsList = instances.map(({ caps }) => caps);
+    assertSingleDriverProvider(this.options, capsList);
 
     // Determine provider type
     const firstCap = capsList[0];
@@ -230,6 +244,7 @@ export default class TauriLaunchService {
 
     // Validate capabilities and resolve each one's app binary.
     let firstResolvedBinaryPath: string | undefined;
+    let firstBrowserExecutableFolder: string | undefined;
     for (const cap of capsList) {
       // Validate that browserName is either not set, 'tauri', or 'wry'
       if (cap.browserName && cap.browserName !== 'tauri' && cap.browserName !== 'wry') {
@@ -257,6 +272,7 @@ export default class TauriLaunchService {
       tauriOptions.application = appBinaryPath;
       if (firstResolvedBinaryPath === undefined) {
         firstResolvedBinaryPath = appBinaryPath;
+        firstBrowserExecutableFolder = tauriOptions.webviewOptions?.browserExecutableFolder;
       }
 
       // Validate app args if provided
@@ -273,11 +289,13 @@ export default class TauriLaunchService {
     if (!isEmbedded && process.platform === 'win32' && firstResolvedBinaryPath !== undefined) {
       const autoDownloadEdgeDriver = this.options.autoDownloadEdgeDriver ?? true;
       log.debug('Checking Edge WebDriver compatibility...');
-      // Read the version pin / fixed-runtime folder from the global options: msedgedriver is
-      // machine-global, so per-capability overrides don't apply to this single shared check.
+      // Read the version pin and env from the global options: msedgedriver is machine-global, so
+      // per-capability overrides don't apply to this single shared check. The webviewOptions
+      // runtime folder comes from the first capability, like the binary.
       const edgeDriverResult = await ensureMsEdgeDriver(firstResolvedBinaryPath, autoDownloadEdgeDriver, {
         edgeDriverVersion: this.options.edgeDriverVersion,
         env: this.options.env,
+        browserExecutableFolder: firstBrowserExecutableFolder,
       });
 
       if (isErr(edgeDriverResult)) {

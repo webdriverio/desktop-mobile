@@ -129,7 +129,7 @@ export interface DioxusServiceOptions extends BaseServiceOptions, DriverProvider
   embeddedPort?: number;
   /** Path to the Dioxus app binary. */
   appBinaryPath?: string;
-  /** CLI args forwarded to the Dioxus app. */
+  /** CLI args forwarded to the Dioxus app. A capability's `'dioxus:options'.args` replaces them. */
   appArgs?: string[];
   /** Environment variables for the driver subprocess. */
   env?: Record<string, string>;
@@ -180,8 +180,8 @@ export interface DioxusCapabilities {
   browserName?: 'dioxus' | 'wry' | string;
   'dioxus:options'?: {
     application: string;
+    /** CLI args for the app. Replaces `appArgs` when set. */
     args?: string[];
-    webviewOptions?: { width?: number; height?: number };
   };
   'wdio:dioxusServiceOptions'?: DioxusServiceOptions;
 }

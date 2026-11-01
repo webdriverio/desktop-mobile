@@ -10,7 +10,15 @@ import {
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
 import { execute } from './commands/execute.js';
-import { clearAllMocks, isMockFunction, mock, resetAllMocks, restoreAllMocks } from './commands/mock.js';
+import {
+  clearAllMocks,
+  getMockTargets,
+  isMockFunction,
+  mock,
+  resetAllMocks,
+  restoreAllMocks,
+  runOnMockTargets,
+} from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
 import mockStore from './mockStore.js';
 import { CONSOLE_WRAPPER_SCRIPT } from './scripts/console-wrapper.js';
@@ -39,14 +47,16 @@ const browserInterceptor = createIpcInterceptor('tauri');
  */
 type ElementCommands = 'click' | 'doubleClick' | 'setValue' | 'clearValue';
 
+const MOCK_OPTION_COMMANDS = [
+  ['clearMocks', 'clearMocksPrefix', 'clearAllMocks'],
+  ['resetMocks', 'resetMocksPrefix', 'resetAllMocks'],
+  ['restoreMocks', 'restoreMocksPrefix', 'restoreAllMocks'],
+] as const;
+
 export default class TauriWorkerService {
   private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
-  private clearMocks: boolean;
-  private clearMocksPrefix?: string;
-  private resetMocks: boolean;
-  private resetMocksPrefix?: string;
-  private restoreMocks: boolean;
-  private restoreMocksPrefix?: string;
+  private capabilities: TauriCapabilities;
+  private mockLifecycle: TauriServiceOptions;
   private driverProvider: DriverProvider;
   private windowLabel: string;
   private mode?: string;
@@ -63,12 +73,8 @@ export default class TauriWorkerService {
         'wdio:tauriServiceOptions'
       ];
     const merged = mergeServiceOptions(options, capabilityOptions);
-    this.clearMocks = merged.clearMocks ?? false;
-    this.clearMocksPrefix = merged.clearMocksPrefix;
-    this.resetMocks = merged.resetMocks ?? false;
-    this.resetMocksPrefix = merged.resetMocksPrefix;
-    this.restoreMocks = merged.restoreMocks ?? false;
-    this.restoreMocksPrefix = merged.restoreMocksPrefix;
+    this.capabilities = capabilities;
+    this.mockLifecycle = merged;
     // A multiremote worker sees options only inside each instance's capabilities; like the launcher, use the first.
     const firstInstance = Object.values(capabilities ?? {})[0] as { capabilities?: TauriCapabilities } | undefined;
     const launcherOptions = capabilityOptions
@@ -85,7 +91,7 @@ export default class TauriWorkerService {
    * Initialize the service
    */
   async before(
-    _capabilities: TauriCapabilities,
+    capabilities: TauriCapabilities,
     _specs: string[],
     browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
@@ -115,40 +121,45 @@ export default class TauriWorkerService {
         log.info('Initializing standard browser');
       }
 
-      await forEachInstance(browser, async (instance, { name }) => {
-        stage = `init:${name ?? 'single'}`;
-        if (name !== undefined) {
-          log.info(`Initializing instance: ${name}`);
-        }
-        this.addTauriApi(instance);
-        this.patchBrowserExecute(instance);
-        setCurrentWindowLabel(instance, this.windowLabel);
-        setSessionProvider(instance, this.driverProvider);
-        stage = `waitUntilWindowAvailable:${name ?? 'single'}`;
-        await waitUntilWindowAvailable(instance);
-        log.info(name === undefined ? 'Standard browser window available' : `Instance ${name} window available`);
-
-        // A single session waits for the plugin once, below.
-        // Skip for CrabNebula - browser.execute() not supported
-        if (name !== undefined && this.driverProvider !== 'crabnebula') {
-          stage = `waitForPluginInit:${name}`;
-          log.info(`Waiting for Tauri plugin initialization on ${name}...`);
-          try {
-            await instance.execute(async function checkMultiremotePluginInit() {
-              // @ts-expect-error - window exists in browser context
-              if (typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.waitForInit === 'function') {
-                // @ts-expect-error - window exists in browser context
-                await window.wdioTauri.waitForInit();
-                return true;
-              }
-              return false;
-            });
-            log.info(`Tauri plugin initialization complete for ${name}`);
-          } catch (error) {
-            log.warn(`Failed to wait for plugin initialization on ${name}:`, error);
+      await forEachInstance(
+        browser,
+        async (instance, { name, caps }) => {
+          stage = `init:${name ?? 'single'}`;
+          if (name !== undefined) {
+            log.info(`Initializing instance: ${name}`);
           }
-        }
-      });
+          this.addTauriApi(instance);
+          this.patchBrowserExecute(instance);
+          const instanceOptions = (caps as TauriCapabilities | undefined)?.['wdio:tauriServiceOptions'];
+          setCurrentWindowLabel(instance, instanceOptions?.windowLabel || this.windowLabel);
+          setSessionProvider(instance, this.driverProvider);
+          stage = `waitUntilWindowAvailable:${name ?? 'single'}`;
+          await waitUntilWindowAvailable(instance);
+          log.info(name === undefined ? 'Standard browser window available' : `Instance ${name} window available`);
+
+          // A single session waits for the plugin once, below.
+          // Skip for CrabNebula - browser.execute() not supported
+          if (name !== undefined && this.driverProvider !== 'crabnebula') {
+            stage = `waitForPluginInit:${name}`;
+            log.info(`Waiting for Tauri plugin initialization on ${name}...`);
+            try {
+              await instance.execute(async function checkMultiremotePluginInit() {
+                // @ts-expect-error - window exists in browser context
+                if (typeof window.wdioTauri !== 'undefined' && typeof window.wdioTauri.waitForInit === 'function') {
+                  // @ts-expect-error - window exists in browser context
+                  await window.wdioTauri.waitForInit();
+                  return true;
+                }
+                return false;
+              });
+              log.info(`Tauri plugin initialization complete for ${name}`);
+            } catch (error) {
+              log.warn(`Failed to wait for plugin initialization on ${name}:`, error);
+            }
+          }
+        },
+        capabilities,
+      );
 
       // Wait for the plugin to fully initialize (specifically attachConsole())
       // This ensures frontend console logs will be captured
@@ -210,29 +221,39 @@ export default class TauriWorkerService {
   }
 
   async beforeTest(_test: unknown, _context: unknown): Promise<void> {
+    if (!this.browser) {
+      return;
+    }
+    const targets = getMockTargets(this.browser, this.capabilities);
     // Run every configured op so one failure can't skip the others, then report them together.
     const failures: unknown[] = [];
-    const attempt = async (op: () => Promise<void>) => {
+    for (const [option, prefixOption, commandName] of MOCK_OPTION_COMMANDS) {
+      const enabled = targets.flatMap((target) => {
+        const options = this.mockOptions(target.caps);
+        return options[option] ? [{ ...target, prefix: options[prefixOption] }] : [];
+      });
+      if (enabled.length === 0) {
+        continue;
+      }
       try {
-        await op();
+        await runOnMockTargets(commandName, enabled);
       } catch (error) {
         failures.push(error);
       }
-    };
-    if (this.clearMocks) {
-      await attempt(() => clearAllMocks.call({ browser: this.browser }, this.clearMocksPrefix));
-    }
-    if (this.resetMocks) {
-      await attempt(() => resetAllMocks.call({ browser: this.browser }, this.resetMocksPrefix));
-    }
-    if (this.restoreMocks) {
-      await attempt(() => restoreAllMocks.call({ browser: this.browser }, this.restoreMocksPrefix));
     }
     if (failures.length > 0) {
       throw failures.length === 1
         ? failures[0]
         : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
     }
+  }
+
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  private mockOptions(instanceCaps?: WebdriverIO.Capabilities): TauriServiceOptions {
+    return mergeServiceOptions(
+      this.mockLifecycle,
+      (instanceCaps as TauriCapabilities | undefined)?.['wdio:tauriServiceOptions'],
+    );
   }
 
   async beforeCommand(commandName: string, _args: unknown[]): Promise<void> {

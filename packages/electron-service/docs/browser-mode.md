@@ -363,6 +363,8 @@ export const config = {
 };
 ```
 
+You can also set `mode: 'browser'` in each instance's `wdio:electronServiceOptions` instead of the service options. Every Electron instance must use the same mode.
+
 ```ts
 // In tests — each instance mocks independently
 const mock1 = await browser.getInstance('app1').electron.mock('get-user-data');

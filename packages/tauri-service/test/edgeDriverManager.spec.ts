@@ -435,6 +435,21 @@ describe('Edge Driver Manager', () => {
       ).toEqual({ version: '149.0.4022.98', source: 'fixed-runtime' });
     });
 
+    it('should prefer webviewOptions.browserExecutableFolder over WEBVIEW2_BROWSER_EXECUTABLE_FOLDER', async () => {
+      const { existsSync } = await import('node:fs');
+      vi.mocked(existsSync).mockImplementation(
+        (p: any) => String(p).startsWith('C:\\CapabilityRuntime') && String(p).endsWith('msedgewebview2.exe'),
+      );
+      await mockVersionInfo('149.0.4022.98');
+
+      expect(
+        await resolveTargetEdgeVersion({
+          browserExecutableFolder: 'C:\\CapabilityRuntime',
+          env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\EnvRuntime' },
+        }),
+      ).toEqual({ version: '149.0.4022.98', source: 'fixed-runtime' });
+    });
+
     it('should fall back to the Evergreen registry version when the folder is unreadable', async () => {
       process.env.WEBVIEW2_BROWSER_EXECUTABLE_FOLDER = 'C:\\Missing';
       const { existsSync, readdirSync } = await import('node:fs');

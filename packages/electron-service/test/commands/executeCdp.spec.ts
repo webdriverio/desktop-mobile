@@ -1,4 +1,4 @@
-import type { ElectronMock } from '@wdio/native-types';
+import type { ElectronFunctionMock } from '@wdio/native-types';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ElectronCdpBridge } from '../../src/bridge.js';
 import { clearParsedFunctionCache, execute } from '../../src/commands/executeCdp.js';
@@ -189,10 +189,34 @@ describe('execute Command', () => {
 
   it('should call `mock.update()` when mockStore has some mocks', async () => {
     const updateMock = vi.fn();
-    vi.mocked(mockStore.getMocks).mockReturnValue([['dummy', { update: updateMock } as unknown as ElectronMock]]);
+    vi.mocked(mockStore.getMocks).mockReturnValue([
+      ['dummy', { update: updateMock } as unknown as ElectronFunctionMock],
+    ]);
     await execute(globalThis.browser, client, (_electron, a, b, c) => a + b + c, 1, 2, 3);
 
     expect(updateMock).toHaveBeenCalledTimes(1);
+    expect(mockStore.getMocks).toHaveBeenCalledWith(globalThis.browser);
+  });
+
+  it("should update only the executing browser's mocks", async () => {
+    const browserA = { sessionId: 'session-a' } as unknown as WebdriverIO.Browser;
+    const updateA = vi.fn();
+    const updateOther = vi.fn();
+    vi.mocked(mockStore.getMocks).mockImplementation((owner) => [
+      [
+        'electron.app.getName',
+        { update: owner === browserA ? updateA : updateOther } as unknown as ElectronFunctionMock,
+      ],
+    ]);
+
+    try {
+      await execute(browserA, client, () => 1);
+    } finally {
+      vi.mocked(mockStore.getMocks).mockReset().mockReturnValue([]);
+    }
+
+    expect(updateA).toHaveBeenCalledOnce();
+    expect(updateOther).not.toHaveBeenCalled();
   });
 });
 

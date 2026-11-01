@@ -1,23 +1,39 @@
 import { forEachInstance, requireInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
-import type { DioxusServiceAPI } from '@wdio/native-types';
-import { createLogger, isMultiremote } from '@wdio/native-utils';
+import type { DioxusMock, DioxusServiceAPI } from '@wdio/native-types';
+import { createLogger, errorMessage, isMultiremote } from '@wdio/native-utils';
 
-import { clearAllMocks, isMockFunction, resetAllMocks, restoreAllMocks } from './commands/allMocks.js';
+import {
+  clearAllMocks,
+  getMockOwners,
+  isMockFunction,
+  resetAllMocks,
+  restoreAllMocks,
+  runOnMockOwners,
+} from './commands/allMocks.js';
 import { execute, markAsEmbedded } from './commands/execute.js';
 import { mock } from './commands/mock.js';
 import { triggerDeeplink } from './commands/triggerDeeplink.js';
-import mockStore from './mockStore.js';
+import mockStore, { type MockOwner } from './mockStore.js';
+import { mergeOptions } from './serviceConfig.js';
 import type { DioxusCapabilities, DioxusServiceOptions } from './types.js';
 import { clearWindowState, listWindowLabels, switchWindowByLabel } from './window.js';
 
 const log = createLogger('dioxus-service', 'service');
 const interceptor = createIpcInterceptor('dioxus');
 
+const MOCK_OPTION_OPS = [
+  ['clearMocks', 'clearMocksPrefix', 'clearAllMocks', 'mockClear'],
+  ['resetMocks', 'resetMocksPrefix', 'resetAllMocks', 'mockReset'],
+  ['restoreMocks', 'restoreMocksPrefix', 'restoreAllMocks', 'mockRestore'],
+] as const;
+
 export default class DioxusWorkerService {
+  private browser?: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser;
   private devServerUrl?: string;
   private browserMode: boolean;
-  private isEmbedded: boolean;
+  private capabilities: unknown;
+  private options: DioxusServiceOptions;
 
   constructor(_options: DioxusServiceOptions, _capabilities: unknown) {
     const capOptions = (_capabilities as { 'wdio:dioxusServiceOptions'?: DioxusServiceOptions })[
@@ -31,7 +47,8 @@ export default class DioxusWorkerService {
         .find((instanceOptions) => instanceOptions?.mode === 'browser');
     this.devServerUrl = browserModeOptions?.devServerUrl ?? _options.devServerUrl;
     this.browserMode = (browserModeOptions?.mode ?? _options.mode) === 'browser';
-    this.isEmbedded = (capOptions?.driverProvider ?? _options.driverProvider ?? 'embedded') === 'embedded';
+    this.capabilities = _capabilities;
+    this.options = mergeOptions(_options, capOptions);
     log.debug('DioxusWorkerService initialised');
   }
 
@@ -45,6 +62,7 @@ export default class DioxusWorkerService {
         `multiremote=${isMultiremote(browser)} ` +
         `instances=${isMultiremote(browser) ? (browser as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
     );
+    this.browser = browser;
 
     let stage = 'init';
     try {
@@ -63,15 +81,20 @@ export default class DioxusWorkerService {
         stage = 'addDioxusApi:root';
         this.addDioxusApi(browser as unknown as WebdriverIO.Browser);
       }
-      await forEachInstance(browser, async (instance, { name }) => {
-        if (name !== undefined) {
-          log.info(`Injecting spy + installing dioxus API on instance: ${name}`);
-        }
-        stage = `injectSpy:${name ?? 'single'}`;
-        await this.injectSpy(instance);
-        stage = `addDioxusApi:${name ?? 'single'}`;
-        this.addDioxusApi(instance);
-      });
+      await forEachInstance(
+        browser,
+        async (instance, { name, caps }) => {
+          if (name !== undefined) {
+            log.info(`Injecting spy + installing dioxus API on instance: ${name}`);
+          }
+          const embedded = this.isEmbedded(caps);
+          stage = `injectSpy:${name ?? 'single'}`;
+          await this.injectSpy(instance, embedded);
+          stage = `addDioxusApi:${name ?? 'single'}`;
+          this.addDioxusApi(instance, embedded);
+        },
+        this.capabilities,
+      );
       log.info('before() complete');
     } catch (error) {
       log.error(
@@ -81,6 +104,43 @@ export default class DioxusWorkerService {
       );
       throw error;
     }
+  }
+
+  async beforeTest(_test: unknown, _context: unknown): Promise<void> {
+    if (!this.browser) {
+      return;
+    }
+    const targets = await getMockOwners(this.browser, this.capabilities);
+    // Run every configured op so one failure can't skip the others, then report them together.
+    const failures: unknown[] = [];
+    for (const [option, prefixOption, commandName, op] of MOCK_OPTION_OPS) {
+      const enabled = targets.flatMap((target) => {
+        const options = this.instanceOptions(target.caps);
+        return options[option] ? [{ ...target, prefix: options[prefixOption] }] : [];
+      });
+      if (enabled.length === 0) {
+        continue;
+      }
+      try {
+        await runOnMockOwners(commandName, enabled, op);
+      } catch (error) {
+        failures.push(error);
+      }
+    }
+    if (failures.length > 0) {
+      throw failures.length === 1
+        ? failures[0]
+        : new AggregateError(failures, failures.map((error) => errorMessage(error)).join('; '));
+    }
+  }
+
+  // A multiremote worker's capabilities are the whole record, so each instance's options come from its own caps
+  private instanceOptions(instanceCaps?: WebdriverIO.Capabilities): DioxusServiceOptions {
+    return mergeOptions(this.options, (instanceCaps as DioxusCapabilities | undefined)?.['wdio:dioxusServiceOptions']);
+  }
+
+  private isEmbedded(instanceCaps?: WebdriverIO.Capabilities): boolean {
+    return (this.instanceOptions(instanceCaps).driverProvider ?? 'embedded') === 'embedded';
   }
 
   async after(): Promise<void> {
@@ -94,25 +154,20 @@ export default class DioxusWorkerService {
     clearWindowState();
   }
 
-  private addDioxusApi(browser: WebdriverIO.Browser): void {
-    if (this.isEmbedded) {
+  private addDioxusApi(browser: WebdriverIO.Browser, embedded = this.isEmbedded()): void {
+    if (embedded) {
       markAsEmbedded(browser);
     }
     const dioxus: DioxusServiceAPI = {
       execute: <R, A extends unknown[]>(script: Parameters<typeof execute<R, A>>[1], ...args: A): Promise<Awaited<R>> =>
         execute<R, A>(browser, script, ...args),
       mock: (command: string) => mock(command, browser),
-      clearAllMocks,
-      resetAllMocks,
-      restoreAllMocks,
+      clearAllMocks: (prefix?: string) => clearAllMocks(browser, prefix),
+      resetAllMocks: (prefix?: string) => resetAllMocks(browser, prefix),
+      restoreAllMocks: (prefix?: string) => restoreAllMocks(browser, prefix),
       isMockFunction: ((commandOrFn: unknown) => {
         if (typeof commandOrFn === 'string') {
-          try {
-            mockStore.getMock(`dioxus.${commandOrFn}`);
-            return true;
-          } catch {
-            return false;
-          }
+          return getMocksInScope(browser).some(([mockId]) => mockId === `dioxus.${commandOrFn}`);
         }
         return isMockFunction(commandOrFn);
       }) as DioxusServiceAPI['isMockFunction'],
@@ -157,7 +212,7 @@ export default class DioxusWorkerService {
     }
   }
 
-  private async injectSpy(browser: WebdriverIO.Browser): Promise<void> {
+  private async injectSpy(browser: WebdriverIO.Browser, embedded = this.isEmbedded()): Promise<void> {
     try {
       await browser.execute(interceptor.buildBrowserIpcInjectionScript());
       log.debug('Injected @wdio/native-spy setup + wdio:// invoke patch');
@@ -168,7 +223,7 @@ export default class DioxusWorkerService {
         err,
       );
     }
-    if (this.isEmbedded) {
+    if (embedded) {
       await this.clearStaleMocks(browser);
     }
   }
@@ -187,4 +242,9 @@ export default class DioxusWorkerService {
       log.warn('Failed to clear stale mocks at session start:', err);
     }
   }
+}
+
+// A multiremote root's commands reach every instance, so it sees every instance's mocks.
+function getMocksInScope(browser: MockOwner): Array<[string, DioxusMock]> {
+  return isMultiremote(browser) ? mockStore.getAllMocks() : mockStore.getMocks(browser);
 }

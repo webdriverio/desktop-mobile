@@ -28,6 +28,8 @@ import {
 import { mergeOptions } from './serviceConfig.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions, DioxusServiceOptions } from './types.js';
 
+const DRIVER_PROVIDERS: readonly string[] = ['embedded', 'external'];
+
 const log = createLogger('dioxus-service', 'launcher');
 
 export default class DioxusLaunchService extends BaseLauncher {
@@ -140,7 +142,16 @@ export default class DioxusLaunchService extends BaseLauncher {
 
     const provider = mergedOptions.driverProvider ?? 'embedded';
 
-    if (provider === 'external') {
+    const capProviders = capsList.map(
+      (cap) => mergeOptions(this.options, cap['wdio:dioxusServiceOptions']).driverProvider ?? 'embedded',
+    );
+    const unknownProvider = capProviders.find((capProvider) => !DRIVER_PROVIDERS.includes(capProvider));
+    if (unknownProvider !== undefined) {
+      throw new SevereServiceError(
+        `driverProvider must be 'embedded' or 'external', not ${JSON.stringify(unknownProvider)}.`,
+      );
+    }
+    if (capProviders.includes('external')) {
       if (process.platform === 'linux') {
         throw linuxExternalProviderUnsupported();
       }
@@ -195,7 +206,13 @@ export default class DioxusLaunchService extends BaseLauncher {
         log.info(`Starting embedded WebDriver for ${instanceLabel} on port ${embeddedPort}`);
 
         const instanceId = name ?? String(i);
-        const driverInfo = await startEmbeddedDriver(appBinaryPath, embeddedPort, instanceOptions, instanceId);
+        const appArgs = cap['dioxus:options']?.args ?? instanceOptions.appArgs;
+        const driverInfo = await startEmbeddedDriver(
+          appBinaryPath,
+          embeddedPort,
+          { ...instanceOptions, appArgs },
+          instanceId,
+        );
         this.embeddedProcesses.set(instanceId, driverInfo);
 
         connectionTarget.port = embeddedPort;

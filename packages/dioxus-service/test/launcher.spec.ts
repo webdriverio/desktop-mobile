@@ -10,6 +10,11 @@ vi.mock('../src/providers/embedded.js', () => ({
 
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import type { PortManager } from '@wdio/native-core';
+import {
+  linuxExternalProviderUnsupported,
+  macosExternalProviderUnsupported,
+  windowsExternalProviderUnsupported,
+} from '../src/errors.js';
 import DioxusLaunchService from '../src/launcher.js';
 import { startEmbeddedDriver, stopEmbeddedDriver } from '../src/providers/embedded.js';
 import type { DioxusCapabilities, DioxusServiceGlobalOptions } from '../src/types.js';
@@ -223,6 +228,87 @@ describe('DioxusLaunchService', () => {
     });
   });
 
+  describe('driverProvider per capability', () => {
+    beforeEach(() => {
+      mockPlatform('linux');
+      vi.mocked(startEmbeddedDriver).mockClear();
+    });
+
+    it("should reject 'external' on a later capability before starting any driver", async () => {
+      const launcher = new DioxusLaunchService(
+        { appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {},
+        baseConfig,
+      );
+      const caps: DioxusCapabilities[] = [{}, { 'wdio:dioxusServiceOptions': { driverProvider: 'external' } }];
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toMatchObject({
+        message: linuxExternalProviderUnsupported().message,
+      });
+      expect(startEmbeddedDriver).not.toHaveBeenCalled();
+    });
+
+    it('should reject an unknown driverProvider on a later capability before starting any driver', async () => {
+      const launcher = new DioxusLaunchService(
+        { appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {},
+        baseConfig,
+      );
+      const caps = [{}, { 'wdio:dioxusServiceOptions': { driverProvider: 'crabnebula' } }] as DioxusCapabilities[];
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toMatchObject({
+        message: `driverProvider must be 'embedded' or 'external', not "crabnebula".`,
+      });
+      expect(startEmbeddedDriver).not.toHaveBeenCalled();
+    });
+
+    it("should reject 'external' on a later multiremote instance before starting any driver", async () => {
+      mockPlatform('darwin');
+      const launcher = new DioxusLaunchService(
+        { appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {},
+        baseConfig,
+      );
+      const caps = {
+        appA: { capabilities: {} },
+        appB: { capabilities: { 'wdio:dioxusServiceOptions': { driverProvider: 'external' } } as DioxusCapabilities },
+      };
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toMatchObject({
+        message: macosExternalProviderUnsupported().message,
+      });
+      expect(startEmbeddedDriver).not.toHaveBeenCalled();
+    });
+
+    it("should reject a capability that inherits a service-level 'external' when another overrides it", async () => {
+      mockPlatform('win32');
+      const launcher = new DioxusLaunchService(
+        { driverProvider: 'external', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {},
+        baseConfig,
+      );
+      const caps: DioxusCapabilities[] = [{ 'wdio:dioxusServiceOptions': { driverProvider: 'embedded' } }, {}];
+
+      await expect(launcher.onPrepare(baseConfig, caps)).rejects.toMatchObject({
+        message: windowsExternalProviderUnsupported().message,
+      });
+      expect(startEmbeddedDriver).not.toHaveBeenCalled();
+    });
+
+    it("should start every instance when each overrides a service-level 'external'", async () => {
+      const launcher = new DioxusLaunchService(
+        { driverProvider: 'external', appBinaryPath: '/app/dioxus-app' } as DioxusServiceGlobalOptions,
+        {},
+        baseConfig,
+      );
+      const embedded = (): DioxusCapabilities => ({ 'wdio:dioxusServiceOptions': { driverProvider: 'embedded' } });
+      const caps = { appA: { capabilities: embedded() }, appB: { capabilities: embedded() } };
+
+      await expect(launcher.onPrepare(baseConfig, caps)).resolves.toBeUndefined();
+      expect(startEmbeddedDriver).toHaveBeenCalledTimes(2);
+    });
+  });
+
   describe('windowLabel', () => {
     beforeEach(() => {
       mockPlatform('linux');
@@ -276,6 +362,74 @@ describe('DioxusLaunchService', () => {
       await makeLauncher({}).onPrepare(baseConfig, caps);
 
       expect(caps[0]['wdio:dioxusServiceOptions']).toBeUndefined();
+    });
+  });
+
+  describe('app args', () => {
+    beforeEach(() => {
+      mockPlatform('linux');
+      vi.mocked(startEmbeddedDriver).mockClear();
+    });
+
+    function makeLauncher(options: DioxusServiceGlobalOptions) {
+      return new DioxusLaunchService(
+        { appBinaryPath: '/app/dioxus-app', ...options },
+        {} as DioxusCapabilities,
+        baseConfig,
+      );
+    }
+
+    function launchedArgs() {
+      return vi.mocked(startEmbeddedDriver).mock.calls.map(([, , options]) => options.appArgs);
+    }
+
+    it("should launch the app with 'dioxus:options'.args in place of appArgs", async () => {
+      const caps: DioxusCapabilities[] = [
+        {
+          'dioxus:options': { application: '/app/dioxus-app', args: ['--debug'] },
+          'wdio:dioxusServiceOptions': { appArgs: ['--capability'] },
+        } as DioxusCapabilities,
+      ];
+
+      await makeLauncher({ appArgs: ['--service'] }).onPrepare(baseConfig, caps);
+
+      expect(launchedArgs()).toEqual([['--debug']]);
+    });
+
+    it("should keep an empty 'dioxus:options'.args over appArgs", async () => {
+      const caps: DioxusCapabilities[] = [
+        { 'dioxus:options': { application: '/app/dioxus-app', args: [] } } as DioxusCapabilities,
+      ];
+
+      await makeLauncher({ appArgs: ['--service'] }).onPrepare(baseConfig, caps);
+
+      expect(launchedArgs()).toEqual([[]]);
+    });
+
+    it("should launch the app with appArgs when 'dioxus:options'.args is unset", async () => {
+      const caps: DioxusCapabilities[] = [
+        { 'wdio:dioxusServiceOptions': { appArgs: ['--capability'] } } as DioxusCapabilities,
+        { 'dioxus:options': { application: '/app/dioxus-app' } } as DioxusCapabilities,
+      ];
+
+      await makeLauncher({ appArgs: ['--service'] }).onPrepare(baseConfig, caps);
+
+      expect(launchedArgs()).toEqual([['--capability'], ['--service']]);
+    });
+
+    it('should resolve the args for each multiremote instance', async () => {
+      const caps = {
+        appA: {
+          capabilities: {
+            'dioxus:options': { application: '/app/dioxus-app', args: ['--browser=A'] },
+          } as DioxusCapabilities,
+        },
+        appB: { capabilities: {} as DioxusCapabilities },
+      };
+
+      await makeLauncher({ appArgs: ['--service'] }).onPrepare(baseConfig, caps);
+
+      expect(launchedArgs()).toEqual([['--browser=A'], ['--service']]);
     });
   });
 

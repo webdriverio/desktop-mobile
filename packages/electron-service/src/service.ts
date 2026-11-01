@@ -1,5 +1,5 @@
 import type { CdpBridgeOptions } from '@wdio/native-cdp-bridge';
-import { requireInstance } from '@wdio/native-core';
+import { forEachInstance } from '@wdio/native-core';
 import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
 import type {
   AbstractFn,
@@ -20,17 +20,18 @@ import {
   isMultiremote,
   waitUntilWindowAvailable,
 } from '@wdio/native-utils';
-import type { Capabilities, Services } from '@wdio/types';
+import type { Services } from '@wdio/types';
 import { SevereServiceError } from 'webdriverio';
 import { ElectronCdpBridge, getDebuggerEndpoint } from './bridge.js';
 import { clearAllMocks } from './commands/clearAllMocks.js';
 import { execute } from './commands/executeCdp.js';
+import { getMockOwners, runMockOp, runOnMockOwners } from './commands/forEachMock.js';
 import { isMockFunction } from './commands/isMockFunction.js';
 import { mock } from './commands/mock.js';
 import { mockAll } from './commands/mockAll.js';
 import { resetAllMocks } from './commands/resetAllMocks.js';
 import { restoreAllMocks } from './commands/restoreAllMocks.js';
-import { triggerDeeplink } from './commands/triggerDeeplink.js';
+import { triggerDeeplink, validateDeeplinkUrl } from './commands/triggerDeeplink.js';
 import { CUSTOM_CAPABILITY_NAME } from './constants.js';
 import { checkInspectFuse } from './fuses.js';
 import { LogCaptureManager, type LogCaptureOptions } from './logCapture.js';
@@ -41,21 +42,6 @@ import { isInternalCommand } from './utils.js';
 import { clearPuppeteerSessions, ensureActiveWindowFocus, getActiveWindowHandle, getPuppeteer } from './window.js';
 
 const browserInterceptor = createIpcInterceptor('electron');
-const browserModeInstanceIds = new WeakMap<WebdriverIO.Browser, number>();
-let browserModeInstanceCount = 0;
-
-function browserModeInstanceId(browser: WebdriverIO.Browser): number {
-  let id = browserModeInstanceIds.get(browser);
-  if (id === undefined) {
-    id = browserModeInstanceCount++;
-    browserModeInstanceIds.set(browser, id);
-  }
-  return id;
-}
-
-export function browserModeStoreKey(browser: WebdriverIO.Browser, channel: string): string {
-  return `electron.${channel}\x00${browserModeInstanceId(browser)}`;
-}
 
 const mockUpdateSchedulers = new WeakMap<WebdriverIO.Browser, MockUpdateScheduler>();
 const pendingRegistrations = new WeakMap<WebdriverIO.Browser, Map<string, Promise<void>>>();
@@ -123,13 +109,8 @@ class MockUpdateScheduler {
 
   async #runOnce(): Promise<void> {
     log.debug('updateAllMocks batch start');
-    // Native-mode mocks (key has no \x00) belong to every scheduler in the
-    // process; browser-mode mocks (key ends with \x00<id>) are owned by a
-    // single browser instance and must only be updated by that browser's
-    // scheduler, otherwise mock.update() runs browser.execute() on the wrong
-    // app context.
-    const suffix = `\x00${browserModeInstanceId(this.#browser)}`;
-    const mocks = mockStore.getMocks().filter(([key]) => !key.includes('\x00') || key.endsWith(suffix));
+    // Only this browser's own mocks: the batch reads their call data from this browser's app.
+    const mocks = mockStore.getMocks(this.#browser);
     log.debug(`Found ${mocks.length} mocks to update`);
     if (mocks.length === 0) {
       return;
@@ -296,9 +277,9 @@ async function batchUpdateNativeMocks(
  * round-trip against window.__wdio_mocks__. Each channel's read script is
  * built by the interceptor (same serialisation contract as per-mock update()),
  * then the batch wrapper invokes them inside one round-trip. Ids and scripts
- * are passed as WebDriver args so null-byte mockStore keys don't ride a
- * source-string boundary. Raw payloads run through parseCallData() per mock
- * to reconstruct Error markers, then go to __applyCalls.
+ * are passed as WebDriver args, not spliced into the script source. Raw
+ * payloads run through parseCallData() per mock to reconstruct Error markers,
+ * then go to __applyCalls.
  */
 async function batchUpdateBrowserModeMocks(
   browser: WebdriverIO.Browser,
@@ -373,8 +354,22 @@ const log = createLogger('electron-service', 'service');
 
 type ElementCommands = 'click' | 'doubleClick' | 'setValue' | 'clearValue';
 
+interface ElectronInstance {
+  name: string;
+  browser: WebdriverIO.Browser;
+  caps: WebdriverIO.Capabilities;
+  options: ElectronServiceGlobalOptions;
+}
+
+const MOCK_OPTION_OPS = [
+  ['clearMocks', 'clearAllMocks', 'mockClear'],
+  ['resetMocks', 'resetAllMocks', 'mockReset'],
+  ['restoreMocks', 'restoreAllMocks', 'mockRestore'],
+] as const;
+
 export default class ElectronWorkerService extends ServiceConfig implements Services.ServiceInstance {
-  private logCaptureManager?: LogCaptureManager;
+  #logCaptureManagers: LogCaptureManager[] = [];
+  #mode: ElectronServiceGlobalOptions['mode'];
 
   constructor(
     globalOptions: ElectronServiceGlobalOptions = {},
@@ -382,6 +377,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     _config?: unknown,
   ) {
     super(globalOptions, capabilities);
+    this.#mode = this.globalOptions.mode;
   }
 
   async before(
@@ -389,18 +385,28 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     _specs: string[],
     instance: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
   ): Promise<void> {
-    log.info(
-      `before() start — mode=${this.globalOptions.mode ?? 'binary'} ` +
-        `multiremote=${isMultiremote(instance)} ` +
-        `instances=${isMultiremote(instance) ? (instance as WebdriverIO.MultiRemoteBrowser).instances.join(',') : 'n/a'}`,
-    );
     this.browser = instance as WebdriverIO.Browser;
 
     let stage = 'init';
     try {
-      if (this.globalOptions.mode === 'browser') {
+      let electronInstances: ElectronInstance[] = [];
+      if (isMultiremote(instance)) {
+        stage = 'getElectronInstances';
+        electronInstances = await this.getElectronInstances(instance, capabilities);
+      }
+      // The launcher rejects mixed modes, so the first instance's mode is every instance's
+      if (electronInstances.length > 0) {
+        this.#mode = electronInstances[0].options.mode;
+      }
+      log.info(
+        `before() start — mode=${this.#mode ?? 'binary'} ` +
+          `multiremote=${isMultiremote(instance)} ` +
+          `instances=${isMultiremote(instance) ? instance.instances.join(',') : 'n/a'}`,
+      );
+
+      if (this.#mode === 'browser') {
         stage = 'initBrowserMode';
-        await this.initBrowserMode(instance as WebdriverIO.Browser);
+        await this.initBrowserMode(instance, electronInstances);
         log.info('before() complete (browser mode)');
         return;
       }
@@ -413,16 +419,16 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       // Initialize log capture if enabled
       // Note: Renderer logs work via Puppeteer and don't require CDP bridge
       // Main process logs require CDP bridge
-      if (this.shouldCaptureElectronLogs()) {
+      if (!isMultiremote(instance) && this.shouldCaptureElectronLogs(this.globalOptions)) {
         stage = 'initializeLogCapture:root';
-        await this.initializeLogCapture(cdpBridge, this.browser);
+        await this.initializeLogCapture(cdpBridge, this.browser, this.globalOptions);
       }
 
       /**
        * Add electron API to browser object
        */
       stage = 'getElectronAPI:root';
-      this.browser.electron = getElectronAPI.call(this, this.browser, bridge);
+      this.browser.electron = getElectronAPI.call(this, this.browser, bridge, triggerDeeplink.bind(this));
 
       const isElectronApiAvailable = (browser: WebdriverIO.Browser, cdpBridge: ElectronCdpBridge | undefined) =>
         browser?.electron && typeof browser.electron.execute === 'function' && cdpBridge !== undefined;
@@ -440,48 +446,36 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
 
         // Set up electron API for the root multiremote browser
         let rootBridge = NO_BRIDGE;
-
-        for (const instanceName of mrBrowser.instances) {
-          const mrInstance = requireInstance(mrBrowser, instanceName);
-          const caps =
-            (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
-            (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
-
-          if (caps[CUSTOM_CAPABILITY_NAME]) {
-            stage = `initCdpBridge:rootFrom:${instanceName}`;
-            rootBridge = await initCdpBridge(this.cdpOptions, caps);
-            break;
-          }
+        const [firstInstance] = electronInstances;
+        if (firstInstance) {
+          stage = `initCdpBridge:rootFrom:${firstInstance.name}`;
+          rootBridge = await initCdpBridge(this.cdpOptions, firstInstance.caps);
         }
 
-        mrBrowser.electron = getElectronAPI.call(this, mrBrowser as unknown as WebdriverIO.Browser, rootBridge);
+        mrBrowser.electron = getElectronAPI.call(
+          this,
+          mrBrowser as unknown as WebdriverIO.Browser,
+          rootBridge,
+          (url: string) => triggerDeeplinkOnEveryInstance(electronInstances, url),
+        );
 
-        for (const instance of mrBrowser.instances) {
-          const mrInstance = requireInstance(mrBrowser, instance);
-          const caps =
-            (mrInstance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
-            (mrInstance.requestedCapabilities as WebdriverIO.Capabilities);
-
-          if (!caps[CUSTOM_CAPABILITY_NAME]) {
-            continue;
-          }
-
+        for (const { name: instance, browser: mrInstance, caps, options } of electronInstances) {
           stage = `initCdpBridge:${instance}`;
           log.info(`Initialising CDP bridge for instance: ${instance}`);
           const mrBridge = await initCdpBridge(this.cdpOptions, caps);
           const mrCdpBridge = connectedBridge(mrBridge);
 
-          // Initialize log capture for this multiremote instance
-          // Check if this specific instance has logging enabled
-          const instanceOptions = caps[CUSTOM_CAPABILITY_NAME] || {};
-          const shouldCaptureForInstance =
-            instanceOptions.captureMainProcessLogs || instanceOptions.captureRendererLogs;
-          if (shouldCaptureForInstance) {
+          if (this.shouldCaptureElectronLogs(options)) {
             stage = `initializeLogCapture:${instance}`;
-            await this.initializeLogCapture(mrCdpBridge, mrInstance, instance, caps);
+            await this.initializeLogCapture(mrCdpBridge, mrInstance, options, instance);
           }
 
-          mrInstance.electron = getElectronAPI.call(this, mrInstance, mrBridge);
+          const deeplinkContext = {
+            browser: mrInstance,
+            globalOptions: options,
+            userDataDir: this.extractUserDataDir(caps),
+          };
+          mrInstance.electron = getElectronAPI.call(this, mrInstance, mrBridge, triggerDeeplink.bind(deeplinkContext));
 
           stage = `getPuppeteer:${instance}`;
           const mrPuppeteer = await getPuppeteer(mrInstance);
@@ -519,7 +513,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       log.info('before() complete');
     } catch (error) {
       log.error(
-        `before() failed at stage="${stage}" — mode=${this.globalOptions.mode ?? 'binary'} ` +
+        `before() failed at stage="${stage}" — mode=${this.#mode ?? 'binary'} ` +
           `multiremote=${isMultiremote(instance)}`,
         error,
       );
@@ -528,23 +522,22 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async beforeTest() {
+    if (!this.browser) {
+      return;
+    }
+    const targets = await getMockOwners(this.browser);
     // Run every configured op so one failure can't skip the others, then report them together.
     const failures: unknown[] = [];
-    const attempt = async (op: () => Promise<void>) => {
+    for (const [option, commandName, op] of MOCK_OPTION_OPS) {
+      const enabled = targets.filter(({ caps }) => this.mockOptions(caps)[option]);
+      if (enabled.length === 0) {
+        continue;
+      }
       try {
-        await op();
+        await runOnMockOwners(commandName, enabled, (owner) => runMockOp(owner, op));
       } catch (error) {
         failures.push(error);
       }
-    };
-    if (this.clearMocks) {
-      await attempt(() => clearAllMocks());
-    }
-    if (this.resetMocks) {
-      await attempt(() => resetAllMocks());
-    }
-    if (this.restoreMocks) {
-      await attempt(() => restoreAllMocks());
     }
     if (failures.length > 0) {
       throw failures.length === 1
@@ -554,7 +547,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   async beforeCommand(commandName: string, args: unknown[]) {
-    if (this.globalOptions.mode === 'browser') {
+    if (this.#mode === 'browser') {
       return;
     }
     const excludeCommands = ['getWindowHandle', 'getWindowHandles', 'switchToWindow', 'execute'];
@@ -565,7 +558,10 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   }
 
   after() {
-    this.logCaptureManager?.stopCapture();
+    for (const logCaptureManager of this.#logCaptureManagers) {
+      logCaptureManager.stopCapture();
+    }
+    this.#logCaptureManagers = [];
     clearPuppeteerSessions();
   }
 
@@ -582,33 +578,24 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
    * be missed by mocks. If your app does this, use a Vite plugin to import the
    * injection script as a top-level module in your dev build.
    */
-  private async initBrowserMode(browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser): Promise<void> {
+  private async initBrowserMode(
+    browser: WebdriverIO.Browser | WebdriverIO.MultiRemoteBrowser,
+    electronInstances: ElectronInstance[],
+  ): Promise<void> {
     log.debug('Initialising Electron browser mode');
     const injectionScript = browserInterceptor.buildBrowserIpcInjectionScript();
 
     if (isMultiremote(browser)) {
-      const mrBrowser = browser as unknown as WebdriverIO.MultiRemoteBrowser;
       (browser as unknown as Record<string, boolean>).__wdioElectronBrowserMode__ = true;
 
-      for (const instanceName of mrBrowser.instances) {
-        const instance = requireInstance(mrBrowser, instanceName);
-        const caps =
-          (instance.requestedCapabilities as Capabilities.W3CCapabilities).alwaysMatch ||
-          (instance.requestedCapabilities as WebdriverIO.Capabilities);
-
-        if (!caps[CUSTOM_CAPABILITY_NAME]) {
-          continue;
-        }
-
-        const instanceOptions = caps[CUSTOM_CAPABILITY_NAME] as ElectronServiceGlobalOptions | undefined;
-        const instanceDevServerUrl = instanceOptions?.devServerUrl ?? this.globalOptions.devServerUrl;
-        if (!instanceDevServerUrl) {
+      for (const { name: instanceName, browser: instance, options } of electronInstances) {
+        if (!options.devServerUrl) {
           throw new SevereServiceError(
             `devServerUrl is required for browser mode but was not set for multiremote instance "${instanceName}"`,
           );
         }
 
-        await instance.url(instanceDevServerUrl);
+        await instance.url(options.devServerUrl);
         await instance.execute(injectionScript);
         (instance as unknown as Record<string, boolean>).__wdioElectronBrowserMode__ = true;
         instance.electron = this.getElectronBrowserModeAPI(instance);
@@ -694,10 +681,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
               `Use browser.electron.mock('${channel}') to mock the IPC channel directly.`,
           );
         }
-        const storeKey = browserModeStoreKey(browser, channel);
         let existing: ElectronFunctionMock | undefined;
         try {
-          existing = mockStore.getMock(storeKey);
+          existing = mockStore.getMock(browser, `electron.${channel}`);
         } catch (e) {
           if (!(e instanceof Error && e.message.startsWith('No mock registered for'))) {
             throw e;
@@ -705,7 +691,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         }
         if (!existing) {
           const newMock = await createElectronBrowserModeMock(channel, browser);
-          mockStore.setMockWithKey(storeKey, newMock);
+          mockStore.setMock(browser, newMock);
           return newMock;
         }
         // Concurrent mock(channel) callers after navigation must share a single
@@ -755,9 +741,9 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
             'Use browser.execute() for renderer code or browser.electron.mock() to intercept IPC.',
         );
       },
-      clearAllMocks: async (commandPrefix?: string) => clearAllMocks.call(this, commandPrefix),
-      resetAllMocks: async (commandPrefix?: string) => resetAllMocks.call(this, commandPrefix),
-      restoreAllMocks: async (commandPrefix?: string) => restoreAllMocks.call(this, commandPrefix),
+      clearAllMocks: async (commandPrefix?: string) => clearAllMocks.call({ browser }, commandPrefix),
+      resetAllMocks: async (commandPrefix?: string) => resetAllMocks.call({ browser }, commandPrefix),
+      restoreAllMocks: async (commandPrefix?: string) => restoreAllMocks.call({ browser }, commandPrefix),
       isMockFunction: (fn: unknown) => isMockFunction.call(this, fn),
       triggerDeeplink: async () => {
         throw new Error('browser.electron.triggerDeeplink() is not supported in browser mode.');
@@ -817,11 +803,28 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
     }
   }
 
+  private async getElectronInstances(
+    browser: WebdriverIO.MultiRemoteBrowser,
+    capabilities: WebdriverIO.Capabilities,
+  ): Promise<ElectronInstance[]> {
+    const instances: ElectronInstance[] = [];
+    await forEachInstance(
+      browser,
+      (instance, { name, caps }) => {
+        if (name !== undefined && caps?.[CUSTOM_CAPABILITY_NAME]) {
+          instances.push({ name, browser: instance, caps, options: this.instanceOptions(caps) });
+        }
+      },
+      capabilities,
+    );
+    return instances;
+  }
+
   /**
    * Check if Electron log capture is enabled
    */
-  private shouldCaptureElectronLogs(): boolean {
-    return !!(this.globalOptions.captureMainProcessLogs || this.globalOptions.captureRendererLogs);
+  private shouldCaptureElectronLogs(options: ElectronServiceGlobalOptions): boolean {
+    return !!(options.captureMainProcessLogs || options.captureRendererLogs);
   }
 
   /**
@@ -831,14 +834,10 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
   private async initializeLogCapture(
     cdpBridge: ElectronCdpBridge | undefined,
     browser: WebdriverIO.Browser,
+    options: ElectronServiceGlobalOptions,
     instanceId?: string,
-    capabilities?: WebdriverIO.Capabilities,
   ): Promise<void> {
     try {
-      // For multiremote, use capabilities from the specific instance
-      // For standard mode, use globalOptions
-      const options = capabilities?.[CUSTOM_CAPABILITY_NAME] || this.globalOptions;
-
       const logOptions: LogCaptureOptions = {
         captureMainProcessLogs: options.captureMainProcessLogs ?? false,
         captureRendererLogs: options.captureRendererLogs ?? false,
@@ -847,15 +846,13 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
         logDir: options.logDir,
       };
 
-      // Create log capture manager only once (for multiremote, reuse the same instance)
-      if (!this.logCaptureManager) {
-        this.logCaptureManager = new LogCaptureManager();
-      }
+      const logCaptureManager = new LogCaptureManager();
+      this.#logCaptureManagers.push(logCaptureManager);
 
       // Main process logs require CDP bridge
       if (logOptions.captureMainProcessLogs) {
         if (cdpBridge) {
-          await this.logCaptureManager.captureMainProcessLogs(cdpBridge, logOptions, instanceId);
+          await logCaptureManager.captureMainProcessLogs(cdpBridge, logOptions, instanceId);
         } else {
           log.warn('Main process log capture requested but the CDP bridge is unavailable.');
         }
@@ -864,7 +861,7 @@ export default class ElectronWorkerService extends ServiceConfig implements Serv
       // Renderer logs use Puppeteer and work independently of CDP bridge
       if (logOptions.captureRendererLogs) {
         const puppeteerBrowser = await getPuppeteer(browser);
-        await this.logCaptureManager.captureRendererLogs(puppeteerBrowser, logOptions, instanceId);
+        await logCaptureManager.captureRendererLogs(puppeteerBrowser, logOptions, instanceId);
       }
     } catch (error) {
       log.warn('Failed to initialize log capture:', error);
@@ -930,7 +927,23 @@ const copyOriginalApi = async (browser: WebdriverIO.Browser) => {
   );
 };
 
-function getElectronAPI(this: ServiceConfig, browser: WebdriverIO.Browser, bridge: CdpBridgeResult) {
+async function triggerDeeplinkOnEveryInstance(instances: ElectronInstance[], url: string): Promise<void> {
+  validateDeeplinkUrl(url);
+  for (const { name, browser } of instances) {
+    try {
+      await browser.electron.triggerDeeplink(url);
+    } catch (error) {
+      throw new Error(`triggerDeeplink failed on ${name}: ${errorMessage(error)}`, { cause: error });
+    }
+  }
+}
+
+function getElectronAPI(
+  this: ServiceConfig,
+  browser: WebdriverIO.Browser,
+  bridge: CdpBridgeResult,
+  deeplink: (url: string) => Promise<void>,
+) {
   const cdpBridge = connectedBridge(bridge);
   const disabledApiFunc = () => {
     if (!bridge.ok) {
@@ -950,17 +963,20 @@ function getElectronAPI(this: ServiceConfig, browser: WebdriverIO.Browser, bridg
     return !cdpBridge && requiresCdp ? disabledApiFunc : impl;
   };
 
+  // Bound to this browser, not the service, so each multiremote instance has its own mocks
+  const mockContext = { browser };
+
   return {
-    clearAllMocks: getMethod(clearAllMocks.bind(this)),
+    clearAllMocks: getMethod((apiName?: string) => clearAllMocks.call(mockContext, apiName)),
     execute: getMethod((script: string | AbstractFn, ...args: unknown[]) =>
       execute.apply(this, [browser, cdpBridge as ElectronCdpBridge, script, ...args]),
     ),
     isMockFunction: getMethod(isMockFunction.bind(this)),
-    mock: getMethod(mock.bind(this)),
-    mockAll: getMethod(mockAll.bind(this)),
-    resetAllMocks: getMethod(resetAllMocks.bind(this)),
-    restoreAllMocks: getMethod(restoreAllMocks.bind(this)),
-    triggerDeeplink: getMethod(triggerDeeplink.bind(this), false), // doesn't require CDP
+    mock: getMethod((apiName: string, funcName?: string) => mock.call(mockContext, apiName, funcName)),
+    mockAll: getMethod((apiName: string) => mockAll.call(mockContext, apiName)),
+    resetAllMocks: getMethod((apiName?: string) => resetAllMocks.call(mockContext, apiName)),
+    restoreAllMocks: getMethod((apiName?: string) => restoreAllMocks.call(mockContext, apiName)),
+    triggerDeeplink: getMethod(deeplink, false), // doesn't require CDP
     emitEvent: getMethod(async (channel: string, ...args: unknown[]): Promise<void> => {
       await execute.apply(this, [
         browser,
