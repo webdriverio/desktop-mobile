@@ -287,6 +287,15 @@ describe('DioxusWorkerService', () => {
       expect(dioxusOf(fakes.root).isMockFunction('only_b')).toBe(true);
     });
 
+    it("should return each instance's unwrapped result from execute on the root", async () => {
+      const { fakes, dioxusOf } = await setUp();
+      vi.mocked(fakes.browserA.execute).mockResolvedValueOnce({ __wdio_value__: 'a' });
+      vi.mocked(fakes.browserB.execute).mockResolvedValueOnce({});
+      vi.mocked(fakes.root.execute).mockResolvedValueOnce([{ __wdio_value__: 'a' }, {}]);
+
+      await expect(dioxusOf(fakes.root).execute(() => 'a')).resolves.toEqual(['a', undefined]);
+    });
+
     it("should run the configured ops on every instance's mocks before each test", async () => {
       const { service, mocks } = await setUp({ restoreMocks: true });
 
