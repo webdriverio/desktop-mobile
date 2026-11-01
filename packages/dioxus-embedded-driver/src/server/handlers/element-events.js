@@ -76,14 +76,14 @@ function wdioFocus(el, focus = el.focus) {
   wdioFlushPendingChange();
 }
 
-// The element's built-in method, such as HTMLElement's or SVGElement's focus(), past any that a
-// component or the element itself defines.
-function wdioNativeMethod(el, name) {
-  let method;
+// The element's built-in focus(), such as HTMLElement's or SVGElement's, past any that a component or
+// the element itself defines.
+function wdioNativeFocus(el) {
+  let focus;
   for (let proto = Object.getPrototypeOf(el); proto; proto = Object.getPrototypeOf(proto)) {
-    method = Object.getOwnPropertyDescriptor(proto, name)?.value ?? method;
+    focus = Object.getOwnPropertyDescriptor(proto, 'focus')?.value ?? focus;
   }
-  return method;
+  return focus;
 }
 
 // A field the page has removed fires nothing, as its component may be gone.
@@ -185,7 +185,7 @@ function wdioTabKey(event) {
   }
   // A stop the page won't focus, such as a link with an invalid tabindex, passes Tab on to the next.
   // A focus event on the stop counts as taking focus, even when a handler, like a focus trap's, sends
-  // it back. As in a browser, Tab never calls a focus() or blur() the page defines.
+  // it back. As in a browser, Tab never calls a focus() the page defines.
   const start = wdioDeepActiveElement();
   // A blur or change handler that sends focus back to the field Tab leaves makes the engine block the
   // move, and Tab is done, as in Chrome. A stop that won't take focus never blurs the field.
@@ -217,7 +217,7 @@ function wdioTabKey(event) {
     };
     window.addEventListener('focus', onFocus, true);
     candidate.addEventListener('focus', onFocus, true);
-    wdioFocus(candidate, wdioNativeMethod(candidate, 'focus'));
+    wdioFocus(candidate, wdioNativeFocus(candidate));
     window.removeEventListener('focus', onFocus, true);
     candidate.removeEventListener('focus', onFocus, true);
     // A window without focus may fire no focus event, so the field is selected once it has focus.
@@ -228,8 +228,7 @@ function wdioTabKey(event) {
   });
   start.removeEventListener('blur', onBlur, true);
   if (!next) {
-    const active = wdioDeepActiveElement();
-    wdioNativeMethod(active, 'blur').call(active);
+    wdioDeepActiveElement().blur();
     wdioFlushPendingChange();
   }
 }
@@ -240,9 +239,8 @@ function wdioTabKey(event) {
 function wdioTabCandidates(backward, current) {
   const { stops, treeOrder } = wdioTabStops(current);
   const order = backward ? [...stops].reverse() : stops;
-  // With nothing focused, the active element is the body, and Tab starts at the first stop. A body the
-  // page focused matches :focus, but only while its window has focus.
-  if (current === document.body && !current.matches(':focus')) {
+  // With nothing focused, the active element is the body, and Tab starts at the first stop.
+  if (current === document.body) {
     return order;
   }
   const at = order.indexOf(current);
@@ -272,7 +270,7 @@ function wdioTabStops(current) {
     const visit = (el) => {
       treeOrder.set(el, treeOrder.size);
       const style = getComputedStyle(el);
-      if (wdioHasAttribute(el, 'inert') || style.display === 'none') {
+      if (el.hasAttribute('inert') || style.display === 'none') {
         return;
       }
       if (wdioModal(el)) {
@@ -317,7 +315,7 @@ function wdioTabIndex(el) {
   if (Element.prototype.matches.call(el, ':disabled')) {
     return -1;
   }
-  if (wdioHasAttribute(el, 'tabindex')) {
+  if (el.hasAttribute('tabindex')) {
     return el.tabIndex ?? -1;
   }
   switch (el.localName) {
@@ -360,14 +358,10 @@ function wdioRenderedChildren(el) {
   return wdioChildren(el);
 }
 
-// The Tab walk reads elements through Element.prototype, as a form's named controls hide its own
-// properties: a control named "children" is `form.children`.
+// Through Element.prototype, as a form's named controls hide its own properties: a control named
+// "children" is `form.children`.
 function wdioChildren(el) {
   return Object.getOwnPropertyDescriptor(Element.prototype, 'children').get.call(el);
-}
-
-function wdioHasAttribute(el, name) {
-  return Element.prototype.hasAttribute.call(el, name);
 }
 
 function wdioSummary(details) {

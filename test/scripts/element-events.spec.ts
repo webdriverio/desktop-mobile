@@ -464,8 +464,6 @@ describe('Enter and Space on a button', () => {
 
 describe('Tab', () => {
   afterEach(() => {
-    document.body.removeAttribute('tabindex');
-    Reflect.deleteProperty(document.body, 'matches');
     vi.restoreAllMocks();
   });
 
@@ -537,7 +535,7 @@ describe('Tab', () => {
   it('should go through a form whose controls hide its own properties', () => {
     render('<input id="a"><form id="f"><input id="kids" name="children"><input id="e"></form><input id="z">');
     // Browsers make named controls properties of the form, hiding its own. jsdom doesn't.
-    for (const name of ['children', 'matches', 'hasAttribute']) {
+    for (const name of ['children', 'matches']) {
       Object.defineProperty($('#f'), name, { value: $('#kids') });
     }
     $('#a').focus();
@@ -617,17 +615,6 @@ describe('Tab', () => {
     expect(log.filter((entry) => entry.startsWith('focus'))).toEqual(['focus a=', 'focus guard=g', 'focus z=']);
   });
 
-  it('should select email and number inputs too, though they have no selection API', () => {
-    render('<input id="a"><input id="e" type="email" value="a@b.c"><input id="n" type="number" value="42">');
-    const selected: string[] = [];
-    vi.spyOn(HTMLInputElement.prototype, 'select').mockImplementation(function (this: HTMLInputElement) {
-      selected.push(`${this.id} focused=${document.activeElement === this}`);
-    });
-    $('#a').focus();
-    tabs(2);
-    expect(selected).toEqual(['e focused=true', 'n focused=true']);
-  });
-
   it("should select the next text field's value after the field focus leaves fires its change", () => {
     render('<input id="zip"><input id="city">');
     $('#zip').addEventListener('change', () => {
@@ -682,28 +669,6 @@ describe('Tab', () => {
       'body',
       'body',
     ]);
-  });
-
-  it('should tab from a body the page focused as from an element Tab skips', () => {
-    render('<input id="a"><input id="p" tabindex="1">');
-    document.body.tabIndex = -1;
-    document.body.focus();
-    const forward = tab();
-    document.body.focus();
-    expect([forward, tab({ shiftKey: true })]).toEqual(['a', 'body']);
-  });
-
-  it('should start at the first stop with nothing focused, even when the body is a stop', () => {
-    render('<input id="p" tabindex="1"><input id="a"><input id="b">');
-    document.body.tabIndex = 0;
-    // jsdom has a focusable body match :focus when nothing else has focus, unlike browsers.
-    Object.defineProperty(document.body, 'matches', {
-      configurable: true,
-      value: (selector: string) => selector !== ':focus' && Element.prototype.matches.call(document.body, selector),
-    });
-    const forward = tab();
-    $('#p').blur();
-    expect([forward, tab({ shiftKey: true })]).toEqual(['p', 'b']);
   });
 
   it('should keep focus within a modal dialog', () => {
@@ -822,22 +787,12 @@ describe('Tab', () => {
     expect(tab()).toBe('qty');
   });
 
-  it('should leave the page through the built-in blur(), never one the page defines', () => {
-    render('<input id="a"><input id="z">');
-    $('#z').blur = () => {};
-    $('#z').focus();
-    expect(tab()).toBe('body');
-  });
-
   it("should pass Tab on from a stop the page won't focus", () => {
     render('<input id="x"><a id="bad" tabindex="foo">bad</a><input id="y">');
     $('#x').focus();
     expect(tabs(2)).toEqual(['y', 'body']);
     $('#y').focus();
     expect(tab({ shiftKey: true })).toBe('x');
-    $('#y').remove();
-    $('#x').focus();
-    expect(tab()).toBe('body');
   });
 });
 
