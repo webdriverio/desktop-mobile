@@ -239,8 +239,7 @@ pub fn build_special_key_script(
   key_event_script(js_key, js_code, key_code, is_down, modifiers, &after_dispatch, &default_action)
 }
 
-/// JS for Tab's default action, which reads from the keydown whether a handler canceled it and
-/// which modifiers are held.
+/// JS for Tab's default action. `wdioTabKey` reads the keydown's cancellation and modifiers itself.
 fn tab_js() -> String {
   format!("{{\n{ELEMENT_EVENTS_JS}\nwdioTabKey(keyEvent);\n}}")
 }
