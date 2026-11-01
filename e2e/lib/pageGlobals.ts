@@ -1,5 +1,5 @@
 // Page-realm shapes for execute() callbacks, imported with `import type` and cast inline: callbacks are serialized
-// into the page, where a runtime helper is undefined, and the e2e tsconfig omits DOM because specs run in Node.
+// into the page, where a runtime helper is undefined.
 
 export type PageElement = { id: string; textContent: string | null };
 // `pointerType` and `isPrimary` are set only on PointerEvents.
