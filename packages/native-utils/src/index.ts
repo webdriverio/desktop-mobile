@@ -16,7 +16,7 @@ export {
 } from './diagnostics.js';
 export { errorMessage, severeServiceError } from './errors.js';
 export type { LogArea } from './log.js';
-export { type BulkMockOpOptions, type MockLifecycleOp, runBulkMockOp } from './mockLifecycle.js';
+export { type BulkMockOpOptions, type MockLifecycleOp, runBulkMockOp, runThenSync } from './mockLifecycle.js';
 export { isMultiremote } from './multiremote.js';
 export { type NormalizedReadResult, readPackageUp, readPackageUpSync } from './package.js';
 export {

@@ -1,6 +1,7 @@
-import type { BrowserExtension } from '@wdio/native-types';
+import { createIpcInterceptor } from '@wdio/native-spy/interceptor';
+import type { BrowserExtension, ElectronFunctionMock, ElectronServiceOptions } from '@wdio/native-types';
 import { waitUntilWindowAvailable } from '@wdio/native-utils';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, type Mock, vi } from 'vitest';
 import { clearAllMocks } from '../src/commands/clearAllMocks.js';
 import { execute } from '../src/commands/executeCdp.js';
 import { isMockFunction } from '../src/commands/isMockFunction.js';
@@ -9,7 +10,7 @@ import { mockAll } from '../src/commands/mockAll.js';
 import { resetAllMocks } from '../src/commands/resetAllMocks.js';
 import { restoreAllMocks } from '../src/commands/restoreAllMocks.js';
 import mockStore from '../src/mockStore.js';
-import ElectronWorkerService, { browserModeStoreKey } from '../src/service.js';
+import ElectronWorkerService from '../src/service.js';
 import { clearPuppeteerSessions, ensureActiveWindowFocus } from '../src/window.js';
 import { mockProcessProperty } from './helpers.js';
 
@@ -71,7 +72,6 @@ vi.mock('../src/mockStore', () => {
       getMock: vi.fn().mockImplementation(() => {
         throw new Error('No mock registered for key');
       }),
-      setMockWithKey: vi.fn(),
       clear: vi.fn(),
     },
   };
@@ -90,6 +90,10 @@ vi.mock('../src/logCapture', () => {
     })),
   };
 });
+
+const { mockSpawn } = vi.hoisted(() => ({ mockSpawn: vi.fn() }));
+
+vi.mock('node:child_process', () => ({ default: { spawn: mockSpawn }, spawn: mockSpawn }));
 
 let instance: ElectronWorkerService | undefined;
 
@@ -165,6 +169,31 @@ describe('Electron Worker Service', () => {
       expect(typeof lastCall[2]).toBe('function');
       expect(lastCall[3]).toBe('did-update-info');
       expect(lastCall[4]).toEqual([{ count: 3 }, 'extra']);
+    });
+
+    it('should run the mock commands on the browser', async () => {
+      instance = new ElectronWorkerService({}, {});
+      await instance.before({}, [], browser);
+
+      await browser.electron.mock('app', 'getName');
+      await browser.electron.mockAll('dialog');
+      await browser.electron.clearAllMocks('app');
+      await browser.electron.resetAllMocks();
+      await browser.electron.restoreAllMocks('dialog');
+
+      expect(commands.mock).toHaveBeenCalledWith('app', 'getName');
+      expect(commands.mockAll).toHaveBeenCalledWith('dialog');
+      expect(commands.clearAllMocks).toHaveBeenCalledWith('app');
+      expect(commands.restoreAllMocks).toHaveBeenCalledWith('dialog');
+      for (const command of [
+        commands.mock,
+        commands.mockAll,
+        commands.clearAllMocks,
+        commands.resetAllMocks,
+        commands.restoreAllMocks,
+      ]) {
+        expect(vi.mocked(command).mock.contexts).toEqual([{ browser }]);
+      }
     });
 
     it('should provide a stubbed API when CDP bridge is unavailable', async () => {
@@ -397,8 +426,8 @@ describe('Electron Worker Service', () => {
       instance = new ElectronWorkerService({}, {});
       await instance.before({}, [], browser);
 
-      const keyA = browserModeStoreKey(browser, 'ipc-a');
-      const keyB = browserModeStoreKey(browser, 'ipc-b');
+      const keyA = 'electron.ipc-a';
+      const keyB = 'electron.ipc-b';
       const mockA = {
         __accessor: { kind: 'browser', channel: 'ipc-a' },
         __applyCalls: vi.fn(),
@@ -482,8 +511,8 @@ describe('Electron Worker Service', () => {
       await instance.before({}, [], browser);
 
       const storeModule = (await import('../src/mockStore.js')) as any;
-      const keyA = browserModeStoreKey(browser, 'ipc-a');
-      const keyB = browserModeStoreKey(browser, 'ipc-b');
+      const keyA = 'electron.ipc-a';
+      const keyB = 'electron.ipc-b';
       const mockA = {
         __accessor: { kind: 'browser', channel: 'ipc-a' },
         __applyCalls: vi.fn(),
@@ -549,7 +578,7 @@ describe('Electron Worker Service', () => {
       };
       storeModule.default.getMocks.mockReturnValueOnce([
         ['electron.app.getName', nativeMock],
-        [browserModeStoreKey(browser, 'ipc-x'), browserMock],
+        ['electron.ipc-x', browserMock],
       ]);
 
       const oc = vi.mocked((browser as any).overwriteCommand);
@@ -767,6 +796,41 @@ describe('Electron Worker Service', () => {
         expect(serviceApi).toStrictEqual({});
       });
 
+      it("should run each instance's mock commands on that instance, and the root's on the root", async () => {
+        instance = new ElectronWorkerService({}, {});
+        const requestedCapabilities = {
+          alwaysMatch: { browserName: 'electron', 'wdio:electronServiceOptions': {} },
+        };
+        const browserA = { ...browser, requestedCapabilities, electron: {} } as unknown as WebdriverIO.Browser;
+        const browserB = { ...browser, requestedCapabilities, electron: {} } as unknown as WebdriverIO.Browser;
+        const rootBrowser = {
+          instances: ['browserA', 'browserB'],
+          getInstance: (name: string) => (name === 'browserA' ? browserA : browserB),
+          execute: vi.fn().mockResolvedValue(true),
+          isMultiremote: true,
+          overwriteCommand: vi.fn(),
+        } as unknown as WebdriverIO.MultiRemoteBrowser;
+
+        await instance.before({}, [], rootBrowser);
+
+        await browserA.electron.mock('app', 'getName');
+        await browserB.electron.mock('app', 'getName');
+        await browserA.electron.mockAll('dialog');
+        await browserB.electron.clearAllMocks();
+        await browserA.electron.resetAllMocks();
+        await rootBrowser.electron.restoreAllMocks();
+
+        const browserOf = (command: (...args: never[]) => unknown) =>
+          vi.mocked(command).mock.contexts.map((context) => (context as { browser: unknown }).browser);
+        expect(browserOf(commands.mock)).toHaveLength(2);
+        expect(browserOf(commands.mock)[0]).toBe(browserA);
+        expect(browserOf(commands.mock)[1]).toBe(browserB);
+        expect(browserOf(commands.mockAll)[0]).toBe(browserA);
+        expect(browserOf(commands.clearAllMocks)[0]).toBe(browserB);
+        expect(browserOf(commands.resetAllMocks)[0]).toBe(browserA);
+        expect(browserOf(commands.restoreAllMocks)[0]).toBe(rootBrowser);
+      });
+
       it('should handle CDP bridge unavailability in multiremote instances', async () => {
         // Mock the CDP bridge initialization to fail for multiremote instances
         const { checkInspectFuse } = await import('../src/fuses.js');
@@ -830,27 +894,131 @@ describe('Electron Worker Service', () => {
       } as unknown as WebdriverIO.Browser;
     });
 
+    function createLifecycleMock(name = 'electron.app.getName') {
+      return { getMockName: () => name, mockClear: vi.fn(), mockReset: vi.fn(), mockRestore: vi.fn() };
+    }
+
+    function storeMocks(mocks: Map<unknown, ReturnType<typeof createLifecycleMock>>) {
+      vi.mocked(mockStore.getMocks).mockImplementation((owner) => {
+        const mock = mocks.get(owner);
+        return mock ? [[mock.getMockName(), mock as unknown as ElectronFunctionMock]] : [];
+      });
+    }
+
     it.each([
-      [`clearMocks`, commands.clearAllMocks],
-      [`resetMocks`, commands.resetAllMocks],
-      [`restoreMocks`, commands.restoreAllMocks],
-    ])('should clear all mocks when `%s` is set', async (option, fn) => {
+      [`clearMocks`, 'mockClear'],
+      [`resetMocks`, 'mockReset'],
+      [`restoreMocks`, 'mockRestore'],
+    ] as const)('should run %s on every mock before each test', async (option, op) => {
       instance = new ElectronWorkerService({ [option]: true }, {});
       await instance.before({}, [], browser);
+      const mock = createLifecycleMock();
+      storeMocks(new Map([[browser, mock]]));
+
       await instance.beforeTest();
 
-      expect(fn).toHaveBeenCalled();
+      expect(mock[op]).toHaveBeenCalledOnce();
+      expect(mockStore.getMocks).toHaveBeenCalledWith(browser);
+    });
+
+    it('should read the options set in the capabilities', async () => {
+      instance = new ElectronWorkerService({}, { 'wdio:electronServiceOptions': { restoreMocks: true } });
+      await instance.before({}, [], browser);
+      const mock = createLifecycleMock();
+      storeMocks(new Map([[browser, mock]]));
+
+      await instance.beforeTest();
+
+      expect(mock.mockRestore).toHaveBeenCalledOnce();
+      expect(mock.mockClear).not.toHaveBeenCalled();
     });
 
     it('should still reset and restore when clearing fails, then report the failure', async () => {
       instance = new ElectronWorkerService({ clearMocks: true, resetMocks: true, restoreMocks: true }, {});
       await instance.before({}, [], browser);
-      vi.mocked(commands.clearAllMocks).mockRejectedValueOnce(new Error('clear failed'));
+      const mock = createLifecycleMock();
+      mock.mockClear.mockRejectedValueOnce(new Error('clear failed'));
+      storeMocks(new Map([[browser, mock]]));
 
-      await expect(instance.beforeTest()).rejects.toMatchObject({ message: 'clear failed' });
+      await expect(instance.beforeTest()).rejects.toMatchObject({
+        message: 'mockClear failed: electron.app.getName: clear failed',
+      });
 
-      expect(commands.resetAllMocks).toHaveBeenCalled();
-      expect(commands.restoreAllMocks).toHaveBeenCalled();
+      expect(mock.mockReset).toHaveBeenCalled();
+      expect(mock.mockRestore).toHaveBeenCalled();
+    });
+
+    describe('in multiremote', () => {
+      let browserA: WebdriverIO.Browser;
+      let browserB: WebdriverIO.Browser;
+      let rootBrowser: WebdriverIO.MultiRemoteBrowser;
+      let mocks: Map<unknown, ReturnType<typeof createLifecycleMock>>;
+
+      function setUp(
+        serviceOptions: Record<string, boolean>,
+        instanceOptions: Record<'browserA' | 'browserB', Record<string, boolean>>,
+      ) {
+        browserA = {
+          requestedCapabilities: { alwaysMatch: { 'wdio:electronServiceOptions': instanceOptions.browserA } },
+        } as unknown as WebdriverIO.Browser;
+        browserB = {
+          requestedCapabilities: { 'wdio:electronServiceOptions': instanceOptions.browserB },
+        } as unknown as WebdriverIO.Browser;
+        rootBrowser = {
+          isMultiremote: true,
+          instances: ['browserA', 'browserB'],
+          getInstance: (name: string) => (name === 'browserA' ? browserA : browserB),
+        } as unknown as WebdriverIO.MultiRemoteBrowser;
+        mocks = new Map<unknown, ReturnType<typeof createLifecycleMock>>([
+          [browserA, createLifecycleMock()],
+          [browserB, createLifecycleMock()],
+          [rootBrowser, createLifecycleMock()],
+        ]);
+        storeMocks(mocks);
+        instance = new ElectronWorkerService(serviceOptions, {
+          browserA: { capabilities: {} },
+          browserB: { capabilities: {} },
+        } as unknown as WebdriverIO.Capabilities);
+        instance.browser = rootBrowser;
+      }
+
+      const mockOf = (owner: unknown) => mocks.get(owner) as ReturnType<typeof createLifecycleMock>;
+
+      it("should apply each instance's own mock options to its own mocks", async () => {
+        setUp({}, { browserA: { restoreMocks: true }, browserB: { clearMocks: true } });
+
+        await instance?.beforeTest();
+
+        expect(mockOf(browserA).mockRestore).toHaveBeenCalledOnce();
+        expect(mockOf(browserA).mockClear).not.toHaveBeenCalled();
+        expect(mockOf(browserB).mockClear).toHaveBeenCalledOnce();
+        expect(mockOf(browserB).mockRestore).not.toHaveBeenCalled();
+        for (const op of ['mockClear', 'mockReset', 'mockRestore'] as const) {
+          expect(mockOf(rootBrowser)[op]).not.toHaveBeenCalled();
+        }
+      });
+
+      it("should apply the service options to every instance that doesn't override them, and to the root's mocks", async () => {
+        setUp({ resetMocks: true }, { browserA: { resetMocks: false }, browserB: {} });
+
+        await instance?.beforeTest();
+
+        expect(mockOf(browserA).mockReset).not.toHaveBeenCalled();
+        expect(mockOf(browserB).mockReset).toHaveBeenCalledOnce();
+        expect(mockOf(rootBrowser).mockReset).toHaveBeenCalledOnce();
+      });
+
+      it('should finish the other instances before naming the one that failed', async () => {
+        setUp({ restoreMocks: true }, { browserA: {}, browserB: {} });
+        mockOf(browserB).mockRestore.mockRejectedValueOnce(new Error('session gone'));
+
+        await expect(instance?.beforeTest()).rejects.toMatchObject({
+          message: 'restoreAllMocks failed on browserB: mockRestore failed: electron.app.getName: session gone',
+        });
+
+        expect(mockOf(browserA).mockRestore).toHaveBeenCalledOnce();
+        expect(mockOf(rootBrowser).mockRestore).toHaveBeenCalledOnce();
+      });
     });
   });
 
@@ -1647,6 +1815,229 @@ describe('Electron Worker Service', () => {
 
         const perInstanceBrowser = rootBrowser.getInstance('app1') as WebdriverIO.Browser;
         await expect(perInstanceBrowser.electron.mock('read_file')).resolves.toBeDefined();
+      });
+    });
+  });
+
+  describe('multiremote instance options', () => {
+    type FakeLogCaptureManager = Record<'captureMainProcessLogs' | 'captureRendererLogs' | 'stopCapture', Mock>;
+
+    const createInstance = (options: ElectronServiceOptions, args: string[] = []) =>
+      ({
+        sessionId: 'dummyId',
+        url: vi.fn().mockResolvedValue(undefined),
+        execute: vi.fn().mockResolvedValue(undefined),
+        overwriteCommand: vi.fn(),
+        requestedCapabilities: {
+          browserName: 'chrome',
+          'goog:chromeOptions': { args },
+          'wdio:electronServiceOptions': options,
+        },
+      }) as unknown as WebdriverIO.Browser;
+
+    const createRoot = (instances: Record<string, WebdriverIO.Browser>) =>
+      ({
+        instances: Object.keys(instances),
+        getInstance: (name: string) => instances[name],
+        execute: vi.fn().mockResolvedValue(undefined),
+        url: vi.fn().mockResolvedValue(undefined),
+        overwriteCommand: vi.fn(),
+        isMultiremote: true,
+      }) as unknown as WebdriverIO.MultiRemoteBrowser;
+
+    const trackLogCaptureManagers = async () => {
+      const managers: FakeLogCaptureManager[] = [];
+      const { LogCaptureManager } = await import('../src/logCapture.js');
+      vi.mocked(LogCaptureManager).mockImplementation(function () {
+        const manager = {
+          captureMainProcessLogs: vi.fn().mockResolvedValue(undefined),
+          captureRendererLogs: vi.fn().mockResolvedValue(undefined),
+          stopCapture: vi.fn(),
+        };
+        managers.push(manager);
+        return manager as unknown as InstanceType<typeof LogCaptureManager>;
+      });
+      return managers;
+    };
+
+    const spawnedUserData = () =>
+      mockSpawn.mock.calls.map(([, args]) => new URL((args as string[])[1]).searchParams.get('userData'));
+
+    beforeEach(async () => {
+      const { getPuppeteer } = await import('../src/window.js');
+      vi.mocked(getPuppeteer).mockResolvedValue({} as Awaited<ReturnType<typeof getPuppeteer>>);
+    });
+
+    describe('mode', () => {
+      it('should run browser mode when the instances set it', async () => {
+        instance = new ElectronWorkerService({}, {});
+        const browserA = createInstance({ mode: 'browser', devServerUrl: 'http://localhost:5173' });
+        const browserB = createInstance({ mode: 'browser', devServerUrl: 'http://localhost:5174' });
+
+        await instance.before({}, [], createRoot({ browserA, browserB }));
+
+        const { ElectronCdpBridge } = await import('../src/bridge.js');
+        const injectionScript = createIpcInterceptor('electron').buildBrowserIpcInjectionScript();
+        expect(ElectronCdpBridge).not.toHaveBeenCalled();
+        expect(browserA.url).toHaveBeenCalledWith('http://localhost:5173');
+        expect(browserB.url).toHaveBeenCalledWith('http://localhost:5174');
+        expect(browserA.execute).toHaveBeenCalledWith(injectionScript);
+        expect(browserB.execute).toHaveBeenCalledWith(injectionScript);
+        await expect(browserA.electron.execute(() => undefined)).rejects.toMatchObject({
+          message:
+            'browser.electron.execute() is not supported in browser mode. ' +
+            'Use browser.execute() for renderer code or browser.electron.mock() to intercept IPC.',
+        });
+      });
+
+      it('should run native mode when the instances set it over a service-level browser mode', async () => {
+        instance = new ElectronWorkerService({ mode: 'browser', devServerUrl: 'http://localhost:5173' }, {});
+        const browserA = createInstance({ mode: 'native' });
+
+        await instance.before({}, [], createRoot({ browserA }));
+
+        const { ElectronCdpBridge } = await import('../src/bridge.js');
+        expect(ElectronCdpBridge).toHaveBeenCalled();
+        expect(browserA.url).not.toHaveBeenCalled();
+        expect(browserA.electron.execute).toEqual(expect.any(Function));
+      });
+
+      it('should skip window focus management when the instances set browser mode', async () => {
+        instance = new ElectronWorkerService({}, {});
+        const browserA = createInstance({ mode: 'browser', devServerUrl: 'http://localhost:5173' });
+        await instance.before({}, [], createRoot({ browserA }));
+
+        await instance.beforeCommand('click', []);
+
+        expect(ensureActiveWindowFocus).not.toHaveBeenCalled();
+      });
+    });
+
+    describe('log capture', () => {
+      it("should merge each instance's log options over the service-level ones", async () => {
+        const managers = await trackLogCaptureManagers();
+        instance = new ElectronWorkerService({ captureMainProcessLogs: true, rendererLogLevel: 'warn' }, {});
+        const browserA = createInstance({ captureRendererLogs: true });
+        const browserB = createInstance({ mainProcessLogLevel: 'debug' });
+
+        await instance.before({}, [], createRoot({ browserA, browserB }));
+
+        expect(managers).toHaveLength(2);
+        const [managerA, managerB] = managers;
+        const optionsA = {
+          captureMainProcessLogs: true,
+          captureRendererLogs: true,
+          mainProcessLogLevel: 'info',
+          rendererLogLevel: 'warn',
+        };
+        expect(managerA.captureMainProcessLogs).toHaveBeenCalledWith(expect.anything(), optionsA, 'browserA');
+        expect(managerA.captureRendererLogs).toHaveBeenCalledWith(expect.anything(), optionsA, 'browserA');
+        expect(managerB.captureMainProcessLogs).toHaveBeenCalledWith(
+          expect.anything(),
+          {
+            captureMainProcessLogs: true,
+            captureRendererLogs: false,
+            mainProcessLogLevel: 'debug',
+            rendererLogLevel: 'warn',
+          },
+          'browserB',
+        );
+        expect(managerB.captureRendererLogs).not.toHaveBeenCalled();
+      });
+
+      it('should not start log capture on the multiremote root', async () => {
+        const managers = await trackLogCaptureManagers();
+        instance = new ElectronWorkerService({ captureMainProcessLogs: true, captureRendererLogs: true }, {});
+        const root = createRoot({ browserA: createInstance({}) });
+
+        await instance.before({}, [], root);
+
+        const { getPuppeteer } = await import('../src/window.js');
+        expect(getPuppeteer).not.toHaveBeenCalledWith(root);
+        expect(managers).toHaveLength(1);
+        expect(managers[0].captureMainProcessLogs).toHaveBeenCalledWith(
+          expect.anything(),
+          expect.anything(),
+          'browserA',
+        );
+      });
+
+      it("should stop every instance's log capture", async () => {
+        const managers = await trackLogCaptureManagers();
+        instance = new ElectronWorkerService({ captureMainProcessLogs: true }, {});
+        await instance.before({}, [], createRoot({ browserA: createInstance({}), browserB: createInstance({}) }));
+
+        instance.after();
+
+        expect(managers).toHaveLength(2);
+        expect(managers[0].stopCapture).toHaveBeenCalledTimes(1);
+        expect(managers[1].stopCapture).toHaveBeenCalledTimes(1);
+      });
+    });
+
+    describe('triggerDeeplink', () => {
+      beforeEach(() => {
+        mockProcessProperty('platform', 'win32');
+        mockSpawn.mockReset();
+        mockSpawn.mockReturnValue({ on: vi.fn(), unref: vi.fn() });
+      });
+
+      afterEach(() => {
+        vi.mocked(execute).mockReset();
+      });
+
+      it("should use each instance's own app binary and user data directory", async () => {
+        instance = new ElectronWorkerService({}, {});
+        const browserA = createInstance({ appBinaryPath: '/apps/a.exe' }, ['--user-data-dir=/data/a']);
+        const browserB = createInstance({ appBinaryPath: '/apps/b.exe' }, ['--user-data-dir=/data/b']);
+        await instance.before({}, [], createRoot({ browserA, browserB }));
+
+        await browserA.electron.triggerDeeplink('myapp://open');
+        await browserB.electron.triggerDeeplink('myapp://open');
+
+        expect(spawnedUserData()).toEqual(['/data/a', '/data/b']);
+      });
+
+      it("should detect each instance's user data directory from its own app", async () => {
+        instance = new ElectronWorkerService({ appBinaryPath: '/apps/app.exe' }, {});
+        const browserA = createInstance({});
+        const browserB = createInstance({});
+        vi.mocked(execute).mockImplementation(async (browser) => (browser === browserA ? '/auto/a' : '/auto/b'));
+        await instance.before({}, [], createRoot({ browserA, browserB }));
+
+        await browserA.electron.triggerDeeplink('myapp://open');
+        await browserB.electron.triggerDeeplink('myapp://open');
+        await browserA.electron.triggerDeeplink('myapp://open');
+
+        expect(spawnedUserData()).toEqual(['/auto/a', '/auto/b', '/auto/a']);
+      });
+
+      it('should trigger the deeplink on every instance from the root', async () => {
+        instance = new ElectronWorkerService({ appBinaryPath: '/apps/app.exe' }, {});
+        const root = createRoot({
+          browserA: createInstance({}, ['--user-data-dir=/data/a']),
+          browserB: createInstance({}, ['--user-data-dir=/data/b']),
+        });
+        await instance.before({}, [], root);
+
+        await root.electron.triggerDeeplink('myapp://open');
+
+        expect(spawnedUserData()).toEqual(['/data/a', '/data/b']);
+      });
+
+      it('should name the instance whose deeplink fails from the root', async () => {
+        instance = new ElectronWorkerService({}, {});
+        const root = createRoot({
+          browserA: createInstance({ appBinaryPath: '/apps/a.exe' }, ['--user-data-dir=/data/a']),
+          browserB: createInstance({}, ['--user-data-dir=/data/b']),
+        });
+        await instance.before({}, [], root);
+
+        await expect(root.electron.triggerDeeplink('myapp://open')).rejects.toMatchObject({
+          message:
+            'triggerDeeplink failed on browserB: triggerDeeplink requires appBinaryPath to be configured on Windows. ' +
+            'Please set appBinaryPath in your wdio:electronServiceOptions.',
+        });
       });
     });
   });

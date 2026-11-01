@@ -324,16 +324,21 @@ describe('app env', () => {
     expect(driverPool(launcher).useNativeDriver).not.toHaveBeenCalled();
   });
 
-  it("should match msedgedriver to the first capability's env, which the app gets", async () => {
+  it("should match msedgedriver to the first capability's env and webviewOptions, which its app gets", async () => {
     mockPlatform('win32');
-    const cap = appCap({ env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\fixed' } });
+    const first: TauriCapabilities = {
+      'tauri:options': { application: APP, webviewOptions: { browserExecutableFolder: 'C:\\options' } },
+      'wdio:tauriServiceOptions': { env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\env' } },
+    };
+    const second = appCap({ env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\other' } });
     const launcher = createLauncher({ driverProvider: 'external', edgeDriverVersion: '149.0.4022.98' });
 
-    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, [cap]);
+    await launcher.onPrepare({ capabilities: [], maxInstances: 1 }, [first, second]);
 
     expect(ensureMsEdgeDriver).toHaveBeenCalledWith(APP, true, {
       edgeDriverVersion: '149.0.4022.98',
-      env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\fixed' },
+      env: { WEBVIEW2_BROWSER_EXECUTABLE_FOLDER: 'C:\\env' },
+      browserExecutableFolder: 'C:\\options',
     });
   });
 });

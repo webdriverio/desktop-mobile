@@ -1,146 +1,109 @@
-import type { ElectronMock } from '@wdio/native-types';
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import type { ElectronServiceMockStore } from '../src/mockStore.js';
+import type { ElectronFunctionMock } from '@wdio/native-types';
+import { beforeEach, describe, expect, it } from 'vitest';
+import { ElectronServiceMockStore } from '../src/mockStore.js';
 
-let mockStore: ElectronServiceMockStore;
+const createMock = (name: string) => ({ getMockName: () => name }) as unknown as ElectronFunctionMock;
 
-beforeEach(async () => {
-  mockStore = (await import('../src/mockStore.js')).default;
-});
+describe('ElectronServiceMockStore', () => {
+  let store: ElectronServiceMockStore;
+  const browserA = { sessionId: 'session-a' } as unknown as WebdriverIO.Browser;
+  const browserB = { sessionId: 'session-b' } as unknown as WebdriverIO.Browser;
 
-afterEach(() => {
-  vi.resetModules();
-});
-
-describe('Mock Store', () => {
-  const testMock = { getMockName: () => 'test mock' } as unknown as ElectronMock;
-
-  it('should set and get a specific mock', () => {
-    mockStore.setMock(testMock);
-    expect(mockStore.getMock('test mock')).toBe(testMock);
+  beforeEach(() => {
+    store = new ElectronServiceMockStore();
   });
 
-  it('should throw an error when there is no stored mock with a given ID', () => {
-    mockStore.setMock(testMock);
-    expect(() => mockStore.getMock('not a stored mock')).toThrow('No mock registered for "not a stored mock"');
-  });
-});
+  describe('setMock', () => {
+    it('should store a mock under its name and return it', () => {
+      const mock = createMock('electron.app.getName');
+      expect(store.setMock(browserA, mock)).toBe(mock);
+      expect(store.getMock(browserA, 'electron.app.getName')).toBe(mock);
+    });
 
-describe('getMocks', () => {
-  it('should retrieve all stored mocks', () => {
-    const testMock1 = { getMockName: () => 'test mock 1' } as unknown as ElectronMock;
-    const testMock2 = { getMockName: () => 'test mock 2' } as unknown as ElectronMock;
-    const testMock3 = { getMockName: () => 'test mock 3' } as unknown as ElectronMock;
-    mockStore.setMock(testMock1);
-    mockStore.setMock(testMock2);
-    mockStore.setMock(testMock3);
-    expect(mockStore.getMocks()).toStrictEqual([
-      ['test mock 1', testMock1],
-      ['test mock 2', testMock2],
-      ['test mock 3', testMock3],
-    ]);
-  });
-});
+    it('should overwrite an existing mock with the same name on the same browser', () => {
+      const mock1 = createMock('electron.app.getName');
+      const mock2 = createMock('electron.app.getName');
+      store.setMock(browserA, mock1);
+      store.setMock(browserA, mock2);
+      expect(store.getMock(browserA, 'electron.app.getName')).toBe(mock2);
+    });
 
-describe('deleteMock', () => {
-  it('should remove a specific mock from the store', () => {
-    const testMock1 = { getMockName: () => 'test mock 1' } as unknown as ElectronMock;
-    const testMock2 = { getMockName: () => 'test mock 2' } as unknown as ElectronMock;
-    mockStore.setMock(testMock1);
-    mockStore.setMock(testMock2);
-
-    const result = mockStore.deleteMock('test mock 1');
-
-    expect(result).toBe(true);
-    expect(mockStore.getMocks()).toStrictEqual([['test mock 2', testMock2]]);
+    it('should keep a mock of the same name on each browser', () => {
+      const mockA = createMock('electron.app.getName');
+      const mockB = createMock('electron.app.getName');
+      store.setMock(browserA, mockA);
+      store.setMock(browserB, mockB);
+      expect(store.getMock(browserA, 'electron.app.getName')).toBe(mockA);
+      expect(store.getMock(browserB, 'electron.app.getName')).toBe(mockB);
+    });
   });
 
-  it('should return false when deleting a non-existent mock', () => {
-    const result = mockStore.deleteMock('non-existent');
-    expect(result).toBe(false);
-  });
-});
+  describe('getMock', () => {
+    it('should throw when there is no stored mock with a given ID', () => {
+      store.setMock(browserA, createMock('electron.app.getName'));
+      expect(() => store.getMock(browserA, 'not a stored mock')).toThrow('No mock registered for "not a stored mock"');
+    });
 
-describe('clear', () => {
-  it('should remove all mocks from the store', () => {
-    const testMock1 = { getMockName: () => 'test mock 1' } as unknown as ElectronMock;
-    const testMock2 = { getMockName: () => 'test mock 2' } as unknown as ElectronMock;
-    mockStore.setMock(testMock1);
-    mockStore.setMock(testMock2);
-
-    mockStore.clear();
-
-    expect(mockStore.getMocks()).toStrictEqual([]);
-  });
-});
-
-describe('setMockWithKey', () => {
-  it('should store the mock under the explicit key, not the mock name', () => {
-    const testMock = { getMockName: () => 'mock name' } as unknown as ElectronMock;
-    mockStore.setMockWithKey('custom-key', testMock);
-    expect(mockStore.getMock('custom-key')).toBe(testMock);
+    it('should throw for a mock that only another browser has', () => {
+      store.setMock(browserA, createMock('electron.app.getName'));
+      expect(() => store.getMock(browserB, 'electron.app.getName')).toThrow(
+        'No mock registered for "electron.app.getName"',
+      );
+    });
   });
 
-  it('should allow the same mock to be stored under multiple different keys', () => {
-    const testMock = { getMockName: () => 'shared mock' } as unknown as ElectronMock;
-    mockStore.setMockWithKey('key-a', testMock);
-    mockStore.setMockWithKey('key-b', testMock);
-    expect(mockStore.getMock('key-a')).toBe(testMock);
-    expect(mockStore.getMock('key-b')).toBe(testMock);
+  describe('getMocks', () => {
+    it('should return an empty array for a browser with no mocks', () => {
+      expect(store.getMocks(browserA)).toEqual([]);
+    });
+
+    it("should return only the browser's own mocks as entries", () => {
+      const mock1 = createMock('electron.app.getName');
+      const mock2 = createMock('electron.dialog.showOpenDialog');
+      store.setMock(browserA, mock1);
+      store.setMock(browserA, mock2);
+      store.setMock(browserB, createMock('electron.app.getVersion'));
+      expect(store.getMocks(browserA)).toStrictEqual([
+        ['electron.app.getName', mock1],
+        ['electron.dialog.showOpenDialog', mock2],
+      ]);
+    });
   });
 
-  it('should allow two different mocks with the same name to be stored under different keys (collision prevention)', () => {
-    const mock1 = { getMockName: () => 'same-name' } as unknown as ElectronMock;
-    const mock2 = { getMockName: () => 'same-name' } as unknown as ElectronMock;
-    mockStore.setMockWithKey('key-instance-0', mock1);
-    mockStore.setMockWithKey('key-instance-1', mock2);
-    expect(mockStore.getMock('key-instance-0')).toBe(mock1);
-    expect(mockStore.getMock('key-instance-1')).toBe(mock2);
+  describe('deleteMock', () => {
+    it('should remove a specific mock and return true', () => {
+      const mock2 = createMock('electron.app.getVersion');
+      store.setMock(browserA, createMock('electron.app.getName'));
+      store.setMock(browserA, mock2);
+
+      expect(store.deleteMock(browserA, 'electron.app.getName')).toBe(true);
+      expect(store.getMocks(browserA)).toStrictEqual([['electron.app.getVersion', mock2]]);
+    });
+
+    it('should return false when deleting a non-existent mock', () => {
+      expect(store.deleteMock(browserA, 'non-existent')).toBe(false);
+    });
+
+    it("should leave another browser's mock of the same name", () => {
+      const mockB = createMock('electron.app.getName');
+      store.setMock(browserA, createMock('electron.app.getName'));
+      store.setMock(browserB, mockB);
+
+      expect(store.deleteMock(browserA, 'electron.app.getName')).toBe(true);
+      expect(store.getMocks(browserA)).toEqual([]);
+      expect(store.getMocks(browserB)).toStrictEqual([['electron.app.getName', mockB]]);
+    });
   });
 
-  it('should not be retrievable via the mock name', () => {
-    const testMock = { getMockName: () => 'mock name' } as unknown as ElectronMock;
-    mockStore.setMockWithKey('custom-key', testMock);
-    expect(() => mockStore.getMock('mock name')).toThrow('No mock registered for "mock name"');
-  });
-});
+  describe('clear', () => {
+    it("should remove every browser's mocks", () => {
+      store.setMock(browserA, createMock('electron.app.getName'));
+      store.setMock(browserB, createMock('electron.app.getVersion'));
 
-describe('deleteMockByRef', () => {
-  it('should delete the entry that holds the given mock reference', () => {
-    const testMock = { getMockName: () => 'ref mock' } as unknown as ElectronMock;
-    mockStore.setMockWithKey('composite-key', testMock);
+      store.clear();
 
-    const result = mockStore.deleteMockByRef(testMock);
-
-    expect(result).toBe(true);
-    expect(() => mockStore.getMock('composite-key')).toThrow('No mock registered for "composite-key"');
-  });
-
-  it('should return false when the reference is not found', () => {
-    const testMock = { getMockName: () => 'not stored' } as unknown as ElectronMock;
-    expect(mockStore.deleteMockByRef(testMock)).toBe(false);
-  });
-
-  it('should only delete the entry matching the reference, leaving others intact', () => {
-    const mock1 = { getMockName: () => 'mock 1' } as unknown as ElectronMock;
-    const mock2 = { getMockName: () => 'mock 2' } as unknown as ElectronMock;
-    mockStore.setMockWithKey('key-1', mock1);
-    mockStore.setMockWithKey('key-2', mock2);
-
-    mockStore.deleteMockByRef(mock1);
-
-    expect(() => mockStore.getMock('key-1')).toThrow();
-    expect(mockStore.getMock('key-2')).toBe(mock2);
-  });
-
-  it('should find the mock even when stored under a composite null-byte key', () => {
-    const testMock = { getMockName: () => 'channel mock' } as unknown as ElectronMock;
-    const compositeKey = `electron.get-user\x00${0}`;
-    mockStore.setMockWithKey(compositeKey, testMock);
-
-    const result = mockStore.deleteMockByRef(testMock);
-
-    expect(result).toBe(true);
-    expect(() => mockStore.getMock(compositeKey)).toThrow();
+      expect(store.getMocks(browserA)).toEqual([]);
+      expect(store.getMocks(browserB)).toEqual([]);
+    });
   });
 });

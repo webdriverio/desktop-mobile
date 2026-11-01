@@ -21,6 +21,9 @@ class MockServiceConfig extends ServiceConfig {
   set userDataDir(dir: string | undefined) {
     super.userDataDir = dir;
   }
+  instanceOptions(instanceCaps?: WebdriverIO.Capabilities) {
+    return super.instanceOptions(instanceCaps);
+  }
 }
 
 describe('ServiceConfig', () => {
@@ -58,6 +61,41 @@ describe('ServiceConfig', () => {
     const config = new MockServiceConfig({}, {});
     config.browser = browser;
     expect(config.browser).toStrictEqual(browser);
+  });
+
+  describe('instanceOptions', () => {
+    it("should merge an instance's options over the service-level ones field by field", () => {
+      const config = new MockServiceConfig(
+        { captureRendererLogs: true, rendererLogLevel: 'warn', mode: 'browser' },
+        {},
+      );
+
+      const options = config.instanceOptions({
+        'wdio:electronServiceOptions': { rendererLogLevel: 'debug', mode: 'native', appBinaryPath: '/apps/a' },
+      });
+
+      expect(options).toStrictEqual({
+        captureRendererLogs: true,
+        rendererLogLevel: 'debug',
+        mode: 'native',
+        appBinaryPath: '/apps/a',
+      });
+    });
+
+    it('should return the service-level options for an instance without its own', () => {
+      const config = new MockServiceConfig({ captureMainProcessLogs: true }, {});
+
+      expect(config.instanceOptions({ browserName: 'chrome' })).toStrictEqual({ captureMainProcessLogs: true });
+      expect(config.instanceOptions()).toStrictEqual({ captureMainProcessLogs: true });
+    });
+
+    it('should keep the service-level value for an option an instance sets to undefined', () => {
+      const config = new MockServiceConfig({ mode: 'browser', restoreMocks: true }, {});
+
+      expect(
+        config.instanceOptions({ 'wdio:electronServiceOptions': { mode: undefined, restoreMocks: undefined } }),
+      ).toStrictEqual({ mode: 'browser', restoreMocks: true });
+    });
   });
 
   describe('userDataDir extraction', () => {

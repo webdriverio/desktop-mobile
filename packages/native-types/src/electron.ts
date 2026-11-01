@@ -233,6 +233,11 @@ export interface ElectronServiceGlobalOptions
     | 'restoreMocksPrefix'
   > {
   /**
+   * Where the service looks for the app's `package.json`, searching upward. It reads the Electron version and the
+   * Forge or electron-builder config there. Defaults to WebdriverIO's `rootDir`, else the current working directory.
+   */
+  rootDir?: string;
+  /**
    * The path to the electron binary of the app for testing.
    */
   appBinaryPath?: string;

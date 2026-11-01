@@ -366,6 +366,21 @@ export interface TauriServiceGlobalOptions extends TauriServiceOptions, BaseServ
 export type TauriResult<T = unknown> = Result<T, string>;
 
 /**
+ * WebView2 environment options. With the `'external'` provider on Windows, tauri-driver passes them to
+ * msedgedriver as `ms:edgeOptions.webviewOptions`. The embedded provider ignores them.
+ */
+export interface TauriWebviewOptions {
+  /** Folder of a fixed-version WebView2 runtime to use. */
+  browserExecutableFolder?: string;
+  /** WebView2 user data folder. msedgedriver creates a temporary one when unset. */
+  userDataFolder?: string;
+  /** Arguments for the WebView2 browser process. Arguments for the app go in `args`. */
+  additionalBrowserArguments?: string[];
+  /** Preferred evergreen WebView2 runtime channel. */
+  releaseChannelPreference?: 'stable' | 'canary';
+}
+
+/**
  * Tauri service capabilities
  */
 export interface TauriServiceCapabilities {
@@ -373,10 +388,7 @@ export interface TauriServiceCapabilities {
   'tauri:options'?: {
     application: string;
     args?: string[];
-    webviewOptions?: {
-      width?: number;
-      height?: number;
-    };
+    webviewOptions?: TauriWebviewOptions;
   };
   'wdio:tauriServiceOptions'?: TauriServiceOptions;
 }
@@ -438,10 +450,7 @@ export interface TauriCapabilities extends WebdriverIO.Capabilities {
   'tauri:options'?: {
     application: string;
     args?: string[];
-    webviewOptions?: {
-      width?: number;
-      height?: number;
-    };
+    webviewOptions?: TauriWebviewOptions;
   };
   'wdio:tauriServiceOptions'?: TauriServiceOptions;
 }

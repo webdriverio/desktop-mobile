@@ -68,6 +68,7 @@ vi.mock('../src/crabnebulaBackend.js', () => ({
 import { mockPlatform, restorePlatform } from '@repo/test-utils';
 import { checkEmbeddedServerAlive, startEmbeddedDriver, stopEmbeddedDriver } from '../src/embeddedProvider.js';
 import TauriLaunchService from '../src/launcher.js';
+import type { TauriServiceOptions } from '../src/types.js';
 
 const APP_BINARY = '/app/my-app';
 const EMBEDDED_PORT = 4445;
@@ -380,6 +381,52 @@ describe('driverProvider validation', () => {
       name: 'SevereServiceError',
       message: `driverProvider must be 'embedded', 'external' or 'crabnebula', not "tauri-driver".`,
     });
+  });
+
+  const capWith = (options?: TauriServiceOptions) => ({
+    'tauri:options': { application: APP_BINARY },
+    ...(options && { 'wdio:tauriServiceOptions': options }),
+  });
+  const mixedProvidersMessage = (providers: string) =>
+    `All Tauri capabilities must use the same driverProvider, but found mixed providers: ${providers}. ` +
+    "Set driverProvider in the service options, or to the same value in every 'wdio:tauriServiceOptions' entry. " +
+    "An unset driverProvider is 'embedded'.";
+
+  it.each([
+    ['capabilities', () => [capWith({ driverProvider: 'external' }), capWith()]],
+    [
+      'multiremote instances',
+      () => ({
+        browserA: { capabilities: capWith({ driverProvider: 'external' }) },
+        browserB: { capabilities: capWith() },
+      }),
+    ],
+  ])('should reject %s that resolve to different providers', async (_shape, capabilities) => {
+    const launcher = new TauriLaunchService({}, caps, { capabilities: [] });
+    await expect(launcher.onPrepare({ capabilities: [] }, capabilities() as never)).rejects.toMatchObject({
+      name: 'SevereServiceError',
+      message: mixedProvidersMessage('external, embedded'),
+    });
+    expect(startEmbeddedDriver).not.toHaveBeenCalled();
+  });
+
+  it("should compare each capability's provider over the service-level one", async () => {
+    const launcher = new TauriLaunchService({ driverProvider: 'external' }, caps, { capabilities: [] });
+    const capabilities = [capWith(), capWith({ driverProvider: 'crabnebula' })];
+    await expect(launcher.onPrepare({ capabilities: [] }, capabilities)).rejects.toMatchObject({
+      message: mixedProvidersMessage('external, crabnebula'),
+    });
+  });
+
+  it('should accept an unset provider alongside an explicit embedded one', async () => {
+    vi.mocked(startEmbeddedDriver).mockResolvedValue(stubDriverInfo);
+    const launcher = new TauriLaunchService({}, caps, { capabilities: [] });
+    const capabilities = {
+      browserA: { capabilities: capWith({ driverProvider: 'embedded' }) },
+      browserB: { capabilities: capWith() },
+    };
+    await launcher.onPrepare({ capabilities: [] }, capabilities);
+    expect(startEmbeddedDriver).toHaveBeenCalledTimes(2);
   });
 });
 

@@ -1,4 +1,4 @@
-import type { ElectronMock } from '@wdio/native-types';
+import type { ElectronFunctionMock } from '@wdio/native-types';
 import { vi } from 'vitest';
 
 export type Deferred<T> = {
@@ -68,8 +68,37 @@ export function createFakeBrowser(): FakeBrowser {
   return browser;
 }
 
+export interface FakeMultiremoteBrowser extends FakeBrowser {
+  isMultiremote: true;
+  instances: string[];
+  getInstance: (name: string) => FakeBrowser;
+}
+
+/** A multiremote root and its instances, each requested with the given capabilities. */
+export function createFakeMultiremoteBrowser(instanceCaps: Record<string, WebdriverIO.Capabilities>): {
+  root: FakeMultiremoteBrowser;
+  instances: Map<string, FakeBrowser>;
+} {
+  const instances = new Map<string, FakeBrowser>();
+  for (const [name, caps] of Object.entries(instanceCaps)) {
+    instances.set(name, Object.assign(createFakeBrowser(), { requestedCapabilities: caps }));
+  }
+  const root = Object.assign(createFakeBrowser(), {
+    isMultiremote: true as const,
+    instances: [...instances.keys()],
+    getInstance: (name: string) => {
+      const instance = instances.get(name);
+      if (!instance) {
+        throw new Error(`No multiremote instance "${name}"`);
+      }
+      return instance;
+    },
+  });
+  return { root, instances };
+}
+
 export interface FakeMock {
-  mock: ElectronMock;
+  mock: ElectronFunctionMock;
   update: ReturnType<typeof vi.fn>;
 }
 
@@ -83,7 +112,7 @@ export function createFakeMock(name: string): FakeMock {
   const mock = {
     getMockName: () => name,
     update,
-  } as unknown as ElectronMock;
+  } as unknown as ElectronFunctionMock;
   return { mock, update };
 }
 

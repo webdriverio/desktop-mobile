@@ -97,6 +97,19 @@ function mergeOptions(
   return mergeServiceOptions(globalOptions, capabilityOptions);
 }
 
+function assertSingleDriverProvider(globalOptions: TauriServiceGlobalOptions, capsList: TauriCapabilities[]): void {
+  const providers = new Set(
+    capsList.map((cap) => mergeOptions(globalOptions, cap['wdio:tauriServiceOptions']).driverProvider ?? 'embedded'),
+  );
+  if (providers.size > 1) {
+    throw new SevereServiceError(
+      `All Tauri capabilities must use the same driverProvider, but found mixed providers: ${[...providers].join(', ')}. ` +
+        "Set driverProvider in the service options, or to the same value in every 'wdio:tauriServiceOptions' entry. " +
+        "An unset driverProvider is 'embedded'.",
+    );
+  }
+}
+
 /**
  * Options for setting up readline-based log handling
  */
@@ -152,6 +165,7 @@ export default class TauriLaunchService {
 
     const instances = normaliseInstanceCaps(capabilities);
     const capsList = instances.map(({ caps }) => caps);
+    assertSingleDriverProvider(this.options, capsList);
 
     // Determine provider type
     const firstCap = capsList[0];
@@ -243,7 +257,7 @@ export default class TauriLaunchService {
     }
 
     // Validate capabilities and resolve each one's app binary and args.
-    let firstResolved: { binaryPath: string; env?: Record<string, string> } | undefined;
+    let firstResolved: { binaryPath: string; env?: Record<string, string>; browserExecutableFolder?: string } | undefined;
     // Resolved per capability, in the order of `instances`
     const apps: Array<{ appBinaryPath: string; appArgs: string[] }> = [];
     for (const cap of capsList) {
@@ -266,7 +280,11 @@ export default class TauriLaunchService {
       const tauriOptions = cap['tauri:options'];
       const appBinaryPath = resolveAppBinaryPath(instanceOptions, tauriOptions);
       log.debug(`App binary: ${appBinaryPath}`);
-      firstResolved ??= { binaryPath: appBinaryPath, env: instanceOptions.env };
+      firstResolved ??= {
+        binaryPath: appBinaryPath,
+        env: instanceOptions.env,
+        browserExecutableFolder: tauriOptions?.webviewOptions?.browserExecutableFolder,
+      };
 
       // tauri-driver launches the app from tauri:options, so the resolved binary and args go there, in a
       // copy: capabilities can share one tauri:options object, and each needs its own values.
@@ -286,10 +304,11 @@ export default class TauriLaunchService {
       const autoDownloadEdgeDriver = this.options.autoDownloadEdgeDriver ?? true;
       log.debug('Checking Edge WebDriver compatibility...');
       // msedgedriver is machine-global, so the version pin is service-level only. The fixed-runtime
-      // folder comes from the env the first capability's app gets.
+      // folder comes from the first capability, like the binary: its webviewOptions, or the env its app gets.
       const edgeDriverResult = await ensureMsEdgeDriver(firstResolved.binaryPath, autoDownloadEdgeDriver, {
         edgeDriverVersion: this.options.edgeDriverVersion,
         env: firstResolved.env,
+        browserExecutableFolder: firstResolved.browserExecutableFolder,
       });
 
       if (isErr(edgeDriverResult)) {

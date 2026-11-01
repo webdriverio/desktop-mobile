@@ -476,6 +476,37 @@ describe('Multiremote Mode - Integration', () => {
 
       expect((launcher as any).getTauriDriverStatus().running).toBe(true);
     });
+
+    it('should reject instances that resolve to different providers before starting a driver', async () => {
+      launcher = new TauriLaunchService(
+        { driverProvider: 'external' },
+        { browserName: 'tauri', 'tauri:options': { application: '/app' } },
+        { maxInstances: 1 },
+      );
+
+      const capabilities = {
+        browserA: {
+          capabilities: {
+            browserName: 'tauri',
+            'tauri:options': { application: '/app' },
+          } as TauriCapabilities,
+        },
+        browserB: {
+          capabilities: {
+            browserName: 'tauri',
+            'tauri:options': { application: '/app' },
+            'wdio:tauriServiceOptions': { driverProvider: 'embedded' },
+          } as TauriCapabilities,
+        },
+      };
+
+      await expect((launcher as any).onPrepare({}, capabilities)).rejects.toMatchObject({
+        name: 'SevereServiceError',
+        message: expect.stringContaining('found mixed providers: external, embedded.'),
+      });
+      expect(ensureTauriDriver).not.toHaveBeenCalled();
+      expect((launcher as any).getTauriDriverStatus().running).toBe(false);
+    });
   });
 
   describe('CrabNebula provider', () => {

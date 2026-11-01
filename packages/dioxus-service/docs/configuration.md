@@ -34,7 +34,7 @@ appBinaryPath: './target/dx/my_app/debug/linux/app/my_app',    // debug build (d
 appBinaryPath: './target/dx/my_app/release/linux/app/my_app',  // release build (driver and bridge inactive)
 ```
 
-**Default:** Auto-detected from `dioxus:options.application` capability if not provided.
+**Default:** none. A capability's `'dioxus:options'.application` takes precedence over it, and one of the two must be set.
 
 **Note:** For testing, always use a debug build (`dx build --desktop` without `--release`) so the driver and bridge are compiled in. See [Finding Your Binary Path](#finding-your-binary-path) for the location on each platform. Other examples on this page use `./target/debug/my_app` for brevity; that's where `cargo build` puts the binary, which only works for apps that don't load files with `asset!()`.
 
@@ -43,6 +43,8 @@ appBinaryPath: './target/dx/my_app/release/linux/app/my_app',  // release build 
 ### `appArgs` (string[], optional)
 
 Command-line arguments to pass to the Dioxus application when launching. Each array element is a separate argument — no shell parsing is applied.
+
+A capability's `'dioxus:options'.args` replaces this list, even when it's empty.
 
 **Example:**
 ```typescript
@@ -298,10 +300,6 @@ capabilities: [
     'dioxus:options': {
       application: './target/debug/my_app',
       args: ['--debug'],
-      webviewOptions: {
-        width: 1280,
-        height: 800,
-      },
     },
     'wdio:dioxusServiceOptions': {
       windowLabel: 'main',
@@ -313,12 +311,10 @@ capabilities: [
 
 ### `dioxus:options` Fields
 
-| Field                   | Type     | Required | Description                     |
-| ----------------------- | -------- | -------- | ------------------------------- |
-| `application`           | string   | Yes      | Path to the Dioxus app binary   |
-| `args`                  | string[] | No       | Arguments passed to the app     |
-| `webviewOptions.width`  | number   | No       | Initial window width in pixels  |
-| `webviewOptions.height` | number   | No       | Initial window height in pixels |
+| Field         | Type     | Required | Description                                               |
+| ------------- | -------- | -------- | --------------------------------------------------------- |
+| `application` | string   | Yes      | Path to the Dioxus app binary                             |
+| `args`        | string[] | No       | Arguments passed to the app. Replaces `appArgs` when set. |
 
 ### Multiremote Configuration
 

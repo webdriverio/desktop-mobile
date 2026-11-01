@@ -142,6 +142,8 @@ export interface ResolveEdgeVersionOptions {
   edgeDriverVersion?: string;
   /** The app's runtime env; the resolver reads `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER` from it. */
   env?: Record<string, string>;
+  /** `tauri:options.webviewOptions.browserExecutableFolder`, which msedgedriver hands to the app. */
+  browserExecutableFolder?: string;
 }
 
 export interface ResolvedEdgeVersion {
@@ -156,8 +158,9 @@ const EDGEDRIVER_VERSION_ENV = 'EDGEDRIVER_VERSION';
 /**
  * Decide which Edge/WebView2 version msedgedriver should match, in precedence order:
  *   1. an explicit driver pin (`edgeDriverVersion` option / `EDGEDRIVER_VERSION`) — used verbatim;
- *   2. a fixed-version runtime folder (`WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`) — the app renders with
- *      that runtime, not the machine's Evergreen, so its version is what the driver must match;
+ *   2. a fixed-version runtime folder (`webviewOptions.browserExecutableFolder`, else
+ *      `WEBVIEW2_BROWSER_EXECUTABLE_FOLDER`) — the app renders with that runtime, not the machine's
+ *      Evergreen, so its version is what the driver must match;
  *   3. the Evergreen runtime from the registry (the default).
  * The folder env is read with the app's own precedence — `options.env` over `process.env`
  * (`{ ...process.env, ...options.env }`) — so the resolver sees the folder the app actually uses.
@@ -175,14 +178,18 @@ export async function resolveTargetEdgeVersion(
     );
   }
 
-  const fixedFolder = options.env?.[WEBVIEW2_FOLDER_ENV] ?? process.env[WEBVIEW2_FOLDER_ENV];
+  const fixedFolder =
+    options.browserExecutableFolder ?? options.env?.[WEBVIEW2_FOLDER_ENV] ?? process.env[WEBVIEW2_FOLDER_ENV];
   if (fixedFolder) {
     const version = await detectFixedRuntimeVersion(fixedFolder);
     if (version) {
       return { version, source: 'fixed-runtime' };
     }
+    const folderSetting = options.browserExecutableFolder
+      ? 'webviewOptions.browserExecutableFolder'
+      : WEBVIEW2_FOLDER_ENV;
     log.warn(
-      `${WEBVIEW2_FOLDER_ENV} is set (${fixedFolder}) but no readable ${FIXED_RUNTIME_EXE} was found ` +
+      `${folderSetting} is set (${fixedFolder}) but no readable ${FIXED_RUNTIME_EXE} was found ` +
         'in it — falling back to the Evergreen runtime version.',
     );
   }

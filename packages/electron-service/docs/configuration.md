@@ -126,6 +126,13 @@ When this option is provided, the service will load this specific configuration 
 Type: `string`
 Example: `'config/electron-builder-staging.config.js'`
 
+### `rootDir`:
+
+Where the service looks for your app's `package.json`, searching upward from it. It reads the `electron` dependency there to choose the Chromedriver version, and the Electron Forge or electron-builder config to [find your app binary](#automatic-detection-of-app-binary). Set it when your WebdriverIO config isn't next to your app's `package.json`, as in a monorepo, or in [standalone mode](./standalone-mode.md), which has no WebdriverIO config.
+
+Type: `string`
+Default: WebdriverIO's `rootDir`, else the current working directory
+
 ### `devServerUrl`:
 
 The URL of the Vite (or webpack) dev server to navigate to when `mode` is `'browser'`. Must be a valid URL; the service throws a `SevereServiceError` at startup if the value is missing or malformed.
@@ -174,6 +181,8 @@ Calls .mockRestore() on all mocked APIs before each test. This will restore the 
 
 Type: `boolean`
 Default: `false`
+
+**Multiremote:** each instance applies the `clearMocks`, `resetMocks` and `restoreMocks` options from its own `wdio:electronServiceOptions` to its own mocks. An instance that doesn't set an option uses the service-level value, which also applies to mocks created on the multiremote root.
 
 ### `cdpBridgeTimeout`:
 
@@ -392,6 +401,8 @@ Output:
 [Electron:MainProcess:app1] App 1 started
 [Electron:MainProcess:app2] App 2 started
 ```
+
+Each instance applies `captureMainProcessLogs`, `captureRendererLogs`, `mainProcessLogLevel` and `rendererLogLevel` from its own `wdio:electronServiceOptions`. An instance that doesn't set one uses the service-level value, so service-level capture covers every instance.
 
 ## Log Capture Requirements
 
